@@ -20,7 +20,8 @@ answers with the install command instead of a wrong number.
 Open `/cockpit/?app=circuit-lab`.
 
 1. **Start** — *New circuit*, or pick an example: a switched LED, an RC charge, a motor with a
-   3:1 gearbox, a PWM motor drive.
+   3:1 gearbox, a PWM motor drive, or the spider-18 power system (18 bus servos on a 3S pack with the
+   Raspberry Pi behind its buck; ADR-202).
 2. **Build** — drag a part from the palette onto the canvas (or click it), drag it into place,
    click one pin then another to wire them (electrical to electrical; shaft to shaft couples two parts; teeth to
    teeth meshes two gears). Select a part to edit its properties in the right rail — a motor,
@@ -69,7 +70,8 @@ a source line per number — and where another package already owns a real part,
 instead of describing it again (the SG90 is animatronics', identity, mass, price and all; this lab
 adds only the operating point it solves at and the reflected rotor inertia; the two brushless drone
 motors are embodied's, identity, mass, price and KV, and this lab adds its electrical model and
-operating point). Without the owning package its rows are withheld naming the owner, and the rest
+operating point; the STS3215 bus servo is embodied's too, read from its jointDrive block, and this
+lab adds the 12 V electrical block it solves with). Without the owning package its rows are withheld naming the owner, and the rest
 of the catalog is unaffected. The full
 contract, the models and the gear-train reflection are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -106,7 +108,9 @@ known numbers. Re-run it whenever the page reports the engine is out of date.
 | `tests/surface-bridge.test.js` | the assistant rail: the manifest's surface ops and delegate mode, the page's context op and `circuit_action` vocabulary under the contract's caps, the digest cap on a 200-part circuit | plain node — store-ci |
 | `tests/shared-parts.test.js` | a row that names another package as a part's owner READS it: against the real tree this lab's SG90 equals animatronics' own row (read back through animatronics' loader), against a fixture packages root the answer moves with the owner's numbers (the SG90's and the embodied motors'), an absent or unanswerable owner withholds that row naming the owner, and restating an owned field or leaving the owner's voltage window is refused with the field named. It also copies this package ALONE into an empty directory and runs its own catalog suite there, because a single-package install is how store packages install and must not read as a red package | plain node — store-ci |
 
-All eleven are registered in `tests/test-lab.yaml` with their real prerequisites. The 0.6.0 verification
+| `tests/hexapod-power.test.js` | the spider-18 power example validates and lays out, the STS3215 shared row resolves and is withheld by name, and on the real engine the stance, the stall and the 5 V rail solve inside stated bounds (ADR-202; `docs/evaluations/2026-10-30-hexapod-power.md`) | plain node, the real engine when present |
+
+All twelve are registered in `tests/test-lab.yaml` with their real prerequisites. The 0.6.0 verification
 state — which suites have run where, and how to finish the real-solver run and the install — is in
 [docs/continuing-0.6.0.md](docs/continuing-0.6.0.md).
 

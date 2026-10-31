@@ -1,0 +1,411 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — design-studio ("Design Studio")
+#
+# The design-to-build PROCESS as one application, for anything (ADR-203): a
+# product is a brief plus a chain of phases from a fixed vocabulary (brief,
+# design, mechanical, electrical, sensors, controller, simulate, fabricate,
+# build), each phase bound to the engine whose artifact it produces (CAD
+# Studio, Circuit Lab, embodied's plant / node / gate, the print service) or
+# `reasoned` when no engine on the swarm solves it. A phase's stage is computed
+# when the page is read, from the engine's own reply through the person's
+# session, never stored; a phase closes on a measured verdict recorded with the
+# engine's evidence line and the artifact revision. The spider ADR-202 built is
+# the first product (example spider-18); the hanger is four phases.
+#
+# THIS PACKAGE OWNS NO ENGINE AND COPIES NONE: it stores projects, briefs,
+# bindings and closures per person (private tables) and reads the engines
+# through their own routes. The concierge is the design partner on the right
+# rail, working side by side through every phase with the package's tools.
+#
+# Framework: OSHAL (see docs/adr/203-design-studio-the-build-process-as-one-application.md,
+# docs/adr/202-design-to-test-one-toolset-from-cad-to-a-trained-robot.md,
+# docs/adr/036-bot-owned-application-architecture.md)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 0.1.0: the package (ADR-203 D1-D6, lane @ds-app): projects, the phase vocabulary, bindings, closures, the body contract, the four screens (Products, New product, Product, Settings), the design partner, the spider-18 example.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: Fabricate makes the print set for any product (ADR-203 D7, lane @ds-fab): every Design-phase part with a program is exported once through CAD Studio with the person's own session, this package checks each STL watertight and writes the sheet (from the parts' own fields), the BOM and a sha256 manifest under its lasting directory (lastingStorage), serves them by name, and sends one file to the printer chosen in Settings through the print service; a part without a program is listed unprintable. New routes under /projects/{id}/print-set, no new mount.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: the plant comes from the design, for any machine (ADR-203 D9, lane @ds-plant): the Design phase gains a MECHANISM (the part that is ground, the joints between parts, which bought motor row drives each through what ratio, the payload, the task read from the brief's line) on a Mechanism screen and through the tool design-set-mechanism (migration 002, routes under /projects/{id}/mechanism, no new mount); the Simulate poster of a CAD-bound product builds the plant in embodied's engine from the mechanism, the kernel's part reports and the motor row, runs the PD baseline, trains a reach policy and certifies it through embodied's gate (Build the plant, Run the baselines, Train the policy, Certify); the body contract carries the plant's actuators from the row; the lift (example lift-1) is the first machine through it.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: self-contained. The design partner reaches the engines through engine orders the person's open page runs with their session (migration 003, tools design-engine-order and design-order-status); no other project is named anywhere in the package; the engines open beside the page on the right record.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: an engine restart keeps a certified poster certified and offers Build the plant, instead of reading concept while the certificate sits on the volume.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (found on the owner's own account): a product designed in CAD Studio gets the plant path, not only the lift example; the Controller poster closes on the plant; parts the partner builds carry a part id the mechanism names; order open; a read of a running order waits; a new product appears without a reload.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3 (found on the owner's own account): a mechanism changed after the plant was built reads stale and offers Build the plant; reports from an older plant no longer count.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4: an order reads the poster fresh before it presses; a training poster follows by itself; the partner does what the person asks out of chain order and says what is still open.
+name: design-studio
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
+# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
+# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: design-partner-chat
+      unit: design partner chat turn
+      tier: T4
+      generation: none
+      degrade: disable
+displayName: Design Studio
+description: >-
+  The design-to-build process as one application, for anything. A product is a
+  brief plus a chain of phases (brief, design, mechanical, electrical, sensors,
+  controller, simulate, fabricate, build), each bound to the engine that produces
+  its artifact (CAD Studio, Circuit Lab, embodied's plant and gate, the print
+  service) or marked reasoned when no engine here solves it. Every phase is a
+  poster whose stage is read from the engine when the page opens and never
+  stored, with one button; a phase closes on a measured verdict recorded with the
+  engine's evidence line and the artifact revision. The design partner on the
+  right rail works through the chain with you. The spider is the first product;
+  a lifting machine is the first whose plant is generated from its own design.
+version: 0.4.4
+status: active
+scope: person
+# The print set (ADR-203 D7) is written under this package's own lasting directory on the native kernel
+# (OSHAL_PACKAGE_DATA_DIR, one hashed folder per person, one set per product); without it the sandbox
+# keeps nothing between requests. Elsewhere DESIGN_STUDIO_DATA_DIR or the shared workspace root.
+lastingStorage: true
+
+uses: [test-catalog, app-dependencies]
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: design-studio
+  ref: main
+
+# CORE-05 install readiness is service-authenticated and reads package metadata only.
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/design-studio/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+# No connector allow-list: the inputs are the person's own words and the engines' answers.
+# ── Cross-package prerequisites: what this package actually reaches ─────────
+# OPTIONAL, NOT REQUIRED: tools/design-studio-stages.js reads, through the person's own
+# session, /api/embodied/build/hexapod, /physics/status, /physics/reports, /physics/hexapod/mjcf
+# and posts /physics/hexapod/check and /certify; for a product with a mechanism (D9) it reads
+# /api/embodied/build/catalog, /physics/plant/state and /physics/plant/train and posts
+# /physics/plant/load, /train and /certify; /api/circuit-lab/designs and /examples;
+# /api/cad-studio/models; /api/scan-to-print/printers. Absent, the poster bound to that engine
+# reads "no engine on this swarm for this phase" and everything else still renders.
+# tools/design-studio-fabricate.js (D7) posts /api/cad-studio/models (one part per program, tagged),
+# reads /models/{id}/artifacts/stl, and posts one file to /api/scan-to-print/service/print - all with
+# the person's session; this package's routes reach no engine and no sibling package.
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: [cad-studio, circuit-lab, embodied, scan-to-print]   # the engines a phase may bind to; absent, that poster says so
+    tools: []
+    connectors: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOTS — one INLINE concierge (no container: reasoning rides the caller's hosted/BYO brain
+# through the framework's accounted path). It works the chain with the person through the
+# package's own tools; the engines do every measurement.
+# ─────────────────────────────────────────────────────────────────────────────
+bots:
+  - agentId: 3e9b6c1a-7d42-4f0b-9a58-61c0d2e4f7a3
+    name: design-partner
+    persona: personas/design-partner.yaml
+    role: engineering/design-partner
+    jarvisMode: delegate
+    capabilities:
+      - phase-chain-planning
+      - artifact-binding
+      - verdict-reading
+      - closure-recording
+    selectorDescriptor: >-
+      Select for the Design Studio app ONLY: planning or revising a product's phase chain from its
+      brief, reading which phase a product is on and what its engine measured, binding an engine's
+      artifact (a CAD part, a circuit run, a training report, a certificate, a print set) to a phase,
+      closing a phase on a measured verdict, or explaining what a phase must produce and what closes
+      it. Do NOT select for editing a CAD part (cad-studio-designer), a circuit (circuit-lab-engineer),
+      or the simulated world (embodied-operator).
+    routingKeywords:
+      - design studio
+      - product
+      - phase
+      - brief
+      - build process
+      - mechanical spec
+      - power spec
+      - fabricate
+      - print set
+      - bench
+      - mechanism
+      - plant
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed. Reads are free; writes edit ONLY the caller's own projects, and a
+# closure is refused without the engine's evidence line and the artifact revision.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: design-list-projects
+    displayName: List Products
+    type: api
+    category: engineering
+    description: The caller's products with name, brief, phase chain (kind and engine per phase) and how many phases are closed.
+    executor: { executorType: api, apiEndpoint: "GET /api/design-studio/projects" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Owner-scoped. Use it to find the projectId the person is talking about; ask when two products could match.
+    routingTags: [design, products, list]
+    tags: [design-studio, route-backed]
+
+  - name: design-get-project
+    displayName: Read a Product
+    type: api
+    category: engineering
+    description: One product in full - the brief, the chain in order, the newest binding per phase (engine, artifact reference, the engine reply excerpt it was read from) and every closure with its evidence line and revision.
+    executor: { executorType: api, apiEndpoint: "GET /api/design-studio/projects/{input.projectId}" }
+    inputSchema:
+      type: object
+      properties: { projectId: { type: string, description: "the product's id (UUID)" } }
+      required: [projectId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Quote bindings and closures from this reply; a phase with no closure is open whatever its stage reads.
+    routingTags: [design, product, read]
+    tags: [design-studio, route-backed]
+
+  - name: design-create-project
+    displayName: Create a Product
+    type: api
+    category: engineering
+    description: Create a product from a brief ({name, brief:{what, requirements:[one per line], targets:{massG, sizeMm, costUsd, runtimeMin}}}; the chain is proposed from the requirement lines unless phases is given) or from an example ({example:"spider-18"}, bound by name to what ADR-202 built).
+    executor: { executorType: api, apiEndpoint: "POST /api/design-studio/projects" }
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, description: "the product's name" }
+        brief: { type: object, description: "{what, requirements[], targets{}}" }
+        phases: { type: array, description: "optional chain [{kind, engine}] in vocabulary order" }
+        example: { type: string, description: "an example id (spider-18) instead of a brief" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read the person's words into requirements, one per line. The reply carries the new projectId and the proposed chain with the reason per phase; keep using the id.
+    routingTags: [design, create, product, brief]
+    tags: [design-studio, route-backed]
+
+  - name: design-plan-phases
+    displayName: Plan the Phases
+    type: api
+    category: engineering
+    description: Set a product's chain - [{kind, engine}] from the vocabulary (brief, design, mechanical, electrical, sensors, controller, simulate, fabricate, build) in that order; the engine per phase is cad-studio, circuit-lab, embodied, scan-to-print or reasoned.
+    executor: { executorType: api, apiEndpoint: "PUT /api/design-studio/projects/{input.projectId}/phases" }
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        phases: { type: array, description: "[{kind, engine, why?, brain?, printerId?}]" }
+      required: [projectId, phases]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Brief and build are always in the chain. Add a phase when a requirement line asks for it; set reasoned when no engine on this swarm measures it and say so.
+    routingTags: [design, phases, plan, chain]
+    tags: [design-studio, route-backed]
+
+  - name: design-bind-artifact
+    displayName: Bind an Artifact
+    type: api
+    category: engineering
+    description: Bind what an engine produced to a phase - {phase, artifact:{engine, kind, ...reference by id or name, read:{route, readAt, revision, ...the engine reply excerpt}}}. The read excerpt is what the body contract publishes.
+    executor: { executorType: api, apiEndpoint: "POST /api/design-studio/projects/{input.projectId}/bind" }
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        phase: { type: string, description: "a kind in the product's chain" }
+        artifact: { type: object, description: "{engine, kind, ...reference, read?}" }
+      required: [projectId, phase, artifact]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Put only numbers you READ from an engine's tool reply in artifact.read, with the route and the moment; never a number from memory. Each bind is a new revision of that phase's binding.
+    routingTags: [design, bind, artifact]
+    tags: [design-studio, route-backed]
+
+  - name: design-close-phase
+    displayName: Close a Phase
+    type: api
+    category: engineering
+    description: Record a phase's closure on a measured verdict - {phase, evidence, revision}. Refused as missing_evidence without BOTH the engine's evidence line and the artifact revision it was read from. The build phase closes one checklist {step} at a time.
+    executor: { executorType: api, apiEndpoint: "POST /api/design-studio/projects/{input.projectId}/close" }
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        phase: { type: string }
+        evidence: { type: string, description: "the engine's evidence line, in its numbers and unit" }
+        revision: { type: string, description: "the artifact revision the evidence was read at" }
+        step: { type: string, description: "build phase only: the checklist step ticked" }
+        by: { type: string, description: "who closes; defaults to person" }
+      required: [projectId, phase, evidence, revision]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Close only when the phase brief's bar is met by an engine reply you read. Pass by:"design-partner" when you close. Never close the build phase's steps without the person saying the bench did them.
+    routingTags: [design, close, verdict]
+    tags: [design-studio, route-backed]
+
+  - name: design-engine-order
+    displayName: Order Work from an Engine
+    type: api
+    category: engineering
+    description: >-
+      Do work in CAD Studio, Circuit Lab, embodied or the print service through the person's open product page, with
+      their session. {projectId, action, input}. action open, input {} - opens the product on the page and answers every poster's stage and button. action read, input {what} - cad-contract, cad-models, cad-model
+      {modelId}, circuit-contract, circuit-examples, circuit-drivers, circuit-designs, circuit-design {designId},
+      motor-catalog, physics-status, physics-reports, printers. action cad-create, input {name, base, features} -
+      builds a part on the CAD kernel and binds it to Design; the reply's design.partId is the id design-set-mechanism names it by. action cad-edit, input {modelId, op add|update|remove,
+      featureId, feature}. action circuit-create, input {example} or {title, parts, wires} - solves it and binds it to
+      Electrical. action circuit-edit, input {designId, op add_part|update_part|remove_part|connect|disconnect|run,
+      partId, wireId, body}. action press, input {phase, button} - Create the parts in CAD Studio, Build the plant, Run
+      the baselines, Train the policy, Certify or Make the print set. The reply is the engine's own answer.
+    executor: { executorType: api, apiEndpoint: "POST /api/design-studio/projects/{input.projectId}/orders" }
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        action: { type: string, enum: [open, read, cad-create, cad-edit, circuit-create, circuit-edit, press] }
+        input: { type: object }
+      required: [projectId, action, input]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: >-
+      Read cad-contract or circuit-contract before writing a part or a circuit; never invent a feature or part type. Quote
+      the numbers from the reply. A reply with note says nothing ran yet: tell the person to open this product in Design
+      Studio. A long order answers running: read it once with design-order-status, which waits; if it still runs, tell the person the poster will show the result and end the turn, and never poll.
+    routingTags: [design, engine, cad, circuit, simulate, fabricate]
+    tags: [design-studio, route-backed]
+
+  - name: design-order-status
+    displayName: Read an Engine Order
+    type: api
+    category: engineering
+    description: One engine order by id with its status (pending, running, done, failed) and the engine's reply; holds up to 45 s while it runs.
+    executor: { executorType: api, apiEndpoint: "GET /api/design-studio/projects/{input.projectId}/orders/{input.orderId}?wait=1" }
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        orderId: { type: string }
+      required: [projectId, orderId]
+    defaultAuthMode: auto
+    requiresApproval: false
+    routingTags: [design, engine]
+    tags: [design-studio, route-backed]
+
+  - name: design-set-mechanism
+    displayName: Set the Mechanism
+    type: api
+    category: engineering
+    description: Write a product's mechanism (ADR-203 D9) - {mechanism:{parts:[{id, name}], base, joints:[{id, parent, child, type:hinge|slide|fixed, axis, rangeRad|rangeM, originMm, drivenBy:<motor row id>|null, gearRatio}], motors:[{rowId, source:embodied|circuit-lab}], payload:{massKg, attachedTo}, task?}}; the task is read from the brief's line ("lifts 2 kg to 300 mm in 5 s") when not given. Refused by name - part_not_bound, unknown_motor, cycle, bad_mechanism naming the field.
+    executor: { executorType: api, apiEndpoint: "PUT /api/design-studio/projects/{input.projectId}/mechanism" }
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        mechanism: { type: object, description: "{parts, base, joints, motors, payload, task?}" }
+      required: [projectId, mechanism]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: The parts are the Design phase's bound CAD Studio parts by id; the motor rows are embodied's (GET /api/embodied/build/catalog) or Circuit Lab's; the gear ratio is the design's statement (motor radians per joint radian, or per metre on a slide). The plant is built from the Simulate poster (Build the plant) with the person's session; read it back with design-get-project.
+    routingTags: [design, mechanism, joints, motor, plant]
+    tags: [design-studio, route-backed]
+
+  - name: design-phase-brief
+    displayName: Phase Brief
+    type: api
+    category: engineering
+    description: What a phase must produce, which engines can, what closes it, the product's own brief, the phase's binding and closures.
+    executor: { executorType: api, apiEndpoint: "GET /api/design-studio/projects/{input.projectId}/phase-brief/{input.kind}" }
+    inputSchema:
+      type: object
+      properties:
+        projectId: { type: string }
+        kind: { type: string, description: "a kind from the vocabulary" }
+      required: [projectId, kind]
+    defaultAuthMode: auto
+    requiresApproval: false
+    usageInstructions: Read it before working a phase. inChain false means the product's chain does not carry the phase.
+    routingTags: [design, phase, brief]
+    tags: [design-studio, route-backed]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COCKPIT UI SURFACE — one ribbon tile opens the studio, self-served by this package's route.
+# ─────────────────────────────────────────────────────────────────────────────
+ui:
+  static:
+    - toolName: design-studio
+      label: Design Studio
+      icon: codicon codicon-tools
+      iframeUrl: /api/design-studio/app
+      section: top
+
+# The assistant rail (surface-bridge): the page publishes what it shows (context), takes the
+# design partner's custom ops (open a product, reload) and renders its notices.
+surface:
+  ops: [context, custom, notify]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ROUTES — compiled JS bundled in this package, mounted in-process. OIDC only.
+# ─────────────────────────────────────────────────────────────────────────────
+routes:
+  - module: routes/home-summary.js
+    factory: createHomeSummaryRoutes
+    mountPath: /api/design-studio/home-summary
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/design-studio/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/design-studio-routes.js
+    factory: createDesignStudioRoutes
+    mountPath: /api/design-studio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+# The app's own schema (projects, bindings, closures) with owner RLS, applied on install.
+migrations:
+  - migrations/001-design-studio.sql
+  - migrations/002-design-mechanism.sql
+  - migrations/003-design-order.sql
+
+# The right-rail chat agent when this app is focused.
+chatBot: design-partner
+
+# RIBBON VISIBILITY — focus mode for /cockpit?app=design-studio (chat panel stays: the design
+# partner is how the person works side by side).
+ribbon:
+  hideFrameworkItems:
+    - tickets
+    - calendar
+    - addressbook
+    - dashboard
+    - logs
+    - operations
+  defaultView: design-studio
+
+summary:
+  path: /api/design-studio/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items

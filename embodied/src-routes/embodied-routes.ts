@@ -31,11 +31,18 @@
  * 17 | maintainer@emeraldcoastsystemsgroup.com  | Native kernel (no network in the sandbox): the physics bridge goes through the kernel's engine.exchange intent. `/physics/status`, `/physics/reports`, `/physics/certify` and the arm check read the engine without blocking (both links); a physics world, which steps synchronously, answers an honest 503 natively.
  * 18 | maintainer@emeraldcoastsystemsgroup.com  | Lost completion writes (K4): the native pool is bound to the admitted request and only a writer (non-GET) admission may mutate, so the execution timer's fire-and-forget status update, every command-log insert made between requests and any write from a GET read were refused: a finished task stayed `executing` at step 0 and Home counted 0 completed. The world's writes now queue on the session; every POST (draft, execute, abort, control, command, scan, certify and the new POST /writes/settle) persists them in order before it answers, the state read reports `control.pendingWrites` so the surface posts the settle, and GET /tasks, /tasks/:id and the Home summary overlay a queued outcome instead of answering a stale `executing`. E-stop closes the task through the same queue. Off the native kernel the timer still settles on its own.
  * 19 | maintainer@emeraldcoastsystemsgroup.com  | K4 review: POST /tasks/:id/abort left the task `executing` at step 0 for good. The plan executor sets `aborted` inside abort(), so the advance that followed never saw running->aborted and nothing queued the final status (Home counted 0 stopped). The abort route now closes the task through finishTask with the executor's step and failure ("aborted by a human") before it settles, the same way e-stop does.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202: the spider-18 physics routes (mjcf, check) registered beside the arm's.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202: the spider-18 design routes (build/hexapod, design.md, parts, bom.csv) registered beside the physics routes.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com   | B30 gate: POST /physics/hexapod/certify runs the spider's gate in the container and remembers the certificate for this owner in the same map the drone's uses (GET /physics/reports shows it); a certificate is kept with its kind, so a spider certificate never flies a drone world.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9: the generic plant's routes (embodied-plant-routes.ts: /physics/plant/load, /state, /train, /certify and /build/catalog) registered beside the spider's; a plant certificate is remembered with kind `plant`.
  */
 
 import path from 'node:path';
 import { Router, type Request, type Response } from 'express';
 import { ARM_CHECK_TIMEOUT_MS, registerArmRoutes, type ArmCheckReport } from './embodied-arm-routes';
+import { HEXAPOD_CERTIFY_TIMEOUT_MS, HEXAPOD_CHECK_TIMEOUT_MS, registerHexapodPhysicsRoutes, type HexapodCertificate, type HexapodCheckReport } from './embodied-hexapod-physics-routes';
+import { registerHexapodDesignRoutes } from './embodied-hexapod-routes';
+import { registerPlantPhysicsRoutes, type PlantCertificate } from './embodied-plant-routes';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
@@ -109,7 +116,7 @@ export interface EmbodiedRouteOpts {
 export interface ReportsListing { dir: string; reports: { file: string; report?: TrainingReport; error?: string }[]; policies: string[] }
 interface TrainingReport { task?: string; mode?: string; seed?: number; timesteps?: number; policyFile?: string; policyBeatsBaseline?: boolean; baseline?: { trajectory?: number[][] } & Record<string, unknown>; policy?: { trajectory?: number[][] } & Record<string, unknown> }
 /** A policy an owner certified: the verdict and how the policy was trained. */
-interface Certified { certification: FlightCertification; residual: boolean; interface: 'motors' | 'ctbr'; reportFile: string }
+interface Certified { certification: FlightCertification | HexapodCertificate | PlantCertificate; kind: 'drone' | 'hexapod' | 'plant'; residual: boolean; interface: 'motors' | 'ctbr'; reportFile: string }
 
 /** @description The truth models a world can run on. */
 const BACKENDS = ['kinematic', 'physics', 'node'] as const;
@@ -272,7 +279,7 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     if (!text.startsWith('policy:')) return { error: 'unknown_controller', message: 'controller must be "pid" or "policy:<file>"' };
     const file = text.slice('policy:'.length);
     const cert = certifiedOf(sub).get(file);
-    if (!cert || !cert.certification.ok) return { error: 'policy_not_certified', message: `policy ${file} has not passed this world's certification gate — POST /physics/certify first` };
+    if (!cert || !cert.certification.ok || cert.kind !== 'drone') return { error: 'policy_not_certified', message: `policy ${file} has not passed this world's certification gate — POST /physics/certify first${cert?.kind === 'hexapod' ? ' (it is certified for the spider, not for a drone world)' : ''}` };
     return { spec: { kind: 'policy', file, residual: cert.residual, interface: cert.interface } };
   };
 
@@ -673,6 +680,23 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
       ? opts.armChecker(input)
       : getBridge().callAsync<ArmCheckReport>('arm-check', input as unknown as Record<string, unknown>, ARM_CHECK_TIMEOUT_MS)),
   });
+  // ADR-202: the spider-18 designer (design, parts as CAD Studio programs, BOM) beside the drone's and the arm's.
+  registerHexapodDesignRoutes(router);
+  // ADR-202: the spider-18 plant routes beside the arm's; the check runs the baselines in the container.
+  registerHexapodPhysicsRoutes(router, {
+    withSub,
+    physicsFailure,
+    checkHexapod: async (input) => getBridge().callAsync<HexapodCheckReport>('hexapod.check', input as unknown as Record<string, unknown>, HEXAPOD_CHECK_TIMEOUT_MS),
+    certifyHexapod: async (input) => getBridge().callAsync<HexapodCertificate>('hexapod.certify', input as unknown as Record<string, unknown>, HEXAPOD_CERTIFY_TIMEOUT_MS),
+    rememberCertified: (sub, policyFile, certificate) => certifiedOf(sub).set(policyFile, { certification: certificate, kind: 'hexapod', residual: certificate.mode === 'residual', interface: 'motors', reportFile: certificate.reportFile }),
+  });
+  // ADR-203 D9: a plant generated from a design, for any machine, beside the spider's; the catalog publishes the owned drive rows.
+  registerPlantPhysicsRoutes(router, {
+    withSub,
+    physicsFailure,
+    plantOp: async (op, payload, timeoutMs) => getBridge().callAsync<Record<string, unknown>>(op, payload, timeoutMs),
+    rememberCertified: (sub, policyFile, certificate) => certifiedOf(sub).set(policyFile, { certification: certificate, kind: 'plant', residual: true, interface: 'motors', reportFile: certificate.reportFile }),
+  });
 
   router.get('/physics/reports', async (req: Request, res: Response) => {
     const sub = withSub(req, res); if (!sub) return;
@@ -699,7 +723,7 @@ export function createEmbodiedRoutes(ctx: AppContext, opts: EmbodiedRouteOpts = 
     await advanceAndSettle(sub, s);
     const certification = certifyFlight(s.sim, trajectory);
     const policyFile = which === 'policy' ? entry.report.policyFile : undefined;
-    if (policyFile) certifiedOf(sub).set(policyFile, { certification, residual: entry.report.mode === 'residual', interface: entry.report.mode === 'ctbr' ? 'ctbr' : 'motors', reportFile: file });
+    if (policyFile) certifiedOf(sub).set(policyFile, { certification, kind: 'drone', residual: entry.report.mode === 'residual', interface: entry.report.mode === 'ctbr' ? 'ctbr' : 'motors', reportFile: file });
     logger.info({ sub, file, which, ok: certification.ok, refused: certification.refusedCount }, 'Flight certified');
     res.json({ file, which, policyFile: policyFile ?? null, beatsBaseline: entry.report.policyBeatsBaseline ?? null, mapKnownFraction: s.sim.world.stats().knownFraction, certification });
   });

@@ -1,0 +1,153 @@
+<!doctype html>
+<!--
+  Design Studio (ADR-203 D4, lane @ds-app): the design-to-build process as one application, for anything.
+  Five screens on one page: Products (the person's products as posters, one button New product), New product
+  (the walkthrough that writes the brief and proposes the phase chain, button Create), Product (one poster
+  per phase in chain order, its stage computed when the page is read from the engine's own reply through the
+  person's session and never stored, one button each; Fabricate makes the print set through CAD Studio and sends
+  one file to the chosen printer), Settings (engines, printer) and Mechanism (ADR-203 D9: the part that is
+  ground, the joints, the motor rows, the payload, the task from the brief; the plant is built from it). An absent engine
+  says "no engine on this swarm for this phase"; a failed read is shown, never swallowed. The theme is the
+  portal's (surface-theme.js) and every colour is a theme token. (.html is exempt from the CHANGE LOG header.)
+-->
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Design Studio</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/api/design-studio/assets/design-studio.css" />
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="midnight" data-theme-query></script>
+</head>
+<body>
+<main class="ds-page" id="studio" data-screen="" data-ready="0" data-reads="0">
+  <header class="ds-head">
+    <div>
+      <p class="kicker" id="kicker">Design Studio</p>
+      <h1 id="title">Products</h1>
+      <p class="lede" id="lede">Brief &rarr; Design &rarr; Mechanical &rarr; Electrical &rarr; Sensors &rarr; Controller &rarr; Simulate &rarr; Fabricate &rarr; Build. A product carries the phases its brief needs; each phase is read from its engine when this page opens and is never stored.</p>
+    </div>
+    <div class="actions" id="head-actions">
+      <a class="btn" id="back" href="#/" hidden>Products</a>
+      <button type="button" class="btn" id="reload">Reload</button>
+      <a class="btn" id="settings-link" hidden>Settings</a>
+      <a class="btn btn-primary" id="new-product" href="#/new">New product</a>
+    </div>
+  </header>
+
+  <section class="chain" id="screen-products" aria-label="Products" hidden></section>
+
+  <section class="walk" id="screen-new" aria-label="New product" hidden>
+    <form id="new-form" class="walk">
+      <div class="card">
+        <p class="step">1 &middot; Name</p>
+        <label>Name<input id="new-name" type="text" maxlength="120" autocomplete="off" placeholder="spider-18, a clothes hanger, the garage fridge" required /></label>
+      </div>
+      <div class="card">
+        <p class="step">2 &middot; What it is</p>
+        <label>What it is, in one line<input id="new-what" type="text" maxlength="300" autocomplete="off" placeholder="a six-legged walking robot that carries a Raspberry Pi" required /></label>
+      </div>
+      <div class="card">
+        <p class="step">3 &middot; What it must do</p>
+        <label>One requirement per line<textarea id="new-requirements" rows="6" placeholder="holds a Raspberry Pi&#10;one LiDAR eye&#10;six legs&#10;jumps"></textarea></label>
+        <p class="help">The phases are proposed from these lines: a line about motors or loads asks for a mechanical spec, power for electrical, senses for sensors, behaviour for a controller, movement for the simulator. A hanger needs none of them.</p>
+      </div>
+      <div class="card">
+        <p class="step">4 &middot; Targets</p>
+        <div class="targets">
+          <label>Mass, g<input id="new-mass" type="number" min="0" step="any" placeholder="optional" /></label>
+          <label>Size, mm<input id="new-size" type="text" maxlength="120" placeholder="optional" /></label>
+          <label>Cost, USD<input id="new-cost" type="number" min="0" step="any" placeholder="optional" /></label>
+          <label>Runtime, min<input id="new-runtime" type="number" min="0" step="any" placeholder="optional" /></label>
+        </div>
+      </div>
+      <div class="card" id="proposal-card">
+        <p class="step">5 &middot; The phase chain</p>
+        <p class="help" id="proposal-note">Proposed from the requirement lines above; untick a phase you do not want. The design partner on the rail can revise it later.</p>
+        <ul class="proposal" id="proposal" aria-label="Proposed phases"></ul>
+        <div class="actions"><button type="submit" class="btn btn-primary" id="create">Create</button></div>
+      </div>
+    </form>
+  </section>
+
+  <section class="chain" id="screen-product" aria-label="The phase chain, in order" hidden></section>
+
+  <section class="walk" id="screen-mechanism" aria-label="Mechanism" hidden>
+    <form id="mechanism-form" class="walk"></form>
+  </section>
+
+  <section class="settings" id="screen-settings" aria-label="Settings" hidden>
+    <form id="settings-form" class="settings">
+      <div class="card" id="settings-engines"><p class="step">Engines</p><p class="help">Which package measures each phase; <code>reasoned</code> when no engine on this swarm does. An engine that did not answer this session is marked absent.</p></div>
+      <div class="card" id="settings-printer"><p class="step">Printer</p><label>Print set goes to<select id="set-printer"></select></label><p class="help" id="printer-help"></p></div>
+      <div class="card" id="settings-bindings"><p class="step">Bound artifacts</p><div id="bindings-list"></div></div>
+      <div class="actions"><button type="submit" class="btn btn-primary" id="save-settings">Save</button><button type="button" class="btn" id="delete-product">Delete this product</button></div>
+    </form>
+  </section>
+
+  <p class="footnote" id="footnote">Nothing on this page is a measurement of its own: a stage is what the engine answered when the page was read; a closure records that answer with the revision it was read from, and reads as stale when the artifact moves on.</p>
+</main>
+
+<dialog id="close-dialog" aria-labelledby="close-title">
+  <h2 id="close-title">Close the phase</h2>
+  <p id="close-what"></p>
+  <form method="dialog" class="form" id="close-form">
+    <label>Evidence<textarea id="close-evidence" rows="3" required></textarea><p class="help" id="close-help">The engine's evidence line, in its own numbers.</p></label>
+    <label>Revision<input id="close-revision" type="text" maxlength="200" required /><p class="help">The artifact revision the evidence was read at; a closure whose artifact moves on reads as stale.</p></label>
+    <div class="actions"><button type="submit" class="btn" value="cancel">Cancel</button><button type="submit" class="btn btn-primary" value="close">Close the phase</button></div>
+  </form>
+</dialog>
+
+<dialog id="build-dialog" aria-labelledby="build-title">
+  <h2 id="build-title">Build and test</h2>
+  <p>The assembly order from the design, the bring-up from the controller, the certified brain's load door. Tick a step when the bench did it; no software closes this phase.</p>
+  <ul class="checklist" id="build-steps"></ul>
+  <form method="dialog" class="actions"><button type="submit" class="btn">Close</button></form>
+</dialog>
+
+<dialog id="make-dialog" aria-labelledby="make-title">
+  <h2 id="make-title">Make the print set</h2>
+  <p id="make-what"></p>
+  <ul class="checklist" id="make-steps" aria-label="Parts"></ul>
+  <p id="make-result" class="result" data-sha=""></p>
+  <form method="dialog" class="actions"><button type="submit" class="btn" id="make-close">Close</button></form>
+</dialog>
+
+<dialog id="send-dialog" aria-labelledby="send-title">
+  <h2 id="send-title">Send to printer</h2>
+  <p id="send-what"></p>
+  <form method="dialog" class="form" id="send-form">
+    <label>File<select id="send-file"></select></label>
+    <label class="check"><input id="send-plate" type="checkbox" /><span>The build plate is clear</span></label>
+    <div class="actions"><button type="submit" class="btn" value="cancel">Cancel</button><button type="submit" class="btn btn-primary" value="send">Send</button></div>
+  </form>
+</dialog>
+
+<dialog id="status-dialog" aria-labelledby="status-title">
+  <h2 id="status-title">Node status</h2>
+  <pre id="status-json"></pre>
+  <form method="dialog" class="actions"><button type="submit" class="btn">Close</button></form>
+</dialog>
+
+<div id="bridge-notices" data-bridge-host="notices"></div>
+<!-- The assistant rail: the shared surface-bridge client publishes what this page is showing (the
+     `context` op) and re-dispatches the design partner's `custom` ops as DOM events the main script
+     handles. Degrades silently: without the module (a fixture) the studio behaves exactly as before. -->
+<script type="module">
+  try {
+    const { createSurfaceBridgeClient } = await import('/shared/ui/js/surface-bridge-client.js');
+    const bridge = createSurfaceBridgeClient({ app: 'design-studio' });
+    bridge.attach();
+    window.__bridge = bridge;
+    window.dispatchEvent(new Event('bridge-ready'));
+  } catch (_) { /* no assistant rail here */ }
+</script>
+<script src="/api/design-studio/assets/design-studio-stages.js"></script>
+<script src="/api/design-studio/assets/design-studio-screens.js"></script>
+<script src="/api/design-studio/assets/design-studio-fabricate.js"></script>
+<script src="/api/design-studio/assets/design-studio-mechanism.js"></script>
+<script src="/api/design-studio/assets/design-studio-orders.js"></script>
+<script src="/api/design-studio/assets/design-studio.js"></script>
+</body>
+</html>

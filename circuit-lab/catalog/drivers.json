@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Shaft drivers a person can drop onto the canvas with their nameplate filled in. Every row's nameplate validates against the part contract (tests/driver-catalog.test.js). `source` says where each number came from; a number marked typical is not a measurement — replace it from the datasheet of the unit bought. A row with `sharedPart` does not describe the part at all: another package OWNS that real part, and this catalog READS its name, mass, price, source and per-domain block out of the owner's catalog file (animatronics' servo rows; embodied's motor rows, whose KV sets noLoadRpm at this lab's operating point), declaring only the block this lab adds (`note` says what that is). Rows used by another package name it in usedBy and a read-only cross-package test keeps the shared numbers equal (tests/shared-parts.test.js).",
+  "about": "Shaft drivers a person can drop onto the canvas with their nameplate filled in. Every row's nameplate validates against the part contract (tests/driver-catalog.test.js). `source` says where each number came from; a number marked typical is not a measurement — replace it from the datasheet of the unit bought. A row with `sharedPart` does not describe the part at all: another package OWNS that real part, and this catalog READS its name, mass, price, source and per-domain block out of the owner's catalog file (animatronics' servo rows; embodied's motor rows, whose KV sets noLoadRpm at this lab's operating point; embodied's bus-servo row, whose jointDrive block sets stallTorqueMnm and noLoadDegPerS), declaring only the block this lab adds (`note` says what that is). Rows used by another package name it in usedBy and a read-only cross-package test keeps the shared numbers equal (tests/shared-parts.test.js).",
   "drivers": [
     {
       "id": "brushed-12v-generic",
@@ -41,6 +41,15 @@
       "nameplate": { "nominalVolts": 5, "rotorInertiaGcm2": 500 },
       "note": "the 5 V operating point the solver runs it at and the 500 g cm2 reflected rotor inertia are this lab's modelling defaults, not datasheet figures",
       "usedBy": []
+    },
+    {
+      "id": "servo-bus-sts3215-12v",
+      "type": "servo",
+      "kind": "bus-servo",
+      "sharedPart": { "owner": "embodied", "file": "routes/engine/design/parts-catalog.json", "list": "servos", "id": "sts3215-12v" },
+      "nameplate": { "nominalVolts": 12, "stallAmps": 2.7, "runAmps": 0.18, "idleAmps": 0.05, "minPulseMs": 1, "maxPulseMs": 2, "travelDeg": 360, "rotorInertiaGcm2": 70000 },
+      "note": "this lab solves the bus servo as its servo part — a position loop on a geared DC motor — with the pulse width standing in for the serial position command (1-2 ms -> 0-360 deg is this lab's mapping, not a feature of the servo). The nameplate is the cored brushed motor seen at the output of the owner's 1:345 gearbox at the 12 V operating point: 2.7 A stall and 0.18 A running with no load are the feetechrc.com product page's figures at 12 V (https://www.feetechrc.com/525603.html, read 2026-10-30: 'stall current 2.7A@12V', 'running current (at no load) 180 mA@12V'), so the winding reads 12 / 2.7 = 4.44 ohm; the 0.05 A idle (holding still, the electronics alone) is a class estimate, not published; the 70000 g cm2 reflected rotor inertia is a class estimate (a 0.6 g cm2 cored rotor behind 1:345, 0.6 x 345^2), not measured. stallTorqueMnm and noLoadDegPerS are the owner's 30 kg cm and 0.222 s per 60 deg.",
+      "usedBy": ["embodied:spider-18"]
     },
     {
       "id": "stepper-nema17-17hs4401",

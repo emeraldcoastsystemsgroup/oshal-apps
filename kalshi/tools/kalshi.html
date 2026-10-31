@@ -38,6 +38,11 @@
   2026-10-11 — phone width: every table sits in a .tbl-scroll box that scrolls sideways on its own at <=640px, so the
   page never does (the 12-column scan table made the page 829px wide in a 392px cockpit frame; Scorecard 686, Alerts
   484), and the Settings grid becomes one column. Guard: tests/browser/kalshi-phone-layout.test.cjs.
+  2026-10-30 — 1.7.0: a MARKETS tab, first and landing: every market the last scan walked (not only the playable hands) with
+  its YES/NO asks, volume, close time and the evaluator's verdict in words; search, category, verdict and sort filters; Why
+  opens the walkthrough from GET /markets/:ticker (price vs calibrated chance, fee, net edge, evidence, book, flags, sizing);
+  Look up reads any ticker live; Ask the quant posts the market's question to the host rail as an app-ask message, where this
+  application's own concierge (kalshi-quant) answers it. Guard: tests/kalshi-quant-contract.test.js.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -240,6 +245,14 @@
   .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
   .b-monster { background: #1a7f37; color: #fff; } .b-strong { background: #238636aa; color: #d2ffd8; }
   .b-playable { background: #9e6a03aa; color: #ffe8b3; }
+  .b-fold { background: color-mix(in srgb, var(--dim) 22%, transparent); color: var(--dim); }
+  .b-not-evaluable { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+  .why-row td { padding: 0 8px 12px; }
+  .why-box { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; line-height: 1.5; }
+  .why-box ul { margin: 6px 0 0 18px; padding: 0; }
+  .why-actions { margin-top: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .mk-lookup { display: flex; gap: 6px; align-items: center; }
+  @media (max-width: 640px) { .why-box { position: sticky; left: 8px; max-width: calc(100vw - 48px); } }
   .side-yes { color: var(--green); font-weight: 700; } .side-no { color: var(--red); font-weight: 700; }
   .edge-pos { color: var(--green); font-weight: 600; }
   .title { color: var(--text); } .ticker { color: var(--dim); font-size: 11px; font-family: Consolas, monospace; }
@@ -342,7 +355,8 @@
     <span id="hdr-env"></span>
   </header>
   <nav class="tabnav" role="tablist" aria-label="Kalshi views">
-    <button class="tab active" data-tab="scan" role="tab" aria-selected="true">Scan <span class="tab-badge" id="badge-scan"></span></button>
+    <button class="tab active" data-tab="markets" role="tab" aria-selected="true">Markets <span class="tab-badge" id="badge-markets"></span></button>
+    <button class="tab" data-tab="scan" role="tab" aria-selected="false">Scan <span class="tab-badge" id="badge-scan"></span></button>
     <button class="tab" data-tab="account" role="tab" aria-selected="false">Account <span class="tab-badge" id="badge-account"></span></button>
     <button class="tab" data-tab="scorecard" role="tab" aria-selected="false">Scorecard <span class="tab-dot" id="dot-scorecard" title="strategy status"></span></button>
     <button class="tab" data-tab="trends" role="tab" aria-selected="false">Trends</button>
@@ -361,8 +375,40 @@
     </div>
   </div>
 
+  <!-- ── TAB: Markets — every market the scan walked, playable or not, with its verdict in words ── -->
+  <section class="tab-panel" data-panel="markets" role="tabpanel">
+    <div class="toolbar">
+      <input type="search" id="mk-q" placeholder="search markets…" aria-label="Search markets">
+      <select id="mk-cat" aria-label="Category"><option value="">all categories</option></select>
+      <select id="mk-verdict" aria-label="Verdict">
+        <option value="all">every verdict</option>
+        <option value="playable">playable only</option>
+        <option value="fold">folds only</option>
+        <option value="not-evaluable">no verdict</option>
+      </select>
+      <select id="mk-sort" aria-label="Sort">
+        <option value="verdict">verdict first</option>
+        <option value="closes">closing soonest</option>
+        <option value="edge">best edge first</option>
+        <option value="volume">most traded</option>
+      </select>
+      <button id="mk-refresh" type="button">Refresh</button>
+      <span class="meta" id="mk-counts"></span>
+      <span class="spacer"></span>
+      <form id="mk-lookup" class="mk-lookup"><input id="mk-ticker" placeholder="look up any ticker…" aria-label="Kalshi ticker" maxlength="80"><button type="submit">Look up</button></form>
+    </div>
+    <div class="warn" id="mk-empty" style="display:none;font-size:12px;padding:10px 12px;margin-bottom:12px"></div>
+    <div class="tbl-scroll"><table id="mk-tbl" style="display:none">
+      <thead><tr>
+        <th>Market</th><th>Category</th><th class="num">YES</th><th class="num">NO</th><th class="num">Traded</th><th class="num">Closes</th><th>Verdict</th><th></th>
+      </tr></thead>
+      <tbody id="mk-rows"></tbody>
+    </table></div>
+    <div id="mk-error" style="display:none"></div>
+  </section>
+
   <!-- ── TAB: Scan ── -->
-  <section class="tab-panel" data-panel="scan" role="tabpanel">
+  <section class="tab-panel" data-panel="scan" role="tabpanel" hidden>
     <div class="toolbar">
       <input type="search" id="q" placeholder="search markets…">
       <select id="f-cat"><option value="">all categories</option></select>
@@ -1140,6 +1186,130 @@
       });
   }
 
+  /* ── Markets: every market the scan walked, playable or not, with the evaluator's verdict in words. ── */
+  var mk = { rows: [], why: {}, timer: null };
+  function clipText(v, n) { v = String(v === null || v === undefined ? '' : v); return v.length > n ? v.slice(0, n - 1) + '…' : v; }
+  function mkParams() {
+    var p = new URLSearchParams(), q = $('mk-q').value.trim(), c = $('mk-cat').value;
+    if (q) p.set('q', q);
+    if (c) p.set('category', c);
+    p.set('verdict', $('mk-verdict').value); p.set('sort', $('mk-sort').value); p.set('limit', '400');
+    return p.toString();
+  }
+  function mkJson(path) {
+    return fetch('/api/kalshi' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || ('HTTP ' + r.status)); return b; }); });
+  }
+  function closesText(iso) {
+    if (!iso) return '—';
+    var ms = new Date(iso).getTime() - Date.now();
+    if (!isFinite(ms)) return '—';
+    if (ms <= 0) return 'Closed';
+    var m = ms / 60000;
+    if (m < 90) return 'in ' + Math.round(m) + ' min';
+    if (m < 48 * 60) return 'in ' + (m / 60).toFixed(m < 600 ? 1 : 0) + ' h';
+    return 'in ' + (m / 1440).toFixed(1) + ' d';
+  }
+  function verdictCell(m) {
+    var v = m.verdict || (m.hand ? m.hand.strength : 'not-evaluable'), edge = m.hand ? Number(m.hand.edgeNet) : NaN;
+    return '<span class="badge b-' + esc(v) + '">' + esc(v === 'not-evaluable' ? 'no verdict' : v) + '</span>' +
+      (m.side ? ' <span class="side-' + esc(m.side) + '">' + esc(String(m.side).toUpperCase()) + '</span>' : '') +
+      (isFinite(edge) ? ' <span class="' + (edge > 0 ? 'edge-pos' : 'meta') + '">' + (edge >= 0 ? '+' : '') + esc(cents(edge)) + '</span>' : '');
+  }
+  function mkRow(m) {
+    var tr = document.createElement('tr'); tr.setAttribute('data-ticker', m.ticker);
+    tr.innerHTML = '<td><div class="title">' + esc(clipText(m.title || m.ticker, 110)) + '</div><div class="ticker">' + esc(m.ticker) + '</div></td>' +
+      '<td class="meta">' + esc(m.category || '—') + '</td>' +
+      '<td class="num">' + esc(cents(Number(m.yesAsk) || 0)) + '</td><td class="num">' + esc(cents(Number(m.noAsk) || 0)) + '</td>' +
+      '<td class="num">' + esc(String(Math.round(Number(m.volume) || 0))) + '</td>' +
+      '<td class="num meta">' + esc(closesText(m.closeTime)) + '</td>' +
+      '<td>' + verdictCell(m) + '</td>';
+    var cell = document.createElement('td'), why = document.createElement('button');
+    why.type = 'button'; why.className = 'btn'; why.textContent = 'Why'; why.setAttribute('data-why', m.ticker);
+    why.addEventListener('click', function () { toggleWhy(m.ticker, tr); });
+    cell.appendChild(why); tr.appendChild(cell);
+    return tr;
+  }
+  function renderMarkets() {
+    var tb = $('mk-rows'); tb.innerHTML = '';
+    mk.rows.forEach(function (m) { tb.appendChild(mkRow(m)); });
+    $('mk-tbl').style.display = mk.rows.length ? '' : 'none';
+    $('mk-empty').style.display = mk.rows.length ? 'none' : '';
+  }
+  function whyBox(r) {
+    var w = r.why || {}, box = document.createElement('div'); box.className = 'why-box';
+    var h = '<b>' + esc(w.headline || '') + '</b>' + (r.source === 'live' ? ' <span class="meta">(read live from Kalshi; not in the last scan)</span>' : '') + '<ul>';
+    (w.reasons || []).forEach(function (line) { h += '<li>' + esc(line) + '</li>'; });
+    box.innerHTML = h + '</ul>';
+    var actions = document.createElement('div'); actions.className = 'why-actions';
+    if (window.parent !== window && w.question) {
+      // The question goes to the host's conversation rail, where this application's own quant answers it.
+      var ask = document.createElement('button'); ask.type = 'button'; ask.className = 'btn-primary'; ask.textContent = 'Ask the quant';
+      ask.addEventListener('click', function () {
+        window.parent.postMessage({ type: 'app-ask', app: 'kalshi', text: w.question }, window.location.origin);
+        ask.textContent = 'Sent to the quant'; ask.disabled = true;
+        setTimeout(function () { ask.textContent = 'Ask the quant'; ask.disabled = false; }, 4000);
+      });
+      actions.appendChild(ask);
+    } else {
+      var note = document.createElement('span'); note.className = 'meta'; note.textContent = 'Open Kalshi inside oshal to put this question to the quant.'; actions.appendChild(note);
+    }
+    box.appendChild(actions);
+    return box;
+  }
+  function fetchWhy(ticker) {
+    if (mk.why[ticker]) return Promise.resolve(mk.why[ticker]);
+    return mkJson('/markets/' + encodeURIComponent(ticker)).then(function (b) { mk.why[ticker] = b; return b; });
+  }
+  function toggleWhy(ticker, tr) {
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains('why-row')) { next.remove(); return; }
+    var row = document.createElement('tr'); row.className = 'why-row';
+    var td = document.createElement('td'); td.colSpan = 8; td.textContent = 'Reading the walkthrough…'; row.appendChild(td);
+    tr.parentNode.insertBefore(row, tr.nextSibling);
+    fetchWhy(ticker).then(function (r) { td.innerHTML = ''; td.appendChild(whyBox(r)); })
+      .catch(function (e) { td.textContent = 'Could not read the walkthrough: ' + e.message; });
+  }
+  function loadMarkets() {
+    $('mk-error').style.display = 'none';
+    return mkJson('/markets?' + mkParams()).then(function (b) {
+      mk.rows = b.markets || [];
+      var sel = $('mk-cat'), cur = sel.value; sel.innerHTML = '<option value="">all categories</option>';
+      (b.categories || []).forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+      sel.value = cur;
+      var c = b.counts || {};
+      $('mk-counts').textContent = b.awaitingFirstScan ? 'nothing scanned yet'
+        : (b.matched + ' of ' + b.total + ' open markets · ' + (c.playable || 0) + ' playable · ' + (c.fold || 0) + ' folds · ' + (c.notEvaluable || 0) + ' without a verdict' + (b.generatedAt ? ' · scanned ' + new Date(b.generatedAt).toLocaleString() : ''));
+      $('mk-empty').innerHTML = b.awaitingFirstScan
+        ? 'Nothing has been scanned yet. Turn the background scan on (Jobs) or press <b>Scan now</b> on the Scan tab; every market the scan walks appears here with its verdict.'
+        : b.needsRescan ? 'The last scan ran before this tab existed, so it kept only the playable hands. Press <b>Scan now</b> on the Scan tab, or wait for the next tick of your scan job; every market the scan walks then appears here with its verdict.'
+        : 'No open market matches these filters.';
+      setBadge('badge-markets', b.total ? String(b.total) : '', '');
+      renderMarkets();
+    }).catch(function (e) { $('mk-error').textContent = 'Could not read the markets: ' + e.message; $('mk-error').style.display = ''; });
+  }
+  function lookupMarket(ev) {
+    ev.preventDefault();
+    var ticker = $('mk-ticker').value.trim().toUpperCase(); if (!ticker) return;
+    $('mk-error').style.display = 'none';
+    fetchWhy(ticker).then(function (r) {
+      var tb = $('mk-rows'), tr = null, rows = tb.querySelectorAll('tr[data-ticker]');
+      for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute('data-ticker') === ticker) tr = rows[i];
+      if (tr && tr.nextElementSibling && tr.nextElementSibling.classList.contains('why-row')) tr.nextElementSibling.remove();
+      if (!tr) {
+        var m = r.market || {}; m.verdict = r.why && r.why.verdict; m.side = r.why && r.why.side;
+        tr = mkRow(m); tb.insertBefore(tr, tb.firstChild); $('mk-tbl').style.display = ''; $('mk-empty').style.display = 'none';
+      }
+      toggleWhy(ticker, tr); tr.scrollIntoView({ block: 'center' });
+    }).catch(function (e) { $('mk-error').textContent = ticker + ': ' + e.message; $('mk-error').style.display = ''; });
+  }
+  $('mk-q').addEventListener('input', function () { clearTimeout(mk.timer); mk.timer = setTimeout(loadMarkets, 250); });
+  $('mk-cat').addEventListener('change', loadMarkets);
+  $('mk-verdict').addEventListener('change', loadMarkets);
+  $('mk-sort').addEventListener('change', loadMarkets);
+  $('mk-refresh').addEventListener('click', function () { mk.why = {}; loadMarkets(); });
+  $('mk-lookup').addEventListener('submit', lookupMarket);
+
   // Tab clicks.
   var tabEls = document.querySelectorAll('.tab');
   for (var t = 0; t < tabEls.length; t++) {
@@ -1376,6 +1546,7 @@
   // reads may run, so the loads and the pollers start only when no view renders (and on a core without the kit).
   if (!window.AppView || !AppView.active()) {
     load();
+    loadMarkets();
     loadAlerts();
     loadSettings();
     loadTrends();

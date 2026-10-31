@@ -1,48 +1,26 @@
 /**
- * Eats Routes — Uber Eats Concierge surface API
+ * Eats Routes: the food-delivery concierge surface API.
  *
- * Backs the Eats surface at /cockpit?app=eats. The framework way:
- *  - RESTAURANTS/DISHES come from the core Uber Eats provider helper. The controller resolves
- *    the operator's OPTIONAL config for one fixed server operation and passes it as an explicit
- *    request-scoped argument; no child environment or model sees it. Uber has no consumer
- *    search/order API, so the catalog is curated
- *    and ORDERING is a DEEP-LINK HANDOFF the diner completes on their own Uber login + payment.
- *  - The BRAIN runs on the eats-concierge bot via ctx.orchestrator (the caller's configured
- *    provider/model), NOT a hardcoded LLM call here.
- *  - Cart / profile / chat persist per-diner in the DB.
- *
- * Per-user isolation: every row is scoped by the OIDC `sub`. One active cart per diner,
- * scoped to ONE restaurant (Uber Eats checks out a single store per order).
+ * Backs the Eats surface at /cockpit?app=eats. The shape, as of 1.4.0:
+ *  - RESTAURANTS are real: Google Places (./places) finds the restaurants near the diner's delivery address,
+ *    through the native kernel's fenced egress with the kernel-held key. The package never holds the key.
+ *  - ORDERING is a hand-off into Uber Eats (./uber-link): the link opens ubereats.com at the diner's resolved
+ *    address with the chosen restaurant searched, and the diner picks the dishes, confirms and pays there on
+ *    their own sign-in. Uber publishes no consumer API, so there is no menu, cart or price in this package:
+ *    nothing here pretends to know what a restaurant sells.
+ *  - The BRAIN runs on the eats-concierge bot through the accountable bot path, never a hard-coded LLM call.
+ *  - Profile, remembered notes, conversations and the hand-off history persist per diner, scoped by the OIDC sub.
  *
  * CHANGE LOG
  * ---------------------------------------------------------------------------
- * 2026-06-19 | roger.murphy@emeraldcoastsystemsgroup.com | Initial creation — Uber Eats
- *            | concierge: catalog via the uber connector CLI, brain via the orchestrator,
- *            | deep-link order handoff. Mirrors the purchasing app, food-shaped.
- * 2026-07-18 12:10:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out into the
- *            | eats store package (Wave 2 #4). Standard (ctx) factory; surface serves from this
- *            | package tools/ (ctx.appPackageDir); core-remaining relative imports rewritten to
- *            | @/app/routes aliases (concierge-reply/store/inline-bot-execution are SHARED —
- *            | nothing vendors). ensureEatsSchema now appends buildOwnerRlsPolicyStatements per
- *            | table (A1.2 chokepoint). oshal-uber.js stays core in the image (eats-bot + this
- *            | route both shell it). The eats-concierge REAL bot-node (eats-bot container /
- *            | registries / personas / uberToolKit.js) stays core per ADR-093 interim. Logic unchanged.
+ * SEQ | AUTHOR | DESCRIPTION
  * ---------------------------------------------------------------------------
- * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove Uber Eats credentials from generic bot dispatch. Catalog/deep-link access resolves a fixed-server-operation credential only inside the deterministic CLI helper; the model receives bounded menu records and never a credential map.
- * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove the final credential-bearing subprocess. Catalog/menu/handoff calls now use the import-safe core helper with the current request's explicit credential value.
- * 2026-09-26 | maintainer@emeraldcoastsystemsgroup.com | Commerce surfaces (backlog "Consumer commerce native surfaces"): (1) POST /cart/items no longer trusts the browser's price, title, store name or image — it reads the restaurant's menu (the provider 'menu' operation for storeId) and prices the line from the item whose productId matches exactly (menuItemFor), refusing an item the menu does not list with 422 unknown_item. (2) Every total (/cart, the order record, the chat proposal) is summed in integer cents by ./cart-totals; the cart responses keep items/total and add totalCents + unpricedLines. (3) A chat "checkout" no longer calls buildOrder (which wrote eats_orders) in the same request: it returns a `proposal` the surface shows as a confirm card, and only the diner's confirm calls POST /order. `checkout` stays in the reply (always null) for older surfaces.
- * 2026-10-08 | maintainer@emeraldcoastsystemsgroup.com | GET /cart is a pure read. loadCart created the diner's cart (INSERT INTO eats_carts) when none existed; the native host admits a GET read-only and refuses any SQL write, so every first visit answered 500 'SQL mutation requires original writer admission'. readCart answers the unchanged shape with cartId, storeId and storeName null and no lines when there is no active cart; POST /cart/items (and the other write routes) still create it through getOrCreateCart.
- * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No Uber Eats rail is said, not refused before the concierge speaks. The chat turn probes the runtime's Uber Eats `status` first; where it answers mode not_connected (the native kernel has no Uber Eats connector, and calling search or menu there refuses 503 and fails the whole call) the turn skips the catalog and the concierge answers with that fact. /config carries `rail` and the sentence. Guard: tests/eats-no-rail.test.js.
- * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Saved notes are not this request. Sweeps 5 and 6: asked for something vegetarian, the concierge answered 'vegetarian and spicy'; the diner's saved notes held 'wants spicy food' five times (one earlier 'something spicy for dinner', then re-saved every turn). The prompt now calls them SAVED PREFERENCES from earlier conversations that are never restated as the current request, "remember" takes only a new preference stated in this message, and newNotes() drops a note already saved. Guard: tests/eats-saved-notes.test.js.
- * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Live re-drive still folded "spicy food desire" into the reply: a note saved many times is now shown once in the prompt (newNotes over the loaded notes), and a saved preference is asked about as its own question, never folded into the summary of the request. Guard: tests/eats-saved-notes.test.js.
- * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | A search that never ran is not reported as empty. With no Uber Eats rail the chat skips the catalog, yet the prompt still headed CANDIDATES 'real, from search' over '(no results for this message ... or that nothing matched)', and the concierge told the diner there were no vegetarian restaurants in the search results. With no rail the block now says no search ran and forbids calling it an empty result. Guard: tests/eats-no-rail.test.js.
- *
- * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 8: the concierge's reply was shown as the raw object ('{ "say": ... "remember": [...] }') because the model left out the commas between fields and the parse fallback returned the whole text. parseEnvelope repairs missing field commas and, for an envelope still unparsable, shows only its "say" text. A remember entry is saved only when it shares a word with the diner's message (statedNotes): the turn had remembered 'spicy preference', 'address: pending' and 'not on boarded' for a vegetarian request. Guard: tests/eats-envelope.test.js.
- * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | A stated allergy is always saved. statedNotes matched whole words, so for "I'm allergic to peanuts, hold the onion, I eat vegan" it kept only 'vegan' and dropped 'peanut allergy' and 'no onions'. Words now match by stem ("allergic"/"allergy", "peanuts"/"peanut"), short food words such as egg, soy and nut count, and an allergy, intolerance or diet note is kept whenever the message states one. A "say" holding a raw newline is parsed instead of falling back to the route's default text, and that default names options only when cards are shown with it. A parsed envelope with an empty say gets that default too: the say fell back to the whole raw text, and the native kernel's cleanConciergeReply returns its fallback unchanged, so the diner saw the object. Guard: tests/eats-stated-notes.test.js.
- * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9: GET /profile also answers "remembered", the concierge's saved notes once each and marked when they record an allergy, an intolerance or a diet, so the Dietary preferences card shows a remembered allergy (it read "No diet set") and the page lists what is remembered; POST /notes/forget removes every saved copy of one of the caller's notes (the concierge kept using "wants spicy food", invented and saved before the remember filter, and nothing could remove it). See remembered-notes.ts.
- * 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the in-app concierge bubble showed '1. **Mushroom Risotto** ...' with its asterisks (the surface writes the reply as text). plainProse() takes chat bold/italic and heading marks out of the reply before it is saved and returned; the words and list lines stay. Guard: tests/eats-plain-reply.test.js.
- * 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 2: after "I have noted your peanut allergy" the concierge suggested a Vegetarian Pad Thai (usually made with peanuts) with no warning. allergyGuard() reads the diner's restrictions from the message, the saved notes and the profile's dietary list (./allergen-check); a search dish that names an allergen or is usually made with it is held back from the prompt, the cards and the cart, the prompt states the restrictions and the held dishes as facts, and a dish the reply names that usually carries one, in a sentence that does not name the risk, gets its own allergy-check line (response `allergy.check`, saved with the reply). The bot dispatch moved to askConcierge(). Guard: tests/eats-allergens.test.js.
- * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Uber Eats works on the native kernel. Its runtime has no Uber Eats provider (status not_connected, every other operation refuses 503 and fails the call), so search, menu and the order handoff answered nothing and Jarvis invented an order. The package now carries the curated catalog and ubereats.com deep link the old core helper served (./uber-catalog) and answers from it where the runtime's status says not_connected, asked once per process; /config answers rail 'catalog'. The link is a handoff: the diner places the order on their own Uber sign-in. Guard: tests/eats-no-rail.test.js, tests/uber-catalog.test.js.
+ * (1.0 to 1.3.6: the Uber Eats provider helper, the curated catalog, the menu-priced cart and the confirmation-gated
+ * deep link; see git history.)
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the place cache (./place-cache, migration 041). Address resolutions, searches and restaurant cards are saved per person for Google's 30-day limit; a saved search younger than a day is served without asking Google, Refresh asks again, and at Google's quota (or with Google unreachable) the saved answer within 30 days is served with its saved time and the reason. The search is a POST (the page, the chat and the Jarvis tool), because the native kernel admits no write on a GET; GET /search still answers, reading the cache but never writing it. Guards: tests/eats-routes.test.js (the cache cases), tests/eats-place-cache.test.js.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: coordinates (Use location, sent as lat/lng or as the "lat, lng" address text) resolve through the Geocoding API's reverse lookup instead of a Places text search, which refuses them live. Guard: tests/eats-routes.test.js (the coordinates case), tests/places-client.test.js.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: real restaurants. The curated five-restaurant catalog, the menu and the cart are gone: search resolves the delivery address and lists the restaurants Google Places finds around it (rating, price level, open now, delivery, distance, photo); POST /order records a hand-off and answers the Uber Eats search link at that address for the chosen restaurant; the chat turn offers those restaurants by place id and an "order" choice becomes a confirm proposal; /config names the rail; a Places refusal (key not configured, API not enabled, quota) is answered in words, never as an empty result. Guards: tests/eats-routes.test.js, tests/places-client.test.js, tests/uber-link.test.js, tests/eats-places-unavailable.test.js.
+ * ---------------------------------------------------------------------------
  *
  * @module eats-routes
  */
@@ -50,30 +28,71 @@
 import { Router, type Request, type Response, type RequestHandler } from 'express';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { cartTotalCents, centsToDollars, formatCents, lineQuantity } from './cart-totals';
 import { createChildLogger } from '@/shared/logger';
 import { buildOwnerRlsPolicyStatements, runRuntimeSchemaBootstrap } from '@/shared/services/database';
 import type { AppContext } from '@/app/composition/app-context';
 import type { Pool } from 'pg';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
-import { resolveServerOperationCreds } from '@/app/routes/connector-token-broker';
-import { runUberEatsProviderOperation } from '@/app/routes/provider-operation-clients';
 import { ConciergeStore } from '@/app/routes/concierge-store';
 import { cleanConciergeReply } from '@/app/routes/concierge-reply';
 import { forgetNote, rememberedList } from './remembered-notes';
 import { allergyCheckLine, dinerRestrictions, holdConflicting, restrictionPrompt, unwarnedMentions, type Conflict, type Restriction } from './allergen-check';
-import * as uberCatalog from './uber-catalog';
+import { CONNECTOR, PHOTO_NAME, PLACE_ID, PlacesError, SOURCE, geocode, photoUri, placeDetails, reverseGeocode, searchRestaurants, type FetchLike, type Geocoded, type Restaurant } from './places';
+import { feedLink, searchLink } from './uber-link';
+import { FRESH_MS, MAX_AGE_MS, isFresh, lookupKey, readLookup, readPlace, readSearch, searchKey, writeLookup, writePlaces, writeSearch } from './place-cache';
 import { BotNodeClient, createRegistryEndpointResolver } from '@/features/agent-management';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 
 const logger = createChildLogger({ module: 'eats-routes' });
 
-/** The eats-concierge reasoning agent. Reached through BotNodeClient so cost/audit remain attributable;
- *  provider tools are disabled here and the controller performs bounded catalog/deep-link operations. */
+/** The eats-concierge reasoning agent. Reached through BotNodeClient so cost/audit remain attributable. */
 const CONCIERGE_AGENT_ID = 'b0080000-0000-0000-0000-000000000001';
 const botClient = new BotNodeClient(createRegistryEndpointResolver());
 
-/** Serve a static surface file from the package tools dir (ctx.appPackageDir — D10). */
+/** What /config says about this installation's rail. */
+export const EATS_RAIL_NOTE = 'Restaurants come from Google Places for your delivery address; ordering opens Uber Eats at that address, where you choose the dishes, sign in and pay yourself.';
+/** What a search without any address answers. */
+export const ADDRESS_REQUIRED = 'Set your delivery address first (the Delivery address box, or Use location), so the restaurants found are the ones near you.';
+/** What a search served from the cache says, with the saved time filled in by the page. */
+export const SAVED_NOTE = 'Saved results: Google was not asked again because these are less than a day old. Press Refresh to ask Google now.';
+/** What a search served from the cache at Google\'s quota says. */
+export const QUOTA_NOTE = 'Google could not be asked (its limit for this key is reached or it is unreachable), so these are the results saved earlier.';
+/** What the hand-off answer says. */
+export const HANDOFF_NOTE = 'Opens Uber Eats at your delivery address with this restaurant searched. Sign in, pick the dishes and pay there; nothing is ordered or charged here.';
+
+/** How long a search answer is reused for the same craving at the same address. */
+const SEARCH_TTL_MS = 10 * 60 * 1000;
+/** How long a photo URL is reused. */
+const PHOTO_TTL_MS = 60 * 60 * 1000;
+/** The most entries any cache keeps (oldest dropped first). */
+const CACHE_MAX = 300;
+
+/** In-process copies; `persisted` says whether the person's saved rows hold them yet (a GET may read but never write). */
+const GEOCODE_CACHE = new Map<string, { place: Geocoded; persisted: boolean }>();
+const SEARCH_CACHE = new Map<string, { at: number; restaurants: Restaurant[]; persisted: boolean }>();
+const RESTAURANT_CACHE = new Map<string, Restaurant>();
+const PHOTO_CACHE = new Map<string, { at: number; uri: string }>();
+
+/** Keep one more entry, dropping the oldest past the cap. */
+function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
+  if (map.size >= CACHE_MAX) { const oldest = map.keys().next().value; if (oldest !== undefined) map.delete(oldest); }
+  map.set(key, value);
+}
+
+/**
+ * @description Forget every cached geocode, search, restaurant and photo (a test seam; the process otherwise keeps them).
+ */
+export function resetCaches(): void {
+  GEOCODE_CACHE.clear(); SEARCH_CACHE.clear(); RESTAURANT_CACHE.clear(); PHOTO_CACHE.clear();
+}
+
+/** The fetch the routes call: the context's (a test double) or the global one (the kernel's fenced egress). */
+function fetchOf(ctx: AppContext): FetchLike {
+  const own = (ctx as any).fetch;
+  return typeof own === 'function' ? own : (globalThis as any).fetch;
+}
+
+/** Serve a static surface file from the package tools dir (ctx.appPackageDir). */
 function serveFile(surfaceDir: string, fileName: string): RequestHandler {
   return (_req: Request, res: Response) => {
     const filePath = path.join(surfaceDir, fileName);
@@ -100,57 +119,10 @@ function resolveDinerSub(req: Request): string {
   throw Object.assign(new Error('Not authenticated'), { status: 401 });
 }
 
-/**
- * Run one deterministic Uber Eats operation with the caller's request-scoped credential.
- * The import-safe helper receives the value directly and cannot read a child environment.
- */
-async function uberEatsProviderOperation(pool: Pool, sub: string, args: string[]): Promise<any> {
-  const creds = await resolveServerOperationCreds(
-    pool as unknown as never,
-    sub,
-    ['uber'],
-    'fixed-server-operation',
-  );
-  const run = (a: string[]): Promise<any> => runUberEatsProviderOperation(creds.OSHAL_CRED_UBER, a);
-  if (runtimeRail === null) {
-    const st = await run(['status']);
-    runtimeRail = !!st && st.mode === 'not_connected' ? 'catalog' : 'provider';
-    if (args[0] === 'status' && runtimeRail === 'provider') return st;
-  }
-  return runtimeRail === 'catalog' ? uberCatalog.run(args) : run(args);
-}
-
-/**
- * Which rail answers Uber Eats in this process: 'provider' where the runtime has one, 'catalog' (the
- * package's own curated catalog and deep link, ./uber-catalog) where its `status` answers
- * not_connected. Asked once: a refused provider operation fails the whole native call even when it is
- * caught, so search, menu and order never reach a runtime that has no rail.
- */
-let runtimeRail: 'provider' | 'catalog' | null = null;
-
-/** What /config says where the package's own curated catalog and ubereats.com handoff answer. */
-const EATS_CATALOG_NOTE = 'Restaurants and menus come from a curated catalog; ordering opens Uber Eats, where you sign in and place the order yourself.';
-
-/** What a diner is told where the installation has no Uber Eats rail at all. */
-export const EATS_NO_RAIL = 'This installation has no Uber Eats rail (no Uber Eats connector exists here), so restaurants, menus and checkout links cannot be searched or opened from here.';
-
-/**
- * @description Whether the runtime has an Uber Eats rail. The native kernel's `status` answers mode
- * not_connected and refuses every other operation with 503 (failing the whole call), so a route that
- * only wants to know must ask `status`, never search.
- * @param pool - The package pool.
- * @param sub - The caller.
- * @returns absent=true where there is no rail, with the runtime's reason.
- */
-async function uberEatsRail(pool: Pool, sub: string): Promise<{ absent: boolean; catalog: boolean; reason: string | null }> {
-  const st = await uberEatsProviderOperation(pool, sub, ['status']);
-  const absent = !!st && st.mode === 'not_connected';
-  return { absent, catalog: !!st && st.mode === 'catalog', reason: absent ? String(st.reason || EATS_NO_RAIL) : null };
-}
-
 // ── Schema ───────────────────────────────────────────────────────────────────
 
-/** Create tables if a fresh deploy hasn't run the migrations yet. Idempotent. */
+/** Create tables if a fresh deploy hasn't run the migrations yet. Idempotent. The cart tables stay declared for the
+ *  rows earlier releases wrote; 1.4.0 reads and writes only eats_profile, eats_orders and the conversation tables. */
 export async function ensureEatsSchema(pool: Pool): Promise<void> {
   await runRuntimeSchemaBootstrap({
     pool,
@@ -205,8 +177,6 @@ export async function ensureEatsSchema(pool: Pool): Promise<void> {
     ],
     requirements: [
       { table: 'eats_profile', columns: ['user_sub', 'tenant_id', 'display_name', 'dietary', 'favorite_cuisines', 'onboarded', 'created_at', 'updated_at'] },
-      { table: 'eats_carts', columns: ['cart_id', 'user_sub', 'store_id', 'store_name', 'status', 'created_at', 'updated_at'] },
-      { table: 'eats_cart_items', columns: ['row_id', 'cart_id', 'user_sub', 'store_id', 'item_id', 'title', 'price', 'quantity', 'status', 'created_at'] },
       { table: 'eats_orders', columns: ['order_id', 'user_sub', 'store_id', 'store_name', 'items', 'total', 'handoff_url', 'created_at'] },
       { table: 'eats_conversations', columns: ['conversation_id', 'user_sub', 'title', 'created_at', 'updated_at'] },
       { table: 'eats_messages', columns: ['message_id', 'conversation_id', 'user_sub', 'role', 'content', 'created_at'] },
@@ -215,176 +185,162 @@ export async function ensureEatsSchema(pool: Pool): Promise<void> {
   });
 }
 
-// ── Cart helpers ───────────────────────────────────────────────────────────--
+// ── The delivery address and the restaurants around it ───────────────────────
 
-/**
- * @description The diner's one active cart, or null when they have none yet. A pure read, so a GET
- * (which the native host admits read-only) never has to create anything.
- * @param pool - The package pool.
- * @param sub - The authenticated diner.
- * @returns The cart row, or null.
- */
-async function findActiveCart(pool: Pool, sub: string): Promise<any | null> {
-  const found = await pool.query(
-    `SELECT * FROM eats_carts WHERE user_sub = $1 AND status = 'active' ORDER BY created_at LIMIT 1`, [sub]);
-  return found.rows[0] || null;
-}
+/** Where a request says the diner is: an address, or coordinates from the browser. */
+interface Where { address?: unknown; latitude?: unknown; longitude?: unknown }
 
-/** Get the diner's one active cart, creating it on first use. Write requests only. */
-async function getOrCreateCart(pool: Pool, sub: string): Promise<any> {
-  const found = await findActiveCart(pool, sub);
-  if (found) return found;
-  const created = await pool.query(`INSERT INTO eats_carts (user_sub) VALUES ($1) RETURNING *`, [sub]);
-  return created.rows[0];
-}
+/** A "lat, lng" pair as the page's Use location writes it into the address box. */
+const COORDINATES = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
 
-/** The active cart, its pending items and their exact total. */
-interface LoadedCart { cart: any; items: any[]; total: number; totalCents: number; unpricedLines: number }
-
-/** One cart's pending items + the total, summed in integer cents. */
-async function cartLines(pool: Pool, cart: any): Promise<LoadedCart> {
-  const items = (await pool.query(
-    `SELECT * FROM eats_cart_items WHERE cart_id = $1 AND status = 'pending' ORDER BY created_at`, [cart.cart_id])).rows;
-  const { totalCents, unpricedLines } = cartTotalCents(items);
-  return { cart, items, total: centsToDollars(totalCents), totalCents, unpricedLines };
-}
-
-/** Load the active cart + its pending items + the total, creating the cart on first use (writes only). */
-async function loadCart(pool: Pool, sub: string): Promise<LoadedCart> {
-  return cartLines(pool, await getOrCreateCart(pool, sub));
-}
-
-/** The cart fields every cart-returning response carries (items/total unchanged; cents added). */
-function cartBody(loaded: LoadedCart): Record<string, unknown> {
-  return { items: loaded.items, total: loaded.total, totalCents: loaded.totalCents, unpricedLines: loaded.unpricedLines };
+/** What to resolve for an address or a coordinate pair: coordinates (reverse lookup) or text, and its cache key. */
+function placeText(where: Where): { text: string; key: string; coords: { latitude: number; longitude: number } | null } | null {
+  const lat = Number(where.latitude), lng = Number(where.longitude);
+  if (where.latitude !== undefined && where.latitude !== '' && where.longitude !== undefined && where.longitude !== '' && Number.isFinite(lat) && Number.isFinite(lng)) {
+    const text = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    return { text, key: text, coords: { latitude: lat, longitude: lng } };
+  }
+  const text = String(where.address || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!text) return null;
+  const pair = COORDINATES.exec(text);
+  if (pair && Math.abs(Number(pair[1])) <= 90 && Math.abs(Number(pair[2])) <= 180) {
+    const coords = { latitude: Number(pair[1]), longitude: Number(pair[2]) };
+    const key = `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`;
+    return { text: key, key, coords };
+  }
+  return { text, key: text.toLowerCase(), coords: null };
 }
 
 /**
- * @description The GET /cart body, read without writing: the active cart's ids, store and lines, or
- * the same shape with cartId, storeId and storeName null and no lines when the diner has no cart yet.
- * The first write (POST /cart/items, the chat turn) creates the cart.
- * @param pool - The package pool.
- * @param sub - The authenticated diner.
- * @returns The cart view.
+ * @description The diner's delivery place: the request's address or coordinates, else the profile's saved address.
+ * The person's saved resolution (./place-cache) is used first; otherwise text resolves through Places Text Search and
+ * coordinates (a lat/lng pair, or the page's "lat, lng" address text) through the Geocoding API's reverse lookup, and
+ * the answer is saved when the request may write (a POST; the native kernel admits no write on a GET).
+ * @param fetchImpl - The fetch to use.
+ * @param where - What the request named.
+ * @param profile - The diner's profile row (its default_address is the fallback).
+ * @returns The resolved place, or null when nothing names where the diner is.
  */
-async function readCart(pool: Pool, sub: string): Promise<Record<string, unknown>> {
-  const cart = await findActiveCart(pool, sub);
-  if (!cart) return { cartId: null, storeId: null, storeName: null, items: [], total: 0, totalCents: 0, unpricedLines: 0 };
-  return { cartId: cart.cart_id, storeId: cart.store_id, storeName: cart.store_name, ...cartBody(await cartLines(pool, cart)) };
+async function resolvePlace(fetchImpl: FetchLike, pool: Pool, sub: string, where: Where, profile: any, canWrite: boolean): Promise<Geocoded | null> {
+  const wanted = placeText(where) || placeText({ address: profile?.default_address });
+  if (!wanted) return null;
+  const key = lookupKey(sub, wanted.coords ? 'coords' : 'text', wanted.key);
+  const source = wanted.coords ? 'geocoding' : 'places';
+  const cached = GEOCODE_CACHE.get(wanted.key);
+  if (cached) {
+    // Fetched earlier on a request that could not write: save it on this one.
+    if (canWrite && !cached.persisted) { await writeLookup(pool, key, sub, cached.place, source); cached.persisted = true; }
+    return cached.place;
+  }
+  // What this person resolved before (any age within Google's 30 days: addresses do not move) comes first.
+  const saved = await readLookup(pool, key);
+  if (saved) {
+    const place = { address: saved.address, placeId: saved.placeId, latitude: saved.latitude, longitude: saved.longitude };
+    remember(GEOCODE_CACHE, wanted.key, { place, persisted: true });
+    return place;
+  }
+  // Coordinates go to the Geocoding API's reverse lookup: Places Text Search refuses them as a query.
+  const place = wanted.coords ? await reverseGeocode(fetchImpl, wanted.coords.latitude, wanted.coords.longitude) : await geocode(fetchImpl, wanted.text);
+  if (canWrite) await writeLookup(pool, key, sub, place, source);
+  remember(GEOCODE_CACHE, wanted.key, { place, persisted: canWrite });
+  return place;
 }
 
-/** A store id as the provider's menu operation accepts it. */
-const STORE_ID = /^[A-Za-z0-9-]{1,128}$/;
-/** A menu item id (the curated catalog uses short slugs). */
-const ITEM_ID = /^[A-Za-z0-9._-]{1,64}$/;
+/** What a search answered and where it came from. */
+interface Served { restaurants: Restaurant[]; served: 'live' | 'saved'; savedAt: number; fallback: PlacesError | null }
+
+/** What a search asks for beyond the craving. */
+interface SearchAsk { limit: number; openNow: boolean; refresh: boolean; canWrite: boolean }
 
 /**
- * @description Find ONE menu item by exact id in the named restaurant's menu, for pricing a cart
- * line on the server. The menu is the provider's deterministic catalog, so the price, title and
- * store come from it; anything the browser sent is ignored.
- * @param run - The request-scoped provider call (`uberEatsProviderOperation` bound to the caller).
- * @param storeId - The restaurant the line is from.
- * @param productId - The menu item id.
- * @returns The menu item with its store name, or null when the menu does not list it.
+ * @description Restaurants for a craving at a place. The person's saved answer younger than a day is served without
+ * asking Google (Refresh asks anyway); otherwise Google is asked and the answer saved; and when Google refuses (quota,
+ * unreachable, not configured) a saved answer within Google's 30 days is served with the refusal named.
+ * @param fetchImpl - The fetch. @param pool - The package pool. @param sub - The person. @param query - The craving.
+ * @param place - The delivery place. @param ask - Page size, open-now, refresh, and whether this request may write.
+ * @returns The restaurants, whether they are live or saved, when they were fetched, and Google's refusal if any.
  */
-export async function menuItemFor(
-  run: (args: string[]) => Promise<any>,
-  storeId: string,
-  productId: string,
-): Promise<any | null> {
-  if (!STORE_ID.test(storeId) || !ITEM_ID.test(productId)) return null;
-  const menu = await run(['menu', storeId]);
-  const item = (menu?.items || []).find((row: any) => String(row?.productId) === productId && String(row?.storeId) === String(menu.storeId));
-  return item ? { ...item, storeName: menu.store || item.brand || null } : null;
+async function searchCached(fetchImpl: FetchLike, pool: Pool, sub: string, query: string, place: Geocoded, ask: SearchAsk): Promise<Served> {
+  const key = searchKey(sub, query, place.placeId, ask.limit, ask.openNow);
+  const now = Date.now();
+  const persist = async (at: number, restaurants: Restaurant[]) => { await writeSearch(pool, key, sub, query, place.placeId, restaurants, at); await writePlaces(pool, sub, restaurants, at); };
+  const recent = SEARCH_CACHE.get(key);
+  if (!ask.refresh && recent && now - recent.at < SEARCH_TTL_MS) {
+    // Fetched earlier on a request that could not write: save it on this one.
+    if (ask.canWrite && !recent.persisted) { await persist(recent.at, recent.restaurants); recent.persisted = true; }
+    return { restaurants: recent.restaurants, served: 'saved', savedAt: recent.at, fallback: null };
+  }
+  const saved = ask.refresh ? null : await readSearch(pool, key, now);
+  if (saved && isFresh(saved.fetchedAt, now)) {
+    remember(SEARCH_CACHE, key, { at: saved.fetchedAt, restaurants: saved.restaurants, persisted: true });
+    for (const r of saved.restaurants) remember(RESTAURANT_CACHE, r.placeId, r);
+    return { restaurants: saved.restaurants, served: 'saved', savedAt: saved.fetchedAt, fallback: null };
+  }
+  try {
+    const restaurants = await searchRestaurants(fetchImpl, { query, latitude: place.latitude, longitude: place.longitude, limit: ask.limit, openNow: ask.openNow });
+    if (ask.canWrite) await persist(now, restaurants);
+    remember(SEARCH_CACHE, key, { at: now, restaurants, persisted: ask.canWrite });
+    for (const r of restaurants) remember(RESTAURANT_CACHE, r.placeId, r);
+    return { restaurants, served: 'live', savedAt: now, fallback: null };
+  } catch (err) {
+    if (!(err instanceof PlacesError)) throw err;
+    const older = saved || await readSearch(pool, key, now);
+    if (!older) throw err;
+    for (const r of older.restaurants) remember(RESTAURANT_CACHE, r.placeId, r);
+    return { restaurants: older.restaurants, served: 'saved', savedAt: older.fetchedAt, fallback: err };
+  }
 }
 
-/** What a chat "checkout" returns instead of a hand-off: the confirm card the surface shows. */
-export interface OrderProposal {
-  actionId: 'place_order';
-  store: string | null;
-  lines: number;
-  totalCents: number;
-  total: number;
-  unpricedLines: number;
-  summary: string;
-}
-
-/**
- * @description Describe the order the diner would be handing off to Uber Eats, WITHOUT building
- * the deep link or recording anything. Only the diner's confirm (POST /order) does that.
- * @param loaded - The active cart with its pending items and totals.
- * @returns The proposal, or null for an empty cart or a cart with no restaurant.
- */
-export function orderProposal(loaded: LoadedCart): OrderProposal | null {
-  if (!loaded.items.length || !loaded.cart?.store_id) return null;
-  const units = loaded.items.reduce((sum, line) => sum + lineQuantity(line.quantity), 0);
-  const store = loaded.cart.store_name || null;
-  const partial = loaded.unpricedLines ? ` (${loaded.unpricedLines} line${loaded.unpricedLines === 1 ? '' : 's'} without a price)` : '';
+/** The cache fields every search answer carries. */
+function servedFields(found: Served): Record<string, unknown> {
   return {
-    actionId: 'place_order', store, lines: loaded.items.length, totalCents: loaded.totalCents,
-    total: loaded.total, unpricedLines: loaded.unpricedLines,
-    summary: `Open Uber Eats for ${units} item${units === 1 ? '' : 's'}${store ? ` from ${store}` : ''} totalling $${formatCents(loaded.totalCents)}${partial}? You confirm the address and pay in Uber Eats; nothing is charged here.`,
+    served: found.served, savedAt: new Date(found.savedAt).toISOString(), expiresAt: new Date(found.savedAt + MAX_AGE_MS).toISOString(),
+    freshForMs: FRESH_MS,
+    savedNote: found.served === 'saved' ? (found.fallback ? QUOTA_NOTE : SAVED_NOTE) : '',
+    fallback: found.fallback ? { error: found.fallback.code, message: found.fallback.message } : null,
+  };
+}
+
+/** A restaurant card as the surface and Jarvis receive it: the card plus its Uber Eats link at the diner's address. */
+function card(place: Geocoded): (r: Restaurant) => Record<string, unknown> {
+  return (r) => ({ ...r, uberUrl: searchLink(r.name, place) });
+}
+
+/** Answer a Places refusal in words with its status; anything else is a route error. */
+function answerPlacesError(res: Response, err: unknown, where: string): void {
+  if (err instanceof PlacesError) {
+    logger.warn({ code: err.code, where }, err.message);
+    res.status(err.status).json({ error: err.code, message: err.message, source: SOURCE });
+    return;
+  }
+  throw err;
+}
+
+// ── Concierge brain ──────────────────────────────────────────────────────────
+
+/** The concierge's reply object. */
+interface ChatEnvelope { say: string; show: string[]; remember: string[]; order: string | null }
+
+/** What a chat "order" choice returns instead of a hand-off: the confirm card the surface shows. */
+export interface OrderProposal { actionId: 'open_uber_eats'; placeId: string; store: string; summary: string }
+
+/**
+ * @description Describe the hand-off the diner would be confirming, WITHOUT building it or recording anything. Only
+ * the diner's confirm (POST /order) does that.
+ * @param restaurant - The chosen restaurant.
+ * @param place - The delivery address.
+ * @returns The proposal.
+ */
+export function orderProposal(restaurant: Restaurant, place: Geocoded): OrderProposal {
+  return {
+    actionId: 'open_uber_eats', placeId: restaurant.placeId, store: restaurant.name,
+    summary: `Open Uber Eats at ${place.address} with ${restaurant.name} searched? You pick the dishes, confirm the address and pay in Uber Eats; nothing is ordered or charged here.`,
   };
 }
 
 /**
- * Add an item to the active cart. Uber Eats orders ONE restaurant, so adding from a
- * different store switches the cart to that store (clearing the old items). Returns the
- * inserted row + whether a store switch happened.
- */
-async function addToCart(pool: Pool, sub: string, prod: any, qty: number): Promise<{ row: any; storeSwitched: boolean }> {
-  const q = lineQuantity(qty);
-  let cart = await getOrCreateCart(pool, sub);
-  let storeSwitched = false;
-  const newStore = String(prod.storeId || '');
-  if (cart.store_id && newStore && cart.store_id !== newStore) {
-    await pool.query(`UPDATE eats_cart_items SET status = 'removed' WHERE cart_id = $1 AND status = 'pending'`, [cart.cart_id]);
-    storeSwitched = true;
-  }
-  if (newStore && cart.store_id !== newStore) {
-    await pool.query(`UPDATE eats_carts SET store_id = $2, store_name = $3, updated_at = NOW() WHERE cart_id = $1`,
-      [cart.cart_id, newStore, prod.storeName || prod.brand || null]);
-    cart = { ...cart, store_id: newStore, store_name: prod.storeName || prod.brand || null };
-  }
-  const ins = await pool.query(
-    `INSERT INTO eats_cart_items (cart_id, user_sub, store_id, store_name, item_id, title, price, quantity, emoji, image_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [cart.cart_id, sub, newStore || null, prod.storeName || prod.brand || null, prod.productId || prod.itemId || null,
-     prod.title || null, prod.price ?? null, q, prod.emoji || null, prod.imageUrl || null]);
-  return { row: ins.rows[0], storeSwitched };
-}
-
-/** Build the Uber Eats order deep link for the active cart's store + record the handoff. */
-async function buildOrder(pool: Pool, sub: string): Promise<{ checkoutUrl: string | null; total: number; totalCents: number; store: string | null }> {
-  const { cart, items, total, totalCents } = await loadCart(pool, sub);
-  if (!items.length || !cart.store_id) return { checkoutUrl: null, total: 0, totalCents: 0, store: null };
-  const r = await uberEatsProviderOperation(pool, sub, ['order', String(cart.store_id)]);
-  const url = r.checkoutUrl || null;
-  await pool.query(
-    `INSERT INTO eats_orders (user_sub, store_id, store_name, items, total, handoff_url)
-     VALUES ($1,$2,$3,$4::jsonb,$5,$6)`,
-    [sub, cart.store_id, cart.store_name, JSON.stringify(items), formatCents(totalCents), url]);
-  return { checkoutUrl: url, total, totalCents, store: cart.store_name };
-}
-
-// ── Concierge brain ────────────────────────────────────────────────────────--
-
-interface ChatEnvelope { say: string; show: string[]; add: Array<{ productId: string; quantity: number; reason?: string }>; remember: string[]; checkout: boolean; }
-
-/** Up to 12 dishes from the first three restaurants' menus (the concierge's only addable items). */
-async function menuCandidates(run: (args: string[]) => Promise<any>, restaurants: any[]): Promise<any[]> {
-  const menus = await Promise.all(restaurants.slice(0, 3).map(async (restaurant) => {
-    if (!restaurant?.productId) return [];
-    const menu = await run(['menu', String(restaurant.productId)]);
-    return menu.items || [];
-  }));
-  return menus.flat().slice(0, 12);
-}
-
-/**
  * @description The concierge's "remember" entries worth saving: trimmed, non-empty, not already saved and not repeated
- * in the same turn (case and spacing ignored). The concierge re-saved "wants spicy food" on every turn after one
- * earlier "something spicy for dinner", and the growing notes then read as part of each new request.
+ * in the same turn (case and spacing ignored).
  * @param remember - The envelope's remember list.
  * @param saved - The diner's saved notes.
  * @returns The notes to save, in order.
@@ -402,33 +358,41 @@ export function newNotes(remember: string[], saved: string[]): string[] {
   return out;
 }
 
-/** With no rail no search ran: the concierge must not report an empty result for a search that never happened. */
-const NO_SEARCH_CANDIDATES = '(no search ran: this installation has no Uber Eats rail, so there are no restaurants or dishes to offer. Never say a search came back empty, found nothing, or that nothing matched.)';
+/** One candidate line of the prompt. */
+function candidateLine(r: Restaurant): string {
+  const facts = [
+    r.cuisine || 'restaurant',
+    r.rating !== null ? `rating ${r.rating}${r.ratingCount !== null ? ` (${r.ratingCount} reviews)` : ''}` : '',
+    r.priceLabel,
+    r.openNow === true ? 'open now' : r.openNow === false ? 'closed now' : '',
+    r.distanceKm !== null ? `${r.distanceKm} km away` : '',
+    r.delivery === true ? 'delivers' : r.delivery === false ? 'no delivery listed' : '',
+  ].filter(Boolean);
+  return `- id:${r.placeId} | ${r.name} | ${facts.join(' | ')}`;
+}
+
 function buildConciergePrompt(o: {
   message: string; history: Array<{ role: string; content: string }>;
-  candidates: any[]; cart: any[]; profile: any; notes: string[]; railNote?: string; restrictions?: string;
+  candidates: Restaurant[]; place: Geocoded | null; profile: any; notes: string[]; searchNote: string; restrictions?: string;
 }): string {
   const p = o.profile || {};
   const profileLine = p.onboarded
     ? `diet:${(p.dietary || []).join(',') || 'none'} | cuisines:${(p.favorite_cuisines || []).join(',') || 'any'} | address:${p.default_address || 'ask'} | budget:${p.budget_per_order ? '$' + p.budget_per_order : 'n/a'}`
-    : 'NOT ONBOARDED — warmly ask one or two questions first (dietary needs, favorite cuisines, delivery address, per-order budget), then save the profile.';
-  const prods = (o.candidates || [])
-    .map((c) => `- id:${c.productId} | ${c.title}${c.cuisine ? ` (${c.cuisine})` : ''}${typeof c.price === 'number' ? ` | $${c.price.toFixed(2)}` : c.priceFrom != null ? ` | from $${Number(c.priceFrom).toFixed(2)}` : ''}${c.etaMinutes ? ` | ~${c.etaMinutes}min` : ''}`)
-    .join('\n') || (o.railNote ? NO_SEARCH_CANDIDATES : '(no results for this message — ask what they\'re hungry for, or that nothing matched)');
-  const cart = (o.cart || []).map((c) => `- ${c.title} ×${c.quantity}${c.store_name ? ` @ ${c.store_name}` : ''}`).join('\n') || '(empty)';
+    : 'NOT ONBOARDED: warmly ask one or two questions first (dietary needs, favorite cuisines, delivery address, per-order budget), then save the profile.';
+  const candidates = o.searchNote
+    ? `CANDIDATES (none: no search ran. ${o.searchNote} Never say a search came back empty, found nothing, or that nothing matched; say what is missing instead.)`
+    : `CANDIDATES (real, from Google Places near ${o.place ? o.place.address : 'the delivery address'}; the ONLY restaurants you may show or open):\n${o.candidates.map(candidateLine).join('\n') || '(no restaurant matched this craving near the address: say so and ask for another craving)'}`;
   const notes = newNotes(o.notes || [], []).map((n) => `- ${n}`).join('\n') || '(none yet)';
   const convo = (o.history || []).map((h) => `${h.role === 'assistant' ? 'You' : 'Diner'}: ${h.content}`).join('\n');
   return [
-    'You are the Eats Concierge — a warm, fast food-ordering assistant on Uber Eats. Help the diner find a restaurant + dishes, build ONE order, then hand off a checkout. Never take payment, never invent a restaurant/dish/price.',
-    'Be conversational and brief. Ask ONE good question when it helps (cuisine? budget? how many?). Only show or add items from CANDIDATES below, by id. Keep ONE restaurant per order; if they pick another, confirm it\'s a new order. Set "checkout": true only when they ask to order.',
+    'You are the Eats Concierge, a warm, fast food-delivery assistant. The restaurants under CANDIDATES are real places near the diner\'s delivery address, found through Google Places just now. The diner orders in Uber Eats: when they choose a restaurant, set "order" to its id and Uber Eats opens at their address with that restaurant searched; the dishes, prices and payment are chosen there. Never invent a restaurant, a dish, a price, a menu or a delivery time, and never say an order was placed.',
+    'Be conversational and brief. Ask ONE good question when it helps (what cuisine? how many people? budget?). Only show candidates by id, and say why each fits. Set "order" only when the diner asks to order from, open, or go with one candidate; otherwise null.',
     '"remember" only a NEW food preference the diner states in THIS message: not one already under SAVED PREFERENCES, not a guess, and never a status such as onboarding or a missing address.',
     '',
-    o.railNote ? `CANDIDATES (none: search is not available on this installation):\n${prods}` : `CANDIDATES (real, from search — the ONLY items you may show or add):\n${prods}`,
-    o.railNote ? `THIS INSTALLATION: ${o.railNote} Say so plainly when the diner wants a restaurant, a menu or an order, and help with what to eat, dietary needs and saved preferences instead. Never tell the diner to connect Uber Eats or add an Uber Eats connection: there is no Uber Eats connector to add here.` : '',
+    candidates,
     '',
     `DINER PROFILE: ${profileLine}`,
     o.restrictions || '',
-    `CURRENT ORDER:\n${cart}`,
     `SAVED PREFERENCES (from earlier conversations, NOT part of this request: never fold one into your summary of what the diner asked; if one matters, ask about it as its own question, e.g. "Last time you wanted spicy food. Still want that?"):\n${notes}`,
     '',
     convo ? `CONVERSATION SO FAR:\n${convo}` : '',
@@ -436,7 +400,7 @@ function buildConciergePrompt(o: {
     `DINER: ${o.message}`,
     '',
     'Reply with ONLY a JSON object, nothing around it:',
-    '{ "say": "your reply (ask a question when useful)", "show": ["candidate id", ...], "add": [{"productId":"id","quantity":1,"reason":"why"}], "remember": ["a preference to save"], "checkout": false }',
+    '{ "say": "your reply (ask a question when useful)", "show": ["candidate id", ...], "remember": ["a preference to save"], "order": "candidate id, or null" }',
   ].filter(Boolean).join('\n');
 }
 
@@ -463,8 +427,7 @@ function sayFromBrokenEnvelope(s: string): string {
 
 /**
  * @description Escape the raw control characters (a newline, a tab) a model writes inside a JSON string literal, which
- * JSON.parse refuses. Round 8: a reply whose "say" held a raw newline lost its whole text and the diner saw the route's
- * fallback instead. Only characters inside string literals are touched; the layout between fields is left as it is.
+ * JSON.parse refuses. Only characters inside string literals are touched; the layout between fields is left as it is.
  * @param s - The candidate object (or string literal) text.
  * @returns The same text with every control character inside a string literal written as its JSON escape.
  */
@@ -482,27 +445,24 @@ function escapeRawControls(s: string): string {
 }
 
 function envelopeFrom(o: any, fallbackSay: string): ChatEnvelope {
+  const order = typeof o.order === 'string' && o.order.trim() && o.order.trim().toLowerCase() !== 'null' ? o.order.trim() : null;
   return {
     say: cleanConciergeReply(o.say, fallbackSay),
     show: Array.isArray(o.show) ? o.show.map(String) : [],
-    add: Array.isArray(o.add)
-      ? o.add.filter((a: any) => a && a.productId).map((a: any) => ({ productId: String(a.productId), quantity: Number(a.quantity) || 1, reason: a.reason ? String(a.reason) : undefined }))
-      : [],
     remember: Array.isArray(o.remember) ? o.remember.map(String).filter(Boolean) : [],
-    checkout: !!o.checkout,
+    order,
   };
 }
 
 /**
- * @description The concierge's reply envelope. Sweep 8: the model answered an object with no commas between its fields,
- * JSON.parse failed and the whole raw object was shown to the diner as the reply. A missing-comma object is repaired;
- * anything still unparsable that is shaped like the envelope shows only its "say" text (nothing is added, saved or
- * checked out), and never the raw object. Plain prose with no object is still the reply.
+ * @description The concierge's reply envelope. A missing-comma object is repaired; anything still unparsable that is
+ * shaped like the envelope shows only its "say" text (nothing is shown, saved or proposed), and never the raw object.
+ * Plain prose with no object is still the reply.
  * @param text - The concierge's raw answer.
  * @returns The envelope to act on.
  */
 export function parseEnvelope(text: string): ChatEnvelope {
-  const fallback: ChatEnvelope = { say: cleanConciergeReply(text), show: [], add: [], remember: [], checkout: false };
+  const fallback: ChatEnvelope = { say: cleanConciergeReply(text), show: [], remember: [], order: null };
   if (!text) return fallback;
   let s = text.trim();
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -515,13 +475,12 @@ export function parseEnvelope(text: string): ChatEnvelope {
     try { return envelopeFrom(JSON.parse(candidate), ''); } catch { /* try the next form */ }
   }
   if (!/"say"\s*:/.test(body)) return fallback;
-  return { say: sayFromBrokenEnvelope(body), show: [], add: [], remember: [], checkout: false };
+  return { say: sayFromBrokenEnvelope(body), show: [], remember: [], order: null };
 }
 
 /**
- * @description The concierge's words without chat Markdown marks. The in-app bubble shows text as written, so
- * "1. **Mushroom Risotto**" reached the diner with its asterisks (sweep 12). Bold and italic marks around words and
- * heading marks at a line start are taken out; the words, numbers and list lines stay.
+ * @description The concierge's words without chat Markdown marks. Bold and italic marks around words and heading marks
+ * at a line start are taken out; the words, numbers and list lines stay.
  * @param text - The reply text.
  * @returns The same words with those marks left out.
  */
@@ -541,8 +500,7 @@ const RESTRICTION_NOTE = /allerg|intoleran|celiac|coeliac|anaphyla|vegan|vegetar
 const RESTRICTION_SAID = /allerg|intoleran|celiac|coeliac|anaphyla|epi-?pen|can'?t (?:eat|have)|cannot (?:eat|have)|don'?t eat|do not eat|avoid|sensitiv|vegan|vegetarian|pescatarian|halal|kosher|gluten|dairy|lactose/;
 
 /**
- * @description A word's stem, so a paraphrase still matches: "allergic", "allergy" and "allergies" are all "allerg";
- * "peanuts" is "peanut"; "onions" is "onion"; "spicy" and "spice" are "spic". Deliberately light: one suffix removed.
+ * @description A word's stem, so a paraphrase still matches. Deliberately light: one suffix removed.
  * @param word - One lower-case word.
  * @returns The stem.
  */
@@ -556,7 +514,7 @@ function stemWord(word: string): string {
 }
 
 function noteWords(text: string): string[] {
-  return String(text || '').toLowerCase().replace(/[\u2018\u2019]/g, "'").split(/[^a-z0-9']+/)
+  return String(text || '').toLowerCase().replace(/[‘’]/g, "'").split(/[^a-z0-9']+/)
     .map((w) => w.replace(/^'+|'+$/g, ''))
     .filter((w) => /^\d+$/.test(w) || w.length >= 4 || SHORT_FOOD.has(stemWord(w)))
     .map(stemWord)
@@ -566,17 +524,14 @@ function noteWords(text: string): string[] {
 /**
  * @description The remember entries the diner actually stated in THIS message: each must share a word stem with the
  * message (filler such as "food" or "want" does not count), and an allergy, intolerance or diet note is always kept when
- * the message states one. Sweep 8: asked "something vegetarian for two people under 30 dollars", the concierge's
- * remember list held "spicy preference", "address: pending", "budget: cheap" and "not on boarded" - none of which the
- * diner said - and the prompt rule alone did not stop it. Round 8 review: matching whole words dropped "peanut allergy"
- * and "no onions" for "I'm allergic to peanuts, hold the onion", so a stated allergy was never saved.
+ * the message states one.
  * @param remember - The envelope's remember list.
  * @param message - The diner's message this turn.
  * @returns The entries grounded in the message, in order.
  */
 export function statedNotes(remember: string[], message: string): string[] {
   const said = new Set(noteWords(message));
-  const restrictionSaid = RESTRICTION_SAID.test(String(message || '').toLowerCase().replace(/[\u2018\u2019]/g, "'"));
+  const restrictionSaid = RESTRICTION_SAID.test(String(message || '').toLowerCase().replace(/[‘’]/g, "'"));
   return (remember || []).filter((note) =>
     noteWords(note).some((w) => said.has(w)) || (restrictionSaid && RESTRICTION_NOTE.test(String(note || '').toLowerCase())));
 }
@@ -586,26 +541,23 @@ async function loadProfile(pool: Pool, sub: string): Promise<any> {
   return r.rows[0] || { user_sub: sub, onboarded: false, dietary: [], favorite_cuisines: [] };
 }
 
-// ── Router ─────────────────────────────────────────────────────────────────--
-
-/** The diner's allergies and diet for one chat turn, and the search's dishes split by them. */
-interface AllergyGuard { restrictions: Restriction[]; safe: any[]; held: Conflict[]; block: string }
+/** The diner's allergies and diet for one chat turn, and the restaurants split by them. */
+interface AllergyGuard { restrictions: Restriction[]; safe: Restaurant[]; held: Conflict[]; block: string }
 
 /**
- * @description Check this turn's dishes against the diner's allergies and diet before the concierge sees them. Demo
- * sweep 2: after "I have noted your peanut allergy" the concierge suggested a Vegetarian Pad Thai with no warning. The
- * restrictions come from the message, the saved notes and the profile's dietary list; a dish that names an allergen or
- * is usually made with it is held back (never offered, shown or added), and the prompt states the restrictions as facts.
+ * @description Check this turn's restaurants against the diner's allergies and diet before the concierge sees them: a
+ * restaurant whose name names an allergen the diner avoids (a peanut house for a peanut allergy) is held back, and the
+ * prompt states the restrictions as facts so the concierge checks every dish it names from general knowledge.
  * @param message - The diner's message.
  * @param notes - The saved concierge notes.
  * @param profile - The diner's profile row.
- * @param candidates - The menu dishes search returned.
- * @returns The restrictions, the safe and held dishes, and the prompt block.
+ * @param candidates - The restaurants search returned.
+ * @returns The restrictions, the safe and held restaurants, and the prompt block.
  */
-export function allergyGuard(message: string, notes: string[], profile: any, candidates: any[]): AllergyGuard {
+export function allergyGuard(message: string, notes: string[], profile: any, candidates: Restaurant[]): AllergyGuard {
   const restrictions = dinerRestrictions([message, ...(notes || []), ...((profile && profile.dietary) || [])]);
-  const { safe, held } = holdConflicting(candidates, restrictions);
-  return { restrictions, safe, held, block: restrictionPrompt(restrictions, held) };
+  const { safe, held } = holdConflicting(candidates.map((r) => ({ ...r, title: r.name, description: r.cuisine })), restrictions);
+  return { restrictions, safe: safe.map(({ title, description, ...r }) => r as Restaurant), held, block: restrictionPrompt(restrictions, held) };
 }
 
 /**
@@ -630,13 +582,19 @@ async function askConcierge(ctx: AppContext, sub: string, prompt: string): Promi
   } catch (e) { logger.error({ e }, 'eats concierge dispatch failed'); return ''; }
 }
 
+// ── Router ───────────────────────────────────────────────────────────────────
+
+/** A bounded page size. */
+const limitOf = (value: unknown, fallback: number): number => Math.max(1, Math.min(20, Math.floor(Number(value)) || fallback));
+
 export function createEatsRoutes(ctx: AppContext): Router {
   const router = Router();
   const pool = ctx.pool;
   const store = new ConciergeStore(pool, 'eats');
   const surfaceDir = ctx.appPackageDir ? path.join(ctx.appPackageDir, 'tools') : path.resolve(process.cwd(), 'tools');
+  const fetchImpl = fetchOf(ctx);
 
-  ensureEatsSchema(pool).catch((err) => logger.warn({ err }, 'Eats schema bootstrap deferred — tables may not exist yet'));
+  ensureEatsSchema(pool).catch((err) => logger.warn({ err }, 'Eats schema bootstrap deferred: tables may not exist yet'));
 
   const diner =
     (fn: (req: Request, res: Response, sub: string) => Promise<void>): RequestHandler =>
@@ -652,73 +610,62 @@ export function createEatsRoutes(ctx: AppContext): Router {
   router.get('/app', serveFile(surfaceDir, 'eats-app.html'));
   router.get('/chat', serveFile(surfaceDir, 'eats-app.html')); // alias (parity with purchasing's /chat surface)
 
-  router.get('/config', diner(async (_req, res, sub) => {
-    const rail = await uberEatsRail(pool, sub);
-    if (rail.catalog) { res.json({ uberConnected: false, rail: 'catalog', railNote: EATS_CATALOG_NOTE }); return; }
-    if (rail.absent) { res.json({ uberConnected: false, rail: 'absent', railNote: EATS_NO_RAIL }); return; }
-    const r = await pool.query(`SELECT 1 FROM oshal_connections WHERE provider='uber' AND (user_sub=$1 OR tenant_id IS NOT NULL) LIMIT 1`, [sub]);
-    res.json({ uberConnected: !!r.rowCount, rail: 'provider' });
+  router.get('/config', diner(async (_req, res) => {
+    res.json({ rail: 'places', source: SOURCE, connector: CONNECTOR, handoff: 'uber-eats', uberConnected: false, railNote: EATS_RAIL_NOTE });
   }));
 
-  // ── Catalog (via the request-scoped provider helper) ────────────────────────
-  router.get('/search', diner(async (req, res, sub) => {
-    const q = String(req.query.q || req.query.query || '');
-    const r = await uberEatsProviderOperation(pool, sub, ['search', q, String(Number(req.query.limit) || 8)]);
-    res.json({ items: r.items || [], source: r.source || (r.error ? 'error' : 'catalog'), error: r.error });
+  // ── Restaurants (Google Places around the delivery address, cache first) ──
+  // POST is what the page, the chat and the Jarvis tool use: it may save what Google answered. GET still answers,
+  // reading the cache, because the native kernel admits no write on a GET.
+  const searchHandler = diner(async (req, res, sub) => {
+    const input = req.method === 'GET' ? req.query : { ...(req.query || {}), ...(req.body || {}) };
+    const q = String(input.q || input.query || '').trim().slice(0, 200);
+    const ask: SearchAsk = { limit: limitOf(input.limit, 12), openNow: String(input.openNow || '') === 'true' || input.openNow === true, refresh: String(input.refresh || '') === 'true' || input.refresh === true, canWrite: req.method !== 'GET' };
+    try {
+      const place = await resolvePlace(fetchImpl, pool, sub, { address: input.address, latitude: input.lat, longitude: input.lng }, await loadProfile(pool, sub), ask.canWrite);
+      if (!place) { res.status(400).json({ error: 'address_required', message: ADDRESS_REQUIRED }); return; }
+      const found = await searchCached(fetchImpl, pool, sub, q, place, ask);
+      res.json({ source: SOURCE, place, query: q, items: found.restaurants.map(card(place)), feedUrl: feedLink(place), uberSearchUrl: searchLink(q || 'food', place), ...servedFields(found) });
+    } catch (err) { answerPlacesError(res, err, 'search'); }
+  });
+  router.get('/search', searchHandler);
+  router.post('/search', searchHandler);
+
+  // A restaurant photo's image URL, resolved by the kernel's egress so the browser never needs the key.
+  router.get('/photo', diner(async (req, res) => {
+    const name = String(req.query.name || '');
+    if (!PHOTO_NAME.test(name)) { res.status(400).json({ error: 'photo name is required' }); return; }
+    const hit = PHOTO_CACHE.get(name);
+    if (hit && Date.now() - hit.at < PHOTO_TTL_MS) { res.json({ photoUri: hit.uri }); return; }
+    try {
+      const uri = await photoUri(fetchImpl, name, limitOf(req.query.width, 10) * 64);
+      if (!uri) { res.status(404).json({ error: 'no_photo' }); return; }
+      remember(PHOTO_CACHE, name, { at: Date.now(), uri });
+      res.json({ photoUri: uri });
+    } catch (err) { answerPlacesError(res, err, 'photo'); }
   }));
 
-  router.get('/menu', diner(async (req, res, sub) => {
-    const storeId = String(req.query.storeId || req.query.store || '');
-    if (!storeId) { res.status(400).json({ error: 'storeId is required' }); return; }
-    const r = await uberEatsProviderOperation(pool, sub, ['menu', storeId]);
-    res.json({ store: r.store || null, storeId, items: r.items || [], error: r.error });
-  }));
-
-  // ── Cart ─────────────────────────────────────────────────────────────────--
-  // A read never creates the cart: with none yet, the ids and store are null (see readCart).
-  router.get('/cart', diner(async (_req, res, sub) => {
-    res.json(await readCart(pool, sub));
-  }));
-
-  // The line is priced by the SERVER from the restaurant's menu: the body names storeId and
-  // productId, and price, title, store name and image come from the menu item that matches both.
-  // A client-sent price is ignored and an item the menu does not list is refused.
-  router.post('/cart/items', diner(async (req, res, sub) => {
+  // ── The hand-off into Uber Eats ───────────────────────────────────────────
+  router.post('/order', diner(async (req, res, sub) => {
     const b = req.body || {};
-    const storeId = String(b.storeId || '').trim();
-    const productId = String(b.productId || b.itemId || '').trim();
-    if (!STORE_ID.test(storeId) || !ITEM_ID.test(productId)) { res.status(400).json({ error: 'storeId and productId are required' }); return; }
-    const item = await menuItemFor((args) => uberEatsProviderOperation(pool, sub, args), storeId, productId);
-    if (!item) { res.status(422).json({ error: 'unknown_item', message: 'That dish is not on the restaurant\'s menu, so it was not added.' }); return; }
-    const { row, storeSwitched } = await addToCart(pool, sub, item, Number(b.quantity) || 1);
-    const loaded = await loadCart(pool, sub);
-    res.json({ item: row, storeSwitched, storeName: loaded.cart.store_name, ...cartBody(loaded) });
-  }));
-
-  router.delete('/cart/items/:rowId', diner(async (req, res, sub) => {
-    await pool.query(`UPDATE eats_cart_items SET status = 'removed' WHERE row_id = $1 AND user_sub = $2`, [req.params.rowId, sub]);
-    const loaded = await loadCart(pool, sub);
-    res.json({ ok: true, storeName: loaded.cart.store_name, ...cartBody(loaded) });
-  }));
-
-  router.post('/cart/clear', diner(async (_req, res, sub) => {
-    const cart = await getOrCreateCart(pool, sub);
-    await pool.query(`UPDATE eats_cart_items SET status = 'removed' WHERE cart_id = $1 AND status = 'pending'`, [cart.cart_id]);
-    await pool.query(`UPDATE eats_carts SET store_id = NULL, store_name = NULL, updated_at = NOW() WHERE cart_id = $1`, [cart.cart_id]);
-    res.json({ ok: true });
-  }));
-
-  // ── Order handoff (deep link) ───────────────────────────────────────────────
-  router.post('/order', diner(async (_req, res, sub) => {
-    const r = await buildOrder(pool, sub);
-    if (!r.checkoutUrl) { res.status(400).json({ error: 'nothing to order (add items first)' }); return; }
-    res.json({ checkoutUrl: r.checkoutUrl, total: r.total, totalCents: r.totalCents, store: r.store,
-      note: 'Opens at Uber Eats — sign in, confirm your address, and place the order. This is a handoff, not an in-app charge.' });
+    const placeId = String(b.placeId || b.storeId || '').trim();
+    if (!PLACE_ID.test(placeId)) { res.status(400).json({ error: 'placeId is required' }); return; }
+    try {
+      const place = await resolvePlace(fetchImpl, pool, sub, { address: b.address, latitude: b.lat, longitude: b.lng }, await loadProfile(pool, sub), true);
+      if (!place) { res.status(400).json({ error: 'address_required', message: ADDRESS_REQUIRED }); return; }
+      const known = RESTAURANT_CACHE.get(placeId) || await readPlace(pool, sub, placeId);
+      const name = known ? known.name : (await placeDetails(fetchImpl, placeId)).name;
+      const checkoutUrl = searchLink(name, place);
+      await pool.query(
+        `INSERT INTO eats_orders (user_sub, store_id, store_name, items, total, handoff_url) VALUES ($1,$2,$3,'[]'::jsonb,NULL,$4)`,
+        [sub, placeId, name, checkoutUrl]);
+      res.json({ checkoutUrl, store: name, placeId, address: place.address, note: HANDOFF_NOTE });
+    } catch (err) { answerPlacesError(res, err, 'order'); }
   }));
 
   router.get('/orders/history', diner(async (_req, res, sub) => {
     const r = await pool.query(
-      `SELECT store_name, total, handoff_url, created_at
+      `SELECT store_id, store_name, total, handoff_url, created_at
          FROM eats_orders
         WHERE user_sub = $1
         ORDER BY created_at DESC
@@ -766,48 +713,42 @@ export function createEatsRoutes(ctx: AppContext): Router {
     const message = String(req.body?.message || '').trim();
     if (!message) { res.status(400).json({ error: 'message is required' }); return; }
 
-    // Conversation + message + feedback persistence (durable resume, IDOR guard) is shared — ConciergeStore.
+    // Conversation + message + feedback persistence (durable resume, IDOR guard) is shared: ConciergeStore.
     const conversationId = await store.ensureConversation(sub, req.body?.conversationId || undefined, message);
     await store.addMessage(conversationId, sub, 'user', message);
     const history = await store.loadHistory(conversationId);
-    const [profile, notes, currentCart] = await Promise.all([loadProfile(pool, sub), store.loadNotes(sub), loadCart(pool, sub)]);
-    const rail = await uberEatsRail(pool, sub);
-    const searchRes = rail.absent ? { items: [], source: 'unavailable' } : await uberEatsProviderOperation(pool, sub, ['search', message, '6']);
-    const candidates = await menuCandidates((args) => uberEatsProviderOperation(pool, sub, args), searchRes.items || []);
-    // Every dish is checked against the diner's allergies and diet first: a held dish is never offered, shown or added.
-    const allergy = allergyGuard(message, notes, profile, candidates);
-    const candById = new Map<string, any>(allergy.safe.map((item) => [String(item.productId), item]));
+    const [profile, notes] = await Promise.all([loadProfile(pool, sub), store.loadNotes(sub)]);
 
-    const prompt = buildConciergePrompt({ message, history, candidates: allergy.safe, cart: currentCart.items, profile, notes, railNote: rail.absent ? EATS_NO_RAIL : '', restrictions: allergy.block });
+    // The real restaurants for this message near the diner: a Places refusal is a fact the prompt states, never an empty result.
+    let place: Geocoded | null = null, found: Restaurant[] = [], searchNote = '';
+    try {
+      place = await resolvePlace(fetchImpl, pool, sub, { address: req.body?.location || req.body?.address, latitude: req.body?.lat, longitude: req.body?.lng }, profile, true);
+      if (place) found = (await searchCached(fetchImpl, pool, sub, message, place, { limit: 8, openNow: false, refresh: false, canWrite: true })).restaurants;
+      else searchNote = ADDRESS_REQUIRED;
+    } catch (err) {
+      if (!(err instanceof PlacesError)) throw err;
+      searchNote = err.message;
+    }
+    const allergy = allergyGuard(message, notes, profile, found);
+    const candById = new Map<string, Restaurant>(allergy.safe.map((r) => [r.placeId, r]));
+
+    const prompt = buildConciergePrompt({ message, history, candidates: allergy.safe, place, profile, notes, searchNote, restrictions: allergy.block });
     const env = parseEnvelope(await askConcierge(ctx, sub, prompt));
     env.say = plainProse(env.say);
-    const shown = env.show.length
-      ? env.show.map((id) => candById.get(id)).filter(Boolean)
-      : allergy.safe.slice(0, 6);
-    // The fallback names options only when cards really go out with it (round 8: it claimed options that the
-    // diner never saw).
+    const shown = env.show.length ? env.show.map((id) => candById.get(id)).filter(Boolean) as Restaurant[] : allergy.safe.slice(0, 6);
     if (!env.say) env.say = shown.length
-      ? 'I found a few options. Pick one or tell me what to add.'
-      : "I'm having trouble reaching my assistant right now — give me a moment and try again.";
+      ? 'Here are a few places near you. Pick one and I will open it in Uber Eats.'
+      : "I'm having trouble reaching my assistant right now. Give me a moment and try again.";
 
-    const added: any[] = [];
-    for (const request of env.add) {
-      const product = candById.get(request.productId);
-      if (!product) continue;
-      const { row } = await addToCart(pool, sub, product, request.quantity);
-      added.push({ ...product, rowId: row.row_id, quantity: lineQuantity(request.quantity), reason: request.reason });
-    }
     const remembered = newNotes(statedNotes(env.remember, message), notes);
     for (const note of remembered) await store.saveNote(sub, note);
 
-    const nextCart = await loadCart(pool, sub);
-    // The concierge may decide the diner wants to order; it may not hand off on its own. A
-    // proposal is returned for the surface's confirm card and NOTHING outward-facing happens
-    // (no deep link, no eats_orders row) until the diner confirms, which calls POST /order.
-    const proposal = env.checkout ? orderProposal(nextCart) : null;
+    // The concierge may decide the diner wants to order; it may not hand off on its own. A proposal is returned for the
+    // surface's confirm card and NOTHING outward-facing happens (no link opened, no eats_orders row) until the diner
+    // confirms, which calls POST /order.
+    const chosen = env.order ? candById.get(env.order) : undefined;
+    const proposal = chosen && place ? orderProposal(chosen, place) : null;
 
-    // A dish the reply names that usually carries one of the diner's restrictions, in a sentence that does not name the
-    // risk, gets its own allergy-check line; the concierge's words stay as written.
     const check = allergyCheckLine(unwarnedMentions(env.say, allergy.restrictions));
     await store.addMessage(conversationId, sub, 'assistant', check ? `${env.say}\n${check}` : env.say);
     await store.touch(conversationId);
@@ -815,21 +756,19 @@ export function createEatsRoutes(ctx: AppContext): Router {
     res.json({
       conversationId,
       reply: env.say,
-      cards: shown,
-      added,
+      cards: place ? shown.map(card(place)) : [],
       remembered,
       allergy: { restrictions: allergy.restrictions.map((r) => r.label), heldBack: allergy.held, check },
-      // `checkout` is kept for response-shape compatibility and is always null now: a hand-off is
-      // created only by the diner's confirm (POST /order), never by the chat turn.
       checkout: null,
       proposal,
-      cart: { cartId: nextCart.cart.cart_id, storeId: nextCart.cart.store_id, storeName: nextCart.cart.store_name, ...cartBody(nextCart) },
-      source: searchRes.source || 'uber',
+      place,
+      searchNote,
+      source: SOURCE,
     });
   }));
 
   router.get('/conversation', diner(async (req, res, sub) => {
-    // Durable resume by id (else latest), user-scoped — shared ConciergeStore.
+    // Durable resume by id (else latest), user-scoped: the shared ConciergeStore.
     res.json(await store.resume(sub, String(req.query.id || '')));
   }));
 

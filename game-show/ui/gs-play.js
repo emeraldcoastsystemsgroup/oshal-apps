@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-26 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast chrome: GS.sfx (small WebAudio cue synth, unlocked by the first pointer press), GS.onBeat (event→cue scoring fed by gs-core), and GS.play — the full-bleed set frame (marquee, beams, floor, lower-third caption, control dock), the podium-character row drawn from live seats/scores, the once-per-game opening titles, and sync() which stamps body[data-gs-show] and turns state deltas (buzz lock, round 0→1) into one-shot beats.
  * 2026-07-26 21:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Integration fix: restore GS.qrNode (the join-link QR the browser playthrough asserts on the TV lobby shot) — it was dropped when the chrome was rebuilt; the img hides itself when /qr is unavailable so the code text always suffices.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | The broadcast frame fits what is above it: play.fit reserves exactly the dock's height so nothing sits for good behind it, the host's opening line leaves once the game has moved on, your nameplate shows your first name, and play.news is the plain line of what just happened (the room's events reached nobody on the stage, so a right answer, a wrong one and the answer to a missed clue all passed in silence).
  */
 
 /* global window, document, setTimeout */
@@ -166,7 +167,7 @@
       (board.control === seat.seatId ? ' control' : '') +
       (focusSeatId === seat.seatId ? ' focus' : '');
     var pod = GS.el('div', { class: 'gp-podium' },
-      GS.el('div', { class: 'gp-nameplate' }, seat.name + (seat.me ? ' ★' : '')));
+      GS.el('div', { class: 'gp-nameplate' }, seat.me ? String(seat.name).split(' ')[0] + ' ★' : seat.name));
     if (withScore) pod.appendChild(GS.el('div', { class: 'gp-charscore' }, String(scoreFor(seat.seatId))));
     return GS.el('div', { class: cls },
       GS.el('div', { class: 'gp-head' }, P.tile(seat)),
@@ -208,7 +209,7 @@
     });
     var row = GS.el('div', { class: 'gp-chars' + (mood ? ' ' + mood : '') });
     if (!GS.players().length) {
-      row.appendChild(GS.el('div', { class: 'gs-muted', style: 'align-self:center;padding:10px' }, 'Podiums are empty — players join with the code.'));
+      row.appendChild(GS.el('div', { class: 'gs-muted', style: 'align-self:center;padding:10px' }, 'The podiums are empty.'));
       return row;
     }
     if (GS.show && GS.show.teams) {
@@ -219,6 +220,28 @@
       GS.players().forEach(function (s) { row.appendChild(character(s, focusSeatId, true)); });
     }
     return row;
+  };
+
+  var NEWS = { reveal: 1, strike: 1, milestone: 1 };
+
+  /**
+   * @description What just happened, in words: the room's newest game event, with the bot's guess
+   *   that caused it when there was one ("🤖 Ziggy: “hot dogs” · Strike 1").
+   * @returns {string} The line, or '' before anything has happened.
+   */
+  play.news = function () {
+    var evs = GS.events || [], i = evs.length - 1;
+    while (i >= 0 && !NEWS[evs[i].kind]) i--;
+    if (i < 0) return '';
+    var line = String(evs[i].content || '');
+    var guess = evs[i - 1];
+    return guess && guess.kind === 'npc' ? guess.content + ' · ' + line : line;
+  };
+
+  /** @description Reserve the dock's real height under the set, so the page can always scroll clear of it. */
+  play.fit = function () {
+    var dock = document.querySelector('.gp-dock-inner'), frame = document.querySelector('.gp-frame.has-dock');
+    if (dock && frame) frame.style.paddingBottom = (dock.offsetHeight + 22) + 'px';
   };
 
   /**
@@ -257,7 +280,8 @@
     frame.appendChild(play.characters(opts.focus, opts.mood));
     // No line, no strip — an empty lower-third reads as a broken mystery box
     // (the exact bug the player-experience pass killed; keep its contract).
-    if (host.line) {
+    var staleOnStage = opts.dock && host.at && (Date.now() + (GS.skew || 0) - host.at) > 20000;
+    if (host.line && !staleOnStage) {
       frame.appendChild(GS.el('div', { class: 'gs-caption gp-lower' },
         GS.el('span', { class: 'mc' }, 'HOST'), host.line));
     }

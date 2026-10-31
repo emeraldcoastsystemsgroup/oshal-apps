@@ -8,6 +8,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | callAsync: the same request without blocking the event loop, for the ops that take seconds (the arm's physics check). One request at a time per bridge either way.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The node rail authenticates commands with the node's command key (x-node-command-key), not the swarm service secret (ADR-175 hardening).
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | `native`: inside the native kernel's sandbox (no network) the bridge reaches the container through the kernel's engine.exchange intent, which is asynchronous: `callAsync` and `helloAsync` work (reports, status, the arm check), while the synchronous `call` a stepping physics world needs refuses with capability_unavailable naming why.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | B30 gate: a refused reply's own code rides on EngineFailure.refusal, so the hexapod certify route answers report_not_found as 404 and no_policy as 422 instead of the engine's 503.
  */
 
 import path from 'node:path';
@@ -27,7 +28,8 @@ export type EngineFailureCode = 'capability_unavailable' | 'engine_error' | 'eng
 
 /** @description A typed engine failure; `reason` carries the honest explanation for a 503 body. */
 export class EngineFailure extends Error {
-  constructor(readonly code: EngineFailureCode, message: string, readonly reason?: string) { super(message); this.name = 'EngineFailure'; }
+  /** @param refusal - The engine's own refusal code when the reply was `ok: false` (the exception class name the bridge wrote), so a route can answer a named refusal with its own status instead of the engine's 503. */
+  constructor(readonly code: EngineFailureCode, message: string, readonly reason?: string, readonly refusal?: string) { super(message); this.name = 'EngineFailure'; }
 }
 
 export interface BridgeHello { protocol: number; engine: string; version: string; buildHash: string }
@@ -199,7 +201,7 @@ export class SyncBridge {
     try { reply = JSON.parse(text) as WireReply; } catch { throw this.die(new EngineFailure('engine_error', 'the engine bridge sent an unreadable reply')); }
     if (!reply.ok) {
       const code = reply.error === 'capability_unavailable' ? 'capability_unavailable' : 'engine_error';
-      const failure = new EngineFailure(code, `physics engine ${op} failed`, reply.reason ?? reply.error);
+      const failure = new EngineFailure(code, `physics engine ${op} failed`, reply.reason ?? reply.error, typeof reply.error === 'string' ? reply.error : undefined);
       if (code === 'capability_unavailable') this.die(failure);
       throw failure;
     }

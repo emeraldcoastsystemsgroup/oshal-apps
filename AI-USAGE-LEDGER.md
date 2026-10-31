@@ -21,7 +21,7 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 82 packages, 82 rated, 0 unrated.
+Coverage: 83 packages, 83 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
@@ -55,6 +55,7 @@ Coverage: 82 packages, 82 rated, 0 unrated.
 | create | 32 / 512 (declared) | region-regenerate | region regeneration | T0 | hosted | disable | not yet measured | none recorded |
 | creative-studio | 32 / 128 (declared) | story-video | story video | T2 | hosted | disable | not yet measured | none recorded |
 | daily-trade-recap | 32 / 128 (declared) | daily-recap-production | daily recap production | T4 | hosted | disable | not yet measured | none recorded |
+| design-studio | 32 / 128 (declared) | design-partner-chat | design partner chat turn | T4 | none | disable | not yet measured | none recorded |
 | dev-workspace-index | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | dnd | 32 / 128 (declared) | dm-narration | narration turn | T3 | none | disable | not yet measured | none recorded |
 | dnd | 32 / 128 (declared) | story-art-cutaway | scene illustration | T0 | hosted | disable | not yet measured | none recorded |
@@ -90,7 +91,7 @@ Coverage: 82 packages, 82 rated, 0 unrated.
 | intelligent-sports | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | jarvis-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
 | job-apply | 64 / 256 (declared) | job-application-ticket | job application submission | T4 | none | disable | not yet measured | none recorded |
-| kalshi | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| kalshi | 32 / 128 (declared) | quant-walkthrough | question | T2 | hosted | template | not yet measured | none recorded |
 | life | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | little-monsters | 32 / 128 (declared) | lecture-study-materials | lecture study pack | T2 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | lecture-recording-pipeline | lecture recording ticket | T4 | none | disable | not yet measured | none recorded |

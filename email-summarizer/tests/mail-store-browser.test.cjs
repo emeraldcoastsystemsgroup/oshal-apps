@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Inbox's stored-copy controls in Chromium over a loopback fixture of the email and schedule routes: before a copy exists the line says search reads Gmail directly and offers "Keep a copy", which turns on the person's mail-copy job ({class:"person"}) and runs one pass; the line then gives the count, reach and "updates every 10 minutes" with "Update now"; "Search all your mail" asks the stored copy over 180 days and a found message opens in the reader; a failed pass says why and keeps the button. At 412 px the page does not scroll sideways.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The listing pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"): the first request asks for 50, the next page is asked with the answer's before/skip cursor as soon as the end of the list is in view, the heading counts what is loaded and the end note says how far back the copy reaches; a suspended job with a stale copy is said so with "Turn it back on", which activates the job, runs one pass and reloads the list from the copy.
  */
 'use strict';
 const test = require('node:test');
@@ -22,7 +23,7 @@ const ACT = { id: 'act', from: 'Prep Academy <offers@prep.example>', subject: 'F
 
 /** The routes the page calls, with a recorded request log and switchable answers. */
 function fixture() {
-  const state = { job: 'inactive', copy: null, failSync: false, requests: [] };
+  const state = { job: 'inactive', copy: null, failSync: false, pages: false, requests: [] };
   const send = (res, status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -33,7 +34,12 @@ function fixture() {
     if (url.pathname === '/api/email/email-store.js') { res.writeHead(200, { 'content-type': 'text/javascript' }); return res.end(fs.readFileSync(path.join(PKG, 'tools', 'email-store.js'))); }
     if (url.pathname === '/api/email/messages') {
       if (url.searchParams.get('q')) return send(res, 200, { provider: 'google', source: 'stored', messages: [ACT], matched: 1, matchedAll: true, days: 180, store: state.copy });
-      return send(res, 200, { provider: 'google', source: 'live', messages: [{ ...ACT, id: 'other', subject: 'Weekly newsletter' }], store: state.copy });
+      if (state.pages) {
+        const before = url.searchParams.get('before');
+        if (!before) return send(res, 200, { provider: 'google', source: 'stored', store: state.copy, reach: COPY.oldestAt, messages: [{ ...ACT, id: 'p1', subject: 'Page one, first' }, { ...ACT, id: 'p2', subject: 'Page one, second', date: '2026-10-20T10:00:00.000Z' }], next: { before: '2026-10-20T10:00:00.000Z', skip: 1 } });
+        return send(res, 200, { provider: 'google', source: 'stored', store: state.copy, reach: COPY.oldestAt, messages: [{ ...ACT, id: 'p3', subject: 'Page two, last', date: '2026-10-19T10:00:00.000Z' }], next: null });
+      }
+      return send(res, 200, { provider: 'google', source: 'live', messages: [{ ...ACT, id: 'other', subject: 'Weekly newsletter' }], store: state.copy, next: null });
     }
     if (url.pathname === '/api/email/message/act') return send(res, 200, { provider: 'google', ...ACT, to: 'me@example.com', body: 'Twenty percent off the fall course.' });
     if (url.pathname === '/api/email/sync/status') return send(res, 200, { store: state.copy, fresh: Boolean(state.copy), schedule: { app: 'email-summarizer', name: 'mail-copy' } });
@@ -44,13 +50,15 @@ function fixture() {
     }
     if (url.pathname === '/api/v1/agent/schedules') return send(res, 200, { schedules: [{ id: 'job-1', app: 'email-summarizer', name: 'mail-copy', status: state.job }] });
     if (url.pathname === '/api/v1/agent/schedules/job-1/activate') { state.job = 'active'; return send(res, 200, { status: 'active' }); }
+    if (url.pathname === '/api/v1/agent/schedules/job-1/deactivate') { state.job = 'inactive'; return send(res, 200, { status: 'inactive' }); }
     res.writeHead(404); res.end();
   });
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, state, origin: `http://127.0.0.1:${server.address().port}` })));
 }
 
-async function page(t, viewport) {
+async function page(t, viewport, setup = () => {}) {
   const fx = await fixture();
+  setup(fx.state);
   const browser = await chromium.launch();
   t.after(async () => { await browser.close(); await new Promise((r) => fx.server.close(r)); });
   const p = await browser.newPage({ viewport });
@@ -96,4 +104,43 @@ test('a failed pass says why and keeps the button', async (t) => {
   await line.getByRole('button', { name: 'Keep a copy' }).click();
   await line.getByText('Could not update the copy: google 503: backend error').waitFor();
   assert.equal(await line.getByRole('button', { name: 'Keep a copy' }).isEnabled(), true);
+});
+
+test('the list pages: fifty asked, the next page follows the before/skip cursor when the end is in view, and the end note says how far the copy reaches', async (t) => {
+  const { p, fx, errors } = await page(t, { width: 1280, height: 800 });
+  await p.getByText('Weekly newsletter').waitFor();
+  const first = fx.state.requests.find((r) => r.path === '/api/email/messages');
+  assert.equal(new URLSearchParams(first.search).get('max'), '50');
+  await p.locator('#more').getByText('That is the last 7 days in your mailbox. Search for older mail.').waitFor();
+  fx.state.pages = true;
+  fx.state.copy = COPY;
+  await p.getByRole('button', { name: '↻' }).click();
+  await p.getByText('Page two, last').waitFor();
+  assert.deepEqual(await p.locator('.item .subj').allTextContents(), ['Page one, first', 'Page one, second', 'Page two, last'], 'the second page was loaded as the end came into view, after the first');
+  const second = fx.state.requests.filter((r) => r.path === '/api/email/messages' && r.search.includes('before=')).map((r) => new URLSearchParams(r.search));
+  assert.equal(second.length, 1, 'the cursor was followed once; the last page had none');
+  assert.equal(second[0].get('before'), '2026-10-20T10:00:00.000Z');
+  assert.equal(second[0].get('skip'), '1');
+  await p.locator('#count').getByText('3 loaded · Google').waitFor();
+  await p.locator('#more').getByText('Everything in your copy back to May 2, 2026.').waitFor();
+  assert.deepEqual(errors, []);
+});
+
+test('a suspended job with a stale copy is said so, and Turn it back on activates it, runs a pass and reloads the list from the copy', async (t) => {
+  const stale = new Date(Date.now() - 10 * 3600_000).toISOString();
+  const { p, fx, errors } = await page(t, { width: 412, height: 915 }, (state) => {
+    state.copy = { ...COPY, complete: false, syncedThrough: stale, lastRunAt: stale };
+    state.job = 'suspended';
+  });
+  const line = p.locator('#storeLine');
+  await line.getByText(/Searchable copy: 1,234 messages back to May 2, 2026 \(still filling\) · stopped updating 10 h ago \(an update of this application paused its job\)/).waitFor();
+  assert.equal(await line.getByText(/updates every 10 minutes/).count(), 0, 'a stopped copy is not called current');
+  fx.state.pages = true;
+  await line.getByRole('button', { name: 'Turn it back on' }).click();
+  await line.getByText(/updated just now · updates every 10 minutes/).waitFor();
+  const paths = fx.state.requests.filter((r) => r.method === 'POST').map((r) => r.path);
+  assert.deepEqual(paths, ['/api/v1/agent/schedules/job-1/activate', '/api/email/sync'], 'a suspended activation is activated (not withdrawn first), then one pass runs');
+  await p.getByText('Page two, last').waitFor();
+  assert.equal(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'no sideways scroll at phone width');
+  assert.deepEqual(errors, []);
 });

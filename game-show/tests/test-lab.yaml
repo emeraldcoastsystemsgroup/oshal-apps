@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register round-caption (host-guards): a later round's start captions the show's own round milestone instead of keeping round 1's host line (sweep 10), with no host-bot call; the open keeps its narrated intro.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register play-phone-layout: at 412x915 the BUZZ IN bar stays inside its dock and the round clock leaves the question readable (demo sweep 1).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register repeat-question: a generated round whose question was already played is asked for again, and a second repeat is refused (sweep 14).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Register solo-night-stage and solo-night-engine: one press starts a game against the computer, nothing freezes it, every control reads, and AI podiums leave a person room to play. host-desk-screen's poster now names Play against the computer.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -162,7 +163,7 @@ cases:
         - tests/host-desk-screen.test.js
     expected:
       - During round 2 of Family Feud the Host Desk reads "Round 2 question" with that round's question, above the answer key.
-      - Each show poster in the lobby is a button the snapshot names with Host this show.
+      - Each show poster in the lobby is a button the snapshot names with Play against the computer.
     prerequisites:
       - runner:node-test
       - dependency:playwright
@@ -233,6 +234,59 @@ cases:
     expected:
       - A repeat is asked for once more and the fresh question is played as round 3.
       - Two repeats are refused with 502 and the board stays on round 2; a fresh question first time costs one host call.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: solo-night-stage
+    name: One press starts a game against the computer, and nothing freezes it
+    purpose: >-
+      Run the shipped stage.html, scripts and CSS in Chromium under a light theme stand-in over a stub game API: a poster reaches a
+      started game in one press, a reload keeps the seat, no dead buttons, a half typed answer survives a re-render, every control
+      can be read, and the game ends with the winner and Play again. The real kernel crossing is `npm run test:browser:solo`,
+      a live scenario (all four shows, desktop and phone) that needs GS_BASE_URL and GS_PAT.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/solo-night.test.js
+    expected:
+      - A poster press seats the person at their own seat, then adds only computer players, then starts the show, in that order.
+      - An empty stage offers the computer and never a Start button.
+      - After a reload the clues can still be picked and the dock says it is your pick.
+      - A half typed answer keeps its text and the keyboard when the page re-renders, and a new answer box already has the keyboard.
+      - Whammy shows PRESS at a person's own seat and PRESS does not move; Feud hides the answer box while the other team holds the board.
+      - Clue text, categories, letter buttons, Pass my spins and name plates are light ink on the dark set under a light theme.
+      - A decided game offers Finish the show; a finished one names the winner and offers Play again.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: solo-night-engine
+    name: AI podiums leave a person room to play; the open names real categories
+    purpose: Run the real show modules and NPC engine with a seated person and without one - no database, network or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/solo-night-engine.test.js
+    expected:
+      - Bots wait while a person reads a clue, leave them the first move on an unclaimed board and the first answer on their team, and never wait in an all-AI room.
+      - The Jeopardy open names the drawn categories and asks the room for nothing.
+      - Wheel standings stop counting round banks once a puzzle is solved.
+      - The room's owner can start Fast Money from their own seat; another player cannot.
     prerequisites:
       - runner:node-test
     sideEffects: none

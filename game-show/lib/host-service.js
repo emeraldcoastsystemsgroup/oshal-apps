@@ -9,6 +9,7 @@
  * 2026-10-12 23:58:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 10: during rounds 2 and 3 the HOST caption on Play, Big Screen, Clicker and Host Desk still read round 1's 'Here is your first question: ...'. Only the open is narrated by the host bot, so a later round kept the previous line. A later round's start now captions the show's own round milestone ('Round 2: Name something ...'), with no model call. Guard: tests/host-guards.test.js.
  * 2026-10-13 14:30:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 14: round 3 asked round 2's question again ('Name something people often find stuck in their hair.'): the recent questions went to the model, but a generated round was played without checking them. generateRound() reads the question the round would play (the show's own milestone, from a dry ingest) and asks the host once more when it was already played; a second repeat is refused with nothing changed. Hand-typed (manual) rounds are the host's own choice and are not checked. Guard: tests/repeat-question.test.js.
  * 2026-10-13 20:40:00 | maintainer@emeraldcoastsystemsgroup.com     | Round 21 review: the repeat check read every show's "Round N: ..." milestone as its question, but Wheel's milestone is only the category, so a fresh puzzle in a played category ('Phrase / PIECE OF CAKE' after 'Phrase / BREAK A LEG') was refused (502). roundQuestion() now counts the milestone only when it is the generated round's own question field (Family Feud); Wheel puzzles are not checked by category. Guard: tests/repeat-question.test.js (Wheel case).
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | The first round refuses an empty stage: it used to start with nobody at a podium, and a person who then added AI players had a board nobody could ever pick from.
  */
 
 'use strict';
@@ -192,6 +193,10 @@ async function startRound(deps, sub, roomId, manual) {
   if (!snap) return { ok: false, status: 409, error: 'No game state.' };
   // Each SHOW decides when content may be built — never hard-code one show's phases here.
   if (show.canGenerate && !show.canGenerate(snap.state)) return { ok: false, status: 409, error: 'A round is already in play.' };
+  if (!(Number(snap.state.round) || 0)) {
+    const seated = (await deps.room.seatsOf(roomId)).filter((s) => s.role !== 'host');
+    if (!seated.length) return { ok: false, status: 409, error: 'Nobody is at a podium yet. Play against the computer, or wait for someone to join with the code.' };
+  }
   const generated = (manual && typeof manual === 'object') ? { json: manual } : await generateRound(deps, room, roomId, show, snap.state);
   if (generated.repeated) return { ok: false, status: 502, error: 'The host came back with a question already played — try starting the round again.' };
   const json = generated.json;

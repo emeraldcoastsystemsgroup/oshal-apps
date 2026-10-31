@@ -83,7 +83,7 @@ only the surface carves):
 | Tile | URL | What |
 |---|---|---|
 | My Day | `/api/email/my-day` | Digest dashboard: unread/important/starred + calendar + the bot's summary, with a mailbox switch |
-| Inbox | `/api/email/inbox` | Live inbox reader with AI reply drafting, with a mailbox switch |
+| Inbox | `/api/email/inbox` | Inbox reader with AI reply drafting and a mailbox switch. Lists fifty at a time and loads the next page as the list is scrolled to its end: everything the stored copy holds when it is current (the end note says how far back it reaches), else the mailbox live, page by page (1.6.1) |
 | Social | `/api/email/social` | Facebook identity tab (read-only public_profile) |
 | Accounts | `/utilities` | Connect/disconnect Google / Outlook / Yahoo Mail / Twilio / Facebook (kernel-served) |
 

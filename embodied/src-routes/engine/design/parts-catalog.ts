@@ -14,6 +14,11 @@
  *                     |                             | compiled JSON file as data. A missing or malformed row is this
  *                     |                             | package's own defect, so it throws at load naming the list, the
  *                     |                             | row and the field — never a default in its place.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202 spider-18: the `bought` list (the hexapod's Pi, cooler,
+ *                     |                             | LiDAR, IMU, bus adapter, pack, buck and the jump option's die
+ *                     |                             | spring) is read by id through boughtRow — the identity block
+ *                     |                             | only, checked the same way, so hexapod-design.ts restates no
+ *                     |                             | name, mass or price.
  */
 
 import catalog from './parts-catalog.json';
@@ -48,7 +53,7 @@ export interface ServoRow extends PartRow {
 }
 
 /** The lists the catalog file publishes. */
-export type PartList = 'motors' | 'servos';
+export type PartList = 'motors' | 'servos' | 'bought';
 
 type Obj = Record<string, unknown>;
 
@@ -118,4 +123,14 @@ export function servoRow(id: string): ServoRow {
     throw new Error(`parts-catalog.json ${where}.bodyMm must be three positive numbers`);
   }
   return row as unknown as ServoRow;
+}
+
+/**
+ * @description A bought row with only the identity block: what it is, one unit's mass and price, and the source line.
+ * The hexapod's parts (ADR-202) are read this way by the ids SPIDER_18.boughtRowIds names.
+ * @param id - The bought row id (e.g. `pi5-8gb`).
+ * @returns The checked row.
+ */
+export function boughtRow(id: string): PartRow {
+  return rowById('bought', id) as unknown as PartRow;
 }

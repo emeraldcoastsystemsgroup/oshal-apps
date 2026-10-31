@@ -253,3 +253,21 @@ that before 0.2.0. No tool call from this package's assistant has been run yet.
   catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
   turn as the operator runs a tool and its result is checked against the app's own state. Scene
   Studio 0.2.0 is the worked example.
+
+## B17 — Shared parts resolve nothing on the native kernel (found live, 2026-10-30)
+
+`GET /api/circuit-lab/capabilities` on the Spark's native kernel lists every part another package owns as unresolved —
+`servo-bus-sts3215-12v` (the spider-18 servo row, ADR-202), `bl-2306-1800kv`, `bl-2807-1300kv`, `servo-micro-9g` — with
+the reason "embodied owns this part and is not installed beside this package (embodied/routes/engine/design/parts-catalog.json)".
+The catalog's cross-package lookup walks to a sibling directory of this package's root; on the native kernel each
+package runs from its own pinned, hash-verified snapshot, so no sibling is ever there, while on a checkout (the store's
+tests, `hexapod-power` 9/9) the sibling resolves. Live, the spider's power example runs on the lab's defaults for the
+servo row and says so in `unresolved`; nothing fails silently. Evidence: the capabilities answer above, the live root
+`lm-prep-live-20261028/public-applications/{circuit-lab,embodied}` side by side on disk, and the snapshot root the
+kernel actually serves the package from.
+
+**Done when:** the owner package's catalog is resolved through something the native kernel provides for installed
+packages (the installed-applications listing, a kernel-declared package root, or the owner package publishing its rows
+through a route the dependency declaration already names) rather than a sibling directory; `capabilities.unresolved` is
+empty on the Spark for every row the manifest's `dependencies.optional.apps` covers; and a test proves the lookup from a
+root with no siblings.

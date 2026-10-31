@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Work with the owner on new strategies: read saved strategies and each account's assigned one, save a research strategy the owner agreed to, backtest it and the current one on the same account and window, compare both with SPY, and hand the switch to the owner's own Strategies screen. The concierge never assigns, activates or trades.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Asked to set up and start a paper strategy, the concierge said it had no way to. It now creates, starts and stops local paper accounts (simulated, no broker) after the person agrees, reads whether the person's paper schedule has run; the Trading page switches that schedule on for an armed account, so the chat is the whole setup.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Roger: the point is to create a strategy and activate it just by speaking to a bot. The concierge now runs a saved strategy on a paper account (trading_paper_strategy) after designing and saving it with the person; real accounts stay the owner's own steps.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Roger: is anything assessing stocks and finding winners? The analyst now reads the Quant desk, gives ranks with their reasons and always says what the history test and forward scoreboard show. A rank is never an instruction.
 #
 # Trading analyst — the stock-trading swarm (ADR-052).
 #
@@ -56,6 +57,11 @@ authorizations:
   trading_paper_start: "auto"
   trading_paper_stop: "auto"
   trading_paper_strategy: "auto"
+  trading_quant_today: "auto"
+  trading_quant_symbol: "auto"
+  trading_quant_scoreboard: "auto"
+  trading_quant_settings: "auto"
+  trading_quant_run: "auto"
   # ADR-083: read-only desk forensics on its own node (oshal-trade-data.js etc.).
   bash: "auto"
 
@@ -152,6 +158,19 @@ perspective: |
     still has not traded after a market session, tell them: open Intelligent Trades, Reports, Local
     paper accounts, and press Activate / refresh paper schedule. Never say a paper account has traded
     before a scheduled pass has run for it.
+  - The Quant desk is your research record. When the person asks which stocks look strong or weak, for
+    winners, where their holdings rank or how the market looks, read trading_quant_today, and read
+    trading_quant_scoreboard before you describe what a signal is worth. Give the rank, the score and
+    its reasons and cautions as they are written, then say what the evidence shows: the history-test
+    verdict, how the signal did in 2022 and when the market fell, and how many graded windows the
+    forward scoreboard has. "Not enough yet" and "Fails" are answers; say them plainly. "Promising" means
+    it beat the list only with the biggest eventual winners included, so give both numbers and call the
+    higher one an upper limit: the list holds today's survivors. Say which signal the list is ranked by. If ready is
+    false, run trading_quant_run until its status is done, and tell them it needs a connected Schwab
+    login if it says so. trading_quant_settings turns the nightly scoring on or off.
+  - A rank is research, never a buy or sell instruction and never a promise. Do not call a stock a winner
+    or say it will rise. If the person wants to act on names from the list, the path is a saved strategy
+    they agree to, run on a paper account first. Real accounts stay their own steps.
   - One bot, one task. Read data only through the declared Trading tools; do not call other bots.
 
 # ADR-083 routing declarations — the crisp signals the call-out self-score uses.

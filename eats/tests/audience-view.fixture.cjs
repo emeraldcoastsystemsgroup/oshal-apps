@@ -3,72 +3,70 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Eats family audience view (ADR-164 D6): the page, its declared URL, synthetic read-only answers shaped like GET /api/eats/home-summary (the three metrics, the pending cart items with their 'In your meal cart · <stamp>' detail and the standing note), /profile (eats_profile: TEXT[] tastes, NUMERIC budget as the column's string, the address), /orders/history (eats_orders rows: store_name, total as a string, handoff_url, created_at) and /config, and what the family view must show. /search and /cart answer only so the full page's own start has something to paint without an audience; the view never reads them. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
- * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company audience (ADR-164 D6) expects the same card as the family one: the harness paints it in the company grammar over the same synthetic reads.
- * -----------------------------------------------------------------------------
- * @module audience-view.fixture
+ * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Eats family audience view (ADR-164 D6): the page, its declared URL, synthetic read-only answers shaped like the package's routes, and what the family view must show. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.0: the home summary carries the restaurants opened in Uber Eats (detail 'Opened in Uber Eats · <stamp>'), the history rows carry the place id and the Uber Eats search link with no total, /config names rail places, and /search answers one real-shaped restaurant so the full page's own start has something to paint without an audience (the view never reads it).
  */
 'use strict';
 
 /**
- * @description A pending cart item exactly as routes/home-summary.js writes it: the title is the text, the stamp sits in the detail.
- * @param {string} title The dish.
- * @param {string} stamp The ISO time it was added.
- * @returns {object} The home-summary item with its three continuation offers.
+ * @description A hand-off exactly as routes/home-summary.js writes it: the restaurant is the text, the stamp sits in the detail.
+ * @param {string} store The restaurant. @param {string} stamp ISO time.
+ * @returns {object} The summary item.
  */
-function cartItem(title, stamp) {
-  return { text: title, detail: 'In your meal cart · ' + stamp, tone: 'neutral', fix: 'eats-concierge',
-    actions: ['plan-shopping', 'plan-movie', 'plan-music'].map((integration) => ({ integration, context: { title: 'Prepare for my meal choice', notes: 'Meal choice to discuss: ' + title + '; quantity 1 from Synthetic Noodle House. This is a cart item, not a placed order.' } })) };
+function handoff(store, stamp) {
+  return { text: store, detail: 'Opened in Uber Eats · ' + stamp, tone: 'neutral', fix: 'eats-concierge',
+    actions: ['plan-shopping', 'plan-movie', 'plan-music'].map((integration) => ({ integration, context: { title: 'Prepare for my meal from ' + store, notes: 'Restaurant opened in Uber Eats: ' + store + ' on ' + stamp + '. Opening the link is not a placed order; the dishes, address and payment are chosen in Uber Eats.' } })) };
 }
 
 /**
- * @description The synthetic home summary: two dishes waiting in the order, one checkout link in five days.
- * @param {(hours: number) => string} iso Timestamp helper from the harness (hours from now).
- * @returns {object} The route's answer.
+ * @description The synthetic home summary: two restaurants opened lately, one of them today.
+ * @param {(hours: number) => string} iso Hours from now as ISO.
+ * @returns {object} As GET /api/eats/home-summary answers.
  */
 function homeSummary(iso) {
   const metrics = [
-    { id: 'pending-meal-items', label: 'Meal items to review', value: '2', tone: 'neutral' },
-    { id: 'meal-handoffs-24h', label: 'Checkout links / 24h', value: '0', tone: 'neutral' },
-    { id: 'meal-handoffs-5d', label: 'Checkout links / 5 days', value: '1', tone: 'neutral' },
+    { id: 'meal-handoffs-24h', label: 'Uber Eats links / 24h', value: '1', tone: 'neutral' },
+    { id: 'meal-handoffs-5d', label: 'Uber Eats links / 5 days', value: '2', tone: 'neutral' },
+    { id: 'meal-restaurants-30d', label: 'Restaurants opened / 30 days', value: '2', tone: 'neutral' },
   ];
-  const items = [cartItem('Synthetic Pad Thai', iso(-2)), cartItem('Synthetic Spring Rolls', iso(-30)),
-    { text: 'Pending items in your active meal carts. Checkout links do not confirm an order or delivery.', tone: 'neutral', fix: 'eats-concierge' }];
-  return { metrics, tiles: metrics, items, asOf: iso(0), partial: false };
+  const items = [handoff('Synthetic Noodle House', iso(-2)), handoff('Synthetic Taqueria', iso(-30)),
+    { text: 'Uber Eats links opened from Eats. Opening a link does not confirm an order or delivery.', tone: 'neutral', fix: 'eats-concierge' }];
+  return { metrics, tiles: metrics.slice(0, 4), items, asOf: iso(0), partial: false };
 }
 
 /**
- * @description The synthetic checkout history as GET /orders/history returns it: newest first, totals as the NUMERIC column's string.
- * @param {(hours: number) => string} iso Timestamp helper from the harness (hours from now).
+ * @description The synthetic hand-off history as GET /orders/history returns it: newest first, no totals (nothing is priced here).
+ * @param {(hours: number) => string} iso Hours from now as ISO.
  * @returns {object[]} eats_orders rows.
  */
 function orders(iso) {
   return [
-    { store_name: 'Synthetic Noodle House', total: '24.50', handoff_url: 'https://www.ubereats.com/store/synthetic-noodle-house', created_at: iso(-40) },
-    { store_name: 'Synthetic Taqueria', total: '18.25', handoff_url: 'https://www.ubereats.com/store/synthetic-taqueria', created_at: iso(-200) },
+    { store_id: 'ChIJ-synthetic-noodle', store_name: 'Synthetic Noodle House', total: null, handoff_url: 'https://www.ubereats.com/search?q=Synthetic+Noodle+House&pl=synthetic', created_at: iso(-2) },
+    { store_id: 'ChIJ-synthetic-taqueria', store_name: 'Synthetic Taqueria', total: null, handoff_url: 'https://www.ubereats.com/search?q=Synthetic+Taqueria&pl=synthetic', created_at: iso(-30) },
   ];
 }
 
 /** @param {{ iso: (hours: number) => string }} h Helpers from the harness. @returns {object} The page entry. */
 module.exports = ({ iso }) => ({
-  app: 'eats', file: 'eats/tools/eats-app.html', url: '/api/eats/app', fullMarker: '#grid [data-store]',
+  app: 'eats', file: 'eats/tools/eats-app.html', url: '/api/eats/app', fullMarker: '#grid [data-place]',
   reads: {
     '/api/eats/home-summary': homeSummary(iso),
     '/api/eats/profile': { profile: { user_sub: 'synthetic-diner', display_name: null, dietary: ['vegetarian'], favorite_cuisines: ['Thai', 'Mexican'], default_address: '1 Synthetic Way', budget_per_order: '40.00', notes: null, onboarded: true } },
     '/api/eats/orders/history': { orders: orders(iso) },
-    '/api/eats/config': { uberConnected: true },
-    '/api/eats/search': { items: [{ productId: 'synthetic-noodle-house', title: 'Synthetic Noodle House', cuisine: 'Thai', priceFrom: 9.5, etaMinutes: 25, imageUrl: null, rating: null }], source: 'catalog' },
-    '/api/eats/cart': { cartId: 'synthetic-cart', storeId: null, storeName: null, items: [], total: 0, totalCents: 0, unpricedLines: 0 },
+    '/api/eats/config': { rail: 'places', source: 'Google Places', connector: 'google-places', handoff: 'uber-eats', uberConnected: false },
+    '/api/eats/search': { source: 'Google Places', place: { address: '1 Synthetic Way, Pensacola, FL 32502, USA', placeId: 'ChIJ-synthetic-address', latitude: 30.4213, longitude: -87.2169 }, query: '',
+      items: [{ placeId: 'ChIJ-synthetic-noodle', name: 'Synthetic Noodle House', address: '2 Synthetic Ave', cuisine: 'Thai restaurant', rating: 4.7, ratingCount: 210, priceLevel: 2, priceLabel: '$$', openNow: true, delivery: true, takeout: true, photo: null, mapsUrl: null, website: null, latitude: 30.41, longitude: -87.22, distanceKm: 1.1, uberUrl: 'https://www.ubereats.com/search?q=Synthetic+Noodle+House&pl=synthetic' }],
+      feedUrl: 'https://www.ubereats.com/feed?diningMode=DELIVERY&pl=synthetic', uberSearchUrl: 'https://www.ubereats.com/search?q=food&pl=synthetic' },
   },
   audiences: {
     family: {
-      stats: 4, sections: ['order', 'tastes', 'checkouts'],
-      text: ['Food delivery', '2 things in the order', 'Newest: Synthetic Pad Thai, added 2 h ago. Finish or change the order in Eats.', 'Order food in Eats',
-        'In the order now', 'Synthetic Pad Thai', 'Waiting in the order', 'added 2 h ago', 'Synthetic Spring Rolls', 'added yesterday',
+      stats: 4, sections: ['recent', 'tastes', 'checkouts'],
+      text: ['Food delivery', 'Last restaurant: Synthetic Noodle House', 'Opened in Uber Eats 2 h ago. Open Eats to find another or open it again.', 'Order food in Eats',
+        'Opened in Uber Eats lately', 'Synthetic Noodle House', 'Opened in Uber Eats', 'opened 2 h ago', 'Synthetic Taqueria', 'opened yesterday',
         'What Eats knows about us', 'Favorite food', 'Thai, Mexican', 'Dietary needs', 'vegetarian', 'Budget per order', '$40.00', 'Delivers to', '1 Synthetic Way',
-        'Recent checkout links', 'Synthetic Noodle House', 'Checkout link, $24.50', '2 days ago', 'Synthetic Taqueria', 'Checkout link, $18.25',
-        'A checkout link opens Uber Eats. It does not mean an order was placed or delivered.', 'Not placed orders'],
-      statValues: { pending: '2', links: '1', saved: '2', uber: 'Linked' },
+        'Recent Uber Eats links', 'Uber Eats link', '2 h ago',
+        'A link opens Uber Eats at your address with that restaurant searched. It does not mean an order was placed or delivered.', 'Not placed orders', 'Opens at your address on your own sign-in'],
+      statValues: { day: '1', links: '2', saved: '2', uber: 'Handoff' },
     },
   },
 });

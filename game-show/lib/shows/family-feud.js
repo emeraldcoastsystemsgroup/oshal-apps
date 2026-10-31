@@ -9,6 +9,7 @@
  * 2026-07-25 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | npcMove — the Feud NPC brain for one-person game night: buzz the face-off, answer from the board the server already holds (skill decides hit rate and whether it takes the top answer), miss with a spoken wrong guess. No LLM; flows through the existing judge shape.
  * 2026-07-26 09:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fast Money delegates to the fastMoney npcMove like every other fm-* beat — an NPC picked for the endgame now actually plays it.
  * 2026-10-12 06:10:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: the intro prompt carried no board context, so the host invented teams and a topic ("the Blues taking on the Reds ... things people forget when they head out the door" for Team A/B and a freezer question). It now names the two teams as the scoreboard does, the drawn question (or says none is drawn yet) and the board context every other mode carries, and tells the host not to invent either.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | AI podiums give a seated person time to read the question before buzzing, and an AI teammate leaves the person on its team the first answer of each turn: bots used to answer over someone still typing.
  */
 
 'use strict';
@@ -17,6 +18,7 @@ const buzzer = require('../buzzer');
 const director = require('../director');
 const interview = require('../interview');
 const fastMoney = require('./feud-fast-money');
+const { readingHold, TEAMMATE_HOLD_MS, OPENING_TITLES_MS } = require('../npc');
 
 const ID = 'family-feud';
 const STRIKE_LIMIT = 3;
@@ -490,9 +492,13 @@ function npcMove(state, actor, ctx = {}) {
     // A shy roll buzzes LATE, never NEVER — a refusal is a frozen roll, and a
     // whole stage of frozen-shy bots is dead air until the clock bails it out.
     const late = ctx.roll('ring') >= (prof.ring || 0.5);
-    return { action: { type: 'buzz', serial: state.buzz.serial }, late };
+    // The first face-off opens under the show's opening titles: that time is not reading time.
+    const read = readingHold(state.board.question, ctx.humans);
+    return { action: { type: 'buzz', serial: state.buzz.serial }, late, hold: read && Number(state.round) === 1 ? read + OPENING_TITLES_MS : read };
   }
   if (!canAnswer(state, actor).ok) return null;
+  // On a person's team the bots only answer once that person has had a clear chance.
+  const hold = (ctx.humans || []).some((h) => h.team && h.team === actor.team) ? TEAMMATE_HOLD_MS : 0;
   const answers = state.board.answers || [];
   const open = answers.map((answer, i) => ({ answer, i })).filter((x) => !x.answer.revealed);
   if (!open.length) return null;
@@ -500,10 +506,10 @@ function npcMove(state, actor, ctx = {}) {
     // Answers are stored ranked, so open[0] is the best remaining — a sharp NPC
     // takes it; others land somewhere on the board like a real cousin would.
     const pick = prof.top ? open[0] : open[Math.floor(ctx.roll('pick') * open.length)];
-    return { guess: pick.answer.text, judgement: { matchIndex: pick.i, canonical: pick.answer.text, reason: 'npc' } };
+    return { guess: pick.answer.text, judgement: { matchIndex: pick.i, canonical: pick.answer.text, reason: 'npc' }, hold };
   }
   const miss = NPC_MISSES[Math.floor(ctx.roll('miss') * NPC_MISSES.length)];
-  return { guess: miss, judgement: { matchIndex: -1, canonical: '', reason: 'npc miss' } };
+  return { guess: miss, judgement: { matchIndex: -1, canonical: '', reason: 'npc miss' }, hold };
 }
 
 /** @description One-line board context reused across spoken host prompts. */

@@ -55,8 +55,9 @@ test('an envelope that stays unparsable shows only its say text and acts on noth
 test('plain prose with no object is still the reply, and a valid envelope parses as before', () => {
   const { exports } = loadRoutes({ pool: fakePool() });
   assert.equal(exports.parseEnvelope('Sure, what cuisine?').say, 'Sure, what cuisine?');
-  const ok = exports.parseEnvelope('```json\n{"say":"ok","show":["a"],"add":[],"remember":["no onions"],"checkout":true}\n```');
-  assert.deepEqual([ok.say, ok.show, ok.remember, ok.checkout], ['ok', ['a'], ['no onions'], true]);
+  const ok = exports.parseEnvelope('```json\n{"say":"ok","show":["a"],"remember":["no onions"],"order":"a"}\n```');
+  assert.deepEqual([ok.say, ok.show, ok.remember, ok.order], ['ok', ['a'], ['no onions'], 'a']);
+  assert.equal(exports.parseEnvelope('{"say":"x","order":"null"}').order, null, 'a literal "null" string proposes nothing');
 });
 
 test('statedNotes keeps a note sharing a word or number with the message, ignoring filler', () => {

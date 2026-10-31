@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com    | The person's own searchable copy of their Gmail (Roger, 2026-10-29: "we shouldn't be hitting the api for emails when we access the tool... we should be storing a local copy of the emails"). A sync pass stores each message's sender, subject, Gmail preview, labels and time (never a body) in oshal_email_messages, new mail first and then older mail back to STORE_DAYS, inside the caller's deadline; a search reads that copy. Native-kernel safe: one-row reads by primary key, plain INSERTs (a duplicate is skipped), no ON CONFLICT, ORDER BY or DISTINCT (sorting is done here), so no statement copies the table into kernel memory.
  * 2   | maintainer@emeraldcoastsystemsgroup.com    | A pass resumes where the last one stopped (Roger's first live passes, 2026-10-29: 290 then only 73 more, still short of the first week). The copy is one contiguous range, oldest_at up to newest_at: a pass reads new mail after newest_at (less OVERLAP_MS), then continues downwards from oldest_at, so it never walks the messages already stored. Before, a pass that had not finished the first week started again from the newest message and re-checked every stored one, so each pass gained less and the copy stalled. A state left by the old passes (no newest_at) resumes from its last run. GET /messages answers from the copy only when the copy reaches back over the window asked for (storeCovers).
+ * 3   | maintainer@emeraldcoastsystemsgroup.com    | listStored: one page of the person's inbox from the copy, newest first (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A page is a keyset read: rows received at or before the cursor, in time windows that widen (1, 2, 4 … 32 days) and narrow again when a window holds too many rows, sorted here, light columns only (no search text). The next cursor is the last row's instant plus how many rows at that instant were listed, so a tie is neither dropped nor repeated. No ORDER BY or OFFSET (the native kernel copies a table for those).
  */
 /**
  * @module mail-store
@@ -24,6 +25,7 @@ exports.searchWindow = searchWindow;
 exports.storeCovers = storeCovers;
 exports.parseSearch = parseSearch;
 exports.searchStored = searchStored;
+exports.listStored = listStored;
 const DAY_MS = 24 * 3600 * 1000;
 /** How far back the copy reaches. */
 exports.STORE_DAYS = 180;
@@ -328,5 +330,62 @@ async function searchStored(db, sub, days, max, query, now = Date.now()) {
     const full = scored.filter((s) => s.all);
     const pick = (words.length && !full.length ? scored.sort((a, b) => b.hits - a.hits || b.at - a.at) : (words.length ? full : scored).sort((a, b) => b.at - a.at));
     return { messages: pick.slice(0, max).map((s) => toMessage(s.r)), matched: words.length && full.length ? full.length : pick.length, matchedAll: !words.length || full.length > 0, days: window, words: parsed.any };
+}
+/** A window read that returns this many rows may have been cut by the LIMIT: it is read again, narrower. */
+const WINDOW_CAP = 500;
+const WINDOW_MIN_MS = 3600 * 1000;
+const WINDOW_MAX_MS = 32 * DAY_MS;
+/** Newest first; the id breaks a tie so a cursor's skip count is exact. */
+function newestFirst(a, b) {
+    return b.at - a.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+/**
+ * @description One page of the caller's stored inbox, newest first, by keyset: rows received at or before the cursor,
+ * read in time windows that widen while they come back sparse and narrow when one holds WINDOW_CAP rows, sorted here.
+ * Native-kernel safe: a bounded window and a LIMIT only, never ORDER BY or OFFSET; light columns, no search text.
+ * @param db - The caller-scoped pool.
+ * @param sub - The caller's subject.
+ * @param max - The page size.
+ * @param cursor - Where the page starts (the previous page's `next`); absent for the first page.
+ * @param oldestAt - The copy's oldest message (the listing stops there), or null for a copy without one.
+ * @param now - The clock (tests).
+ * @returns The page, where the next one starts, and how far back the listing reaches.
+ */
+async function listStored(db, sub, max, cursor = {}, oldestAt = null, now = Date.now()) {
+    const cursorMs = Date.parse(String(cursor.before ?? ''));
+    const top = Number.isFinite(cursorMs) ? cursorMs : now + 60_000;
+    const skip = Math.max(0, Math.trunc(Number(cursor.skip)) || 0);
+    const floor = Math.max(now - exports.STORE_DAYS * DAY_MS, oldestAt ? Date.parse(oldestAt) || 0 : 0);
+    const want = max + skip;
+    const found = [];
+    let upper = top, span = DAY_MS, done = top < floor;
+    while (!done && found.length < want + 1) {
+        const lower = Math.max(upper - span, floor);
+        const last = lower <= floor;
+        const sql = `SELECT message_id, sender, subject, snippet, labels, received_at FROM oshal_email_messages
+      WHERE user_sub = $1 AND received_at <= $2 AND received_at ${last ? '>=' : '>'} $3 AND labels LIKE '%INBOX%' LIMIT ${WINDOW_CAP}`;
+        const rows = (await db.query(sql, [sub, new Date(upper).toISOString(), new Date(lower).toISOString()])).rows;
+        if (rows.length >= WINDOW_CAP && span > WINDOW_MIN_MS) {
+            span = Math.max(Math.floor(span / 2), WINDOW_MIN_MS);
+            continue;
+        }
+        for (const r of rows)
+            found.push({ r, at: toMs(r.received_at), id: String(r.message_id) });
+        upper = lower;
+        span = Math.min(span * 2, WINDOW_MAX_MS);
+        done = last;
+    }
+    found.sort(newestFirst);
+    let dropped = 0;
+    const rest = found.filter((f) => !(dropped < skip && f.at === top && ++dropped));
+    const page = rest.slice(0, max);
+    const tail = page[page.length - 1];
+    const more = rest.length > max || !done;
+    const atTail = tail ? page.filter((f) => f.at === tail.at).length + (tail.at === top ? skip : 0) : 0;
+    return {
+        messages: page.map((f) => toMessage(f.r)),
+        next: more && tail ? { before: new Date(tail.at).toISOString(), skip: atTail } : null,
+        reach: new Date(floor).toISOString(),
+    };
 }
 //# sourceMappingURL=mail-store.js.map

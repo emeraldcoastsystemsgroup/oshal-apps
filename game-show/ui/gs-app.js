@@ -6,6 +6,7 @@
  * 2026-07-21 22:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Surface bootstrap: resolve the room (explicit ?room, deep-link ?join, or the caller's most recent room), load state, start the sync poll, and hand off to the view renderer.
  * 2026-07-25 22:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | ?lobby=1 skips the resume-last-room boot. The auto-resume made the lobby (and its show picker) unreachable once you had ever hosted a game — there was no way to start a NEW show without ending the old room from psql.
  * 2026-07-26 [rebuild] | roger.murphy@emeraldcoastsystemsgroup.com  | ?join=CODE now finishes the gesture: the QR/link auto-joins and seats you (the audit counted the one tap the deep link existed to remove); a failed auto-join falls back to the prefilled lobby. Plus a global-error recovery toast so one bad render can never leave a dead screen.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Opening the app resumes a game in progress, but never drops its owner into an empty room they abandoned before starting: the show picker is what they came for. ?solo=1 finishes the poster's one press once the room has loaded.
  */
 
 /* global window, document */
@@ -39,7 +40,10 @@
     GS.api.get('/shows').then(function (r) {
       if (r.body && r.body.shows) { GS.shows = r.body.shows; if (!GS.roomId && GS.render) GS.render(); }
     }).catch(function () {});
-    if (GS.roomId) { GS.boot(GS.roomId); return; }
+    if (GS.roomId) {
+      GS.boot(GS.roomId).then(function () { if (GS.wantSolo && GS.startSolo) GS.startSolo(); });
+      return;
+    }
     if (GS.joinCode) {
       // The QR/link IS the join gesture — finish it. A failure (bad code, ended
       // room) falls back to the lobby with the code prefilled, exactly as before.
@@ -51,7 +55,7 @@
     }
     if (GS.wantLobby) { if (GS.render) GS.render(); return; }  // explicit lobby: pick a show / resume from the list
     GS.api.get('/rooms').then(function (r) {
-      var rooms = (r.body && r.body.rooms) || [];
+      var rooms = ((r.body && r.body.rooms) || []).filter(function (room) { return !(room.isOwner && (room.phase || 'lobby') === 'lobby'); });
       if (rooms.length) GS.boot(rooms[0].roomId);
       else if (GS.render) GS.render();
     }).catch(function () { if (GS.render) GS.render(); });

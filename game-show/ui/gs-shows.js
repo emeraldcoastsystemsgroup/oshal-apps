@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-24 13:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | The client-side show registry — the ADR-112 "collapse the four lookup tables" moment, triggered exactly as predicted by shows #3/#4. A show's client half is ONE gs-show-<id>.js file calling GS.registerShowUi with its renderer + phase tables; gs-surfaces.js consumes this registry and knows no show's rules. Mirrors lib/shows/show-registry.js on the server side.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Each show now says what to do right now (prompt), and may gate the wager box (canWager) and name its answer box (answerPlaceholder).
  */
 
 /* global window */
@@ -21,6 +22,12 @@
    *   hostKey()    - host-eyes-only answer key node, or null
    *   controls(actorSeatId) - show-specific action buttons for a podium, or null
    *   hostExtras() - extra host-desk rows (e.g. Feud's Fast Money setup), or null
+   *   prompt(seatId) - what to do right now: { you: text } when it is this seat's move,
+   *                    { wait: text } when it is not; seatId is null for a host only running the show
+   *   canWager(seatId) - whether this seat owes a wager in a wager phase
+   *   answerPlaceholder - what the answer box asks for
+   *   stageExtras() - extra buttons for the owner once the game is decided, or null
+   *   nextLabel(phase) - what the owner's next-step button says here, or null for Next round
    */
   GS.showUi = {};
 
@@ -39,6 +46,11 @@
       // Whether THIS seat may usefully type into the generic answer box right
       // now (turn-based shows gate it; a free-for-all show leaves the default).
       canType: def.canType || function () { return true; },
+      prompt: def.prompt || function () { return null; },
+      canWager: def.canWager || function () { return true; },
+      answerPlaceholder: def.answerPlaceholder || null,
+      stageExtras: def.stageExtras || null,
+      nextLabel: def.nextLabel || function () { return null; },
     };
   };
 

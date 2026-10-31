@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add the real Jeopardy browser scenario: locate the randomized Daily Double, prove a normal ring-in, submit both exact answers, and wager through the rendered player dock.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Find the answer box by its place in the dock: its placeholder now names what each show asks for.
  */
 
 'use strict';
@@ -40,7 +41,7 @@ function cellAt(page, categoryCount, position) {
 
 /** @description Submit an exact answer through the rendered player dock and wait for the board to reopen. */
 async function answerClue(harness, page, roomId, answer, position) {
-  const input = page.locator('.gp-dock input[placeholder^="Type or say"]');
+  const input = page.locator('.gp-dock .gp-play input.gs-input');
   await input.waitFor({ state: 'visible', timeout: 10000 });
   await input.fill(answer);
   await input.press('Enter');

@@ -37,6 +37,7 @@
     "futures-research|node --test \"tests/*.test.cjs\"",
     "kalshi|node --test \"tests/*.test.js\"",
     "little-monsters|node --test \"tests/*.test.cjs\"",
+    "design-studio|node --test \"tests/*-*.test.js\"",
     "marketing-engine|node --test \"tests/*.test.mjs\"",
     "payroll|node --test \"tests/*.test.mjs\"",
     "presentations|node --test \"tests/*.test.*\"",
@@ -70,6 +71,8 @@
     "intelligent-operations|node --test \"tests/*.test.cjs\"",
     "pdf-workbench|node --test \"tests/*tools.test.mjs\"",
     ".|node --test presentations/tests/office-assets.test.mjs presentations/tests/office-assistant.test.mjs presentations/tests/office-workspace-browser.test.mjs presentations/tests/presentations-slide-workspace.test.mjs presentations/tests/presentations-slide-workspace-browser.test.mjs presentations/tests/presentations-sheet-workspace.test.mjs presentations/tests/presentations-sheet-workspace-browser.test.mjs presentations/tests/presentations-guide.test.mjs presentations/tests/presentations-surface-parse.test.js presentations/tests/presentations-record-before-answer.test.cjs",
-    "trading|node --test \"tests/*native*.test.js\""
+    "trading|node --test \"tests/*native*.test.js\"",
+    "game-show|node --test tests/solo-night.test.js",
+    "game-show|node --test tests/play-phone-layout.test.js"
   ]
 }

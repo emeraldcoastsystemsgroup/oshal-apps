@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add the real Wheel browser scenario: follow live turn ownership through random wheel outcomes, call a puzzle consonant, and solve through the rendered player dock.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Find the answer box by its place in the dock, and expect the words the big screen really shows on a solve (Ana WINS!, its celebration shot since the July rebuild).
  */
 
 'use strict';
@@ -75,7 +76,7 @@ async function callConsonant(harness, room, surfaces, spun) {
 
 /** @description Submit the exact full-puzzle solve through the current player's rendered input. */
 async function solvePuzzle(harness, room, surfaces, spun) {
-  const input = spun.page.locator('.gp-dock input[placeholder^="Type or say"]');
+  const input = spun.page.locator('.gp-dock .gp-play input.gs-input');
   await input.waitFor({ state: 'visible', timeout: 10000 });
   await input.fill(PUZZLE);
   await input.press('Enter');
@@ -83,7 +84,7 @@ async function solvePuzzle(harness, room, surfaces, spun) {
   harness.check(solved && solved.state.board.solved === true && solved.state.board.winner === spun.seatId,
     'the exact browser solve retires the puzzle and crowns the acting player');
   const actor = room.seats.find((seat) => seat.seatId === spun.seatId);
-  harness.check(await harness.waitForText(surfaces.tv, actor.name + ' SOLVES IT!'), 'the TV renders the solver celebration');
+  harness.check(await harness.waitForText(surfaces.tv, actor.name + ' WINS!'), 'the TV renders the solver celebration');
   harness.check(Number(solved.state.scores[spun.seatId]) >= 500, 'the round award reaches the durable live scoreboard');
 }
 

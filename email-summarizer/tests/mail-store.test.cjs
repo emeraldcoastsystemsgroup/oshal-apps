@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The stored mail copy on a disposable PostgreSQL with the declared migration and forced owner row security (Roger, 2026-10-29: the concierge should search a stored copy of the mail): a first pass stores the last week and then older mail, a pass that hits its deadline keeps its progress and the next one finishes, a duplicate is skipped, a failed Gmail read is recorded and rethrown, a search finds "ACT prep" by word start (not inside "contact"), handles OR and newer_than, falls back to the closest matches, and one person never reads another's copy. Through the compiled routes: GET /messages answers from a current copy (source stored) and from Gmail when the copy is stale (source live); POST /sync stores the caller's mail; GET /sync/status reports it. The SQL holds no ON CONFLICT, ORDER BY or DISTINCT (the native kernel copied a whole table for those).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A pass resumes where the last stopped: after a pass that ran out of time the next one asks Gmail only for mail older than the copy (before:) and newer than it (after:), never refetching or re-reading what is stored (Roger's first live passes stalled: 290, then 73 more). A state written by the old passes (no newest_at) resumes from its last run. GET /messages answers from a copy still filling only over a window the copy reaches.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The listing pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"): listStored walks the copy newest first in pages by keyset, two messages received at the same instant across a page boundary are each listed once, mail outside the inbox is left out, and the last page says it reached the copy's floor; GET /messages without words answers page after page from a current copy (a still-filling one too, with its reach) and never asks Gmail, and reads the mailbox live with Gmail's own page token when there is no copy, refusing a cursor in another shape.
  */
 'use strict';
 const test = require('node:test');
@@ -198,8 +199,8 @@ test('the store issues no statement shape that copies a whole table on the nativ
 });
 
 /** Drive one compiled route under the kernel egress with a real pool and a scripted Gmail. */
-async function route(name, pool, { query = {}, mail = MAIL } = {}) {
-  const box = gmail(mail, { pageSize: 100 });
+async function route(name, pool, { query = {}, mail = MAIL, pageSize = 100 } = {}) {
+  const box = gmail(mail, { pageSize });
   const saved = globalThis.fetch;
   const seen = [];
   process.env.OSHAL_EGRESS = 'kernel';
@@ -248,4 +249,79 @@ test('the routes: GET /messages reads Gmail until a pass has run, POST /sync sto
   assert.equal((await route('GET /messages', db.alice, { query: { q: 'ACT', days: '2' } })).res.body.source, 'stored', 'it answers a 2-day one');
   await db.alice.query('UPDATE oshal_email_sync SET last_run_at = now() - interval \'2 hours\'');
   assert.equal((await route('GET /messages', db.alice, { query: { q: 'ACT' } })).res.body.source, 'live', 'a stale copy is not offered');
+});
+
+/** A copy of `count` inbox messages, one every `gapMs` from `newestMs` down, plus the extras given; stored as alice. */
+async function filled(db, { count, newestMs, gapMs, extra = [] }) {
+  const mail = Array.from({ length: count }, (_, i) => ({ id: `m${i}`, subject: `Message ${i}`, at: newestMs - i * gapMs })).concat(extra);
+  await store.syncGmail(db.alice, 'alice', gmail(mail, { pageSize: 100 }).reader, Date.now() + 10_000, NOW);
+  return mail;
+}
+
+/** Every page of the listing, following `next` until the end; returns the ids in order and the page count. */
+async function allPages(max, oldestAt, cursorless = false) {
+  const ids = [];
+  let cursor = {}, pages = 0, reach = null;
+  for (;;) {
+    const page = await store.listStored(dbRef.alice, 'alice', max, cursorless ? {} : cursor, oldestAt, NOW);
+    ids.push(...page.messages.map((m) => m.id));
+    pages++; reach = page.reach;
+    if (!page.next || pages > 50) return { ids, pages, reach, next: page.next };
+    cursor = page.next;
+  }
+}
+let dbRef;
+
+test('listStored pages the inbox newest first by keyset, lists a tie once on each side of a page boundary, leaves non-inbox mail out and ends at the floor', async (t) => {
+  dbRef = await database(t);
+  const tie = NOW - 5 * DAY * 1 - 3 * 3600_000;
+  const mail = await filled(dbRef, { count: 13, newestMs: NOW - 3600_000, gapMs: 11 * 3600_000, extra: [
+    { id: 'tie-a', subject: 'Same instant A', at: tie }, { id: 'tie-b', subject: 'Same instant B', at: tie }, { id: 'tie-c', subject: 'Same instant C', at: tie },
+    { id: 'sent', subject: 'Sent, not inbox', at: NOW - 2 * 3600_000, labels: ['SENT'] },
+  ] });
+  const expected = mail.filter((m) => m.id !== 'sent').sort((a, b) => b.at - a.at || (a.id < b.id ? -1 : 1)).map((m) => m.id);
+  for (const max of [4, 5, 7, 100]) {
+    const walk = await allPages(max, null);
+    assert.deepEqual(walk.ids, expected, `page size ${max}: every inbox message once, newest first`);
+    assert.equal(walk.pages, Math.ceil(expected.length / max), 'no empty page at the end');
+    assert.equal(walk.next, null, 'the last page says the floor was reached');
+    assert.equal(Date.parse(walk.reach), NOW - 180 * DAY, 'with no oldestAt the listing reaches STORE_DAYS back');
+  }
+  const stops = await allPages(5, new Date(NOW - 4 * DAY).toISOString());
+  assert.deepEqual(stops.ids, expected.filter((id) => mail.find((m) => m.id === id).at >= NOW - 4 * DAY), 'a copy still filling lists down to its oldest message');
+  assert.equal(Date.parse(stops.reach), NOW - 4 * DAY);
+  const first = await store.listStored(dbRef.alice, 'alice', 2, {}, null, NOW);
+  assert.deepEqual(first.messages.map((m) => m.id), expected.slice(0, 2));
+  assert.deepEqual(first.next, { before: new Date(mail.find((m) => m.id === expected[1]).at).toISOString(), skip: 1 });
+  assert.deepEqual((await store.listStored(dbRef.bob, 'bob', 50, {}, null, NOW)).messages, [], 'another person sees nothing of the copy');
+  await dbRef.alice.query(`UPDATE oshal_email_sync SET backfill_done = false, oldest_at = $1`, [new Date(NOW - 4 * DAY).toISOString()]);
+  const page1 = await route('GET /messages', dbRef.alice, { query: { max: '5' } });
+  assert.equal(page1.res.body.source, 'stored');
+  assert.deepEqual(page1.res.body.messages.map((m) => m.id), expected.slice(0, 5));
+  assert.equal(page1.res.body.reach, new Date(NOW - 4 * DAY).toISOString(), 'a still-filling copy answers the listing and says how far it reaches');
+  assert.ok(page1.res.body.next.before);
+  const page2 = await route('GET /messages', dbRef.alice, { query: { max: '5', before: page1.res.body.next.before, skip: String(page1.res.body.next.skip) } });
+  assert.deepEqual(page2.res.body.messages.map((m) => m.id), expected.slice(5, 10).filter((id) => mail.find((m) => m.id === id).at >= NOW - 4 * DAY));
+  assert.deepEqual([...page1.seen, ...page2.seen], [], 'no Gmail request answered either page');
+});
+
+test('with no copy the listing reads Gmail live page by page with its own token, and refuses a cursor of another shape', async (t) => {
+  const db = await database(t);
+  const mail = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, subject: `Live ${i}`, at: NOW - i * 3600_000 }));
+  const first = await route('GET /messages', db.alice, { query: { max: '3' }, mail, pageSize: 3 });
+  assert.equal(first.res.body.source, 'live');
+  assert.deepEqual(first.res.body.messages.map((m) => m.id), ['g0', 'g1', 'g2']);
+  assert.deepEqual(first.res.body.next, { page: '3' });
+  assert.equal(first.seen[0].searchParams.get('q'), 'in:inbox newer_than:7d');
+  assert.equal(first.seen[0].searchParams.get('pageToken'), null);
+  const second = await route('GET /messages', db.alice, { query: { max: '3', page: '3' }, mail, pageSize: 3 });
+  assert.equal(second.seen[0].searchParams.get('pageToken'), '3');
+  assert.deepEqual(second.res.body.messages.map((m) => m.id), ['g3', 'g4', 'g5']);
+  const last = await route('GET /messages', db.alice, { query: { max: '3', page: '6' }, mail, pageSize: 3 });
+  assert.deepEqual(last.res.body.messages.map((m) => m.id), ['g6']);
+  assert.equal(last.res.body.next, null);
+  const bad = await route('GET /messages', db.alice, { query: { max: '3', page: 'https://evil.example/?x' }, mail, pageSize: 3 });
+  assert.equal(bad.res.statusCode, 400);
+  assert.equal(bad.res.body.error, 'invalid_page');
+  assert.deepEqual(bad.seen, [], 'a refused cursor reaches no mailbox');
 });

@@ -3,81 +3,117 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — load the COMPILED Eats route module (the bytes the framework mounts) with every framework import stubbed, an in-memory pool that answers exactly the SQL the cart, order, history and chat routes issue, a recording Uber Eats provider over a two-restaurant curated menu, and a scripted concierge. Shared by the route suite and the browser smoke's fixture (which passes the framework's real express); not a suite itself (no .test.js name, so the package glob never runs it).
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: load the COMPILED Eats route module (the bytes the framework mounts) with every framework import stubbed, an in-memory pool that answers exactly the SQL the routes issue, a recording Uber Eats provider over a two-restaurant curated menu, and a scripted concierge.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Native admission double: admittedPool applies the native host's rule (crates/packages/src/sql_transaction.rs) to every statement, so while callAdmitted runs a GET only a query or idempotent table setup reaches the pool and any other statement is refused with the host's own message; a per-request mode resolver serves the browser fixture's concurrent requests.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | opts.notes seeds the diner's saved concierge notes and store() returns the route's concierge store, so a test can see the notes the prompt carries and the notes a chat turn saves.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | A string reply is passed through as the model's raw text, so a test can send a malformed envelope.
- * 5 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./remembered-notes (the remembered-notes list and forget); the harness serves the compiled module.
- * 6 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./allergen-check (the diner's allergies and diet against every dish); the harness serves the compiled module.
- * 7 | maintainer@emeraldcoastsystemsgroup.com   | The route module now requires ./uber-catalog (the curated catalog and deep link it answers from where the runtime has no Uber Eats rail); the harness serves the compiled module.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.0: the pool answers the place cache tables (lookups, searches, places) with one-column keys, DELETE then INSERT, and a duplicate-key refusal; fakePool(seed) takes lookups/searches/places; the compiled ./place-cache is served real.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.2: the Geocoding host (maps.googleapis.com) answers the reverse lookup for coordinates with the same synthetic address; `reverse(url)` scripts it.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: the Uber Eats provider double and the curated menu are gone. fakePlaces is a recording fetch shaped like Google Places (New): the test address resolves to one place, a restaurant search answers three restaurants as Google returns them (display name objects, price-level enums, opening hours, photo resource names), a place lookup by id and a photo media call answer too, and an override can refuse (status + body), throw (the kernel's missing-key sentence) or script the answers. The pool answers the profile, the hand-off rows and the history. The compiled ./places and ./uber-link modules are served real, so the routes' behaviour over them is what the tests see.
  */
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-
 const PKG = path.resolve(__dirname, '..');
 const ROUTE_FILE = path.join(PKG, 'routes', 'eats-routes.js');
 
-/** A curated catalog shaped like the core Uber Eats provider's normalizeStore/normalizeItem output. */
+/** Google's answer for the test delivery address: one place with its id and coordinates. */
+const PLACE = { id: 'ChIJ-synthetic-address', formattedAddress: '1 Synthetic Way, Pensacola, FL 32502, USA', location: { latitude: 30.4213, longitude: -87.2169 } };
+
+/** Three restaurants as Google Places (New) returns them. */
 const RESTAURANTS = [
-  { storeId: 'chipotle', name: 'Chipotle Mexican Grill', cuisine: 'Mexican', items: [
-    ['chp-burrito', 'Chicken Burrito', 9.95], ['chp-bowl', 'Burrito Bowl', 9.95], ['chp-tacos', 'Three Tacos', 9.45], ['chp-chips', 'Chips & Guacamole', 4.55]] },
-  { storeId: 'mcdonalds', name: "McDonald's", cuisine: 'Burgers', items: [
-    ['mcd-bigmac', 'Big Mac', 5.99], ['mcd-mcnuggets', '10 pc Chicken McNuggets', 5.49], ['mcd-fries', 'Large French Fries', 3.99], ['mcd-mccafe', 'McCafé Latte', 3.29]] },
-  { storeId: 'sushi-house', name: 'Sushi House', cuisine: 'Japanese', items: [
-    ['sh-cali', 'California Roll', 7.5], ['sh-spicytuna', 'Spicy Tuna Roll', 8.25], ['sh-ramen', 'Tonkotsu Ramen', 13.95], ['sh-edamame', 'Edamame', 4.5]] },
+  { id: 'ChIJ-taco-mahal', displayName: { text: 'Taco Mahal', languageCode: 'en' }, formattedAddress: '12 Synthetic St, Pensacola, FL 32502, USA',
+    location: { latitude: 30.43, longitude: -87.21 }, types: ['mexican_restaurant', 'restaurant', 'food'], primaryTypeDisplayName: { text: 'Mexican restaurant' },
+    rating: 4.6, userRatingCount: 57, priceLevel: 'PRICE_LEVEL_INEXPENSIVE', currentOpeningHours: { openNow: true }, delivery: true, takeout: true,
+    photos: [{ name: 'places/ChIJ-taco-mahal/photos/photo-1', widthPx: 1200, heightPx: 800 }], googleMapsUri: 'https://maps.google.com/?cid=1', websiteUri: 'https://tacomahal.example' },
+  { id: 'ChIJ-sushi-house', displayName: { text: 'Sushi House' }, formattedAddress: '2 Synthetic Ave, Pensacola, FL 32502, USA',
+    location: { latitude: 30.41, longitude: -87.22 }, types: ['japanese_restaurant', 'restaurant'], primaryTypeDisplayName: { text: 'Japanese restaurant' },
+    rating: 4.8, userRatingCount: 812, priceLevel: 'PRICE_LEVEL_MODERATE', currentOpeningHours: { openNow: false }, delivery: true, takeout: false, photos: [] },
+  { id: 'ChIJ-thai-garden', displayName: { text: 'Thai Garden' }, formattedAddress: '3 Synthetic Blvd, Pensacola, FL 32502, USA',
+    location: { latitude: 30.44, longitude: -87.2 }, types: ['thai_restaurant', 'restaurant'], primaryTypeDisplayName: { text: 'Thai restaurant' },
+    rating: 4.4, userRatingCount: 120, delivery: false },
 ];
 
-/** One restaurant as a search card. */
-const storeCard = (r) => ({ retailer: 'ubereats', productId: r.storeId, title: r.name, brand: r.name, cuisine: r.cuisine, etaMinutes: 25, priceFrom: Math.min(...r.items.map((i) => i[2])), imageUrl: '' });
-/** One menu item. */
-const menuItem = (r, [id, title, price]) => ({ retailer: 'ubereats', productId: id, storeId: r.storeId, title, brand: r.name, price, emoji: '', imageUrl: '' });
+/** Google's 403 for a key whose project has not enabled Places API (New), as the live key answered on 2026-10-30. */
+const SERVICE_DISABLED = {
+  error: {
+    code: 403,
+    message: 'Places API (New) has not been used in project 1085759851735 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/places.googleapis.com/overview?project=1085759851735 then retry.',
+    status: 'PERMISSION_DENIED',
+    details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'SERVICE_DISABLED', domain: 'googleapis.com',
+      metadata: { service: 'places.googleapis.com', consumer: 'projects/1085759851735', activationUrl: 'https://console.developers.google.com/apis/api/places.googleapis.com/overview?project=1085759851735' } }],
+  },
+};
+/** The kernel's own refusal when OSHAL_CONNECTOR_SECRET_GOOGLE_PLACES is not set (crates/oshald/src/package_egress.rs). */
+const NOT_CONNECTED = 'google-places is not connected: connect it on Utilities or set OSHAL_CONNECTOR_SECRET_GOOGLE_PLACES for the installation';
 
-/** An Uber Eats provider double answering search / menu / order from RESTAURANTS; every call recorded. */
-function fakeProvider(overrides = {}) {
-  const calls = [];
-  async function run(args) {
-    calls.push([...args]);
-    if (overrides[args[0]]) return overrides[args[0]](args);
-    if (args[0] === 'search') {
-      const q = String(args[1] || '').toLowerCase();
-      const hits = RESTAURANTS.filter((r) => !q || r.name.toLowerCase().includes(q) || r.cuisine.toLowerCase().includes(q) || r.items.some((i) => i[1].toLowerCase().includes(q)));
-      return { source: 'catalog', items: (hits.length ? hits : RESTAURANTS).map(storeCard) };
+/**
+ * @description A recording fetch shaped like Google Places (New).
+ * @param {{ status?: number, body?: object, throws?: Error, geocode?: Function, reverse?: Function, search?: Function, respond?: Function }} [overrides]
+ *   `status`+`body` refuse every call; `throws` makes every call throw; `geocode(body)` / `search(body)` script those answers;
+ *   `respond(url, init, body)` answers first when it returns something.
+ * @returns {{ requests: object[], fetch: Function }}
+ */
+function fakePlaces(overrides = {}) {
+  const requests = [];
+  const answer = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+  async function fetch(url, init = {}) {
+    const body = init.body ? JSON.parse(init.body) : null;
+    requests.push({ url: String(url), method: init.method || 'GET', headers: init.headers || {}, body });
+    if (typeof overrides.respond === 'function') { const r = overrides.respond(String(url), init, body); if (r) return r; }
+    if (overrides.throws) throw overrides.throws;
+    if (overrides.status) return answer(overrides.status, overrides.body || {});
+    const u = String(url);
+    if (u.startsWith('https://maps.googleapis.com/maps/api/geocode/json')) {
+      if (overrides.reverse) return answer(200, overrides.reverse(u));
+      return answer(200, { status: 'OK', results: [{ formatted_address: PLACE.formattedAddress, place_id: PLACE.id, geometry: { location: { lat: PLACE.location.latitude, lng: PLACE.location.longitude } }, types: ['street_address'] }] });
     }
-    if (args[0] === 'menu') {
-      const r = RESTAURANTS.find((x) => x.storeId === args[1]);
-      return r ? { source: 'catalog', storeId: r.storeId, store: r.name, items: r.items.map((i) => menuItem(r, i)) } : { source: 'catalog', storeId: args[1], items: [] };
+    if (u.includes('/places:searchText')) {
+      if (body && body.includedType === 'restaurant') return answer(200, overrides.search ? overrides.search(body) : { places: RESTAURANTS });
+      return answer(200, overrides.geocode ? overrides.geocode(body) : { places: [PLACE] });
     }
-    if (args[0] === 'order') return { source: 'ubereats', checkoutUrl: `https://www.ubereats.com/store/${args[1]}` };
-    return {};
+    const details = u.match(/\/v1\/places\/([^/?]+)\?/);
+    if (details) {
+      const r = RESTAURANTS.find((x) => x.id === decodeURIComponent(details[1]));
+      return r ? answer(200, r) : answer(404, { error: { code: 404, message: 'not found', status: 'NOT_FOUND' } });
+    }
+    const media = u.match(/\/v1\/(places\/[^/]+\/photos\/[^/]+)\/media/);
+    if (media) return answer(200, { name: media[1], photoUri: `https://lh3.googleusercontent.com/synthetic/${media[1].split('/').pop()}` });
+    return answer(404, {});
   }
-  return { calls, run };
+  return { requests, fetch };
 }
 
 /** An in-memory pool answering the Eats route SQL; every statement is recorded. */
 function fakePool(seed = {}) {
-  const t = { carts: [...(seed.carts || [])], items: [...(seed.items || [])], orders: [] };
+  const t = { profiles: { ...(seed.profiles || {}) }, orders: [...(seed.orders || [])], lookups: { ...(seed.lookups || {}) }, searches: { ...(seed.searches || {}) }, places: { ...(seed.places || {}) } };
   const sql = [];
-  let n = 0;
-  const id = (p) => `${p}-${++n}`;
   const rows = (r) => ({ rows: r, rowCount: r.length });
   const handlers = [
-    [/^SELECT \* FROM eats_carts WHERE user_sub = \$1 AND status = 'active'/, (p) => rows(t.carts.filter((c) => c.user_sub === p[0] && c.status === 'active').slice(0, 1))],
-    [/^INSERT INTO eats_carts \(user_sub\) VALUES \(\$1\)/, (p) => { const c = { cart_id: id('cart'), user_sub: p[0], store_id: null, store_name: null, status: 'active' }; t.carts.push(c); return rows([c]); }],
-    [/^SELECT \* FROM eats_cart_items WHERE cart_id = \$1 AND status = 'pending'/, (p) => rows(t.items.filter((i) => i.cart_id === p[0] && i.status === 'pending'))],
-    [/^UPDATE eats_cart_items SET status = 'removed' WHERE cart_id = \$1 AND status = 'pending'/, (p) => { const hit = t.items.filter((i) => i.cart_id === p[0] && i.status === 'pending'); hit.forEach((i) => { i.status = 'removed'; }); return rows(hit); }],
-    [/^UPDATE eats_carts SET store_id = \$2, store_name = \$3/, (p) => { const hit = t.carts.filter((c) => c.cart_id === p[0]); hit.forEach((c) => { c.store_id = p[1]; c.store_name = p[2]; }); return rows(hit); }],
-    [/^INSERT INTO eats_cart_items/, (p) => { const r = { row_id: id('row'), cart_id: p[0], user_sub: p[1], store_id: p[2], store_name: p[3], item_id: p[4], title: p[5], price: p[6] === null ? null : Number(p[6]).toFixed(2), quantity: p[7], emoji: p[8], image_url: p[9], status: 'pending' }; t.items.push(r); return rows([r]); }],
-    [/^UPDATE eats_cart_items SET status = 'removed' WHERE row_id = \$1 AND user_sub = \$2/, (p) => { const hit = t.items.filter((i) => i.row_id === p[0] && i.user_sub === p[1]); hit.forEach((i) => { i.status = 'removed'; }); return rows(hit); }],
-    [/^INSERT INTO eats_orders/, (p) => { t.orders.push({ user_sub: p[0], store_id: p[1], store_name: p[2], items: p[3], total: p[4], handoff_url: p[5] }); return rows([]); }],
-    [/^SELECT store_name, total, handoff_url, created_at\s+FROM eats_orders/, (p) => rows(t.orders.filter((o) => o.user_sub === p[0]))],
-    [/^SELECT 1 FROM oshal_connections WHERE provider='uber'/, () => rows([])],
-    [/^SELECT \* FROM eats_profile WHERE user_sub = \$1/, () => rows([])],
+    [/^SELECT \* FROM eats_profile WHERE user_sub = \$1/, (p) => rows(t.profiles[p[0]] ? [t.profiles[p[0]]] : [])],
+    [/^INSERT INTO eats_profile/, (p) => {
+      const old = t.profiles[p[0]] || { user_sub: p[0], display_name: null, dietary: [], favorite_cuisines: [], default_address: null, budget_per_order: null, notes: null, onboarded: false };
+      const row = { ...old, display_name: p[1] ?? old.display_name, dietary: p[2] ?? old.dietary, favorite_cuisines: p[3] ?? old.favorite_cuisines, default_address: p[4] ?? old.default_address,
+        budget_per_order: p[5] ?? old.budget_per_order, notes: p[6] ?? old.notes, onboarded: Boolean(p[7]) || old.onboarded };
+      t.profiles[p[0]] = row; return rows([row]);
+    }],
+    [/^INSERT INTO eats_orders/, (p) => { t.orders.push({ user_sub: p[0], store_id: p[1], store_name: p[2], total: null, handoff_url: p[3], created_at: new Date().toISOString() }); return rows([]); }],
+    [/^SELECT store_id, store_name, total, handoff_url, created_at\s+FROM eats_orders/, (p) => rows(t.orders.filter((o) => o.user_sub === p[0]).slice().reverse())],
+    // The place cache (migration 041): one-column text keys, DELETE by key then INSERT, a duplicate key refused as Postgres does.
+    [/^SELECT address, place_id, latitude, longitude, fetched_ms FROM eats_place_lookups WHERE lookup_key = \$1$/, (p) => rows(t.lookups[p[0]] ? [t.lookups[p[0]]] : [])],
+    [/^DELETE FROM eats_place_lookups WHERE lookup_key = \$1$/, (p) => { delete t.lookups[p[0]]; return rows([]); }],
+    [/^INSERT INTO eats_place_lookups/, (p) => { if (t.lookups[p[0]]) throw new Error('duplicate key value violates unique constraint "eats_place_lookups_pkey"'); t.lookups[p[0]] = { lookup_key: p[0], user_sub: p[1], address: p[2], place_id: p[3], latitude: p[4], longitude: p[5], source: p[6], fetched_ms: p[7], expires_ms: p[8] }; return rows([]); }],
+    [/^SELECT restaurants, fetched_ms FROM eats_search_cache WHERE search_key = \$1$/, (p) => rows(t.searches[p[0]] ? [t.searches[p[0]]] : [])],
+    [/^DELETE FROM eats_search_cache WHERE search_key = \$1$/, (p) => { delete t.searches[p[0]]; return rows([]); }],
+    [/^INSERT INTO eats_search_cache/, (p) => { if (t.searches[p[0]]) throw new Error('duplicate key value violates unique constraint "eats_search_cache_pkey"'); t.searches[p[0]] = { search_key: p[0], user_sub: p[1], query: p[2], place_id: p[3], restaurants: p[4], fetched_ms: p[5], expires_ms: p[6] }; return rows([]); }],
+    [/^SELECT card, fetched_ms FROM eats_places WHERE place_key = \$1$/, (p) => rows(t.places[p[0]] ? [t.places[p[0]]] : [])],
+    [/^DELETE FROM eats_places WHERE place_key = \$1$/, (p) => { delete t.places[p[0]]; return rows([]); }],
+    [/^INSERT INTO eats_places/, (p) => { if (t.places[p[0]]) throw new Error('duplicate key value violates unique constraint "eats_places_pkey"'); t.places[p[0]] = { place_key: p[0], user_sub: p[1], place_id: p[2], card: p[3], fetched_ms: p[4], expires_ms: p[5] }; return rows([]); }],
   ];
   return {
     tables: t, sql,
     async query(text, params = []) {
-      const s = String(text).trim();
+      const s = String(text && typeof text === 'object' ? text.text : text).trim();
       sql.push({ text: s, params });
       const hit = handlers.find(([re]) => re.test(s));
       if (!hit) throw new Error(`fake pool cannot answer: ${s.slice(0, 90)}`);
@@ -100,15 +136,15 @@ class FakeConciergeStore {
 
 /**
  * @description Load the compiled route module with stubbed framework imports and return its handlers.
- * @param {{ pool?: object, provider?: object, reply?: object|Function, express?: object }} opts - `express`:
- *   a real express module (the browser fixture's); `reply`: the concierge's JSON envelope (a string
- *   is sent as the model's raw text), or a function of the prompt returning one.
- * @returns {{ handlers: object, pool: object, provider: object, prompts: string[], router: object }}
+ * @param {{ pool?: object, places?: object, reply?: object|Function, express?: object, notes?: string[] }} opts - `express`:
+ *   a real express module (the browser fixture's); `reply`: the concierge's JSON envelope (a string is sent as the model's
+ *   raw text), or a function of the prompt returning one; `places`: a fakePlaces() double.
+ * @returns {{ handlers: object, pool: object, places: object, prompts: string[], router: object, exports: object, store: Function }}
  */
 function loadRoutes(opts = {}) {
   const handlers = { get: new Map(), post: new Map(), delete: new Map() };
   const pool = opts.pool || fakePool();
-  const provider = opts.provider || fakeProvider();
+  const places = opts.places || fakePlaces();
   const prompts = [];
   FakeConciergeStore.seedNotes = opts.notes || [];
   const router = {
@@ -121,15 +157,14 @@ function loadRoutes(opts = {}) {
     express: opts.express || { Router: () => router },
     path,
     crypto: { randomUUID: () => 'test-uuid' },
-    './cart-totals': require(path.join(PKG, 'routes', 'cart-totals.js')),
     './remembered-notes': require(path.join(PKG, 'routes', 'remembered-notes.js')),
     './allergen-check': require(path.join(PKG, 'routes', 'allergen-check.js')),
-    './uber-catalog': require(path.join(PKG, 'routes', 'uber-catalog.js')),
+    './places': require(path.join(PKG, 'routes', 'places.js')),
+    './uber-link': require(path.join(PKG, 'routes', 'uber-link.js')),
+    './place-cache': require(path.join(PKG, 'routes', 'place-cache.js')),
     '@/shared/logger': { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) },
     '@/shared/services/database': { buildOwnerRlsPolicyStatements: () => [], runRuntimeSchemaBootstrap: async () => {} },
     '@/shared/middleware/authz': { getTrustedServiceUserSub: () => undefined },
-    '@/app/routes/connector-token-broker': { resolveServerOperationCreds: async () => ({ OSHAL_CRED_UBER: undefined }) },
-    '@/app/routes/provider-operation-clients': { runUberEatsProviderOperation: async (_cred, args) => provider.run(args) },
     '@/app/routes/concierge-store': { ConciergeStore: FakeConciergeStore },
     '@/app/routes/concierge-reply': { cleanConciergeReply: (t, fb) => (typeof t === 'string' && t.trim() ? t : (fb || '')) },
     '@/features/agent-management': { BotNodeClient: class {}, createRegistryEndpointResolver: () => () => undefined },
@@ -148,8 +183,9 @@ function loadRoutes(opts = {}) {
   const mod = { exports: {} };
   new Function('require', 'module', 'exports', '__filename', '__dirname', fs.readFileSync(ROUTE_FILE, 'utf8'))(
     shimRequire, mod, mod.exports, ROUTE_FILE, path.dirname(ROUTE_FILE));
-  const mounted = mod.exports.createEatsRoutes({ pool, appPackageDir: PKG });
-  return { handlers, pool, provider, prompts, exports: mod.exports, router: mounted, store: () => FakeConciergeStore.last };
+  mod.exports.resetCaches();
+  const mounted = mod.exports.createEatsRoutes({ pool, appPackageDir: PKG, fetch: places.fetch });
+  return { handlers, pool, places, prompts, exports: mod.exports, router: mounted, store: () => FakeConciergeStore.last };
 }
 
 /** A recording response. */
@@ -162,18 +198,16 @@ function fakeRes() {
     sendFile(b) { this.body = b; return this; },
   };
 }
-
 /** A signed-in diner request. */
-const authed = (sub, extra = {}) => ({ oidc: { isAuthenticated: () => true, user: { sub } }, query: {}, body: {}, params: {}, path: '/', ...extra });
+const authed = (sub, extra = {}) => ({ oidc: { isAuthenticated: () => true, user: { sub } }, query: {}, body: {}, params: {}, path: '/', method: 'GET', ...extra });
 /** An anonymous request. */
-const anon = (extra = {}) => ({ oidc: { isAuthenticated: () => false }, query: {}, body: {}, params: {}, path: '/', ...extra });
-
+const anon = (extra = {}) => ({ oidc: { isAuthenticated: () => false }, query: {}, body: {}, params: {}, path: '/', method: 'GET', ...extra });
 /** Run one registered handler and return the recording response. */
 async function call(handlers, method, route, req) {
   const handler = handlers[method].get(route);
   if (!handler) throw new Error(`no ${method.toUpperCase()} ${route} registered`);
   const res = fakeRes();
-  await handler(req, res);
+  await handler({ ...req, method: method.toUpperCase() }, res);
   return res;
 }
 
@@ -189,8 +223,7 @@ const WRITER_REFUSAL = 'SQL mutation requires original writer admission';
  * not a query or idempotent table setup is refused before it reaches the pool, exactly as the native
  * package host refuses it, and is recorded in `refused`; in 'write' mode every statement passes.
  * @param {object} pool - The pool the routes would otherwise use.
- * @param {() => (string|undefined)} [modeOf] - Per-request mode for a server that runs requests concurrently
- *   (the browser fixture resolves it from AsyncLocalStorage); falls back to `mode`.
+ * @param {() => (string|undefined)} [modeOf] - Per-request mode for a server that runs requests concurrently.
  * @returns {object} A pool with `mode`, `refused`, `tables` and `sql`.
  */
 function admittedPool(pool, modeOf = () => undefined) {
@@ -210,18 +243,14 @@ function admittedPool(pool, modeOf = () => undefined) {
 }
 
 /**
- * @description Run one handler the way the native host admits it: a GET read-only, every other method
- * as a writer.
- * @param {object} handlers - From loadRoutes.
- * @param {object} pool - An admittedPool the routes were loaded with.
- * @param {string} method - 'get' | 'post' | 'delete'.
- * @param {string} route - The registered route path.
- * @param {object} req - The request.
+ * @description Run one handler the way the native host admits it: a GET read-only, every other method as a writer.
+ * @param {object} handlers - The registered handlers. @param {string} method - get/post/delete. @param {string} route - The path.
+ * @param {object} req - The request. @param {object} pool - An admittedPool.
  * @returns {Promise<object>} The recording response.
  */
-async function callAdmitted(handlers, pool, method, route, req) {
+async function callAdmitted(handlers, method, route, req, pool) {
   pool.mode = method === 'get' ? 'read' : 'write';
   try { return await call(handlers, method, route, req); } finally { pool.mode = 'write'; }
 }
 
-module.exports = { RESTAURANTS, WRITER_REFUSAL, fakePool, fakeProvider, admittedPool, callAdmitted, loadRoutes, authed, anon, call };
+module.exports = { PLACE, RESTAURANTS, SERVICE_DISABLED, NOT_CONNECTED, WRITER_REFUSAL, fakePlaces, fakePool, FakeConciergeStore, loadRoutes, fakeRes, authed, anon, call, admittedPool, callAdmitted };

@@ -7,6 +7,7 @@
  * 2026-07-22 02:34:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Declare Jeopardy's own timed windows (ring-in, response, Daily Double wager, final wager, final response) and what each lapse means, plus show-specific host overrides. Deliberately unlike Feud's windows — proof the engine keeps time without knowing any show's phase names.
  * 2026-07-24 12:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Double Jeopardy (backlog #7): retiring the round-1 board opens 'round-break' instead of the final; the round-2 board generates at doubled values with TWO Daily Doubles; the final follows round 2. Plus localJudge — an exact answer match (with the "what is" phrasing stripped) rules correct without an LLM call.
  * 2026-07-25 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | npcMove — the Jeopardy NPC brain: pick an open clue when holding control, ring in by skill, respond in question form from the clue the server holds, and wager sanely on Daily Doubles and the final. No LLM; flows through the existing {correct} judge shape.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | The open read "send them over" and "a survey showdown, not Jeopardy" (the intro prompt carried no categories): it now names the drawn categories. AI podiums leave a seated person the first pick and time to read a clue before ringing in.
  */
 
 'use strict';
@@ -14,6 +15,7 @@
 const buzzer = require('../buzzer');
 const director = require('../director');
 const interview = require('../interview');
+const { readingHold, FIRST_MOVE_HOLD_MS, REOPENED_HOLD_MS } = require('../npc');
 
 const ID = 'jeopardy';
 const CATEGORIES = 6;
@@ -488,7 +490,9 @@ function npcMove(state, actor, ctx = {}) {
     });
     if (!open.length) return null;
     var pick = open[Math.floor(ctx.roll('pick') * open.length)];
-    return { action: { type: 'pick', cat: pick.cat, row: pick.row } };
+    // Nobody holds the board yet: the first pick is the seated person's to take.
+    var firstPick = !board.control && (ctx.humans || []).length;
+    return { action: { type: 'pick', cat: pick.cat, row: pick.row }, hold: firstPick ? FIRST_MOVE_HOLD_MS : 0 };
   }
   if (state.phase === 'clue' && state.buzz && state.buzz.open) {
     if ((board.missed || []).indexOf(actor.seatId) >= 0) return null;
@@ -496,7 +500,9 @@ function npcMove(state, actor, ctx = {}) {
     // clue just retires, so lateness (not refusal) keeps the humans' head start
     // without freezing a whole stage of bots silent.
     var late = ctx.roll('ring') >= (prof.ring || 0.5);
-    return { action: { type: 'buzz', serial: state.buzz.serial }, late: late };
+    var live = activeClue(board);
+    var hold = (board.missed || []).length && (ctx.humans || []).length ? REOPENED_HOLD_MS : readingHold(live && live.clue, ctx.humans);
+    return { action: { type: 'buzz', serial: state.buzz.serial }, late: late, hold: hold };
   }
   if (state.phase === 'daily-wager') {
     var wager = board.wager || {};
@@ -525,12 +531,19 @@ function boardSummary(state) {
   return 'Phase ' + state.phase + '. ' + (clue ? 'Live clue: "' + clue.clue + '". ' : '') + left + ' clues left.';
 }
 
+/** @description The facts the open may use: the categories on the board, nothing invented, nothing asked of the room. */
+function introContext(state) {
+  var titles = ((state.board && state.board.categories) || []).map(function (c) { return c.title; }).filter(Boolean);
+  var drawn = titles.length ? 'The categories on the board are: ' + titles.join(', ') + '. Read exactly these.' : 'The categories are not on the board yet; do not name any.';
+  return drawn + ' This show is Jeopardy, not a survey. Never ask the room to send you anything: the board is ready.';
+}
+
 /** @description Build the prompt for a spoken host line. */
 function spokenPrompt(mode, state, payload = {}, ctx = {}) {
   var context = boardSummary(state);
   var who = payload.name ? ' The contestant is ' + payload.name + '.' : '';
   var map = {
-    intro: 'MODE: intro. Welcome the room to Jeopardy and read the categories.' + who,
+    intro: 'MODE: intro. Welcome the room to Jeopardy and read the categories.' + who + ' ' + introContext(state),
     banter: 'MODE: banter. One quick host line for this moment.' + who + ' ' + context,
     reveal: 'MODE: reveal. React to the ruling just made.' + who + ' ' + context,
     strike: 'MODE: strike. Sell the miss kindly, keep them in it.' + who + ' ' + context,

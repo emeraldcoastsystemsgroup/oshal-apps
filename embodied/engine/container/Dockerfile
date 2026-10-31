@@ -20,7 +20,11 @@ ENV PATH=/opt/embodied/venv/bin:$PATH \
     MUJOCO_GL=disable \
     HOME=/tmp \
     TMPDIR=/tmp
+# Reports and trained policies outlive the container: compose mounts a named volume here, which
+# inherits this ownership. EMBODIED_REPORT_DIR is the one place the bridge and the tasks write.
+RUN mkdir -p /var/lib/embodied/reports && chown -R embodied /var/lib/embodied
+ENV EMBODIED_REPORT_DIR=/var/lib/embodied/reports
 USER embodied
 WORKDIR /opt/embodied/engine
 EXPOSE 7413 7414 7415
-CMD ["python", "/opt/embodied/engine/container/embodied_engine_bridge.py"]
+CMD ["sh", "/opt/embodied/engine/container/start-engine.sh", "python", "/opt/embodied/engine/container/embodied_engine_bridge.py"]

@@ -7,6 +7,9 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | B20: the node-rail front (container/embodied_engine_node.py) is a runtime file — a container without it is another build.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | B6: the PX4 node front is a runtime file too.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The arm plant and its task are runtime files too (ADR-152 D5 task 3).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202 integration: the spider's three runtime files (embodied_hexapod.py, hexapod_gaits.py, tasks/hexapod_walk.py) join the list, the same set and order the bridge hashes; the real-routes studio proof caught the mismatch (protocol_mismatch at the status route).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | B30 gate: tasks/hexapod_certify.py joins the list, the same set and order the bridge hashes.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9: the generic plant (embodied_plant.py) and its reach task (tasks/plant_reach.py) join the list, the same set and order the bridge hashes; a plant certificate is bound to the code that replays it.
  */
 
 import { createHash } from 'node:crypto';
@@ -14,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /** The files whose bytes define an engine build (RUNTIME_FILES in embodied_engine_bridge.py). */
-export const ENGINE_RUNTIME_FILES = ['embodied_worker.py', 'container/embodied_engine_bridge.py', 'requirements.txt', 'requirements-lock.txt', 'tasks/hover_leg.py', 'container/embodied_engine_node.py', 'container/embodied_px4_node.py', 'embodied_arm.py', 'tasks/reach_grasp.py'] as const;
+export const ENGINE_RUNTIME_FILES = ['embodied_worker.py', 'container/embodied_engine_bridge.py', 'requirements.txt', 'requirements-lock.txt', 'tasks/hover_leg.py', 'container/embodied_engine_node.py', 'container/embodied_px4_node.py', 'embodied_arm.py', 'tasks/reach_grasp.py', 'embodied_hexapod.py', 'hexapod_gaits.py', 'tasks/hexapod_walk.py', 'tasks/hexapod_certify.py', 'embodied_plant.py', 'tasks/plant_reach.py'] as const;
 
 /** @description The build hash of the engine tree under `engineDir`, or null when the tree is not there.
  * @param engineDir - The package's `engine/` directory. @returns Hex sha256 or null. */

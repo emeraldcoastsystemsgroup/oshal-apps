@@ -419,20 +419,16 @@
       "name": "eats",
       "suite": "ai-home",
       "displayName": "Eats",
-      "description": "AI Uber Eats concierge — search restaurants, browse menus, build an order, and hand off a ready Uber Eats checkout you confirm and pay in your own Uber app.",
-      "version": "1.3.6",
+      "description": "AI food-delivery concierge: the real restaurants near your delivery address from Google Places, your tastes and allergies remembered, and a one-tap hand-off into Uber Eats at your address with the restaurant you chose.",
+      "version": "1.5.0",
       "dependencies": {
         "apps": [],
         "tools": [],
-        "connectors": [
-          "uber"
-        ],
+        "connectors": [],
         "required": {
           "apps": [],
           "tools": [],
-          "connectors": [
-            "uber"
-          ]
+          "connectors": []
         },
         "optional": {
           "apps": [],
@@ -1378,7 +1374,7 @@
       "suite": "ai-productivity",
       "displayName": "Intelligent Communication",
       "description": "Your inbox, calendar, social channels and day in one surface. Reads the signed-in user's own connected Gmail + Google Calendar or Outlook / Microsoft 365 mail + calendar, builds a prioritized \"My Day\" digest, drafts replies with the communications bot, and publishes to the person's own X, LinkedIn, Facebook Page, Slack and Mastodon accounts from a Buffer-style desk: write once, customize per channel, add to the queue, schedule or post now, answer Slack and X mentions in place, and announce a live stream on every channel. Sending mail is a single explicit-confirm gated action; every social publish goes out on the person's own connection through the kernel. The bot does the reasoning on its own harness/model with cost captured per user.",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "theme": "gray",
       "dependencies": {
         "apps": [],
@@ -1433,8 +1429,8 @@
       "name": "kalshi",
       "suite": "ai-finance",
       "displayName": "Kalshi Prediction Markets",
-      "description": "Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and, once you switch Tell Jarvis on in Settings, posts new playable hands to your Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
-      "version": "1.6.5",
+      "description": "Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and, once you switch Tell Jarvis on in Settings, posts new playable hands to your Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
+      "version": "1.7.3",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1506,7 +1502,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.46.1",
+      "version": "1.47.3",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1581,7 +1577,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.21.8",
+      "version": "0.21.10",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1613,8 +1609,8 @@
       "name": "game-show",
       "suite": "ai-creative",
       "displayName": "Game Show",
-      "description": "TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. Play solo against skill-tiered AI contestants, or hand everyone a phone as a buzzer.",
-      "version": "0.11.6",
+      "description": "TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. Press a show to play against skill-tiered computer players in one tap, or hand everyone a phone as a buzzer.",
+      "version": "0.12.8",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2468,10 +2464,10 @@
     },
     {
       "name": "embodied",
-      "suite": "ai-home",
+      "suite": "ai-engineering",
       "displayName": "Embodied Swarm",
       "description": "Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. This is the simulation environment for that machine: the room starts entirely unknown; a base LiDAR and a mini drone's LiDAR map it into a 3-D occupancy grid (the drone exploring frontier to frontier), surfaces and objects are discovered from the map alone, plans are drafted against those discovered ids and rehearsed on a clone, you execute behind a confirm, every kinetic step is re-validated live against the map (unknown space blocks everything), the wrist camera looks before and after each grasp, the drone re-scans to verify, and a 3-D view shows the mapped voxels, the arm model and the simulated pictures. The drone can go first and blind: its upward ranger clears the climb, its pose is an estimate that drifts by a deterministic odometry model, and every sweep is registered scan-to-map (point-to-plane against the exact hit points the map kept) before it is integrated — a 10 cm error comes back under a millimetre, a registration that will not converge grounds the drone, the pad re-anchors it, and a true strike on something unmapped puts it down. The drone carries a chosen SENSOR SET: the 3-D LiDAR we would buy, or the 2-D ring plus downward depth camera of the drone we print — which flies in its own scan plane, holds altitude on a nadir ranger, registers in the plane against walls at any height, and explores by where its camera will learn the most. The drone we print is also a PARTS MODEL: sizing by momentum theory at the summed mass budget, every printed part a CAD Studio program (open it there for STEP, STL and drawings), the bought parts with approximate prices — the hardware design's tables are generated from it. A taught fridge door the arm pulls open against a 60 N seal is kept. The drone's TRUE pose can run on a physics plant: a package-owned MuJoCo engine container flies the printed drone's parts model (MJCF generated from it) under gusts with real contacts, and every guard, the map and the registration are unchanged; the first training task (hover and one leg) ships with its PID baseline, and a trained policy may fly the plant only after its recorded flight has passed this world's guards — the certification gate. The engine container is also a node on the swarm rail: it heartbeats in the way a drone node does and a world can run on it, so a real drone node slots in behind the same primitives. Named hidden scenes (the kitchen, a studio) are plain data the discovery never reads; a drone that reports itself lost recovers by a global search and its registered trail back to the pad. Deterministic, no hardware — every view says simulated.",
-      "version": "0.18.1",
+      "version": "0.20.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2483,7 +2479,8 @@
         },
         "optional": {
           "apps": [
-            "cad-studio"
+            "cad-studio",
+            "circuit-lab"
           ],
           "tools": [],
           "connectors": []
@@ -2497,6 +2494,44 @@
       },
       "audit": {
         "record": "audits/embodied.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "ready"
+    },
+    {
+      "name": "design-studio",
+      "suite": "ai-engineering",
+      "displayName": "Design Studio",
+      "description": "The design-to-build process as one application, for anything. A product is a brief plus a chain of phases (brief, design, mechanical, electrical, sensors, controller, simulate, fabricate, build), each bound to the engine that produces its artifact (CAD Studio, Circuit Lab, embodied's plant and gate, the print service) or marked reasoned when no engine here solves it. Every phase is a poster whose stage is read from the engine when the page opens and never stored, with one button; a phase closes on a measured verdict recorded with the engine's evidence line and the artifact revision. The design partner on the right rail works through the chain with you. The spider is the first product.",
+      "version": "0.4.4",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [
+            "cad-studio",
+            "circuit-lab",
+            "embodied",
+            "scan-to-print"
+          ],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "design-studio",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/design-studio.json",
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "ready"
@@ -2574,7 +2609,7 @@
       "suite": "ai-engineering",
       "displayName": "Circuit Lab",
       "description": "A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs, capacitors, switches, transistors, op-amps, relays, regulators, a 555, a sequenced pin, an H-bridge, signal sources, DC motors, gears and loads on a schematic, wire them, and a real SPICE solver (ngspice, in the package's engine container) runs the transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their solved speed. Ask the concierge for a change in plain words and it edits the same circuit through the package's tools, so the person, the bot and any MCP client iterate on one design.",
-      "version": "0.8.9",
+      "version": "0.9.0",
       "dependencies": {
         "apps": [],
         "tools": [],

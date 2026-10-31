@@ -26,6 +26,7 @@
  *   fare watch; the screen label it names is the page's own no-rail sentence (the old one sent people to connect Duffel).
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Guard the exact original-Writer metadata-only Motion catalogue POST separately while preserving approval for every mutation POST.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | The Games concierge guard follows Game Show's real labels after its one-press start: Play against the computer and Host for friends instead replace Host this show, Solo night and Pick tonight.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -180,7 +181,7 @@ test('the Games concierge names Game Show\'s real controls and never sends a sho
   const rel = conciergePersona('games');
   const text = flat((yaml.load(fs.readFileSync(path.join(ROOT, rel), 'utf8')) || {}).perspective);
   const screen = fs.readFileSync(path.join(ROOT, 'game-show/ui/gs-surfaces.js'), 'utf8');
-  for (const label of ['Host this show', 'Join game', 'Enter join code', 'New game', 'Solo night', 'Your open games', 'Pick tonight']) {
+  for (const label of ['Play against the computer', 'Host for friends instead', 'Join game', 'Enter join code', 'New game', 'Your open games', 'How to play']) {
     assert.ok(screen.includes(label), `game-show/ui/gs-surfaces.js still shows ${label}`);
     assert.ok(text.includes(label), `${rel} names ${label}`);
   }

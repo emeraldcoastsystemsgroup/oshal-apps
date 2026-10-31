@@ -166,6 +166,7 @@ cases:
       - The package ships data/kalshi-calibration.json (generated 2026-07-13, horizons 24/6/1, a provenance block), and with a reader a scan may run against it.
       - Before the first scan GET /scan carries the table's generatedAt; a missing table's gate reason is words with no file path.
       - The page says whether the background scan will run and how old the calibration table is.
+      - On the native kernel a due tick scans and writes the snapshot without asking swarm_applications (the kernel is the authority that an installed, active application is being ticked); off the kernel zero registry rows still mean not installed.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
@@ -193,6 +194,47 @@ cases:
     expected:
       - A markdown-bold title renders its words in strong with no asterisk; a stray marker is dropped; markup in a title stays escaped.
       - The scan row and the order dialog print titles through marketTitle.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: market-explainer
+    name: Market walkthrough words and numbers
+    purpose: Pin the pure explainer: browse rows, the reasons a market is skipped, fold and playable walkthroughs, the quant's question, open-market filtering.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-market-explainer.test.js] }
+    expected:
+      - A skipped market says why in the evaluator's own terms and is never evaluated.
+      - A fold is explained in cents and percentages with a zero stake; a playable hand says its stake and paper-only under a closed gate.
+      - Markets that closed since the scan are dropped and counted.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: markets-routes
+    name: Browse and walkthrough routes
+    purpose: Run the compiled routes over a stored snapshot: GET /markets filters, sorts and bounds; GET /markets/:ticker answers from the snapshot, else live, with 404/503 refusals; GET /scan ships no browse rows; runScan stores one row per walked market.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-markets-routes.test.js] }
+    expected:
+      - Every open walked market is listed with a verdict headline; closed ones are counted, not listed.
+      - A market outside the last scan is read live and priced against the shipped table; an unknown ticker is 404; no market reader is 503.
+      - Anonymous callers are refused on every route.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Fresh module graphs with in-memory pool and feed fixtures. }
+    limits: { timeoutMs: 30000, maxMemoryMb: 256 }
+    installation: never
+  - id: quant-contract
+    name: Quant concierge contract
+    purpose: Prove the manifest, persona, tools, rating and page agree: chatBot is the declared quant, every tool is an authorized read of a mounted route, the rating names the hosted feature, the Markets tab leads the page.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/kalshi-quant-contract.test.js] }
+    expected:
+      - The persona authorizes each declared tool and never trades.
+      - Each api tool reads a route the package mounts, read-only and without approval.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }

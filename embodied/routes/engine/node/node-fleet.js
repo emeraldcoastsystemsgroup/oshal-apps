@@ -7,6 +7,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial creation — the drone-node fleet (ADR-099, B20), the core DroneFleet's shape for this package: nodes join by authenticated heartbeat (identity, kind, the endpoint the api dials back, the bridge hello, the latest telemetry, events since the api's ack) and are minted on first contact; staleness is the liveness signal — a node that stops heartbeating is offline and cannot be given a world; ids and sizes are bounded so a misbehaving client cannot grow the map or inject path-hostile ids. One fleet per process, shared by the heartbeat mount and the world routes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | A node belongs to one owner (ADR-114): the sub the mounter resolved from the trusted service user-sub header is recorded on first contact, a heartbeat for that node from another owner is refused, and an owned node is unknown to everyone else — the fleet lists and hands out only what a caller may see (unowned nodes, a loopback development case, are visible to all).
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-175 hardening (security review of #420): a node's heartbeat no longer decides where the swarm secret goes. Each record mints a random COMMAND KEY, returned only in that node's own heartbeat reply, and commands to the node carry it instead of SWARM_SERVICE_SECRET. The endpoint host must be on EMBODIED_NODE_ENDPOINT_HOSTS (default: the engine's compose aliases), which closes the SSRF. A node owner holds at most MAX_NODES_PER_OWNER records, and a full fleet evicts a record silent for STALE_EVICT_MS before refusing.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202 (lane L4): `hexapod` joins NodeKind, additively — the spider-18 controller heartbeats as kind `hexapod` by the brief's section 3.3; a plant node's build-hash staleness rule and every other check are unchanged.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DroneNodeFleet = exports.NodeOffline = exports.NodeValidationError = exports.NODE_ID_RE = exports.DEFAULT_ENDPOINT_HOSTS = exports.STALE_EVICT_MS = exports.MAX_NODES_PER_OWNER = exports.MAX_NODES = exports.HEARTBEAT_STALE_MS = void 0;
@@ -71,8 +72,8 @@ function validateHeartbeat(raw) {
     if (!exports.NODE_ID_RE.test(nodeId))
         throw new NodeValidationError(`nodeId "${nodeId}" is not a node id (letters, digits, - and _, up to 32)`);
     const kind = b.kind === undefined ? 'plant' : b.kind;
-    if (kind !== 'plant' && kind !== 'drone')
-        throw new NodeValidationError('kind must be "plant" or "drone"');
+    if (kind !== 'plant' && kind !== 'drone' && kind !== 'hexapod')
+        throw new NodeValidationError('kind must be "plant" or "drone" or "hexapod"');
     const endpointUrl = text(b.endpointUrl, 'endpointUrl', 300);
     if (!ENDPOINT_RE.test(endpointUrl))
         throw new NodeValidationError('endpointUrl must be a plain http(s) URL');

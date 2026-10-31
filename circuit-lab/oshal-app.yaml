@@ -57,7 +57,7 @@ description: >-
   transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
   solved speed. Ask the concierge for a change in plain words and it edits the same circuit
   through the package's tools, so the person, the bot and any MCP client iterate on one design.
-version: 0.8.9
+version: 0.9.0
 status: active
 scope: person
 
@@ -205,7 +205,7 @@ tools:
     displayName: Create a Circuit
     type: api
     category: engineering
-    description: Create a circuit — empty, from a starter example or from full part and wire lists; a non-empty circuit is solved immediately. Example ids with the title the Examples list shows - led-switch (Switched LED), rc-charge (RC charge), motor-gearbox (Motor with a 3:1 gearbox), pwm-motor (PWM motor drive), crank-slider (Belt-driven crank-slider), arduino-blink (Arduino Blink).
+    description: Create a circuit — empty, from a starter example or from full part and wire lists; a non-empty circuit is solved immediately. Example ids with the title the Examples list shows - led-switch (Switched LED), rc-charge (RC charge), motor-gearbox (Motor with a 3:1 gearbox), pwm-motor (PWM motor drive), crank-slider (Belt-driven crank-slider), arduino-blink (Arduino Blink), hexapod-power (Hexapod power (spider-18)).
     executor: { executorType: api, apiEndpoint: "POST /api/circuit-lab/designs" }
     inputSchema:
       type: object

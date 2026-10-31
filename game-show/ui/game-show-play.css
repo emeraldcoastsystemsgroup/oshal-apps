@@ -11,6 +11,23 @@ body[data-gs-show="jeopardy"] { --gp-accent: #4f6bd6; }
 body[data-gs-show="wheel"] { --gp-accent: #22c55e; }
 body[data-gs-show="whammy"] { --gp-accent: var(--gs-red); }
 
+/* ── the studio: a TV set is dark under every theme ─────────────────────────
+   The set, its boards and the dock are dark by design, but their text followed the
+   portal theme: under a light theme clues, category names, letter buttons and name
+   plates went near-black on navy. The palette is pinned here, for everything on the
+   broadcast; the lobby, Host Desk and phone clicker keep following the theme. */
+.gp-studio, .gp-intro {
+  --gs-navy: #0a1030; --gs-navy-2: #12193f; --gs-blue: #1d4ed8; --gs-cyan: #38bdf8;
+  --gs-gold: #fbbf24; --gs-gold-2: #f59e0b; --gs-red: #ef4444; --gs-green: #22c55e;
+  --gs-ink: #f8fafc; --gs-dim: #b6c2dc; --gs-surface: #0d1433; --gs-surface-2: #1c2652;
+  --gs-card: #12193f; --gs-card-hover: #1a2452; --gs-line: rgba(255, 255, 255, .2);
+  --gp-accent: var(--gs-cyan); color: var(--gs-ink); }
+.gp-studio { flex: 1; min-height: 100vh; background: radial-gradient(1400px 700px at 50% -10%, #1b2860, #0a1030 72%); }
+body[data-gs-show="family-feud"] .gp-studio { --gp-accent: #fbbf24; }
+body[data-gs-show="jeopardy"] .gp-studio { --gp-accent: #4f6bd6; }
+body[data-gs-show="wheel"] .gp-studio { --gp-accent: #22c55e; }
+body[data-gs-show="whammy"] .gp-studio { --gp-accent: #ef4444; }
+
 /* ── the set frame ────────────────────────────────────────────────────────── */
 .gp-frame { position: relative; flex: 1; display: flex; flex-direction: column; min-height: calc(100vh - 76px); }
 .gp-frame.has-dock { padding-bottom: 170px; }
@@ -102,12 +119,37 @@ body[data-gs-show="whammy"] .gp-logo { background-image: linear-gradient(180deg,
   background: rgba(12, 18, 50, .78); border: 1px solid var(--gs-line); border-radius: 18px;
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   box-shadow: var(--gs-shadow); padding: 10px 14px; }
-.gp-owner-strip { gap: 8px; }
-.gp-owner-strip .gs-btn { padding: 8px 14px; }
-.gp-you-body { margin-top: 6px; }
+/* The dock's job, in order: what just happened, whose move it is, the one thing to press. */
+.gp-dock-inner { position: relative; background: rgba(12, 18, 50, .94); }
+.gp-dockcol { gap: 6px; }
+.gp-coachbox { text-align: center; width: 100%; min-height: 22px; }
+.gp-news { font-size: 13px; color: var(--gs-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.35em; padding: 0 90px; }
+.gp-coach { font-size: clamp(14px, 1.7vw, 18px); font-weight: 700; color: var(--gs-dim); line-height: 1.25; }
+.gp-coach.you { color: var(--gs-gold); font-weight: 800; }
+.gp-play:empty { display: none; }
+.gp-hint { font-size: 13px; color: var(--gs-dim); text-align: center; }
+.gp-hint b { color: var(--gs-cyan); letter-spacing: 2px; }
+.gp-tools { position: absolute; top: 6px; right: 8px; display: flex; gap: 4px; align-items: center; z-index: 2; }
+.gp-tools .gs-btn { padding: 3px 8px; font-size: 13px; }
+.gp-owner-strip { gap: 8px; justify-content: center; }
+.gp-owner-strip .gs-btn { padding: 10px 22px; }
+.gp-you { position: relative; }
+.gp-you-body { position: absolute; right: 0; bottom: calc(100% + 8px); width: max-content; max-width: 92vw; padding: 8px 10px;
+  background: #0c1232; border: 1px solid var(--gs-line); border-radius: 12px; box-shadow: var(--gs-shadow); }
+/* The answer row stays one row: the field takes the room, the buttons keep their size. */
+.gp-dock .gs-row { flex-wrap: nowrap; }
+.gp-dock .gs-row > .gs-input { flex: 1 1 auto; width: auto; min-width: 0; padding: 9px 12px; }
+.gp-dock .gs-row > .gs-btn { flex: none; padding: 9px 16px; }
+.gp-dock .gs-dockbuzz { display: block; margin: 0 auto; max-width: none; padding: 11px 10px; font-size: clamp(18px, 2.6vw, 24px); box-shadow: 0 5px 0 #7f1d1d; }
+/* What a turn asks for sits on one line where it fits, so the dock never covers the board. */
+.gp-play { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+.gp-play > * { min-width: 0; }
+.gp-play > .gs-dockbuzz { flex: 1 1 100%; }
+.gp-play > .gs-row { flex: 1 1 280px; }
+.gp-dock .gs-dockbuzz.locked { box-shadow: 0 5px 0 #b45309; }
 
 /* ── opening titles ───────────────────────────────────────────────────────── */
-.gp-intro { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; overflow: hidden;
+.gp-intro { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; overflow: hidden; pointer-events: none;
   background: radial-gradient(circle at 50% 40%, #1b2860, var(--gs-navy) 72%); animation: gs-cut-in .3s ease both; }
 .gp-intro.leaving { animation: gs-cut-out .5s ease both; }
 .gp-intro-beams { position: absolute; inset: -30%; opacity: .5;
@@ -127,7 +169,9 @@ body[data-gs-show="whammy"] .gp-logo { background-image: linear-gradient(180deg,
 @keyframes gp-blink { 50% { opacity: .35; } }
 
 /* ── lobby poster wall ────────────────────────────────────────────────────── */
-.gp-posters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 8px 0; }
+.gp-lobby { width: min(760px, 96%); box-sizing: border-box; }
+.gp-posters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 8px 0; }
+@media (max-width: 640px) { .gp-posters { grid-template-columns: repeat(2, 1fr); } }
 .gp-poster { cursor: pointer; border-radius: 14px; border: 1px solid var(--gs-line); border-top: 3px solid var(--gp-poster, var(--gs-cyan));
   text-align: center; padding: 16px 10px 12px; background: linear-gradient(180deg, var(--gs-card-hover), var(--gs-card));
   transition: transform .12s ease, box-shadow .2s ease; font: inherit; color: inherit; width: 100%; display: block; }
@@ -141,7 +185,11 @@ body[data-gs-show="whammy"] .gp-logo { background-image: linear-gradient(180deg,
 .gp-poster-art { font-size: 44px; margin-bottom: 6px; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .5)); }
 .gp-poster-title { font-weight: 900; text-transform: uppercase; letter-spacing: .5px; }
 .gp-poster-tag { font-size: 12px; color: var(--gs-dim); margin-top: 3px; min-height: 28px; }
-.gp-poster-cta { margin-top: 8px; font-size: 12px; font-weight: 800; color: var(--gs-gold); }
+.gp-poster-cta { margin-top: 8px; font-size: 13px; font-weight: 800; color: var(--gs-ink); padding: 6px 8px; border-radius: 9px;
+  background: color-mix(in srgb, var(--gp-poster, var(--gs-cyan)) 28%, transparent); border: 1px solid var(--gp-poster, var(--gs-cyan)); }
+.gp-poster-wrap { display: flex; flex-direction: column; gap: 4px; }
+.gp-poster-friends { font: inherit; font-size: 12px; cursor: pointer; background: none; border: 0; color: var(--gs-dim); padding: 4px; text-decoration: underline; }
+.gp-poster-friends:hover { color: var(--gs-ink); }
 
 /* ── phones: one readable column; TV scale needs no cap ───────────────────── */
 @media (max-width: 700px) {
@@ -162,7 +210,26 @@ body[data-gs-show="whammy"] .gp-logo { background-image: linear-gradient(180deg,
   .gp-clock .gs-bigclock { width: 62px; height: 62px; font-size: 28px; border-width: 3px; }
   .gp-frame.has-dock { padding-bottom: 215px; }
   .gp-dock-inner { max-height: 44vh; overflow-y: auto; }
+  /* The news line shares its row with the tools, so the prompt below it always has the full width. */
+  .gp-news { padding: 0 92px 0 0; text-align: left; font-size: 12px; min-height: 26px; line-height: 26px; }
+  .gp-tools { top: 4px; right: 6px; }
+  .gp-tools .gs-btn { padding: 1px 7px; font-size: 12px; }
+  .gp-you-body { position: fixed; left: 8px; right: 8px; bottom: 44vh; width: auto; }
+  /* The header is one line: the code is already on the marquee, and the links shrink. */
+  .gp-studio .gs-top { padding: 6px 8px; gap: 6px; flex-wrap: nowrap; overflow: hidden; }
+  .gp-studio .gs-top .gs-brand { font-size: 14px; white-space: nowrap; }
+  .gp-studio .gs-top .gs-chip { display: none; }
+  .gp-studio .gs-top .gs-btn { padding: 3px 6px !important; font-size: 12px; white-space: nowrap; }
+  /* The clock rides the marquee line, in sight, instead of falling below the board and behind the dock. */
+  .gp-clock { position: absolute; top: -50px; right: 2px; margin: 0; }
+  .gp-clock .gs-bigclock { width: 44px; height: 44px; font-size: 20px; border-width: 2px; }
+  .gp-play > .gs-row { flex: 1 1 100%; }
 }
+
+/* Wheel and Whammy carry each player's name and money on the set itself, so on the stage the
+   podium row gives its room to the board and the dock. The big screen keeps its characters. */
+body[data-gs-show="wheel"] .gp-frame.has-dock .gp-chars,
+body[data-gs-show="whammy"] .gp-frame.has-dock .gp-chars { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .gp-beams i, .gp-intro-beams, .gp-intro-title, .gp-intro-sign,
@@ -180,7 +247,7 @@ body[data-gs-show="whammy"] .gp-logo { background-image: linear-gradient(180deg,
 /* ── Broadcast fit: a TV frame is ONE screen, never a scroll ────────────────
    With a dock pinned to the glass, everything above it compresses to fit the
    viewport instead of letting the fixed dock knife through the podium row. */
-.gp-frame.has-dock { display: flex; flex-direction: column; min-height: 0; padding-bottom: clamp(120px, 19vh, 170px); }
+.gp-frame.has-dock { display: flex; flex-direction: column; min-height: 0; padding-bottom: 96px; }
 .gp-frame.has-dock .gp-set { margin: 2px auto; }
 .gp-frame.has-dock .gp-chars { margin: 2px 0 0; }
 .gp-frame.has-dock .gp-head .gs-tile { width: clamp(52px, 8vh, 76px); height: clamp(52px, 8vh, 76px); }

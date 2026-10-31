@@ -1,5 +1,7 @@
 # Game Show — AI game night (ADR-085 app package; architecture ADR-112)
 
+**Playing against the computer is one press (0.12).** A poster in the lobby opens a room, seats you at your own seat, fills the other podiums with computer players and starts. The dock at the bottom always says what just happened, whose move it is and what to do; the game ends with the winner and Play again. Computer players leave a seated person the first move, time to read a clue before buzzing (longer on the first face-off, which opens under the titles), and the first answer on their own team, and never wait in an all-AI room. The broadcast set is a dark studio under every theme; the lobby, Host Desk and phone clicker follow the theme. Proven by `tests/solo-night.test.js` (the page in Chromium under a light theme), `tests/solo-night-engine.test.js` (the real shows and NPC engine) and `tests/browser-solo-night.test.js` (all four shows, desktop and phone, through a running stack).
+
 0.11.4 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 A TV-style game show run by an AI host. One person hosts, everyone joins from their phone
@@ -80,9 +82,19 @@ a show that implements none of them still runs, it just gives up the feature:
 
 ## Solo play — AI contestants
 
-**One person can run a whole game night.** `🤖 Solo night` fills the stage: you take a
-podium and skill-tiered AI players take the rest (a good one on your side too). They
+**One person can run a whole game night.** Press a show's poster: you step up to your own
+seat and skill-tiered AI players take the other podiums (a good one on your side too). They
 buzz, answer, pick clues, spin, buy vowels, solve, wager, and press their luck.
+
+- **You play at your own seat** (`POST /seat {role:'player'}`, one way, your own row). There is
+  no second podium held in the page's memory: that design froze a game for good when Start came
+  before Solo night, and on any Reload or Resume. The room's owner stays the owner whatever their
+  seat's role, so Fast Money's host gate asks who owns the room, not the seat's role.
+- **The first round refuses an empty stage**, so a host cannot start a board nobody can play.
+- **A person gets room to play.** A show's `npcMove` may return `hold`, the ms a bot waits after
+  the beat opens while a person is seated (`lib/npc.js`): time to read a clue or question before
+  buzzing (plus the opening titles on the first face-off), the first move on an unclaimed board,
+  and the first answer on their own team. An all-AI room never waits.
 
 - **Zero LLM calls.** An NPC decides against the board the *server already holds*, so
   solo play is free to run, works under `FORCE_LLM_PROVIDER=noop`, and is exactly
@@ -145,8 +157,9 @@ stacks timers until the page dies.
 One synced state, selected by `?view=`. **Players see the SHOW, never an admin page**
 (2026-07-26 rebuild, audited against the DnD table as the quality bar):
 
-- `stage` — the broadcast picture full-bleed with a floating bottom **action dock**
-  that appears only when it's your moment (buzz bar, answer pad, wager, spin). The
+- `stage` — the broadcast picture full-bleed with a bottom **action dock**: what just
+  happened, whose move it is and what to do, then only the controls that do something right
+  now (buzz bar, answer pad, wager, spin). The
   dock lives on `document.body`, pinned inside the viewport — the audit measured the
   old buzzer at 933px in an 844px phone viewport mid-buzz-window; that class of bug
   is now asserted against in the browser spec.
@@ -174,7 +187,11 @@ Exactly **one device per room speaks** the host's lines (backlog #8): speaker su
 claim a short-TTL lease each poll (TV outranks the host desk), lines queue instead of
 overlapping, and everyone else stays caption-only.
 
-All surfaces load the swarm control plane's saved theme and follow live theme changes.
+The lobby, Host Desk and phone clicker load the swarm control plane's saved theme and follow
+live theme changes. The broadcast itself (`stage` and `tv`) is a dark studio under every theme:
+its boards and dock are dark by design, so `ui/game-show-play.css` pins its palette on
+`.gp-studio`. Its text following a light theme onto a dark set is what made clues and letter
+buttons unreadable until 0.12.
 The mobile layouts scroll vertically, collapse boards to one readable column, preserve
 44px touch targets, and stack the one-window rehearsal studio instead of clipping its
 visualizations off-screen.
@@ -202,8 +219,9 @@ one module — a ranked collect window slots into `lib/buzzer.js` without touchi
 
 ## Run the tests
 
-`npm test` runs all thirteen engine suites (548 checks) — no dependencies, plain node.
-They also run in CI on every store-repo PR (`.github/workflows/store-ci.yml`, backlog #12).
+`npm test` runs the engine suites — no dependencies, plain node. They also run in the store
+gate (`.github/workflows/store-ci.yml`, backlog #12), along with `tests/solo-night.test.js` and
+`tests/play-phone-layout.test.js`, which need the store toolchain's Chromium.
 
 ```bash
 npm test
@@ -223,7 +241,18 @@ node tests/cutaways.test.js           # 14 — catalog, state selection, media a
 ```
 
 `tests/npc.test.js` plays full NPC-vs-NPC Feud, Wheel, and Whammy rounds in-process, so
-"solo night actually finishes a game" is a guard, not a hope.
+"solo play actually finishes a game" is a guard, not a hope.
+
+**A person can play against the computer**, three guards at three depths:
+
+- `node --test tests/solo-night-engine.test.js` — the real shows and NPC engine: bots leave a
+  seated person room and never wait in an all-AI room, the Jeopardy open names the real categories,
+  Wheel standings stop counting round banks after a solve, the owner starts Fast Money from their seat.
+- `node --test tests/solo-night.test.js` — the shipped page in Chromium under a light theme over a
+  stub API: one press from a poster reaches a started game, a reload keeps the seat, no dead buttons,
+  a half typed answer survives a re-render, every control a player needs can be read.
+- `npm run test:browser:solo` — through a running stack, on desktop and phone: each show's poster to
+  a real turn, a reload, and Play again. It rewrites `start` to the zero-LLM manual rail.
 
 The audience view contract is registered in the Test Lab (`audience-view` in `tests/test-lab.yaml`):
 
@@ -241,6 +270,7 @@ GS_PAT=oshal_pat_... npm run test:browser
 # Against a MOCK_OIDC dev server: run all four, or one named scenario
 GS_BASE_URL=http://localhost:35457 npm run test:browser
 GS_BASE_URL=http://localhost:35457 npm run test:browser:jeopardy
+GS_BASE_URL=http://localhost:35457 npm run test:browser:solo
 # Watch it play: GS_HEADED=1
 ```
 

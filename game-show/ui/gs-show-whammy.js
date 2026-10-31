@@ -6,6 +6,7 @@
  * 2026-07-24 03:22:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Whammy! client renderer: the 12-panel light-chase board (one module-level ticker repaints highlight by id, mirroring gs-controls' tickPaint, so re-renders never stack intervals), the dramatic last-stop card (WHAMMY in red), per-player bank/spins/whammy rows, and the PRESS YOUR LUCK / pass controls. Registered via GS.registerShowUi; no answer or wager phases — the board is pure luck.
  * 2026-07-26 20:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast set rebuild (styling moved to gs-set-whammy.css, gsy- prefix): panels now form the show's RING — perimeter cells of a 4x4 grid around a 2x2 center screen — and the single ticker chases that ring order with random jumps, holds on the landed panel, and animates the WHAMMY bank-drain counter. Center screen plays the beats (PRESS YOUR LUCK attract, stop reveal, 😈 scoot + drain to $0, winner card); one-shot animations key off a module-level last-stop signature so the ~1.4s rebuild can't replay them. Dock controls became the big red PRESS button; gating logic unchanged.
  * 2026-07-31 22:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #3 + #5: (3) a board under 12 panels no longer breaks the ring — Math.round spreads n panels collision-free but not gap-free (n=10 leaves ring slots 3 and 9 empty), so the unused perimeter slots now render as dimmed filler cells and the ring always closes; (5) the centre screen shows the CURRENT beat — a stop/whammy readout is a timed beat (hold + a readable moment), after which the ticker hands the screen back to the attract marquee, a page opened mid-game starts on attract instead of replaying the last readout, and no readout survives outside the lights phase. Guarded by tests/whammy-set.test.js.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | A person playing at their own seat never saw the PRESS button (the controls read only a pinned hotseat, so a phone player and the host could not take a turn): the controls now fall back to the acting seat. Says whose turn it is and what to do.
  */
 
 /* global window, document, setInterval, Date */
@@ -272,22 +273,35 @@
 
   /** @description The press/pass controls: shown to the seat holding the turn (or anyone while the board is unclaimed — the first press claims it). Null otherwise, so idle seats see nothing they cannot use. */
   function controls(actorSeatId) {
-    if (!GS.state || GS.state.phase !== 'lights' || !myTurn(actorSeatId) || spinsOf(actorSeatId) <= 0) return null;
+    var seat = actorSeatId || GS.actingSeat();
+    if (!GS.state || GS.state.phase !== 'lights' || !myTurn(seat) || spinsOf(seat) <= 0) return null;
     var hasControl = !!(GS.state.board && GS.state.board.control);
     return GS.el('div', { class: 'gsy-dock gs-col gs-center' },
       GS.el('button', {
         class: 'gs-buzz-btn gsy-press',
         onclick: function () { GS.act({ type: 'pressYourLuck' }, actorSeatId); },
       }, 'PRESS'),
-      GS.el('div', { class: 'gsy-spins' }, '🌀 ' + spinsOf(actorSeatId) + ' spins left'),
+      GS.el('div', { class: 'gsy-spins' }, '🌀 ' + spinsOf(seat) + ' spins left'),
       hasControl ? GS.el('button', {
         class: 'gs-btn ghost gsy-pass',
         onclick: function () { GS.act({ type: 'passSpins' }, actorSeatId); },
       }, 'Pass my spins') : null);
   }
 
+  /** @description What to do right now, for this seat. */
+  function prompt(seat) {
+    var st = GS.state || {}, b = st.board || {};
+    if (st.phase !== 'lights') return null;
+    if (seat && myTurn(seat) && spinsOf(seat) > 0) {
+      return { you: (b.control ? 'Your turn: ' : 'Go first: ') + 'press PRESS to stop the lights. Cash adds up, but a Whammy wipes your bank.' };
+    }
+    if (b.control) return { wait: seatName(b.control) + ' is pressing their luck…' };
+    return { wait: 'Waiting for someone to press first…' };
+  }
+
   GS.registerShowUi({
     id: 'whammy',
+    prompt: prompt,
     board: board,
     answerPhases: [],          // nothing is ever typed — the board is pure luck
     wagerPhases: [],           // and nothing is ever wagered

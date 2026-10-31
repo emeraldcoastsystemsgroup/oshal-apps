@@ -19,6 +19,9 @@
  *            | out of Career users' caller-owned connection state.
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com     | Keep Career digest Twilio delivery
  *            | in-process and caller-scoped instead of copying the controller environment.
+ * 2026-10-30 | maintainer@emeraldcoastsystemsgroup.com     | Eats 1.4.0 carries no provider credential at all:
+ *            | its restaurants come through the kernel's egress with the kernel-held key, so the
+ *            | route is held to the no-carrier rule like the other reasoning routes.
  */
 
 'use strict';
@@ -53,10 +56,6 @@ const DIRECT_PROVIDER_ROUTES = new Map([
   ['rides/src-routes/rides-routes.ts', {
     runner: 'runUberRidesProviderOperation',
     credential: 'OSHAL_CRED_UBER_RIDES',
-  }],
-  ['eats/src-routes/eats-routes.ts', {
-    runner: 'runUberEatsProviderOperation',
-    credential: 'OSHAL_CRED_UBER',
   }],
   ['travel/src-routes/travel-routes.ts', {
     runner: 'runDuffelProviderOperation',

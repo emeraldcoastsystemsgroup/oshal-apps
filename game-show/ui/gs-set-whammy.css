@@ -171,3 +171,14 @@ body[data-gs-show="whammy"] .gsy-pass { padding: 8px 14px; }
   body[data-gs-show="whammy"] .gsy-scr-stop.fresh .gsy-stop-val { animation: none !important; }
   body[data-gs-show="whammy"] .gsy-cell { transition: none; }
 }
+
+/* On the stage PRESS is one row in the dock, so the board it is playing stays in sight. The phone clicker keeps the big button. */
+body[data-gs-show="whammy"] .gp-dock .gsy-dock { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; margin-top: 0; width: 100%; }
+/* PRESS holds the middle column whatever else is offered, so a second press lands where the first did. */
+body[data-gs-show="whammy"] .gp-dock .gsy-press { grid-column: 2; grid-row: 1; }
+body[data-gs-show="whammy"] .gp-dock .gsy-spins { grid-column: 1; grid-row: 1; justify-self: end; }
+body[data-gs-show="whammy"] .gp-dock .gsy-pass { grid-column: 3; grid-row: 1; justify-self: start; }
+body[data-gs-show="whammy"] .gp-frame.has-dock .gsy-board { grid-template-rows: repeat(4, minmax(52px, auto)); }
+body[data-gs-show="whammy"] .gp-frame.has-dock .gsy-cell { padding: 3px 6px; }
+body[data-gs-show="whammy"] .gp-dock .gs-buzz-btn.gsy-press { width: 76px; height: 76px; font-size: 15px; letter-spacing: 1px; box-shadow: 0 5px 0 #7f1d1d; }
+body[data-gs-show="whammy"] .gp-frame.has-dock .gsy-board { gap: 6px; padding: 10px; }

@@ -30,6 +30,14 @@
 # 26 | maintainer@emeraldcoastsystemsgroup.com | K4 review: routes-admitted-writes covers Abort - POST /tasks/:id/abort stores the task aborted with failure "aborted by a human" inside the request (it stayed executing at step 0), Home counts it stopped, and a later task leaves it alone.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Register the physics rail status line suite (the status line is a whole sentence when no node is online).
 # 28 | maintainer@emeraldcoastsystemsgroup.com | The rail status suite also covers the physics engine line: with no engine it says 'not available on this installation', never the install command (demo sweep 1).
+# 29 | maintainer@emeraldcoastsystemsgroup.com | 0.19.0 (ADR-202): the Spider Design Studio browser case - five posters, stage computed on read, one button each, over the real serving route.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | 0.19.0 (ADR-202): the spider-18 plant and node cases - the MJCF generator and plant routes, the plant on MuJoCo, the node seam against the real Python node, the node and bus Python suites.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 0.19.0 (ADR-202): the spider-18 design cases - the design and budget, the design routes over the harness, every printed part built on the real OCCT engine.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | B29 first half: the plant case quotes the numbers re-measured on the design-mass fixtures.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 0.19.1: the studio over the REAL routers (the proof that caught the runtime-file list mismatch).
+# 34 | maintainer@emeraldcoastsystemsgroup.com | B29 closed: the mass target re-based on the parts model (2100 g); the design and real-routes texts say so.
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 0.19.8 (ADR-203 D5): the Spider Design Studio cases (spider-studio-browser, spider-studio-real-routes) retire with the screen; the spider's posters live in the design-studio package, proven there over this package's routes' shapes.
+# 36 | maintainer@emeraldcoastsystemsgroup.com | 0.20.0 (ADR-203 D9, lane @ds-plant): the plant generated from a design - the builder and the bridge dispatch, the reach task and its gate on the real engine (both self-running), and the plant routes with a fake bridge in the engine's real reply shapes with the runtime-file parity guard.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -794,3 +802,305 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+
+  - id: engine-hexapod-physics
+    name: The spider-18 MJCF generator and the plant routes without a container
+    purpose: The generator emits 18 position actuators named exactly as ACTUATOR_ORDER, left coxa hinges on -z and right on +z, ranges from the contract's limits, no literal gravity (the air medium row), the spring piston only under latched-spring; the Python mirror fixture equals invertedJointTargets; the mjcf and check routes answer on a fake router and refuse by name when the engine is down (ADR-202).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-hexapod-physics.test.js
+    expected:
+      - Eighteen actuators in the canonical order; left legs' coxa axis is -z and right legs' +z; the spring joint appears only under latched-spring.
+      - The mirror fixture spider-18-mirror.json equals invertedJointTargets from the contract file.
+      - GET /physics/hexapod/mjcf answers XML and POST /physics/hexapod/check answers 503 physics_unavailable with the install hint when the bridge is down.
+      - POST /physics/hexapod/certify sends the report and the design's usable torque to the gate, remembers the certificate for the owner, refuses a pathed name before the engine, and answers the gate's named refusals (404 report_not_found, 422 no_policy) with their status.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+
+  - id: engine-hexapod-plant-python
+    name: The spider-18 plant on the real MuJoCo (self-running, no pytest)
+    purpose: engine/tests/test_hexapod.py drives its own eleven cases on MuJoCo 3.3.5 - the model loads with 18 actuators in order, stands and settles near the stand height, the CPG tripod gait walks forward, the SAME gait through the mirror rule walks forward inverted, a roll is detected from the accelerometer alone and the gait recovers, legs-hop and latched-spring each measure a hop height, the spring stores k s^2 / 2 within 2 percent, and the state dict carries exactly the brief's keys (ADR-202).
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_hexapod.py
+    expected:
+      - "13 passed, 0 failed (mujoco 3.3.5) on the fixtures generated from the design's computed masses (2019 g): measured 2026-10-30 by the baseline-only task - walk tracking error 0.042 m/s, cost of transport 12.5, no falls; inverted recovery 0.34 s, 5 of 5; legs-hop +0.0095 m; latched-spring +0.104 m, lands upright. (On the brief's 1851 g the same gait read 0.141 m/s, +0.011 m and +0.118 m.)"
+      - Hop heights are reported, never asserted as a minimum.
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: engine-hexapod-certify-python
+    name: The spider-18 certification gate on the real engine (self-running, no pytest)
+    purpose: "engine/tests/test_hexapod_certify.py trains a throwaway PPO policy and runs it through hexapod.certify - the certificate is written beside the policy with the zip's sha256 and the engine's build hash, every control step is counted, the torque RMS and peak are measured against the limits, the verdict is re-measured and the roll replayed; a continuous torque below what any gait needs refuses by actuator; the refusals by name; the plant refuses controller policy:<file> without a passing certificate, after the zip changes and on another build, and plays a certified one from hexapod.step {command} in both orientations (ADR-202, B30)."
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_hexapod_certify.py
+    expected:
+      - "4 passed, 0 failed (mujoco 3.3.5), about 30 s: the throwaway policy is refused on torque, as the three real walk policies were (B31)."
+      - The certificate's ok is the safety verdict alone; policyBeatsBaseline is reported beside it.
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: engine-plant-physics
+    name: The generic plant's routes and the drive catalog without a container
+    purpose: "tests/engine-plant-physics.test.js against the COMPILED modules with a fake bridge answering in the engine's real reply shapes (recorded on the lift): POST /physics/plant/load names the session per owner and product and fills the medium from the air row (no gravity typed in the routes); GET /physics/plant/state answers 404 plant_not_built on the engine's no_session; train with 0 steps answers the baseline report and with steps starts a job; the jobs listing carries the default length; certify sends the file and the spec, remembers the certificate with kind plant, refuses a pathed or non-plant name before the engine and answers the gate's named refusals with their status; GET /build/catalog publishes the servo row's stall, no-load speed and continuous rating as servos.ts computes them; the TypeScript runtime-file list equals the bridge's RUNTIME_FILES tuple (ADR-203 D9)."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-plant-physics.test.js
+    expected:
+      - "The load payload's session is plant:<project>:<sub> and its medium is the air row's gravity; a bad project or spec is 400 before the engine; the engine's bad_spec and unknown_part answer 400, cycle and no_payload 422, no_session 404 plant_not_built."
+      - "train with timesteps 0 answers {started false, report}; with 2048 steps {started true, job}; GET /physics/plant/train carries defaults.timesteps; busy is 409."
+      - "certify remembers the certificate for the owner, refuses ../ and hexapod-* names with 400, and answers report_not_found 404, no_policy 422, spec_mismatch 422; the catalog's sts3215-12v continuousNm equals stall x CONTINUOUS_FRACTION."
+      - "ENGINE_RUNTIME_FILES equals the bridge's RUNTIME_FILES and names embodied_plant.py and tasks/plant_reach.py."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+
+  - id: engine-designed-plant-python
+    name: The plant generated from a design, on the real MuJoCo (self-running, no pytest)
+    purpose: "engine/tests/test_plant.py drives eight cases on MuJoCo 3.3.5 from the lift fixture (engine/tests/fixtures/lift-1-spec.json): the three parts carry the spec's masses and the base's subtree mass is their sum plus the payload; a fixed, a slide and a hinge joint are what the spec declares; every actuator's force limit is stall x ratio, its damping the torque-speed line, its continuous rating the row's; an STL becomes a mesh geom carrying the kernel's mass; the IMU on the static base reads g; inverse kinematics is exact on one slide and one hinge and converges on two hinges; the gravity sag is load over kp; a cycle, a part hung from two joints, a loose part, an unknown part, a continuous rating above the stall and a spec without the medium are refused by name; the spec digest ignores mesh bytes; the bridge dispatch keeps sessions (ADR-203 D9)."
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_plant.py
+    expected:
+      - "8 passed, 0 failed (mujoco 3.3.5): the lift's inverse kinematics puts the 2 kg payload 300 mm up with a 0.0 m residual and a gravity sag of load over kp (0.0093 m at kp 2353.6 N/m); off the stop the drive holds the carriage and the payload on the target."
+      - "Refusals by name: cycle (the base as a child, a part hung from two joints, parts hanging from each other), bad_spec naming the field, unknown_part, no_payload, bad_targets, no_session, unknown_command, bad_controller."
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: engine-plant-reach-python
+    name: The reach task from the brief and its gate on the real engine (self-running, no pytest)
+    purpose: "engine/tests/test_plant_reach.py: the task from the brief's numbers (a displacement of the payload, the time, the load that must be the spec's payload); the observation's channels rebuilt by the plant's policy controller; the PD baseline lifts 2 kg to 300 mm inside the brief's 5 s under the row's continuous rating; the aggregate and the verdict's facets; a baseline-only report and a tiny PPO run write plant-<project>-reach-seed<S>.json beside the policy; the gate certifies through the rows' limits and the brief's time, binds the certificate to the policy's sha256, the engine build and the spec digest, refuses a rating the lift cannot meet by actuator and a time it cannot meet by episode, and refuses by name; the plant plays a certified policy only and not one certified on another plant; a long run is a job the bridge reports and a second on the same file is busy (ADR-203 D9)."
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_plant_reach.py
+    expected:
+      - "8 passed, 0 failed (mujoco 3.3.5), about a minute: the PD baseline reached 2 of 2 evaluation seeds in 3.58 s at 0.549 N·m RMS motor torque (continuous 1.471 N·m, peak 1.415 of the 2.942 N·m stall) - printed, with only the brief's bar asserted."
+      - "The certificate's policySha256, buildHash and specSha256 are the file's, the engine's and the spec's; ok is the safety verdict alone and policyBeatsBaseline is reported beside it."
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: engine-shipped-policies-python
+    name: The certified gait ships inside the engine (self-running, no pytest)
+    purpose: "engine/tests/test_shipped_policies.py - the certificate in engine/policies verifies under this tree's build hash through load_certified, the weights are that policy's, and start-engine.sh seeds a report directory with the policy, certificate and report, never the weights, replacing a stale certificate and keeping a person's own reports."
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_shipped_policies.py
+    expected:
+      - "3 passed, 0 failed: an engine runtime file moved without re-certifying goes red here."
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: engine-hexapod-policy-python
+    name: The Pi policy runtime on the real engine (self-running, no pytest)
+    purpose: "engine/tests/test_hexapod_policy.py - the certified seed-1 policy exports through the gate's door (hexapod_policy.export_policy) with its NumPy actor within 1e-5 of the torch one and the committed weights file equal to the export; the runtime's observation builder equals the task's; the node-side player and the plant-side controller make the same targets on the same plant states for sixty control periods; the geometry fixture equals the plant's; an uncertified policy and a missing or refused weights file are refused by name (ADR-202, B30)."
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_hexapod_policy.py
+    expected:
+      - "4 passed, 0 failed (mujoco 3.3.5): export parity 5.8e-7, node-side against plant-side 3.6e-8."
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: engine-hexapod-node
+    name: The hexapod node seam against the REAL Python node over a socket
+    purpose: RailHexapodNode drives a node double and then the real embodied_hexapod_node.py (fake body) heartbeated into a fake api over HTTP; the double's reply key sets are diffed against the real node's, so the TypeScript seam cannot drift from the Python contract (ADR-202 brief 3.3).
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-hexapod-node.test.js
+    expected:
+      - Two cases pass; the second spawns python3 (or EMBODIED_PYTHON) and fails loudly rather than skipping when it is absent.
+      - hello carries protocol 1, kind hexapod, backend and hasSpring; walk, stop, pose, flip, jump, sense and sit answer the brief's state plus the node block.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fake-hexapod-node.js
+        - tests/fake-hexapod-node-worker.js
+      cleanup: The spawned node and the fake api are closed by the test; nothing is written.
+    limits:
+      timeoutMs: 120000
+    installation: never
+
+  - id: engine-hexapod-node-python
+    name: The hexapod node and the Feetech bus in Python (self-running, stdlib only)
+    purpose: engine/tests/test_hexapod_node.py (fake backend - walk integrates forward, the inverted switch flips on a held gravity sign and not on a transient, the mirror rule equals the fixture, the flip sequence completes, the envelope shapes, the plant backend against a fake bridge in both reply framings) and engine/tests/test_hexapod_bus.py (framing and checksum against hand-computed packets, sync-write layout, encoder to radian round trip with offsets, the clamp) run themselves under the engine image's python and under /usr/bin/python3 as the Pi will (ADR-202).
+    level: unit
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_hexapod_node.py
+        - engine/tests/test_hexapod_bus.py
+    expected:
+      - "13 passed, 0 failed and 6 passed, 0 failed; the serial backend is proven on a fake port only - no hardware was available; the plant body's certified-policy walk is proven against the fake bridge; the fake body plays an exported policy (a zero network is the gait exactly)."
+    prerequisites:
+      - engine-container:oshal-embodied-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
+
+  - id: engine-hexapod-design
+    name: The spider-18 design, its parts and its budget
+    purpose: "buildHexapod computes the mass budget from the parts it generates (printed masses from each program's envelope and fill, bought masses from the owned rows) under the 2100 g target re-based on the parts model (B29: the brief's 1900 g estimate undercounted the leg parts); the link masses add to the all-up; every joint's reported torque is the torque in its worst stance pose and inside continuous; every printed part's program passes CAD Studio's compiled contract; the plate is one program with qty 2; both jump options are unmeasured; the markdown and the CSV generate (ADR-202)."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-hexapod-design.test.js
+    expected:
+      - All-up 2019 g computed under the 2100 g target re-based on the parts model (B29), withinTarget true, the figures pinned so the document and the pin move together.
+      - Coxa, femur and tibia worst loads inside the row's continuous torque (margins 1.28, 1.03, 1.47); a machine twice as heavy is not.
+      - Thirteen distinct CAD programs, every feature a type CAD Studio accepts; both jump entries say to be measured by the plant.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+
+  - id: routes-hexapod
+    name: The spider-18 design routes over the loopback harness
+    purpose: GET /build/hexapod, /build/hexapod/design.md, /build/hexapod/parts/:partId and /build/hexapod/bom.csv over tests/routes.harness.js with the framework doubles - the design answer carries massBudget, joints, printed with cad programs, bought and bom; 400 unknown_fit; 404 unknown_part listing the ids; the CAD Studio hand-off body per part (ADR-202).
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes-hexapod.core.test.js
+    expected:
+      - Four cases pass under OSHAL_CORE_ROOT; the parts route answers the cadStudio hand-off shape with source.package embodied.
+    prerequisites:
+      - runner:node-test
+      - harness:oshal-core-root
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 60000
+    installation: never
+
+  - id: hexapod-prints
+    name: The spider-18 print set through CAD Studio's real engine
+    purpose: tests/hexapod-prints.spec.mjs runs scripts/hexapod-prints.mjs into a temporary directory - the thirteen part programs through the oshal-cad-studio-engine:local image once - and checks a binary STL per printed part matching the manifest's sha256 and triangle count, every mesh watertight, the print sheet carrying each part's quantity, material and notes with the latched-spring parts marked, the BOM equal to the route's CSV; it FAILS by name when docker or the image is absent (ADR-202).
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/hexapod-prints.spec.mjs
+    expected:
+      - "13 STL files, PRINT-SHEET.md, bom.csv and manifest.json; kernel solid masses at PETG 1.27 (plate 147 g, femur 31, tibia 24, coxa-bracket 19, foot 3) beside the design's infill estimates."
+    prerequisites:
+      - engine-container:oshal-cad-studio-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 2048
+    installation: never
+
+  - id: hexapod-parts-occt
+    name: Every spider-18 printed part built on CAD Studio's real engine
+    purpose: tests/hexapod-parts-occt.spec.mjs runs each of the thirteen distinct programs through the oshal-cad-studio-engine:local image (network none) and checks every feature accepted, a valid solid seated on z = 0, and the exported STL watertight - every edge shared by exactly two triangles, none degenerate; it FAILS by name when docker or the image is absent (ADR-202).
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/hexapod-parts-occt.spec.mjs
+    expected:
+      - "13 valid, seated, watertight solids; kernel volumes recorded (plate 116.0 cm3, pi-bay 22.6, head 36.2, battery-tray 32.4, coxa-bracket 14.9, femur 24.3, tibia 19.2, foot 2.6, spring-housing 28.8, piston 9.7, cam 3.2, latch 1.7, piston-foot 3.5)."
+    prerequisites:
+      - engine-container:oshal-cad-studio-engine
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 2048
+    installation: never
+

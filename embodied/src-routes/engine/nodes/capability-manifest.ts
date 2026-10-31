@@ -24,10 +24,14 @@
  *                     |                             | an act that removes authority must never wait for a dialog.
  *                     |                             | The vocabulary only — whether a prop also enrols as a NODE on
  *                     |                             | the rail stays gated on the ADR-149 decision B20 records.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202 (lane L4): `hexapod` joins the kinds, additively — the
+ *                     |                             | spider-18's senses and the brief's section 3.3 acts, floor class
+ *                     |                             | 2 so the kinetic e-stop rule applies. SPIDER_18_MANIFEST (the
+ *                     |                             | instance) lives in node/hexapod-node.ts beside the seam.
  */
 
 /** @description The peripheral kinds the swarm knows. New kinds are added here, with a vocabulary. */
-export type PeripheralKind = 'drone' | 'camera' | 'mobile-manipulator' | 'manipulator' | 'mobile-base' | 'printer' | 'light' | 'prop';
+export type PeripheralKind = 'drone' | 'camera' | 'mobile-manipulator' | 'manipulator' | 'mobile-base' | 'printer' | 'light' | 'prop' | 'hexapod';
 
 /** @description 0 sensing · 1 low-energy · 2 kinetic · 3 hazardous. */
 export type SafetyClass = 0 | 1 | 2 | 3;
@@ -61,6 +65,11 @@ export const KIND_VOCABULARY: Record<PeripheralKind, { senses: readonly string[]
   // rail, and the floor is 1 rather than 2 because an eye gimbal on micro servos cannot hurt
   // anyone — a rig with real torque declares 2 and the kinetic rule then demands its e-stop.
   prop: { senses: ['channel-state', 'controller-hello', 'supply'], acts: ['pose', 'scenario', 'look-at', 'jog', 'arm', 'disarm', 'e-stop'], minSafetyClass: 1 },
+  // ADR-202 (the spider-18). A walking body on eighteen position servos: it senses its pose (the
+  // plant's truth or none on the robot), its IMU, its joints, its feet, its LiDAR and its spring;
+  // it acts the brief's section 3.3 commands. Class 2: a 1.9 kg body with 2.9 N·m at every joint is
+  // kinetic, so the existing rule demands its e-stop (the node's estop command).
+  hexapod: { senses: ['pose', 'imu', 'joint-state', 'foot-contact', 'lidar', 'spring'], acts: ['walk', 'stop', 'pose', 'flip', 'jump', 'sit', 'e-stop'], minSafetyClass: 2 },
 };
 
 /** @description Acts that stop or shelter and therefore never wait for a confirm. */

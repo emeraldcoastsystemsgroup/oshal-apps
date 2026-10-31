@@ -37,6 +37,7 @@
 # 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Release v0.21.5 with the family audience view on the table, ui/table.html at /api/dnd/table, the games group's first surface that the Jarvis shell frames (ADR-164 D6): the saved games with their adventure and chapter, where each stands, the saved heroes and the adventure shelf from the table's own GET /campaigns, /characters and /content reads; the tabletop start paths (boot, animation loop, narrator status, glitch banner, audio unlock, immersive wiring) run only when no audience view renders, so no turn, narration, dice, illustration, seat change or join code happens under the view. No route, schema or authorization change.
 # 2026-10-10 18:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Declare nativeMigrations: the native kernel skips 005 (a DO-guarded constraint, now in 001's dnd_archive) and 006 (PL/pgSQL owner/member triggers and caller-GUC RLS; routes write owner_sub and the per-person scope enforces ownership natively). The PostgreSQL runtime still applies both.
 # 2026-10-30 00:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.21.8: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
+# 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.21.9: as the Games concierge, the Dungeon Master names Game Show's real buttons after its one-press start. 0.21.10: this log entry.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Dungeon Master (AI D&D at the table)
@@ -87,7 +88,7 @@ description: >-
   inventory, abilities, and spells. You control only your claimed hero; clearly
   labeled AI companions run empty seats. Choose a bundled SRD hero or import
   your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
-version: 0.21.8
+version: 0.21.10
 
 # ADR-139 wave 2 — "Send to…" destination (open mode): a D&D Beyond PDF or JSON export from
 # anywhere in the swarm imports through the table's existing lane and lands in My Characters.

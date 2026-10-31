@@ -12,6 +12,7 @@
  * 2026-07-31 22:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #11: GET /leaderboard — the caller-scoped cross-game hall of fame read (gameshow_seats.score snapshots across the caller's ended games), rendered by the lobby.
  * 2026-10-11 00:00:01 | maintainer@emeraldcoastsystemsgroup.com    | A host override that ends the game (endGame) also sets the room's status to 'ended' through the same setStatus the lobby's End uses (scores snapshotted, camera stills dropped).
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | GET /sync only reads; POST /sync {roomId, rev, seq} resolves a lapsed round clock and the due NPC beat, then answers the same payload. On the native kernel a GET is a reader admission, so the clock's write made every poll after a show started answer 500.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | handleAction tells the show whether the caller owns the room, because the host may now play at their own seat.
  */
 
 'use strict';
@@ -148,14 +149,14 @@ async function handleOverride(env, sub, body) {
 async function handleAction(env, sub, body) {
   // A host override is not a game move — it never reaches the show's reducer.
   if (hostOverride.isOverride(body.action && body.action.type)) return handleOverride(env, sub, body);
-  return env.room.mutate(body.roomId, sub, async ({ state, seats, room }) => {
+  return env.room.mutate(body.roomId, sub, async ({ state, seats, room, isOwner }) => {
     const show = registry.get(room.show_id);
     if (!show) return { ok: false, status: 400, error: 'Unknown show.' };
     const resolved = resolveActor(seats, room, sub, body.actorSeatId);
     if (resolved.error) return { ok: false, status: 403, error: resolved.error };
     // Pass the seat roster as context — shows with per-player mechanics (Jeopardy's
     // Final wagers) need to know who is still in; team shows simply ignore it.
-    const result = show.reduce(state, body.action || {}, resolved.actor, Date.now(), { seats: seats });
+    const result = show.reduce(state, body.action || {}, resolved.actor, Date.now(), { seats: seats, isOwner: isOwner });
     if (!result.ok) return { ok: false, status: 409, error: result.error || 'That move is not allowed now.' };
     return { ok: true, state: result.state, events: result.event ? [result.event] : [], host: result.host, cue: result.cue };
   });

@@ -1,0 +1,142 @@
+<mujoco model="embodied-hexapod-spider-18-legs-hop">
+  <!-- ADR-202 spider-18: six legs of three STS3215-class position servos each, from the contract hexapod-spec.ts.
+       MEDIUM: air (Air (ISA sea level)); the plant takes ONLY gravity from it (ADR-160 D7): no density, no viscosity.
+       Body: the two plates as one box of the body mass (0.897 kg), inertia from the layout (six coxa-servo
+       lumps at the mounts, the rest a uniform box). Self-collision is OFF (spider geoms collide with the floor only).
+       Legs: capsules carrying the mass model's link masses; the tibia thins to a shin over its last 0.03 m so the
+       foot sphere is the lowest point of the leg in every pose and a foot contact is a FOOT contact.
+       Signs: coxa + = foot forward on every leg (left hinge -z, right +z); femur/tibia + = foot toward body -z.
+       Servos: kp = stall / 0.05 rad, damping = stall / no-load speed, armature = the arm's estimate.
+       JUMP legs-hop: no mechanism; every femur and tibia extends together at full speed (hexapod_gaits.legs_hop).
+  -->
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+  <default>
+    <default class="floor"><geom contype="1" conaffinity="1" friction="0.8 0.005 0.0001" rgba="0.6 0.6 0.55 1"/></default>
+    <default class="spider"><geom contype="1" conaffinity="0" friction="0.8 0.005 0.0001" rgba="0.2 0.25 0.3 1"/></default>
+    <default class="foot"><geom contype="1" conaffinity="0" friction="1.0 0.005 0.0001" rgba="0.9 0.5 0.1 1"/></default>
+  </default>
+  <custom>
+    <numeric name="standHeightM" data="0.09"/>
+  </custom>
+  <worldbody>
+    <geom name="floor" class="floor" type="plane" size="5 5 0.1"/>
+    <light pos="0 0 2" dir="0 0 -1"/>
+    <body name="body" pos="0 0 0.09" quat="1 0 0 0">
+      <freejoint name="body-free"/>
+      <inertial pos="0 0 0" mass="0.897" diaginertia="0.002162 0.003828 0.005725"/>
+      <geom name="body-plates" class="spider" type="box" size="0.11 0.07 0.0265"/>
+      <site name="imu" pos="0 0 0" size="0.004" rgba="1 0 0 1"/>
+      <site name="lidar" pos="0.135 0 0" size="0.004" rgba="0 1 0 1"/>
+      <body name="L1-coxa" pos="0.08 0.052 0" quat="0.92388 0 0 0.382683">
+        <joint name="L1-coxa" type="hinge" axis="0 0 -1" range="-1.047198 1.047198" armature="0.01" damping="0.623686"/>
+        <geom name="L1-coxa" class="spider" type="capsule" fromto="0 0 0 0.045 0 0" size="0.012" mass="0.076"/>
+        <body name="L1-femur" pos="0.045 0 0">
+          <joint name="L1-femur" type="hinge" axis="0 1 0" range="-2.094395 2.094395" armature="0.01" damping="0.623686"/>
+          <geom name="L1-femur" class="spider" type="capsule" fromto="0 0 0 0.08 0 0" size="0.012" mass="0.084"/>
+          <body name="L1-tibia" pos="0.08 0 0">
+            <joint name="L1-tibia" type="hinge" axis="0 1 0" range="-2.443461 2.443461" armature="0.01" damping="0.623686"/>
+            <geom name="L1-tibia" class="spider" type="capsule" fromto="0 0 0 0.082 0 0" size="0.012" mass="0.027"/>
+            <geom name="L1-shin" class="spider" type="capsule" fromto="0.082 0 0 0.104 0 0" size="0.006" mass="0.000001"/>
+            <geom name="L1-foot" class="foot" type="sphere" pos="0.112 0 0" size="0.008" mass="0.000001"/>
+          </body>
+        </body>
+      </body>
+      <body name="L2-coxa" pos="0 0.068 0" quat="0.707107 0 0 0.707107">
+        <joint name="L2-coxa" type="hinge" axis="0 0 -1" range="-1.047198 1.047198" armature="0.01" damping="0.623686"/>
+        <geom name="L2-coxa" class="spider" type="capsule" fromto="0 0 0 0.045 0 0" size="0.012" mass="0.076"/>
+        <body name="L2-femur" pos="0.045 0 0">
+          <joint name="L2-femur" type="hinge" axis="0 1 0" range="-2.094395 2.094395" armature="0.01" damping="0.623686"/>
+          <geom name="L2-femur" class="spider" type="capsule" fromto="0 0 0 0.08 0 0" size="0.012" mass="0.084"/>
+          <body name="L2-tibia" pos="0.08 0 0">
+            <joint name="L2-tibia" type="hinge" axis="0 1 0" range="-2.443461 2.443461" armature="0.01" damping="0.623686"/>
+            <geom name="L2-tibia" class="spider" type="capsule" fromto="0 0 0 0.082 0 0" size="0.012" mass="0.027"/>
+            <geom name="L2-shin" class="spider" type="capsule" fromto="0.082 0 0 0.104 0 0" size="0.006" mass="0.000001"/>
+            <geom name="L2-foot" class="foot" type="sphere" pos="0.112 0 0" size="0.008" mass="0.000001"/>
+          </body>
+        </body>
+      </body>
+      <body name="L3-coxa" pos="-0.08 0.052 0" quat="0.382683 0 0 0.92388">
+        <joint name="L3-coxa" type="hinge" axis="0 0 -1" range="-1.047198 1.047198" armature="0.01" damping="0.623686"/>
+        <geom name="L3-coxa" class="spider" type="capsule" fromto="0 0 0 0.045 0 0" size="0.012" mass="0.076"/>
+        <body name="L3-femur" pos="0.045 0 0">
+          <joint name="L3-femur" type="hinge" axis="0 1 0" range="-2.094395 2.094395" armature="0.01" damping="0.623686"/>
+          <geom name="L3-femur" class="spider" type="capsule" fromto="0 0 0 0.08 0 0" size="0.012" mass="0.084"/>
+          <body name="L3-tibia" pos="0.08 0 0">
+            <joint name="L3-tibia" type="hinge" axis="0 1 0" range="-2.443461 2.443461" armature="0.01" damping="0.623686"/>
+            <geom name="L3-tibia" class="spider" type="capsule" fromto="0 0 0 0.082 0 0" size="0.012" mass="0.027"/>
+            <geom name="L3-shin" class="spider" type="capsule" fromto="0.082 0 0 0.104 0 0" size="0.006" mass="0.000001"/>
+            <geom name="L3-foot" class="foot" type="sphere" pos="0.112 0 0" size="0.008" mass="0.000001"/>
+          </body>
+        </body>
+      </body>
+      <body name="R1-coxa" pos="0.08 -0.052 0" quat="0.92388 0 0 -0.382683">
+        <joint name="R1-coxa" type="hinge" axis="0 0 1" range="-1.047198 1.047198" armature="0.01" damping="0.623686"/>
+        <geom name="R1-coxa" class="spider" type="capsule" fromto="0 0 0 0.045 0 0" size="0.012" mass="0.076"/>
+        <body name="R1-femur" pos="0.045 0 0">
+          <joint name="R1-femur" type="hinge" axis="0 1 0" range="-2.094395 2.094395" armature="0.01" damping="0.623686"/>
+          <geom name="R1-femur" class="spider" type="capsule" fromto="0 0 0 0.08 0 0" size="0.012" mass="0.084"/>
+          <body name="R1-tibia" pos="0.08 0 0">
+            <joint name="R1-tibia" type="hinge" axis="0 1 0" range="-2.443461 2.443461" armature="0.01" damping="0.623686"/>
+            <geom name="R1-tibia" class="spider" type="capsule" fromto="0 0 0 0.082 0 0" size="0.012" mass="0.027"/>
+            <geom name="R1-shin" class="spider" type="capsule" fromto="0.082 0 0 0.104 0 0" size="0.006" mass="0.000001"/>
+            <geom name="R1-foot" class="foot" type="sphere" pos="0.112 0 0" size="0.008" mass="0.000001"/>
+          </body>
+        </body>
+      </body>
+      <body name="R2-coxa" pos="0 -0.068 0" quat="0.707107 0 0 -0.707107">
+        <joint name="R2-coxa" type="hinge" axis="0 0 1" range="-1.047198 1.047198" armature="0.01" damping="0.623686"/>
+        <geom name="R2-coxa" class="spider" type="capsule" fromto="0 0 0 0.045 0 0" size="0.012" mass="0.076"/>
+        <body name="R2-femur" pos="0.045 0 0">
+          <joint name="R2-femur" type="hinge" axis="0 1 0" range="-2.094395 2.094395" armature="0.01" damping="0.623686"/>
+          <geom name="R2-femur" class="spider" type="capsule" fromto="0 0 0 0.08 0 0" size="0.012" mass="0.084"/>
+          <body name="R2-tibia" pos="0.08 0 0">
+            <joint name="R2-tibia" type="hinge" axis="0 1 0" range="-2.443461 2.443461" armature="0.01" damping="0.623686"/>
+            <geom name="R2-tibia" class="spider" type="capsule" fromto="0 0 0 0.082 0 0" size="0.012" mass="0.027"/>
+            <geom name="R2-shin" class="spider" type="capsule" fromto="0.082 0 0 0.104 0 0" size="0.006" mass="0.000001"/>
+            <geom name="R2-foot" class="foot" type="sphere" pos="0.112 0 0" size="0.008" mass="0.000001"/>
+          </body>
+        </body>
+      </body>
+      <body name="R3-coxa" pos="-0.08 -0.052 0" quat="0.382683 0 0 -0.92388">
+        <joint name="R3-coxa" type="hinge" axis="0 0 1" range="-1.047198 1.047198" armature="0.01" damping="0.623686"/>
+        <geom name="R3-coxa" class="spider" type="capsule" fromto="0 0 0 0.045 0 0" size="0.012" mass="0.076"/>
+        <body name="R3-femur" pos="0.045 0 0">
+          <joint name="R3-femur" type="hinge" axis="0 1 0" range="-2.094395 2.094395" armature="0.01" damping="0.623686"/>
+          <geom name="R3-femur" class="spider" type="capsule" fromto="0 0 0 0.08 0 0" size="0.012" mass="0.084"/>
+          <body name="R3-tibia" pos="0.08 0 0">
+            <joint name="R3-tibia" type="hinge" axis="0 1 0" range="-2.443461 2.443461" armature="0.01" damping="0.623686"/>
+            <geom name="R3-tibia" class="spider" type="capsule" fromto="0 0 0 0.082 0 0" size="0.012" mass="0.027"/>
+            <geom name="R3-shin" class="spider" type="capsule" fromto="0.082 0 0 0.104 0 0" size="0.006" mass="0.000001"/>
+            <geom name="R3-foot" class="foot" type="sphere" pos="0.112 0 0" size="0.008" mass="0.000001"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="L1-coxa" joint="L1-coxa" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-1.047198 1.047198"/>
+    <position name="L1-femur" joint="L1-femur" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.094395 2.094395"/>
+    <position name="L1-tibia" joint="L1-tibia" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.443461 2.443461"/>
+    <position name="L2-coxa" joint="L2-coxa" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-1.047198 1.047198"/>
+    <position name="L2-femur" joint="L2-femur" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.094395 2.094395"/>
+    <position name="L2-tibia" joint="L2-tibia" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.443461 2.443461"/>
+    <position name="L3-coxa" joint="L3-coxa" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-1.047198 1.047198"/>
+    <position name="L3-femur" joint="L3-femur" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.094395 2.094395"/>
+    <position name="L3-tibia" joint="L3-tibia" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.443461 2.443461"/>
+    <position name="R1-coxa" joint="R1-coxa" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-1.047198 1.047198"/>
+    <position name="R1-femur" joint="R1-femur" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.094395 2.094395"/>
+    <position name="R1-tibia" joint="R1-tibia" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.443461 2.443461"/>
+    <position name="R2-coxa" joint="R2-coxa" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-1.047198 1.047198"/>
+    <position name="R2-femur" joint="R2-femur" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.094395 2.094395"/>
+    <position name="R2-tibia" joint="R2-tibia" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.443461 2.443461"/>
+    <position name="R3-coxa" joint="R3-coxa" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-1.047198 1.047198"/>
+    <position name="R3-femur" joint="R3-femur" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.094395 2.094395"/>
+    <position name="R3-tibia" joint="R3-tibia" kp="58.8399" forcelimited="true" forcerange="-2.941995 2.941995" ctrlrange="-2.443461 2.443461"/>
+  </actuator>
+  <sensor>
+    <gyro name="gyro" site="imu"/>
+    <accelerometer name="accel" site="imu"/>
+    <framequat name="imu-quat" objtype="site" objname="imu"/>
+  </sensor>
+</mujoco>

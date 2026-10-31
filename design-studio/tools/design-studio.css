@@ -1,0 +1,147 @@
+/* CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D4, lane @ds-app: the Design Studio sheet. Every colour is a portal theme token with a fallback (the kernel screen standard, docs/ux/screen-standard.md); cards paint with --bg-card so the portal raises them as glass; posters in a grid, one column and a 16px gutter on a phone, 44px controls there. Four screens share one sheet: Products, New product, Product, Settings.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D7, lane @ds-fab: the made set's files as a folded list on the Fabricate poster, the make dialog's per-part states (pending, building, exported, unprintable) in the status tones, the send dialog's confirm row.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D9, lane @ds-plant: the Mechanism screen's part list, joint rows (a head row and a body of labelled fields), vector inputs in a row; one column on a phone.
+ */
+:root{
+  --ds-font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Inter,sans-serif;
+  --ds-mono:"JetBrains Mono","SFMono-Regular",Menlo,Consolas,monospace;
+  --ds-radius:14px;--ds-radius-sm:9px;--ds-gap:14px;--ds-gutter:24px;--ds-control:40px;
+  --ds-line:var(--border-color,rgba(255,255,255,.1));
+  --ds-line-strong:var(--border-color-hover,rgba(255,255,255,.18));
+  --ds-card:var(--bg-card,rgba(28,28,48,.55));
+  --ds-card-hover:var(--bg-card-hover,rgba(40,40,68,.65));
+  --ds-well:var(--bg-secondary,rgba(18,18,30,.85));
+  --ds-field:var(--bg-tertiary,rgba(30,30,52,.7));
+  --ds-text:var(--text-primary,#eeeef5);
+  --ds-soft:var(--text-secondary,#a0a0be);
+  --ds-muted:var(--text-muted,#8a8aa6);
+  --ds-accent:var(--accent-primary,#7c7cff);
+  --ds-accent-hover:var(--accent-primary-hover,#9d9dff);
+  --ds-on-accent:var(--text-on-accent,#fff);
+  --ds-ok:var(--status-success,#4ade80);
+  --ds-warn:var(--status-warning,#fbbf24);
+  --ds-bad:var(--status-error,#f87171);
+}
+body{margin:0;min-height:100vh;font-family:var(--ds-font);font-size:15px;line-height:1.5;color:var(--ds-text);background-color:var(--bg-primary,#0a0a12);-webkit-font-smoothing:antialiased}
+.ds-page,.ds-page *,.ds-page *::before,.ds-page *::after,dialog,dialog *{box-sizing:border-box}
+[hidden]{display:none!important}
+
+/* Page anatomy */
+.ds-page{max-width:1200px;margin:0 auto;padding:var(--ds-gutter)}
+.ds-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.ds-head>div:first-child{min-width:0;flex:1 1 320px}
+.kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ds-accent);margin:0 0 2px}
+.ds-page h1{margin:0;font-size:28px;line-height:1.15;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere}
+.lede{margin:6px 0 0;font-size:14px;color:var(--ds-soft);max-width:72ch}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.footnote{margin:18px 0 0;font-size:12.5px;color:var(--ds-muted)}
+.empty{margin:20px 0 0;padding:18px;color:var(--ds-soft);background:var(--ds-card);border:1px solid var(--ds-line);border-radius:var(--ds-radius)}
+
+/* Posters: products and phases */
+.chain{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:var(--ds-gap);margin-top:20px}
+.poster{display:flex;flex-direction:column;gap:8px;min-width:0;padding:18px;background:var(--ds-card);border:1px solid var(--ds-line);border-radius:var(--ds-radius);color:inherit;text-decoration:none}
+a.poster:hover{background:var(--ds-card-hover);border-color:var(--ds-accent)}
+a.poster:focus-visible{outline:2px solid var(--ds-accent);outline-offset:2px}
+.poster.wide{grid-column:1/-1}
+.step{margin:0;font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ds-muted)}
+.poster h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.005em;overflow-wrap:anywhere}
+.figure{margin:4px 0 0;font-size:34px;line-height:1.1;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere}
+.figure small{display:block;margin-top:2px;font-size:13px;line-height:1.35;font-weight:500;letter-spacing:0;color:var(--ds-muted)}
+.stage{margin:0;font-size:13.5px;line-height:1.45;color:var(--ds-soft);min-height:1.45em;overflow-wrap:anywhere}
+.stage.ok{color:var(--ds-ok)}
+.stage.warn{color:var(--ds-warn)}
+.stage.bad{color:var(--ds-bad)}
+.closed{margin:0;font-size:12.5px;color:var(--ds-muted);overflow-wrap:anywhere}
+.closed.stale{color:var(--ds-warn)}
+.act{margin-top:auto;padding-top:8px;display:flex;flex-wrap:wrap;gap:8px}
+
+/* Controls: one height, one radius, the theme's focus ring */
+.btn,.ds-page button,.ds-page select,.ds-page input,.ds-page textarea,dialog button,dialog select,dialog input,dialog textarea{font:inherit;font-size:14px;line-height:1.3;color:var(--ds-text);min-height:var(--ds-control);padding:8px 14px;margin:0;border:1px solid var(--ds-line-strong);border-radius:var(--ds-radius-sm);background:color-mix(in srgb,var(--ds-field) 92%,transparent);text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn,.ds-page button,dialog button{cursor:pointer}
+.ds-page input,.ds-page textarea,.ds-page select,dialog input,dialog textarea,dialog select{width:100%;display:block;white-space:normal;justify-content:flex-start;cursor:text}
+.ds-page select,dialog select{cursor:default}
+.ds-page textarea,dialog textarea{min-height:96px;resize:vertical;font-family:var(--ds-font)}
+.btn:hover,.ds-page button:hover,dialog button:hover{background:var(--ds-card-hover);border-color:var(--ds-accent)}
+.btn:focus-visible,.ds-page button:focus-visible,.ds-page select:focus-visible,.ds-page input:focus-visible,.ds-page textarea:focus-visible,dialog button:focus-visible,dialog select:focus-visible,dialog input:focus-visible,dialog textarea:focus-visible{outline:2px solid var(--ds-accent);outline-offset:2px}
+.btn-primary,.ds-page button.btn-primary,dialog button.btn-primary{background:var(--ds-accent);border-color:var(--ds-accent);color:var(--ds-on-accent);font-weight:700}
+.btn-primary:hover,.ds-page button.btn-primary:hover,dialog button.btn-primary:hover{background:var(--ds-accent-hover);border-color:var(--ds-accent-hover);color:var(--ds-on-accent)}
+.btn[aria-disabled="true"],.ds-page button:disabled,dialog button:disabled{opacity:.55;cursor:not-allowed;pointer-events:none}
+
+/* The walkthrough (New product) and Settings: numbered cards, one field each */
+.walk{display:grid;gap:var(--ds-gap);margin-top:20px;max-width:760px}
+.card{display:flex;flex-direction:column;gap:8px;padding:18px;background:var(--ds-card);border:1px solid var(--ds-line);border-radius:var(--ds-radius)}
+.card label{display:flex;flex-direction:column;gap:6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--ds-muted)}
+.card .help{margin:0;font-size:12.5px;color:var(--ds-muted);text-transform:none;letter-spacing:0;font-weight:400}
+.targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.proposal{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.proposal li{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:start;padding:10px 12px;background:var(--ds-well);border:1px solid var(--ds-line);border-radius:var(--ds-radius-sm)}
+.proposal li input{width:18px;height:18px;min-height:0;padding:0;margin-top:2px}
+.proposal label{display:flex;flex-direction:column;gap:2px;font-size:14px;letter-spacing:0;text-transform:none;font-weight:400;color:var(--ds-text);cursor:pointer}
+.proposal b{display:block;font-size:14px}
+.proposal .engine{font-family:var(--ds-mono);font-size:12px;color:var(--ds-accent)}
+.proposal .why{display:block;font-size:12.5px;color:var(--ds-muted);overflow-wrap:anywhere}
+.proposal li.unsolved{grid-template-columns:1fr;color:var(--ds-warn)}
+.settings{display:grid;gap:var(--ds-gap);margin-top:20px;max-width:900px}
+.settings .row{display:grid;grid-template-columns:minmax(140px,1fr) 2fr;gap:8px 12px;align-items:center}
+.settings .row .kind{font-weight:700}
+.settings .row .note{grid-column:1/-1;font-size:12.5px;color:var(--ds-muted);overflow-wrap:anywhere}
+
+/* Dialogs: close a phase, the build checklist, the print set, node status */
+dialog{color:var(--ds-text);background:var(--ds-card);border:1px solid var(--ds-line-strong);border-radius:var(--ds-radius);padding:18px 20px;max-width:min(680px,calc(100vw - 32px));width:100%}
+dialog::backdrop{background:color-mix(in srgb,var(--bg-primary,#0a0a12) 70%,transparent)}
+dialog h2{margin:0 0 10px;font-size:17px}
+dialog p{margin:0 0 10px;font-size:13.5px;color:var(--ds-soft);overflow-wrap:anywhere}
+dialog pre{margin:0 0 12px;max-height:60vh;overflow:auto;font-family:var(--ds-mono);font-size:12.5px;line-height:1.45;padding:12px;background:var(--ds-well);border:1px solid var(--ds-line);border-radius:var(--ds-radius-sm);white-space:pre-wrap;overflow-wrap:anywhere}
+.form{display:grid;grid-template-columns:1fr;gap:12px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--ds-muted)}
+.form .help{margin:0;font-size:12.5px;color:var(--ds-muted);text-transform:none;letter-spacing:0;font-weight:400}
+.form .actions{justify-content:flex-end}
+.checklist{display:grid;gap:6px;margin:0 0 12px;padding:0;list-style:none;max-height:50vh;overflow:auto}
+.checklist li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 10px;background:var(--ds-well);border:1px solid var(--ds-line);border-radius:var(--ds-radius-sm);font-size:13.5px}
+.checklist li input{width:18px;height:18px;min-height:0;padding:0;margin-top:3px}
+.checklist li.group{grid-template-columns:1fr;background:transparent;border:0;padding:6px 0 0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--ds-muted)}
+.checklist .when{display:block;font-size:12px;color:var(--ds-muted)}
+
+/* The print set: its files on the poster, the make dialog's parts, the send dialog's confirm */
+.files{margin:0;font-size:12.5px;color:var(--ds-muted)}
+.files summary{cursor:pointer;color:var(--ds-soft)}
+.files ul{margin:6px 0 0;padding:0 0 0 16px;display:grid;gap:2px}
+.files a{color:var(--ds-accent);overflow-wrap:anywhere}
+.make-part{grid-template-columns:1fr}
+.make-part b{display:block}
+.make-part[data-state="building"] .when{color:var(--ds-warn)}
+.make-part[data-state="exported"] .when{color:var(--ds-ok)}
+.make-part[data-state="unprintable"] .when{color:var(--ds-bad)}
+.result{overflow-wrap:anywhere}
+.form .check{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-weight:400;font-size:14px;color:var(--ds-text)}
+.form .check input{width:18px;height:18px;min-height:0;padding:0}
+
+/* The Mechanism screen: the parts, a row per joint, vector fields */
+.parts{margin:0;padding:0 0 0 18px;display:grid;gap:4px;font-size:13.5px;color:var(--ds-soft)}
+.parts li{overflow-wrap:anywhere}
+.parts li[data-built="0"]{color:var(--ds-warn)}
+.joint{display:grid;gap:10px;padding:12px;margin:0 0 10px;background:var(--ds-well);border:1px solid var(--ds-line);border-radius:var(--ds-radius-sm)}
+.joint-head{display:grid;grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr auto;gap:6px 8px;align-items:center}
+.joint-body{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;align-items:center}
+.joint label,.card .joint label{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--ds-muted)}
+.vec{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.vec input{min-width:0}
+#mech-joints:empty::before{content:"no joints yet: Add a joint";display:block;font-size:13px;color:var(--ds-muted)}
+
+/* The toast: what an action answered */
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:calc(100vw - 32px);padding:10px 14px;font-size:13.5px;color:var(--ds-text);background:var(--ds-well);border:1px solid var(--ds-line-strong);border-radius:var(--ds-radius-sm);box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:5;overflow-wrap:anywhere}
+.toast.ok{border-color:var(--ds-ok)}
+.toast.error{border-color:var(--ds-bad)}
+#bridge-notices{position:fixed;right:16px;top:16px;max-width:min(420px,calc(100vw - 32px));z-index:4}
+
+@media (max-width:600px){
+  .ds-page{padding:16px}
+  .ds-page h1{font-size:24px}
+  .chain{grid-template-columns:1fr}
+  .figure{font-size:30px}
+  .btn,.ds-page button,.ds-page select,.ds-page input,.ds-page textarea,dialog button,dialog select,dialog input,dialog textarea{min-height:44px;font-size:16px}
+  .act .btn,.act button{flex:1 1 auto}
+  .settings .row{grid-template-columns:1fr}
+  .joint-head,.joint-body{grid-template-columns:1fr}
+}

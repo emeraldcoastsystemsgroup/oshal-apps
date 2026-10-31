@@ -1,0 +1,10 @@
+{"name": "lift-1",
+ "parts": [{"id": "base", "name": "Base plate", "massKg": 0.496, "extentsM": [0.2, 0.2, 0.01]},
+           {"id": "column", "name": "Column", "massKg": 0.794, "extentsM": [0.04, 0.04, 0.4]},
+           {"id": "carriage", "name": "Carriage", "massKg": 0.238, "extentsM": [0.08, 0.06, 0.04]}],
+ "base": "base",
+ "joints": [{"id": "column-mount", "parent": "base", "child": "column", "type": "fixed", "originM": [0, 0, 0.01]},
+            {"id": "carriage-slide", "parent": "column", "child": "carriage", "type": "slide", "axis": [0, 0, 1], "range": [0, 0.35], "originM": [0, 0, 0]}],
+ "actuators": [{"joint": "carriage-slide", "stallNm": 2.942, "noLoadRadS": 4.7166, "gearRatio": 40, "continuousNm": 1.471, "row": {"id": "sts3215-12v", "source": "embodied"}}],
+ "payload": {"massKg": 2, "attachedTo": "carriage"},
+ "medium": {"id": "air", "gravityMps2": [0, 0, -9.81]}}

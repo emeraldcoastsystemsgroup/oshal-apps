@@ -523,3 +523,196 @@ that before 0.2.0. No tool call from this package's assistant has been run yet.
   catalog (this package has none yet, so that means writing `authorization.yaml`), the bot is bound in `bindings.bots` (core `docs/apps/package-tools.md`), and one live chat
   turn as the operator runs a tool and its result is checked against the app's own state. Scene
   Studio 0.2.0 is the worked example.
+
+## B29 — The spider-18 (ADR-202): the fixtures carry the design's masses (0.19.1) and the target is re-based on the parts model (0.19.2) — DONE
+
+**0.19.2, the budget:** the 1900 g target was the brief's own estimate (1851 g plus a little), not a requirement the operator
+named, and the parts model showed the estimate undercounted the leg parts. The target in `hexapod-spec.ts` is now **2100 g**
+= the computed 2019 g plus a 4 % print tolerance, with the reasoning beside the field: at 2019 g every joint sits inside the
+servo's continuous torque (margins 1.03-1.47) and the plant stands, walks, walks inverted, recovers and jumps. No fill factor
+was edited; the scale at assembly is the check the budget exists for. The design reads `parts-complete` in the Studio.
+
+**0.19.1:** the two fixtures are regenerated from `buildHexapod('spider-18').masses` (body 897 g, links 76/84/27),
+so the fixtures, the eleven plant cases, the training task and the live routes load ONE model. Re-measured on
+MuJoCo 3.3.5 at 2019 g: walk tracking error 0.042 m/s and cost of transport 12.5 with no falls, inverted recovery
+0.34 s (5 of 5), legs-hop +0.0095 m, latched-spring +0.104 m landing upright — against +0.011 m and +0.118 m at the
+brief's 1851 g. The first 300 000-step training runs were started on the brief's fixtures and finish on them; the
+next runs train on these. What is left of this entry is the budget.
+
+**As first shipped (0.19.0):**
+
+Shipped 0.19.0 with two things said plainly rather than hidden. (1) The live routes
+(`/physics/hexapod/mjcf`, `/physics/hexapod/check`) load the design's COMPUTED link masses (body 897 g,
+coxa link 76, femur 84, tibia 27 — `buildHexapod('spider-18').masses`), but the engine's regression
+fixtures `engine/tests/fixtures/spider-18-{legs-hop,latched-spring}.xml`, the eleven plant cases and
+the training task still carry the brief's estimates (855/67/73/26), because the plant's measured
+numbers (stance 0.0885 m, walk 0.141 m/s, inverted walk, recovery 0.16–0.28 s, legs-hop +0.011 m,
+latched-spring +0.118 m) were taken on those fixtures and the first training runs were started on them.
+(2) The design's mass budget computes 2019 g against the contract's 1900 g target (the leg parts: 2.4 mm
+PETG walls around 55 g servos come to 77 g per leg, against the brief's 56), and `withinTarget` is
+false; the Design Studio shows the design at `concept` with that reason.
+
+**Done when:** the fixtures are regenerated from the design's masses, the eleven plant cases re-measured
+and their Test Lab expected text updated with the new numbers in the same change, the training task
+reads the same model the live routes serve; and either the leg parts are lightened to close the budget
+(thinner cheeks, a lattice femur) or the target in `hexapod-spec.ts` is re-decided by the operator with
+the reasoning beside it — never by editing a fill factor to make the number fit.
+
+## B30 — The spider-18: a learned gait that beats the CPG (ADR-202 D4, the first result is a miss)
+
+The first long runs were made on 2026-10-30 on the box's CPU (`engine/tasks/hexapod_walk.py`, PPO, residual on
+the CPG, 300 000 steps, seed 0, about 2.1 hours each, the brief's-mass fixtures): **neither policy beats the
+baseline**. Walk: baseline tracking error 0.042 m/s and cost of transport 13.6 against the policy's 0.100 m/s
+and 23.8, no falls either side. Inverted: baseline 0.063 m/s, 14.7, recovery 0.36 s (5 of 5) against the
+policy's 0.105 m/s, 26.2, 0.38 s (5 of 5). The 20 000-step smoke read the same way. The reports are the
+truth (`hexapod-walk-seed0.json`, `hexapod-inverted-seed0.json` with their `.zip` policies, kept beside the
+handover); the CPG stays the controller the node plays and nothing claims otherwise.
+
+**Second recipe, 2026-10-30 (0.19.2, `--recipe shape --envs 8`, 1 000 000 steps, seed 0, 43 min on the box's CPU, the
+design-mass fixtures):** the policy shapes the gait (six stride scales, a swing scale, a step-rate scale on the CPG)
+and **wins the tracking facet** — 0.027 m/s against the CPG's 0.042 m/s, no falls either side, 0.85 m against 0.83 m
+covered — **and loses cost of transport**, 17.0 against 12.5 (290 J against 218 J over the five evaluation episodes).
+The verdict rule wants every facet, so `policyBeatsBaseline` stays false; the report is
+`hexapod-walk-shape-seed0.json`. The energy weight is now `EMBODIED_HEXAPOD_W_ENERGY` (default 0.002) so the next run
+can trade the two without a code change.
+
+**Third run, the same day (`EMBODIED_HEXAPOD_W_ENERGY=0.006`, three times the default, otherwise identical, 49 min):**
+tracking 0.032 m/s (still better than the CPG's 0.042), cost of transport 16.8 (still worse than 12.5), no falls. The
+weight moved tracking a little and energy almost not at all: the policy's gain comes from longer strides and the
+energy of a longer stride is not what the weight reaches. The next ideas, in order: penalise the stride scales above
+one directly, reward cost of transport rather than raw energy, and train three seeds at two million steps.
+
+**Fourth recipe, the same day — THE WALK BAR IS MET.** `EMBODIED_HEXAPOD_REWARD=cot` charges energy per metre of
+commanded progress (the verdict's own currency) instead of per joule. Three seeds, one million steps each, four
+environments, about 58 minutes each in parallel: tracking 0.025 / 0.020 / 0.019 m/s against the CPG's 0.042, cost of
+transport 8.40 / 8.34 / 8.02 against 12.48, no falls anywhere — every facet, every seed. The reports are committed in
+`docs/training/2026-10-30-spider-18-walk-cot/` with the recipe. Still open in this entry: the inverted task's
+recovery facet on three seeds (running), and the certification gate — B19's replays a drone's flight path through
+the fence and map guards, which a gait report does not carry, so the hexapod needs its own gate (a replay of the
+learned gait on the plant through the fall and torque limits) before `embodied_hexapod_node.py` may play a policy.
+
+**The inverted task with the same recipe (three seeds):** tracking 0.050 / 0.056 / 0.052 against the CPG's 0.064,
+cost of transport 10.2 / 9.2 / 9.0 against 13.5, no falls, recovered 5 of 5 every time — but recovery TIME
+0.41 / 0.46 / 0.36 s against the CPG's 0.34 s: the recovery facet is lost on every seed, so the inverted bar stays
+open. The reward had no recovery-time term; the fifth run adds one. Reports in the same folder.
+
+**Fifth run, the same day (`EMBODIED_HEXAPOD_W_RECOVER=2.0` on the cot recipe, inverted, three seeds, a million
+steps, four environments, about 68 minutes each in parallel):** the recovery-time term charges every control step
+between the roll and the recovery (0.04 against the 0.5 alive bonus). Recovery 0.42 / 0.37 / 0.49 s against the
+CPG's 0.34 s — no better than without the term. Two seeds keep the tracking and cost-of-transport wins (0.056 / 0.054
+against 0.064 m/s, 9.1 / 8.7 against 13.5), the third loses every facet (0.073 m/s, 15.9, mean return 35 against 80).
+Detection got faster on two seeds (0.24–0.26 s against the CPG's 0.28) and the stretch from detection to half the
+commanded speed got longer (0.13–0.16 s against the CPG's 0.06). The actions are the gait-shape scales; the detector's
+hold and the mirror switch are not among them. **The inverted bar stays open.** Options, in order: a terminal penalty
+of the measured recovery seconds instead of the per-step term; the detector's hold samples as an action, so the policy
+can trade detection time against a false switch; more steps. Reports
+`hexapod-inverted-shape-recover-seed{0,1,2}.json` in the same folder.
+
+**The certification gate (0.19.3, the same day):** `POST /physics/hexapod/certify {file}` runs `engine/tasks/hexapod_certify.py`
+in the container: the report's policy and the CPG are replayed on the evaluation seeds, every control step through the fall
+limit, every episode through the servo's torque limits (the design's continuous torque, 1.47 N·m for the STS3215 row, for
+the RMS over an episode; the model's stall, 2.94 N·m, for the peak), the verdict re-measured, and a walk policy rolled over
+once. The certificate is written beside the policy, bound to the zip's sha256 and the engine's build hash, and
+`hexapod.load {controller: "policy:<file>"}` is refused by name without a passing, matching one; the node's plant body
+walks on a certified policy by sending the command and reporting the policy's targets. **What the gate found:** the three
+winning walk policies survive the roll (no fall, recovered in 0.64–0.84 s) and beat the CPG again, and none is certified —
+their tibia servos' RMS torque while walking is 1.6–2.1 N·m, above the 1.47 N·m continuous rating; **the CPG itself reads
+1.87 N·m on R1-tibia and would be refused too** (B31). Certificates
+`hexapod-walk-ppo-shape-seed{0,1,2}.certificate.json` in the training folder. The node keeps playing the CPG.
+
+**THE BAR IS MET (0.19.4, the same day):** with `EMBODIED_HEXAPOD_W_TORQUE=1.0` (every newton-metre above the
+design's continuous torque charged per step; `EMBODIED_HEXAPOD_TORQUE_LIMIT_NM=1.47` stated by the run) and
+`EMBODIED_HEXAPOD_ROLL_FRACTION=0.5` (half the walk episodes rolled over at a drawn moment), three walk seeds, cot reward,
+a million steps, about 40 minutes each: **seed 1 is certified** — no fall, every actuator's RMS torque under 1.47 N·m on
+every evaluation command (max 1.13 N·m) and through the roll (0.94 N·m), recovered in 0.50 s — **and beats the CPG on the
+gate's own re-measurement** (tracking 0.040 against 0.042 m/s, cost of transport 6.8 against 12.5, no falls). Seed 0 is
+certified too (max 1.35 N·m) but loses tracking (0.060); seed 2 is refused on two servos at 1.48–1.50 N·m. Without the
+roll in training (the step before), all three walked under the limit (1.03–1.38 N·m) and beat the CPG, and all three were
+refused only in the roll replay. The report's own verdict says false for every seed because its evaluation rolls half its
+episodes (the training distribution, harder for both sides); the gate's plain walk replay plus the explicit roll is the
+authority. Evidence in `docs/training/2026-10-30-spider-18-certified/` (reports, certificates, the certified policy
+`hexapod-walk-ppo-shape-seed1.zip` itself, so the live engine can play it). The node plays it on the plant body through
+`load {controller: "policy:hexapod-walk-ppo-shape-seed1.zip"}`. **The Pi runtime exists too (0.19.5):**
+`engine/hexapod_policy.py` exports a certified policy — only through `load_certified` — into a NumPy weights file carrying
+its layers, the geometry it was certified on and the certificate's summary (the torch and NumPy actors agree within
+5.8e-7 on 256 random observations), and the node plays that file on the fake and serial bodies through the mirror rule it
+decides; the node-side player and the plant-side controller make the same targets on the same plant states (3.6e-8). The
+exported file `hexapod-walk-ppo-shape-seed1.weights.json` ships beside the policy. Proven on the fake body and against the
+plant; the serial body with real servos is still unproven (no hardware), as the rest of the serial path.
+
+What the drone lane learned applies here (B19): the absolute residual lost to its controller until the
+interface changed (collective thrust and body rates, a reference look-ahead, a smoothness penalty, eight
+parallel environments, 1 000 000 steps) and then one seed of three won. The spider's recipe is the first
+shape, not the last.
+
+**Done when:** a recipe (phase-and-amplitude residuals on the CPG rather than joint residuals, a tracking
+reward with a smoothness term, vectorised environments, a step budget stated up front) beats the CPG on
+every facet on three seeds for `walk`, and on `recoverS` for `inverted`, with the reports committed beside
+this entry and the Test Lab's plant case quoting them; a policy that wins then goes through the B19
+certification gate before the node may play it.
+
+## B31 — The walking tibia torque is above the servo's continuous rating in the plant (found by the gate, 2026-10-30) — DONE-WHEN MET BY A LEARNED GAIT (0.19.4)
+
+The design's load model (`hexapod-design.ts worstStanceLoads`: the tripod foot share at the worst static pose with the
+dynamic allowance) puts every joint inside the STS3215 row's continuous torque with margins 1.03–1.47. The plant disagrees
+while walking: over a five-second episode at 0.05–0.25 m/s the RMS torque on a tibia servo is 1.87 N·m for the hand-written
+gait and 1.6–2.1 N·m for the learned ones, against 1.47 N·m continuous (15 kg·cm, the bench figure the row cites), with the
+peak at the stall every episode (the position servo saturates on every step). Measured by `engine/tasks/hexapod_certify.py`
+on the design-mass fixtures, recorded in the three certificates beside the B30 reports. Nothing in the design is changed
+here; the finding is the chain doing its job (design → plant → a number the design did not have).
+
+**Done when:** one of — a gait (stand height, step rate, stride) or a geometry (femur/tibia lengths, foot placement) whose
+RMS tibia torque sits under the row's continuous torque on the gate's replay, with the walk bar still met; or a servo row
+with the continuous torque the gait needs, carried through the parts catalog, the power spec and the BOM; or a measured
+continuous rating for the chosen row that the gate reads from the catalog instead of CONTINUOUS_FRACTION — and the three
+B30 policies re-certified against it, one of them passing.
+
+**Met the same day by the first option, learned rather than tuned:** the torque-excess reward term and the rolled walk
+episodes (B30, 0.19.4) produced a gait whose RMS torque on every actuator sits under the continuous rating on every
+evaluation command and through the roll, with the walk bar still met (seed 1's certificate). The hand-written CPG still
+reads 1.87 N·m on R1-tibia and is not certified; the design, the servo row and the catalog are unchanged. What stays open
+here: the CPG as the serial body's fallback runs above the rating — a bench measurement of the real servo's temperature
+under the CPG decides whether that matters before the first print.
+
+## B32 — The plant's sensor-address cast fails under NumPy 2.5 (found 2026-10-30)
+
+`engine/embodied_hexapod.py` reads the IMU sensor addresses as `int(m.sensor("gyro").adr)` and
+`int(m.sensor("accel").adr)`. MuJoCo returns a one-element array there; NumPy 2.3 (the engine container) only warns on the
+cast (deprecated since 1.25) and NumPy 2.5 refuses it, so the plant cannot be built from an interpreter on that version.
+The fix is `[0]` on both lines. The file is in the engine's `RUNTIME_FILES`, so the fix changes the engine build hash and
+invalidates every committed certificate (`engine/policies/*.certificate.json`, `docs/training/2026-10-30-spider-18-certified/*.certificate.json`).
+
+**Done when:** both casts read `[0]`; the engine image is rebuilt; the certified policy is re-certified through
+`POST /physics/hexapod/certify` under the new build hash with the certificate committed in `engine/policies/`, where
+`engine/tests/test_shipped_policies.py` checks it.
+
+## B33 — The plant generated from a design (ADR-203 D9, 0.20.0): what the generic builder does not do that the spider's does
+
+`engine/embodied_plant.py` builds any tree of parts on a fixed base from a design-studio spec and
+`tasks/plant_reach.py` trains and gates a reach on it; the lift is through it end to end (design-studio
+`tests/plant.engine.spec.mjs`, the lane handover). Measured on the lift fixture (MuJoCo 3.3.5): the PD
+baseline with the model's own gravity sag lifts 2 kg to 300 mm in 3.58 s against the brief's 5 s at 0.549 N·m
+RMS motor torque against the STS3215 row's 1.471 N·m continuous rating (the torque at the motor is the
+commanded force less the joint damping's share, since that damping is the row's torque-speed line); a
+2048-step PPO smoke loses to the baseline (4.34 s) and the gate certifies it on torque and time. Not built,
+with done-when:
+
+- **A floating base.** The base is ground (a static body); the spider's free joint, fall detection and
+  mirror rule are the hexapod plant's. Done when: a spec may declare `base.floating: true`, the plant gains
+  the free joint, `fell` in its state and a fall refusal in the gate, and a two-legged fixture proves it.
+- **Exact inverse kinematics for one joint only.** A chain of two or more actuated joints is solved by damped
+  least squares from the rest pose (200 iterations, proven to 0.1 mm on a two-hinge arm); a target outside the
+  reach returns the nearest pose with its residual, never a refusal. Done when: the IK answer refuses by name
+  when the residual is above a tolerance the task states, and a redundant chain's solution is chosen by a
+  stated rule (least joint motion).
+- **No contact between parts.** Parts collide with nothing (a carriage around a column would), so a joint's
+  range is the only stop. Done when: a spec may name part pairs that collide and the builder turns their
+  contacts on.
+- **Meshes arrive only as bytes in the spec** (`meshStl` base64 or `meshPath` on this host), which the native
+  kernel's 100 KB route body cannot carry (design-studio B8). Done when: the engine redeems a mesh by reference.
+- **The reach task is the only task.** A swing to an angle, a trajectory, a periodic motion are not read from
+  a brief. Done when: a second task module shares the env's observation and the gate.
+- **A policy trained on the lift was not shown to beat the baseline.** The PD baseline already runs the drive
+  on its torque-speed line; the residual recipe (±0.05 m on a slide) and 60 000 steps are what the handover
+  measured. Done when: a recipe (a longer run, a shaped target trajectory the policy may advance) wins the
+  reached-time facet on the gate's replay, reported like the spider's B30.

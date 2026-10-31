@@ -107,3 +107,10 @@ body[data-gs-show="wheel"] .gsw-tile { height: clamp(30px, 5.4vh, 52px); width: 
 body[data-gs-show="wheel"] .gsw-wheel { width: clamp(190px, 30vh, 300px); }
 body[data-gs-show="wheel"] .gsw-lower { gap: clamp(10px, 2.2vw, 28px); margin-top: 2px; }
 body[data-gs-show="wheel"] .gsw-puzzleframe { padding: clamp(8px, 1.4vh, 16px) 16px; }
+
+/* On the stage the turn is one row in the dock, so the wheel and the puzzle stay in sight. */
+body[data-gs-show="wheel"] .gp-dock .gsw-controls { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 8px; }
+body[data-gs-show="wheel"] .gp-dock .gsw-spinbtn { width: 64px; height: 64px; font-size: 14px; }
+body[data-gs-show="wheel"] .gp-dock .gsw-letters { max-width: none; }
+body[data-gs-show="wheel"] .gp-dock .gsw-letter { min-width: 34px; padding: 7px 3px; }
+body[data-gs-show="wheel"] .gsw-pod-total { display: block; font-size: 11px; font-weight: 700; color: var(--gs-dim); white-space: nowrap; }

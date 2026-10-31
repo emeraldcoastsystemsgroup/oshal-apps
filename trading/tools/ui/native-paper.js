@@ -19,6 +19,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: arm/disarm the native paper book and activate/deactivate its person schedule from the account view.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Armed vs scheduled told apart: the header pill said "autopilot on" and the button offered only Stop for an armed book whose paper-autopilot job was not activated, so nothing traded and the page offered no way to schedule it. After the header paints, nativePaperSync reads the person's job (GET /api/v1/agent/schedules) and paperAutopilotState decides the pill, the button (Activate paper schedule / Stop / Start) and the line under it. A start whose job is not listed or not activated now repaints too, so the header never keeps the pre-arm state.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The page keeps the paper schedule on: while the person has any armed paper account (one the concierge created in chat, or a Start pressed earlier) and their paper-autopilot job is not active, the page activates it in their own session, on open and every minute while visible. Before this, an account the concierge armed never traded until the person found the separate schedule button, and a Trading update that suspended the job left paper silently stopped.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The keeper also keeps the Quant desk's nightly job on while the person has the desk turned on (view-quant.js).
  */
 
 /* The Jobs screen's own activation configuration (crates/api/src/jobs.js "Activate for me"). */
@@ -237,7 +238,7 @@ async function paperScheduleKeep() {
  * @returns {void}
  */
 function startPaperScheduleKeeper() {
-  const pass = () => { if (!document.hidden) paperScheduleKeep(); };
+  const pass = () => { if (document.hidden) return; paperScheduleKeep(); if (typeof quantScheduleKeep === 'function') quantScheduleKeep(); };
   pass();
   setInterval(pass, 60000);
   document.addEventListener('visibilitychange', pass);

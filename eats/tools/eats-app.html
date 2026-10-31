@@ -7,12 +7,12 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: what Eats keeps for the
-     household (the dishes waiting in the order, the saved tastes, the recent checkout links, whether Uber Eats is
-     linked) from the SAME /api/eats routes the full page reads, painted by the shared kit in the family grammar. On
-     open it reads only /home-summary, /profile, /orders/history and /config: never /cart (the full page's own order
-     read), never /search or /menu (the catalog provider), never the concierge, never a write. Ordering stays
-     in the full page; the one action opens Eats in the cockpit. Any other request runs the full Eats page below
-     unchanged, and so does a core without the shared kit. -->
+     household (the restaurants opened in Uber Eats, the saved tastes, the recent hand-off links, how ordering
+     works here) from the SAME /api/eats routes the full page reads, painted by the shared kit in the family
+     grammar. On open it reads only /home-summary, /profile, /orders/history and /config: never /search (the
+     restaurant source), never /photo, never the concierge, never a write. Ordering stays in the full page; the
+     one action opens Eats in the cockpit. Any other request runs the full Eats page below unchanged, and so does
+     a core without the shared kit. -->
 <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
 <style>
   /* This page pins its body to the viewport and hides overflow for its own two-pane layout; under an audience view
@@ -23,7 +23,7 @@
 <script>
 (function () {
   var A = window.AppView; if (!A) return;
-  var FULL = '/cockpit/?app=eats', CART = 'In your meal cart · ', LIMIT = 20;
+  var FULL = '/cockpit/?app=eats', OPENED = 'Opened in Uber Eats · ', LIMIT = 20;
   function call(path) {
     return fetch('/api/eats' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.error || ('HTTP ' + r.status)); e.status = r.status; throw e; } return j; });
@@ -34,10 +34,10 @@
   function optional(path) { return call(path).catch(function (e) { if (refused(e)) throw e; return null; }); }
   function metric(sum, id) { return ((sum && sum.metrics) || []).filter(function (m) { return m.id === id; })[0] || null; }
   function known(m) { return !!m && m.value !== 'Unavailable'; }
-  // A dish waiting in the order, as the home summary lists it: text is the title, detail is 'In your meal cart · <stamp>'.
-  function isDish(item) { return !!item && typeof item.detail === 'string' && item.detail.indexOf(CART) === 0; }
-  function added(item) { var stamp = item.detail.slice(CART.length); return stamp === 'date unknown' ? 'time not saved' : A.when(stamp); }
-  function dish(item) { return { icon: '🍽️', title: item.text || 'Untitled', text: 'Waiting in the order', meta: 'added ' + added(item) }; }
+  // A restaurant opened in Uber Eats, as the home summary lists it: text is the restaurant, detail is 'Opened in Uber Eats · <stamp>'.
+  function isHandoff(item) { return !!item && typeof item.detail === 'string' && item.detail.indexOf(OPENED) === 0; }
+  function opened(item) { var stamp = item.detail.slice(OPENED.length); return stamp === 'date unknown' ? 'time not saved' : A.when(stamp); }
+  function handoff(item) { return { icon: '🧾', title: item.text || 'A restaurant', text: 'Opened in Uber Eats', meta: 'opened ' + opened(item) }; }
   function words(values) { return Array.isArray(values) ? values.filter(Boolean).map(String) : []; }
   function budget(p) { var n = Number(p.budget_per_order); return p.budget_per_order !== null && p.budget_per_order !== undefined && p.budget_per_order !== '' && isFinite(n) ? A.money(n) : null; }
   // The saved tastes, in the full page's own words for what is not set; nothing at all saved is an empty section, not four blanks.
@@ -51,37 +51,36 @@
       { icon: '📍', title: 'Delivers to', text: address || 'No address saved' }
     ];
   }
-  function checkout(o) { return { icon: '🧾', title: o.store_name || 'A restaurant', text: o.total === null || o.total === undefined ? 'Checkout link, no total saved' : 'Checkout link, ' + A.money(o.total), meta: A.when(o.created_at) }; }
+  function link(o) { return { icon: '🔗', title: o.store_name || 'A restaurant', text: 'Uber Eats link', meta: A.when(o.created_at) }; }
   function stats(sum, orders, cfg) {
-    var pending = metric(sum, 'pending-meal-items'), five = metric(sum, 'meal-handoffs-5d');
+    var day = metric(sum, 'meal-handoffs-24h'), five = metric(sum, 'meal-handoffs-5d');
     return [
-      { id: 'pending', label: 'In the order now', value: known(pending) ? pending.value : '—', hint: known(pending) ? null : 'Could not check' },
-      { id: 'links', label: 'Checkout links, 5 days', value: known(five) ? five.value : '—', hint: known(five) ? 'Not placed orders' : 'Could not check' },
-      { id: 'saved', label: 'Saved checkouts', value: !orders ? '—' : orders.length >= LIMIT ? LIMIT + '+' : orders.length, hint: orders ? null : 'Could not check' },
-      // rail 'absent': no Uber Eats connector exists on this installation, so there is nothing to link.
-      { id: 'uber', label: 'Uber Eats', value: !cfg ? '—' : cfg.rail === 'catalog' ? 'Handoff' : cfg.rail === 'absent' ? 'None here' : cfg.uberConnected ? 'Linked' : 'Not linked', hint: !cfg ? 'Could not check' : cfg.rail === 'catalog' ? 'Ordering opens Uber Eats on your own sign-in' : cfg.rail === 'absent' ? 'This installation has no Uber Eats connector' : cfg.uberConnected ? null : 'Restaurant search needs an Uber Eats connection' }
+      { id: 'day', label: 'Opened today', value: known(day) ? day.value : '—', hint: known(day) ? 'Not placed orders' : 'Could not check' },
+      { id: 'links', label: 'Opened, 5 days', value: known(five) ? five.value : '—', hint: known(five) ? 'Not placed orders' : 'Could not check' },
+      { id: 'saved', label: 'Saved links', value: !orders ? '—' : orders.length >= LIMIT ? LIMIT + '+' : orders.length, hint: orders ? null : 'Could not check' },
+      { id: 'uber', label: 'Uber Eats', value: !cfg ? '—' : cfg.rail === 'places' ? 'Handoff' : 'Not set up', hint: !cfg ? 'Could not check' : cfg.rail === 'places' ? 'Opens at your address on your own sign-in' : 'This installation names no restaurant source' }
     ];
   }
-  // Nothing waiting and no checkout link to name: "Nothing saved yet" only when the history answered empty AND the
-  // profile answered with no tastes. A read that failed, or tastes that are saved, are named, never guessed over.
+  // Nothing opened and no link to name: "Nothing saved yet" only when the history answered empty AND the profile
+  // answered with no tastes. A read that failed, or tastes that are saved, are named, never guessed over.
   function idle(orders, profile) {
     var saved = !!profile && tastes(profile).length > 0, said = [];
-    if (orders && profile && !saved) return { title: 'Nothing saved yet', lede: 'Open Eats to find a restaurant and start an order. You confirm and pay in Uber Eats, never here.' };
-    if (!orders) said.push('Saved checkouts could not be checked.');
+    if (orders && profile && !saved) return { title: 'Nothing saved yet', lede: 'Open Eats to find the restaurants near you and open one in Uber Eats. You choose the dishes and pay in Uber Eats, never here.' };
+    if (!orders) said.push('Saved links could not be checked.');
     if (!profile) said.push('Saved tastes could not be checked.');
     if (saved) said.push('Eats keeps the saved tastes for the next order.');
-    return { title: 'Nothing in the order right now', lede: said.join(' ') };
+    return { title: 'No restaurant opened recently', lede: said.join(' ') };
   }
   function headline(n, items, orders, profile) {
     var first = items[0], last = orders && orders[0];
-    if (n === null) return { title: 'Some saved data cannot be checked', lede: 'Eats could not read part of what it keeps. Open Eats to see the order.' };
-    if (n > 0) return { title: n === 1 ? '1 thing in the order' : n + ' things in the order', lede: (first ? 'Newest: ' + (first.text || 'Untitled') + ', added ' + added(first) + '. ' : '') + 'Finish or change the order in Eats.' };
-    if (last) return { title: 'Nothing in the order right now', lede: 'Last checkout link: ' + (last.store_name || 'a restaurant') + ', ' + A.when(last.created_at) + '.' };
+    if (n === null) return { title: 'Some saved data cannot be checked', lede: 'Eats could not read part of what it keeps. Open Eats to see the restaurants near you.' };
+    if (first) return { title: 'Last restaurant: ' + (first.text || 'a restaurant'), lede: 'Opened in Uber Eats ' + opened(first) + '. Open Eats to find another or open it again.' };
+    if (last) return { title: 'No restaurant opened recently', lede: 'Last Uber Eats link: ' + (last.store_name || 'a restaurant') + ', ' + A.when(last.created_at) + '.' };
     return idle(orders, profile);
   }
   function model(sum, profile, orders, cfg) {
-    var pending = metric(sum, 'pending-meal-items'), n = known(pending) && isFinite(Number(pending.value)) ? Number(pending.value) : null;
-    var items = ((sum && sum.items) || []).filter(isDish), head = headline(n, items, orders, profile), more = n !== null && n > items.length;
+    var five = metric(sum, 'meal-handoffs-5d'), n = known(five) && isFinite(Number(five.value)) ? Number(five.value) : null;
+    var items = ((sum && sum.items) || []).filter(isHandoff), head = headline(n, items, orders, profile), more = n !== null && n > items.length;
     return {
       kicker: 'Food delivery',
       title: head.title,
@@ -89,11 +88,11 @@
       actions: [{ label: 'Order food in Eats', primary: true, onClick: function () { A.open(FULL); } }],
       stats: stats(sum, orders, cfg),
       sections: [
-        { kind: 'list', id: 'order', title: 'In the order now', empty: n === null ? 'The order could not be checked.' : 'Nothing in the order right now.', items: items.map(dish),
-          note: sum && sum.partial ? 'Some saved data could not be checked.' : more ? 'Showing the newest ' + items.length + ' of ' + n + '. Open Eats for the whole order.' : null },
+        { kind: 'list', id: 'recent', title: 'Opened in Uber Eats lately', empty: n === null ? 'The recent restaurants could not be checked.' : 'No restaurant opened in the last five days.', items: items.map(handoff),
+          note: sum && sum.partial ? 'Some saved data could not be checked.' : more ? 'Showing the newest ' + items.length + ' of ' + n + '. Open Eats for all of them.' : null },
         { kind: 'tiles', id: 'tastes', title: 'What Eats knows about us', empty: profile ? 'Nothing saved yet. Eats learns tastes as you order.' : 'Saved tastes could not be checked.', items: profile ? tastes(profile) : [] },
-        { kind: 'list', id: 'checkouts', title: 'Recent checkout links', empty: orders ? 'No checkout links yet.' : 'Saved checkouts could not be checked.', items: (orders || []).slice(0, 8).map(checkout),
-          note: 'A checkout link opens Uber Eats. It does not mean an order was placed or delivered.' }
+        { kind: 'list', id: 'checkouts', title: 'Recent Uber Eats links', empty: orders ? 'No Uber Eats links yet.' : 'Saved links could not be checked.', items: (orders || []).slice(0, 8).map(link),
+          note: 'A link opens Uber Eats at your address with that restaurant searched. It does not mean an order was placed or delivered.' }
       ]
     };
   }
@@ -101,9 +100,9 @@
     return Promise.all([call('/home-summary'), optional('/profile'), optional('/orders/history'), optional('/config')]).then(function (r) {
       return model(r[0], r[1] && r[1].profile ? r[1].profile : null, r[2] && Array.isArray(r[2].orders) ? r[2].orders : null, r[3]);
     }).catch(function (e) {
-      if (!refused(e)) throw e && e.status >= 500 ? new Error('Eats could not read the saved order (HTTP ' + e.status + ').') : e;
-      return { kicker: 'Food delivery', title: e.status === 401 ? 'Sign in to see the order' : 'This account cannot open Eats',
-        lede: e.status === 401 ? 'Eats shows the order of whoever is signed in, and this session is not signed in.' : 'The Eats routes refused this account (HTTP 403).' };
+      if (!refused(e)) throw e && e.status >= 500 ? new Error('Eats could not read the saved links (HTTP ' + e.status + ').') : e;
+      return { kicker: 'Food delivery', title: e.status === 401 ? 'Sign in to see your restaurants' : 'This account cannot open Eats',
+        lede: e.status === 401 ? 'Eats shows the restaurants of whoever is signed in, and this session is not signed in.' : 'The Eats routes refused this account (HTTP 403).' };
     });
   }
   // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
@@ -450,12 +449,7 @@
   }
   .side {
     display: grid;
-    grid-template-rows: minmax(0, 1fr) minmax(230px, 300px);
-  }
-  .cart {
-    min-height: 0;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: minmax(0, 1fr) minmax(170px, 240px);
   }
   .side-head {
     padding: 13px 14px 10px;
@@ -470,66 +464,58 @@
     color: var(--muted);
     font-size: 12px;
   }
-  .cart-items {
+  .handoffs {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    border-top: 1px solid var(--line);
+  }
+  .handoff-list {
     min-height: 0;
     overflow: auto;
-    padding: 10px 12px;
+    padding: 8px 12px;
   }
-  .cart-row {
+  .handoff-row {
     display: grid;
-    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 9px;
     align-items: center;
-    padding: 9px 0;
+    padding: 8px 0;
     border-bottom: 1px solid var(--line);
   }
-  .cart-thumb {
-    width: 38px;
-    height: 38px;
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--surface-2);
-    display: grid;
-    place-items: center;
-    font-weight: 900;
-  }
-  .cart-thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .cart-row b {
+  .handoff-row b {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 13px;
   }
-  .cart-row span {
+  .handoff-row span {
     display: block;
     margin-top: 2px;
     color: var(--muted);
     font-size: 12px;
   }
-  .remove {
-    border: 0;
-    background: transparent;
-    color: var(--dim);
-    font-size: 20px;
-  }
-  .summary {
-    display: grid;
-    gap: 9px;
-    padding: 12px;
-    border-top: 1px solid var(--line);
-  }
-  .total {
-    display: flex;
-    justify-content: space-between;
-    font-size: 16px;
-    font-weight: 900;
+  .handoff-row a {
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 12px;
+    text-decoration: none;
   }
   .note {
     color: var(--muted);
     font-size: 11px;
     line-height: 1.35;
   }
+  .field-hint { color: var(--muted); font-size: 12px; }
+  .saved-line { margin: -4px 0 10px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .saved-line.quota { color: var(--warn); font-weight: 700; }
+  .btn.refresh { min-height: 30px; padding: 0 10px; font-size: 12px; }
+  .feed-link { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 800; text-decoration: none; }
+  .card-address { margin-top: 5px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-actions { display: flex; gap: 8px; align-items: center; margin-top: 9px; }
+  .card-actions .add-btn { margin-top: 0; }
+  .map-link { flex: none; color: var(--muted); font-size: 12px; font-weight: 800; text-decoration: none; }
   .assistant {
     min-height: 0;
     display: grid;
@@ -612,7 +598,6 @@
     .hero { grid-template-columns: 1fr; }
     .personal-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .side { display: block; }
-    .cart-items { max-height: none; }
     .assistant { border-left: 0; border-top: 1px solid var(--line); min-height: 300px; }
     .connection { display: none; }
   }
@@ -650,7 +635,7 @@
   .side,
   .mini,
   .card,
-  .cart-row,
+  .handoff-row,
   .msg.bot {
     background: var(--eats-card);
     box-shadow: var(--eats-shadow);
@@ -742,7 +727,6 @@
   }
 
   .side-head,
-  .summary,
   .chat-row,
   .personal-strip {
     background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -809,7 +793,7 @@
   <header class="topbar">
     <div class="brand-mark">E</div>
     <div class="brand">OSHAL Eats<small>Food delivery concierge</small></div>
-    <div class="connection"><span class="dot" id="connDot"></span><span id="connTxt">Checking catalog</span></div>
+    <div class="connection"><span class="dot" id="connDot"></span><span id="connTxt">Checking restaurant source</span></div>
   </header>
 
   <div class="layout">
@@ -819,9 +803,10 @@
           <h1 class="location-title">Food delivered where you are.</h1>
           <label class="field-label" for="address">Delivery address</label>
           <div class="location-row">
-            <input class="input" id="address" data-bridge-field="address" placeholder="Delivery address or current location" />
+            <input class="input" id="address" data-bridge-field="address" placeholder="Street address, city" />
             <button class="btn" id="locBtn" type="button">Use location</button>
           </div>
+          <div class="field-hint" id="placeLine">Restaurants are found around this address, and Uber Eats opens at it.</div>
         </div>
         <div class="search-panel">
           <label class="field-label" for="query">Restaurants and cravings</label>
@@ -837,7 +822,7 @@
         <div class="mini"><b id="prefCuisine">Any craving</b><span>Learned favorite cuisines</span></div>
         <div class="mini"><b id="prefDiet">No diet set</b><span>Dietary preferences</span></div>
         <div class="mini"><b id="prefBudget">Budget open</b><span>Per-order budget</span></div>
-        <div class="mini"><b id="orderHistory">No orders yet</b><span>Previous handoffs</span></div>
+        <div class="mini"><b id="orderHistory">Nothing opened yet</b><span>Opened in Uber Eats</span></div>
         <details class="remembered" id="rememberedBox" hidden>
           <summary id="rememberedSummary">What the concierge remembers</summary>
           <p class="remembered-hint">Saved from your conversations. Forget anything that is wrong and the concierge stops using it.</p>
@@ -848,40 +833,38 @@
       <section class="results">
         <div class="section-head">
           <button class="back" id="backBtn" type="button">Restaurants</button>
-          <h2 id="sectionTitle">Popular near you</h2>
+          <h2 id="sectionTitle">Restaurants near you</h2>
           <span class="sub" id="sectionSub"></span>
+          <button class="btn refresh" id="refreshBtn" type="button" title="Ask Google again instead of showing the saved results" hidden>Refresh</button>
+          <a class="feed-link" id="feedLink" href="https://www.ubereats.com/feed?diningMode=DELIVERY" target="_blank" rel="noopener" hidden>Browse everything on Uber Eats</a>
         </div>
+        <div class="saved-line" id="savedLine" role="status" hidden></div>
         <div class="food-grid" id="grid"></div>
       </section>
     </main>
 
     <aside class="side">
-      <section class="cart">
-        <div class="side-head">
-          <h2>Your order</h2>
-          <p id="cartStore">Pick a restaurant or ask the concierge.</p>
-        </div>
-        <div class="cart-items" id="cartItems"></div>
-        <div class="summary">
-          <div class="total"><span>Total</span><span id="total">$0.00</span></div>
-          <button class="btn primary" id="orderBtn" type="button" disabled>Open Uber Eats</button>
-          <div class="note">OSHAL builds the order state. Uber Eats handles live availability, final price, address confirmation, and payment.</div>
-        </div>
-      </section>
-
       <section class="assistant">
         <div class="side-head">
           <h2>Eats Concierge</h2>
-          <p>Ask for a meal and the order updates here.</p>
+          <p>Say what you feel like. I find places near you and open Uber Eats at the one you pick.</p>
         </div>
         <div class="messages" id="messages">
-          <div class="msg bot">Tell me what sounds good. I can search, add items, remember preferences, and hand off checkout.</div>
+          <div class="msg bot">Tell me what sounds good. I know the restaurants near your address, remember your tastes and allergies, and open Uber Eats at the one you choose.</div>
         </div>
         <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
         <div class="chat-row">
-          <input class="input" id="chatInput" placeholder="I want spicy Italian for two..." />
+          <input class="input" id="chatInput" placeholder="Spicy Thai for two, under $40..." />
           <button class="btn primary" id="chatSend" type="button">Send</button>
         </div>
+      </section>
+
+      <section class="handoffs">
+        <div class="side-head">
+          <h2>Opened in Uber Eats</h2>
+          <p>Restaurants you opened. Opening one is not a placed order: you choose the dishes and pay in Uber Eats.</p>
+        </div>
+        <div class="handoff-list" id="handoffList"></div>
       </section>
     </aside>
   </div>
@@ -894,16 +877,16 @@ const API = '/api/eats';
 const $ = (selector) => document.querySelector(selector);
 const state = {
   conversationId: localStorage.getItem('oshalEatsConv') || '',
-  cart: { items: [], total: 0, totalCents: 0, unpricedLines: 0, storeName: '' },
-  cartId: '',
   profile: null,
   history: [],
-  mode: 'restaurants',
   restaurants: [],
-  dishes: [],
-  proposedAction: null
+  place: null,
+  query: '',
+  heading: 'Restaurants near you',
+  proposedAction: null,
+  proposedPlaceId: ''
 };
-const chips = ['Pizza', 'Burgers', 'Sushi', 'Tacos', 'Healthy', 'Italian', 'Ramen', 'Fast food'];
+const chips = ['Pizza', 'Burgers', 'Sushi', 'Tacos', 'Healthy', 'Italian', 'Ramen', 'Thai'];
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -942,15 +925,19 @@ async function postJson(url, body) {
   }));
 }
 
-// The restaurant catalog, menus and checkout hand-off come from Uber Eats. Where this installation has no Uber
-// Eats rail the server refuses those calls (HTTP 503); the page says so instead of "no matches", and never offers a
-// connection that does not exist here.
-const NOT_CONNECTED = 'Unavailable: this installation has no Uber Eats rail (no Uber Eats connector exists here), so restaurants, menus and checkout links cannot be searched or opened from here. The concierge can still help you decide what to eat.';
-function providerRefused(result) {
-  return Boolean(result && (result.httpStatus === 503 || result.error === 'native_executor_unavailable'));
+// The restaurants come from Google Places around the delivery address, through the server. A search needs an address
+// first; a refused or failed search (the server's key not configured, the Places API not enabled, quota) is shown in
+// the server's own words and never as "no restaurants matched".
+const ADDRESS_NEEDED = 'Set your delivery address first (type it above, or press Use location). Restaurants are found around it, and Uber Eats opens at it.';
+function searchFailed(result) {
+  return Boolean(result && result.httpStatus >= 400);
 }
-function showNotConnected() {
-  $('#grid').innerHTML = `<div class="empty" role="status">${escapeHtml(NOT_CONNECTED)}</div>`;
+function showUnavailable(result) {
+  const message = (result && (result.message || result.error)) || ('Search failed (HTTP ' + (result && result.httpStatus) + ')');
+  $('#grid').innerHTML = `<div class="empty" role="alert">${escapeHtml(message)}</div>`;
+}
+function showAddressNeeded() {
+  $('#grid').innerHTML = `<div class="empty" role="status">${escapeHtml(ADDRESS_NEEDED)}</div>`;
 }
 
 function renderChips(active = '') {
@@ -966,151 +953,125 @@ function renderChips(active = '') {
   });
 }
 
-function imageMarkup(item) {
-  const letter = String(item.title || item.brand || '?').trim().charAt(0).toUpperCase() || 'E';
-  const img = item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy" onerror="this.remove()">` : '';
-  const rating = item.rating ? `<span class="badge">Rating ${escapeHtml(item.rating)}</span>` : '';
-  const eta = item.etaMinutes ? `<span class="eta">${escapeHtml(item.etaMinutes)} min</span>` : '';
-  return `<div class="photo"><span class="fallback">${escapeHtml(letter)}</span>${img}${rating}${eta}</div>`;
+/** The facts line under a restaurant's name. */
+function restaurantMeta(item) {
+  return [
+    item.cuisine || 'Restaurant',
+    item.priceLabel || '',
+    item.openNow === true ? 'Open now' : item.openNow === false ? 'Closed now' : '',
+    item.distanceKm !== null && item.distanceKm !== undefined ? `${item.distanceKm} km` : ''
+  ].filter(Boolean).join(' · ');
 }
 
 function renderRestaurantCard(item) {
-  const price = item.priceFrom != null ? `from $${Number(item.priceFrom).toFixed(2)}` : '';
-  return `<article class="card" data-store="${escapeHtml(item.productId)}" data-store-name="${escapeHtml(item.title)}">
-    ${imageMarkup(item)}
+  const letter = String(item.name || '?').trim().charAt(0).toUpperCase() || 'E';
+  const rating = item.rating ? `<span class="badge">★ ${escapeHtml(item.rating)}${item.ratingCount ? ` (${escapeHtml(item.ratingCount)})` : ''}</span>` : '';
+  const delivers = item.delivery === true ? '<span class="eta">Delivers</span>' : '';
+  const map = item.mapsUrl ? `<a class="map-link" href="${escapeHtml(item.mapsUrl)}" target="_blank" rel="noopener">Map</a>` : '';
+  return `<article class="card" data-place="${escapeHtml(item.placeId)}" data-place-name="${escapeHtml(item.name)}">
+    <div class="photo" data-photo="${escapeHtml(item.photo || '')}"><span class="fallback">${escapeHtml(letter)}</span>${rating}${delivers}</div>
     <div class="card-body">
-      <div class="card-title">${escapeHtml(item.title)}</div>
-      <div class="card-meta"><span>${escapeHtml(item.cuisine || 'Restaurant')}</span><span class="price">${escapeHtml(price)}</span></div>
+      <div class="card-title">${escapeHtml(item.name)}</div>
+      <div class="card-meta"><span>${escapeHtml(restaurantMeta(item))}</span></div>
+      <div class="card-address">${escapeHtml(item.address || '')}</div>
+      <div class="card-actions">
+        <button class="add-btn" type="button" data-order="${escapeHtml(item.placeId)}">Order on Uber Eats</button>
+        ${map}
+      </div>
     </div>
   </article>`;
 }
 
-function renderDishCard(item) {
-  return `<article class="card">
-    ${imageMarkup(item)}
-    <div class="card-body">
-      <div class="card-title">${escapeHtml(item.title)}</div>
-      <div class="card-meta"><span>${escapeHtml(item.brand || '')}</span><span class="price">$${Number(item.price || 0).toFixed(2)}</span></div>
-      <button class="add-btn" type="button"
-        data-add
-        data-store-id="${escapeHtml(item.storeId)}"
-        data-store-name="${escapeHtml(item.brand)}"
-        data-product-id="${escapeHtml(item.productId)}"
-        data-title="${escapeHtml(item.title)}">Add to order</button>
-    </div>
-  </article>`;
+/** Load each card's photo through the server (the browser never needs the Places key). */
+function loadPhotos() {
+  document.querySelectorAll('[data-photo]').forEach(async (box) => {
+    const name = box.dataset.photo;
+    if (!name) return;
+    const result = await getJson(`${API}/photo?name=${encodeURIComponent(name)}`).catch(() => null);
+    if (!result || !result.photoUri || !box.isConnected) return;
+    const img = document.createElement('img');
+    img.alt = '';
+    img.loading = 'lazy';
+    img.src = result.photoUri;
+    img.addEventListener('error', () => img.remove());
+    box.appendChild(img);
+  });
 }
 
-async function search(query = '') {
-  state.mode = 'restaurants';
+/** Wire every rendered card's Order button (search and chat cards alike) and remember what is shown. */
+function hydrateCards(items) {
+  state.restaurants = items.slice(0, 40);
+  document.querySelectorAll('[data-order]').forEach((button) => {
+    button.addEventListener('click', () => requestOrder(button.dataset.order || ''));
+  });
+  loadPhotos();
+  publishContext();
+}
+
+/** When a saved answer was fetched, in words. */
+function savedAgo(iso) {
+  const at = new Date(String(iso || ''));
+  if (!Number.isFinite(at.getTime())) return 'earlier';
+  const minutes = Math.round((Date.now() - at.getTime()) / 60000);
+  if (minutes < 2) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 36) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+/** The line under the heading: where the results came from, and Refresh when they are saved. */
+function showSavedLine(result) {
+  const line = $('#savedLine'), refresh = $('#refreshBtn');
+  if (!result || result.served !== 'saved') { line.hidden = true; line.textContent = ''; line.classList.remove('quota'); refresh.hidden = !result || !result.savedAt; return; }
+  const quota = Boolean(result.fallback);
+  line.textContent = quota
+    ? `Google could not be asked (${(result.fallback && result.fallback.message) || 'limit reached'}). Showing results saved ${savedAgo(result.savedAt)}.`
+    : `Saved results from ${savedAgo(result.savedAt)}; Google is asked again after a day, or press Refresh now.`;
+  line.classList.toggle('quota', quota);
+  line.hidden = false;
+  refresh.hidden = false;
+}
+
+/**
+ * Search the restaurants near the address. The page's own start reads (a GET, which the server may answer from the
+ * saved rows but never writes); a search the person asks for, a chip or Refresh is a POST, which the server may save.
+ */
+async function search(query = '', refresh = false, readOnly = false) {
+  state.query = query;
   renderChips(query);
   $('#backBtn').style.display = 'none';
-  $('#sectionTitle').textContent = query ? `Results for "${query}"` : 'Popular near you';
-  $('#sectionSub').textContent = $('#address').value ? `Delivering to ${$('#address').value}` : 'Set a location for better results';
-  $('#grid').innerHTML = '<div class="empty">Finding restaurants...</div>';
-  const result = await getJson(`${API}/search?q=${encodeURIComponent(query)}&limit=16`);
-  if (providerRefused(result)) { state.restaurants = []; showNotConnected(); publishContext(); return; }
-  if (result.httpStatus >= 400) { $('#grid').innerHTML = `<div class="empty" role="alert">Search failed: ${escapeHtml(result.error || ('HTTP ' + result.httpStatus))}</div>`; return; }
+  const address = $('#address').value.trim();
+  state.heading = query ? `Results for "${query}"` : 'Restaurants near you';
+  $('#sectionTitle').textContent = state.heading;
+  if (!address) { state.restaurants = []; $('#sectionSub').textContent = ''; showSavedLine(null); showAddressNeeded(); publishContext(); return; }
+  $('#sectionSub').textContent = `Delivering to ${address}`;
+  $('#grid').innerHTML = `<div class="empty">${refresh ? 'Asking Google again...' : 'Finding restaurants near you...'}</div>`;
+  const result = readOnly
+    ? await getJson(`${API}/search?q=${encodeURIComponent(query)}&address=${encodeURIComponent(address)}&limit=16`)
+    : await postJson(`${API}/search`, { query, address, limit: 16, refresh: Boolean(refresh) });
+  if (searchFailed(result)) { state.restaurants = []; showSavedLine(null); showUnavailable(result); publishContext(); return; }
   const items = result.items || [];
-  state.restaurants = items.slice(0, 40);
-  state.dishes = [];
-  $('#grid').innerHTML = items.length ? items.map(renderRestaurantCard).join('') : '<div class="empty">No restaurants matched that craving.</div>';
-  document.querySelectorAll('[data-store]').forEach((card) => {
-    card.addEventListener('click', () => openMenu(card.dataset.store || '', card.dataset.storeName || 'Restaurant'));
-  });
-  publishContext();
+  state.place = result.place || null;
+  if (state.place && state.place.address) $('#sectionSub').textContent = `Delivering to ${state.place.address}`;
+  if (result.feedUrl) { $('#feedLink').href = result.feedUrl; $('#feedLink').hidden = false; }
+  showSavedLine(result);
+  $('#grid').innerHTML = items.length ? items.map(renderRestaurantCard).join('') : '<div class="empty">No restaurants matched that craving near your address. Try another craving.</div>';
+  hydrateCards(items);
 }
 
-/** Wire every rendered dish's Add button (menu and chat cards alike) and remember what is shown. */
-function hydrateDishButtons(items) {
-  state.dishes = items.slice(0, 40);
-  document.querySelectorAll('[data-add]').forEach((button) => {
-    button.addEventListener('click', () => addItem({
-      storeId: button.dataset.storeId,
-      storeName: button.dataset.storeName,
-      productId: button.dataset.productId,
-      title: button.dataset.title
-    }));
-  });
-  publishContext();
-}
-
-async function openMenu(storeId, storeName) {
-  state.mode = 'menu';
-  $('#backBtn').style.display = 'inline';
-  $('#sectionTitle').textContent = storeName;
-  $('#sectionSub').textContent = 'Menu';
-  $('#grid').innerHTML = '<div class="empty">Loading menu...</div>';
-  const result = await getJson(`${API}/menu?storeId=${encodeURIComponent(storeId)}`);
-  if (providerRefused(result)) { showNotConnected(); return; }
-  const items = result.items || [];
-  $('#grid').innerHTML = items.length ? items.map(renderDishCard).join('') : '<div class="empty">No menu items found.</div>';
-  hydrateDishButtons(items);
-}
-
-async function addItem(item) {
-  // The server prices the line from the restaurant's menu: only the ids travel, never a price.
-  const result = await postJson(`${API}/cart/items`, { storeId: item.storeId, productId: item.productId, quantity: 1 });
-  if (!result || result.error) {
-    toast((result && result.message) || 'That dish could not be confirmed');
+/** The hand-off: the server records it and answers the Uber Eats link at the delivery address; this is the ONLY place that opens it. */
+async function requestOrder(placeId) {
+  if (!placeId) return;
+  const known = state.restaurants.find((r) => String(r.placeId) === String(placeId));
+  const result = await postJson(`${API}/order`, { placeId, address: $('#address').value.trim() });
+  if (searchFailed(result) || !result.checkoutUrl) {
+    toast((result && (result.message || result.error)) || 'Uber Eats could not be opened');
     return;
   }
-  const title = (result.item && result.item.title) || item.title || 'item';
-  if (result.storeSwitched) toast(`Started a new order at ${result.storeName || item.storeName || 'this restaurant'}`);
-  else toast(`Added ${title}`);
-  renderCart(result);
-}
-
-function renderCart(data) {
-  const items = data.items || [];
-  if (data.cartId) state.cartId = data.cartId;
-  state.cart = {
-    items,
-    total: Number(data.total || 0),
-    totalCents: Number(data.totalCents) || 0,
-    unpricedLines: Number(data.unpricedLines) || 0,
-    storeName: data.storeName || data.cart?.store_name || ''
-  };
-  $('#cartStore').textContent = data.storeName || state.cart.storeName || (items.length ? 'Restaurant order' : 'Pick a restaurant or ask the concierge.');
-  $('#total').textContent = `$${Number(data.total || 0).toFixed(2)}`;
-  $('#orderBtn').disabled = items.length === 0;
-  $('#cartItems').innerHTML = items.length ? items.map((item) => {
-    const image = item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="">` : escapeHtml(String(item.title || '?').charAt(0).toUpperCase());
-    return `<div class="cart-row">
-      <div class="cart-thumb">${image}</div>
-      <div><b>${escapeHtml(item.title)}</b><span>$${Number(item.price || 0).toFixed(2)} x ${escapeHtml(item.quantity || 1)}</span></div>
-      <button class="remove" type="button" data-remove="${escapeHtml(item.row_id)}">x</button>
-    </div>`;
-  }).join('') : '<div class="empty">Your order is empty. Add food or ask the concierge.</div>';
-  document.querySelectorAll('[data-remove]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const response = await fetch(`${API}/cart/items/${button.dataset.remove}`, { method: 'DELETE', credentials: 'same-origin' });
-      renderCart(await response.json());
-    });
-  });
-  publishContext();
-}
-
-async function loadCart() {
-  renderCart(await getJson(`${API}/cart`));
-}
-
-async function requestOrder() {
-  const button = $('#orderBtn');
-  button.disabled = true;
-  button.textContent = 'Opening Uber Eats';
-  const result = await postJson(`${API}/order`, {});
-  button.textContent = 'Open Uber Eats';
-  button.disabled = state.cart.items.length === 0;
-  if (providerRefused(result)) {
-    toast('Uber Eats is not connected, so the order cannot open');
-  } else if (result.checkoutUrl) {
-    toast('Opening Uber Eats');
-    window.open(result.checkoutUrl, '_blank');
-    loadHistory();
-  } else {
-    toast(result.error || 'Add items first');
-  }
+  toast(`Opening Uber Eats for ${result.store || (known && known.name) || 'this restaurant'}`);
+  window.open(result.checkoutUrl, '_blank');
+  loadHistory();
 }
 
 function addMessage(role, text) {
@@ -1128,77 +1089,66 @@ async function sendChat() {
   if (!text) return;
   input.value = '';
   addMessage('me', text);
-  const pending = addMessage('bot', 'Building that order...');
+  const pending = addMessage('bot', 'Looking near you...');
   try {
     const result = await postJson(`${API}/chat`, {
       message: text,
       conversationId: state.conversationId,
       location: $('#address').value.trim()
     });
-    if (providerRefused(result)) { pending.textContent = NOT_CONNECTED; return; }
+    if (searchFailed(result)) { pending.textContent = (result.message || result.error || 'The concierge could not answer.'); return; }
     state.conversationId = result.conversationId || state.conversationId;
     if (state.conversationId) localStorage.setItem('oshalEatsConv', state.conversationId);
-    pending.textContent = result.reply || 'I could not build that order yet.';
+    pending.textContent = result.reply || 'I could not find that yet.';
     // The route's allergy and diet check: a dish the reply names that usually carries one of the diner's restrictions
-    // is said on its own line (demo sweep 2: a Vegetarian Pad Thai right after a peanut allergy).
+    // is said on its own line.
     if (result.allergy && result.allergy.check) {
       const check = addMessage('bot', result.allergy.check);
       check.classList.add('allergy-check');
       check.setAttribute('role', 'status');
     }
+    if (result.place && result.place.address) { state.place = result.place; $('#sectionSub').textContent = `Delivering to ${result.place.address}`; }
     if (Array.isArray(result.cards) && result.cards.length) {
-      state.mode = 'menu';
-      $('#sectionTitle').textContent = 'Concierge picks';
-      $('#sectionSub').textContent = '';
+      state.heading = 'Concierge picks';
+      $('#sectionTitle').textContent = state.heading;
       $('#backBtn').style.display = 'inline';
-      $('#grid').innerHTML = result.cards.map(renderDishCard).join('');
-      hydrateDishButtons(result.cards);
+      $('#grid').innerHTML = result.cards.map(renderRestaurantCard).join('');
+      hydrateCards(result.cards);
     }
-    if ((result.added || []).length || result.cart) await loadCart();
     // A chat order is a PROPOSAL: it becomes a confirm card and nothing opens until the diner
-    // clicks Confirm (onProposalClick -> requestOrder()).
+    // clicks Confirm (onProposalClick -> requestOrder(placeId)).
     if (result.proposal) proposeOrder(result.proposal);
   } catch {
-    pending.textContent = 'I hit an error building that order. Try searching directly.';
+    pending.textContent = 'I hit an error answering that. Try searching directly.';
   }
 }
 
 // ── The assistant rail (shared surface bridge) ───────────────────────────────
 // The page publishes what it is showing (`context`) so the floating assistant answers about the
-// restaurants, menu and order on screen, and it takes the assistant's `custom` ops through the
-// same functions the buttons call. An order anyone proposes (the embedded concierge or the
+// restaurants and the address on screen, and it takes the assistant's `custom` ops through the
+// same functions the buttons call. A hand-off anyone proposes (the embedded concierge or the
 // floating assistant) is a `propose` card rendered by the shared client; only the diner's
 // Confirm opens Uber Eats.
 const EATS_APP = 'eats';
 const BRIDGE_CHANNEL = 'oshal-surface-bridge';
 const DIGEST_CAP = 3900;
-const SEARCH_DOC = 'Search restaurants and cravings and show them. data = {"query":"<words>"}.';
-const MENU_DOC = 'Open one restaurant\'s menu. data = {"storeId":"<a restaurant id from the digest>"}.';
-const ADD_DOC = 'Add one dish to the order; the server prices it from the menu, so send no price. data = {"storeId":"<restaurant id>","productId":"<dish id from the digest Menu line>"}.';
-const ORDER_DOC = 'Ask the diner to confirm opening the order in Uber Eats. It shows a confirm card; nothing opens until they click it. data = {}.';
+const SEARCH_DOC = 'Search restaurants near the delivery address and show them. data = {"query":"<craving, cuisine or restaurant name>"}.';
+const ORDER_DOC = 'Ask the diner to confirm opening one shown restaurant in Uber Eats at their address. It shows a confirm card; nothing opens until they click it. data = {"placeId":"<a restaurant id from the digest>"}.';
 
 /** The page state the digest summarises, read once so the digest itself stays a pure function. */
 function eatsView() {
   return {
-    cart: state.cart,
-    mode: state.mode,
-    heading: $('#sectionTitle').textContent,
+    heading: state.heading,
     address: $('#address').value.trim(),
-    restaurants: state.restaurants,
-    dishes: state.dishes
+    restaurants: state.restaurants
   };
 }
 
 // digest-helpers:start
 function eatsDigest(view) {
-  const items = view.cart.items || [];
-  const unpriced = Number(view.cart.unpricedLines) || 0;
-  const lines = [`Order: ${items.length} line${items.length === 1 ? '' : 's'}${view.cart.storeName ? ` from ${view.cart.storeName}` : ''}, total $${Number(view.cart.total || 0).toFixed(2)}${unpriced ? ` (${unpriced} without a price)` : ''}`];
-  if (items.length) lines.push('Lines: ' + items.map((i) => `${i.item_id} ${i.title} x${i.quantity} @ $${Number(i.price || 0).toFixed(2)}`).join('; '));
-  lines.push(`Deliver to: ${view.address || 'not set'}`);
-  lines.push(`Showing: ${view.heading} (${view.mode === 'menu' ? 'menu' : 'restaurants'})`);
-  if (view.mode === 'menu' && view.dishes.length) lines.push('Menu: ' + view.dishes.map((d) => `${d.storeId}/${d.productId} ${d.title} $${Number(d.price || 0).toFixed(2)}`).join('; '));
-  if (view.mode !== 'menu' && view.restaurants.length) lines.push('Restaurants: ' + view.restaurants.map((r) => `${r.productId} ${r.title}${r.cuisine ? ` (${r.cuisine})` : ''}`).join('; '));
+  const lines = [`Deliver to: ${view.address || 'not set'}`, `Showing: ${view.heading}`];
+  if (view.restaurants.length) lines.push('Restaurants: ' + view.restaurants.map((r) => `${r.placeId} ${r.name}${r.cuisine ? ` (${r.cuisine})` : ''}${r.rating ? ` ${r.rating}★` : ''}${r.priceLabel ? ` ${r.priceLabel}` : ''}${r.openNow === true ? ' open' : ''}`).join('; '));
+  lines.push('Ordering opens Uber Eats at the address; no menu or prices are known here.');
   const text = lines.join('\n');
   return text.length > DIGEST_CAP ? text.slice(0, DIGEST_CAP) + '\n…(truncated)' : text;
 }
@@ -1209,23 +1159,18 @@ function publishContext() {
   const view = eatsView();
   try {
     window.__bridge.emitContext({
-      surface: view.mode === 'menu' ? 'eats-menu' : 'eats-restaurants',
-      title: view.cart.storeName ? `Order from ${view.cart.storeName}` : 'Eats order',
-      ...(state.cartId ? { recordId: String(state.cartId) } : {}),
+      surface: 'eats-restaurants',
+      title: view.address ? `Eats near ${view.address}` : 'Eats',
       digest: eatsDigest(view),
       fields: {
-        orderLines: (view.cart.items || []).length,
-        totalCents: Number(view.cart.totalCents) || 0,
         address: view.address.slice(0, 200),
         query: $('#query').value.trim().slice(0, 200),
-        view: view.mode
+        restaurants: view.restaurants.length
       },
       can: ['set_field', 'custom', 'propose', 'notify'],
       customOps: [
         { name: 'search', description: SEARCH_DOC },
-        { name: 'open_menu', description: MENU_DOC },
-        { name: 'add_item', description: ADD_DOC },
-        { name: 'place_order', description: ORDER_DOC }
+        { name: 'open_uber_eats', description: ORDER_DOC }
       ]
     });
   } catch (err) {
@@ -1233,25 +1178,25 @@ function publishContext() {
   }
 }
 
-/** The confirm card for the current order (the server computed the total it quotes). */
-function cartProposal() {
-  const items = state.cart.items || [];
-  if (!items.length) return null;
-  const units = items.reduce((n, i) => n + (Number(i.quantity) || 1), 0);
-  const store = state.cart.storeName ? ` from ${state.cart.storeName}` : '';
-  return { summary: `Open Uber Eats for ${units} item${units === 1 ? '' : 's'}${store} totalling $${Number(state.cart.total || 0).toFixed(2)}? You confirm the address and pay in Uber Eats; nothing is charged here.` };
+/** The confirm card for one shown restaurant (the server words the summary when the concierge proposes). */
+function restaurantProposal(placeId) {
+  const known = state.restaurants.find((r) => String(r.placeId) === String(placeId));
+  if (!known) return null;
+  const address = (state.place && state.place.address) || $('#address').value.trim() || 'your address';
+  return { placeId: known.placeId, store: known.name, summary: `Open Uber Eats at ${address} with ${known.name} searched? You pick the dishes, confirm the address and pay in Uber Eats; nothing is ordered or charged here.` };
 }
 
-/** Show an order proposal as the shared client's confirm card; never opens anything itself. */
+/** Show a hand-off proposal as the shared client's confirm card; never opens anything itself. */
 function proposeOrder(proposal) {
   const summary = String((proposal && proposal.summary) || '').trim();
-  if (!summary) return;
+  if (!summary || !proposal.placeId) return;
+  state.proposedPlaceId = String(proposal.placeId);
   if (window.__bridgeProducer) {
-    window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'place_order', summary, confirmLabel: 'Open Uber Eats', cancelLabel: 'Not yet' }]);
+    window.__bridgeProducer.emitOps([{ op: 'propose', actionId: 'open_uber_eats', summary, confirmLabel: 'Open Uber Eats', cancelLabel: 'Not yet' }]);
     return;
   }
-  // No bridge module (an old cockpit or a static preview): say it; the explicit button stays the only way out.
-  addMessage('bot', `${summary} Use "Open Uber Eats" to continue.`);
+  // No bridge module (an old cockpit or a static preview): say it; the card's own button stays the only way out.
+  addMessage('bot', `${summary} Use "Order on Uber Eats" on its card to continue.`);
 }
 
 /** Remember which action the card on screen proposes (every propose replaces the last card). */
@@ -1272,10 +1217,10 @@ function onProposalClick(event) {
   const button = event.target && event.target.closest ? event.target.closest('button') : null;
   if (!button) return;
   const action = state.proposedAction;
-  if (button.classList.contains('bridge-cancel')) { state.proposedAction = null; return; }
+  if (button.classList.contains('bridge-cancel')) { state.proposedAction = null; state.proposedPlaceId = ''; return; }
   if (!button.classList.contains('bridge-confirm')) return;
   state.proposedAction = null;
-  if (action === 'place_order') requestOrder();
+  if (action === 'open_uber_eats') requestOrder(state.proposedPlaceId);
 }
 
 /** The assistant's custom ops, applied through the same functions the page's own buttons use. */
@@ -1289,22 +1234,9 @@ function onBridgeCustom(evt) {
     search(query);
     return;
   }
-  if (detail.name === 'open_menu') {
-    const storeId = String(data.storeId || '').trim();
-    const known = state.restaurants.find((r) => String(r.productId) === storeId);
-    if (storeId) openMenu(storeId, (known && known.title) || String(data.storeName || 'Restaurant'));
-    return;
-  }
-  if (detail.name === 'add_item') {
-    const storeId = String(data.storeId || '').trim();
-    const productId = String(data.productId || '').trim();
-    const shown = state.dishes.find((d) => String(d.productId) === productId && String(d.storeId) === storeId);
-    if (storeId && productId) addItem({ storeId, productId, title: shown ? shown.title : '', storeName: shown ? shown.brand : '' });
-    return;
-  }
-  if (detail.name === 'place_order') {
-    const proposal = cartProposal();
-    if (proposal) proposeOrder(proposal); else toast('Add items first');
+  if (detail.name === 'open_uber_eats') {
+    const proposal = restaurantProposal(String(data.placeId || '').trim());
+    if (proposal) proposeOrder(proposal); else toast('Search first, then name one of the restaurants shown');
   }
 }
 
@@ -1316,9 +1248,8 @@ async function requestLocation() {
   $('#locBtn').disabled = true;
   $('#locBtn').textContent = 'Locating';
   navigator.geolocation.getCurrentPosition(async (position) => {
-    const value = `Current location (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
+    const value = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
     $('#address').value = value;
-    $('#sectionSub').textContent = `Delivering to ${value}`;
     $('#locBtn').disabled = false;
     $('#locBtn').textContent = 'Use location';
     await postJson(`${API}/profile`, { defaultAddress: value, onboarded: true });
@@ -1342,16 +1273,14 @@ async function loadProfile() {
     const diet = (Array.isArray(profile.dietary) ? profile.dietary : []).concat(remembered.filter((r) => r.restriction).map((r) => r.note));
     $('#prefDiet').textContent = diet.length ? diet.join(', ') : 'No diet set';
     showRemembered(remembered);
-    // A remembered spending note ("budget: cheap") shows on the card while no dollar cap is set (sweep 10: the card read
-    // "Budget open" beside a remembered "budget: cheap").
+    // A remembered spending note ("budget: cheap") shows on the card while no dollar cap is set.
     const spending = remembered.filter((r) => r.budget).map((r) => r.note.replace(/^budget\s*:\s*/i, ''));
     $('#prefBudget').textContent = profile.budget_per_order ? `$${Number(profile.budget_per_order).toFixed(0)}`
       : spending.length ? `${spending.join(', ')} (remembered)` : 'Budget open';
   } catch {}
 }
 
-// What the concierge remembers, each with Forget (sweep 9: an invented "wants spicy food" saved in sweep 8 kept steering
-// its answers and nothing could remove it). Forget asks first and removes every saved copy of that note.
+// What the concierge remembers, each with Forget. Forget asks first and removes every saved copy of that note.
 function showRemembered(remembered) {
   const box = $('#rememberedBox'), list = $('#rememberedList');
   list.replaceChildren();
@@ -1377,13 +1306,36 @@ async function forgetRemembered(note, button) {
   await loadProfile();
 }
 
+/** When a hand-off happened, in the diner's own locale. */
+function whenOpened(value) {
+  const at = new Date(String(value || ''));
+  return Number.isFinite(at.getTime()) ? at.toLocaleString() : 'time not saved';
+}
+
 async function loadHistory() {
+  const list = $('#handoffList');
   try {
     const result = await getJson(`${API}/orders/history`);
     state.history = result.orders || [];
-    $('#orderHistory').textContent = state.history.length ? `${state.history.length} handoffs` : 'No orders yet';
+    $('#orderHistory').textContent = state.history.length ? `${state.history.length} opened` : 'Nothing opened yet';
+    list.replaceChildren();
+    if (!state.history.length) { list.innerHTML = '<div class="empty">Nothing opened yet. Pick a restaurant and press Order on Uber Eats.</div>'; return; }
+    for (const row of state.history) {
+      const item = document.createElement('div'), text = document.createElement('div'), name = document.createElement('b'), when = document.createElement('span');
+      item.className = 'handoff-row';
+      name.textContent = row.store_name || 'A restaurant';
+      when.textContent = whenOpened(row.created_at);
+      text.append(name, when);
+      item.append(text);
+      if (row.handoff_url) {
+        const again = document.createElement('a');
+        again.href = row.handoff_url; again.target = '_blank'; again.rel = 'noopener'; again.textContent = 'Open again';
+        item.append(again);
+      }
+      list.append(item);
+    }
   } catch {
-    $('#orderHistory').textContent = 'No orders yet';
+    $('#orderHistory').textContent = 'Nothing opened yet';
   }
 }
 
@@ -1391,26 +1343,26 @@ async function boot() {
   renderChips();
   $('#searchBtn').addEventListener('click', () => search($('#query').value.trim()));
   $('#query').addEventListener('keydown', (event) => { if (event.key === 'Enter') search($('#query').value.trim()); });
+  $('#address').addEventListener('keydown', (event) => { if (event.key === 'Enter') search($('#query').value.trim()); });
   $('#backBtn').addEventListener('click', () => search($('#query').value.trim()));
+  $('#refreshBtn').addEventListener('click', () => search($('#query').value.trim(), true));
   $('#locBtn').addEventListener('click', requestLocation);
-  $('#orderBtn').addEventListener('click', requestOrder);
   $('#chatSend').addEventListener('click', sendChat);
   $('#chatInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') sendChat(); });
   $('#address').addEventListener('change', publishContext);
+  $('#query').addEventListener('change', publishContext);
   $('#bridgeOptions').addEventListener('click', onProposalClick, true);
   window.addEventListener('message', trackProposal);
   document.addEventListener('surface-bridge:custom', onBridgeCustom);
   window.addEventListener('bridge-ready', publishContext);
-  await Promise.all([loadProfile(), loadHistory(), loadCart()]);
-  await search('');
+  await Promise.all([loadProfile(), loadHistory()]);
+  await search('', false, true);
   try {
     const config = await getJson(`${API}/config`);
-    $('#connDot').classList.toggle('on', Boolean(config.uberConnected) || config.rail === 'catalog');
-    $('#connTxt').textContent = config.rail === 'catalog' ? 'Uber Eats handoff ready'
-      : config.rail === 'absent' ? 'No Uber Eats connector here'
-      : config.uberConnected ? 'Uber Eats connected' : 'Uber Eats not connected';
+    $('#connDot').classList.toggle('on', config.rail === 'places');
+    $('#connTxt').textContent = config.rail === 'places' ? `${config.source || 'Google Places'} + Uber Eats handoff` : 'No restaurant source here';
   } catch {
-    $('#connTxt').textContent = 'Demo catalog';
+    $('#connTxt').textContent = 'Restaurant source unknown';
   }
 }
 
@@ -1421,7 +1373,7 @@ if (!window.AppView || !AppView.active()) boot();
 
 <!-- The assistant rail: the shared surface-bridge client renders what the floating assistant sends
      (set_field / propose / notify / custom) and publishes what this page shows (`context`). The
-     producer in 'self' mode lets the embedded concierge's order proposal travel the SAME path, so
+     producer in 'self' mode lets the embedded concierge's hand-off proposal travel the SAME path, so
      both assistants drive one confirm card. Degrades silently without the module. -->
 <script type="module">
   // Under an audience view the assistant rail stays off: the view publishes no context and takes no relayed op.

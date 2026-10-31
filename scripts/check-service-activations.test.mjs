@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Pin Operations recorded-alert processing as a user-activated native schedule.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Pin Intelligent Communication's mail-copy (runsAs: user): the person's own job that keeps their stored Gmail copy current.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Pin Intelligent Communication's social-publish (runsAs: user): the person's own job that sends their scheduled social posts and stream announcements (1.6.0).
+ * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register Trading's quant-desk person schedule.
  */
 
 import test from 'node:test';
@@ -37,6 +38,7 @@ const DECLARED = [
   ['trading', 'oshal-daily-report', 'user'],
   ['trading', 'portfolio-watcher', 'user'],
   ['trading', 'paper-autopilot', 'user'],
+  ['trading', 'quant-desk', 'user'],
   ['trading', 'futures-research', 'user'],
   ['venture-plan', 'rebaseline-policy-tick', 'system'],
 ];

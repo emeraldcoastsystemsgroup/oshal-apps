@@ -46,6 +46,7 @@
  * 19 | maintainer@emeraldcoastsystemsgroup.com | GET /messages answers from the copy only when it is current and reaches back over the window asked for (a copy still filling answers a 2-day search but not a 30-day one, which reads Gmail live). Guard: tests/mail-store.test.cjs.
  *
  * @module email-app-routes
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | GET /messages pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A listing without words answers from the copy whenever it is current, over everything the copy holds (`before`/`skip` cursor from `next`, `reach` says how far back it goes, a copy still filling answers what it has), else from the mailbox live with the provider's own page cursor (`page`; Gmail pageToken, Outlook nextLink, Yahoo has one page). A word search is unchanged. The live Gmail metadata reads run ten at a time instead of one after another, so a page of 50 fits the kernel's call. Guard: tests/mail-store.test.cjs.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -62,7 +63,7 @@ import { sendGmail, sendOutlookMail, summarizeGmailMetadata } from '@/app/routes
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import { decryptSessionValue, encryptSessionValue, isSessionSecretRequiredError } from './session-crypto';
 import {
-  clampDays, clampListSize, getOutlookMessage, listOutlookInbox, outlookEventsToday, outlookOwnAddress, validMessageId,
+  clampDays, clampListSize, getOutlookMessage, listOutlookInbox, outlookEventsToday, outlookOwnAddress, pageOutlookInbox, safeNextLink, validMessageId,
   type CalendarEvent, type MailDetail,
 } from './outlook-mailbox';
 import {
@@ -71,7 +72,7 @@ import {
 import {
   connectionState, kernelEgress, kernelFetch, kernelSendGmail, kernelSendOutlook, kernelTokenFor, readConnections, summarizeGmail,
 } from './kernel-mail';
-import { readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
+import { listStored, readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -115,9 +116,14 @@ type OutboundMail = Parameters<typeof sendGmail>[1];
  * The route handlers only ever talk to this, so every provider gets the same digest, bot
  * summary, draft and 428-gated send.
  */
+/** One page of a live listing and the provider's own cursor for the next, null at the end. */
+interface MailPage { messages: MailSummary[]; next: string | null }
+
 interface Mailbox {
   provider: MailProvider;
   list(days: number, max: number, query?: string): Promise<MailSummary[]>;
+  /** One page of the inbox over `days`, newest first, from `cursor` (a `next` this mailbox gave) or the start. */
+  page(days: number, max: number, cursor?: string): Promise<MailPage>;
   message(id: string): Promise<MailDetail>;
   eventsToday(): Promise<CalendarEvent[]>;
   ownAddress(): Promise<string>;
@@ -131,6 +137,7 @@ function gmailMailbox(token: string): Mailbox {
   return {
     provider: 'google',
     list: (days, max, query) => listInbox(token, gmailSearch(days, query), max),
+    page: (days, max, cursor) => pageInbox(token, gmailSearch(days), max, cursor),
     message: async (id) => {
       const m = await gget(token, `${GMAIL}/messages/${encodeURIComponent(id)}?format=full`);
       return { ...summarizeMessage(id, m), to: header(m, 'To'), body: extractBody(m.payload).slice(0, 20000) };
@@ -161,6 +168,7 @@ function outlookMailbox(token: string): Mailbox {
   return {
     provider: 'outlook',
     list: (days, max) => listOutlookInbox(token, { days, max }, graph),
+    page: (days, max, cursor) => pageOutlookInbox(token, { days, max, page: cursor }, graph),
     message: (id) => getOutlookMessage(token, id, graph),
     eventsToday: () => outlookEventsToday(token, graph),
     ownAddress: () => outlookOwnAddress(token, graph),
@@ -246,16 +254,18 @@ function yahooUnsupported(what: string): Promise<never> {
  */
 function yahooMailbox(reader: NonNullable<AppContext['imapMail']>, sub: string, fallback: boolean): Mailbox {
   const named: MailProvider | null = fallback ? null : 'yahoo';
-  return {
-    provider: 'yahoo',
-    list: async (days, max) => {
+  const list = async (days: number, max: number): Promise<MailSummary[]> => {
       const result = await reader({ userSub: sub, limit: max });
       if (result.status === 'not_connected') throw new MailboxRefusal(409, named, missingConnectionBody(named));
       if (result.status === 'reconnect_required') throw new MailboxRefusal(409, 'yahoo', missingConnectionBody('yahoo', true));
       if (result.status !== 'connected') throw new Error('yahoo inbox unavailable');
       const since = Date.now() - days * 86_400_000;
       return result.messages.filter((m) => (Date.parse(m.receivedAt) || 0) >= since);
-    },
+  };
+  return {
+    provider: 'yahoo',
+    list,
+    page: async (days, max) => ({ messages: await list(days, max), next: null }),
     message: () => yahooUnsupported('Opening a message'),
     eventsToday: async () => [],
     ownAddress: () => yahooUnsupported('Sending'),
@@ -319,16 +329,29 @@ function extractBody(payload: unknown): string {
   return '';
 }
 
-/** List inbox messages (ids + metadata) for a query. */
-async function listInbox(token: string, q: string, max: number): Promise<MailSummary[]> {
-  const list = await gget(token, `${GMAIL}/messages?q=${encodeURIComponent(q)}&maxResults=${max}`);
+/** Gmail's page tokens are opaque; one is accepted only in this shape so it never carries a query of its own. */
+const GMAIL_PAGE_TOKEN = /^[\w-]{1,512}$/;
+/** How many metadata reads run at once: Gmail allows 250 quota units a second per user and a metadata read costs 5. */
+const METADATA_PARALLEL = 10;
+
+/** One page of inbox messages (ids + metadata) for a query, with Gmail's token for the next page. */
+async function pageInbox(token: string, q: string, max: number, pageToken?: string): Promise<MailPage> {
+  const page = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+  const list = await gget(token, `${GMAIL}/messages?q=${encodeURIComponent(q)}&maxResults=${max}${page}`);
   const ids = ((list.messages as Array<{ id: string }>) || []).map((m) => m.id).slice(0, max);
   const out: MailSummary[] = [];
-  for (const id of ids) {
-    const m = await gget(token, `${GMAIL}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
-    out.push(summarizeMessage(id, m));
+  for (let i = 0; i < ids.length; i += METADATA_PARALLEL) {
+    const batch = ids.slice(i, i + METADATA_PARALLEL).map(async (id) =>
+      summarizeMessage(id, await gget(token, `${GMAIL}/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`)));
+    out.push(...await Promise.all(batch));
   }
-  return out;
+  const next = typeof list.nextPageToken === 'string' && GMAIL_PAGE_TOKEN.test(list.nextPageToken) ? list.nextPageToken : null;
+  return { messages: out, next };
+}
+
+/** List inbox messages (ids + metadata) for a query: the first page. */
+async function listInbox(token: string, q: string, max: number): Promise<MailSummary[]> {
+  return (await pageInbox(token, q, max)).messages;
 }
 
 /** Today's calendar events. */
@@ -501,21 +524,51 @@ async function storeStateFor(ctx: AppContext, sub: string): Promise<StoreState |
   }
 }
 
-/** GET /messages — the caller's mail or a search of it: from the stored copy when it is current and reaches back over the window, else live. */
+/** A live page cursor the caller sent back, checked in the provider's own shape; undefined when none, null when malformed. */
+function livePageCursor(provider: MailProvider, value: unknown): string | undefined | null {
+  if (value === undefined || value === '') return undefined;
+  if (typeof value !== 'string') return null;
+  if (provider === 'google') return GMAIL_PAGE_TOKEN.test(value) ? value : null;
+  if (provider === 'outlook') return safeNextLink(value) ? value : null;
+  return null;
+}
+
+/**
+ * GET /messages — the caller's mail or a search of it. A listing (no words) pages: from the stored copy whenever it is
+ * current, over everything it holds (`next` = {before, skip}, `reach` = how far back), else from the mailbox live with
+ * the provider's own cursor (`next` = {page}). A search by words answers from the copy when it is current and reaches
+ * back over the window, else live.
+ */
 function listMessages(ctx: AppContext): RequestHandler {
   return async (req, res) => {
     const mailbox = await openMailbox(req, res, ctx, YAHOO_READ_ROUTE);
     if (!mailbox) return;
     try {
-      const query = mailbox.provider === 'google' && typeof req.query.q === 'string' ? req.query.q : undefined;
-      const store = mailbox.provider === 'google' ? await storeStateFor(ctx, String(callerSub(req))) : null;
-      if (store && storeCovers(store, searchWindow(clampStoredDays(req.query.days), query))) {
-        const found = await searchStored(ctx.pool, String(callerSub(req)), clampStoredDays(req.query.days), clampListSize(req.query.max), query);
+      const sub = String(callerSub(req));
+      const query = mailbox.provider === 'google' && typeof req.query.q === 'string' && req.query.q.trim() ? req.query.q : undefined;
+      const store = mailbox.provider === 'google' ? await storeStateFor(ctx, sub) : null;
+      const max = clampListSize(req.query.max);
+      if (!query && store && storeIsFresh(store)) {
+        const page = await listStored(ctx.pool, sub, max, { before: req.query.before, skip: req.query.skip }, store.oldestAt);
+        res.json({ provider: mailbox.provider, source: 'stored', store, ...page });
+        return;
+      }
+      if (query && store && storeCovers(store, searchWindow(clampStoredDays(req.query.days), query))) {
+        const found = await searchStored(ctx.pool, sub, clampStoredDays(req.query.days), max, query);
         res.json({ provider: mailbox.provider, source: 'stored', store, ...found });
         return;
       }
-      const messages = await mailbox.list(clampDays(req.query.days), clampListSize(req.query.max), query);
-      res.json({ provider: mailbox.provider, source: 'live', store, messages });
+      if (query) {
+        res.json({ provider: mailbox.provider, source: 'live', store, messages: await mailbox.list(clampDays(req.query.days), max, query) });
+        return;
+      }
+      const cursor = livePageCursor(mailbox.provider, req.query.page);
+      if (cursor === null) {
+        res.status(400).json({ error: 'invalid_page', message: 'That page cursor is not one this mailbox gave.' });
+        return;
+      }
+      const page = await mailbox.page(clampDays(req.query.days), max, cursor);
+      res.json({ provider: mailbox.provider, source: 'live', store, messages: page.messages, next: page.next ? { page: page.next } : null });
     } catch (err) {
       providerFailure(req, res, err, 'Inbox list failed', mailbox.provider);
     }

@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Resolve the framework checkout from OSHAL_CORE_ROOT first (what the Test Lab sandbox sets, /app) and OSHAL_CORE_DIR second, and fail loud when neither is set. The old default C:/Projects/oshal existed on one Windows box only and turned a missing variable into a confusing module error.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it. A setup that fails part-way no longer hangs the suite to its time limit: teardown is null-safe and closes the fake engine it did start. In the Test Lab sandbox a missing catalog file failed setup after the engine was listening, and the open socket held the run for 120 s.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | The catalog counts this suite asserts are the ones the ENVIRONMENT implies. A row may name another package as the owner of a real part and read it, and an absent owner withholds that row on purpose; pinning `catalog.drivers` at five asserted that the degradation never happens, and it went red against a copy of this package alone - the shape the Test Lab and a single-package install both have. The responses are now held to the contract in both environments, including the `unresolved` block that says which row went and who owns it, because a package that quietly drops a part row is worse than one that says it did.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | The seventh starter (hexapod-power, the spider-18 power system of ADR-202) is listed.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js
@@ -192,7 +193,7 @@ test('surface, assets and capabilities serve; the caller gate answers 401', asyn
   for (const f of ['circuit-lab.js', 'circuit-lab-canvas.js', 'circuit-lab-geometry.js', 'circuit-lab-plot.js', 'circuit-lab-board-model.js', 'circuit-lab-board.js']) { const js = await call('/assets/' + f); assert.equal(js.status, 200); assert.match(js.headers.get('content-type'), /javascript/); }
   const caps = await call('/capabilities');
   assert.equal(caps.body.contract.parts.resistor.props.ohms.unit, 'ohm');
-  assert.deepEqual(caps.body.examples.map((e) => e.id), ['led-switch', 'rc-charge', 'motor-gearbox', 'pwm-motor', 'crank-slider', 'arduino-blink']);
+  assert.deepEqual(caps.body.examples.map((e) => e.id), ['led-switch', 'rc-charge', 'motor-gearbox', 'pwm-motor', 'crank-slider', 'arduino-blink', 'hexapod-power']);
   assert.match(caps.body.engine.installHint, /docker exec oshal-local-api sh .*circuit-lab\/engine\/install-engine\.sh/);
   assert.equal(caps.body.engine.expectedBuildHash, HASH);
   // A shared row resolves only where its owner package is installed beside this one, and a store

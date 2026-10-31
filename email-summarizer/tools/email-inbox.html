@@ -3,6 +3,7 @@
 <!-- CHANGE LOG
   SEQ | AUTHOR | DESCRIPTION
   1 | maintainer@emeraldcoastsystemsgroup.com | "Search all your mail" and the stored-copy line under the Inbox heading (email-store.js): search the person's stored Gmail copy, see how much it holds and how fresh it is, and turn on the job that keeps it current.
+  2 | maintainer@emeraldcoastsystemsgroup.com | The list pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the page asked for one page of 30 and never asked for more). Fifty at a time, the next page loads as the list is scrolled to its end (or with "Load more"), following the answer's next cursor (the copy's before/skip or the mailbox's own page), the heading counts what is loaded, and the end of the list says how far back it reaches: everything in the copy (still filling or not) or the mailbox's last 7 days.
 -->
 <head>
 <meta charset="UTF-8" />
@@ -75,6 +76,8 @@
   .draft h4 { margin:0 0 8px; font-size:12px; color:var(--accent2); text-transform:uppercase; letter-spacing:.5px; }
   .draft textarea { width:100%; min-height:160px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:11px; font-family:inherit; font-size:13px; line-height:1.5; resize:vertical; }
   .spin { color:var(--muted); font-size:13px; }
+  .more { padding:14px 16px 18px; text-align:center; color:var(--muted); font-size:12px; line-height:1.5; }
+  .more .refresh { margin-left:0; font-size:13px; padding:7px 14px; }
   .store-search { display:flex; gap:6px; padding:10px 16px 0; }
   .store-search input { flex:1; min-width:0; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:8px 10px; font:inherit; font-size:13px; }
   .store-search .refresh { margin-left:0; }
@@ -101,6 +104,7 @@
       <form class="store-search" id="storeSearch" role="search"><input type="search" id="storeQuery" placeholder="Search all your mail" aria-label="Search all your mail" maxlength="300" /><button class="refresh" type="submit">Search</button></form>
       <div class="store-line" id="storeLine" role="status" hidden></div>
       <div id="items"><div class="empty">Loading…</div></div>
+      <div class="more" id="more" role="status"></div>
     </div>
     <div class="reader" id="reader"><div class="empty">Select a message to read it.</div></div>
   </div>
@@ -109,6 +113,7 @@
 const items = document.getElementById('items');
 const reader = document.getElementById('reader');
 const countEl = document.getElementById('count');
+const moreEl = document.getElementById('more');
 let active = null;
 let mailbox = ''; // the provider the last list actually read
 
@@ -164,17 +169,29 @@ providerEl.value = savedProvider();
 function when(d){ const t=Date.parse(d); if(!t) return ''; const dt=new Date(t), now=new Date();
   return dt.toDateString()===now.toDateString() ? dt.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : dt.toLocaleDateString([], {month:'short',day:'numeric'}); }
 
-async function load(){
-  items.innerHTML = '<div class="empty">Loading…</div>';
-  const r = await fetch(withProvider('/api/email/messages?max=30&surface=1', providerEl.value));
-  if (!r.ok) { items.innerHTML = '<div class="notice">Could not load inbox ('+r.status+').</div>'; return; }
-  const payload = await r.json();
-  if (payload.connected === false) { countEl.textContent = ''; items.innerHTML = connectNotice(payload); bindConnectButtons(items); return; }
-  mailbox = payload.provider || '';
-  const messages = payload.messages || [];
-  countEl.textContent = messages.length + ' shown' + ({ google: ' · Google', outlook: ' · Outlook', yahoo: ' · Yahoo' }[mailbox] || '');
-  if (!messages.length) { items.innerHTML = '<div class="empty">Inbox is clear. 🎉</div>'; return; }
-  items.innerHTML = '';
+const PAGE = 50;
+const MAILBOX_NAME = { google: ' · Google', outlook: ' · Outlook', yahoo: ' · Yahoo' };
+// The listing: `next` is the answer's cursor for the page after the last one loaded (the copy's before/skip, or the
+// mailbox's own page), `token` tells a late answer that the list was reloaded meanwhile.
+let paging = { next: null, loaded: 0, source: '', store: null, reach: null, busy: false, token: 0 };
+function day(iso){ const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'}) : ''; }
+function firstUrl(){ return withProvider('/api/email/messages?max=' + PAGE + '&surface=1', providerEl.value); }
+function nextUrl(){
+  const n = paging.next;
+  const cursor = n.page ? '&page=' + encodeURIComponent(n.page) : '&before=' + encodeURIComponent(n.before) + '&skip=' + encodeURIComponent(n.skip || 0);
+  return withProvider('/api/email/messages?max=' + PAGE + '&surface=1' + cursor, providerEl.value);
+}
+/** What the end of the list says: a way to load more, or how far back the listing reached. */
+function endNote(){
+  if (paging.next) return '<button class="refresh" id="loadMore" type="button">Load more</button>';
+  if (!paging.loaded) return '';
+  if (paging.source === 'stored') {
+    const s = paging.store || {};
+    return 'Everything in your copy back to ' + esc(day(paging.reach || s.oldestAt)) + (s.complete ? '.' : ' (still filling).');
+  }
+  return 'That is the last 7 days in your mailbox. Search for older mail.';
+}
+function appendItems(messages){
   for (const m of messages) {
     const el = document.createElement('div');
     el.className = 'item' + (m.unread ? ' unread' : '');
@@ -183,6 +200,56 @@ async function load(){
     el.onclick = () => open(m, el);
     items.appendChild(el);
   }
+}
+/** Start the listing over: the first page of the chosen mailbox. */
+async function load(){
+  paging = { next: null, loaded: 0, source: '', store: null, reach: null, busy: false, token: paging.token + 1 };
+  items.innerHTML = '<div class="empty">Loading…</div>';
+  moreEl.innerHTML = '';
+  countEl.textContent = '';
+  await more(true);
+}
+/** Load the first page, or the page after the last one loaded. */
+async function more(first){
+  if (paging.busy || (!first && !paging.next)) return;
+  paging.busy = true;
+  const token = paging.token;
+  if (!first) moreEl.innerHTML = '<span class="spin">Loading more…</span>';
+  try {
+    const r = await fetch(first ? firstUrl() : nextUrl());
+    if (token !== paging.token) return;
+    if (!r.ok) { (first ? items : moreEl).innerHTML = '<div class="notice">Could not load inbox ('+r.status+').</div>'; return; }
+    const payload = await r.json();
+    if (token !== paging.token) return;
+    if (payload.connected === false) { countEl.textContent = ''; items.innerHTML = connectNotice(payload); bindConnectButtons(items); return; }
+    mailbox = payload.provider || '';
+    const messages = payload.messages || [];
+    if (first) items.innerHTML = '';
+    paging.next = payload.next || null;
+    paging.source = payload.source || '';
+    paging.store = payload.store || null;
+    paging.reach = payload.reach || null;
+    paging.loaded += messages.length;
+    appendItems(messages);
+    if (!paging.loaded) { items.innerHTML = '<div class="empty">Inbox is clear. 🎉</div>'; moreEl.innerHTML = ''; countEl.textContent = ''; return; }
+    countEl.textContent = paging.loaded + ' loaded' + (MAILBOX_NAME[mailbox] || '');
+    moreEl.innerHTML = endNote();
+  } finally {
+    if (token === paging.token) paging.busy = false;
+  }
+  fillToTheEnd();
+}
+/** The observer only reports a change: when the end note was already in view (a short page), ask for the next page now. */
+function fillToTheEnd(){
+  if (!paging.next || paging.busy || typeof moreEl.getBoundingClientRect !== 'function' || !document.querySelector) return;
+  const list = document.querySelector('.list');
+  if (!list || typeof list.getBoundingClientRect !== 'function') return;
+  if (moreEl.getBoundingClientRect().top <= list.getBoundingClientRect().bottom + 200) more(false);
+}
+moreEl.onclick = (e) => { if (e && e.target && e.target.closest && e.target.closest('#loadMore')) more(false); };
+// Scrolling the list to its end loads the next page by itself; the button stays for keyboards and old browsers.
+if (typeof IntersectionObserver === 'function' && document.querySelector) {
+  new IntersectionObserver((entries) => { if (entries.some((x) => x.isIntersecting) && paging.next && !paging.busy) more(false); }, { root: document.querySelector('.list'), rootMargin: '200px' }).observe(moreEl);
 }
 
 async function open(m, el){

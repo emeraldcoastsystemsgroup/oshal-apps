@@ -6,6 +6,8 @@
  * 2026-07-24 13:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Family Feud's client half, extracted from gs-surfaces.js into the per-show registry (the ADR-112 table collapse) and extended with the Fast Money surfaces: the setup picker on the host desk, the timed two-run board, and the classic two-column reveal.
  * 2026-07-26 19:25:00 | roger.murphy@emeraldcoastsystemsgroup.com  | The board became a SET PIECE (broadcast rebuild): gold-framed two-column flip-card board ordered column-first like the show, question marquee + BANK plate, one-shot 3D reveals and the giant strike-slam overlay driven by module-level last-seen deltas (never replayed on plain re-renders), steal-phase frame pulse, and the Fast Money masthead board with covered runs, DUPLICATE stamps, and an id-repaint odometer total. Phase tables, hostKey, and the Fast Money launcher are untouched.
  * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: the Host Desk's answer key now starts with the round's own question ("Round 2 question: ..."). The desk showed no current question, only the host caption from round 1, so the concierge read the round-1 question during round 2.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Says whose turn it is and what to do on every beat, shows the answer box only to a seat the server would accept (typing out of turn was refused with a message nobody could read), and offers the Fast Money endgame from the stage to the room's owner (it was only on the Host Desk).
+ * 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com    | The owner's button says Start Fast Money in its setup.
  */
 
 /* global window, document, setTimeout, setInterval */
@@ -227,8 +229,76 @@
       } }, 'Play Fast Money'));
   }
 
+  function teamOf(seatId) {
+    var hit = (GS.seats || []).filter(function (s) { return s.seatId === seatId; })[0];
+    return hit ? hit.team : null;
+  }
+
+  /** @description The seat that must answer the face-off right now, or null while the buzzer decides it. */
+  function faceoffSeat(b) {
+    var f = b.faceoff || {};
+    return (f.stage === 'second' ? f.secondSeat : f.firstSeat) || null;
+  }
+
+  /** @description Mirrors the server's canAnswer so the box only shows when the answer would count. */
+  function canType(seat) {
+    var st = GS.state || {}, b = st.board || {}, team = teamOf(seat);
+    if (st.phase === 'faceoff') return !!seat && faceoffSeat(b) === seat;
+    if (st.phase === 'play') return !!team && team === b.control;
+    if (st.phase === 'steal') return !!team && !!b.steal && team === b.steal.team;
+    if (st.phase === 'fm-play') return !!st.fm && (st.fm.players || [])[st.fm.turn] === seat;
+    return false;
+  }
+
+  /** @description The face-off beat: race the buzzer, or answer having won it. */
+  function faceoffPrompt(st, b, seat) {
+    var who = faceoffSeat(b);
+    if (who === seat && seat) return { you: '✋ You buzzed first: type the answer you think is most popular.' };
+    if (st.buzz && st.buzz.open) return seat ? { you: '🔔 Face-off! Buzz in first, then type your answer.' } : { wait: 'The two teams are racing to buzz in…' };
+    return who ? { wait: '👀 ' + seatName(who) + ' buzzed first…' } : null;
+  }
+
+  /** @description What to do right now, for this seat. */
+  function prompt(seat) {
+    var st = GS.state || {}, b = st.board || {}, team = teamOf(seat);
+    if (st.phase === 'faceoff') return faceoffPrompt(st, b, seat);
+    if (st.phase === 'play') {
+      if (team && team === b.control) return { you: 'Your team has the board: type an answer. Three wrong answers and the other team can steal.' };
+      return { wait: 'Team ' + b.control + ' has the board. Three strikes and your team can steal.' };
+    }
+    if (st.phase === 'steal' && b.steal) {
+      if (team && team === b.steal.team) return { you: 'Steal! Type one right answer and your team takes the whole bank.' };
+      return { wait: 'Team ' + b.steal.team + ' is trying to steal the bank…' };
+    }
+    if (st.phase === 'fm-setup') return { wait: 'Fast Money: two players, five questions, 200 points to win.' };
+    if (st.phase === 'fm-play' && st.fm) {
+      var runner = (st.fm.players || [])[st.fm.turn];
+      return runner === seat ? { you: 'Fast Money: type your answer to this question.' } : { wait: 'Fast Money: ' + seatName(runner) + ' is answering…' };
+    }
+    return null;
+  }
+
+  /** @description The owner's Fast Money button once the main game is decided: their seat and a teammate, or the two top podiums. */
+  function stageExtras() {
+    var st = GS.state || {};
+    if (st.fm || ['round-win', 'scoreboard'].indexOf(st.phase) < 0) return null;
+    var me = GS.actingSeat(), players = GS.players();
+    var mine = players.filter(function (s) { return s.seatId === me; })[0];
+    var partner = players.filter(function (s) { return s.seatId !== me && (!mine || s.team === mine.team); })[0];
+    var first = mine || players[0];
+    if (!first || !partner) return null;
+    return GS.el('button', { class: 'gs-btn blue', onclick: function () {
+      GS.act({ type: 'startFastMoney', seat1: first.seatId, seat2: partner.seatId });
+    } }, '💰 Play Fast Money');
+  }
+
   GS.registerShowUi({
     id: 'family-feud',
+    prompt: prompt,
+    canType: canType,
+    stageExtras: stageExtras,
+    nextLabel: function (phase) { return phase === 'fm-setup' ? 'Start Fast Money' : null; },
+    answerPlaceholder: 'Type or say your answer…',
     board: board,
     answerPhases: ['faceoff', 'play', 'steal', 'fm-play'],
     wagerPhases: [],

@@ -14,7 +14,8 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.8: the kernel-egress case also expects a Gmail search to look for the person's words over the window across all mail, and the email-messages tool to send query, days and max.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: register mail-store: the stored Gmail copy (sync, deadline, failure, search, owner isolation, kernel-safe SQL, the /messages, /sync and /sync/status routes) on a disposable PostgreSQL with forced row security; and mail-store-browser: the Inbox's search box and copy line in Chromium.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: mail-store expects a pass to resume below and above the copy instead of re-reading it, and a filling copy to answer only windows it reaches.
-# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: register the Social desk cases: social-rules (the posting plan's next slot, post normalization, every publish through the kernel egress with no credential, partial sends and retries, the due pass budget, Engage and replies), social-store (the three tables on a disposable PostgreSQL under forced owner row security) and social-desk-browser (the desk in Chromium over a loopback fixture at 1280 and 412).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: register the Social desk cases: social-rules (the posting plan's next slot, post normalization, every publish through the kernel egress with no credential, partial sends and retries, the due pass budget, Engage and replies), social-store (the three tables on a disposable PostgreSQL under forced owner row security) and social-desk-browser (the desk in Chromium over a loopback fixture at 1280 and 412).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: mail-store expects the paged listing (keyset pages, ties once, non-inbox mail left out, a still-filling copy answering with its reach, live Gmail pages by token, a foreign cursor refused); mail-store-browser expects the Inbox to ask for 50, follow the before/skip cursor as the end comes into view, count what is loaded, say how far the copy reaches, and offer "Turn it back on" for a suspended job; outlook-mailbox expects one Graph page per pageOutlookInbox call.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -68,6 +69,7 @@ cases:
       - Graph messages normalize onto MailSummary with unread, important and starred derived from isRead, importance and the follow-up flag.
       - The inbox list is one fixed Graph request with a clamped $top and receivedDateTime window; pagination stops at the cap and after five pages.
       - A nextLink off graph.microsoft.com or outside /me is never followed.
+      - pageOutlookInbox reads one Graph page per call with $top = the page size, hands the nextLink back as the cursor and follows it on the next call, reports the end as null, and refuses a cursor off graph.microsoft.com before any request.
       - Message ids are URL-encoded, the text body is preferred and an HTML body is flattened.
       - A named provider resolves alone with no fallback; a refused refresh reports reconnect_required.
       - Yahoo is accepted by the switch but is never a brokered-token provider, so its app password cannot be resolved by the package.
@@ -122,6 +124,7 @@ cases:
       - A search matches words at word starts (prep finds preparation, act is not found inside contact), honours OR, from: and newer_than:, and lists the closest matches marked matchedAll false when no message holds every word.
       - Under forced row security one person never reads, describes or writes another person's copy.
       - The store SQL has no ON CONFLICT, ORDER BY, DISTINCT or OFFSET.
+      - listStored pages the inbox newest first by keyset: a tie across a page boundary is listed once on each side, mail outside the inbox is left out, the last page reports the copy's floor; GET /messages without words answers page after page from a current copy (a still-filling one too, with its reach) and never asks Gmail; with no copy it reads Gmail live with Gmail's own page token and refuses a cursor of another shape (400 invalid_page).
       - GET /messages reads Gmail live until a pass has run and when the copy is over 30 minutes old, and answers from the copy (source stored, up to 180 days, no Gmail request) once POST /sync has stored it; GET /sync/status reports the copy and the mail-copy schedule.
     prerequisites: [runner:node-test, fixture:postgres-35689]
     sideEffects: fixture-write
@@ -144,6 +147,8 @@ cases:
       - Keep a copy activates the person's mail-copy job with class person and runs one POST /api/email/sync; the line then gives the count, how far back, when it was updated and that it updates every 10 minutes, with Update now.
       - Search all your mail asks GET /api/email/messages with the words and days=180, lists the stored matches, and a match opens in the reader.
       - A failed pass shows its reason and keeps the button; at 412 px the page does not scroll sideways.
+      - The list asks for 50 and follows the answer's before/skip cursor as the end of the list comes into view; the heading counts what is loaded and the end note says how far back the copy reaches.
+      - A suspended job with a stale copy reads "stopped updating … (an update of this application paused its job)" with Turn it back on, which activates the job, runs one pass and reloads the list from the copy.
     prerequisites: [runner:node-test, browser:chromium]
     sideEffects: none
     isolation:

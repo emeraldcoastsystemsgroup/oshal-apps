@@ -3,190 +3,299 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the Eats money and hand-off boundary, driven through the COMPILED route module with an in-memory pool and a recording Uber Eats provider. Pins: a line is priced from the restaurant's menu by exact storeId + productId and a browser-sent price, title or store is ignored; a dish the menu does not list (or one from another restaurant) is 422 with nothing stored; malformed ids are 400 before any provider call; a store switch starts a new order; /cart totals are exact integer cents with unpriced lines counted; a chat "checkout" returns a proposal and neither builds the deep link nor writes eats_orders, while POST /order (the confirm) does both; one diner cannot remove another's line; an anonymous caller is 401 before any query.
- * 2 | maintainer@emeraldcoastsystemsgroup.com   | Read-only GETs under the native admission rule. GET /cart created the diner's cart when none existed, which the native host refuses on a GET (500 'SQL mutation requires original writer admission'). Pins: a fresh diner's GET /cart answers 200 with cartId, storeId and storeName null and creates nothing; every registered GET route answers a fresh diner without attempting a write; the first add (POST /cart/items) creates the cart and the following GET /cart reads it; and the admission double itself refuses a write in read mode.
- * 3 | maintainer@emeraldcoastsystemsgroup.com   | The route asks the provider's status once per process (to pick the provider or the package's own catalog), so the exact-call pins compare the operations after that probe.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the compiled Eats routes over an in-memory pool and a recording Uber Eats provider (menu pricing, store switching, totals, ownership, the chat order proposal, the confirmed hand-off, the native read-only admission).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.0: the cache cases. A POST search saves the address, the search and the cards; a second POST within a day asks Google nothing and says served saved; a new process (memory cleared) still serves the saved address and search; Refresh asks Google even when fresh; at Google's quota a saved search older than a day is served with the saved time and the reason; past thirty days nothing is served and the quota refusal stands; GET /search reads the saved rows and never writes; a hand-off to a saved restaurant needs no lookup.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.2: coordinates (lat/lng or the "lat, lng" address text) resolve through the Geocoding reverse lookup on maps.googleapis.com, never a Places text search; a Geocoding refusal is 503 geocoding_unavailable with the typed-address advice.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: the menu, the cart and the curated catalog are gone. The suite now proves the real-restaurant shape through the compiled routes: a search needs an address and is refused in words before any Places call; with one it resolves the address once (Google Places), lists the restaurants Google returned with each one's Uber Eats link at that address (the location token carries the address's Google place id), and repeats reuse the geocode and the search; the profile's saved address is the default; a Places refusal (API not enabled, key not configured) is a 503 with the sentence, never an empty list; an unknown address is 404; POST /order records the hand-off row and answers the Uber Eats search link for the chosen restaurant; the chat turn offers the real restaurants by id and an "order" choice becomes a proposal that writes nothing; one diner never sees another's hand-offs; an anonymous caller is 401 before any query or Places call; every GET answers under the native read-only admission without a SQL write; the photo route resolves a Google photo name to its image URL, key-free.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { WRITER_REFUSAL, fakePool, fakeProvider, admittedPool, callAdmitted, loadRoutes, authed, anon, call } = require('./eats-routes-harness');
+const { decodePlaceToken } = require('../routes/uber-link.js');
+const { PLACE, SERVICE_DISABLED, NOT_CONNECTED, fakePlaces, fakePool, loadRoutes, authed, anon, call, admittedPool, callAdmitted } = require('./eats-routes-harness');
 
-const SAVED_MOCK = process.env.MOCK_OIDC;
-test.beforeEach(() => { delete process.env.MOCK_OIDC; });
-test.after(() => { if (SAVED_MOCK === undefined) delete process.env.MOCK_OIDC; else process.env.MOCK_OIDC = SAVED_MOCK; });
+const ADDRESS = '1 Synthetic Way, Pensacola';
+const search = (handlers, sub, query) => call(handlers, 'get', '/search', authed(sub, { query }));
+/** The page's and Jarvis's search: a POST, which may save what Google answers. */
+const post = (handlers, sub, body) => call(handlers, 'post', '/search', authed(sub, { body }));
+const DAY = 24 * 60 * 60 * 1000;
 
-const cart = (sub = 'diner-a', over = {}) => ({ cart_id: `cart-${sub}`, user_sub: sub, store_id: 'chipotle', store_name: 'Chipotle Mexican Grill', status: 'active', ...over });
-const line = (over) => ({ row_id: `row-${Math.random()}`, cart_id: 'cart-diner-a', user_sub: 'diner-a', store_id: 'chipotle', status: 'pending', quantity: 1, ...over });
-const add = (handlers, sub, body) => call(handlers, 'post', '/cart/items', authed(sub, { body }));
+test('a search without any address is refused in words before any Places call', async () => {
+  const { handlers, places } = loadRoutes();
+  const res = await search(handlers, 'diner-a', { q: 'tacos' });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'address_required');
+  assert.match(res.body.message, /^Set your delivery address first/);
+  assert.equal(places.requests.length, 0);
+});
 
-test('a dish is priced from the restaurant menu, not by what the browser sent', async () => {
-  const { handlers, pool, provider } = loadRoutes();
-  const res = await add(handlers, 'diner-a', { storeId: 'chipotle', productId: 'chp-burrito', price: 0.01, title: 'Forged', storeName: 'Elsewhere', imageUrl: 'https://evil.example/x.png', quantity: 2 });
+test('with an address the search resolves it once and lists the real restaurants with their Uber Eats links there', async () => {
+  const { handlers, places } = loadRoutes();
+  const res = await search(handlers, 'diner-a', { q: 'tacos', address: ADDRESS, limit: '5' });
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(provider.calls.filter((c) => c[0] !== 'status'), [['menu', 'chipotle']]);
-  const stored = pool.tables.items[0];
-  assert.equal(stored.price, '9.95', 'the menu price');
-  assert.equal(stored.title, 'Chicken Burrito');
-  assert.equal(stored.store_name, 'Chipotle Mexican Grill');
-  assert.equal(stored.image_url, null, 'the browser-sent image is not stored');
-  assert.equal(stored.quantity, 2);
-  assert.equal(res.body.totalCents, 1990);
-  assert.equal(res.body.total, 19.9);
-  assert.equal(res.body.storeName, 'Chipotle Mexican Grill');
+  assert.equal(res.body.source, 'Google Places');
+  assert.deepEqual(res.body.place, { address: PLACE.formattedAddress, placeId: PLACE.id, latitude: 30.4213, longitude: -87.2169 });
+  assert.equal(places.requests.length, 2, 'one geocode, one search');
+  assert.equal(places.requests[0].body.textQuery, ADDRESS);
+  assert.equal(places.requests[0].body.pageSize, 1);
+  assert.deepEqual(places.requests[1].body.locationBias.circle.center, { latitude: 30.4213, longitude: -87.2169 });
+  assert.equal(places.requests[1].body.textQuery, 'tacos');
+  assert.equal(places.requests[1].body.pageSize, 5);
+  for (const r of places.requests) assert.doesNotMatch(r.url, /[?&]key=/, 'the package never carries the key');
+  const taco = res.body.items[0];
+  assert.equal(taco.name, 'Taco Mahal');
+  assert.deepEqual([taco.rating, taco.priceLabel, taco.openNow, taco.delivery, taco.cuisine], [4.6, '$', true, true, 'Mexican restaurant']);
+  const link = new URL(taco.uberUrl);
+  assert.equal(link.origin + link.pathname, 'https://www.ubereats.com/search');
+  assert.equal(link.searchParams.get('q'), 'Taco Mahal');
+  assert.deepEqual(decodePlaceToken(link.searchParams.get('pl')), { address: PLACE.formattedAddress, reference: PLACE.id, referenceType: 'google_places', latitude: 30.4213, longitude: -87.2169 });
+  assert.match(res.body.feedUrl, /^https:\/\/www\.ubereats\.com\/feed\?diningMode=DELIVERY&pl=/);
 });
 
-test('a dish the menu does not list, or one from another restaurant, is refused with nothing stored', async () => {
-  const { handlers, pool } = loadRoutes();
-  for (const body of [{ storeId: 'chipotle', productId: 'chp-lobster', price: 1 }, { storeId: 'mcdonalds', productId: 'chp-burrito', price: 1 }, { storeId: 'nowhere', productId: 'x-1' }]) {
-    const res = await add(handlers, 'diner-a', body);
-    assert.equal(res.statusCode, 422, JSON.stringify(body));
-    assert.equal(res.body.error, 'unknown_item');
-  }
-  assert.equal(pool.tables.items.length, 0);
+test('a second search at the same address reuses the geocode, and the same craving reuses the search', async () => {
+  const { handlers, places } = loadRoutes();
+  await search(handlers, 'diner-a', { q: 'tacos', address: ADDRESS });
+  await search(handlers, 'diner-a', { q: 'sushi', address: ` ${ADDRESS.toUpperCase()} ` });
+  assert.equal(places.requests.length, 3, 'the second craving searched again but did not geocode again');
+  await search(handlers, 'diner-a', { q: 'tacos', address: ADDRESS });
+  assert.equal(places.requests.length, 3, 'the repeated craving came from the cache');
 });
 
-test('malformed ids are refused before any provider call', async () => {
-  const { handlers, provider } = loadRoutes();
-  for (const body of [{}, { storeId: 'chipotle' }, { productId: 'chp-bowl' }, { storeId: 'chip otle', productId: 'chp-bowl' }, { storeId: 'chipotle', productId: 'x'.repeat(65) }]) {
-    const res = await add(handlers, 'diner-a', body);
-    assert.equal(res.statusCode, 400, JSON.stringify(body));
-  }
-  assert.equal(provider.calls.length, 0);
-});
-
-test('adding from another restaurant starts a new order and the total follows exactly', async () => {
-  const { handlers, pool } = loadRoutes();
-  await add(handlers, 'diner-a', { storeId: 'chipotle', productId: 'chp-chips', quantity: 1 });
-  const res = await add(handlers, 'diner-a', { storeId: 'mcdonalds', productId: 'mcd-fries', quantity: 3 });
-  assert.equal(res.body.storeSwitched, true);
-  assert.equal(res.body.storeName, "McDonald's");
-  assert.deepEqual(res.body.items.map((i) => [i.item_id, i.price, i.quantity]), [['mcd-fries', '3.99', 3]]);
-  assert.equal(res.body.totalCents, 1197);
-  assert.equal(pool.tables.items.filter((i) => i.status === 'removed').length, 1);
-});
-
-test('/cart totals are exact integer cents, keep the existing shape, and count unpriced lines', async () => {
-  const pool = fakePool({ carts: [cart()], items: [
-    line({ item_id: 'chp-tacos', price: '9.45', quantity: 2 }), line({ item_id: 'chp-chips', price: '4.55' }),
-    line({ item_id: 'x-legacy', price: null }),
-  ] });
-  const { handlers } = loadRoutes({ pool });
-  const res = await call(handlers, 'get', '/cart', authed('diner-a'));
-  assert.deepEqual(Object.keys(res.body).slice(0, 5), ['cartId', 'storeId', 'storeName', 'items', 'total']);
-  assert.equal(res.body.totalCents, 2345, '1890 + 455');
-  assert.equal(res.body.total, 23.45);
-  assert.equal(res.body.unpricedLines, 1);
-});
-
-test('a chat checkout returns a proposal and builds no hand-off and no order row', async () => {
-  const pool = fakePool({ carts: [cart()], items: [line({ item_id: 'chp-bowl', price: '9.95', quantity: 2 })] });
-  const { handlers, provider } = loadRoutes({ pool, reply: { say: 'Ready when you are.', show: [], add: [], remember: [], checkout: true } });
-  const res = await call(handlers, 'post', '/chat', authed('diner-a', { body: { message: 'order it' } }));
+test('the profile\'s saved address is the default, and browser coordinates are resolved as a place', async () => {
+  const pool = fakePool({ profiles: { 'diner-a': { user_sub: 'diner-a', default_address: ADDRESS, dietary: [], favorite_cuisines: [], onboarded: true } } });
+  const { handlers, places } = loadRoutes({ pool });
+  const res = await search(handlers, 'diner-a', { q: 'pizza' });
   assert.equal(res.statusCode, 200);
+  assert.equal(places.requests[0].body.textQuery, ADDRESS);
+  const byCoords = await search(handlers, 'diner-a', { q: 'pizza', lat: '30.42130', lng: '-87.21690' });
+  assert.equal(byCoords.statusCode, 200);
+  assert.equal(places.requests[2].method, 'GET');
+  assert.equal(places.requests[2].url, 'https://maps.googleapis.com/maps/api/geocode/json?latlng=30.4213%2C-87.2169&result_type=street_address%7Cpremise%7Csubpremise%7Croute', 'coordinates go to the Geocoding reverse lookup, never to a Places text search (which refuses them)');
+  assert.deepEqual(byCoords.body.place, { address: PLACE.formattedAddress, placeId: PLACE.id, latitude: 30.4213, longitude: -87.2169 }, 'the resolved street address carries the place id the Uber Eats token needs');
+  const asText = await search(handlers, 'diner-b', { q: 'pizza', address: '30.44767, -86.58025' });
+  assert.equal(asText.statusCode, 200);
+  assert.match(places.requests.at(-2).url, /geocode\/json\?latlng=30\.44767%2C-86\.58025/, 'the "lat, lng" text Use location writes into the address box is coordinates too (then diner-b\'s own search ran)');
+});
+
+test('coordinates with the Geocoding API not allowed on the key answer 503 in words, with the typed-address advice', async () => {
+  const { handlers } = loadRoutes({ places: fakePlaces({ reverse: () => ({ status: 'REQUEST_DENIED', error_message: 'This API project is not authorized to use this API.', results: [] }) }) });
+  const res = await search(handlers, 'diner-a', { q: 'pizza', lat: '30.4', lng: '-87.2' });
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error, 'geocoding_unavailable');
+  assert.match(res.body.message, /^Location lookup needs the Geocoding API enabled on this installation's Google key .* Type your street address with the city instead\. \(Google said: This API project is not authorized to use this API\.\)$/);
+});
+
+test('Places API not enabled on the key answers 503 with the enabling instruction, never an empty list', async () => {
+  const { handlers } = loadRoutes({ places: fakePlaces({ status: 403, body: SERVICE_DISABLED }) });
+  const res = await search(handlers, 'diner-a', { q: 'tacos', address: ADDRESS });
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error, 'disabled');
+  assert.match(res.body.message, /Places API \(New\) is not enabled .*project 1085759851735.*Enable it at https:\/\/console\.developers\.google\.com/);
+  assert.equal(res.body.items, undefined);
+});
+
+test('a kernel without the key answers 503 naming OSHAL_CONNECTOR_SECRET_GOOGLE_PLACES', async () => {
+  const { handlers } = loadRoutes({ places: fakePlaces({ throws: new Error(NOT_CONNECTED) }) });
+  const res = await search(handlers, 'diner-a', { q: 'tacos', address: ADDRESS });
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error, 'not_configured');
+  assert.match(res.body.message, /set OSHAL_CONNECTOR_SECRET_GOOGLE_PLACES/);
+});
+
+test('an address Google cannot place is 404 address_not_found', async () => {
+  const { handlers } = loadRoutes({ places: fakePlaces({ geocode: () => ({ places: [] }) }) });
+  const res = await search(handlers, 'diner-a', { q: 'tacos', address: 'nowhere' });
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error, 'address_not_found');
+});
+
+test('POST /order records the hand-off and answers the Uber Eats search link for that restaurant at the address', async () => {
+  const { handlers, pool, places } = loadRoutes();
+  await search(handlers, 'diner-a', { q: 'tacos', address: ADDRESS });
+  const res = await call(handlers, 'post', '/order', authed('diner-a', { body: { placeId: 'ChIJ-taco-mahal', address: ADDRESS } }));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.store, 'Taco Mahal');
+  assert.equal(res.body.address, PLACE.formattedAddress);
+  assert.match(res.body.note, /nothing is ordered or charged here/);
+  const link = new URL(res.body.checkoutUrl);
+  assert.equal(link.searchParams.get('q'), 'Taco Mahal');
+  assert.equal(decodePlaceToken(link.searchParams.get('pl')).reference, PLACE.id);
+  assert.deepEqual(pool.tables.orders.map((o) => [o.user_sub, o.store_id, o.store_name, o.handoff_url]), [['diner-a', 'ChIJ-taco-mahal', 'Taco Mahal', res.body.checkoutUrl]]);
+  assert.equal(places.requests.length, 2, 'a restaurant the search just showed needs no lookup');
+  const history = await call(handlers, 'get', '/orders/history', authed('diner-a'));
+  assert.deepEqual(history.body.orders.map((o) => o.store_name), ['Taco Mahal']);
+});
+
+test('a hand-off to a restaurant not shown in this process looks it up by id first; a malformed id is refused', async () => {
+  const { handlers, places } = loadRoutes();
+  const res = await call(handlers, 'post', '/order', authed('diner-a', { body: { placeId: 'ChIJ-sushi-house', address: ADDRESS } }));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.store, 'Sushi House');
+  assert.ok(places.requests.some((r) => r.url.includes('/v1/places/ChIJ-sushi-house?')), 'the details lookup ran');
+  const bad = await call(handlers, 'post', '/order', authed('diner-a', { body: { placeId: '../x', address: ADDRESS } }));
+  assert.equal(bad.statusCode, 400);
+  const noAddress = await call(handlers, 'post', '/order', authed('diner-b', { body: { placeId: 'ChIJ-sushi-house' } }));
+  assert.equal(noAddress.statusCode, 400);
+  assert.equal(noAddress.body.error, 'address_required');
+});
+
+test('a chat turn offers the real restaurants by id, and an "order" choice becomes a proposal that writes nothing', async () => {
+  const reply = { say: 'Taco Mahal is open now, cheap and a kilometre away. Want it?', show: ['ChIJ-taco-mahal', 'ChIJ-sushi-house'], remember: [], order: 'ChIJ-taco-mahal' };
+  const { handlers, pool, prompts, places } = loadRoutes({ reply });
+  const res = await call(handlers, 'post', '/chat', authed('diner-a', { body: { message: 'tacos tonight', location: ADDRESS } }));
+  assert.equal(res.statusCode, 200);
+  assert.match(prompts[0], /CANDIDATES \(real, from Google Places near 1 Synthetic Way, Pensacola, FL 32502, USA; the ONLY restaurants you may show or open\):/);
+  assert.match(prompts[0], /- id:ChIJ-taco-mahal \| Taco Mahal \| Mexican restaurant \| rating 4\.6 \(57 reviews\) \| \$ \| open now \| [\d.]+ km away \| delivers/);
+  assert.match(prompts[0], /"order": "candidate id, or null"/);
+  assert.equal(places.requests[1].body.textQuery, 'tacos tonight', 'the message is the craving searched');
+  assert.deepEqual(res.body.cards.map((c) => c.placeId), ['ChIJ-taco-mahal', 'ChIJ-sushi-house']);
+  assert.match(res.body.cards[0].uberUrl, /^https:\/\/www\.ubereats\.com\/search\?q=Taco\+Mahal&pl=/);
+  assert.deepEqual(res.body.proposal, { actionId: 'open_uber_eats', placeId: 'ChIJ-taco-mahal', store: 'Taco Mahal', summary: `Open Uber Eats at ${PLACE.formattedAddress} with Taco Mahal searched? You pick the dishes, confirm the address and pay in Uber Eats; nothing is ordered or charged here.` });
   assert.equal(res.body.checkout, null);
-  assert.equal(res.body.proposal.actionId, 'place_order');
-  assert.equal(res.body.proposal.store, 'Chipotle Mexican Grill');
-  assert.equal(res.body.proposal.totalCents, 1990);
-  assert.match(res.body.proposal.summary, /2 items from Chipotle Mexican Grill totalling \$19\.90/);
-  assert.equal(provider.calls.filter((c) => c[0] === 'order').length, 0, 'no deep link');
-  assert.equal(pool.tables.orders.length, 0, 'no eats_orders row');
-  assert.equal(res.body.cart.totalCents, 1990);
+  assert.deepEqual(pool.tables.orders, [], 'a proposal records nothing; only POST /order does');
+  assert.equal(res.body.reply, reply.say);
 });
 
-test('a chat add takes the dish from the menu candidates at the menu price', async () => {
-  const { handlers, pool } = loadRoutes({ reply: { say: 'Added a bowl.', add: [{ productId: 'chp-bowl', quantity: 1 }, { productId: 'invented-1', quantity: 1 }] } });
-  const res = await call(handlers, 'post', '/chat', authed('diner-a', { body: { message: 'burrito bowl' } }));
-  assert.deepEqual(res.body.added.map((a) => [a.productId, a.price]), [['chp-bowl', 9.95]], 'an id outside the candidates is dropped');
-  assert.deepEqual(pool.tables.items.map((i) => [i.item_id, i.price]), [['chp-bowl', '9.95']]);
+test('an "order" naming a restaurant that was not a candidate proposes nothing', async () => {
+  const { handlers } = loadRoutes({ reply: { say: 'ok', show: [], remember: [], order: 'ChIJ-not-shown' } });
+  const res = await call(handlers, 'post', '/chat', authed('diner-a', { body: { message: 'pizza', location: ADDRESS } }));
   assert.equal(res.body.proposal, null);
 });
 
-test('the confirm (POST /order) builds the link once and records the exact total', async () => {
-  const pool = fakePool({ carts: [cart()], items: [line({ item_id: 'chp-bowl', price: '9.95', quantity: 2 }), line({ item_id: 'chp-chips', price: '4.55' })] });
-  const { handlers, provider } = loadRoutes({ pool });
-  const res = await call(handlers, 'post', '/order', authed('diner-a'));
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(provider.calls.filter((c) => c[0] !== 'status'), [['order', 'chipotle']]);
-  assert.equal(res.body.totalCents, 2445);
-  assert.equal(res.body.total, 24.45);
-  assert.equal(pool.tables.orders.length, 1);
-  assert.equal(pool.tables.orders[0].total, '24.45');
+test('one diner never sees another diner\'s hand-offs', async () => {
+  const { handlers } = loadRoutes();
+  await call(handlers, 'post', '/order', authed('diner-a', { body: { placeId: 'ChIJ-taco-mahal', address: ADDRESS } }));
+  const other = await call(handlers, 'get', '/orders/history', authed('diner-b'));
+  assert.deepEqual(other.body.orders, []);
 });
 
-test('one diner cannot remove another diner\'s line', async () => {
-  const pool = fakePool({ carts: [cart(), cart('diner-b', { cart_id: 'cart-diner-b' })], items: [line({ row_id: 'row-a', item_id: 'chp-bowl', price: '9.95' })] });
-  const { handlers } = loadRoutes({ pool });
-  await call(handlers, 'delete', '/cart/items/:rowId', authed('diner-b', { params: { rowId: 'row-a' } }));
-  assert.equal(pool.tables.items[0].status, 'pending');
-  const own = await call(handlers, 'delete', '/cart/items/:rowId', authed('diner-a', { params: { rowId: 'row-a' } }));
-  assert.equal(pool.tables.items[0].status, 'removed');
-  assert.equal(own.body.totalCents, 0);
-});
-
-test('an anonymous caller is 401 before any query or provider call', async () => {
-  const { handlers, pool, provider } = loadRoutes();
-  for (const [method, route, req] of [
-    ['get', '/cart', anon()],
-    ['post', '/cart/items', anon({ body: { storeId: 'chipotle', productId: 'chp-bowl' } })],
-    ['post', '/order', anon()],
-    ['post', '/chat', anon({ body: { message: 'hi' } })],
-  ]) {
-    const res = await call(handlers, method, route, req);
+test('an anonymous caller is 401 before any query or Places call', async () => {
+  const { handlers, pool, places } = loadRoutes();
+  for (const [method, route] of [['get', '/search'], ['get', '/photo'], ['post', '/order'], ['post', '/chat'], ['get', '/orders/history'], ['get', '/profile']]) {
+    const res = await call(handlers, method, route, anon({ query: { q: 'x', address: ADDRESS }, body: { message: 'x', placeId: 'ChIJ-taco-mahal' } }));
     assert.equal(res.statusCode, 401, `${method} ${route}`);
   }
   assert.equal(pool.sql.length, 0);
-  assert.equal(provider.calls.length, 0);
+  assert.equal(places.requests.length, 0);
 });
 
-/** What a GET route needs in its request to do its real work for a fresh diner. */
-const GET_REQUESTS = { '/search': { query: { q: 'tacos' } }, '/menu': { query: { storeId: 'chipotle' } } };
-/** The empty cart a diner with no cart reads. */
-const NO_CART = { cartId: null, storeId: null, storeName: null, items: [], total: 0, totalCents: 0, unpricedLines: 0 };
-
-test('the admission double refuses a SQL write while a GET runs, as the native host does', async () => {
-  const pool = admittedPool(fakePool());
-  pool.mode = 'read';
-  await assert.rejects(pool.query('INSERT INTO eats_carts (user_sub) VALUES ($1) RETURNING *', ['x']), new RegExp(WRITER_REFUSAL));
-  assert.deepEqual((await pool.query(`SELECT * FROM eats_carts WHERE user_sub = $1 AND status = 'active' ORDER BY created_at LIMIT 1`, ['x'])).rows, []);
-  assert.equal(pool.refused.length, 1);
-});
-
-test('a fresh diner reads an empty cart under read-only admission: 200, no cart created', async () => {
+test('every GET answers under the native read-only admission without attempting a SQL write', async () => {
   const pool = admittedPool(fakePool());
   const { handlers } = loadRoutes({ pool });
-  const res = await callAdmitted(handlers, pool, 'get', '/cart', authed('diner-new'));
-  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
-  assert.deepEqual(res.body, NO_CART);
-  assert.deepEqual(pool.refused, [], 'GET /cart attempted no write');
-  assert.equal(pool.tables.carts.length, 0, 'reading the cart created no cart');
-});
-
-test('every Eats GET route answers a fresh diner without attempting a SQL write', async () => {
-  const pool = admittedPool(fakePool());
-  const { handlers } = loadRoutes({ pool });
-  const routes = [...handlers.get.keys()];
-  assert.ok(routes.includes('/cart') && routes.length >= 9, `registered GET routes: ${routes.join(', ')}`);
-  for (const route of routes) {
-    const res = await callAdmitted(handlers, pool, 'get', route, authed('diner-new', GET_REQUESTS[route] || {}));
-    assert.ok(res.statusCode < 500, `GET ${route} answered ${res.statusCode}: ${JSON.stringify(res.body)}`);
+  const gets = [['/config', {}], ['/search', { q: 'tacos', address: ADDRESS }], ['/photo', { name: 'places/ChIJ-taco-mahal/photos/photo-1' }], ['/orders/history', {}], ['/profile', {}], ['/conversation', {}]];
+  for (const [route, query] of gets) {
+    const res = await callAdmitted(handlers, 'get', route, authed('diner-a', { query }), pool);
+    assert.ok(res.statusCode < 400, `${route} answered ${res.statusCode}: ${JSON.stringify(res.body).slice(0, 120)}`);
   }
-  assert.deepEqual(pool.refused, [], 'no GET route attempted a SQL write');
+  assert.deepEqual(pool.refused, []);
 });
 
-test('the first add creates the cart, and GET /cart then reads it without writing', async () => {
+test('the photo route resolves a Google photo name to its image URL without the key, and refuses any other name', async () => {
+  const { handlers, places } = loadRoutes();
+  const res = await call(handlers, 'get', '/photo', authed('diner-a', { query: { name: 'places/ChIJ-taco-mahal/photos/photo-1' } }));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.photoUri, 'https://lh3.googleusercontent.com/synthetic/photo-1');
+  assert.match(places.requests[0].url, /\/v1\/places\/ChIJ-taco-mahal\/photos\/photo-1\/media\?maxWidthPx=640&skipHttpRedirect=true/);
+  assert.doesNotMatch(places.requests[0].url, /key=/);
+  const again = await call(handlers, 'get', '/photo', authed('diner-a', { query: { name: 'places/ChIJ-taco-mahal/photos/photo-1' } }));
+  assert.equal(again.body.photoUri, res.body.photoUri);
+  assert.equal(places.requests.length, 1, 'the second read is the cache');
+  const bad = await call(handlers, 'get', '/photo', authed('diner-a', { query: { name: 'https://evil.example/x' } }));
+  assert.equal(bad.statusCode, 400);
+});
+
+test('/config names the rail: Google Places for the restaurants, Uber Eats for the hand-off', async () => {
+  const { handlers } = loadRoutes();
+  const res = await call(handlers, 'get', '/config', authed('diner-a'));
+  assert.deepEqual([res.body.rail, res.body.source, res.body.connector, res.body.handoff, res.body.uberConnected], ['places', 'Google Places', 'google-places', 'uber-eats', false]);
+  assert.match(res.body.railNote, /Google Places .* Uber Eats/);
+});
+
+
+test('a POST search saves the address, the search and the cards, and a second POST within a day asks Google nothing', async () => {
+  const { handlers, pool, places } = loadRoutes();
+  const first = await post(handlers, 'diner-a', { query: 'tacos', address: ADDRESS, limit: 5 });
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.body.served, 'live');
+  assert.equal(first.body.savedNote, '');
+  assert.equal(places.requests.length, 2, 'one geocode, one search');
+  assert.deepEqual(Object.keys(pool.tables.lookups), ['diner-a|text:1 synthetic way, pensacola']);
+  assert.deepEqual(Object.keys(pool.tables.searches), ['diner-a|tacos|ChIJ-synthetic-address|5|0']);
+  assert.deepEqual(Object.keys(pool.tables.places).sort(), ['diner-a|ChIJ-sushi-house', 'diner-a|ChIJ-taco-mahal', 'diner-a|ChIJ-thai-garden']);
+  assert.ok(pool.tables.searches['diner-a|tacos|ChIJ-synthetic-address|5|0'].expires_ms - pool.tables.searches['diner-a|tacos|ChIJ-synthetic-address|5|0'].fetched_ms === 30 * DAY, 'thirty days, Google\'s limit');
+  const { handlers: again, places: placesAgain } = loadRoutes({ pool });
+  const second = await post(again, 'diner-a', { query: 'Tacos ', address: ' 1 SYNTHETIC WAY, Pensacola', limit: 5 });
+  assert.equal(second.statusCode, 200);
+  assert.equal(placesAgain.requests.length, 0, 'a new process with the saved rows asks Google nothing');
+  assert.equal(second.body.served, 'saved');
+  assert.deepEqual(second.body.items.map((r) => r.name), ['Taco Mahal', 'Sushi House', 'Thai Garden']);
+  assert.match(second.body.savedNote, /^Saved results: Google was not asked again/);
+  assert.equal(second.body.fallback, null);
+  assert.equal(second.body.place.placeId, 'ChIJ-synthetic-address');
+});
+
+test('Refresh asks Google again even when the saved search is fresh, and replaces it', async () => {
+  const { handlers, pool, places } = loadRoutes();
+  await post(handlers, 'diner-a', { query: 'tacos', address: ADDRESS, limit: 5 });
+  const refreshed = await post(handlers, 'diner-a', { query: 'tacos', address: ADDRESS, limit: 5, refresh: true });
+  assert.equal(refreshed.body.served, 'live');
+  assert.equal(places.requests.length, 3, 'the address stays resolved from memory; the search ran again');
+  assert.equal(Object.keys(pool.tables.searches).length, 1, 'the row was replaced, not duplicated');
+});
+
+test('at Google\'s quota a saved search older than a day is served with its saved time and the reason', async () => {
+  const fetched = Date.now() - 3 * DAY;
+  const saved = { search_key: 'diner-a|tacos|ChIJ-synthetic-address|5|0', user_sub: 'diner-a', query: 'tacos', place_id: 'ChIJ-synthetic-address', restaurants: JSON.stringify([{ placeId: 'ChIJ-taco-mahal', name: 'Taco Mahal', rating: 4.6 }]), fetched_ms: fetched, expires_ms: fetched + 30 * DAY };
+  const lookup = { lookup_key: 'diner-a|text:1 synthetic way, pensacola', user_sub: 'diner-a', address: PLACE.formattedAddress, place_id: PLACE.id, latitude: 30.4213, longitude: -87.2169, source: 'places', fetched_ms: fetched, expires_ms: fetched + 30 * DAY };
+  const pool = fakePool({ searches: { [saved.search_key]: saved }, lookups: { [lookup.lookup_key]: lookup } });
+  const { handlers, places } = loadRoutes({ pool, places: fakePlaces({ status: 429, body: { error: { code: 429, message: 'Quota exceeded for quota metric', status: 'RESOURCE_EXHAUSTED' } } }) });
+  const res = await post(handlers, 'diner-a', { query: 'tacos', address: ADDRESS, limit: 5 });
+  assert.equal(res.statusCode, 200);
+  assert.equal(places.requests.length, 1, 'Google was asked once (the search) and refused; the address came from the saved lookup');
+  assert.equal(res.body.served, 'saved');
+  assert.equal(res.body.savedAt, new Date(fetched).toISOString());
+  assert.deepEqual(res.body.items.map((r) => r.name), ['Taco Mahal']);
+  assert.match(res.body.items[0].uberUrl, /^https:\/\/www\.ubereats\.com\/search\?q=Taco\+Mahal&pl=/, 'the saved card still gets its Uber Eats link at the address');
+  assert.equal(res.body.fallback.error, 'quota');
+  assert.match(res.body.savedNote, /^Google could not be asked/);
+});
+
+test('past Google\'s thirty days nothing saved is served, and the refusal stands', async () => {
+  const fetched = Date.now() - 31 * DAY;
+  const saved = { search_key: 'diner-a|tacos|ChIJ-synthetic-address|5|0', user_sub: 'diner-a', query: 'tacos', place_id: 'ChIJ-synthetic-address', restaurants: '[]', fetched_ms: fetched, expires_ms: fetched + 30 * DAY };
+  const pool = fakePool({ searches: { [saved.search_key]: saved } });
+  const { handlers } = loadRoutes({ pool, places: fakePlaces({ respond: (_url, _init, body) => (body && body.includedType === 'restaurant' ? { ok: false, status: 429, json: async () => ({ error: { status: 'RESOURCE_EXHAUSTED', message: 'quota' } }) } : null) }) });
+  const res = await post(handlers, 'diner-a', { query: 'tacos', address: ADDRESS, limit: 5 });
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error, 'quota');
+});
+
+test('GET /search reads the saved rows and never writes, under the native read-only admission', async () => {
   const pool = admittedPool(fakePool());
-  const { handlers } = loadRoutes({ pool });
-  const added = await callAdmitted(handlers, pool, 'post', '/cart/items', authed('diner-new', { body: { storeId: 'chipotle', productId: 'chp-bowl', quantity: 2 } }));
-  assert.equal(added.statusCode, 200, JSON.stringify(added.body));
-  const res = await callAdmitted(handlers, pool, 'get', '/cart', authed('diner-new'));
-  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
-  assert.equal(res.body.cartId, pool.tables.carts[0].cart_id);
-  assert.equal(res.body.storeId, 'chipotle');
-  assert.equal(res.body.items.length, 1);
-  assert.equal(res.body.totalCents, 1990);
-  assert.equal(pool.tables.carts.length, 1, 'exactly one cart, created by the write');
+  const { handlers, places } = loadRoutes({ pool });
+  const viaGet = await callAdmitted(handlers, 'get', '/search', authed('diner-a', { query: { q: 'tacos', address: ADDRESS, limit: '5' } }), pool);
+  assert.equal(viaGet.statusCode, 200);
+  assert.equal(viaGet.body.served, 'live');
+  assert.deepEqual(pool.refused, [], 'no write was even attempted on the GET');
+  assert.deepEqual([Object.keys(pool.tables.lookups), Object.keys(pool.tables.searches)], [[], []], 'nothing saved from a GET');
+  await callAdmitted(handlers, 'post', '/search', authed('diner-a', { body: { query: 'sushi', address: ADDRESS, limit: 5 } }), pool);
+  assert.equal(Object.keys(pool.tables.searches).length, 1, 'the POST saved');
+  const { handlers: fresh, places: placesFresh } = loadRoutes({ pool });
+  const read = await callAdmitted(fresh, 'get', '/search', authed('diner-a', { query: { q: 'sushi', address: ADDRESS, limit: '5' } }), pool);
+  assert.equal(read.body.served, 'saved');
+  assert.equal(placesFresh.requests.length, 0, 'the GET served the saved rows without Google');
   assert.deepEqual(pool.refused, []);
+  void places;
+});
+
+test('a hand-off to a saved restaurant needs no Google lookup in a new process', async () => {
+  const { handlers, pool } = loadRoutes();
+  await post(handlers, 'diner-a', { query: 'sushi', address: ADDRESS, limit: 5 });
+  const { handlers: again, places } = loadRoutes({ pool });
+  const res = await call(again, 'post', '/order', authed('diner-a', { body: { placeId: 'ChIJ-sushi-house', address: ADDRESS } }));
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.store, 'Sushi House');
+  assert.equal(places.requests.length, 0, 'address and restaurant both came from the saved rows');
 });

@@ -58,6 +58,14 @@
 # and alerts nobody. The schedule's offer says only that. Roger, 2026-10-29: "i dont want kalshi to tell jarvis i want
 # kalshi to do its job .. and maybe later ill want it to tell jarvis".
 #
+# 2026-10-30 — 1.7.0: BROWSE KALSHI, AND A QUANT WHO WALKS YOU THROUGH EVERY BET. The snapshot keeps every market the
+# scan walked (not only the playable hands); a MARKETS tab lists them with the book, the horizon and the evaluator's
+# verdict in words, a Why button opens the walkthrough (price vs calibrated chance, fee, net edge, evidence, book, flags,
+# sizing), and Ask the quant hands that question to this application's own concierge, kalshi-quant, which reads the
+# same numbers through the kalshi_market / kalshi_markets / kalshi_scan tools and explains them in plain words. Any
+# ticker can be looked up live (GET /markets/:ticker). Roger, 2026-10-30: "i should also be able to browse kalshi not
+# just the edges and talk to an agent quant who can walk me through why every bet is bad".
+#
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -67,18 +75,34 @@ suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own categ
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
 rating:
   memoryMb: { low: 32, high: 128, basis: declared }
-  features: []   # no model in the loop (T0)
+  features:
+    - id: quant-walkthrough
+      unit: question
+      tier: T2
+      generation: hosted
+      degrade: template   # the Why walkthrough is deterministic words from the evaluator's numbers; the quant adds conversation
 displayName: Kalshi Prediction Markets
 description: >-
-  Find mispriced event contracts on Kalshi. Every open market is evaluated like a poker hand —
+  Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad
+  or good. Every open market is evaluated like a poker hand —
   calibrated true probability (from settled-market history) versus price plus fees — and the
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.6.5
+version: 1.7.3
 status: active
-# This package owns deterministic surfaces and routes; the framework concierge owns its right rail.
-chatBot: general-bot
+# This package owns deterministic surfaces and routes; its own quant owns the right rail (ADR-083 inline concierge).
+chatBot: kalshi-quant
+
+bots:
+  # The conversational specialist: reasons over the package's routes through the tools below; never trades.
+  - agentId: 0bfe0791-8c27-4267-ba30-b254f45d76b6
+    name: kalshi-quant
+    persona: personas/kalshi-quant.yaml
+    role: kalshi/quant
+    capabilities:
+      - market-walkthrough
+      - edge-explanation
 
 # These capabilities are the minimum core contract; older cores must reject the package.
 uses: [jarvis-briefings, test-catalog, app-dependencies]
@@ -244,6 +268,77 @@ schedules:
     description: Scan Kalshi's open markets when the snapshot is due. Jarvis hears about new hands only when Tell Jarvis is on in Settings.
     offer: Keep my Kalshi edge scan fresh.
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — read-only reads of this package's own routes for the kalshi-quant concierge (and Jarvis).
+# Each is an API tool over a mounted /api/kalshi route, called as the person asking. None places
+# an order; the order routes stay confirm-gated on the page.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: kalshi_market
+    displayName: Kalshi market walkthrough
+    type: api
+    category: finance
+    description: >-
+      One Kalshi market with the evaluator's full walkthrough: verdict (monster, strong, playable,
+      fold or not evaluable), the side, price vs calibrated chance, fee, net edge, evidence
+      (settled-market count and confidence), book, risk flags, sizing, and the numbers behind them.
+      Read from the last scan, else live from Kalshi. Read-only. Input: {"ticker":"KXRAIN-26OCT31-AUS"}.
+    executor: { executorType: api, apiEndpoint: "GET /api/kalshi/markets/{input.ticker}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [ticker]
+      properties:
+        ticker: { type: string, description: "The Kalshi market ticker, such as KXRAIN-26OCT31-AUS (find one with kalshi_markets)" }
+    usageInstructions: Call it for any question about one market; speak its numbers in cents and percentages and keep its verdict and reasons.
+    routingTags: [kalshi, market, bet, odds, edge, why]
+    skills: [kalshi]
+    tags: [kalshi]
+
+  - name: kalshi_markets
+    displayName: Kalshi markets browse
+    type: api
+    category: finance
+    description: >-
+      The markets the last scan walked, each with its book, close time and verdict headline.
+      Filter by a search word (title, ticker or category), a category, a verdict (all, playable,
+      fold, not-evaluable) and a sort (closes, edge, volume). Read-only.
+      Input: {"q":"rain","category":"Weather","verdict":"all","sort":"edge","limit":20}.
+    executor: { executorType: api, apiEndpoint: "GET /api/kalshi/markets?q={input.q}&category={input.category}&verdict={input.verdict}&sort={input.sort}&limit={input.limit}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        q: { type: string, description: "A word from the market title, ticker or category" }
+        category: { type: string, description: "An exact category name from the list" }
+        verdict: { type: string, enum: [all, playable, fold, not-evaluable] }
+        sort: { type: string, enum: [verdict, closes, edge, volume], description: "verdict (default): priced markets first, strongest and best edge on top" }
+        limit: { type: integer, minimum: 1, maximum: 200, description: "Rows to return (default 300 on the route; ask for fewer)" }
+    usageInstructions: Use it to find a market by words before kalshi_market, or to answer what is open in a category; name the scan's time.
+    routingTags: [kalshi, markets, browse, search]
+    skills: [kalshi]
+    tags: [kalshi]
+
+  - name: kalshi_scan
+    displayName: Kalshi edge scan
+    type: api
+    category: finance
+    description: >-
+      The last background scan: the playable hands ranked by strength and edge, the strategy's
+      stake gate and scorecard, the calibration table's age and the scan's freshness. Read-only. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/kalshi/scan" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Use it for "what is playable now" questions; say when the scan ran and whether the strategy may stake.
+    routingTags: [kalshi, scan, playable, hands]
+    skills: [kalshi]
+    tags: [kalshi]
+
 # ROUTES — the packaged surface router, mounted /api/kalshi on activation. (In
 # core server.ts this was createKalshiRoutes behind serviceSecretOr(requiresAuth),
 # same as /api/trading. Handlers also self-gate via callerSub.)
@@ -288,7 +383,7 @@ migrations:
 ui:
   static:
     - toolName: kalshi-home
-      label: Kalshi Edge
+      label: Kalshi
       icon: codicon codicon-graph-scatter
       iframeUrl: /api/kalshi/
       section: top

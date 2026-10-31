@@ -21,6 +21,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register example-names: the examples dropdown has a visible Examples label and circuit-create-design pairs each example id with its on-screen title (sweep 13).
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Register engine-down-words: with no engine the page says once, in words, that the circuit engine is not answering on this installation, never the host's install command (demo sweep 1).
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the open circuit is saved through the lab's own routes before Jarvis or the concierge reads it, a concierge edit made through the part route is drawn on refresh, and an inspector field still being edited survives the refresh and the poll. The surface-editing fixture now serves the real shared document-handoff module, so that case also needs the kernel platform.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0 (ADR-202): the hexapod-power case - the spider-18 power example validates, the STS3215 shared row resolves, and the real engine solves the stance, the stall and the 5 V rail; driver-catalog and board-model texts name the new row and example.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -195,7 +196,7 @@ cases:
       files:
         - tests/board-model.test.js
     expected:
-      - For led-switch, rc-charge, motor-gearbox and pwm-motor the board nets equal the wire nets and the rebuilt wires keep their ids; 40 resistors do not fit and are reported.
+      - For led-switch, rc-charge, motor-gearbox, pwm-motor and hexapod-power the board nets equal the wire nets and the rebuilt wires keep their ids; 40 resistors do not fit and are reported.
       - An upright resistor from row c lands in c and f; a DIP or a 45-degree turn is refused naming .rot; two legs on one strip are named as shorted; e10 to f10 is 7.62 mm and T-1 to a1 5.08 mm; a turned LED keeps board and schematic nets equal both ways.
     prerequisites:
       - runner:node-test
@@ -216,7 +217,7 @@ cases:
       files:
         - tests/driver-catalog.test.js
     expected:
-      - Every declared row loads except those whose owner package is not installed beside this one, each withheld with a reason naming the owner and nothing put in its place; with Animatronics and Embodied present that is all five rows, and installed alone it is the two this package owns outright.
+      - Every declared row loads except those whose owner package is not installed beside this one, each withheld with a reason naming the owner and nothing put in its place; with Animatronics and Embodied present that is all six rows (the STS3215 bus servo reads embodied's jointDrive block), and installed alone it is the two this package owns outright.
       - A stall current of 0 or an unknown nameplate key fails the load naming drivers[i].props.<key>; each embodied fit's motor row resolves to embodied's own name, mass, price and KV, with noLoadRpm = KV x this lab's operating point (26640 rpm for the 2306 at 14.8 V).
     prerequisites:
       - runner:node-test
@@ -397,4 +398,26 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+
+  - id: hexapod-power
+    name: The spider-18 power example and the STS3215 shared row
+    purpose: The hexapod-power example (18 bus servos in embodied's actuator order, a tripod stance under load, one stalled servo, the 3S pack, the 5 V buck feeding the Pi and the LiDAR) validates and lays out; the STS3215 row reads embodied's jointDrive block and is withheld by name without the owner; with the engine container present the example SOLVES on ngspice at 11.1, 12.6 and 9.9 V and the solved numbers sit inside stated bounds (ADR-202).
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/hexapod-power.test.js
+    expected:
+      - The example validates through validateCircuit with 38 parts and 79 wires and its restated STS3215 nameplate equals the resolved catalog row.
+      - The servo-bus-sts3215-12v row resolves against embodied's servos row (2942 mN*m stall, 270 deg/s) and is withheld naming embodied when the owner is absent.
+      - With oshal-circuit-lab-engine reachable the real solve reports a stance bus current near 5.6 A, a stall peak under 2.7 A per servo and a 5 V rail that holds; without it that one case skips naming the install command.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

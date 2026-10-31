@@ -9,6 +9,7 @@
  *   screen), and (2) the round clock does not sit on the question ("Name something you always d[o]"). Seams: the game API
  *   answers a fixed room over a stub server and the shell's shared theme assets are empty stand-ins. Needs the store
  *   toolchain (express, playwright, chromium).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The stub seat carries what the API really sends (me, role): the stage shows a buzzer only to a seat that plays, and the old fixture's fields were never in the API. The store gate now runs this spec.
  */
 'use strict';
 const test = require('node:test');
@@ -24,7 +25,7 @@ const QUESTION = 'Name something you always do before going to bed.';
 function state() {
   return {
     ok: true, now: Date.now(), rev: 1, events: [], scoreboard: [],
-    seats: [{ seatId: 's1', name: 'You', team: 'A', kind: 'human', mine: true }],
+    seats: [{ seatId: 's1', name: 'You', team: 'A', role: 'player', me: true }],
     room: { roomId: 'r1', isOwner: true, showId: 'family-feud', code: 'B069CC', joinCode: 'B069CC' },
     show: { id: 'family-feud', title: 'Family Feud', teams: true },
     state: { phase: 'faceoff', round: 1, host: { line: '' },

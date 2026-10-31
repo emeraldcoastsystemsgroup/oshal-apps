@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The vm global is its own `window`: My Day now carries the audience-view head script and gates its start on `window.AppView`, so the context needs the browser's self-reference. With no kit loaded the head script steps aside and every assertion below still runs the full page.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Yahoo is no longer offered: this installation has no Yahoo connector and its runtime answers every Yahoo read 501. The switch has no Yahoo option, a saved 'yahoo' falls back to the server's pick, and the no-mailbox notice (Inbox, My Day and its audience view) names Google and Outlook only. A Yahoo list the server picks on its own (a core that reads Yahoo) still opens list-only.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The connect notices offer one sign-in button per mailbox provider (tests/mailbox-connect.test.cjs) and keep an All connections link, instead of one link to the unfiltered Connections page.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | The Inbox lists fifty at a time (max=50) and pages; with no `next` in the answer it asks for nothing more, so the reads and drafts below still follow the one list request.
  */
 
 import assert from 'node:assert/strict';
@@ -56,7 +57,7 @@ test('the inbox asks for the saved mailbox and shows the Outlook connect notice 
   const { calls, byId } = await runSurface('email-inbox.html', [
     { connected: false, provider: 'outlook', error: 'no_outlook_connection' },
   ], 'outlook');
-  assert.equal(calls[0].url, '/api/email/messages?max=30&surface=1&provider=outlook');
+  assert.equal(calls[0].url, '/api/email/messages?max=50&surface=1&provider=outlook');
   assert.match(byId('items').innerHTML, /No Outlook \/ Microsoft 365 account connected\./);
   assert.match(byId('items').innerHTML, /data-connect="outlook">Connect Outlook \/ Microsoft 365</);
   assert.match(byId('items').innerHTML, /href="\/utilities\?category=email" target="_top">Mail connections</);
@@ -68,8 +69,8 @@ test('the inbox lets the server pick, then reads and drafts on the mailbox the l
     { id: 'AAMk/1=', from: 'Alpha <alpha@oshal.example.com>', subject: 'Hello', date: '', body: 'text' },
     { draft: 'Thanks' },
   ], 'not-a-provider');
-  assert.equal(calls[0].url, '/api/email/messages?max=30&surface=1', 'an unknown saved value falls back to the server default');
-  assert.equal(byId('count').textContent, '1 shown · Outlook');
+  assert.equal(calls[0].url, '/api/email/messages?max=50&surface=1', 'an unknown saved value falls back to the server default');
+  assert.equal(byId('count').textContent, '1 loaded · Outlook');
   const row = byId('items').children[0];
   row.onclick();
   await settle();
@@ -83,8 +84,8 @@ test('a Yahoo list the server picks still opens from the list data alone, becaus
   const { calls, byId, settle } = await runSurface('email-inbox.html', [
     { provider: 'yahoo', messages: [{ id: '1079', from: 'Sender <sender@mail.example.com>', subject: 'Yahoo hello', snippet: '', date: '2026-09-27T14:05:00.000Z' }] },
   ], 'yahoo');
-  assert.equal(calls[0].url, '/api/email/messages?max=30&surface=1', 'a saved Yahoo choice is not requested: the switch no longer offers it');
-  assert.equal(byId('count').textContent, '1 shown · Yahoo');
+  assert.equal(calls[0].url, '/api/email/messages?max=50&surface=1', 'a saved Yahoo choice is not requested: the switch no longer offers it');
+  assert.equal(byId('count').textContent, '1 loaded · Yahoo');
   byId('items').children[0].onclick();
   await settle();
   assert.equal(calls.length, 1, 'no message fetch and no draft request for a Yahoo row');

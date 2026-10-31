@@ -27,8 +27,9 @@
 # docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 0.20.1: the certified gait ships in the engine image and reports live on a named volume (ADR-203); no engine runtime file changed.
 name: embodied
-suite: ai-home   # ADR-097: primary catalog shelf — exactly one
+suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
 rating:
@@ -77,7 +78,7 @@ description: >-
   hidden scenes (the kitchen, a studio) are plain data the discovery never reads;
   a drone that reports itself lost recovers by a global search and its registered
   trail back to the pad. Deterministic, no hardware — every view says simulated.
-version: 0.18.1
+version: 0.20.1
 
 # ADR-139 — "Send to…" destination: a Spaces scan built into this engine's scene shape becomes a
 # scenario this owner can reset a world onto (BACKLOG B23). The endpoint redeems the handle as the
@@ -126,7 +127,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [cad-studio]   # the Open in CAD Studio buttons POST to it; absent, they report and the designs still render
+    apps: [cad-studio, circuit-lab]   # the Open in CAD Studio buttons POST to it; Circuit Lab reads this package's servo row for the spider's power example; absent, each reports and the designs still render
     tools: []
     connectors: []
 

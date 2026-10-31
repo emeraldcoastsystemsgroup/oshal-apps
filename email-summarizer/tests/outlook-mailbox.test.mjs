@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the compiled Outlook Graph adapter and the provider switch with a recording fetch: MailSummary normalization, the list cap and page limit, Graph-origin-only pagination, id encoding, the text-body preference, today's calendar window, and google|outlook selection with no cross-provider fallback. No network, credentials or framework checkout.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The switch accepts yahoo, but Yahoo is never a brokered-token provider (its app password stays in core), and MailboxRefusal carries the refusal status and body.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | pageOutlookInbox: one Graph page per call with $top = the page size, the nextLink handed back as the cursor and followed on the next call, the end reported as null, and a cursor off graph.microsoft.com refused before any request.
  */
 
 import assert from 'node:assert/strict';
@@ -224,4 +225,22 @@ test('a refused refresh is reported as reconnect for that provider and logged, n
   assert.deepEqual(providers.missingConnectionBody('outlook').error, 'no_outlook_connection');
   assert.deepEqual(providers.missingConnectionBody('google').error, 'no_google_connection');
   assert.deepEqual(providers.missingConnectionBody(null).error, 'no_mail_connection');
+});
+
+test('pageOutlookInbox reads one Graph page per call, hands the nextLink back as the cursor and refuses a foreign one', async () => {
+  const next = 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skip=2';
+  const first = recordingFetch([{ value: [graphMessage(2), graphMessage(1)], '@odata.nextLink': next }]);
+  const page1 = await outlook.pageOutlookInbox(TOKEN, { days: 7, max: 2 }, first.fetchImpl, NOW);
+  assert.equal(first.calls.length, 1, 'one Graph page per call');
+  assert.equal(new URL(first.calls[0].url).searchParams.get('$top'), '2');
+  assert.deepEqual(page1.messages.map((m) => m.id), ['AAMk-1', 'AAMk-2'], 'newest first');
+  assert.equal(page1.next, next);
+  const second = recordingFetch([{ value: [graphMessage(3)] }]);
+  const page2 = await outlook.pageOutlookInbox(TOKEN, { max: 2, page: next }, second.fetchImpl, NOW);
+  assert.equal(second.calls[0].url, next, 'the cursor is the page fetched');
+  assert.deepEqual(page2.messages.map((m) => m.id), ['AAMk-3']);
+  assert.equal(page2.next, null, 'the end');
+  const foreign = recordingFetch([{ value: [graphMessage(9)] }]);
+  await assert.rejects(outlook.pageOutlookInbox(TOKEN, { max: 2, page: 'https://evil.example/v1.0/me/messages' }, foreign.fetchImpl, NOW), /page cursor/);
+  assert.equal(foreign.calls.length, 0, 'a refused cursor reaches no host');
 });

@@ -1,0 +1,254 @@
+{
+  "task": "hexapod-walk",
+  "mode": "shape",
+  "reward": "cot",
+  "wCot": 0.02,
+  "wRecover": 0.0,
+  "wTorque": 1.0,
+  "torqueLimitNm": 1.47,
+  "jump": "legs-hop",
+  "seed": 2,
+  "timesteps": 1000000,
+  "residualRad": 0.15,
+  "evalSeeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "facets": [
+    "trackingErrorMps",
+    "costOfTransport",
+    "falls"
+  ],
+  "mujoco": "3.3.5",
+  "obsSize": 63,
+  "actionSize": 18,
+  "startedAt": "2026-10-30T13:55:29Z",
+  "baseline": {
+    "episodes": 5,
+    "meanReturn": 26.3214,
+    "falls": 0,
+    "distanceM": 0.8305,
+    "energyJ": 217.9436,
+    "trackingErrorMps": 0.0424,
+    "costOfTransport": 12.4778,
+    "rows": [
+      {
+        "command": {
+          "vx": 0.21699632610040182,
+          "vy": 0.009655402696788731,
+          "yawRate": -0.12668205498527785
+        },
+        "measured": {
+          "vxMps": 0.2085,
+          "vyMps": 0.0117,
+          "yawRateRadS": -0.1014
+        },
+        "trackingErrorMps": 0.0559,
+        "costOfTransport": 13.525,
+        "falls": 0,
+        "distanceM": 1.045,
+        "energyJ": 279.9343,
+        "seconds": 5.02,
+        "return": 2.075
+      },
+      {
+        "command": {
+          "vx": 0.23870650112211078,
+          "vy": -0.014057896665842687,
+          "yawRate": 0.17088324718198628
+        },
+        "measured": {
+          "vxMps": 0.2356,
+          "vyMps": -0.0184,
+          "yawRateRadS": 0.1469
+        },
+        "trackingErrorMps": 0.0588,
+        "costOfTransport": 14.51,
+        "falls": 0,
+        "distanceM": 1.1618,
+        "energyJ": 333.8931,
+        "seconds": 5.02,
+        "return": -21.078
+      },
+      {
+        "command": {
+          "vx": 0.08199822900086073,
+          "vy": 0.008594351484022732,
+          "yawRate": 0.19430206630970775
+        },
+        "measured": {
+          "vxMps": 0.0764,
+          "vyMps": 0.0078,
+          "yawRateRadS": 0.1662
+        },
+        "trackingErrorMps": 0.017,
+        "costOfTransport": 9.272,
+        "falls": 0,
+        "distanceM": 0.3678,
+        "energyJ": 67.5503,
+        "seconds": 5.02,
+        "return": 87.028
+      },
+      {
+        "command": {
+          "vx": 0.1125366465445895,
+          "vy": -0.02756817773739524,
+          "yawRate": -0.1907941631434169
+        },
+        "measured": {
+          "vxMps": 0.1054,
+          "vyMps": -0.0255,
+          "yawRateRadS": -0.1634
+        },
+        "trackingErrorMps": 0.0258,
+        "costOfTransport": 10.952,
+        "falls": 0,
+        "distanceM": 0.5277,
+        "energyJ": 114.4626,
+        "seconds": 5.02,
+        "return": 67.93
+      },
+      {
+        "command": {
+          "vx": 0.21771296247390715,
+          "vy": 0.019214814862734714,
+          "yawRate": -0.17034670306390523
+        },
+        "measured": {
+          "vxMps": 0.2123,
+          "vyMps": 0.0215,
+          "yawRateRadS": -0.1465
+        },
+        "trackingErrorMps": 0.0545,
+        "costOfTransport": 14.13,
+        "falls": 0,
+        "distanceM": 1.0501,
+        "energyJ": 293.8778,
+        "seconds": 5.02,
+        "return": -4.348
+      }
+    ]
+  },
+  "trainWallS": 2967.9,
+  "policyPath": "/home/oshal-maintainer/oshal-work/hexapod-reports/torque-seed2/hexapod-walk-ppo-shape-seed2.zip",
+  "policyFile": "hexapod-walk-ppo-shape-seed2.zip",
+  "sb3": "2.7.0",
+  "torch": "2.8.0+cpu",
+  "envs": 4,
+  "policy": {
+    "episodes": 5,
+    "meanReturn": 67.4344,
+    "falls": 0,
+    "distanceM": 0.7834,
+    "energyJ": 121.7636,
+    "trackingErrorMps": 0.0312,
+    "costOfTransport": 7.4252,
+    "rows": [
+      {
+        "command": {
+          "vx": 0.21699632610040182,
+          "vy": 0.009655402696788731,
+          "yawRate": -0.12668205498527785
+        },
+        "measured": {
+          "vxMps": 0.1994,
+          "vyMps": 0.012,
+          "yawRateRadS": -0.1267
+        },
+        "trackingErrorMps": 0.0349,
+        "costOfTransport": 8.155,
+        "falls": 0,
+        "distanceM": 0.998,
+        "energyJ": 161.2011,
+        "seconds": 5.02,
+        "return": 61.352
+      },
+      {
+        "command": {
+          "vx": 0.23870650112211078,
+          "vy": -0.014057896665842687,
+          "yawRate": 0.17088324718198628
+        },
+        "measured": {
+          "vxMps": 0.2205,
+          "vyMps": -0.0173,
+          "yawRateRadS": 0.092
+        },
+        "trackingErrorMps": 0.0347,
+        "costOfTransport": 8.326,
+        "falls": 0,
+        "distanceM": 1.1085,
+        "energyJ": 182.7971,
+        "seconds": 5.02,
+        "return": 48.934
+      },
+      {
+        "command": {
+          "vx": 0.08199822900086073,
+          "vy": 0.008594351484022732,
+          "yawRate": 0.19430206630970775
+        },
+        "measured": {
+          "vxMps": 0.0656,
+          "vyMps": 0.0029,
+          "yawRateRadS": 0.1302
+        },
+        "trackingErrorMps": 0.025,
+        "costOfTransport": 5.813,
+        "falls": 0,
+        "distanceM": 0.3227,
+        "energyJ": 37.1477,
+        "seconds": 5.02,
+        "return": 84.167
+      },
+      {
+        "command": {
+          "vx": 0.1125366465445895,
+          "vy": -0.02756817773739524,
+          "yawRate": -0.1907941631434169
+        },
+        "measured": {
+          "vxMps": 0.0997,
+          "vyMps": -0.0234,
+          "yawRateRadS": -0.1697
+        },
+        "trackingErrorMps": 0.0253,
+        "costOfTransport": 6.474,
+        "falls": 0,
+        "distanceM": 0.4985,
+        "energyJ": 63.915,
+        "seconds": 5.02,
+        "return": 83.652
+      },
+      {
+        "command": {
+          "vx": 0.21771296247390715,
+          "vy": 0.019214814862734714,
+          "yawRate": -0.17034670306390523
+        },
+        "measured": {
+          "vxMps": 0.1997,
+          "vyMps": 0.022,
+          "yawRateRadS": -0.1708
+        },
+        "trackingErrorMps": 0.036,
+        "costOfTransport": 8.358,
+        "falls": 0,
+        "distanceM": 0.9892,
+        "energyJ": 163.7571,
+        "seconds": 5.02,
+        "return": 59.067
+      }
+    ]
+  },
+  "verdict": {
+    "falls": true,
+    "trackingError": true,
+    "costOfTransport": true
+  },
+  "policyBeatsBaseline": true,
+  "finishedAt": "2026-10-30T14:45:07Z"
+}

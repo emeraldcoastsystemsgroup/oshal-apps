@@ -1,0 +1,245 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ                 | AUTHOR                      | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 (lane @ds-app): register the readiness smoke, the process-as-data suite (the vocabulary, the proposal, the validations, the body contract from bound reads), the route suite over the compiled routes and the four screens in Chromium over the real routes and canned engines; every expected line under 500 characters, the framework-coupled suites with their checkout prerequisite.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D9 (lane @ds-plant): the mechanism as data (refused by name, the task from the brief's line, the plant spec from the reads, the lift example, the body contract of a generated plant), the mechanism routes in the route suite, the lift in the browser suite (Create the parts, the Mechanism screen, Build the plant through Certify), and the lift end to end on the real CAD kernel and embodied engine images with its prerequisites named.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D7 (lane @ds-fab): the print set as data (STL parsed back and checked watertight, the set input and part meta refused by field, the sheet, BOM and manifest on disk), the print-set routes in the route suite, the Fabricate poster in the browser suite (made through the fixture's CAD Studio, unprintable parts listed, the hanger's one-file set, Send to printer), and one small part through the real CAD Studio engine image with its prerequisite named - it skips loudly with the reason when the image is absent.
+# -----------------------------------------------------------------------------
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the existing metadata-only readiness probe without provider or user-data access.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed design-studio package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: phase-model
+    name: The process as data and the body contract
+    purpose: Prove the compiled phase model and body contract with no framework import - the nine kinds in their one order with a brief each; a hanger's lines propose four phases and the spider's six all nine, each naming the lines that asked, a thermal need named as unsolved; a chain is ordered and refused by field for an unknown kind, a disallowed engine, a duplicate, a missing brief or build; a brief and an artifact are refused by field; a closure is refused missing_evidence without the evidence line OR the revision and missing_step on build; the spider example binds by name with no measured number; the body contract publishes every value from bound reads and is body_incomplete naming each missing read.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phase-model.test.js
+    expected:
+      - "A hanger proposes brief, design, fabricate, build; the spider's six lines propose all nine phases; 'has heat' is named as a thermal need no engine on this shelf solves."
+      - "validateClosure refuses missing_evidence (422) without the evidence line or the revision, and missing_step on the build phase."
+      - "The body contract's actuator ranges, torques, rpm, timestep, tick, sha, endpoint and senses equal the fixture reads; without the plant, certificate or node read it names each missing value and refuses."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: order-model
+    name: The engine order's closed vocabulary
+    purpose: "tests/order-model.test.js - the actions, the read targets and the pressable buttons are closed, no input carries a URL, closing a phase and the bench stay the person's."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/order-model.test.js
+    expected:
+      - "Every action validates; an unknown action, an unknown read target, a path as an id and Close the phase as a button are refused bad_order with the field."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: mechanism-model
+    name: The mechanism as data and the plant spec from the reads
+    purpose: "Prove the compiled mechanism model with no framework import - a mechanism validated field by field and refused by name (part_not_bound against the design's bound parts, unknown_motor for an undeclared row, cycle for a loop or a part hung from two joints, bad_mechanism naming the field); the task read from the brief's line in its units (kg or g, mm/cm/m, s or min; lift, raise, hoist) and absent without one; the plant spec composed from the mechanism, the parts' kernel reports and the motor rows as read with every number one of those (part_not_read, motor_not_read); the lift example against its own binding and CAD Studio's compiled feature contract (its absence fails, never skips); the body contract of a generated plant from the engine's load reply."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/mechanism-model.test.js
+    expected:
+      - "A joint naming a part outside the Design phase's bound parts is 422 part_not_bound; a drivenBy row the mechanism does not declare is unknown_motor; the base as a child, a double parent and parts hanging from each other are cycle; every bad field is bad_mechanism naming it."
+      - "'lifts 2 kg to 300 mm in 5 s' is deltaMm [0,0,300], timeS 5, loadKg 2; 'raises a 500 g jar by 12 cm in 2.5 seconds' is [0,0,120], 2.5, 0.5; 'holds a coat' is no task."
+      - "The spec's masses are the kernel's grams over a thousand, the actuator's numbers the row's with the stated ratio, the task in metres; the model source types no gravity, stall, speed or rating."
+      - "The body contract of a generated plant: one actuator from the row with unit m and gearRatio 40, walker certified-policy with command [payloadTargetM], node plant at the plant route, tickS 0.02."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: print-set-model
+    name: The print set as data
+    purpose: "Prove the compiled print-set modules with no framework import - a binary and an ASCII STL parsed back into welded vertices and checked watertight (a twelve-triangle box passes, the box with one triangle dropped has three open edges named as the fault, a degenerate triangle is counted, bytes that are not an STL are refused); the set input and a part's meta refused by field and a file name derived only from a validated part id; on a temporary directory a set begun, a watertight part kept with its sha256 and the kernel's figures, a non-watertight part recorded unprintable, finish refused while a programmed part is unaccounted, then the sheet from the parts' own fields, the BOM with printed, unprintable and bought rows, the manifest with every file's sha256 and the listing carrying the manifest's own sha256; the data root resolved from the variable, the native lasting directory, the shared workspace or the local fallback."
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/print-set.test.js
+    expected:
+      - "A twelve-triangle box is watertight with eight welded corners; the box less one triangle has 3 open edges and the fault reads 'the exported STL is not watertight: 3 open edges'; bytes that are not an STL are refused."
+      - "The set input is refused by field for a bad engine, no parts, a count of 0, an id with a slash, a duplicate id, 65 parts (413 too_many_parts); an unstated part field is null, never invented."
+      - "finishSet is refused set_incomplete naming only the programmed part without a file or a reason; the manifest lists the unprintable part with its reason, every file's sha256 matches the bytes, and the listing's manifestSha256 is the manifest file's."
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/stl.fixture.js
+      cleanup: The temporary directory under the OS temp root is removed at the end of the on-disk case.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: print-set-engine
+    name: One part through the real CAD Studio engine and the package's routes
+    purpose: "Run one small generic program (a 16 mm cap with a 6.4 mm bore in CAD Studio's feature contract) through the oshal-cad-studio-engine:local image the way the spider's print set ran it (docker run, no network, removed on exit), then through the real compiled print-set routes over loopback: the engine's STL is kept watertight with the sha256 of the engine's own bytes, the kernel's mass, volume and extents are recorded from the engine's report, the served file is byte-equal and the sheet carries the part's own fields. When docker or the image is absent the case skips loudly with the exact reason."
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/print-set.engine.spec.mjs
+    expected:
+      - "The worker accepts every feature and calls the solid valid; the part is recorded exported with sha256 equal to the engine's bytes, triangles equal to the STL's count, kernel mass and volume equal to the report's, extents about 16 mm tall."
+      - "The kernel's volume is within 50 mm3 of a 16 mm cylinder less an 8 mm deep 6.4 mm bore; the finished set has 1 exported, 0 unprintable; the served cap.stl is byte-equal and the sheet line reads 'bore up | 0.2 mm | no'."
+      - "Without docker or the image the case reports skipped with 'prerequisite missing: ...' naming what is absent; it never passes by pretending."
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+      - runtime:docker
+      - engine-container:oshal-cad-studio-engine
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes.harness.js
+      cleanup: The engine container is removed on exit (--rm); the loopback server is closed and the temporary print-set root removed.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 2048
+    installation: never
+  - id: plant-engine
+    name: The lift end to end on the real CAD kernel and the real embodied engine
+    purpose: "tests/plant.engine.spec.mjs: the three part programs through the oshal-cad-studio-engine:local image (docker run, no network) so the masses and extents are the kernel's; embodied's REAL compiled routes mounted over loopback dialling a container started from the embodied engine image (OSHAL_EMBODIED_ENGINE_IMAGE, default oshal-embodied-engine:local, whose build hash must equal this tree's); this package's real routes serving the page driven in Chromium through Create the parts, Define the mechanism, Build the plant, Run the baselines, Train the policy (PLANT_PROOF_TIMESTEPS PPO steps, default 20000), Certify, Close the phase and GET /body. Every number asserted is the engine's and the policy's verdict is reported, never asserted; results land in PLANT_PROOF_OUT. When docker or an image is absent the case skips loudly with the exact reason (ADR-203 D9)."
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/plant.engine.spec.mjs
+    expected:
+      - "The plant's mass is the kernel's three masses plus the 2 kg payload; its one actuator is the sts3215-12v row through the stated ratio; the PD baseline reaches 5 of 5 inside the brief's 5 s under the row's continuous rating; the certificate's buildHash is the running engine's and its specSha256 the plant's."
+      - "With a passing certificate Close the phase publishes the body contract with the one actuator from the row and the certified reach policy; with a refused one the case says why and publishes nothing."
+      - "Without docker or an image the case reports skipped with 'prerequisite missing: ...' naming what is absent."
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+      - runtime:docker
+      - engine-container:oshal-cad-studio-engine
+      - engine-container:oshal-embodied-engine
+      - browser:chromium
+      - harness:core-test-fixtures
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes.harness.js
+        - tests/design-studio.fixture.mjs
+      cleanup: The CAD container is removed on exit (--rm) and the embodied container stopped and removed; the loopback server is closed, the browser closed and the temporary data root removed.
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 4096
+    installation: never
+  - id: routes-http
+    name: Packaged routes over loopback HTTP
+    purpose: "Drive the compiled routes with express from a framework checkout and the in-memory pool - the surface and assets, the smoke, capabilities and the plan, the caller gate, a project from a brief and from the examples, list, read, rename, re-brief, the chain, owner scoping, bindings as revisions, closures and their refusals, the phase brief per kind, the body contract 409 then 200 with every value traced to the bound reads, the Home summary, deletion with its rows; the print set under a product (begun from the design's rows, parts kept watertight by multipart with their sha256 or recorded unprintable with the fault, the cap 413, finish 409 then 200 with the manifest's sha256, every file served only by a name the manifest lists, a hand-off recorded, begin again wiping the set); and the mechanism under a product (ADR-203 D9: refused by name against the bound parts, saved as revisions, the lift example, the plant spec from the reads, the lift's body contract)."
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/routes.core.test.js
+    expected:
+      - "401 without a caller; 404 for another subject's product; 400 with the field for a bad chain, brief or artifact; 409 phase_not_in_chain for a bind or close outside the chain; 404 unknown_example."
+      - "The example creates nine phases and eight bindings by name; a bind is revision n+1 of the phase; a close is 422 missing_evidence without the evidence line or the revision and 422 missing_step on build."
+      - "GET /projects/{id}/body is 409 body_incomplete naming the plant, certificate and node reads it lacks, then 200 with the timestep, ranges, torques, sha and endpoint of the bound reads."
+      - "PUT /print-set/parts/plate with a box STL answers exported with the box's sha256; an open mesh answers unprintable '3 open edges'; an STL over 8 MiB is 413 stl_too_large; GET /print-set/plate.stl is model/stl, byte-equal, named <product>-plate.stl; set.json and ../set.json are 404."
+      - "GET /mechanism is 404 no_mechanism with the brief's task before a save; PUT is 422 part_not_bound, unknown_motor or cycle by name and 400 bad_mechanism with the field, then 201 and 200 as revision 2; the lift example creates seven phases, two bindings and its mechanism with the task from its line; POST /plant-spec composes the spec from the reads (422 part_not_read, motor_not_read); the lift's body contract carries the one actuator from the row."
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/routes.harness.js
+        - tests/body-reads.fixture.js
+        - tests/stl.fixture.js
+      cleanup: Close the loopback HTTP server and remove the temporary print-set root named by DESIGN_STUDIO_DATA_DIR; the in-memory pool and module hooks stay in the disposable Node process, with no real database or engine.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: design-studio-browser
+    name: The four screens in a real browser over the real routes
+    purpose: "Drive tools/design-studio.html, its scripts and sheet in headless Chromium over the compiled routes (the in-memory pool) and canned engines in their own shapes - Products with the one button New product, the walkthrough and Create, the spider example's posters reading their stages with one button each, Close the phase binding the read and the body contract publishing the fixture's values, absent and failing engines named, Run the baselines then Certify, Open in Circuit Lab creating and binding the copy, the build checklist and a ticked step, Make the print set through the fixture's CAD Studio (one tagged create per part, found again on a second run) with the files linked and the closure at the manifest's sha256, unprintable parts with their reasons, the hanger's one-file set, Send to printer, Settings saved, the lift through Create the parts, the Mechanism screen, Build the plant, Run the baselines, Train the policy and Certify to the body contract (ADR-203 D9), 412 x 915, daylight."
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/design-studio.spec.mjs
+    expected:
+      - "Products starts empty with the one button New product; a hanger's walkthrough proposes four phases and Create lands on four posters."
+      - "The spider example reads parts-complete, sized, drafted, specified, on-the-rail, certified and printable; every poster has exactly one button."
+      - "Close the phase on design, sensors, controller and simulate makes GET /projects/{id}/body answer 200 with the fixture MJCF's timestep and ranges, the design's torques, the certificate's sha and the node's endpoint; the tick rate stays null."
+      - "With every engine answering 404 each bound poster reads 'no engine on this swarm for this phase'; a 503 and a 500 are shown; a 403 reads refused."
+      - "At 412 x 915 the page has no horizontal overflow and every control is at least 44px tall; the sheet carries no colour outside a token fallback."
+      - "Make the print set on the spider: 8 of 8 parts exported watertight, 8 CAD Studio creates tagged with the product and program hash, the poster reads fabricated with 11 file links, Close the phase records the manifest's sha256, a second run creates nothing; the design moving on makes the set and the closure stale."
+      - "A refused build lists 8 unprintable with the engine's reason and the part without a program; an open mesh is '3 open edges'; the hanger's one box part gives a one-file set byte-equal to the engine's STL; Send to printer posts <product>-<part>.stl to the print service for prn-1 and the poster reads '1 file sent'."
+      - "The lift: Create the parts in CAD Studio builds the three programs once; the Mechanism screen shows the kernel's masses, two joints, the catalog row and the task; Build the plant posts the spec with those masses and the row's numbers; Run the baselines reads 3.58 s; Train the policy starts a job; the finished job reads trained, a refused certificate keeps it, a passing one reads certified; Close the phase makes GET /body answer the one actuator from the row."
+    prerequisites:
+      - runner:playwright
+      - harness:oshal-core-root
+      - browser:chromium
+      - core:dependencies
+      - harness:core-test-fixtures
+      - core:shared-theme-assets
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/design-studio.fixture.mjs
+        - tests/routes.harness.js
+        - tests/body-reads.fixture.js
+        - tests/stl.fixture.js
+      cleanup: Close the owned Chromium process and the loopback fixture and remove its temporary print-set root; screenshots are written only when DESIGN_STUDIO_SHOTS (or the handover preview folder) exists.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never

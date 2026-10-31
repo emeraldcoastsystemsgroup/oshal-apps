@@ -17,4 +17,5 @@ written down.
 | ParaView | **yes, later** — server-side pvbatch renders for field results, once a lab produces fields (B16) | [2026-09-13-paraview.md](2026-09-13-paraview.md) |
 | OpenFOAM | **benchmark first** — XFOIL-class polars plus blade-element theory answer the drone's propeller question sooner (aero-lab B) | [2026-09-13-openfoam.md](2026-09-13-openfoam.md) |
 | NASA GMAT | **benchmark first** — a propagation cross-check for sat-ops, container size to be measured (sat-ops backlog) | [2026-09-13-nasa-gmat.md](2026-09-13-nasa-gmat.md) |
+| Spider-18 power (ADR-202) | **solved on the engine** — the brief's §1.3 estimates superseded by the stance, stall, rail and runtime numbers | [2026-10-30-hexapod-power.md](2026-10-30-hexapod-power.md) |
 | NASA CEA | **yes, later** — RocketCEA in a rocket-lane container, terms to confirm (B15) | [2026-09-13-nasa-cea.md](2026-09-13-nasa-cea.md) |

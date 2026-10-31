@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Inbox's stored-copy controls (Roger, 2026-10-29: the concierge should search a stored copy of the mail): "Search all your mail" searches the person's stored Gmail copy over 180 days (or Gmail directly, 30 days, before there is one); the line under it says how many messages the copy holds, how far back and how fresh, and "Keep a copy" turns on the person's own mail-copy job (every 10 minutes) and stores the first part at once; "Update now" runs one pass. Loaded beside the page's own script, which keeps its listing and reader.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A copy that stopped updating is said so (Roger, 2026-10-30: his mail-copy job had been suspended by an update of the application ten hours earlier and the line still read "updates every 10 minutes"): when the job is suspended, or the copy is stale while the job reads active, the line says when it stopped and why, and "Turn it back on" re-arms the job (deactivate when it still reads active, then activate), runs one pass and reloads the list from the copy. After a search the list's end note is cleared.
  */
 (function () {
   'use strict';
@@ -30,13 +31,16 @@
   }
 
   function describe(status, job) {
-    var s = status.store, active = job && job.status === 'active';
+    var s = status.store, active = job && job.status === 'active', suspended = job && job.status === 'suspended';
+    var stopped = Boolean(s && s.stored && (suspended || (active && status.fresh === false)));
     var copy = s && s.stored
-      ? 'Searchable copy: ' + s.stored.toLocaleString() + ' messages back to ' + day(s.oldestAt) + (s.complete ? '' : ' (still filling)') + ' · updated ' + ago(s.lastRunAt)
+      ? 'Searchable copy: ' + s.stored.toLocaleString() + ' messages back to ' + day(s.oldestAt) + (s.complete ? '' : ' (still filling)')
+        + (stopped ? ' · stopped updating ' + ago(s.lastRunAt) + (suspended ? ' (an update of this application paused its job)' : '') : ' · updated ' + ago(s.lastRunAt))
       : 'Search reads Gmail directly (the last 30 days).';
     var why = s && s.lastError ? ' · last update failed: ' + esc(s.lastError) : '';
-    var keep = active ? ' · updates every 10 minutes' : '';
-    var buttons = (active ? '' : '<button type="button" class="refresh" data-store="keep">' + (s && s.stored ? 'Keep it up to date' : 'Keep a copy') + '</button>')
+    var keep = active && !stopped ? ' · updates every 10 minutes' : '';
+    var buttons = (stopped ? '<button type="button" class="refresh" data-store="rearm">Turn it back on</button>'
+      : active ? '' : '<button type="button" class="refresh" data-store="keep">' + (s && s.stored ? 'Keep it up to date' : 'Keep a copy') + '</button>')
       + (s && s.stored ? '<button type="button" class="refresh" data-store="now">Update now</button>' : '');
     line.innerHTML = '<span>' + esc(copy) + why + esc(keep) + '</span>' + buttons;
     line.hidden = false;
@@ -51,14 +55,22 @@
     }
   }
 
+  var SAYING = { keep: 'Turning on your mail copy and storing the newest mail…', rearm: 'Turning your mail copy back on and storing the newest mail…', now: 'Storing new mail…' };
+  /** Bind the job to the person again: an activation that still reads active is withdrawn first (its plan is stale), then activated. */
+  async function rearm(job) {
+    var url = '/api/v1/agent/schedules/' + encodeURIComponent(job.id);
+    if (job.status === 'active') await json(url + '/deactivate', { method: 'POST', body: '{}' }).catch(function () { /* already withdrawn */ });
+    await json(url + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
+  }
   async function act(kind, button) {
     button.disabled = true;
-    line.querySelector('span').textContent = kind === 'keep' ? 'Turning on your mail copy and storing the newest mail…' : 'Storing new mail…';
+    line.querySelector('span').textContent = SAYING[kind] || SAYING.now;
     try {
-      if (kind === 'keep') {
+      if (kind === 'keep' || kind === 'rearm') {
         var job = await scheduleRow();
         if (!job) throw new Error('The mail-copy job is not available on this installation.');
-        if (job.status !== 'active') await json('/api/v1/agent/schedules/' + encodeURIComponent(job.id) + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
+        if (kind === 'rearm') await rearm(job);
+        else if (job.status !== 'active') await json('/api/v1/agent/schedules/' + encodeURIComponent(job.id) + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
       }
       await json('/api/email/sync', { method: 'POST', body: '{}' });
     } catch (err) {
@@ -67,9 +79,12 @@
       return;
     }
     await refresh();
+    if (kind === 'rearm' && window.load) window.load();
   }
 
   function render(found, words) {
+    var more = document.getElementById('more');
+    if (more) more.innerHTML = '';
     if (found.connected === false) { countEl.textContent = ''; items.innerHTML = '<div class="notice">' + esc(found.message || 'Connect a mailbox first.') + '</div>'; return; }
     var messages = found.messages || [];
     var where = found.source === 'stored' ? ' in your copy' : ' in Gmail';
@@ -101,5 +116,7 @@
     var button = event.target.closest('[data-store]');
     if (button) act(button.getAttribute('data-store'), button);
   });
+  var reload = document.getElementById('refresh');
+  if (reload && reload.addEventListener) reload.addEventListener('click', refresh);
   refresh();
 })();

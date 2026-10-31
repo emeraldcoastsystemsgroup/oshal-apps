@@ -6,7 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 2: right after "I have noted your peanut allergy" the Eats concierge suggested a
  *   Vegetarian Pad Thai with no warning. In Chromium at 412x915 the person types the demo's message into the shipped Eats page's
  *   concierge and presses Send; the request reaches the COMPILED chat route on real express (route harness: in-memory pool, an
- *   Uber Eats provider that reports no rail, and the demo's own concierge reply as the scripted model). The page shows the reply
+ *   Places double that is never called because no address is set, and the demo's own concierge reply as the scripted model). The page shows the reply
  *   as written and, on its own status line under it, "Pad Thai usually contains peanuts (you avoid peanuts)". Seams: the shell's
  *   shared assets are empty stand-ins. Needs the store toolchain (express, playwright, chromium).
  */
@@ -22,14 +22,10 @@ const express = require(path.join(TOOLCHAIN, 'express'));
 const { chromium } = require(path.join(TOOLCHAIN, 'playwright'));
 
 const DEMO_REPLY = 'I have noted your peanut allergy. While I cannot pull live menu data, I can still suggest a vegetarian dinner idea based on general knowledge. For example, a Vegetarian Pad Thai or a Margherita Pizza with extra vegetables are popular choices.';
-const refuse = () => { throw Object.assign(new Error('Uber Eats provider operation is unavailable in this native runtime'), { status: 503 }); };
 
 async function serve() {
-  const provider = harness.fakeProvider({
-    status: () => ({ configured: false, connected: false, live: false, mode: 'not_connected', provider: 'Uber Eats', reason: 'no native connector' }),
-    search: refuse, menu: refuse, order: refuse,
-  });
-  const { router } = harness.loadRoutes({ provider, express, reply: { say: DEMO_REPLY } });
+  // No delivery address is saved for this diner and none is typed, so no restaurant search runs: the turn is the model's words alone.
+  const { router } = harness.loadRoutes({ places: harness.fakePlaces(), express, reply: { say: DEMO_REPLY } });
   const app = express();
   app.use(express.json());
   app.get(/^\/shared\/.*\.js$/, (_req, res) => res.type('js').send(''));

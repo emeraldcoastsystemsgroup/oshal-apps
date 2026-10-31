@@ -29,7 +29,10 @@
  * 2026-09-04 23:55:00 | roger.murphy@emeraldcoastsystemsgroup.com   | recordContrarianPredictions — the zero-stake "contrarian-extreme" sibling of every extreme scan hand (rule in kalshi-scan-config.ts), inserted into the same immutable ledger right after the scan's own predictions so the daily grader and the Scorecard tab treat it like any strategy. Operator, 2026-09-04: "bet against ourselves at the extremes - forward test it".
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | ensureScanSchema issues no DDL on the native kernel (OSHAL_EGRESS=kernel): the declared migrations 074-076 provision these tables there, and the runtime ALTER and DESC index made every read refuse with "SQL mutation requires original writer admission" (logged as "kalshi scan schema ensure failed" once per read). The runtime CREATE TABLE for kalshi_scan_alerts now declares batch_id itself, as migration 076 does.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The calibration table is read from this package's own directory (<appPackageDir>/data/kalshi-calibration.json) before the legacy <cwd>/config-seed copy; the native runtime has no config-seed, so every scan failed with "calibration table missing — run scripts/oshal-kalshi-calibration.ts", a script that does not exist there. A missing table now names both places it was looked for. scanUnavailableReason says, before any SQL or feed read, why a scan cannot run on this installation: no Kalshi market-feed reader in the runtime (the native runtime provides none) or no calibration table. Guard: tests/kalshi-scan-schedule.test.js.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | lookupMarketLive reads ONE market from Kalshi's public API (never a feed walk) and prices it against the shipped calibration table for GET /markets/:ticker's Look up; it lives here, not in the routes, so the structural guard that keeps the feed reader out of kalshi-routes still holds. Refusals are typed: no market reader (503), no calibration table (503), unknown ticker (404).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | The snapshot keeps every market the walk kept (payload.markets, one browse row each: book, horizon, the evaluator's better-side hand or why it skipped the market), not only the playable hands, so the Markets tab and the quant can browse Kalshi and explain every verdict (kalshi-market-explainer). Guard: tests/kalshi-markets-routes.test.js.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | The package ships its calibration table (data/kalshi-calibration.json, the platform study's table generated 2026-07-13, with a provenance block), so the scan can run on the native runtime. A missing table's sentence is in words: the page printed it as the gate reason with /package/... file paths in it; the places looked are logged instead. Guard: tests/kalshi-calibration-shipped.test.js.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | appIsActive answers true on the native kernel without a query: there is no swarm_applications registry there, the package's SQL namespace answered the query with zero rows, and every scheduled tick quit with app_inactive (live 2026-10-30, 41 ticks, no scan). The kernel ticks only an installed, active application with a standing activation. Off the kernel the Docker stack's registry check is unchanged. Guard: tests/kalshi-scan-schedule.test.js.
  *
  * @module kalshi-scan-engine
  */
@@ -42,6 +45,9 @@ import {
   listMarketsFiltered,
   getSeriesMeta,
   rankHands,
+  evaluateMarket,
+  kalshiGet,
+  normalizeMarket,
   getScorecard,
   mayStrategyStake,
   type BetHand,
@@ -59,6 +65,7 @@ import {
   summarizeAlertRecord, type AlertRecord,
   CONTRARIAN_EXTREME_STRATEGY, contrarianExtremeRow,
 } from './kalshi-scan-config';
+import { browseMarket, type BrowseMarket } from './kalshi-market-explainer';
 
 const log = createChildLogger({ module: 'kalshi-scan-engine' });
 
@@ -77,6 +84,8 @@ export interface ScanPayload {
   openPaged: number;
   evaluable: number;
   hands: BetHand[];
+  /** Every market the walk kept, playable or not, for the Markets tab and the quant (absent in snapshots older than 1.7.0). */
+  markets?: BrowseMarket[];
   strategy: string;
   mayStake: boolean;
   gateReason: string | null;
@@ -285,10 +294,19 @@ export async function readSettingsRow(pool: AppContext['pool'], scopeKey: string
  * describes, and a direct violation of "only if you have the application" (self-review,
  * 2026-07-30). Unknown/unreadable state answers TRUE (a schema variant must not silently stop a
  * working scan); an explicit non-active status answers false.
+ *
+ * On the native kernel there is no `swarm_applications` registry: a package's SQL namespace answers
+ * that query with zero rows, which this check read as "not installed", and every scheduled tick
+ * quit with `app_inactive` (live 2026-10-30: 41 ticks in a day, each HTTP 200 in 0.2 s, the
+ * person's snapshot still from 10/13). There the kernel is the authority: it mounts these routes
+ * only while the application is installed and active, fires a person's schedule only while their
+ * activation stands, and suspends the schedule when the package's authority changes. So on the
+ * kernel this answers true without a query.
  * @param pool - Postgres pool.
  * @returns Whether the scan is allowed to run right now.
  */
 export async function appIsActive(pool: AppContext['pool']): Promise<boolean> {
+  if (process.env.OSHAL_EGRESS === 'kernel') return true;
   try {
     const { rows } = await pool.query("SELECT status FROM swarm_applications WHERE name = 'kalshi' LIMIT 1");
     if (!rows.length) return false;             // not installed → nothing to scan for
@@ -480,6 +498,8 @@ export async function runScan(pool: AppContext['pool'], cfg: KalshiScanConfig, a
     if (!seriesByTicker.has(m.seriesTicker)) seriesByTicker.set(m.seriesTicker, await getSeriesMeta(m.seriesTicker));
   }
   let hands = rankHands(walk.markets, seriesByTicker, table);
+  const nowMs = Date.now();
+  const markets = walk.markets.map((m) => browseMarket(m, seriesByTicker.get(m.seriesTicker), table, evaluateMarket, nowMs));
   // Record BEFORE gating, so the prediction is judged on what the model actually believed.
   await recordScanPredictions(pool, hands);
   await recordContrarianPredictions(pool, hands);
@@ -493,7 +513,7 @@ export async function runScan(pool: AppContext['pool'], cfg: KalshiScanConfig, a
   }, 'kalshi scan complete');
   return {
     generatedAt: new Date().toISOString(), exchangeActive: active, calibrationGeneratedAt: table.generatedAt,
-    calibrationFileMtime: mtime, openPaged: walk.paged, evaluable: walk.markets.length, hands,
+    calibrationFileMtime: mtime, openPaged: walk.paged, evaluable: walk.markets.length, hands, markets,
     strategy: SCAN_STRATEGY, mayStake: gate.mayStake, gateReason: gate.reason, scorecard, scanMs,
   };
 }
@@ -663,3 +683,36 @@ export async function alertAudience(pool: AppContext['pool']): Promise<string[]>
 /** Re-exported so the routes and the cron share one config vocabulary. */
 export { KALSHI_SCAN_DEFAULTS };
 export type { KalshiScanConfig };
+
+/* ── one market, read live ───────────────────────────────────────────────────── */
+
+/** A refusal the route can answer with, or the priced row. */
+export type LiveLookup = { ok: true; row: BrowseMarket; calibrationGeneratedAt: string | null } | { ok: false; status: 404 | 503; error: string };
+
+/**
+ * @description Read ONE market from Kalshi's public API and price it against the shipped calibration table — the
+ * Look up box and the quant's kalshi_market tool for a ticker the last scan did not walk. One GET, one series read;
+ * never a feed walk (that belongs to the scheduled tick).
+ * @param ticker - The Kalshi market ticker, already validated by the route.
+ * @param appPackageDir - This package's directory, where its calibration table is read.
+ * @returns The browse row, or a typed refusal.
+ */
+export async function lookupMarketLive(ticker: string, appPackageDir?: string): Promise<LiveLookup> {
+  const reader = { kalshiGet, normalizeMarket, getSeriesMeta, evaluateMarket } as Record<string, unknown>;
+  const missing = Object.entries(reader).filter(([, fn]) => typeof fn !== 'function').map(([name]) => name);
+  if (missing.length) {
+    return { ok: false, status: 503, error: `${ticker} is not in the last scan, and this installation has no Kalshi market reader to look it up live (${missing.join(', ')})` };
+  }
+  const { table } = loadCalibration(appPackageDir);
+  if (!table) return { ok: false, status: 503, error: calibrationMissing(appPackageDir) };
+  let raw: { market?: unknown };
+  try { raw = await kalshiGet(`/markets/${encodeURIComponent(ticker)}`); }
+  catch (err) {
+    if (/\b404\b/.test((err as Error).message || '')) return { ok: false, status: 404, error: `Kalshi has no market ${ticker}` };
+    throw err;
+  }
+  if (!raw || typeof raw !== 'object' || !raw.market) return { ok: false, status: 404, error: `Kalshi has no market ${ticker}` };
+  const m = normalizeMarket(raw.market as Record<string, unknown>);
+  const series = await getSeriesMeta(m.seriesTicker).catch(() => null);
+  return { ok: true, row: browseMarket(m, series, table, evaluateMarket, Date.now()), calibrationGeneratedAt: table.generatedAt };
+}

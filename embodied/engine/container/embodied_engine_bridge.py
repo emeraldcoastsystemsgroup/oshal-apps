@@ -24,6 +24,18 @@ SEQ | AUTHOR                                    | DESCRIPTION
     |                                           | (command the servos, advance the caller's step, report what the
     |                                           | joints really did), arm-clone (a rehearsal copy from the live
     |                                           | arm's state) and arm-drop. `status` counts them.
+7   | maintainer@emeraldcoastsystemsgroup.com   | ADR-202 lane L2: every `hexapod.*` op (load, reset, step, jump, wind,
+    |                                           | state, drop, check -- brief 3.2) is handed to embodied_hexapod.hexapod_op,
+    |                                           | which keeps its own sessions and locks; `cmd` is accepted as the op key
+    |                                           | too, as the brief writes it. The spider's runtime files join the build hash.
+8   | maintainer@emeraldcoastsystemsgroup.com   | B30 gate: tasks/hexapod_certify.py is a runtime file (the hash the TS side mirrors).
+9   | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9: every `plant.*` op (load, reset, step, state, ik, drop,
+    |                                           | train, jobs, certify) is handed to embodied_plant.plant_op -- the
+    |                                           | plant generated from a design, for any machine -- which keeps its
+    |                                           | own sessions and locks. embodied_plant.py and tasks/plant_reach.py
+    |                                           | join the runtime files: a plant certificate is bound to the code
+    |                                           | that replays it, so the build hash moves and every committed
+    |                                           | certificate was re-certified in the same change.
 """
 from __future__ import annotations
 
@@ -51,7 +63,9 @@ from embodied_engine_node import start_node_rail  # noqa: E402
 from embodied_px4_node import start_px4_node  # noqa: E402
 
 RUNTIME_FILES = ("embodied_worker.py", "container/embodied_engine_bridge.py", "requirements.txt", "requirements-lock.txt", "tasks/hover_leg.py",
-                 "container/embodied_engine_node.py", "container/embodied_px4_node.py", "embodied_arm.py", "tasks/reach_grasp.py")
+                 "container/embodied_engine_node.py", "container/embodied_px4_node.py", "embodied_arm.py", "tasks/reach_grasp.py",
+                 "embodied_hexapod.py", "hexapod_gaits.py", "tasks/hexapod_walk.py", "tasks/hexapod_certify.py",
+                 "embodied_plant.py", "tasks/plant_reach.py")
 DEFAULT_PORT = 7413
 MAX_LINE_BYTES = 64 * 1024 * 1024
 IDLE_DROP_S = 1800.0
@@ -122,9 +136,15 @@ class Sessions:
         return plant
 
     def handle(self, req: dict) -> dict:
-        op = req.get("op")
+        op = req.get("op") if "op" in req else req.get("cmd")
         if op == "arm-check":
             return arm_check_op(req)
+        if isinstance(op, str) and op.startswith("hexapod."):
+            from embodied_hexapod import hexapod_op  # noqa: PLC0415 -- the drone plant never pays for the spider
+            return hexapod_op(op, req, REPORT_DIR)
+        if isinstance(op, str) and op.startswith("plant."):
+            from embodied_plant import plant_op  # noqa: PLC0415 -- the drone plant never pays for a designed plant
+            return plant_op(op, req, REPORT_DIR)
         with self.lock:
             self.sweep()
             if op == "status":

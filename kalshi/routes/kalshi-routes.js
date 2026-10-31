@@ -26,6 +26,8 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The factory starts no background timer (its ticks ran outside any request and the native kernel refused their SQL). POST /scan/tick runs one scheduled tick inside the request; the manifest's `background-scan` schedule fires it as the person who activated it, and it answers 503 kalshi_scan_unavailable with the installation's reason when a scan cannot run here. "Scan now" (POST /scan/run) now finishes its scan inside the request too and answers 503 with the reason when it fails, instead of 202 and a failure only the status line could show. /calibration and /status read the package's own calibration copy first, and /status reports scan.unavailable. Guard: tests/kalshi-scan-schedule.test.js.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | GET /scan's scan block names the schedule that runs it ({ app, name, route } of the manifest's background-scan), so the page can find the person's own job in the kernel's schedule list and say when it is not activated instead of promising a cadence. Guard: tests/kalshi-scan-schedule.test.js.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Before the first scan, GET /scan carries the calibration table's generatedAt and file time (read from the package's own copy) instead of null, so the page can show the table's age while it waits; the gate reason is the engine's sentence in words, with no file paths. Guard: tests/kalshi-scan-schedule.test.js.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | GET /markets defaults to sort=verdict: priced markets first (strongest, then best edge), the unpriced long-dated rest by close time; live, 1431 of 1500 walked markets close beyond the 48-hour horizon and would otherwise bury the priced ones.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Browse and explain: GET /markets lists every market the last scan walked (open now, filtered by q/category/verdict, sorted by closes/edge/volume, bounded by limit) with each row's verdict in words; GET /markets/:ticker returns one market with its full walkthrough, from the snapshot first and otherwise read live from Kalshi's public API and priced against the shipped calibration table (503 when the runtime has no market reader, 404 when Kalshi has no such market). GET /scan no longer ships the browse rows (marketsScanned counts them). The kalshi-quant bot reaches both through the manifest's tools. Guard: tests/kalshi-markets-routes.test.js.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | GET /scan serves only the hands whose market is still open (openHands) and reports closedSinceScan: a snapshot served hours after its scan listed closed markets, and the concierge recommended them.
  *
  * @module kalshi-routes
@@ -76,6 +78,7 @@ const trading_routes_helpers_1 = require("@/app/routes/trading-routes-helpers");
 const authz_1 = require("@/shared/middleware/authz");
 const kalshi_scan_engine_1 = require("./kalshi-scan-engine");
 const kalshi_scan_config_1 = require("./kalshi-scan-config");
+const kalshi_market_explainer_1 = require("./kalshi-market-explainer");
 const kalshi_trends_1 = require("./kalshi-trends");
 const kalshi_pops_1 = require("./kalshi-pops");
 const kalshi_scan_cron_1 = require("./kalshi-scan-cron");
@@ -184,9 +187,12 @@ function createKalshiRoutes(ctx) {
             // A market that closed after the snapshot was taken is no longer a hand: serving it put
             // closed markets in the table and in the concierge's recommendations.
             const open = (0, kalshi_scan_config_1.openHands)(snap.payload.hands, Date.now());
+            // The browse rows (every walked market) have their own routes; the hands feed stays small.
+            const { markets: browse, ...served } = snap.payload;
             res.json({
-                ...snap.payload,
+                ...served,
                 hands: open.hands,
+                marketsScanned: Array.isArray(browse) ? browse.length : 0,
                 closedSinceScan: open.closedSinceScan,
                 awaitingFirstScan: false,
                 scan: {
@@ -199,6 +205,98 @@ function createKalshiRoutes(ctx) {
         catch (err) {
             log.error({ err }, 'kalshi snapshot serve failed');
             res.status(503).json({ error: err.message });
+        }
+    });
+    /** The browse rows of the last snapshot still open now, or null before the first scan. */
+    async function browseRows() {
+        const snap = await (0, kalshi_scan_engine_1.readSnapshot)(pool);
+        if (!snap)
+            return null;
+        const open = (0, kalshi_market_explainer_1.openMarkets)(snap.payload.markets, Date.now());
+        return { generatedAt: snap.payload.generatedAt, mayStake: snap.payload.mayStake, gateReason: snap.payload.gateReason,
+            calibrationGeneratedAt: snap.payload.calibrationGeneratedAt, rows: open.markets, closedSinceScan: open.closedSinceScan,
+            // A snapshot written before 1.7.0 has hands but no browse rows: the next scan fills them.
+            needsRescan: !Array.isArray(snap.payload.markets) };
+    }
+    // Browse every market the last scan walked, playable or not, with each row's verdict in words.
+    router.get('/markets', async (req, res) => {
+        if (!(0, trading_routes_helpers_1.callerSub)(req)) {
+            res.status(401).json({ error: 'authentication required' });
+            return;
+        }
+        try {
+            const snap = await browseRows();
+            if (!snap) {
+                res.json({ generatedAt: null, awaitingFirstScan: true, total: 0, shown: 0, categories: [], counts: { playable: 0, fold: 0, notEvaluable: 0 }, markets: [] });
+                return;
+            }
+            const q = String(req.query.q ?? '').trim().toLowerCase(), category = String(req.query.category ?? '').trim();
+            const verdict = String(req.query.verdict ?? 'all'), sort = String(req.query.sort ?? 'verdict');
+            const limit = Math.max(1, Math.min(1500, Math.round(Number(req.query.limit)) || 300));
+            const strengthOf = (m) => (m.hand ? m.hand.strength : 'not-evaluable');
+            const kept = snap.rows.filter((m) => (!q || `${m.title} ${m.ticker} ${m.category}`.toLowerCase().includes(q))
+                && (!category || m.category === category)
+                && (verdict === 'all' || (verdict === 'playable' ? Boolean(m.hand) && m.hand.strength !== 'fold' : verdict === 'fold' ? strengthOf(m) === 'fold' : strengthOf(m) === 'not-evaluable')));
+            const edge = (m) => (m.hand ? Number(m.hand.edgeNet) || 0 : -1);
+            const closes = (m) => (m.closeTime ? Date.parse(m.closeTime) : Infinity);
+            const rank = { monster: 0, strong: 1, playable: 2, fold: 3, 'not-evaluable': 4 };
+            // Default: what the evaluator could price first (strongest, then best edge), the unpriced long-dated rest by close time.
+            kept.sort(sort === 'edge' ? (a, b) => edge(b) - edge(a) : sort === 'volume' ? (a, b) => b.volume - a.volume
+                : sort === 'closes' ? (a, b) => closes(a) - closes(b)
+                    : (a, b) => (rank[strengthOf(a)] ?? 9) - (rank[strengthOf(b)] ?? 9) || (strengthOf(a) === 'not-evaluable' ? closes(a) - closes(b) : edge(b) - edge(a)));
+            const opts = { mayStake: snap.mayStake, gateReason: snap.gateReason, calibrationGeneratedAt: snap.calibrationGeneratedAt };
+            const counts = { playable: 0, fold: 0, notEvaluable: 0 };
+            for (const m of snap.rows) {
+                const s = strengthOf(m);
+                if (s === 'not-evaluable')
+                    counts.notEvaluable += 1;
+                else if (s === 'fold')
+                    counts.fold += 1;
+                else
+                    counts.playable += 1;
+            }
+            res.json({
+                generatedAt: snap.generatedAt, awaitingFirstScan: false, needsRescan: snap.needsRescan, total: snap.rows.length, shown: Math.min(kept.length, limit), matched: kept.length,
+                closedSinceScan: snap.closedSinceScan, mayStake: snap.mayStake, counts,
+                categories: Array.from(new Set(snap.rows.map((m) => m.category))).sort(),
+                markets: kept.slice(0, limit).map((m) => { const why = (0, kalshi_market_explainer_1.explainMarket)(m, opts); return { ...m, verdict: why.verdict, side: why.side, headline: why.headline }; }),
+            });
+        }
+        catch (err) {
+            log.error({ err }, 'kalshi markets serve failed');
+            res.status(503).json({ error: err.message });
+        }
+    });
+    // One market with its full walkthrough: from the snapshot, else read live and priced against the shipped table.
+    router.get('/markets/:ticker', async (req, res) => {
+        if (!(0, trading_routes_helpers_1.callerSub)(req)) {
+            res.status(401).json({ error: 'authentication required' });
+            return;
+        }
+        const ticker = String(req.params.ticker || '').trim().toUpperCase();
+        if (!/^[A-Z0-9][A-Z0-9._-]{0,79}$/.test(ticker)) {
+            res.status(400).json({ error: 'a Kalshi market ticker is letters, digits, dots and dashes' });
+            return;
+        }
+        try {
+            const snap = await browseRows();
+            const opts = { mayStake: snap?.mayStake ?? false, gateReason: snap?.gateReason ?? null, calibrationGeneratedAt: snap?.calibrationGeneratedAt ?? null };
+            const stored = snap?.rows.find((m) => m.ticker === ticker);
+            if (stored) {
+                res.json({ source: 'snapshot', generatedAt: snap.generatedAt, market: stored, why: (0, kalshi_market_explainer_1.explainMarket)(stored, opts) });
+                return;
+            }
+            // Not in the last scan: one live read of that market, priced against the shipped table (engine, never a walk).
+            const live = await (0, kalshi_scan_engine_1.lookupMarketLive)(ticker, ctx.appPackageDir);
+            if (!live.ok) {
+                res.status(live.status).json({ error: live.error });
+                return;
+            }
+            res.json({ source: 'live', generatedAt: new Date().toISOString(), market: live.row, why: (0, kalshi_market_explainer_1.explainMarket)(live.row, { ...opts, calibrationGeneratedAt: live.calibrationGeneratedAt }) });
+        }
+        catch (err) {
+            log.error({ err, ticker }, 'kalshi market walkthrough failed');
+            res.status(502).json({ error: err.message });
         }
     });
     // Out-of-band refresh ("Scan now"). Answers 202 once its scan has finished inside this request (work

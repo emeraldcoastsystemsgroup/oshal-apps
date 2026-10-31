@@ -8,6 +8,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Regression for the empty-state title that guessed: with nothing in the order and no checkout link to name, the title said "Nothing saved yet" even when the history read had failed (the checkouts section on the same screen said they could not be checked), when the profile read had failed, or when the profile held saved tastes such as a delivery address (shown in the tiles right below). Now "Nothing saved yet" is asserted only when the history answered empty and the profile answered with no tastes; a failed history read, a failed profile read, both, and a saved address each give "Nothing in the order right now" with a lede naming what is known.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | An unlinked Uber Eats no longer claims Eats "still browses its built-in catalog": the native kernel has no catalog without an Uber Eats connection, so the hint says restaurant search needs one.
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Where /config answers rail 'absent' (no Uber Eats connector on this installation) the stat reads "None here", not "Not linked" with advice to connect.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.0: the view is the restaurants opened in Uber Eats (the home summary's hand-off items, detail 'Opened in Uber Eats · <stamp>'), the saved tastes and the recent links; the stats are today's and the five-day counts, the saved links and the rail (places = Handoff); the full start without an address makes no restaurant search.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -84,140 +85,129 @@ function loadFamily(answers) {
 const S = '/api/eats/home-summary', P = '/api/eats/profile', O = '/api/eats/orders/history', C = '/api/eats/config';
 const NOW = '2026-09-28T12:00:00.000Z';
 /** @returns {object[]} The route's three metrics, each value a digit string or 'Unavailable'. */
-const metrics = (pending, day, five) => [
-  { id: 'pending-meal-items', label: 'Meal items to review', value: pending, tone: 'neutral' },
-  { id: 'meal-handoffs-24h', label: 'Checkout links / 24h', value: day, tone: 'neutral' },
-  { id: 'meal-handoffs-5d', label: 'Checkout links / 5 days', value: five, tone: 'neutral' },
+const metrics = (day, five, restaurants) => [
+  { id: 'meal-handoffs-24h', label: 'Uber Eats links / 24h', value: day, tone: 'neutral' },
+  { id: 'meal-handoffs-5d', label: 'Uber Eats links / 5 days', value: five, tone: 'neutral' },
+  { id: 'meal-restaurants-30d', label: 'Restaurants opened / 30 days', value: restaurants, tone: 'neutral' },
 ];
-/** @returns {object} A pending cart item exactly as routes/home-summary.js writes it (detail carries the stamp; the store sits only in the offers). */
-const cartItem = (title, stamp) => ({ text: title, detail: 'In your meal cart · ' + stamp, tone: 'neutral', fix: 'eats-concierge',
-  actions: ['plan-shopping', 'plan-movie', 'plan-music'].map((integration) => ({ integration, context: { title: 'Prepare for my meal choice', notes: 'Meal choice to discuss: ' + title + '; quantity 1 from Synthetic Noodle House. This is a cart item, not a placed order.' } })) });
-const STANDING = { text: 'Pending items in your active meal carts. Checkout links do not confirm an order or delivery.', tone: 'neutral', fix: 'eats-concierge' };
-const NONE = { text: 'No saved preparation items to review yet.', tone: 'neutral', fix: 'eats-concierge' };
+/** @returns {object} A hand-off exactly as routes/home-summary.js writes it (detail carries the stamp). */
+const handoffItem = (store, stamp) => ({ text: store, detail: 'Opened in Uber Eats · ' + stamp, tone: 'neutral', fix: 'eats-concierge',
+  actions: ['plan-shopping', 'plan-movie', 'plan-music'].map((integration) => ({ integration, context: { title: 'Prepare for my meal from ' + store, notes: 'Restaurant opened in Uber Eats: ' + store + ' on ' + stamp + '. Opening the link is not a placed order; the dishes, address and payment are chosen in Uber Eats.' } })) });
+const STANDING = { text: 'Uber Eats links opened from Eats. Opening a link does not confirm an order or delivery.', tone: 'neutral', fix: 'eats-concierge' };
+const NONE = { text: 'No saved Uber Eats links yet.', tone: 'neutral', fix: 'eats-concierge' };
 const NOT_CHECKED = { text: 'Some saved data cannot be checked.', tone: 'warn', fix: 'eats-concierge' };
-/** @returns {object} A home summary as the route answers it: tiles mirror the metrics, cart items first, the notes last. */
+/** @returns {object} A home summary as the route answers it: tiles mirror the metrics, hand-offs first, the notes last. */
 const summary = (m, items, partial) => ({ metrics: m, tiles: m.slice(0, 4), items, asOf: NOW, partial: !!partial });
-const DISHES = [cartItem('Synthetic Pad Thai', '2026-09-28T10:00:00.000Z'), cartItem('Synthetic Spring Rolls', '2026-09-27T19:00:00.000Z')];
+const OPENED = [handoffItem('Synthetic Noodle House', '2026-09-28T10:00:00.000Z'), handoffItem('Synthetic Taqueria', '2026-09-27T19:00:00.000Z')];
 const PROFILE = { user_sub: 'diner', display_name: null, dietary: ['vegetarian'], favorite_cuisines: ['Thai', 'Mexican'], default_address: '1 Synthetic Way', budget_per_order: '40.00', notes: null, onboarded: true };
 const ORDERS = [
-  { store_name: 'Synthetic Noodle House', total: '24.50', handoff_url: 'https://www.ubereats.com/store/synthetic', created_at: '2026-09-26T18:00:00.000Z' },
-  { store_name: null, total: null, handoff_url: null, created_at: '2026-09-20T18:00:00.000Z' },
+  { store_id: 'ChIJ-noodle', store_name: 'Synthetic Noodle House', total: null, handoff_url: 'https://www.ubereats.com/search?q=Synthetic+Noodle+House&pl=synthetic', created_at: '2026-09-28T10:00:00.000Z' },
+  { store_id: null, store_name: null, total: null, handoff_url: null, created_at: '2026-09-20T18:00:00.000Z' },
 ];
-const OK = { [S]: summary(metrics('2', '0', '1'), DISHES.concat([STANDING])), [P]: { profile: PROFILE }, [O]: { orders: ORDERS }, [C]: { uberConnected: true } };
+const OK = { [S]: summary(metrics('1', '2', '2'), OPENED.concat([STANDING])), [P]: { profile: PROFILE }, [O]: { orders: ORDERS }, [C]: { rail: 'places', source: 'Google Places', handoff: 'uber-eats', uberConnected: false } };
 const section = (model, id) => model.sections.find((x) => x && x.id === id);
 const stat = (model, id) => model.stats.find((x) => x.id === id);
 const build = (answers) => loadFamily({ ...OK, ...answers }).family({});
 const rows = (items) => items.map((i) => [i.title, i.text, i.meta]);
-
-test('on open the view reads only the home summary, the profile, the history and the connection: never the cart, the catalog, the concierge or a write', async () => {
+test('on open the view reads only the home summary, the profile, the history and the config: never the restaurant source, a photo, the concierge or a write', async () => {
   const view = loadFamily(OK);
   await view.family({});
   assert.deepEqual([...view.urls].sort(), ['GET ' + C, 'GET ' + S, 'GET ' + O, 'GET ' + P]);
-  for (const url of view.urls) assert.doesNotMatch(url, /\/(cart|search|menu|chat|conversation|order)(\?|$)/, 'no cart, catalog or concierge read: ' + url);
+  for (const url of view.urls) assert.doesNotMatch(url, /\/(search|photo|chat|conversation|order)(\?|$)/, 'no restaurant, photo or concierge read: ' + url);
 });
-
-test('the stats, the dishes from the summary\x27s detail string, the tastes and the checkouts; nothing is clickable and the one action opens the cockpit entry', async () => {
+test('the stats, the hand-offs from the summary\x27s detail string, the tastes and the links; nothing is clickable and the one action opens the cockpit entry', async () => {
   const view = loadFamily(OK);
   const model = await view.family({});
-  assert.deepEqual([model.kicker, model.title, model.lede], ['Food delivery', '2 things in the order', 'Newest: Synthetic Pad Thai, added W(2026-09-28T10:00:00.000Z). Finish or change the order in Eats.']);
+  assert.deepEqual([model.kicker, model.title, model.lede], ['Food delivery', 'Last restaurant: Synthetic Noodle House', 'Opened in Uber Eats W(2026-09-28T10:00:00.000Z). Open Eats to find another or open it again.']);
   assert.deepEqual(model.stats.map((x) => [x.id, x.label, x.value, x.hint || null]), [
-    ['pending', 'In the order now', '2', null],
-    ['links', 'Checkout links, 5 days', '1', 'Not placed orders'],
-    ['saved', 'Saved checkouts', 2, null],
-    ['uber', 'Uber Eats', 'Linked', null],
+    ['day', 'Opened today', '1', 'Not placed orders'],
+    ['links', 'Opened, 5 days', '2', 'Not placed orders'],
+    ['saved', 'Saved links', 2, null],
+    ['uber', 'Uber Eats', 'Handoff', 'Opens at your address on your own sign-in'],
   ]);
-  assert.deepEqual(rows(section(model, 'order').items), [
-    ['Synthetic Pad Thai', 'Waiting in the order', 'added W(2026-09-28T10:00:00.000Z)'],
-    ['Synthetic Spring Rolls', 'Waiting in the order', 'added W(2026-09-27T19:00:00.000Z)'],
-  ], 'the standing note is not a dish');
-  assert.equal(section(model, 'order').note, null, 'no note when the summary is whole and complete');
+  assert.deepEqual(rows(section(model, 'recent').items), [
+    ['Synthetic Noodle House', 'Opened in Uber Eats', 'opened W(2026-09-28T10:00:00.000Z)'],
+    ['Synthetic Taqueria', 'Opened in Uber Eats', 'opened W(2026-09-27T19:00:00.000Z)'],
+  ], 'the standing note is not a hand-off');
+  assert.equal(section(model, 'recent').note, null, 'no note when the summary is whole and complete');
   assert.deepEqual(section(model, 'tastes').items.map((t) => [t.title, t.text]), [['Favorite food', 'Thai, Mexican'], ['Dietary needs', 'vegetarian'], ['Budget per order', '$40.00'], ['Delivers to', '1 Synthetic Way']]);
   assert.deepEqual(rows(section(model, 'checkouts').items), [
-    ['Synthetic Noodle House', 'Checkout link, $24.50', 'W(2026-09-26T18:00:00.000Z)'],
-    ['A restaurant', 'Checkout link, no total saved', 'W(2026-09-20T18:00:00.000Z)'],
+    ['Synthetic Noodle House', 'Uber Eats link', 'W(2026-09-28T10:00:00.000Z)'],
+    ['A restaurant', 'Uber Eats link', 'W(2026-09-20T18:00:00.000Z)'],
   ]);
-  assert.equal(section(model, 'checkouts').note, 'A checkout link opens Uber Eats. It does not mean an order was placed or delivered.');
+  assert.equal(section(model, 'checkouts').note, 'A link opens Uber Eats at your address with that restaurant searched. It does not mean an order was placed or delivered.');
   const every = model.sections.flatMap((s) => s.items);
-  assert.ok(every.length === 8 && every.every((i) => !i.href && !i.onClick), 'the view opens, adds and hands off nothing from an item');
+  assert.ok(every.length === 8 && every.every((i) => !i.href && !i.onClick), 'the view opens and hands off nothing from an item');
   assert.equal(model.actions.length, 1);
   model.actions[0].onClick();
   assert.deepEqual([model.actions[0].label, view.opened], ['Order food in Eats', ['/cockpit/?app=eats']]);
 });
-
-test('the title names the state: one thing, more in the order than the summary lists, nothing in the order with the last checkout link, nothing saved yet', async () => {
-  const one = await build({ [S]: summary(metrics('1', '0', '0'), [DISHES[0], STANDING]) });
-  assert.deepEqual([one.title, section(one, 'order').note], ['1 thing in the order', null]);
-  const more = await build({ [S]: summary(metrics('5', '0', '0'), DISHES.concat([STANDING])) });
-  assert.deepEqual([more.title, section(more, 'order').items.length, section(more, 'order').note], ['5 things in the order', 2, 'Showing the newest 2 of 5. Open Eats for the whole order.']);
-  const empty = await build({ [S]: summary(metrics('0', '0', '1'), [NONE, STANDING]) });
-  assert.deepEqual([empty.title, empty.lede, section(empty, 'order').items, section(empty, 'order').empty], ['Nothing in the order right now', 'Last checkout link: Synthetic Noodle House, W(2026-09-26T18:00:00.000Z).', [], 'Nothing in the order right now.']);
+test('the title names the state: more opened than listed, none lately with the last link named, nothing saved yet', async () => {
+  const more = await build({ [S]: summary(metrics('1', '5', '3'), OPENED.concat([STANDING])) });
+  assert.deepEqual([more.title, section(more, 'recent').items.length, section(more, 'recent').note], ['Last restaurant: Synthetic Noodle House', 2, 'Showing the newest 2 of 5. Open Eats for all of them.']);
+  const empty = await build({ [S]: summary(metrics('0', '0', '0'), [NONE, STANDING]) });
+  assert.deepEqual([empty.title, empty.lede, section(empty, 'recent').items, section(empty, 'recent').empty], ['No restaurant opened recently', 'Last Uber Eats link: Synthetic Noodle House, W(2026-09-28T10:00:00.000Z).', [], 'No restaurant opened in the last five days.']);
   const fresh = await build({ [S]: summary(metrics('0', '0', '0'), [NONE, STANDING]), [O]: { orders: [] }, [P]: { profile: { user_sub: 'diner', onboarded: false, dietary: [], favorite_cuisines: [] } } });
-  assert.deepEqual([fresh.title, fresh.lede], ['Nothing saved yet', 'Open Eats to find a restaurant and start an order. You confirm and pay in Uber Eats, never here.']);
-  assert.deepEqual([section(fresh, 'tastes').items, section(fresh, 'tastes').empty, section(fresh, 'checkouts').items, section(fresh, 'checkouts').empty, stat(fresh, 'saved').value], [[], 'Nothing saved yet. Eats learns tastes as you order.', [], 'No checkout links yet.', 0]);
+  assert.deepEqual([fresh.title, fresh.lede], ['Nothing saved yet', 'Open Eats to find the restaurants near you and open one in Uber Eats. You choose the dishes and pay in Uber Eats, never here.']);
+  assert.deepEqual([section(fresh, 'tastes').items, section(fresh, 'tastes').empty, section(fresh, 'checkouts').items, section(fresh, 'checkouts').empty, stat(fresh, 'saved').value], [[], 'Nothing saved yet. Eats learns tastes as you order.', [], 'No Uber Eats links yet.', 0]);
 });
-
-// Nothing in the order and no checkout link to name. BLANK is what GET /profile answers for a diner with no row
+// Nothing opened lately and no link to name. BLANK is what GET /profile answers for a diner with no row
 // (loadProfile's default); ADDRESS is what the full page's "Use location" button saves (defaultAddress, onboarded).
 const IDLE = summary(metrics('0', '0', '0'), [NONE, STANDING]);
 const BLANK = { user_sub: 'diner', onboarded: false, dietary: [], favorite_cuisines: [] };
 const ADDRESS = { ...BLANK, default_address: '1 Synthetic Way', onboarded: true };
 const idleHead = (model) => [model.title, model.lede];
-
-test('with nothing in the order the title says "Nothing saved yet" only when the history answered empty and the profile holds no tastes, never over a failed read or saved tastes', async () => {
+test('with nothing opened the title says "Nothing saved yet" only when the history answered empty and the profile holds no tastes, never over a failed read or saved tastes', async () => {
   const historyFailed = await build({ [S]: IDLE, [P]: { profile: BLANK }, [O]: { http: 500, body: { error: 'boom' } } });
-  assert.deepEqual(idleHead(historyFailed), ['Nothing in the order right now', 'Saved checkouts could not be checked.']);
-  assert.equal(section(historyFailed, 'checkouts').empty, 'Saved checkouts could not be checked.', 'the title agrees with the section below it');
+  assert.deepEqual(idleHead(historyFailed), ['No restaurant opened recently', 'Saved links could not be checked.']);
+  assert.equal(section(historyFailed, 'checkouts').empty, 'Saved links could not be checked.', 'the title agrees with the section below it');
   const profileFailed = await build({ [S]: IDLE, [P]: { http: 500, body: { error: 'boom' } }, [O]: { orders: [] } });
-  assert.deepEqual(idleHead(profileFailed), ['Nothing in the order right now', 'Saved tastes could not be checked.']);
+  assert.deepEqual(idleHead(profileFailed), ['No restaurant opened recently', 'Saved tastes could not be checked.']);
   assert.equal(section(profileFailed, 'tastes').empty, 'Saved tastes could not be checked.');
   const bothFailed = await build({ [S]: IDLE, [P]: { http: 503, body: {} }, [O]: { http: 500, body: undefined } });
-  assert.deepEqual(idleHead(bothFailed), ['Nothing in the order right now', 'Saved checkouts could not be checked. Saved tastes could not be checked.']);
+  assert.deepEqual(idleHead(bothFailed), ['No restaurant opened recently', 'Saved links could not be checked. Saved tastes could not be checked.']);
   const addressSaved = await build({ [S]: IDLE, [P]: { profile: ADDRESS }, [O]: { orders: [] } });
-  assert.deepEqual(idleHead(addressSaved), ['Nothing in the order right now', 'Eats keeps the saved tastes for the next order.']);
+  assert.deepEqual(idleHead(addressSaved), ['No restaurant opened recently', 'Eats keeps the saved tastes for the next order.']);
   assert.deepEqual(section(addressSaved, 'tastes').items.map((t) => [t.title, t.text]), [['Favorite food', 'Any craving'], ['Dietary needs', 'No diet set'], ['Budget per order', 'Budget open'], ['Delivers to', '1 Synthetic Way']], 'the tiles below show what the title now acknowledges');
   const tastesNoHistory = await build({ [S]: IDLE, [O]: { http: 500, body: {} } });
-  assert.deepEqual(idleHead(tastesNoHistory), ['Nothing in the order right now', 'Saved checkouts could not be checked. Eats keeps the saved tastes for the next order.']);
+  assert.deepEqual(idleHead(tastesNoHistory), ['No restaurant opened recently', 'Saved links could not be checked. Eats keeps the saved tastes for the next order.']);
   const blank = await build({ [S]: IDLE, [P]: { profile: BLANK }, [O]: { orders: [] } });
-  assert.deepEqual(idleHead(blank), ['Nothing saved yet', 'Open Eats to find a restaurant and start an order. You confirm and pay in Uber Eats, never here.']);
+  assert.deepEqual(idleHead(blank), ['Nothing saved yet', 'Open Eats to find the restaurants near you and open one in Uber Eats. You choose the dishes and pay in Uber Eats, never here.']);
 });
-
-test('a partial summary, a failed side read and an unlinked Uber Eats each read as what they are', async () => {
-  const partial = await build({ [S]: summary(metrics('Unavailable', '0', 'Unavailable'), [NOT_CHECKED, STANDING], true) });
-  assert.deepEqual([partial.title, partial.lede], ['Some saved data cannot be checked', 'Eats could not read part of what it keeps. Open Eats to see the order.']);
-  assert.deepEqual([stat(partial, 'pending').value, stat(partial, 'pending').hint, stat(partial, 'links').value, stat(partial, 'links').hint], ['—', 'Could not check', '—', 'Could not check']);
-  assert.deepEqual([section(partial, 'order').items, section(partial, 'order').empty, section(partial, 'order').note], [[], 'The order could not be checked.', 'Some saved data could not be checked.']);
-  const someLoaded = await build({ [S]: summary(metrics('2', 'Unavailable', 'Unavailable'), DISHES.concat([NOT_CHECKED, STANDING]), true) });
-  assert.deepEqual([someLoaded.title, section(someLoaded, 'order').items.length, section(someLoaded, 'order').note], ['2 things in the order', 2, 'Some saved data could not be checked.']);
+test('a partial summary, a failed side read and an installation with no restaurant source each read as what they are', async () => {
+  const partial = await build({ [S]: summary(metrics('Unavailable', 'Unavailable', 'Unavailable'), [NOT_CHECKED, STANDING], true) });
+  assert.deepEqual([partial.title, partial.lede], ['Some saved data cannot be checked', 'Eats could not read part of what it keeps. Open Eats to see the restaurants near you.']);
+  assert.deepEqual([stat(partial, 'day').value, stat(partial, 'day').hint, stat(partial, 'links').value, stat(partial, 'links').hint], ['—', 'Could not check', '—', 'Could not check']);
+  assert.deepEqual([section(partial, 'recent').items, section(partial, 'recent').empty, section(partial, 'recent').note], [[], 'The recent restaurants could not be checked.', 'Some saved data could not be checked.']);
+  const someLoaded = await build({ [S]: summary(metrics('Unavailable', '2', 'Unavailable'), OPENED.concat([NOT_CHECKED, STANDING]), true) });
+  assert.deepEqual([someLoaded.title, section(someLoaded, 'recent').items.length, section(someLoaded, 'recent').note], ['Last restaurant: Synthetic Noodle House', 2, 'Some saved data could not be checked.']);
   const sides = await build({ [P]: { http: 500, body: { error: 'boom' } }, [O]: { http: 503, body: {} }, [C]: { http: 500, body: undefined } });
-  assert.equal(sides.title, '2 things in the order', 'the order still shows');
+  assert.equal(sides.title, 'Last restaurant: Synthetic Noodle House', 'the recent hand-offs still show');
   assert.deepEqual([section(sides, 'tastes').items, section(sides, 'tastes').empty], [[], 'Saved tastes could not be checked.']);
-  assert.deepEqual([section(sides, 'checkouts').items, section(sides, 'checkouts').empty, stat(sides, 'saved').value, stat(sides, 'saved').hint], [[], 'Saved checkouts could not be checked.', '—', 'Could not check']);
+  assert.deepEqual([section(sides, 'checkouts').items, section(sides, 'checkouts').empty, stat(sides, 'saved').value, stat(sides, 'saved').hint], [[], 'Saved links could not be checked.', '—', 'Could not check']);
   assert.deepEqual([stat(sides, 'uber').value, stat(sides, 'uber').hint], ['—', 'Could not check']);
-  const unlinked = await build({ [C]: { uberConnected: false } });
-  assert.deepEqual([stat(unlinked, 'uber').value, stat(unlinked, 'uber').hint, stat(unlinked, 'uber').tone || null], ['Not linked', 'Restaurant search needs an Uber Eats connection', null]);
-  const absent = await build({ [C]: { uberConnected: false, rail: 'absent' } });
-  assert.deepEqual([stat(absent, 'uber').value, stat(absent, 'uber').hint], ['None here', 'This installation has no Uber Eats connector'], 'no connector here is not something to link');
+  const notSetUp = await build({ [C]: { rail: 'absent', uberConnected: false } });
+  assert.deepEqual([stat(notSetUp, 'uber').value, stat(notSetUp, 'uber').hint], ['Not set up', 'This installation names no restaurant source'], 'no source here is not something to link');
   const capped = await build({ [O]: { orders: Array.from({ length: 20 }, () => ORDERS[0]) } });
   assert.deepEqual([stat(capped, 'saved').value, section(capped, 'checkouts').items.length], ['20+', 8], 'the history route stops at 20 and the view shows the newest 8');
 });
-
 test('a refusal from any read and a failed summary each read as what they are', async () => {
   const signedOut = await build({ [S]: { http: 401, body: { error: 'not_authenticated' } } });
-  assert.deepEqual([signedOut.title, signedOut.lede, signedOut.sections, signedOut.stats], ['Sign in to see the order', 'Eats shows the order of whoever is signed in, and this session is not signed in.', undefined, undefined]);
+  assert.deepEqual([signedOut.title, signedOut.lede, signedOut.sections, signedOut.stats], ['Sign in to see your restaurants', 'Eats shows the restaurants of whoever is signed in, and this session is not signed in.', undefined, undefined]);
   const denied = await build({ [P]: { http: 403, body: {} } });
   assert.deepEqual([denied.title, denied.lede], ['This account cannot open Eats', 'The Eats routes refused this account (HTTP 403).'], 'a refusal from a side read is a refusal');
   // Every source failed: the route answers 503 with its own body (counts Unavailable, the not-checked note) and no error field.
-  await assert.rejects(build({ [S]: { http: 503, body: summary(metrics('Unavailable', 'Unavailable', 'Unavailable'), [NOT_CHECKED, STANDING], true) } }), /^Error: Eats could not read the saved order \(HTTP 503\)\.$/);
-  await assert.rejects(build({ [S]: { http: 500, body: undefined } }), /^Error: Eats could not read the saved order \(HTTP 500\)\.$/, 'a non-JSON failure keeps its status');
+  await assert.rejects(build({ [S]: { http: 503, body: summary(metrics('Unavailable', 'Unavailable', 'Unavailable'), [NOT_CHECKED, STANDING], true) } }), /^Error: Eats could not read the saved links \(HTTP 503\)\.$/);
+  await assert.rejects(build({ [S]: { http: 500, body: undefined } }), /^Error: Eats could not read the saved links \(HTTP 500\)\.$/, 'a non-JSON failure keeps its status');
   // The Eats routes answer a 500 with the raw err.message (a database sentence); the view names the status, never that text.
-  await assert.rejects(build({ [S]: { http: 500, body: { error: 'relation "eats_carts" does not exist' } } }), /^Error: Eats could not read the saved order \(HTTP 500\)\.$/, 'a raw route error is not shown to the household');
+  await assert.rejects(build({ [S]: { http: 500, body: { error: 'relation "eats_orders" does not exist' } } }), /^Error: Eats could not read the saved links \(HTTP 500\)\.$/, 'a raw route error is not shown to the household');
   await assert.rejects(build({ [S]: { http: 404, body: { error: 'Synthetic endpoint unavailable' } } }), /^Error: Synthetic endpoint unavailable$/, 'a non-server failure keeps the route\x27s own error');
 });
 
 /** @returns {object} A stub element with the members the page's own scripts touch on start. */
 function node() {
   return { value: '', textContent: '', innerHTML: '', className: '', disabled: false, scrollTop: 0, scrollHeight: 0, style: {}, dataset: {}, tagName: 'DIV',
-    classList: { toggle() {}, add() {}, remove() {} }, addEventListener() {}, appendChild() {}, setAttribute() {}, prepend() {}, focus() {}, querySelectorAll: () => [] };
+    classList: { toggle() {}, add() {}, remove() {} }, addEventListener() {}, appendChild() {}, setAttribute() {}, prepend() {}, focus() {}, replaceChildren() {}, append() {}, querySelectorAll: () => [], hidden: true, href: '' };
 }
 /** @returns {object} A stub document that answers every lookup with a fresh stub element and binds nothing. */
 function dom() { return { querySelector: node, querySelectorAll: () => [], getElementById: node, createElement: node, addEventListener() {} }; }
@@ -269,9 +259,10 @@ async function runHandoff(kit) {
   return calls;
 }
 
-const FULL_READS = ['/api/eats/profile', '/api/eats/orders/history', '/api/eats/cart', '/api/eats/search?q=&limit=16', '/api/eats/config'];
+// With no saved address the page's own start makes no restaurant search: it asks for the address instead.
+const FULL_READS = ['/api/eats/profile', '/api/eats/orders/history', '/api/eats/config'];
 
-test('under an audience view the full start reads nothing (the cart-creating /cart and the provider /search included); without one, and with no kit, it reads what it always did', async () => {
+test('under an audience view the full start reads nothing; without one, and with no kit, it reads the profile, the history and the config (and no restaurant search without an address)', async () => {
   assert.deepEqual(await runFull(view('family')), []);
   assert.deepEqual(await runFull(view(null)), FULL_READS);
   assert.deepEqual(await runFull(undefined), FULL_READS);

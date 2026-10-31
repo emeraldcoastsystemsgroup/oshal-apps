@@ -7,6 +7,9 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | eats-concierge runs inline (posture: inline, same enrolled UUID). The in-page concierge (POST /api/eats/chat) calls it through the native kernel's package bot turn, which refuses a node-posture bot bound to an unreachable node ("this bot requires an enrolled node"), so every message answered "I'm having trouble reaching my assistant". Guarded by scripts/check-store-bots.test.mjs.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Release 1.3.5: on the native kernel (no Uber Eats provider) the package answers search, menu and the order handoff from its own curated catalog and ubereats.com deep link (routes/uber-catalog.js). Asked to order food, Jarvis had no restaurant to offer and invented an order. The tool descriptions name food delivery and say ordering ends at the Uber Eats link the diner opens.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: declare eats-concierge as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the place cache (migration 041). What Google answers (address resolutions, searches, restaurant cards) is saved per person for Google's 30-day limit and served first: a search younger than a day asks Google nothing, Refresh asks again, and at Google's quota the saved answer is served with its saved time and the reason. search-restaurants is a POST now (the kernel admits no write on a GET); GET /search still reads.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: Use location works for real: coordinates resolve through the Geocoding API's reverse lookup on maps.googleapis.com (second egress host, same key), because Places Text Search refuses coordinates as a query (seen live). The key needs the Geocoding API allowed on it; until then the page says so and asks for a typed street address.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (1.4.1: the home summary's empty line reads "No saved Uber Eats links yet", as the household guard expects): real restaurants. Search answers from Google Places around the diner's delivery address through the kernel's egress (places.googleapis.com with the kernel-held google-places key as the key query parameter; the package never holds it). The curated five-restaurant catalog, the menu and the cart tools are gone: Uber has no consumer API, so a menu the package cannot read is not priced here. Ordering is the Uber Eats search link at the diner's resolved address (its Google place id in Uber's location token) for the chosen restaurant, proven in a browser. Tools: search-restaurants (query + address), open-uber-eats (approval-gated hand-off), ask-eats-concierge.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -16,13 +19,15 @@
 # per ADR-093 interim — this manifest declares NO bots; workflow.workerBot resolves via
 # the static registry.
 #
-# An AI food-delivery concierge that drives a visual surface: it searches
-# restaurants + dishes, builds ONE Uber Eats order, learns the diner's cuisine +
-# dietary preferences, and hands off a ready Uber Eats checkout link.
+# An AI food-delivery concierge that drives a visual surface: it finds the real
+# restaurants near the diner's delivery address (Google Places), learns the diner's
+# cuisine + dietary preferences, and hands off into Uber Eats at that address with
+# the chosen restaurant searched.
 #
-# Checkout truth: Uber has no consumer API to place an Eats order on a third
-# party's behalf, so ordering is a DEEP-LINK HANDOFF — the diner signs in and
-# pays on Uber. No payment or diner credentials ever touch OSHAL.
+# Checkout truth: Uber has no consumer API to search Eats or place an order on a
+# third party's behalf, so ordering is a HAND-OFF: the link carries the address as
+# Uber's own location token, and the diner picks the dishes, signs in and pays on
+# Uber. No menu or price is invented here; no payment or diner credentials touch OSHAL.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: eats
@@ -44,10 +49,11 @@ rating:
       degrade: disable
 displayName: Eats
 description: >-
-  AI food-delivery concierge — search Uber Eats restaurants, browse menus, build
-  an order, and hand off a ready Uber Eats checkout. Other swarm bots can ask it
-  to order food.
-version: 1.3.6
+  AI food-delivery concierge: the real restaurants near your delivery address from
+  Google Places, your tastes and allergies remembered, and a one-tap hand-off into
+  Uber Eats at your address with the restaurant you chose. Other swarm bots can ask
+  it to find food.
+version: 1.5.0
 status: active
 
 source:
@@ -69,17 +75,29 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# uber (Uber Eats) is the one connector this app uses (operator affiliate/marketing blob
-# via broker; ordering is a deep-link handoff).
+# No person-held connector: the restaurant source is the installation's Google Places key, which the
+# kernel holds (OSHAL_CONNECTOR_SECRET_GOOGLE_PLACES) and places on the egress below; ordering is a hand-off
+# into Uber Eats on the diner's own sign-in.
 dependencies:
   required:
     apps: []
     tools: []
-    connectors: [uber]
+    connectors: []
   optional:
     apps: []
     tools: []
     connectors: []
+
+# Outbound hosts (native kernel: the sandbox reaches only these). Google Places answers the restaurants
+# near the delivery address and the address's own place id; the kernel adds the google-places key as the
+# `key` query parameter and this package never sees it.
+egress:
+  - host: places.googleapis.com
+    credential: { connector: google-places, query: key }
+  # The Geocoding API's reverse lookup turns the page's Use location coordinates into a street address with its place id
+  # (Places Text Search refuses coordinates); the same key, which must have the Geocoding API allowed on it.
+  - host: maps.googleapis.com
+    credential: { connector: google-places, query: key }
 
 # Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
 # `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
@@ -103,84 +121,54 @@ tools:
     displayName: Search Restaurants
     type: api
     category: commerce
-    description: Find restaurants and dishes for food delivery through Uber Eats. Use it for "order food", "get me delivery", "I want tacos" and any restaurant or cuisine request.
-    executor: { executorType: api, apiEndpoint: "GET /api/eats/search?q={input.query}" }
+    description: Find the real restaurants near the diner's delivery address (Google Places) for food delivery, each with its Uber Eats link. Use it for "order food", "get me delivery", "I want tacos" and any restaurant or cuisine request.
+    executor: { executorType: api, apiEndpoint: "POST /api/eats/search" }
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
       type: object
       properties:
-        query: { type: string }
+        query: { type: string, description: "The craving, cuisine or restaurant name; empty lists restaurants" }
+        address: { type: string, description: "The delivery address; omit to use the diner's saved address" }
       required: [query]
     usageInstructions: >-
-      Call with {query}. Use returned restaurants as the only source of restaurants, prices, and delivery context.
-      Then browse-menu, add-food-item for the dishes the diner chose, and prepare-food-order for the Uber Eats
-      link. Nothing is ordered or paid in oshal: never say an order was placed; the diner places it in Uber Eats.
+      Call with {query} and, when the diner names one, {address}. Use the returned items as the only source of
+      restaurants: each has placeId, name, cuisine, rating, priceLabel, openNow, delivery, distanceKm and uberUrl.
+      There are no menus or prices here: the diner chooses dishes in Uber Eats. To order, call open-uber-eats with
+      the placeId. A 400 address_required means the diner must give a delivery address first; a 503 with a message
+      means the restaurant source is unavailable, say that message, never that nothing matched. The answer's
+      served field is "live" or "saved" (results kept from an earlier search, savedAt says when; savedNote says why).
     routingTags: [food, restaurants, delivery]
     skills: [restaurant-search, dietary-awareness]
     tags: [eats, route-backed]
 
-  - name: browse-menu
-    displayName: Browse Menu
+  - name: open-uber-eats
+    displayName: Open in Uber Eats
     type: api
     category: commerce
-    description: Browse menu items for a selected restaurant/store.
-    executor: { executorType: api, apiEndpoint: "GET /api/eats/menu?storeId={input.storeId}" }
-    defaultAuthMode: auto
-    requiresApproval: false
-    inputSchema:
-      type: object
-      properties:
-        storeId: { type: string }
-      required: [storeId]
-    usageInstructions: >-
-      Call with {storeId} after search-restaurants. Only add items returned by this tool.
-    routingTags: [food, menu, delivery]
-    skills: [menu-browse, food-order-building]
-    tags: [eats, route-backed]
-
-  - name: add-food-item
-    displayName: Add Food Item
-    type: api
-    category: commerce
-    description: Add a menu item to the diner's current order cart.
-    executor: { executorType: api, apiEndpoint: "POST /api/eats/cart/items" }
-    defaultAuthMode: auto
-    requiresApproval: false
-    inputSchema:
-      type: object
-      properties:
-        storeId: { type: string }
-        productId: { type: string }
-        quantity: { type: number }
-      required: [storeId, productId]
-    usageInstructions: >-
-      Call with {storeId, productId} from browse-menu only after the diner selects or approves an
-      item. The server prices the line from the restaurant's menu (a price is never sent) and
-      refuses a dish the menu does not list. Keep one restaurant per order.
-    routingTags: [food, cart, delivery]
-    skills: [food-order-building]
-    tags: [eats, route-backed]
-
-  - name: prepare-food-order
-    displayName: Prepare Food Order Handoff
-    type: api
-    category: commerce
-    description: Build the Uber Eats checkout handoff for the current order. No payment is taken in OSHAL.
+    description: Hand the diner off into Uber Eats at their delivery address with the chosen restaurant searched. Nothing is ordered or paid in oshal.
     executor: { executorType: api, apiEndpoint: "POST /api/eats/order" }
     defaultAuthMode: ask
     requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        placeId: { type: string, description: "The restaurant's placeId from search-restaurants" }
+        address: { type: string, description: "The delivery address; omit to use the diner's saved address" }
+      required: [placeId]
     usageInstructions: >-
-      Call only after the diner asks to order/checkout. It returns a handoff URL; the diner confirms address and pays in Uber Eats.
+      Call only after the diner chose a restaurant and asked to order from it. It records the hand-off and returns
+      checkoutUrl, the Uber Eats page at the diner's address with that restaurant searched; give the diner that link.
+      The diner picks the dishes, confirms the address and pays in Uber Eats. Never say an order was placed.
     routingTags: [food, checkout, handoff]
-    skills: [checkout-handoff, food-order-building]
+    skills: [checkout-handoff]
     tags: [eats, route-backed, approval-required]
 
   - name: ask-eats-concierge
     displayName: Ask Eats Concierge
     type: api
     category: commerce
-    description: Let the Eats concierge reason over preferences, current cart, and delivery candidates.
+    description: Let the Eats concierge reason over the diner's tastes, allergies and the restaurants near them.
     executor: { executorType: api, apiEndpoint: "POST /api/eats/chat" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -190,9 +178,9 @@ tools:
         message: { type: string }
       required: [message]
     usageInstructions: >-
-      Call with {message} when the diner wants conversational help choosing food or building an order.
+      Call with {message} when the diner wants conversational help choosing where to order from.
     routingTags: [food, concierge, delivery]
-    skills: [preference-learning, dietary-awareness, food-order-building]
+    skills: [preference-learning, dietary-awareness]
     tags: [eats, route-backed]
 
 # UI SURFACES — ribbon icons that open the Eats surface.
@@ -208,20 +196,14 @@ ui:
       icon: codicon codicon-search
       iframeUrl: /api/eats/app?view=browse
       section: top
-    - toolName: eats-cart
-      label: Order
-      icon: codicon codicon-list-unordered
-      iframeUrl: /api/eats/app?view=cart
-      section: top
 
 # THE ASSISTANT RAIL (surface-bridge). Without this block the cockpit relay forwards NOTHING for
-# this app (fail-closed). context = the Eats surface publishes the restaurants or menu on screen
-# and the order with its server-computed total, so the floating assistant answers about the screen
-# the diner is on; set_field = it can fill the delivery address or the search box, and
-# field_change = the diner's own edits of those two fields travel back; custom = its `search`,
-# `open_menu`, `add_item` and `place_order` ops run through the same functions the buttons call;
-# propose/submit = an order is ALWAYS a confirm card and the diner's answer returns to the
-# assistant (nothing opens until Confirm); notify = it can confirm in the surface.
+# this app (fail-closed). context = the Eats surface publishes the restaurants on screen and the
+# delivery address, so the floating assistant answers about the screen the diner is on; set_field = it
+# can fill the delivery address or the search box, and field_change = the diner's own edits of those
+# two fields travel back; custom = its `search` and `open_uber_eats` ops run through the same functions
+# the buttons call; propose/submit = a hand-off is ALWAYS a confirm card and the diner's answer returns
+# to the assistant (nothing opens until Confirm); notify = it can confirm in the surface.
 surface:
   ops: [context, set_field, field_change, custom, propose, submit, notify]
 
@@ -253,6 +235,7 @@ routes:
 # stays core with the bot.
 migrations:
   - migrations/040-eats-platform.sql
+  - migrations/041-eats-place-cache.sql
 
 # WORKFLOW — tickets of type 'eats' route to the concierge.
 # The bot a Jarvis creation request goes to (its own workflow bot).
@@ -265,8 +248,8 @@ workflow:
   workerBot: eats-concierge
   phases:
     - intake     # understand the craving + dietary needs
-    - find       # search restaurants/dishes, build the order
-    - delivery   # hand off the Uber Eats deep link, record history
+    - find       # search the real restaurants near the address
+    - delivery   # hand off into Uber Eats, record history
 
 # RIBBON VISIBILITY — focus mode for /cockpit?app=eats
 ribbon:
@@ -330,4 +313,4 @@ bots:
     persona: personas/eats-concierge.yaml
     posture: inline   # native kernel: runs with the route-backed tools below; no dedicated node
     role: commerce/food-delivery
-    capabilities: ['restaurant-search', 'menu-browse', 'food-order-building', 'uber-eats-checkout-handoff', 'dietary-filtering', 'cuisine-preferences']
+    capabilities: ['restaurant-search', 'uber-eats-checkout-handoff', 'dietary-filtering', 'cuisine-preferences']

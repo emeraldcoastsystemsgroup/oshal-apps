@@ -11,6 +11,7 @@
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | GET /rooms is side-effect free: listRooms no longer runs the retention sweep (a DELETE), which the native kernel refuses on a read ("SQL mutation requires original writer admission" on every lobby load). The sweep still runs when a room is created; leaderboard reads only games that ended within the same seven-day window, so its bound no longer depends on a read having swept.
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | Native kernel fixes. (1) An AI or house podium no longer writes a synthetic subject into user_sub: the native kernel refuses any owner value that is not the admitted principal ("SQL owner field does not match the admitted principal"), so every Solo night / + Team podium answered 500; its identity rides seat_key (see the next entry for where the row lives). (2) sync() only reads: the round clock and the NPC beat moved to advance(), which POST /sync runs before answering the same payload, because a GET is a reader admission and every poll after a show started answered 500 when the lapsed clock tried to write. Guard: tests/native-writes.test.js.
  * 2026-10-11 00:00:01 | maintainer@emeraldcoastsystemsgroup.com    | AI and house podiums live in gameshow_podiums (migrations/003): live after the first fix every podium still answered 500 ("SQL unique key already exists (23505)"), because the native kernel fills a NULL user_sub with the caller and the host's own seat already holds (room_id, host). A podium row belongs to the host (user_sub) and is identified by seat_key. seatsOf and the mutate lock read both tables and merge them in join order; updateSeat, removeSeat and the score snapshot write the podium's own table; listRooms counts podiums and the hall of fame reads their scores. A person's own seat is the row with their subject and no seat_key.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | The host can step up and play at their own seat (updateSeat role: 'player'), which replaces the second podium Solo night used to add and the two freezes it caused. Every poll carries the standings and whether the game is decided: after a person's own move the rev already matched, so their score stayed stale until someone else moved.
  */
 
 'use strict';
@@ -164,6 +165,9 @@ async function updateSeat(deps, sub, roomId, body) {
   if (['camera', 'avatar', 'off'].includes(body.presenceKind)) push('presence_kind', body.presenceKind);
   if (body.avatarId !== undefined) push('avatar_id', String(body.avatarId || '').slice(0, 40) || null);
   if (body.name !== undefined) push('display_name', String(body.name || '').slice(0, 60) || 'Player');
+  // The host steps up to play at their own seat. One way, and only their own row: a podium
+  // never becomes the host, and the room's owner stays the owner whatever their seat's role.
+  if (owner && !seatId && body.role === 'player') push('role', 'player');
   if (!fields.length) return { ok: false, status: 400, error: 'Nothing to update.' };
   values.push(roomId);
   const scope = seatId ? `AND seat_id=$${values.length + 1}` : `AND user_sub=$${values.length + 1}`;
@@ -207,6 +211,11 @@ async function listRooms(deps, sub) {
   return { ok: true, rooms: result.rows.map((row) => ({ ...roomDto(row, sub), phase: row.phase || 'lobby', players: (Number(row.players) || 0) + (Number(row.podiums) || 0) })) };
 }
 
+/** @description Whether the show has played out, so a surface can offer the finish instead of a next round. */
+function gameIsDecided(show, state) {
+  return !!(show && show.isGameOver && state && state.phase && state.board && show.isGameOver(state));
+}
+
 /** @description Load a full room snapshot: room, seats, state, scoreboard, and event tail. */
 async function loadState(deps, sub, roomId) {
   const room = await access(deps, sub, roomId);
@@ -222,6 +231,7 @@ async function loadState(deps, sub, roomId) {
     ok: true, room: roomDto(room, sub), state, rev: stRes.rowCount ? Number(stRes.rows[0].rev) : 0, now: Date.now(),
     seats: seatRows.map((row) => seatDto(row, sub)),
     scoreboard: show ? show.scoreboard(state, seatRows) : [],
+    gameOver: gameIsDecided(show, state),
     events: log.rows.reverse(), show: show ? { id: show.id, title: show.title, teams: show.teams } : null,
   };
 }
@@ -263,12 +273,13 @@ async function sync(deps, sub, roomId, sinceRev, sinceSeq) {
   // `now` lets each surface measure its own clock skew and count down to the SAME
   // deadline the server will enforce — never to its own idea of the time.
   const out = { ok: true, rev, changed: rev > sinceRev, status: room.status, now: Date.now() };
-  if (out.changed) out.state = parsedJson(stRes.rows[0].state, {});
+  const state = stRes.rowCount ? parsedJson(stRes.rows[0].state, {}) : {};
+  if (out.changed) out.state = state;
   out.seats = seatRows.map((row) => seatDto(row, sub));
-  if (out.changed) {
-    const show = registry.get(room.show_id);
-    out.scoreboard = show ? show.scoreboard(out.state, seatRows) : [];
-  }
+  // Always, not only when the rev moved: a person's own move already advanced their rev.
+  const show = registry.get(room.show_id);
+  out.scoreboard = show ? show.scoreboard(state, seatRows) : [];
+  out.gameOver = gameIsDecided(show, state);
   const tail = await deps.pool.query(
     'SELECT seq, kind, content FROM gameshow_events WHERE room_id=$1 AND seq>$2 ORDER BY seq ASC LIMIT 30',
     [roomId, sinceSeq]
@@ -360,7 +371,7 @@ async function removeSeat(deps, sub, roomId, seatId) {
   if (room.user_sub !== sub) return { ok: false, status: 403, error: 'Only the host can remove a podium.' };
   const seat = (await seatsOf(deps, roomId)).find((row) => row.seat_id === String(seatId));
   if (!seat) return { ok: false, status: 404, error: 'No such podium.' };
-  if (seat.role === 'host') return { ok: false, status: 400, error: 'The host podium cannot be removed.' };
+  if (seat.role === 'host' || (seat.user_sub === room.user_sub && !seat.seat_key)) return { ok: false, status: 400, error: 'The host podium cannot be removed.' };
   await deps.pool.query(`DELETE FROM ${seatTable(seat)} WHERE seat_id=$1`, [seat.seat_id]);
   await deps.pool.query('UPDATE gameshow_state SET rev=rev+1, updated_at=now() WHERE room_id=$1', [roomId]);
   return { ok: true };

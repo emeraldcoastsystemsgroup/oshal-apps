@@ -6,6 +6,7 @@
  * 2026-07-22 03:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Regression guards for two defects found by LIVE play, not unit tests: (1) the host answering a "spoken" mode with a full markdown document (headings/tables/bullets/emoji) that would wreck the caption bar and blow the TTS limit; (2) host data replies needing tolerant JSON extraction. Plain `node tests/host-guards.test.js`.
  * 2026-10-12 23:58:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 10 guard: a later round's start replaces the previous round's HOST caption with the show's own round milestone (Whammy and Family Feud through the REAL show modules), newer than the old line so the speaker voices it, with no host-bot call; the open is unchanged (the intro still narrates it).
  * 2026-07-31 23:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #4 guard: the FIRST round start auto-dispatches exactly one 'intro' spoken line (applied as the room caption, so the speaker surface voices the open with the titles), a later round start never re-narrates it, and the ▶ response returns without waiting on the intro round-trip.
+ * 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com    | The world seats someone at a podium: an empty stage now refuses to start, which tests/native-writes.test.js guards.
  */
 
 'use strict';
@@ -107,7 +108,8 @@ function makeRoomWorld(initialState) {
       return { ok: true, rev: 2, state };
     },
     setStatus: async () => ({ ok: true }),
-    seatsOf: async () => [],
+    // Someone is at a podium: an empty stage refuses to start (tests/native-writes.test.js).
+    seatsOf: async () => [{ seat_id: 'p1', role: 'player', display_name: 'Ana' }],
     resolveActor: () => ({ actor: {} }),
   };
   world.pool = {

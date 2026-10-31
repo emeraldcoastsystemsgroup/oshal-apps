@@ -1,0 +1,251 @@
+{
+  "task": "hexapod-walk",
+  "mode": "shape",
+  "reward": "cot",
+  "wCot": 0.02,
+  "jump": "legs-hop",
+  "seed": 1,
+  "timesteps": 1000000,
+  "residualRad": 0.15,
+  "evalSeeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "facets": [
+    "trackingErrorMps",
+    "costOfTransport",
+    "falls"
+  ],
+  "mujoco": "3.3.5",
+  "obsSize": 63,
+  "actionSize": 18,
+  "startedAt": "2026-10-30T10:02:05Z",
+  "baseline": {
+    "episodes": 5,
+    "meanReturn": 56.0492,
+    "falls": 0,
+    "distanceM": 0.8305,
+    "energyJ": 217.9436,
+    "trackingErrorMps": 0.0424,
+    "costOfTransport": 12.4778,
+    "rows": [
+      {
+        "command": {
+          "vx": 0.21699632610040182,
+          "vy": 0.009655402696788731,
+          "yawRate": -0.12668205498527785
+        },
+        "measured": {
+          "vxMps": 0.2085,
+          "vyMps": 0.0117,
+          "yawRateRadS": -0.1014
+        },
+        "trackingErrorMps": 0.0559,
+        "costOfTransport": 13.525,
+        "falls": 0,
+        "distanceM": 1.045,
+        "energyJ": 279.9343,
+        "seconds": 5.02,
+        "return": 42.849
+      },
+      {
+        "command": {
+          "vx": 0.23870650112211078,
+          "vy": -0.014057896665842687,
+          "yawRate": 0.17088324718198628
+        },
+        "measured": {
+          "vxMps": 0.2356,
+          "vyMps": -0.0184,
+          "yawRateRadS": 0.1469
+        },
+        "trackingErrorMps": 0.0588,
+        "costOfTransport": 14.51,
+        "falls": 0,
+        "distanceM": 1.1618,
+        "energyJ": 333.8931,
+        "seconds": 5.02,
+        "return": 34.051
+      },
+      {
+        "command": {
+          "vx": 0.08199822900086073,
+          "vy": 0.008594351484022732,
+          "yawRate": 0.19430206630970775
+        },
+        "measured": {
+          "vxMps": 0.0764,
+          "vyMps": 0.0078,
+          "yawRateRadS": 0.1662
+        },
+        "trackingErrorMps": 0.017,
+        "costOfTransport": 9.272,
+        "falls": 0,
+        "distanceM": 0.3678,
+        "energyJ": 67.5503,
+        "seconds": 5.02,
+        "return": 88.018
+      },
+      {
+        "command": {
+          "vx": 0.1125366465445895,
+          "vy": -0.02756817773739524,
+          "yawRate": -0.1907941631434169
+        },
+        "measured": {
+          "vxMps": 0.1054,
+          "vyMps": -0.0255,
+          "yawRateRadS": -0.1634
+        },
+        "trackingErrorMps": 0.0258,
+        "costOfTransport": 10.952,
+        "falls": 0,
+        "distanceM": 0.5277,
+        "energyJ": 114.4626,
+        "seconds": 5.02,
+        "return": 74.68
+      },
+      {
+        "command": {
+          "vx": 0.21771296247390715,
+          "vy": 0.019214814862734714,
+          "yawRate": -0.17034670306390523
+        },
+        "measured": {
+          "vxMps": 0.2123,
+          "vyMps": 0.0215,
+          "yawRateRadS": -0.1465
+        },
+        "trackingErrorMps": 0.0545,
+        "costOfTransport": 14.13,
+        "falls": 0,
+        "distanceM": 1.0501,
+        "energyJ": 293.8778,
+        "seconds": 5.02,
+        "return": 40.648
+      }
+    ]
+  },
+  "trainWallS": 3471.3,
+  "policyPath": "/home/oshal-maintainer/oshal-work/hexapod-reports/cot-seed1/hexapod-walk-ppo-shape-seed1.zip",
+  "policyFile": "hexapod-walk-ppo-shape-seed1.zip",
+  "sb3": "2.7.0",
+  "torch": "2.8.0+cpu",
+  "envs": 4,
+  "policy": {
+    "episodes": 5,
+    "meanReturn": 80.2074,
+    "falls": 0,
+    "distanceM": 0.8345,
+    "energyJ": 148.1722,
+    "trackingErrorMps": 0.0195,
+    "costOfTransport": 8.3412,
+    "rows": [
+      {
+        "command": {
+          "vx": 0.21699632610040182,
+          "vy": 0.009655402696788731,
+          "yawRate": -0.12668205498527785
+        },
+        "measured": {
+          "vxMps": 0.2196,
+          "vyMps": 0.0094,
+          "yawRateRadS": -0.1437
+        },
+        "trackingErrorMps": 0.0148,
+        "costOfTransport": 9.242,
+        "falls": 0,
+        "distanceM": 1.0861,
+        "energyJ": 198.8124,
+        "seconds": 5.02,
+        "return": 79.246
+      },
+      {
+        "command": {
+          "vx": 0.23870650112211078,
+          "vy": -0.014057896665842687,
+          "yawRate": 0.17088324718198628
+        },
+        "measured": {
+          "vxMps": 0.2334,
+          "vyMps": -0.0158,
+          "yawRateRadS": 0.1386
+        },
+        "trackingErrorMps": 0.0242,
+        "costOfTransport": 10.032,
+        "falls": 0,
+        "distanceM": 1.1552,
+        "energyJ": 229.526,
+        "seconds": 5.02,
+        "return": 66.08
+      },
+      {
+        "command": {
+          "vx": 0.08199822900086073,
+          "vy": 0.008594351484022732,
+          "yawRate": 0.19430206630970775
+        },
+        "measured": {
+          "vxMps": 0.0688,
+          "vyMps": 0.0048,
+          "yawRateRadS": 0.144
+        },
+        "trackingErrorMps": 0.0222,
+        "costOfTransport": 6.249,
+        "falls": 0,
+        "distanceM": 0.3395,
+        "energyJ": 42.0173,
+        "seconds": 5.02,
+        "return": 88.562
+      },
+      {
+        "command": {
+          "vx": 0.1125366465445895,
+          "vy": -0.02756817773739524,
+          "yawRate": -0.1907941631434169
+        },
+        "measured": {
+          "vxMps": 0.1029,
+          "vyMps": -0.0236,
+          "yawRateRadS": -0.1696
+        },
+        "trackingErrorMps": 0.0208,
+        "costOfTransport": 6.696,
+        "falls": 0,
+        "distanceM": 0.5176,
+        "energyJ": 68.6451,
+        "seconds": 5.02,
+        "return": 88.418
+      },
+      {
+        "command": {
+          "vx": 0.21771296247390715,
+          "vy": 0.019214814862734714,
+          "yawRate": -0.17034670306390523
+        },
+        "measured": {
+          "vxMps": 0.221,
+          "vyMps": 0.0208,
+          "yawRateRadS": -0.1931
+        },
+        "trackingErrorMps": 0.0153,
+        "costOfTransport": 9.487,
+        "falls": 0,
+        "distanceM": 1.0743,
+        "energyJ": 201.8604,
+        "seconds": 5.02,
+        "return": 78.731
+      }
+    ]
+  },
+  "verdict": {
+    "falls": true,
+    "trackingError": true,
+    "costOfTransport": true
+  },
+  "policyBeatsBaseline": true,
+  "finishedAt": "2026-10-30T11:00:06Z"
+}

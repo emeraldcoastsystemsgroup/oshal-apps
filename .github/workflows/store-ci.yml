@@ -68,6 +68,8 @@
 # 58 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` runs scripts/check-store-bots.mjs and its mutation spec: every bot a package route calls must be one the native kernel's package bot turn runs for that package (declared or imported, and inline), no persona prompt may teach the retired /app/scripts/ CLIs or an example.com link, and each named concierge answers in plain prose.
 # 59 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs scripts/check-connector-copy.test.mjs: no package page or persona tells a person to connect a provider this installation has no connector or rail for (Uber, Uber Eats, Duffel, Walmart, Alpaca, Yahoo, PayPal), with its mutation cases and the check over the tree.
 # 60 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs codex-packer's persona-template guard (the Forge never re-asks an answered step, sweep 10) and life's home-summary guard (Life's Home summary says which parts work without a connection, sweep 10); neither suite ran in the gate before.
+# 61 | maintainer@emeraldcoastsystemsgroup.com | Run the design-studio package's process-model suite (ADR-203): the phase vocabulary, the proposal from a brief's requirement lines, the validations including the missing_evidence refusal, the spider example bound by name and the body contract from bound reads, against the COMPILED modules with no framework import. GLOB: tests/*-*.test.js keeps the framework-coupled routes.core suite and the Chromium proof out of this bare checkout; both are registered in tests/test-lab.yaml.
+# 62 | maintainer@emeraldcoastsystemsgroup.com | Job `game-show` also runs its browser guards: tests/solo-night.test.js (one press starts a game against the computer, a reload keeps the seat, every control reads under a light theme) and tests/play-phone-layout.test.js. They ran nowhere before, so a broken stage could stay green here.
 
 name: store-ci
 
@@ -496,6 +498,18 @@ jobs:
       - name: Run game-show suites
         working-directory: game-show
         run: npm test
+      # The shipped page itself, in Chromium. `npm test` stays dependency-free, and the engine suites
+      # passed the whole time no person could start a game, so the stage needs its own red job.
+      - name: Provide the pinned Store toolchain
+        run: npm ci --prefix scripts/toolchain
+      - name: Provide the game-show browser contract runtime
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Run the one-press solo game browser suite
+        working-directory: game-show
+        run: node --test tests/solo-night.test.js
+      - name: Run the phone layout browser suite
+        working-directory: game-show
+        run: node --test tests/play-phone-layout.test.js
 
   dnd:
     name: dnd package suites
@@ -1124,6 +1138,25 @@ jobs:
       # registered in tests/test-lab.yaml with their prerequisites and run locally, not here.
       - name: Run cad-studio contract and transport suites
         working-directory: cad-studio
+        run: node --test "tests/*-*.test.js"
+
+  design-studio:
+    name: design-studio package suites
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      # The process as data (the phase vocabulary, the proposal from a brief's lines, every
+      # validation incl. the missing_evidence refusal, the spider example by name, the body contract
+      # from bound reads) is plain node against the COMPILED modules with no framework import - the
+      # hyphenated suite. The framework-coupled route suite (routes.core) and the Chromium proof
+      # (design-studio.spec.mjs) are registered in tests/test-lab.yaml with their checkout
+      # prerequisites and run locally, not here (ADR-203, lane @ds-app).
+      - name: Run design-studio process-model suite
+        working-directory: design-studio
         run: node --test "tests/*-*.test.js"
 
   scene-studio:

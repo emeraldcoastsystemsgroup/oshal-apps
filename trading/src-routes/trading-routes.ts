@@ -51,6 +51,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-136 D5 earnings-reaction rules: register the /events/rules route family (trading-earnings-rule-routes.ts) right after the event playbooks — the operator's surface over the kernel rule store, which until now could only be reached by calling the module, so no person could arm, see or stop a rule. Book-scoped query-first like every 2026-09-03-audited route.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | ADR-052 addendum P4 per-position exit plans: register the /position-plans route family (trading-position-plan-routes.ts — list a book's plans, and the confirm-gated amend) before the generic flow, beside the other kernel-store surfaces.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register the same book-and-market reader for every bot this package declares (futures-research-analyst, trading-research-analyst, weather-analyst beside trading-analyst). The kernel requires a selected bot of a specialist-context package to have its own reader, so each research concierge refused every question with 'required specialist reader is missing'.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Mount the research-only Quant desk at /quant inside this route, so adding it changes no manifest route and suspends no person schedule.
  *
  * @module trading-routes
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Register owner-scoped native portfolio review and historical research beside the account routes.
@@ -77,6 +78,8 @@ import { registerTradingEventPlanRoutes } from './trading-event-plan-routes';
 import { registerTradingEarningsRuleRoutes } from './trading-earnings-rule-routes';
 import { registerTradingPositionPlanRoutes } from './trading-position-plan-routes';
 import { registerTradingResearchRoutes } from './trading-research-routes';
+// @ts-expect-error The Quant desk is plain JavaScript under routes/quant.
+import { createTradingQuantRoutes } from './quant/routes';
 import { registerTradingQuoteStreamRoutes } from './trading-quote-stream-routes';
 import { TRADING_SPECIALIST_FACT_KEYS, readTradingSpecialistFacts } from './trading-market-facts';
 
@@ -210,6 +213,8 @@ export function createTradingRoutes(ctx: AppContext): Router {
   // ADR-052 addendum P4: per-position exit plans — list and the confirm-gated amend (before the generic flow).
   registerTradingPositionPlanRoutes(router, ctx);
   // ADR-138: single-stock research, the per-user watchlist, and pinned lots (before the generic flow).
+  // The research-only Quant desk: a sub-route of this mount, so no manifest route or schedule authority changes.
+  router.use('/quant', createTradingQuantRoutes(ctx));
   registerTradingResearchRoutes(router, ctx);
   registerTradingBookReadRoutes(router, ctx, apiDir);
   registerTradingOrderFlowRoutes(router, ctx, placeDecisionOrder);

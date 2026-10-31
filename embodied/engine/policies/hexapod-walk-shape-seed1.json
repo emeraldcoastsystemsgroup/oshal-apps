@@ -1,0 +1,267 @@
+{
+  "task": "hexapod-walk",
+  "mode": "shape",
+  "reward": "cot",
+  "wCot": 0.02,
+  "wRecover": 0.0,
+  "wTorque": 1.0,
+  "torqueLimitNm": 1.47,
+  "rollFraction": 0.5,
+  "jump": "legs-hop",
+  "seed": 1,
+  "timesteps": 1000000,
+  "residualRad": 0.15,
+  "evalSeeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "facets": [
+    "trackingErrorMps",
+    "costOfTransport",
+    "falls"
+  ],
+  "mujoco": "3.3.5",
+  "obsSize": 63,
+  "actionSize": 18,
+  "startedAt": "2026-10-30T14:47:34Z",
+  "baseline": {
+    "episodes": 5,
+    "meanReturn": 0.214,
+    "falls": 0,
+    "distanceM": 0.7618,
+    "energyJ": 242.3775,
+    "trackingErrorMps": 0.0656,
+    "costOfTransport": 16.2642,
+    "rows": [
+      {
+        "command": {
+          "vx": 0.21699632610040182,
+          "vy": 0.009655402696788731,
+          "yawRate": -0.12668205498527785
+        },
+        "measured": {
+          "vxMps": 0.1737,
+          "vyMps": 0.0104,
+          "yawRateRadS": -0.0939
+        },
+        "trackingErrorMps": 0.1056,
+        "costOfTransport": 17.881,
+        "falls": 0,
+        "distanceM": 0.8953,
+        "energyJ": 317.091,
+        "seconds": 5.02,
+        "return": -46.338,
+        "rolledAtS": 2.48,
+        "invertedAtEnd": true
+      },
+      {
+        "command": {
+          "vx": 0.23870650112211078,
+          "vy": -0.014057896665842687,
+          "yawRate": 0.17088324718198628
+        },
+        "measured": {
+          "vxMps": 0.2356,
+          "vyMps": -0.0184,
+          "yawRateRadS": 0.1469
+        },
+        "trackingErrorMps": 0.0588,
+        "costOfTransport": 14.51,
+        "falls": 0,
+        "distanceM": 1.1618,
+        "energyJ": 333.8931,
+        "seconds": 5.02,
+        "return": -21.078
+      },
+      {
+        "command": {
+          "vx": 0.08199822900086073,
+          "vy": 0.008594351484022732,
+          "yawRate": 0.19430206630970775
+        },
+        "measured": {
+          "vxMps": 0.0606,
+          "vyMps": 0.0068,
+          "yawRateRadS": 0.1526
+        },
+        "trackingErrorMps": 0.0435,
+        "costOfTransport": 20.114,
+        "falls": 0,
+        "distanceM": 0.2997,
+        "energyJ": 119.4017,
+        "seconds": 5.02,
+        "return": 44.971,
+        "rolledAtS": 2.2,
+        "invertedAtEnd": true
+      },
+      {
+        "command": {
+          "vx": 0.1125366465445895,
+          "vy": -0.02756817773739524,
+          "yawRate": -0.1907941631434169
+        },
+        "measured": {
+          "vxMps": 0.1054,
+          "vyMps": -0.0255,
+          "yawRateRadS": -0.1634
+        },
+        "trackingErrorMps": 0.0258,
+        "costOfTransport": 10.952,
+        "falls": 0,
+        "distanceM": 0.5277,
+        "energyJ": 114.4626,
+        "seconds": 5.02,
+        "return": 67.93
+      },
+      {
+        "command": {
+          "vx": 0.21771296247390715,
+          "vy": 0.019214814862734714,
+          "yawRate": -0.17034670306390523
+        },
+        "measured": {
+          "vxMps": 0.1825,
+          "vyMps": 0.0147,
+          "yawRateRadS": -0.1331
+        },
+        "trackingErrorMps": 0.0943,
+        "costOfTransport": 17.864,
+        "falls": 0,
+        "distanceM": 0.9243,
+        "energyJ": 327.039,
+        "seconds": 5.02,
+        "return": -44.415,
+        "rolledAtS": 1.88,
+        "invertedAtEnd": true
+      }
+    ]
+  },
+  "trainWallS": 2369.1,
+  "policyPath": "hexapod-walk-ppo-shape-seed1.zip",
+  "policyFile": "hexapod-walk-ppo-shape-seed1.zip",
+  "sb3": "2.7.0",
+  "torch": "2.8.0+cpu",
+  "envs": 4,
+  "policy": {
+    "episodes": 5,
+    "meanReturn": 13.3568,
+    "falls": 0,
+    "distanceM": 0.68,
+    "energyJ": 136.008,
+    "trackingErrorMps": 0.0713,
+    "costOfTransport": 10.486,
+    "rows": [
+      {
+        "command": {
+          "vx": 0.21699632610040182,
+          "vy": 0.009655402696788731,
+          "yawRate": -0.12668205498527785
+        },
+        "measured": {
+          "vxMps": 0.1551,
+          "vyMps": 0.0097,
+          "yawRateRadS": -0.0303
+        },
+        "trackingErrorMps": 0.1125,
+        "costOfTransport": 11.562,
+        "falls": 0,
+        "distanceM": 0.8102,
+        "energyJ": 185.5371,
+        "seconds": 5.02,
+        "return": -22.533,
+        "rolledAtS": 2.48,
+        "invertedAtEnd": true
+      },
+      {
+        "command": {
+          "vx": 0.23870650112211078,
+          "vy": -0.014057896665842687,
+          "yawRate": 0.17088324718198628
+        },
+        "measured": {
+          "vxMps": 0.2218,
+          "vyMps": -0.0169,
+          "yawRateRadS": 0.2296
+        },
+        "trackingErrorMps": 0.0434,
+        "costOfTransport": 8.179,
+        "falls": 0,
+        "distanceM": 1.0483,
+        "energyJ": 169.8338,
+        "seconds": 5.02,
+        "return": 18.305
+      },
+      {
+        "command": {
+          "vx": 0.08199822900086073,
+          "vy": 0.008594351484022732,
+          "yawRate": 0.19430206630970775
+        },
+        "measured": {
+          "vxMps": 0.0563,
+          "vyMps": 0.0066,
+          "yawRateRadS": 0.1341
+        },
+        "trackingErrorMps": 0.0452,
+        "costOfTransport": 14.678,
+        "falls": 0,
+        "distanceM": 0.2825,
+        "energyJ": 82.1318,
+        "seconds": 5.02,
+        "return": 39.197,
+        "rolledAtS": 2.2,
+        "invertedAtEnd": true
+      },
+      {
+        "command": {
+          "vx": 0.1125366465445895,
+          "vy": -0.02756817773739524,
+          "yawRate": -0.1907941631434169
+        },
+        "measured": {
+          "vxMps": 0.0917,
+          "vyMps": -0.0275,
+          "yawRateRadS": -0.123
+        },
+        "trackingErrorMps": 0.0393,
+        "costOfTransport": 6.188,
+        "falls": 0,
+        "distanceM": 0.4681,
+        "energyJ": 57.3763,
+        "seconds": 5.02,
+        "return": 60.226
+      },
+      {
+        "command": {
+          "vx": 0.21771296247390715,
+          "vy": 0.019214814862734714,
+          "yawRate": -0.17034670306390523
+        },
+        "measured": {
+          "vxMps": 0.1501,
+          "vyMps": 0.0218,
+          "yawRateRadS": -0.0849
+        },
+        "trackingErrorMps": 0.1162,
+        "costOfTransport": 11.823,
+        "falls": 0,
+        "distanceM": 0.7907,
+        "energyJ": 185.1612,
+        "seconds": 5.02,
+        "return": -28.411,
+        "rolledAtS": 1.88,
+        "invertedAtEnd": true
+      }
+    ]
+  },
+  "verdict": {
+    "falls": true,
+    "trackingError": false,
+    "costOfTransport": true
+  },
+  "policyBeatsBaseline": false,
+  "finishedAt": "2026-10-30T15:27:12Z"
+}

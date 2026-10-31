@@ -1,0 +1,209 @@
+{
+  "task": "hexapod-certify",
+  "seed": 2,
+  "reportFile": "hexapod-walk-shape-seed2.json",
+  "policyFile": "hexapod-walk-ppo-shape-seed2.zip",
+  "policySha256": "a885b74fe75a83a253ca76c31feba274495a7e46a8e56bad188084d1184c63f6",
+  "buildHash": "7346d37a87730a49907799af4dc2f69ec05feb7c95445a8a704608da29addd4e",
+  "mode": "shape",
+  "jump": "legs-hop",
+  "certifiedTask": "walk",
+  "evalSeeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "limits": {
+    "continuousNm": 1.47,
+    "stallNm": 2.942
+  },
+  "unit": "control steps",
+  "checked": 1631,
+  "refused": [
+    {
+      "episode": 101,
+      "actuator": "L1-tibia",
+      "reason": "rms torque 1.496 Nm above the continuous 1.470 Nm"
+    },
+    {
+      "episode": 100,
+      "actuator": "L3-tibia",
+      "reason": "rms torque 1.484 Nm above the continuous 1.470 Nm",
+      "roll": true
+    }
+  ],
+  "refusedCount": 2,
+  "ok": false,
+  "baseline": {
+    "episodes": 5,
+    "meanReturn": 78.3858,
+    "falls": 0,
+    "distanceM": 0.8305,
+    "energyJ": 217.9436,
+    "trackingErrorMps": 0.0424,
+    "costOfTransport": 12.4778,
+    "checked": 1255,
+    "refused": [
+      {
+        "episode": 100,
+        "actuator": "L1-tibia",
+        "reason": "rms torque 1.668 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 100,
+        "actuator": "L3-tibia",
+        "reason": "rms torque 1.609 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 100,
+        "actuator": "R1-tibia",
+        "reason": "rms torque 1.524 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 100,
+        "actuator": "R3-femur",
+        "reason": "rms torque 1.520 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 100,
+        "actuator": "R3-tibia",
+        "reason": "rms torque 1.727 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "L1-tibia",
+        "reason": "rms torque 1.670 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "L3-femur",
+        "reason": "rms torque 1.721 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "L3-tibia",
+        "reason": "rms torque 1.867 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "R1-femur",
+        "reason": "rms torque 1.507 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "R1-tibia",
+        "reason": "rms torque 1.868 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "R2-femur",
+        "reason": "rms torque 1.474 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "R3-femur",
+        "reason": "rms torque 1.676 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 101,
+        "actuator": "R3-tibia",
+        "reason": "rms torque 1.740 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 104,
+        "actuator": "L1-tibia",
+        "reason": "rms torque 1.715 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 104,
+        "actuator": "L3-femur",
+        "reason": "rms torque 1.523 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 104,
+        "actuator": "L3-tibia",
+        "reason": "rms torque 1.639 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 104,
+        "actuator": "R1-tibia",
+        "reason": "rms torque 1.512 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 104,
+        "actuator": "R3-femur",
+        "reason": "rms torque 1.539 Nm above the continuous 1.470 Nm"
+      },
+      {
+        "episode": 104,
+        "actuator": "R3-tibia",
+        "reason": "rms torque 1.737 Nm above the continuous 1.470 Nm"
+      }
+    ],
+    "refusedCount": 19,
+    "torque": {
+      "rmsMaxNm": 1.8678,
+      "rmsMaxActuator": "R1-tibia",
+      "peakNm": 2.942
+    }
+  },
+  "policy": {
+    "episodes": 5,
+    "meanReturn": 61.976,
+    "falls": 0,
+    "distanceM": 0.6992,
+    "energyJ": 121.9471,
+    "trackingErrorMps": 0.0549,
+    "costOfTransport": 8.2076,
+    "checked": 1255,
+    "refused": [
+      {
+        "episode": 101,
+        "actuator": "L1-tibia",
+        "reason": "rms torque 1.496 Nm above the continuous 1.470 Nm"
+      }
+    ],
+    "refusedCount": 1,
+    "torque": {
+      "rmsMaxNm": 1.4961,
+      "rmsMaxActuator": "L1-tibia",
+      "peakNm": 2.942
+    }
+  },
+  "verdict": {
+    "falls": true,
+    "trackingError": false,
+    "costOfTransport": true
+  },
+  "policyBeatsBaseline": false,
+  "roll": {
+    "episodes": 1,
+    "meanReturn": 105.143,
+    "falls": 0,
+    "distanceM": 0.8698,
+    "energyJ": 168.5362,
+    "trackingErrorMps": 0.0618,
+    "costOfTransport": 9.782,
+    "detectS": 0.28,
+    "recoverS": 0.46,
+    "recovered": 1,
+    "checked": 376,
+    "refused": [
+      {
+        "episode": 100,
+        "actuator": "L3-tibia",
+        "reason": "rms torque 1.484 Nm above the continuous 1.470 Nm"
+      }
+    ],
+    "refusedCount": 1,
+    "torque": {
+      "rmsMaxNm": 1.4836,
+      "rmsMaxActuator": "L3-tibia",
+      "peakNm": 2.942
+    }
+  },
+  "certifiedAt": "2026-10-30T15:28:53Z",
+  "wallSeconds": 6.18
+}

@@ -41,6 +41,13 @@
  *                     |                             | - or dropping the operating point the read needs - is
  *                     |                             | refused with the field named. Installed alone, the package
  *                     |                             | now withholds three rows (the SG90 and both motors).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The STS3215 bus-servo row reads embodied's `servos` row
+ *                     |                             | (ADR-202, the spider-18 power lane): the fixture embodied
+ *                     |                             | catalog now carries that row too, so a fixture root with
+ *                     |                             | both owners resolves every shared row, embodied absent
+ *                     |                             | withholds its three rows, and installed alone the package
+ *                     |                             | withholds four. The row's own read-through, fixture-moves and
+ *                     |                             | withheld-by-name cases live in tests/hexapod-power.test.js.
  */
 'use strict';
 const test = require('node:test');
@@ -68,8 +75,12 @@ const MOTOR_OWNER = {
     { id: '2306-1800kv', name: 'A DIFFERENT MOTOR', massG: 33, approxUsd: 21, source: 'a fixture motor row, so that a read can be told from a copy', propulsion: { kv: 2000 } },
     { id: '2807-1300kv', name: 'ANOTHER FIXTURE MOTOR', massG: 50, approxUsd: 31, source: 'a second fixture motor row', propulsion: { kv: 1250 } },
   ],
-  servos: [],
+  servos: [
+    { id: 'sts3215-12v', name: 'A FIXTURE BUS SERVO', massG: 57, approxUsd: 23, source: 'a fixture bus-servo row, so that a read can be told from a copy', jointDrive: { stallKgCm: 25, secondsPer60: 0.3 } },
+  ],
 };
+/** Every row this lab reads from embodied: the two motors and the bus servo. */
+const EMBODIED_IDS = [...MOTOR_IDS, 'servo-bus-sts3215-12v'];
 
 /**
  * Build a packages root on disk: this lab's catalog file, plus whatever owner trees are asked for.
@@ -144,9 +155,9 @@ test('with the owner absent the row is WITHHELD naming the owner, and the rest o
   const { root, file } = fixtureRoot(null);
   const { drivers, unresolved } = loadDriverCatalog(file);
   assert.equal(drivers.find((r) => r.id === SHARED_ID), undefined, 'nothing is invented in the owner place');
-  assert.equal(listDrivers(drivers, 'servo').length, 0);
+  assert.deepEqual(listDrivers(drivers, 'servo').map((r) => r.id), ['servo-bus-sts3215-12v'], 'the only servo that still loads is the one embodied owns');
   const outright = JSON.parse(fs.readFileSync(FILE, 'utf8')).drivers.filter((r) => !r.sharedPart).map((r) => r.id);
-  for (const id of [...outright, ...MOTOR_IDS]) assert.ok(drivers.some((r) => r.id === id), `${id} still loads: its owner is not the one missing`);
+  for (const id of [...outright, ...EMBODIED_IDS]) assert.ok(drivers.some((r) => r.id === id), `${id} still loads: its owner is not the one missing`);
   assert.equal(unresolved.length, 1);
   assert.equal(unresolved[0].id, SHARED_ID);
   assert.equal(unresolved[0].owner, 'animatronics');
@@ -250,13 +261,13 @@ test('a shared MOTOR is READ from embodied: name, mass, price, source and KV mov
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('with embodied absent exactly the two motor rows are WITHHELD naming embodied, and the rest of the catalog still loads', () => {
+test('with embodied absent exactly its rows (the two motors and the bus servo) are WITHHELD naming embodied, and the rest of the catalog still loads', () => {
   const { root, file } = fixtureRoot(ownerCatalogWith(OWNER_ROW), null);
   const { drivers, unresolved } = loadDriverCatalog(file);
-  assert.deepEqual(unresolved.map((u) => u.id).sort(), [...MOTOR_IDS].sort());
+  assert.deepEqual(unresolved.map((u) => u.id).sort(), [...EMBODIED_IDS].sort());
   for (const u of unresolved) {
     assert.equal(u.owner, 'embodied');
-    assert.equal(u.type, 'motor');
+    assert.equal(u.type, MOTOR_IDS.includes(u.id) ? 'motor' : 'servo');
     assert.match(u.reason, /embodied owns this part and is not installed/);
     assert.equal(drivers.find((r) => r.id === u.id), undefined, `${u.id}: nothing is invented in the owner's place`);
   }
@@ -351,9 +362,9 @@ function runInstalledAlone(files, mutate) {
 }
 
 test('installed ALONE, with no owner beside it, this package\u2019s own catalog suite still passes', () => {
-  // Alone, the SG90 (animatronics) and both motors (embodied) are withheld, and the suite must agree.
+  // Alone, the SG90 (animatronics), both motors and the bus servo (embodied) are withheld, and the suite must agree.
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'circuit-lab-empty-'));
-  assert.deepEqual(missingSharedOwners(FILE, empty).map((m) => m.id).sort(), [...MOTOR_IDS, SHARED_ID].sort());
+  assert.deepEqual(missingSharedOwners(FILE, empty).map((m) => m.id).sort(), [...EMBODIED_IDS, SHARED_ID].sort());
   fs.rmSync(empty, { recursive: true, force: true });
   const run = runInstalledAlone(['tests/driver-catalog.test.js']);
   assert.equal(run.status, 0, `the catalog suite must pass against a single-package install:\n${run.output}`);

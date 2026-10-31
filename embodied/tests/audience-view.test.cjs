@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The Embodied Swarm family view asserted as behaviour over the package's REAL routes: GET /tasks from the compiled mount (routes/embodied-routes.js with its sibling modules and the real compiled engine, only express and the three framework aliases stubbed, a stub pool) and GET /home-summary from routes/home-summary.js, their answers JSON round-tripped as Express serializes them. On open the view makes exactly those two reads and both routes only SELECT the caller's own rows: never the world reads that create or advance the owner's simulation, never the physics engine, the designs, the scenes or the command log. The saved jobs paint as plain stats (planned, finished, stopped or called off, commands refused in seven days, a count with no cause attached), a title naming the newest job's state, and tiles saying what each job was, how far it got (a step only from an ended run), whether its dry run passed and when; no tile opens, runs or stops anything. A count the summary could not check, more than six jobs, odd rows, signed out (the route's own 401), refused (403), the route's own 500, an unreadable answer and an unreachable server each read as what they are. The surface script's one start statement carries the gate: under the view it binds, reads and starts nothing; without it, or without the kit, the full page makes its start reads and starts its four polls, and removing the gate turns the test red.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202: the two spider-18 route modules are siblings embodied-routes.js may import.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -92,7 +93,7 @@ const EMBODIED_STUBS = {
   '@/shared/artifact-exchange': { redeemArtifactViaRelay: () => Promise.resolve({ ok: false, status: 503, error: 'synthetic relay' }) },
 };
 /** The package's own route modules the mount imports; each loads through the same checked loader. */
-const SIBLINGS = ['./embodied-arm-routes', './surface-files', './task-store'];
+const SIBLINGS = ['./embodied-arm-routes', './embodied-hexapod-routes', './embodied-hexapod-physics-routes', './surface-files', './task-store'];
 
 /**
  * @description Load one of the package's compiled route modules with a recording express Router: node built-ins and the

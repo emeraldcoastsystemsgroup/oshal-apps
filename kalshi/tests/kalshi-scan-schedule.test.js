@@ -16,6 +16,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: no timer at load or factory time; the manifest's background-scan schedule is a person-activated POST to /api/kalshi/scan/tick, which the router mounts; with the native runtime's prediction-markets shape (no market reader) the tick answers 503 kalshi_scan_unavailable naming the missing reader and sends no SQL; the calibration table is read from the package's data directory first and a missing one names where it was looked for.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The page tells the person whether the scan will run: GET /scan names the background-scan schedule, and the page's scanJobState says the scan cannot run here (no cadence), is off until the person turns on the job's offer on the Jobs screen, is on, or is unknown when the host lists no jobs. The ~30s first-walk promise is gone from the page.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The package ships its calibration table (generatedAt 2026-07-13, all three horizons, a provenance block) and a scan may run against it; a missing table's reason, which the page prints as the gate reason, names no file path; before the first scan GET /scan carries the table's generatedAt; the page says the table's age in days. Live on 2026-10-11 the banner read "no kalshi-calibration.json at /package/data/kalshi-calibration.json or /package/config-seed/..." and the scan never ran.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel a due tick scans: appIsActive sends no swarm_applications query there (the kernel is the authority that an installed, active application with a standing activation is being ticked) and the tick writes the snapshot; off the kernel zero registry rows still mean not installed. Live 2026-10-30 every scheduled tick had answered app_inactive in 0.2 s and the person's snapshot stayed at 10/13.
  */
 'use strict';
 
@@ -284,4 +285,40 @@ test('the page says how old the calibration table is, and that none is installed
   assert.match(ctx.f('2026-07-13T05:39:26.578Z', now), /^calibration table from .*2026 \(90 days old\)$/);
   assert.match(ctx.f(null, now), /none installed/);
   assert.match(html, /calibrationLabel\(p\.calibrationGeneratedAt, Date\.now\(\)\)/, 'the header line uses it');
+});
+
+/** A pool that records every statement, answers no rows, and grants the scan lease. */
+function leasingPool() {
+  const pool = recordingPool();
+  pool.connect = async () => ({ query: async (text) => { pool.sql.push(String(text)); return { rows: [{ ok: true }], rowCount: 1 }; }, release() {} });
+  return pool;
+}
+
+test('on the native kernel a due tick scans: the kernel, not swarm_applications, says the application is installed and active', async () => {
+  // Live 2026-10-30: 41 scheduled ticks in a day, each HTTP 200 in 0.2 s, and the person's snapshot stayed at 10/13. The
+  // one query each tick sent, SELECT status FROM swarm_applications (the Docker stack's registry), answers zero rows in
+  // a package's SQL namespace on the kernel, which the check read as "not installed".
+  const reader = { ...WITH_READER, listMarketsFiltered: async () => ({ markets: [], paged: 0 }), mayStrategyStake: async () => ({ mayStake: false, reason: 'paper' }) };
+  const { routes, engine } = loadPackage(reader);
+  const was = process.env.OSHAL_EGRESS;
+  process.env.OSHAL_EGRESS = 'kernel';
+  try {
+    const pool = leasingPool();
+    assert.equal(await engine.appIsActive(pool), true);
+    assert.deepEqual(pool.sql, [], 'no registry query: the kernel ticks only an installed, active application with a standing activation');
+    const router = routes.createKalshiRoutes({ pool, appPackageDir: PKG });
+    const res = reply();
+    await router.routes.find((r) => r.method === 'post' && r.route === '/scan/tick').handler({ oidc: { user: { sub: 'person-1' } } }, res);
+    assert.equal(res.code, 200, JSON.stringify(res.body));
+    assert.equal(res.body.ran, true, `the due tick scanned: ${JSON.stringify(res.body)}`);
+    assert.equal(res.body.hands, 0);
+    assert.ok(!pool.sql.some((s) => /swarm_applications/.test(s)), 'no registry query during the tick');
+    assert.ok(pool.sql.some((s) => /INSERT INTO kalshi_scan_snapshots/.test(s)), 'the tick wrote the snapshot');
+  } finally {
+    if (was === undefined) delete process.env.OSHAL_EGRESS; else process.env.OSHAL_EGRESS = was;
+  }
+  // Off the kernel the Docker stack's contract stands: no registry row means not installed.
+  const pool = recordingPool();
+  assert.equal(await engine.appIsActive(pool), false);
+  assert.ok(pool.sql.some((s) => /swarm_applications/.test(s)), 'the registry is asked');
 });

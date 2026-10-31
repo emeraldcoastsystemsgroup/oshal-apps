@@ -98,7 +98,7 @@ export const PENDING = new Set([
   'route lora/src-routes/lora-train-dispatch.ts calls bot a0000000-0000-0000-0000-000000000049, which is neither declared nor imported by this package',
   'route movies/routes/movies-routes.js calls bot b00b0000-0000-0000-0000-000000000001, which movies-concierge is node-posture',
   'route movies/src-routes/movies-routes.ts calls bot b00b0000-0000-0000-0000-000000000001, which movies-concierge is node-posture',
-  // Concierges still bound to the platform general-bot in other lanes' packages (payments, payroll, life, kalshi, sports-edge,
+  // Concierges still bound to the platform general-bot in other lanes' packages (payments, payroll, life, sports-edge,
   // fantasy-football and intelligent-sports each answered with no app data in the 2026-10-11 sweep).
   'app classroom-experience binds its concierge to the platform general-bot, which holds none of its data',
   'app commons-experience binds its concierge to the platform general-bot, which holds none of its data',
@@ -106,7 +106,6 @@ export const PENDING = new Set([
   'app fantasy-football binds its concierge to the platform general-bot, which holds none of its data',
   'app hello-oshal binds its concierge to the platform general-bot, which holds none of its data',
   'app intelligent-sports binds its concierge to the platform general-bot, which holds none of its data',
-  'app kalshi binds its concierge to the platform general-bot, which holds none of its data',
   'app life binds its concierge to the platform general-bot, which holds none of its data',
   'app orbit-experience binds its concierge to the platform general-bot, which holds none of its data',
   'app payments binds its concierge to the platform general-bot, which holds none of its data',

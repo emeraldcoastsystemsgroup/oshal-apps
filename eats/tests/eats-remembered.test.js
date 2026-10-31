@@ -52,22 +52,21 @@ function documentsPool() {
 }
 
 /** The compiled Eats routes with the kernel's real concierge store and only the framework imports stubbed. */
-function loadRoutes(pool, reply = { say: 'ok', show: [], add: [], remember: [], checkout: false }) {
+function loadRoutes(pool, reply = { say: 'ok', show: [], remember: [], order: null }) {
   assert.ok(fs.existsSync(BRIDGE), `the kernel checkout must be present to use its concierge store (set OSHAL_KERNEL_ROOT); missing ${BRIDGE}`);
   const { ConciergeStore } = require(BRIDGE);
   const handlers = { get: new Map(), post: new Map(), delete: new Map() };
   const router = { get(p, h) { handlers.get.set(p, h); return this; }, post(p, h) { handlers.post.set(p, h); return this; }, delete(p, h) { handlers.delete.set(p, h); return this; }, use() { return this; } };
   const stubs = {
     express: { Router: () => router }, path, crypto: require('node:crypto'),
-    './cart-totals': require(path.join(PKG, 'routes', 'cart-totals.js')),
     './remembered-notes': require(path.join(PKG, 'routes', 'remembered-notes.js')),
     './allergen-check': require(path.join(PKG, 'routes', 'allergen-check.js')),
-    './uber-catalog': require(path.join(PKG, 'routes', 'uber-catalog.js')),
+    './places': require(path.join(PKG, 'routes', 'places.js')),
+    './uber-link': require(path.join(PKG, 'routes', 'uber-link.js')),
+    './place-cache': require(path.join(PKG, 'routes', 'place-cache.js')),
     '@/shared/logger': { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) },
     '@/shared/services/database': { buildOwnerRlsPolicyStatements: () => [], runRuntimeSchemaBootstrap: async () => {} },
     '@/shared/middleware/authz': { getTrustedServiceUserSub: () => undefined },
-    '@/app/routes/connector-token-broker': { resolveServerOperationCreds: async () => ({}) },
-    '@/app/routes/provider-operation-clients': { runUberEatsProviderOperation: async () => { throw new Error('no rail'); } },
     '@/app/routes/concierge-store': { ConciergeStore },
     '@/app/routes/concierge-reply': { cleanConciergeReply: (t, fb) => (typeof t === 'string' && t.trim() ? t : (fb || '')) },
     '@/features/agent-management': { BotNodeClient: class {}, createRegistryEndpointResolver: () => () => undefined },

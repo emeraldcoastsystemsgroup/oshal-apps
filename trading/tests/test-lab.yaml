@@ -20,6 +20,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register coherent SEC annual financial statements and desktop/phone route-renderer acceptance.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register strategy-concierge: the concierge's research-only strategy tools, the analyst's hand-off to the Strategies screen, and the order authority that owner approvals bind to.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Register paper-concierge: the concierge creates, starts and stops local paper accounts through the paper routes only, and its accounts read says whether the person's paper schedule has run.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Register quant-desk: fixed signals with no look-ahead, the history test's verdict rule, the forward scoreboard, the nightly pipeline against a real disposable PostgreSQL, no order path, and the screen at desktop and phone widths.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -1599,4 +1600,22 @@ cases:
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Drop the disposable PostgreSQL database. }
     limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: quant-desk
+    name: The Quant desk scores stocks, tests its signals and keeps an honest record, and cannot place an order
+    purpose: Verify the factors cannot see future prices, the history test judges each signal by its fixed rule, every pick is recorded before its outcome, the pipeline resumes across bounded passes per owner, and no module reaches an order.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-desk.test.js, tests/native-quant-desk-browser.test.js] }
+    expected:
+      - A factor or history row dated at a session does not change when later prices change; a forward return starts the session after the signal.
+      - A planted persistent signal holds up, a signal with no edge does not, and costs and too little history are counted.
+      - Picks are graded from the next session against SPY, a recorded grade never changes, and overlapping windows are not counted twice.
+      - The pipeline reads SPY first, resumes across passes, publishes, stops without Schwab, and keeps one owner's records from another.
+      - Quant modules name only read-only intents and no manifest route changes, so no person schedule is suspended.
+      - The screen runs the desk, sorts, explains a rank, shows holdings and the scoreboard at desktop and phone widths, and writes only to the desk and its own job.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Drop the disposable PostgreSQL database and close the synthetic servers. }
+    limits: { timeoutMs: 120000 }
     installation: never

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Two native-kernel refusals, live on 2026-10-11. (1) "Solo night" and "+ Team A" added no AI players: addPodium wrote npc:<skill>:<uuid> / house:<uuid> into user_sub and the kernel answered "SQL owner field does not match the admitted principal" (POST /podium 500). (2) Every poll after a show started answered 500: GET /sync resolved the lapsed round clock with a write, and a GET is a reader admission ("SQL mutation requires original writer admission"). The pool below applies both kernel rules to every statement; AI and house podiums must insert a NULL owner with their identity in seat_key, GET /sync must issue no write even with a lapsed clock, and POST /sync must resolve it.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The kernel double now also fills a NULL owner with the caller and keeps uq_gameshow_seat, as the native kernel does: a NULL-owner podium in gameshow_seats collided with the host's seat live (23505). Podiums are the host's gameshow_podiums rows; three AI players and two house podiums add beside the host, a seat read returns them all, and the host resolves to their own seat, never a podium.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | The host steps up to play at their own seat (one way, their own row, never a stranger's), an empty stage cannot start, and every poll carries the standings: after a person's own move the rev already matched and their score stayed stale.
  */
 'use strict';
 const test = require('node:test');
@@ -12,6 +13,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createRoomService } = require('../lib/room-service');
+const { createHostService } = require('../lib/host-service');
 const { seatDto } = require('../lib/route-helpers');
 const npc = require('../lib/npc');
 
@@ -71,6 +73,13 @@ function kernelPool({ mode, principal, state, seats = [] }) {
     if (/SELECT state, rev FROM gameshow_state/.test(sql)) return { rows: [{ state: store.state, rev: store.rev }], rowCount: 1 };
     if (/UPDATE gameshow_state SET state=\$1/.test(sql)) { store.state = JSON.parse(params[0]); store.rev += 1; return { rows: [{ rev: store.rev }], rowCount: 1 }; }
     if (/COALESCE\(MAX\(seq\)/.test(sql)) return { rows: [{ n: 1 }], rowCount: 1 };
+    if (/^\s*UPDATE gameshow_seats SET role=/.test(sql)) {
+      const owner = params[params.length - 1];
+      const rows = store.seats.filter((seat) => seat.user_sub === owner);
+      rows.forEach((seat) => { seat.role = params[0]; });
+      return { rows, rowCount: rows.length };
+    }
+    if (/^\s*UPDATE gameshow_state SET rev=rev\+1/.test(sql)) { store.rev += 1; return { rows: [], rowCount: 1 }; }
     const into = /^\s*INSERT INTO (gameshow_seats|gameshow_podiums)\b/.exec(sql);
     if (into) return insert(into[1], { room_id: ROOM, ...row });
     return { rows: [], rowCount: 0 };
@@ -120,6 +129,51 @@ test('the host acts as their own seat, never as one of their podiums', async () 
   const seats = await room.seatsOf(ROOM);
   const resolved = room.resolveActor(seats, { user_sub: HOST }, HOST, null);
   assert.equal(resolved.actor.seatId, 'seat-host');
+});
+
+test('the host steps up to play at their own seat; a player cannot make themselves anything else', async () => {
+  const pool = kernelPool({ mode: 'writer', principal: HOST, state: { phase: 'lobby' }, seats: [{ ...HOST_SEAT }] });
+  const room = createRoomService({ pool });
+  assert.equal((await room.updateSeat(HOST, ROOM, { role: 'player' })).ok, true);
+  assert.equal(pool.store.seats[0].role, 'player');
+  const actor = room.resolveActor(await room.seatsOf(ROOM), { user_sub: HOST }, HOST, null).actor;
+  assert.deepEqual([actor.seatId, actor.role], ['seat-host', 'player'], 'the same seat that owns the room now plays');
+  const before = pool.store.statements.length;
+  assert.equal((await room.updateSeat('someone-else', ROOM, { role: 'host' })).ok, false);
+  assert.equal((await room.updateSeat('someone-else', ROOM, { role: 'player' })).ok, false);
+  assert.ok(!pool.store.statements.slice(before).some((sql) => /role=/.test(sql)), 'a non-owner never writes a role');
+});
+
+test('the host cannot remove their own seat after stepping up to it', async () => {
+  const pool = kernelPool({ mode: 'writer', principal: HOST, state: { phase: 'lobby' }, seats: [{ ...HOST_SEAT, role: 'player' }] });
+  const out = await createRoomService({ pool }).removeSeat(HOST, ROOM, 'seat-host');
+  assert.equal(out.status, 400);
+});
+
+test('the first round refuses an empty stage, and starts once someone is at a podium', async () => {
+  const content = { question: 'Name a fruit?', answers: [{ text: 'Apple', points: 40 }, { text: 'Pear', points: 30 }, { text: 'Plum', points: 20 }, { text: 'Fig', points: 10 }] };
+  const state = registry.get('family-feud').initialState({ room_id: ROOM, user_sub: HOST }, [], Date.now());
+  const pool = kernelPool({ mode: 'writer', principal: HOST, state, seats: [{ ...HOST_SEAT }] });
+  const room = createRoomService({ pool });
+  const host = createHostService({ pool, room, orchestrator: null });
+  const refused = await host.run(HOST, ROOM, 'manual', { content });
+  assert.equal(refused.status, 409);
+  assert.match(refused.error, /Nobody is at a podium/);
+  assert.equal(pool.store.state.phase, 'lobby', 'nothing started');
+  await room.addPodium(HOST, ROOM, { npc: 'sharp', team: 'B' });
+  const started = await host.run(HOST, ROOM, 'manual', { content });
+  assert.equal(started.ok, true, JSON.stringify(started));
+  assert.notEqual(pool.store.state.phase, 'lobby');
+});
+
+test('every poll carries the standings and whether the game is decided, even when the rev already matches', async () => {
+  const state = { ...registry.get('family-feud').initialState({ room_id: ROOM, user_sub: HOST }, [], Date.now()), phase: 'round-win', round: 3, scores: { A: 300, B: 277 } };
+  const pool = kernelPool({ mode: 'reader', principal: HOST, state, seats: [{ ...HOST_SEAT, role: 'player', team: 'A' }] });
+  const out = await createRoomService({ pool }).sync(HOST, ROOM, pool.store.rev, 0);
+  assert.equal(out.changed, false, 'the caller is already at this rev');
+  assert.equal(out.state, undefined, 'so the state is not resent');
+  assert.deepEqual(out.scoreboard.map((row) => row.score), [300, 277]);
+  assert.equal(out.gameOver, true);
 });
 
 test('GET /sync reads only, even with a lapsed round clock', async () => {

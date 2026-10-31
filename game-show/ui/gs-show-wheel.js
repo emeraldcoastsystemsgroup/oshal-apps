@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 2026-07-24 10:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Wheel of Fortune client renderer, registered via GS.registerShowUi: letter-tile puzzle board, called-letters strip, per-player round banks, a SPIN button, the consonant grid while a spin is pending, and a buy-a-vowel row when the bank covers it. The generic answer box (answerPhases) is the solve input. New tile styling is inline — game-show.css is shared and untouched.
  * 2026-07-26 20:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast set piece: a real SVG wheel (17 segments mirroring the server order, rotated radial labels, gold hub, fixed pointer) spun by ONE module-level ticker that repaints the rotor BY ID — outcomes detected from the event tail (spins $N / BANKRUPT / loses a turn) with a spin.value fallback, 3-5 decelerating turns landing on the matching segment, clacker ticks while turning, ding/strike on land. Puzzle wall as a green-framed white-tile board with cyan flip-in on newly revealed letters, category banner, A-Z called-letters tracker, round-bank pods with the control seat lit, and a big gold wheel SPIN button in the dock. Gating logic and the registerShowUi contract are unchanged; styling moved to gs-set-wheel.css (gsw- prefix).
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Says whose turn it is and what to do; the turn status moved from the controls into that one line.
+ * 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com    | The pods show the round's bank over the running total (the podium row they duplicate leaves the stage, so totals had nowhere else to show), and the owner's button says Next puzzle.
  */
 
 /* global window, document, setInterval */
@@ -203,14 +205,15 @@
     return grid;
   }
 
-  /** @description Per-player round-bank pods — the money BANKRUPT would erase — with the control seat lit gold. */
+  /** @description Per-player pods: the round's bank, which BANKRUPT would erase and only a solve keeps, over the running total. The control seat is lit gold. */
   function bankPods(board) {
-    var banks = board.banks || {};
+    var banks = board.banks || {}, totals = (GS.state && GS.state.scores) || {};
     var row = GS.el('div', { class: 'gsw-pods' });
     GS.players().forEach(function (s) {
       row.appendChild(GS.el('div', { class: 'gsw-pod' + (board.control === s.seatId ? ' control' : '') },
         GS.el('span', { class: 'gsw-pod-name' }, s.name),
-        GS.el('span', { class: 'gsw-pod-cash' }, '$' + (Number(banks[s.seatId]) || 0))));
+        GS.el('span', { class: 'gsw-pod-cash' }, '$' + (board.solved ? 0 : (Number(banks[s.seatId]) || 0))),
+        GS.el('span', { class: 'gsw-pod-total' }, 'Total $' + (Number(totals[s.seatId]) || 0))));
     });
     return row;
   }
@@ -276,12 +279,8 @@
     var seat = actorSeatId || ((GS.mySeat() || {}).seatId || null);
     if (!seat) return null;
     var box = GS.el('div', { class: 'gs-col gsw-controls', style: 'align-items:center' });
-    if (b.control && b.control !== seat) {
-      box.appendChild(GS.el('div', { class: 'gs-muted' }, seatName(b.control) + ' has the wheel…'));
-      return box;
-    }
+    if (b.control && b.control !== seat) return null;
     if (b.spin && b.spin.value != null) {
-      box.appendChild(GS.el('div', { class: 'gs-chip gsw-callchip' }, 'You spun $' + b.spin.value + ' — call a consonant'));
       box.appendChild(letterGrid(CONSONANTS, b.guessed, function (letter) { GS.act({ type: 'guessLetter', letter: letter }, actorSeatId); }));
       return box;
     }
@@ -293,12 +292,26 @@
       box.appendChild(GS.el('div', { class: 'gs-muted', style: 'margin-top:6px' }, 'Buy a vowel — $' + VOWEL_COST));
       box.appendChild(letterGrid(VOWELS, b.guessed, function (letter) { GS.act({ type: 'buyVowel', letter: letter }, actorSeatId); }));
     }
-    box.appendChild(GS.el('div', { class: 'gs-muted', style: 'margin-top:6px;font-size:13px' }, 'Type the full puzzle to solve'));
     return box;
   }
 
+  /** @description What to do right now, for this seat. */
+  function prompt(seat) {
+    var st = GS.state || {}, b = st.board || {};
+    if (st.phase !== 'puzzle') return null;
+    if (b.control && b.control !== seat) return { wait: seatName(b.control) + ' has the wheel…' };
+    if (!seat) return { wait: 'Waiting for the first spin…' };
+    if (b.spin && b.spin.value != null) return { you: 'You spun $' + b.spin.value + ': press a consonant. You win that much for each one on the board.' };
+    return { you: 'Your turn: press SPIN' + (bankOfSeat(b, seat) >= VOWEL_COST ? ', buy a vowel,' : '') + ' or type the whole puzzle to solve it.' };
+  }
+
+  function bankOfSeat(b, seat) { return Number((b.banks || {})[seat]) || 0; }
+
   GS.registerShowUi({
     id: 'wheel',
+    prompt: prompt,
+    nextLabel: function () { return 'Next puzzle'; },
+    answerPlaceholder: 'Type the whole puzzle to solve it…',
     board: board,
     answerPhases: ['puzzle'],        // the generic answer box is the solve input
     wagerPhases: [],

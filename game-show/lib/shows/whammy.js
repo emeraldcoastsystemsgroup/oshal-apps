@@ -5,12 +5,14 @@
  * -----------------------------------------------------------------------------
  * 2026-07-24 03:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Whammy! (Press Your Luck) — the third show, and deliberately unlike both predecessors: no typed answers to judge at all (the judge pair is a polite no-op), turn-based instead of buzz-based, and server-side randomness as the core mechanic. Spins are granted LAZILY on a player's first press because ingestGenerated never sees the seats. Reuses the shared director/interview unchanged.
  * 2026-07-26 09:25:00 | roger.murphy@emeraldcoastsystemsgroup.com  | npcMove — the Whammy NPC brain: press when it's your board (claiming an open one), and pass the remaining spins to the leader when leading with a bank to protect (sharp passes like a strategist, wild presses through everything). Pure reducer actions; the stop stays server-side randomness.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | AI podiums leave a seated person the first press on an unclaimed board.
  */
 
 'use strict';
 
 const director = require('../director');
 const interview = require('../interview');
+const { FIRST_MOVE_HOLD_MS } = require('../npc');
 
 const ID = 'whammy';
 const SPINS_PER_PLAYER = 5;
@@ -402,7 +404,8 @@ function npcMove(state, actor, ctx = {}) {
   if (leading && leadingOpponent(state, actor.seatId, ctx) && ctx.roll('pass') < passProb) {
     return { action: { type: 'passSpins' } };
   }
-  return { action: { type: 'pressYourLuck' } };
+  // Nobody holds the board yet: the first press is the seated person's to take.
+  return { action: { type: 'pressYourLuck' }, hold: !board.control && (ctx.humans || []).length ? FIRST_MOVE_HOLD_MS : 0 };
 }
 
 /** @description One-line board context reused across spoken host prompts: banks, spins, whammy counts, and the last stop — the whole game state in a sentence. */

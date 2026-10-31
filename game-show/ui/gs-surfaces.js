@@ -11,6 +11,8 @@
  * 2026-07-26 21:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Integration pass: restore the five hooks the committed browser playthrough asserts that the rebuild dropped — the TV lobby's join QR (GS.qrNode), the host desk's 🔧 Show tools drawer (module-level open state; holds the recovery panel, hotseat, interview, cutaways), the 'AI spend $' cost text, the clicker's #gs-dock action container + 'buzzed first' status for the losing phone, and the stage dock's .gs-dockbuzz pinned buzzer bar.
  * 2026-07-31 22:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog #11: the lobby's 🏆 Hall of fame — top end-of-game scores across YOUR ended games (GET /leaderboard over the gameshow_seats.score snapshots), best first, with the show each score was set on. Renders nothing when there is no history yet.
  * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: each show poster is a real button (type=button) whose text names the show and 'Host this show', not a clickable div: a keyboard, a screen reader and the concierge's screen snapshot could not tell 'Host this show' was something to press.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Roger never got a game started against the computer, so the front door is rebuilt around that. A poster is one press: it opens the room, seats you, fills the podiums with computer players and starts (GS.startSolo). You play at your own seat instead of a second podium held in the page's memory, which removes both freezes: pressing Start before Solo night, and any Reload or Resume. The dock always says what just happened, whose move it is and what to do, shows progress while the host writes the board, offers only buttons that do something, and ends the game with the winner and Play again. The broadcast set stays a dark studio under every theme, because its text followed a light theme onto a dark set.
+ * 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com    | From the live test of the first build: the keyboard is in the answer box when it appears (not on a touch screen, where the on-screen keyboard would cover the board), and a phone clicker waits while the host judges, because a second answer sent meanwhile was silently dropped.
  */
 
 /* global window, document, location, navigator */
@@ -57,6 +59,7 @@
       GS.el('div', { class: 'gs-grow' }),
       // The broadcast screen stays chrome-free; every hands-on surface can always
       // get back to the lobby to pick a different show or start a new game.
+      GS.view !== 'tv' ? GS.el('a', { class: 'gs-btn ghost', style: 'padding:4px 10px', href: '?view=help' }, '❓ How to play') : null,
       GS.view !== 'tv' && GS.roomId ? GS.el('a', { class: 'gs-btn ghost', style: 'padding:4px 10px', href: '?view=stage&lobby=1' }, '☰ New game') : null,
       GS.room ? GS.el('span', { class: 'gs-chip' }, 'Code ' + (GS.room.joinCode || '')) : null);
   }
@@ -115,7 +118,7 @@
     // lower-third host caption — the caption bar IS the frame's lower third.
     // The broadcast carries no app chrome — the frame's marquee holds the show
     // identity and code; the app lives in a corner channel bug like real TV.
-    return GS.el('div', { class: 'gs-col' },
+    return GS.el('div', { class: 'gs-col gp-studio' },
       GS.play.frame(center, { dock: null, mood: mood }),
       GS.el('div', { class: 'gp-bug' }, '★ GAME SHOW'));
   }
@@ -155,9 +158,19 @@
     return btn;
   }
 
+  // The guess the host is judging right now: typed answers can take a few seconds to rule on.
+  var judging = null;
   function answerBox(actorSeatId, placeholder) {
-    var inp = GS.el('input', { class: 'gs-input', placeholder: placeholder || 'Type or say your answer…', maxlength: '120' });
-    function send() { if (inp.value.trim()) { GS.answer(inp.value.trim(), actorSeatId); inp.value = ''; } }
+    var inp = GS.el('input', { class: 'gs-input', placeholder: placeholder || ui().answerPlaceholder || 'Type or say your answer…', maxlength: '120' });
+    function send() {
+      var guess = inp.value.trim();
+      if (!guess || judging) return;
+      judging = guess;
+      inp.value = '';
+      GS.render();
+      var done = function () { judging = null; GS.render(); };
+      GS.answer(guess, actorSeatId).then(done, done);
+    }
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') send(); });
     return GS.el('div', { class: 'gs-row', style: 'justify-content:center' }, inp,
       micButton(inp, send),
@@ -184,17 +197,17 @@
 
   function playerControls() {
     var st = GS.state, buzz = st.buzz || {};
-    var box = GS.el('div', { class: 'gs-col gs-center' });
-    if (buzz.open) {
-      var locked = buzz.lockedBy === GS.actingSeat();
+    var box = GS.el('div', { class: 'gs-col gs-center gp-play' });
+    if (!GS.canPlay()) return box;
+    var seat = GS.actingSeat();
+    if (buzz.open && (st.board && (st.board.missed || []).indexOf(seat) < 0)) {
+      var locked = buzz.lockedBy === seat;
       box.appendChild(GS.el('button', { class: 'gs-dockbuzz' + (locked ? ' locked' : ''), onclick: function () { GS.act({ type: 'buzz', serial: buzz.serial }, GS.actAs); } }, locked ? '✋ YOU\'RE IN — ANSWER!' : '🔔 BUZZ IN'));
-    } else if (buzz.lockedBy && buzz.lockedBy !== GS.actingSeat()) {
-      box.appendChild(GS.el('div', { class: 'gs-center gs-muted' }, '👀 ' + seatName(buzz.lockedBy) + ' buzzed first…'));
     }
     var extra = ui().controls && ui().controls(GS.actAs);
     if (extra) box.appendChild(extra);
-    if (isAnswerPhase() && ui().canType(GS.actingSeat())) box.appendChild(answerBox(GS.actAs));
-    if (isWagerPhase()) box.appendChild(wagerBox(st.phase));
+    if (isAnswerPhase() && ui().canType(seat) && !judging) box.appendChild(answerBox(GS.actAs));
+    if (isWagerPhase() && ui().canWager(seat)) box.appendChild(wagerBox(st.phase));
     interviewBox(box);
     return box;
   }
@@ -214,56 +227,163 @@
       body);
   }
 
-  function stageDock() {
+  // What the owner is waiting on (the host writing a board can take 20 seconds), so a press never looks ignored.
+  var busyNote = null;
+  function setBusy(note) { busyNote = note; if (GS.render) GS.render(); }
+
+  function runHost(mode, note) {
+    setBusy(note);
+    var done = function () { setBusy(null); };
+    return GS.hostCmd(mode).then(done, done);
+  }
+
+  /** @description The show has ended and its room is closed. */
+  function isOver() { return GS.state.phase === 'outro' || !!(GS.room && GS.room.status === 'ended'); }
+
+  /** @description The result in words, from the same standings the podiums show. */
+  function resultLine() {
+    var rows = (GS.scoreboard || []).slice().sort(function (a, b) { return (Number(b.score) || 0) - (Number(a.score) || 0); });
+    if (!rows.length) return 'That\'s the show!';
+    var top = rows[0], second = rows[1];
+    if (second && Number(second.score) === Number(top.score)) return 'It\'s a tie at ' + top.score + '!';
+    if (top.team) return top.name + ' wins, ' + top.score + ' to ' + (second ? second.score : 0) + '!';
+    var mine = top.seatId === GS.actingSeat();
+    return (mine ? 'You win' : top.name + ' wins') + ' with $' + top.score + '!';
+  }
+
+  /** @description Open a fresh room for a show and let it seat the computer players and start itself. */
+  function playAgainst(showIdToPlay) {
+    return GS.api.post('/rooms', { showId: showIdToPlay }).then(function (r) {
+      if (r.body && r.body.room) location.search = '?view=stage&room=' + r.body.room.roomId + '&solo=1';
+      else GS.toast((r.body && r.body.error) || 'Could not start a game');
+    });
+  }
+
+  /** @description The dock's top: what just happened, then whose move it is and what to do. */
+  function coachBlock() {
+    var box = GS.el('div', { class: 'gp-coachbox' });
+    var news = GS.play.news();
+    if (news && !busyNote) box.appendChild(GS.el('div', { class: 'gp-news' }, news));
+    var said = busyNote ? { wait: busyNote } : (judging ? { wait: '⏳ The host is checking “' + judging + '”…' } : promptNow());
+    if (said) box.appendChild(GS.el('div', { class: 'gp-coach' + (said.you ? ' you' : '') }, said.you || said.wait));
+    return box;
+  }
+
+  /** @description This seat's prompt, or the show's between-rounds word. */
+  function promptNow() {
     var st = GS.state;
-    var dock = GS.el('div', { class: 'gs-col gs-center', style: 'gap:8px' }, playerControls());
-    var strip = GS.el('div', { class: 'gs-row gs-center gp-owner-strip' });
-    if (GS.isOwner()) {
-      strip.appendChild(GS.el('button', { class: 'gs-btn gold', disabled: !canStartNow(), onclick: function () { GS.hostCmd(st.phase === 'lobby' ? 'start' : 'continue'); } },
-        st.phase === 'lobby' ? '▶ Start the show' : '▶ Next round'));
-      var solo = soloNightButton();
-      if (solo) strip.appendChild(solo);
-      strip.appendChild(GS.el('a', { class: 'gs-btn ghost', href: '?view=host&room=' + GS.roomId, title: 'Host desk' }, '⚙'));
+    if (isOver()) return { you: '🏆 ' + resultLine() };
+    if (GS.gameOver) return { you: '🏁 ' + resultLine() };
+    if ((st.phase || 'lobby') === 'lobby') {
+      if (!GS.players().length && GS.isOwner()) return { wait: 'Nobody is at a podium yet.' };
+      return GS.isOwner() ? { you: 'Everyone is seated. Start the show when you are ready.' } : { wait: 'You are in. Waiting for the host to start the show…' };
     }
+    var said = ui().prompt(GS.canPlay() ? GS.actingSeat() : null);
+    if (said) return said;
+    return canStartNow() ? (GS.isOwner() ? { you: 'Round over. Press the button when you are ready for the next one.' } : { wait: 'Round over. Waiting for the host…' }) : null;
+  }
+
+  /** @description The owner's one next step, and only when it does something: no dead Next round mid-game. */
+  function ownerActions() {
+    var st = GS.state, row = GS.el('div', { class: 'gs-row gs-center gp-owner-strip' });
+    if (!GS.isOwner() || busyNote) return null;
+    if (isOver()) {
+      if (GS.players().some(function (s) { return s.npc; })) {
+        row.appendChild(GS.el('button', { class: 'gs-btn gold', onclick: function () { playAgainst(showId()); } }, '▶ Play again'));
+      }
+      row.appendChild(GS.el('a', { class: 'gs-btn ghost', href: '?view=stage&lobby=1' }, '☰ Pick another game'));
+      return row;
+    }
+    if (GS.gameOver) {
+      row.appendChild(GS.el('button', { class: 'gs-btn gold', onclick: function () { runHost('continue', 'The host is closing the show…'); } }, '🏁 Finish the show'));
+      var more = ui().stageExtras && ui().stageExtras();
+      if (more) row.appendChild(more);
+      return row;
+    }
+    if ((st.phase || 'lobby') === 'lobby') {
+      if (!GS.players().length) row.appendChild(soloNightButton());
+      else row.appendChild(GS.el('button', { class: 'gs-btn gold', onclick: function () { runHost('start', STARTING); } }, '▶ Start the show'));
+      return row;
+    }
+    if (!canStartNow()) return null;
+    row.appendChild(GS.el('button', { class: 'gs-btn gold', onclick: function () { runHost('continue', 'The host is writing the next round…'); } },
+      '▶ ' + (ui().nextLabel(st.phase) || 'Next round')));
+    return row;
+  }
+
+  var STARTING = 'The host is writing tonight\'s game. This can take about 20 seconds…';
+
+  /** @description The lobby's other road: friends join on their own phones with the code. */
+  function friendsHint() {
+    if ((GS.state.phase || 'lobby') !== 'lobby' || GS.players().length || !GS.isOwner() || busyNote) return null;
+    return GS.el('div', { class: 'gp-hint' }, 'Playing with friends instead? They open Game Show on their phone and enter code ',
+      GS.el('b', {}, (GS.room && GS.room.joinCode) || ''), '. The Start button appears when someone joins.');
+  }
+
+  function stageDock() {
+    var dock = GS.el('div', { class: 'gs-col gs-center gp-dockcol' });
+    var tools = GS.el('div', { class: 'gp-tools' });
+    if (GS.isOwner()) tools.appendChild(GS.el('a', { class: 'gs-btn ghost', href: '?view=host&room=' + GS.roomId, title: 'Host desk' }, '⚙'));
     var you = youPopover();
-    if (you) strip.appendChild(you);
-    if (strip.childNodes.length) dock.appendChild(strip);
+    if (you) tools.appendChild(you);
+    dock.appendChild(tools);
+    dock.appendChild(coachBlock());
+    dock.appendChild(playerControls());
+    var actions = ownerActions();
+    if (actions) dock.appendChild(actions);
+    var hint = friendsHint();
+    if (hint) dock.appendChild(hint);
     return dock;
   }
 
   function stage() {
-    var root = GS.el('div', { class: 'gs-col' }, header());
+    var root = GS.el('div', { class: 'gs-col' + (needLobby() ? '' : ' gp-studio') }, header());
     if (needLobby()) { root.appendChild(lobby()); return root; }
+    if (isOver()) confetti();
     root.appendChild(GS.play.frame(ui().board(), { dock: stageDock() }));
     return root;
   }
 
-  // One-person game night: seat the host as a playable ⭐ podium and fill the
-  // rest of the stage with AI players (a good one on your side too).
+  // Playing alone: you step up to your own seat (on Team A in a team show, with a good
+  // player beside you) and computer players fill the rest of the stage. Your own seat, not
+  // a second podium: a second one lived only in this page's memory, so a reload lost it.
   function soloNight() {
     var teams = GS.show && GS.show.teams;
-    var plan = teams
-      ? [{ team: 'A', mine: true }, { team: 'A', npc: 'sharp' }, { team: 'A', npc: 'casual' },
+    var bots = teams
+      ? [{ team: 'A', npc: 'sharp' }, { team: 'A', npc: 'casual' },
          { team: 'B', npc: 'sharp' }, { team: 'B', npc: 'casual' }, { team: 'B', npc: 'wild' }]
-      : [{ mine: true }, { npc: 'sharp' }, { npc: 'casual' }, { npc: 'wild' }];
-    var myName = '⭐ ' + (((GS.mySeat() || {}).name) || 'You');
-    var chain = Promise.resolve(), mySeatId = null;
-    plan.forEach(function (spec) {
-      chain = chain.then(function () {
-        return GS.api.post('/podium', { roomId: GS.roomId, team: spec.team || null, npc: spec.npc || null, name: spec.mine ? myName : undefined })
-          .then(function (r) { if (spec.mine && r.body && r.body.seatId) mySeatId = r.body.seatId; });
-      });
+      : [{ npc: 'sharp' }, { npc: 'casual' }, { npc: 'wild' }];
+    var must = function (r) {
+      if (!r.body || r.body.ok === false) throw new Error((r.body && r.body.error) || 'Could not set up the game.');
+      return r;
+    };
+    var chain = GS.api.post('/seat', { roomId: GS.roomId, role: 'player', team: teams ? 'A' : null }).then(must);
+    bots.forEach(function (spec) {
+      chain = chain.then(function () { return GS.api.post('/podium', { roomId: GS.roomId, team: spec.team || null, npc: spec.npc }).then(must); });
     });
-    chain.then(function () {
-      if (mySeatId) GS.actAs = mySeatId;
-      GS.toast('Stage filled — you play as ' + myName);
-      GS.poll().then(function () { if (GS.render) GS.render(); });
-    });
+    return chain.then(function () { return GS.poll(); }).then(function () { if (GS.render) GS.render(); });
   }
+
+  /**
+   * @description One press to a running game against the computer: seat everyone, then start.
+   *   ?solo=1 only ever acts on the owner's still-empty room, so a reload cannot seat anyone twice.
+   * @returns {Promise<void>}
+   */
+  GS.startSolo = function () {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, '', location.pathname + '?view=stage&room=' + GS.roomId);
+    }
+    if (busyNote || !GS.isOwner() || (GS.state.phase || 'lobby') !== 'lobby' || GS.players().length) return Promise.resolve();
+    setBusy('Setting up your podium and the computer players…');
+    return soloNight().then(function () { return runHost('start', STARTING); }).catch(function (err) {
+      setBusy(null);
+      GS.toast(err.message || 'Could not set up the game.');
+    });
+  };
 
   function soloNightButton() {
     if (!GS.isOwner() || GS.players().length) return null;
-    return GS.el('button', { class: 'gs-btn blue', onclick: soloNight }, '🤖 Solo night (play vs AI)');
+    return GS.el('button', { class: 'gs-btn gold', onclick: function () { GS.startSolo(); } }, '🤖 Play against the computer');
   }
 
   // ── clicker (phone companion; honors ?as= hotseat pinning) ────────────────
@@ -287,8 +407,10 @@
     var dock = GS.el('div', { id: 'gs-dock', class: 'gs-col gs-center' });
     var extra = ui().controls && ui().controls(GS.actAs);
     if (extra) dock.appendChild(extra);
-    if (isAnswerPhase() && ui().canType(GS.actingSeat())) dock.appendChild(answerBox(GS.actAs));
-    if (isWagerPhase()) dock.appendChild(wagerBox(st.phase));
+    // While the host judges an answer the box waits, so a second answer is never silently dropped.
+    if (judging) dock.appendChild(GS.el('div', { class: 'gs-center gs-muted' }, '⏳ The host is checking “' + judging + '”…'));
+    else if (isAnswerPhase() && ui().canType(GS.actingSeat())) dock.appendChild(answerBox(GS.actAs));
+    if (isWagerPhase() && ui().canWager(GS.actingSeat())) dock.appendChild(wagerBox(st.phase));
     interviewBox(dock);
     root.appendChild(dock);
     if (!GS.actAs) root.appendChild(seatBar());
@@ -539,11 +661,33 @@
   }
 
   // ── lobby (join / host a new game — posters are the show picker) ──────────
-  function lobby() {
+  function posterWall() {
+    // One card per catalog show. The card is one press to a running game against the
+    // computer; hosting for friends is the smaller road beside it.
+    var catalog = (GS.shows && GS.shows.length) ? GS.shows
+      : [{ id: 'family-feud', title: 'Family Feud' }, { id: 'jeopardy', title: 'Jeopardy' }];
+    var ART = { 'family-feud': '👨‍👩‍👧‍👦', 'jeopardy': '🧠', 'wheel': '🎡', 'whammy': '😈' };
+    function hostShow(id) {
+      GS.api.post('/rooms', { showId: id }).then(function (r) {
+        if (r.body && r.body.room) location.search = '?view=stage&room=' + r.body.room.roomId;
+        else GS.toast((r.body && r.body.error) || 'Could not start a game');
+      });
+    }
+    var posters = GS.el('div', { class: 'gp-posters' });
+    catalog.forEach(function (s) {
+      posters.appendChild(GS.el('div', { class: 'gp-poster-wrap', 'data-show': s.id },
+        GS.el('button', { type: 'button', class: 'gp-poster', 'data-show': s.id, onclick: function () { playAgainst(s.id); } },
+          GS.el('span', { class: 'gp-poster-art', 'aria-hidden': 'true' }, ART[s.id] || '🎬'),
+          GS.el('span', { class: 'gp-poster-title' }, s.title),
+          GS.el('span', { class: 'gp-poster-tag' }, s.tagline || ''),
+          GS.el('span', { class: 'gp-poster-cta' }, '▶ Play against the computer')),
+        GS.el('button', { type: 'button', class: 'gp-poster-friends', onclick: function () { hostShow(s.id); } }, '👥 Host for friends instead')));
+    });
+    return posters;
+  }
+
+  function joinPanel() {
     var chosen = { t: 'A' };
-    var box = GS.el('div', { class: 'gs-panel gp-lobby', style: 'padding:20px;max-width:760px;margin:20px auto' });
-    box.appendChild(GS.el('div', { class: 'gs-brand', style: 'text-align:center;font-size:26px;margin-bottom:6px' }, '★ GAME SHOW'));
-    box.appendChild(GS.el('p', { class: 'gs-center gs-muted' }, 'Join a game, or start your own show.'));
     var code = GS.el('input', { class: 'gs-input', placeholder: 'Enter join code', maxlength: '6', value: GS.joinCode || '' });
     var teamSel = GS.el('div', { class: 'gs-row', style: 'justify-content:center' });
     ['A', 'B'].forEach(function (t) {
@@ -557,32 +701,15 @@
         if (r.body && r.body.ok) GS.boot(r.body.roomId); else GS.toast((r.body && r.body.error) || 'No game found');
       });
     }
-    // Poster wall: one card per catalog show — tap a poster to host that show and
-    // land straight on the stage (the broadcast), not an admin screen.
-    var catalog = (GS.shows && GS.shows.length) ? GS.shows
-      : [{ id: 'family-feud', title: 'Family Feud' }, { id: 'jeopardy', title: 'Jeopardy' }];
-    var ART = { 'family-feud': '👨‍👩‍👧‍👦', 'jeopardy': '🧠', 'wheel': '🎡', 'whammy': '😈' };
-    function hostShow(id) {
-      GS.api.post('/rooms', { showId: id }).then(function (r) {
-        if (r.body && r.body.room) location.search = '?view=stage&room=' + r.body.room.roomId;
-        else GS.toast((r.body && r.body.error) || 'Could not start a game');
-      });
-    }
-    var posters = GS.el('div', { class: 'gp-posters' });
-    catalog.forEach(function (s) {
-      posters.appendChild(GS.el('button', { type: 'button', class: 'gp-poster', 'data-show': s.id, onclick: function () { hostShow(s.id); } },
-        GS.el('span', { class: 'gp-poster-art', 'aria-hidden': 'true' }, ART[s.id] || '🎬'),
-        GS.el('span', { class: 'gp-poster-title' }, s.title),
-        GS.el('span', { class: 'gp-poster-tag' }, s.tagline || ''),
-        GS.el('span', { class: 'gp-poster-cta' }, '🎬 Host this show')));
-    });
-    box.appendChild(GS.el('div', { class: 'gs-col' }, code, GS.el('div', { class: 'gs-center gs-muted' }, 'Pick your team (team games only)'), teamSel,
-      GS.el('button', { class: 'gs-btn blue', onclick: join }, 'Join game')));
-    box.appendChild(GS.el('hr', { style: 'border-color:rgba(255,255,255,.12);margin:18px 0' }));
-    box.appendChild(GS.el('div', { class: 'gs-col' }, GS.el('div', { class: 'gs-center gs-muted' }, 'Pick tonight\'s show'), posters));
+    return GS.el('div', { class: 'gs-col' },
+      GS.el('div', { class: 'gs-center gs-muted' }, 'A friend is hosting? Enter their code.'), code,
+      GS.el('div', { class: 'gs-center gs-muted' }, 'Pick your team (team games only)'), teamSel,
+      GS.el('button', { class: 'gs-btn blue', onclick: join }, 'Join game'));
+  }
+
+  function openGames() {
     // Your open games: resume one, or end it to clear the stage for a new show.
     var mine = GS.el('div', { class: 'gs-col', style: 'margin-top:14px' });
-    box.appendChild(mine);
     GS.api.get('/rooms').then(function (r) {
       var rooms = (r.body && r.body.rooms) || [];
       if (!rooms.length) return;
@@ -599,10 +726,13 @@
         mine.appendChild(row);
       });
     }).catch(function () {});
+    return mine;
+  }
+
+  function hallOfFame() {
     // 🏆 Hall of fame (#11): the end-of-game score snapshots finally have a
     // reader — top scores across YOUR ended games, best first. No history, no panel.
     var fame = GS.el('div', { class: 'gs-col', style: 'margin-top:14px' });
-    box.appendChild(fame);
     GS.api.get('/leaderboard').then(function (r) {
       var entries = (r.body && r.body.entries) || [];
       if (!entries.length) return;
@@ -614,20 +744,50 @@
           GS.el('span', { class: 'gs-chip' }, String(e.score))));
       });
     }).catch(function () {});
+    return fame;
+  }
+
+  function lobby() {
+    var box = GS.el('div', { class: 'gs-panel gp-lobby', style: 'padding:20px;max-width:760px;margin:20px auto' });
+    box.appendChild(GS.el('div', { class: 'gs-brand', style: 'text-align:center;font-size:26px;margin-bottom:6px' }, '★ GAME SHOW'));
+    box.appendChild(GS.el('p', { class: 'gs-center gs-muted' }, 'Pick a game. The computer plays the other podiums, so you can start right now.'));
+    box.appendChild(posterWall());
+    box.appendChild(openGames());
+    box.appendChild(GS.el('hr', { style: 'border-color:var(--gs-line);margin:18px 0' }));
+    box.appendChild(joinPanel());
+    box.appendChild(hallOfFame());
     return box;
   }
 
+  function rule(title, text) { return GS.el('li', {}, GS.el('b', {}, title + ': '), text); }
+
   function help() {
     return GS.el('div', { class: 'gs-wrap gs-panel', style: 'padding:24px;max-width:720px;margin:24px auto' },
+      GS.el('a', { class: 'gs-btn ghost', style: 'padding:4px 10px', href: '?view=stage' }, '← Back to the games'),
       GS.el('h2', { class: 'gs-brand' }, 'How to play'),
-      GS.el('p', {}, 'One person hosts (the Host Desk). Everyone else joins from their phone with the 6-letter code.'),
+      GS.el('p', {}, 'Press a game. The computer plays the other podiums and the game starts by itself. A line at the bottom of the screen always tells you whose turn it is and what to do.'),
       GS.el('ul', {},
-        GS.el('li', {}, 'Put the Big Screen on a TV — it shows the board, the podiums, and the host.'),
-        GS.el('li', {}, 'Buzz first, then type — or tap the 🎤 and just say your answer.'),
-        GS.el('li', {}, 'Show yourself as a live camera, an avatar, or just your name — your call.'),
-        GS.el('li', {}, 'Pick your show in the lobby: Family Feud, Jeopardy, Wheel of Fortune, or Whammy. The ☰ New game button up top always brings the lobby back.'),
-        GS.el('li', {}, 'Playing alone? Hit 🤖 Solo night — AI players fill both sides (good ones on your team too). They buzz, answer, spin, wager, and press their luck on their own in every show, Fast Money included.'),
-        GS.el('li', {}, 'No TV and no phones handy? Open Rehearsal (?view=rehearsal) — the whole studio plays in one window.')));
+        rule('Family Feud', 'You are on Team A. Buzz in on the face-off, then type what you think most people would say. Your team keeps answering until the board is full or you get three strikes, then the other team can steal the points. Three rounds; the top team wins, and can then try Fast Money.'),
+        rule('Jeopardy', 'Click a dollar amount to see a clue, buzz in if you know it, then type the answer ("What is…" is optional). Right adds the money and gives you the next pick; wrong takes it away. After two boards comes Final Jeopardy, where you bet what you have.'),
+        rule('Wheel of Fortune', 'On your turn press SPIN, then press a consonant: you win the spin for each one on the board. Buy a vowel for $250, or type the whole puzzle to solve it and keep your money. Three puzzles.'),
+        rule('Whammy!', 'Press PRESS to stop the moving lights. Cash adds up, but a Whammy wipes your bank and four put you out. Spend your spins, or pass them to the leader. The biggest bank wins.')),
+      GS.el('h3', {}, 'Playing with friends'),
+      GS.el('ul', {},
+        GS.el('li', {}, 'Choose Host for friends instead. Everyone opens Game Show on their phone and enters the 6-letter code.'),
+        GS.el('li', {}, 'Put the Big Screen on a TV: it shows the board, the podiums, and the host.'),
+        GS.el('li', {}, 'Buzz first, then type, or tap the 🎤 and just say your answer.'),
+        GS.el('li', {}, 'Show yourself as a live camera, an avatar, or just your name: your call.')));
+  }
+
+  // When a box to type in appears, the keyboard should already be in it, so buzzing in and typing is
+  // one motion. Not with a touch screen, where it would throw the on-screen keyboard over the board.
+  var hadAnswerBox = false;
+  function focusNewAnswerBox() {
+    var box = document.querySelector('.gp-dock .gp-play input.gs-input');
+    var fresh = !!box && !hadAnswerBox;
+    hadAnswerBox = !!box;
+    var typing = document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (fresh && !typing && window.matchMedia && window.matchMedia('(pointer: fine)').matches) box.focus({ preventScroll: true });
   }
 
   // ── render dispatcher (one synced state → the right layout) ────────────────
@@ -644,5 +804,7 @@
     else if (GS.view === 'audience') node = audience();
     else node = stage();
     GS.mount(node);
+    if (GS.play) GS.play.fit();
+    focusNewAnswerBox();
   };
 })();

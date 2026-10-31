@@ -163,3 +163,11 @@ body[data-gs-show="jeopardy"] .gsj-clue-card.gsj-final { border-color: color-mix
   body[data-gs-show="jeopardy"] .gsj-ring-tag,
   body[data-gs-show="jeopardy"] .gsj-burst { animation: none !important; }
 }
+
+/* In the dock's frame the wall fits the screen with the podiums and their scores in view. */
+body[data-gs-show="jeopardy"] .gp-frame.has-dock .gsj-cat { min-height: clamp(34px, 6vh, 56px); padding: 4px; }
+body[data-gs-show="jeopardy"] .gp-frame.has-dock .gsj-cell { min-height: clamp(30px, 6vh, 64px); font-size: clamp(12px, min(3.2vh, 3.5vw), 28px); }
+body[data-gs-show="jeopardy"] .gp-frame.has-dock .gsj-wall { gap: 4px; padding: 6px; }
+/* A long clue stays on the card and clear of the dock: wider lines, sized to the screen's height too. */
+body[data-gs-show="jeopardy"] .gp-frame.has-dock .gsj-clue-text { max-width: 40ch; font-size: clamp(18px, min(2.6vw, 4.4vh), 40px); line-height: 1.2; }
+body[data-gs-show="jeopardy"] .gp-frame.has-dock .gsj-clue-card { min-height: 0; padding-top: 14px; padding-bottom: 14px; }

@@ -32,6 +32,10 @@
  * 17 | maintainer@emeraldcoastsystemsgroup.com  | Native kernel (no network in the sandbox): the physics bridge goes through the kernel's engine.exchange intent. `/physics/status`, `/physics/reports`, `/physics/certify` and the arm check read the engine without blocking (both links); a physics world, which steps synchronously, answers an honest 503 natively.
  * 18 | maintainer@emeraldcoastsystemsgroup.com  | Lost completion writes (K4): the native pool is bound to the admitted request and only a writer (non-GET) admission may mutate, so the execution timer's fire-and-forget status update, every command-log insert made between requests and any write from a GET read were refused: a finished task stayed `executing` at step 0 and Home counted 0 completed. The world's writes now queue on the session; every POST (draft, execute, abort, control, command, scan, certify and the new POST /writes/settle) persists them in order before it answers, the state read reports `control.pendingWrites` so the surface posts the settle, and GET /tasks, /tasks/:id and the Home summary overlay a queued outcome instead of answering a stale `executing`. E-stop closes the task through the same queue. Off the native kernel the timer still settles on its own.
  * 19 | maintainer@emeraldcoastsystemsgroup.com  | K4 review: POST /tasks/:id/abort left the task `executing` at step 0 for good. The plan executor sets `aborted` inside abort(), so the advance that followed never saw running->aborted and nothing queued the final status (Home counted 0 stopped). The abort route now closes the task through finishTask with the executor's step and failure ("aborted by a human") before it settles, the same way e-stop does.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202: the spider-18 physics routes (mjcf, check) registered beside the arm's.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202: the spider-18 design routes (build/hexapod, design.md, parts, bom.csv) registered beside the physics routes.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com   | B30 gate: POST /physics/hexapod/certify runs the spider's gate in the container and remembers the certificate for this owner in the same map the drone's uses (GET /physics/reports shows it); a certificate is kept with its kind, so a spider certificate never flies a drone world.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9: the generic plant's routes (embodied-plant-routes.ts: /physics/plant/load, /state, /train, /certify and /build/catalog) registered beside the spider's; a plant certificate is remembered with kind `plant`.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -44,6 +48,9 @@ exports.createEmbodiedRoutes = createEmbodiedRoutes;
 const node_path_1 = __importDefault(require("node:path"));
 const express_1 = require("express");
 const embodied_arm_routes_1 = require("./embodied-arm-routes");
+const embodied_hexapod_physics_routes_1 = require("./embodied-hexapod-physics-routes");
+const embodied_hexapod_routes_1 = require("./embodied-hexapod-routes");
+const embodied_plant_routes_1 = require("./embodied-plant-routes");
 const logger_1 = require("@/shared/logger");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const artifact_exchange_1 = require("@/shared/artifact-exchange");
@@ -223,8 +230,8 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             return { error: 'unknown_controller', message: 'controller must be "pid" or "policy:<file>"' };
         const file = text.slice('policy:'.length);
         const cert = certifiedOf(sub).get(file);
-        if (!cert || !cert.certification.ok)
-            return { error: 'policy_not_certified', message: `policy ${file} has not passed this world's certification gate — POST /physics/certify first` };
+        if (!cert || !cert.certification.ok || cert.kind !== 'drone')
+            return { error: 'policy_not_certified', message: `policy ${file} has not passed this world's certification gate — POST /physics/certify first${cert?.kind === 'hexapod' ? ' (it is certified for the spider, not for a drone world)' : ''}` };
         return { spec: { kind: 'policy', file, residual: cert.residual, interface: cert.interface } };
     };
     const surface = (0, surface_files_1.surfaceFile)(ctx.appPackageDir, 'embodied.html');
@@ -752,6 +759,23 @@ function createEmbodiedRoutes(ctx, opts = {}) {
             ? opts.armChecker(input)
             : getBridge().callAsync('arm-check', input, embodied_arm_routes_1.ARM_CHECK_TIMEOUT_MS)),
     });
+    // ADR-202: the spider-18 designer (design, parts as CAD Studio programs, BOM) beside the drone's and the arm's.
+    (0, embodied_hexapod_routes_1.registerHexapodDesignRoutes)(router);
+    // ADR-202: the spider-18 plant routes beside the arm's; the check runs the baselines in the container.
+    (0, embodied_hexapod_physics_routes_1.registerHexapodPhysicsRoutes)(router, {
+        withSub,
+        physicsFailure,
+        checkHexapod: async (input) => getBridge().callAsync('hexapod.check', input, embodied_hexapod_physics_routes_1.HEXAPOD_CHECK_TIMEOUT_MS),
+        certifyHexapod: async (input) => getBridge().callAsync('hexapod.certify', input, embodied_hexapod_physics_routes_1.HEXAPOD_CERTIFY_TIMEOUT_MS),
+        rememberCertified: (sub, policyFile, certificate) => certifiedOf(sub).set(policyFile, { certification: certificate, kind: 'hexapod', residual: certificate.mode === 'residual', interface: 'motors', reportFile: certificate.reportFile }),
+    });
+    // ADR-203 D9: a plant generated from a design, for any machine, beside the spider's; the catalog publishes the owned drive rows.
+    (0, embodied_plant_routes_1.registerPlantPhysicsRoutes)(router, {
+        withSub,
+        physicsFailure,
+        plantOp: async (op, payload, timeoutMs) => getBridge().callAsync(op, payload, timeoutMs),
+        rememberCertified: (sub, policyFile, certificate) => certifiedOf(sub).set(policyFile, { certification: certificate, kind: 'plant', residual: true, interface: 'motors', reportFile: certificate.reportFile }),
+    });
     router.get('/physics/reports', async (req, res) => {
         const sub = withSub(req, res);
         if (!sub)
@@ -801,7 +825,7 @@ function createEmbodiedRoutes(ctx, opts = {}) {
         const certification = (0, engine_1.certifyFlight)(s.sim, trajectory);
         const policyFile = which === 'policy' ? entry.report.policyFile : undefined;
         if (policyFile)
-            certifiedOf(sub).set(policyFile, { certification, residual: entry.report.mode === 'residual', interface: entry.report.mode === 'ctbr' ? 'ctbr' : 'motors', reportFile: file });
+            certifiedOf(sub).set(policyFile, { certification, kind: 'drone', residual: entry.report.mode === 'residual', interface: entry.report.mode === 'ctbr' ? 'ctbr' : 'motors', reportFile: file });
         logger.info({ sub, file, which, ok: certification.ok, refused: certification.refusedCount }, 'Flight certified');
         res.json({ file, which, policyFile: policyFile ?? null, beatsBaseline: entry.report.policyBeatsBaseline ?? null, mapKnownFraction: s.sim.world.stats().knownFraction, certification });
     });

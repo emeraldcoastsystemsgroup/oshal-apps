@@ -10,6 +10,7 @@
  *   show poster in the lobby is a real button the snapshot names with "Host this show" (they were clickable divs). Seams: the game
  *   API answers a fixed owner room over a stub server (state, sync, shows, rooms), and the shell's shared theme assets are empty
  *   stand-ins. Needs the store toolchain (express, playwright, chromium) and the kernel checkout (OSHAL_KERNEL_ROOT).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A poster now names its one press, Play against the computer.
  */
 'use strict';
 const test = require('node:test');
@@ -70,8 +71,8 @@ test('the Host Desk names the current round\'s question, and each show poster is
   assert.ok(desk.split('\n').some((l) => l.includes(`Round 2 question: ${ROUND2}`)), desk);
   assert.ok(desk.indexOf(`Round 2 question: ${ROUND2}`) < desk.indexOf('Not warming up'), 'the question heads the answer key');
   const lobby = await snapshot(page, base, '?lobby=1', '.gp-poster');
-  const posters = lobby.split('\n').filter((l) => l.startsWith('[button]') && l.includes('Host this show'));
+  const posters = lobby.split('\n').filter((l) => l.startsWith('[button]') && l.includes('Play against the computer'));
   assert.equal(posters.length, 2, lobby);
-  assert.match(posters[0], /^\[button\] .*Family Feud.*Host this show$/);
+  assert.match(posters[0], /^\[button\] .*Family Feud.*Play against the computer$/);
   assert.equal(await page.frameLocator('#active-app-frame').locator('button.gp-poster[type="button"]').count(), 2);
 });

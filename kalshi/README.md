@@ -165,6 +165,22 @@ settings panel", but the kernel does not consume manifest settings yet — nothi
 them. Until it does, this app renders its own panel from its own schema, which is why the schema
 carries the `scope` / `min` / `max` / `enum` extensions.
 
+## Browse every market, and ask the quant (1.7.0)
+
+The **Markets** tab lists every open market the last scan walked (not only the playable hands) with
+its YES/NO asks, volume, close time and the evaluator's verdict in words. **Why** opens the
+walkthrough: price vs calibrated chance, fee, net edge, evidence (settled-market count and
+confidence), book, risk flags and sizing, built only from the evaluator's own numbers
+(`src-routes/kalshi-market-explainer.ts`, pure). **Look up** reads any ticker live from Kalshi and
+prices it against the shipped calibration table. **Ask the quant** hands that market's question to
+the application's own concierge, `kalshi-quant` (`personas/kalshi-quant.yaml`), which reads the
+same routes through the `kalshi_market`, `kalshi_markets` and `kalshi_scan` tools and never trades.
+
+| Route | Answers |
+| --- | --- |
+| `GET /api/kalshi/markets?q=&category=&verdict=all|playable|fold|not-evaluable&sort=verdict|closes|edge|volume&limit=` | the open walked markets with a verdict headline each |
+| `GET /api/kalshi/markets/:ticker` | one market with its full walkthrough, from the snapshot else live (404 unknown ticker, 503 no market reader) |
+
 ## What this package is
 
 - `routes/kalshi-routes.js` (built from `src-routes/kalshi-routes.ts`) — mounted at
@@ -300,5 +316,7 @@ The rules behind each field are in the store root `AI-USAGE-LEDGER.md` and core 
 
 Container memory, MiB low / high: **32 / 128 (declared)**.
 
-No model in the loop (T0): every feature of this application is deterministic code.
+| Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
+|---|---|---|---|---|---|---|
+| quant-walkthrough | question | T2 | hosted | template | not yet measured | none recorded |
 <!-- oshal-rating:end -->

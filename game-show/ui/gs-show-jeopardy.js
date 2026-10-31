@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 2026-07-24 13:50:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Jeopardy's client half, extracted from gs-surfaces.js into the per-show registry (ADR-112 table collapse), extended for Double Jeopardy: the round-break banner between boards and 'round-break' as a start phase so the host desk can build board two.
  * 2026-07-26 19:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast set piece: the board is now the WALL (category monitor bank over gold-value cells, used cells dark), clue/answer phases take over the whole set as a zooming blue card with a RING IN! pulse while the buzzer is open and the responder's name once locked, the Daily Double gets a gold starburst splash + one-shot fanfare, and round-break/final render as splash cards. All one-shots keyed off module-level last-seen state so the ~1.4s re-render never replays them; pick gating and the registry contract are unchanged.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Says whose pick it is and what to do on every beat (nothing did: holding the board looked exactly like a frozen game); the wager box only shows to a seat that owes one; a host who is only running the show cannot pick a clue.
+ * 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com    | Every column fits a phone (the grid tracks may shrink below their content), and the owner's button names Double and Final Jeopardy.
  */
 
 /* global window */
@@ -56,8 +58,8 @@
           GS.el('div', { class: 'gsj-idle-glow' }, 'THE BOARD'),
           GS.el('p', { class: 'gs-center gs-muted' }, 'Waiting for the board…')));
     }
-    var canPick = GS.state.phase === 'board' && (!board.control || board.control === actingSeat());
-    var grid = GS.el('div', { class: 'gsj-wall', style: 'grid-template-columns:repeat(' + cats.length + ',1fr)' });
+    var canPick = GS.state.phase === 'board' && GS.canPlay() && (!board.control || board.control === actingSeat());
+    var grid = GS.el('div', { class: 'gsj-wall', style: 'grid-template-columns:repeat(' + cats.length + ',minmax(0,1fr))' });
     cats.forEach(function (c) { grid.appendChild(GS.el('div', { class: 'gsj-cat' }, c.title)); });
     for (var row = 0; row < 5; row++) wallRow(grid, cats, row, canPick);
     return GS.el('div', { class: 'gsj-set' }, grid);
@@ -142,8 +144,59 @@
       GS.el('div', { class: 'gs-muted', style: 'margin-bottom:6px' }, 'Answer key (host eyes only)'), list);
   }
 
+  /** @description What the clue and answer beats ask of this seat. */
+  function cluePrompt(st, b, seat) {
+    if (st.buzz && st.buzz.open) {
+      if ((b.missed || []).indexOf(seat) >= 0) return { wait: 'You already tried this one.' };
+      return seat ? { you: '🔔 Know it? Buzz in first.' } : { wait: 'The podiums are racing to buzz in…' };
+    }
+    var responder = b.wager && b.wager.amount != null ? b.wager.seatId : (st.buzz && st.buzz.lockedBy);
+    if (responder && responder === seat) return { you: '✋ You have it: type your answer. "What is…" is optional.' };
+    return responder ? { wait: '👀 ' + seatName(responder) + ' buzzed first…' } : null;
+  }
+
+  /** @description Final Jeopardy: only a seat with money in the bank plays. */
+  function finalPrompt(st, b, seat) {
+    var wagers = b.wagers || {}, score = Number((st.scores || {})[seat]) || 0;
+    if (st.phase === 'final-wager') {
+      if (!seat || score <= 0) return { wait: 'Final Jeopardy: only players with money can play. Waiting for wagers…' };
+      return wagers[seat] === undefined ? { you: 'Final Jeopardy: type a wager, up to $' + score + '.' } : { wait: 'Your wager is in. Waiting for the others…' };
+    }
+    if (seat && wagers[seat] !== undefined && !(b.finalJudged || {})[seat]) return { you: 'Final Jeopardy: type your answer.' };
+    return { wait: 'Waiting for the final answers…' };
+  }
+
+  /** @description What to do right now, for this seat. */
+  function prompt(seat) {
+    var st = GS.state || {}, b = st.board || {};
+    if (st.phase === 'board') {
+      if (b.control && b.control !== seat) return { wait: seatName(b.control) + ' is picking a clue…' };
+      return seat ? { you: 'Your pick: click any dollar amount on the board.' } : { wait: 'Waiting for the first pick…' };
+    }
+    if (st.phase === 'clue' || st.phase === 'answer') return cluePrompt(st, b, seat);
+    if (st.phase === 'daily-wager') {
+      var who = (b.wager && b.wager.seatId) || b.control;
+      return who === seat ? { you: 'Daily Double! Type your wager.' } : { wait: 'Daily Double! ' + seatName(who) + ' is wagering…' };
+    }
+    if (st.phase === 'round-break') return { wait: 'Board one is done. Double Jeopardy is next, with doubled values.' };
+    if (st.phase === 'final-setup') return { wait: 'Final Jeopardy is next: one clue, and you bet what you have.' };
+    if (st.phase === 'final-wager' || st.phase === 'final-answer') return finalPrompt(st, b, seat);
+    return null;
+  }
+
+  /** @description Only the Daily Double's picker, or a final contender without a wager yet, owes a wager. */
+  function canWager(seat) {
+    var st = GS.state || {}, b = st.board || {};
+    if (st.phase === 'daily-wager') return ((b.wager && b.wager.seatId) || b.control) === seat;
+    return (Number((st.scores || {})[seat]) || 0) > 0 && (b.wagers || {})[seat] === undefined;
+  }
+
   GS.registerShowUi({
     id: 'jeopardy',
+    prompt: prompt,
+    canWager: canWager,
+    nextLabel: function (phase) { return phase === 'final-setup' ? 'Start Final Jeopardy' : (phase === 'round-break' ? 'Start Double Jeopardy' : null); },
+    answerPlaceholder: 'What is…?',
     board: board,
     answerPhases: ['answer', 'final-answer'],
     wagerPhases: ['daily-wager', 'final-wager'],

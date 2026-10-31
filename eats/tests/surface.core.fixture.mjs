@@ -4,7 +4,8 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the loopback fixture for the Eats mobile smoke: the ACTUAL package surface, the core's shared UI and cockpit assets, and the COMPILED Eats router on the framework's real express (loaded through the route harness with an in-memory pool, a recording Uber Eats provider over a curated menu and a scripted concierge). A parent page iframes the surface and records every bridge envelope that reaches it. No database, no provider, no model, no external traffic.
- * 2 | maintainer@emeraldcoastsystemsgroup.com   | Serve the router under the native admission rule: every request runs in an AsyncLocalStorage context naming its admission (GET and HEAD read, anything else write), and the pool refuses a SQL write made under read admission with the native host's message, so the page's own /cart read on a fresh diner must not create the cart.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | Serve the router under the native admission rule: every request runs in an AsyncLocalStorage context naming its admission (GET and HEAD read, anything else write), and the pool refuses a SQL write made under read admission with the native host's message.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: the recording Uber Eats provider over a curated menu is replaced by the Google Places double (the address resolves to one place, a search answers three restaurants, a photo answers its image URL); the diner's profile seeds a saved address so the page's own start searches.
  */
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -27,17 +28,17 @@ function harnessPage(src) {
 
 /**
  * @description Start one loopback fixture serving the actual Eats surface over its compiled router.
- * @returns {Promise<{origin: string, pool: object, provider: object, requests: object[], setReply: Function, close: Function}>}
+ * @returns {Promise<{origin: string, pool: object, places: object, requests: object[], setReply: Function, close: Function}>}
  */
 export async function startFixture() {
   const express = coreRequire('express');
   const requests = [];
   let reply = { say: 'Tell me what you need.' };
-  const provider = harness.fakeProvider();
+  const places = harness.fakePlaces();
   // A fresh diner (no cart) under the native host's admission: a GET request may not write.
   const admission = new AsyncLocalStorage();
-  const pool = harness.admittedPool(harness.fakePool(), () => admission.getStore());
-  const { router } = harness.loadRoutes({ pool, provider, express, reply: () => reply });
+  const pool = harness.admittedPool(harness.fakePool({ profiles: { 'diner-smoke': { user_sub: 'diner-smoke', default_address: '1 Synthetic Way, Pensacola', dietary: [], favorite_cuisines: [], budget_per_order: null, onboarded: true } } }), () => admission.getStore());
+  const { router } = harness.loadRoutes({ pool, places, express, reply: () => reply });
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => { if (req.method !== 'GET') requests.push({ method: req.method, path: req.path, body: req.body }); next(); });
@@ -59,7 +60,7 @@ export async function startFixture() {
   await new Promise((resolve) => server.once('listening', resolve));
   return {
     origin: `http://127.0.0.1:${server.address().port}`,
-    pool, provider, requests,
+    pool, places, requests,
     setReply: (next) => { reply = next; },
     close: () => new Promise((resolve, reject) => { server.closeAllConnections(); server.close((err) => (err ? reject(err) : resolve())); }),
   };

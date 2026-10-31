@@ -15,6 +15,8 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register allergens: every chat dish is checked against the diner's allergies and diet (demo sweep 2: a Vegetarian Pad Thai right after a peanut allergy).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register allergy-surface: in Chromium the person's own Send shows the Pad Thai reply with its allergy-check line under it.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: no rail now means the package's own catalog: the no-rail case expects the turn, search, menu, cart and order handoff to answer from it with an ubereats.com link; register the uber-catalog unit suite.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: register place-cache (the cache module over the harness pool) and re-describe routes-real-restaurants with the cache cases (a POST saves, a fresh saved search asks Google nothing, Refresh asks, the quota fallback serves the saved answer with its time, nothing past 30 days, GET never writes).
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: real restaurants. The cart-totals, no-rail and uber-catalog cases are retired with the cart and the curated catalog; registered instead: uber-link (the Uber Eats location token pinned to the browser-proven string), places (the Google Places client over a recording fetch, key-free), routes-real-restaurants (the compiled routes: address required, geocode once, the restaurants with their Uber Eats links, the recorded hand-off, the chat proposal, ownership, read-only admission, the photo route), places-unavailable (API not enabled, key not configured, no address: said in words, never an empty result); the commerce-bridge, not-connected, allergens and surface-mobile cases re-described for the new surface.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -36,7 +38,7 @@ cases:
     installation: safe-smoke
   - id: commerce-bridge
     name: Eats assistant rail contract
-    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies, opens Uber Eats only from the explicit order button, sends ids only when adding a dish, wires chat-shown dishes and keeps its context digest under the contract cap.
+    purpose: Prove the manifest declares its surface-bridge ops from the closed vocabulary, the page loads the shared client and producer, advertises exactly the custom ops it applies (search, open_uber_eats), opens Uber Eats from the explicit hand-off only with the place id and address, turns a chat proposal into a confirm card, and keeps its context digest under the contract cap.
     level: unit
     runner:
       kind: node-test
@@ -45,8 +47,8 @@ cases:
         - tests/eats-commerce-bridge.test.js
     expected:
       - surface.ops lists context, set_field, field_change, custom, propose, submit and notify, all from the bridge vocabulary.
-      - The only window.open is inside requestOrder(); the chat reply turns a proposal into a propose card.
-      - A 30-line order over a 40-dish menu digests to at most 4000 characters.
+      - The only window.open is inside requestOrder(); the chat reply turns a proposal into a propose card; a relayed open_uber_eats proposes and never opens.
+      - A 40-restaurant list digests to at most 4000 characters.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -56,29 +58,56 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
-  - id: cart-totals
-    name: Integer-cent order totals
-    purpose: Known-value checks on the compiled cart-totals module that every Eats total goes through.
+  - id: uber-link
+    name: The Uber Eats location token and links
+    purpose: >-
+      The hand-off link is Uber Eats' own search page carrying the delivery address as Uber's location token (base64 of the
+      URL-encoded JSON with the address, its Google place id as reference, referenceType google_places and the coordinates).
+      The token is pinned to the exact string a browser check accepted on 2026-10-30 (406 taco results around Central Park).
     level: unit
     runner:
       kind: node-test
       scope: package
       files:
-        - tests/eats-cart-totals.test.js
+        - tests/uber-link.test.js
     expected:
-      - 4.35 is 435 cents, 0.10 + 0.20 is exactly 30 cents, an unpriced line is counted not zero-priced, and cents format without floating point.
+      - placeToken(Central Park) equals the browser-proven token; it decodes to the five fields in Uber's order.
+      - The search and feed links are ubereats.com pages with q and pl; without a place they carry no pl.
     prerequisites:
       - runner:node-test
     sideEffects: none
     isolation:
-      mode: disposable
+      mode: none
     limits:
-      timeoutMs: 30000
-      maxMemoryMb: 256
+      timeoutMs: 15000
     installation: never
-  - id: routes-money-handoff
-    name: Menu-priced lines and the confirmation-gated order
-    purpose: Drive the compiled Eats routes with an in-memory pool and a recording Uber Eats provider through menu pricing, store switching, totals, ownership, the chat order proposal and the confirmed hand-off.
+  - id: places
+    name: The Google Places client, key-free
+    purpose: >-
+      Over a recording fetch: a geocode is one Text Search with the address fields in the URL; a restaurant search is biased
+      to the address and restricted to restaurants; no request carries a key or an X-Goog header (the kernel places the key at
+      egress); Google's documents normalize to the restaurant card; a photo is resolved without following the redirect; every
+      refusal is named in words (Places API (New) not enabled with its activation link, key refused, quota, unreachable, the
+      kernel's missing-key sentence naming OSHAL_CONNECTOR_SECRET_GOOGLE_PLACES, address not found).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/places-client.test.js
+    expected:
+      - Every request shape, normalization and refusal case passes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: routes-real-restaurants
+    name: Real restaurants near the address, the place cache and the Uber Eats hand-off
+    purpose: Drive the compiled Eats routes with an in-memory pool and a recording Google Places double through the address, the search, the per-person cache, the hand-off, the chat proposal, ownership, the native read-only admission and the photo route.
     level: integration
     runner:
       kind: node-test
@@ -86,10 +115,11 @@ cases:
       files:
         - tests/eats-routes.test.js
     expected:
-      - A dish is priced from the restaurant's menu by exact storeId and productId; a browser-sent price, title or store is ignored and an unlisted dish is 422 with nothing stored.
-      - One diner cannot remove another's line; an anonymous caller is 401 before any query.
-      - A chat checkout returns a proposal with the integer-cent total and neither builds the deep link nor writes eats_orders; POST /order builds it once and records the exact total.
-      - Under the native read-only admission a fresh diner's GET /cart answers 200 with cartId, storeId and storeName null and creates nothing, every GET route answers without attempting a SQL write, and the cart the first add creates is the one the next GET /cart reads.
+      - A search without an address is 400 in words before any Places call; with one it resolves the address once and lists the restaurants Google returned, each with an Uber Eats link whose token carries the address's place id; the saved profile address is the default; coordinates resolve through the Geocoding reverse lookup.
+      - A POST search saves the address, the search and the cards; a second POST within a day asks Google nothing (served saved); Refresh asks Google and replaces the row; at Google's quota a saved search older than a day is served with its saved time and the reason; past thirty days nothing saved is served; GET /search reads the saved rows and never writes.
+      - Places API not enabled and a missing kernel key are 503 with the sentence, never an empty list; an unknown address is 404.
+      - POST /order records the hand-off row and answers the Uber Eats search link for the chosen restaurant, from the saved card when there is one; a chat "order" choice is a proposal that writes nothing.
+      - One diner never sees another's hand-offs; an anonymous caller is 401 before any query or Places call; every GET answers under read-only admission with no SQL write; the photo route answers Google's image URL key-free.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -101,9 +131,53 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 256
     installation: never
+  - id: place-cache
+    name: The place cache keeps Google's answers for thirty days
+    purpose: >-
+      The cache module over the harness pool: keys carry the person; a day is fresh and thirty days (Google's limit) is
+      the most a row is ever served; lookups, searches and cards round-trip; an expired row reads as nothing; a replace is
+      DELETE then INSERT with no ON CONFLICT; a concurrent duplicate is tolerated; a JSON column as text or parsed both read.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-place-cache.test.js
+    expected:
+      - Every key, life, round-trip and refusal case passes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: places-unavailable
+    name: No restaurant search can run
+    purpose: >-
+      Through the compiled chat route: with Places API (New) not enabled, with no kernel key, and with no delivery address, the
+      prompt states that no search ran and why, in the server's words, and forbids calling it an empty result; the turn still
+      answers; with no address no Places call is made; a search that ran and matched nothing is still "no match".
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-places-unavailable.test.js
+    expected:
+      - Each of the four states passes.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never
   - id: surface-mobile-commerce
     name: Eats at phone width in Chromium
-    purpose: Drive the actual Eats surface at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - search, a menu and scroll, two adds and their exact total, a chat order that waits for Confirm, the floating assistant's relayed ops, a chat-shown dish's Add button, and the context envelopes the parent receives.
+    purpose: Drive the actual Eats surface at 390 x 844 inside a parent frame over the compiled router and the real core bridge client - the start on the saved address, a search that fills a grid the page scrolls through, a card's Order on Uber Eats, a chat order that waits for Confirm, the floating assistant's relayed ops, the photos through the server, and the context envelopes the parent receives.
     level: browser
     runner:
       kind: playwright
@@ -111,11 +185,11 @@ cases:
       files:
         - tests/surface.core.spec.mjs
     expected:
-      - No horizontal overflow; a menu fills a grid the page scrolls to the end of.
-      - Two adds show $9.98 from the server and the request bodies carry only storeId, productId and quantity.
+      - No horizontal overflow; the restaurants Google answered render with their facts and a photo fetched through the server.
+      - A card's Order on Uber Eats fires exactly one POST /order carrying only placeId and address and opens ubereats.com/search once with the restaurant and the location token.
       - A chat order renders a confirm card with no hand-off POST and no window.open; Confirm fires exactly one POST /order and opens Uber Eats once; Cancel on a relayed proposal hands off nothing.
-      - The parent frame receives context envelopes with the order total and a submit for the confirm; the page raises no errors.
-      - Under the native admission rule no GET in the session attempts a SQL write; the adds create the cart.
+      - The parent frame receives context envelopes naming the restaurants and a submit for the confirm; the page raises no errors.
+      - Under the native admission rule no GET in the session attempts a SQL write.
     prerequisites:
       - runner:playwright
       - harness:oshal-core-root
@@ -129,7 +203,7 @@ cases:
       fixtures:
         - tests/surface.core.fixture.mjs
         - tests/eats-routes-harness.js
-      cleanup: Close the owned Chromium process and the loopback HTTP server; carts, orders and the recorded hand-off stay in the disposable in-memory pool, with no database, provider or model.
+      cleanup: Close the owned Chromium process and the loopback HTTP server; the recorded hand-offs stay in the disposable in-memory pool, with no database, provider or model.
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
@@ -160,9 +234,10 @@ cases:
       timeoutMs: 15000
     installation: never
   - id: not-connected
-    name: Uber Eats not connected
+    name: The restaurant source is unavailable
     purpose: >-
-      A refused Uber Eats call (HTTP 503) reads as not connected on the Eats page, never as no matching restaurants.
+      A refused restaurant search (HTTP 503 with the server's sentence) reads as that sentence on the Eats page, never as no
+      matching restaurants; without an address the page asks for one and makes no request.
     level: unit
     runner:
       kind: node-test
@@ -170,50 +245,7 @@ cases:
       files:
         - tests/eats-not-connected.test.js
     expected:
-      - A refused search, menu and concierge turn say the installation has no Uber Eats rail, never that a connection can be added.
-      - A real empty catalog answer still reads as no matches.
-    prerequisites:
-      - runner:node-test
-    sideEffects: none
-    isolation:
-      mode: none
-    limits:
-      timeoutMs: 15000
-    installation: never
-  - id: no-rail
-    name: Eats with no Uber Eats rail
-    purpose: >-
-      Where the runtime reports Uber Eats not connected, the compiled routes answer the chat turn, search, menu, cart and the
-      order handoff from the package's own curated catalog without calling the refusing provider, and /config names rail catalog.
-    level: integration
-    runner:
-      kind: node-test
-      scope: package
-      files:
-        - tests/eats-no-rail.test.js
-    expected:
-      - Only the status probe reaches the provider, the turn offers catalog dishes, and the handoff is an ubereats.com link.
-    prerequisites:
-      - runner:node-test
-    sideEffects: none
-    isolation:
-      mode: disposable
-    limits:
-      timeoutMs: 15000
-    installation: never
-  - id: uber-catalog
-    name: The package's own Uber Eats catalog and deep link
-    purpose: >-
-      Search matches a restaurant by dish, cuisine or tag and ignores words that name no food; menu and the order handoff answer
-      official ubereats.com links and never a charge.
-    level: unit
-    runner:
-      kind: node-test
-      scope: package
-      files:
-        - tests/uber-catalog.test.js
-    expected:
-      - Every search, menu and order case passes.
+      - A refused search and concierge turn show the server's own words; a real empty answer still reads as no match; restaurants render with an Order on Uber Eats button.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -326,12 +358,11 @@ cases:
       timeoutMs: 20000
     installation: never
   - id: allergens
-    name: A peanut allergy excludes or flags peanut dishes
+    name: A peanut allergy excludes or flags peanut places and dishes
     purpose: >-
-      Through the compiled chat route with a scripted concierge (demo sweep 2: right after "I have noted your peanut
-      allergy" the concierge suggested a Vegetarian Pad Thai with no warning): a remembered or stated allergy holds the
-      dishes that name it or are usually made with it back from the prompt, the cards and the cart, the prompt states the
-      restriction as a fact, and a dish the reply names that usually carries it gets an allergy-check line.
+      Through the compiled chat route with a scripted concierge: a remembered or stated allergy holds the restaurants whose
+      name carries the allergen or a dish usually made with it back from the prompt, the cards and any proposal, the prompt
+      states the restriction as a fact, and a dish the reply names that usually carries it gets an allergy-check line.
     level: integration
     runner:
       kind: node-test
@@ -339,9 +370,9 @@ cases:
       files:
         - tests/eats-allergens.test.js
     expected:
-      - With a saved peanut allergy, Vegetarian Pad Thai and Tofu Peanut Satay are held back; only the spring rolls are shown and added.
+      - With a saved peanut allergy, Pad Thai Kitchen and Peanut Palace are held back; Thai Garden is shown and a held place is never proposed.
       - The demo's own Pad Thai reply returns unchanged with the line "Pad Thai usually contains peanuts (you avoid peanuts)", saved with the reply.
-      - A reply naming the risk itself gets no line; an allergy in one clause does not restrict a food liked in another; with no restriction Pad Thai is offered.
+      - A reply naming the risk itself gets no line; with no restriction nothing is held.
     prerequisites:
       - runner:node-test
     sideEffects: none

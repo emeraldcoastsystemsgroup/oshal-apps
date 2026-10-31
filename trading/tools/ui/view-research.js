@@ -36,6 +36,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Congress chamber/party filters ask the server (GET /reports/congress?chamber=&party=) instead of filtering only the newest 50 trades in the page, which showed "no trades match" for Senate while the archive held hundreds; a filter with no match says so instead of showing the unfiltered summary.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | researchSummaryText ends an unavailable section's sentence once: a reason that already ends with a full stop read 'through the Schwab connection..'.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com   | Add the Quant desk sub-tab (view-quant.js).
   * 12 | maintainer@emeraldcoastsystemsgroup.com | Show collector-time coverage and filing observation timestamps separately from disclosure dates; historical timing remains unvalidated.
  */
 
@@ -806,11 +807,12 @@ async function renderResearchView(token) {
     acctContextBar('buys, signals and decisions from this page act on this account') + '<div id="viewTabs"></div>';
   if (stale(token)) return;
   wireAcctContextBar();
-  subTabs('viewTabs', [['stock','Research a stock'],['congress','Congress'],['movers','Market movers'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']], SUB || 'stock', (k) => {
+  subTabs('viewTabs', [['stock','Research a stock'],['quant','Quant desk'],['congress','Congress'],['movers','Market movers'],['reco','Recommendations'],['algos','Algorithms'],['capture','Capture & signals']], SUB || 'stock', (k) => {
     // The stock tab's autocomplete outlives an in-place research but not a sub-tab switch — detach it
     // as the previous tab body is discarded so no debounce timer or dropdown leaks.
     if (RS_SEARCH && typeof detachSymbolSearch === 'function') { detachSymbolSearch(RS_SEARCH); RS_SEARCH = null; }
     if (k === 'stock') loadStockTab();
+    else if (k === 'quant') loadQuantDesk();
     else if(k==='congress')loadCongressTab();
     else if (k === 'movers') loadMoversTab();
     else if (k === 'reco') loadReco();

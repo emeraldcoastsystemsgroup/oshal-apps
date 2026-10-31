@@ -1,4 +1,8 @@
 # CHANGE LOG
+# 27 | maintainer@emeraldcoastsystemsgroup.com | 1.47.3: the Quant desk paces its price reads to 75 a minute, so it cannot crowd out the watcher on Schwab's shared request limit.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | 1.47.2: the market condition measures the average stock and the momentum leaders, because SPY read 3% off its high while the leaders were 40-50% off theirs; a strong rank far below its high carries a caution; the chart shows the leading signal with and without the biggest winners.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.47.1: from the first run on real prices. A signal resting on a list's eventual winners reads Promising, not Holds up: 12-month momentum fell from 63% to 23% a year without the biggest winners. The list is led by the signal with the best evidence, not the composite, which failed its own test. The 2022 row is the months actually held in 2022, and a bad old candle retries a shorter window.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 1.47.0: the research-only Quant desk. A person schedule scores a broad list after each close from ten years of Schwab daily prices, publishes a ranked list with reasons, a history test of each fixed signal and a forward scoreboard against SPY. New tools read it, turn it on and run a pass. Mounted inside /api/trading, so no route or other schedule-authority field changes, and nothing in the orderAuthority closure changes.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 1.46.1: putting a strategy on a paper account computes its current targets first and refuses with the reason when a year of daily prices cannot be read (the archive serves 365 days, short of the monthly warmup; Schwab read-only history is what backtests use), and the reply shows the targets it will hold.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.46.0: a saved strategy runs on a paper account. trading_paper_strategy (POST /api/trading/paper/books/{ref}/strategy) assigns it and starts the account; each scheduled pass of a regular session rebalances the simulated book in whole shares to the strategy's current targets once per decision. The concierge designs, saves and runs a strategy on paper in one conversation; real accounts stay the owner's own steps.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.45.1: the Trading page switches the person's paper schedule on whenever they have an armed paper account (in their own session, as Start does), so a paper account the concierge creates in chat trades without a separate button. The analyst says so.
@@ -116,7 +120,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.46.1
+version: 1.47.3
 status: active
 
 source:
@@ -726,6 +730,105 @@ tools:
     skills: [trading]
     tags: [intelligent-trades]
 
+  # The Quant desk (Research, Quant desk): research only. No tool here reaches an account, a strategy assignment or an order.
+  - name: trading_quant_today
+    displayName: Quant Desk List
+    type: api
+    category: trading
+    description: >-
+      Tonight's ranked stock list: how the market looks, the top 20 and weakest 5 with their score, reasons and
+      cautions, where each of the caller's holdings ranks, and the history-test verdict on the ranking itself.
+      A ranking is research, not a buy or sell instruction. Read-only and owner-scoped. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/today?view=brief" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call for which stocks look strong or weak, where the person's holdings rank, or how the market looks. If ready is false, call trading_quant_run.
+    routingTags: [trading, quant, ranking, stocks]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_symbol
+    displayName: Quant Desk Stock
+    type: api
+    category: trading
+    description: >-
+      One stock's rank on tonight's list with every factor behind it, its reasons and its cautions. Read-only and
+      owner-scoped. Input: {symbol}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/symbol/{input.symbol}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string, description: "ticker" }
+    usageInstructions: Call when the person asks how one stock scores.
+    routingTags: [trading, quant, stock]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_scoreboard
+    displayName: Quant Desk Scoreboard
+    type: api
+    category: trading
+    description: >-
+      Whether the signals work. The history test: each fixed signal's top names every month over up to ten years,
+      after costs, against SPY and the same list's average, with its verdict, its result in 2022 and when the market
+      fell. The forward scoreboard: every pick recorded before its outcome and graded against SPY. Read-only and
+      owner-scoped. Input: {}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/scoreboard?view=brief" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Call whenever you describe a signal, a rank or a pick, so you can say what the evidence shows.
+    routingTags: [trading, quant, scoreboard, backtest]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_settings
+    displayName: Turn the Quant Desk On or Off
+    type: api
+    category: trading
+    description: >-
+      Turn the nightly scoring on or off for the caller. On, the Intelligent Trades page switches the person's nightly
+      job on in their own session. It only reads prices and writes research records. Input: {enabled}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/settings" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean, description: "true to score every evening, false to stop" }
+    usageInstructions: Use when the person asks to start or stop the nightly scoring.
+    routingTags: [trading, quant, schedule]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_run
+    displayName: Run the Quant Desk Now
+    type: api
+    category: trading
+    description: >-
+      Run one bounded pass of scoring now (up to about a minute). The reply gives the phase and how many stocks have
+      been read; call it again until the status is done. Finished work is not repeated. Research only. Input: {}.
+    executor: { executorType: api, apiEndpoint: "POST /api/trading/quant/run" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    timeoutMs: 60000
+    inputSchema:
+      type: object
+      properties: {}
+    usageInstructions: Use when there is no list yet or the person asks for a fresh one.
+    routingTags: [trading, quant, run]
+    skills: [trading]
+    tags: [intelligent-trades]
+
   - name: trading_paper_stop
     displayName: Stop a Paper Account
     type: api
@@ -775,6 +878,7 @@ migrations:
   - migrations/009-native-oshal-reports.sql
   - migrations/010-report-presenter-media.sql
   - migrations/011-native-account-values.sql
+  - migrations/012-native-quant-desk.sql
 
 routes:
   - module: routes/home-summary.js
@@ -867,6 +971,17 @@ schedules:
     timeoutSeconds: 120
     description: Paper autopilot tick - multi-timeframe decisions from kernel prices, simulated fills in your own paper book (never a broker order).
     offer: Run my paper trading autopilot every five minutes while the US market is open.
+  - id: quant-desk
+    cron: "*/5 17-19 * * 1-5"
+    timezone: America/New_York
+    runsAs: user
+    target: service-route
+    route: /api/trading/quant/tick
+    method: POST
+    body: {}
+    timeoutSeconds: 60
+    description: Quant desk - score your stock list after the close from your Schwab daily prices and grade earlier picks against SPY (research only, never an order).
+    offer: Score my stock list every evening after the market closes and keep the record of its picks.
   - id: futures-research
     cron: "15 2 * * 2-6"
     timezone: America/New_York

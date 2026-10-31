@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-24 12:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Fast Money (backlog #6) — the Feud signature endgame, as its own module so family-feud.js stays under the size limits. Two players from the winning side answer five generated questions against one clock each; duplicate answers score zero; 200 combined points wins the bonus. family-feud.js delegates every fm-* phase here; the engine never sees these phase names (ADR-112 rule 3).
  * 2026-07-26 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | npcMove — an NPC picked for Fast Money actually plays it: answers from the generated board by skill, dodging player 1's answer on the second run (a sharp bot never duplicates; a wild one can). Delegated from family-feud npcMove like every other fm-* beat.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | The room's owner may name the Fast Money contestants when they also play at their own seat.
  */
 
 'use strict';
@@ -30,13 +31,14 @@ function norm(text) {
  *   reduce) gates on isGameOver before delegating here.
  * @param {object} state - Post-game Feud state.
  * @param {object} action - { seat1, seat2 } podium seat ids.
- * @param {object} actor - Acting seat; must be the host podium.
+ * @param {object} actor - Acting seat; must be the host podium or belong to the room's owner.
  * @param {number} now - Server time in ms.
- * @param {object} ctx - { seats } for team lookup.
+ * @param {object} ctx - { seats } for team lookup, { isOwner } for the host gate.
  * @returns {object} Reduced result opening the fm-setup phase.
  */
 function start(state, action, actor, now, ctx = {}) {
-  if (actor.role !== 'host') return { ok: false, error: 'HOST_ONLY' };
+  // The room's owner names the contestants, whether they run the show or also play at a podium.
+  if (actor.role !== 'host' && !ctx.isOwner) return { ok: false, error: 'HOST_ONLY' };
   const seat1 = String(action.seat1 || ''), seat2 = String(action.seat2 || '');
   if (!seat1 || !seat2 || seat1 === seat2) return { ok: false, error: 'PICK_TWO_PLAYERS' };
   const rows = ctx.seats || [];

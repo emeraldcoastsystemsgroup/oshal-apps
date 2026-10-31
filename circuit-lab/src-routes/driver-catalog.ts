@@ -43,6 +43,21 @@
  *                     |                             | nameplate fields its owner publishes and the ones this lab
  *                     |                             | must declare itself. Same data-not-runtime rule, same
  *                     |                             | fail-closed withholding when embodied is absent.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | A serial-BUS servo row reads embodied too (ADR-202, the
+ *                     |                             | spider-18 lane). embodied publishes the STS3215 as a `servos`
+ *                     |                             | row with a `jointDrive` block (rated stall torque in kg*cm,
+ *                     |                             | rated seconds per 60 degrees), not the pulse-and-current block
+ *                     |                             | animatronics publishes for a hobby servo, so the servo reader
+ *                     |                             | could not read it. A reader is now chosen by the row's `kind`
+ *                     |                             | as well as its type: `servo` keeps the hobby reader, and
+ *                     |                             | `servo` with kind `bus-servo` reads the jointDrive block —
+ *                     |                             | stallTorqueMnm and noLoadDegPerS are the owner's, while the
+ *                     |                             | operating point, the stall / running / idle currents and the
+ *                     |                             | reflected rotor inertia are this lab's electrical block and
+ *                     |                             | must be declared. The pulse mapping stays this lab's: the
+ *                     |                             | solver's servo decodes a pulse width, which stands in for the
+ *                     |                             | bus position command. Same data-not-runtime rule, same
+ *                     |                             | fail-closed withholding when embodied is absent.
  */
 
 import fs from 'node:fs';
@@ -101,6 +116,8 @@ const REL_FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
 const OWNED_FIELDS = ['name', 'massG', 'approxUsd', 'source'] as const;
 /** Nameplate fields a shared servo's owner supplies, for the same reason. */
 const OWNED_SERVO_PROPS = ['minPulseMs', 'maxPulseMs', 'travelDeg', 'noLoadDegPerS', 'stallTorqueMnm', 'idleAmps', 'runAmps', 'stallAmps'] as const;
+/** Nameplate fields a serial-bus servo's owner supplies through its jointDrive block: the rated stall torque and the rated no-load speed. */
+const OWNED_BUS_SERVO_PROPS = ['stallTorqueMnm', 'noLoadDegPerS'] as const;
 
 type Obj = Record<string, unknown>;
 
@@ -235,6 +252,27 @@ function readServoPart(row: Obj): SharedReading | { reason: string } {
 }
 
 /**
+ * @description Read a serial-bus servo the owner publishes with a jointDrive block (embodied's
+ * STS3215 row, the arm's and the spider's joint drive). The owner gives the part (name, mass,
+ * price, source), the rated stall torque in kg*cm and the rated seconds per 60 degrees; this lab
+ * keeps the electrical model it solves at — the operating point, the stall, running and idle
+ * currents, the reflected rotor inertia — and the pulse mapping, because the solver's servo decodes
+ * a pulse width that stands in for the bus position command.
+ * @param row - The owner's raw row.
+ * @returns The owner's identity block and the two derived nameplate fields, or the reason it cannot be used.
+ */
+function readBusServoPart(row: Obj): SharedReading | { reason: string } {
+  const shared = readIdentity(row);
+  if ('reason' in shared) return shared;
+  if (!isObj(row.jointDrive)) return { reason: 'the owner row has no jointDrive block' };
+  const stallKgCm = ownerNumber(row.jointDrive, 'stallKgCm');
+  if (typeof stallKgCm !== 'number') return { reason: 'the owner row is missing a usable jointDrive.stallKgCm' };
+  const secondsPer60 = ownerNumber(row.jointDrive, 'secondsPer60');
+  if (typeof secondsPer60 !== 'number') return { reason: 'the owner row is missing a usable jointDrive.secondsPer60' };
+  return { shared, props: { stallTorqueMnm: round(stallKgCm * KGCM_TO_MNM, 1), noLoadDegPerS: Math.round(60 / secondsPer60) } };
+}
+
+/**
  * @description Read a motor the owner publishes with a propulsion block. The owner gives the part
  * (name, mass, price, source) and its KV; this lab keeps its own electrical model and the operating
  * point it solves at, so the only nameplate field derived here is the no-load speed: KV times that
@@ -252,11 +290,27 @@ function readMotorPart(row: Obj, local: Obj): SharedReading | { reason: string }
   return { shared, kv, props: { noLoadRpm: Math.round(kv * (local.nominalVolts as number)) } };
 }
 
-/** The part types this lab knows how to read from another package's catalog, and what each one owns. */
+/**
+ * The part types this lab knows how to read from another package's catalog, and what each one owns.
+ * A key is the type, or `type/kind` for a kind whose owner publishes a different block: a `servo` of
+ * kind `bus-servo` is read from a jointDrive block, every other servo from the hobby pulse block.
+ */
 const SHARED_READERS: Record<string, SharedReader> = {
   servo: { ownedRow: [], ownedProps: OWNED_SERVO_PROPS, localRequired: [], read: (row) => readServoPart(row) },
+  'servo/bus-servo': { ownedRow: [], ownedProps: OWNED_BUS_SERVO_PROPS, localRequired: ['nominalVolts', 'stallAmps', 'runAmps', 'idleAmps', 'rotorInertiaGcm2'], read: (row) => readBusServoPart(row) },
   motor: { ownedRow: ['kv'], ownedProps: ['noLoadRpm'], localRequired: ['nominalVolts'], read: readMotorPart },
 };
+
+/**
+ * @description The reader for a shared row: the one for its type and kind when the kind has its own
+ * (the owner publishes a different block for it), else the one for its type.
+ * @param type - The row's part type.
+ * @param kind - The row's kind.
+ * @returns The reader, or undefined when this lab cannot read that type from another package.
+ */
+function sharedReaderFor(type: string, kind: string): SharedReader | undefined {
+  return SHARED_READERS[`${type}/${kind}`] ?? SHARED_READERS[type];
+}
 
 /** The fields a row carries whether or not it is shared. */
 type CommonFields = Pick<DriverRow, 'id' | 'type' | 'kind' | 'usedBy' | 'kv' | 'cells'>;
@@ -294,7 +348,7 @@ function checkSharedDeclaration(r: Obj, field: string, ref: SharedPartRef, reade
  * @returns The resolved row, or the unresolved entry naming the owner and the reason.
  */
 function resolveSharedRow(r: Obj, field: string, ref: SharedPartRef, common: CommonFields, packagesRoot: string): { row: DriverRow } | { unresolved: UnresolvedRow } {
-  const reader = SHARED_READERS[common.type];
+  const reader = sharedReaderFor(common.type, common.kind);
   if (!reader) throw new ContractError(`a ${common.type} row cannot be read from another package yet`, `${field}.sharedPart`);
   const local = checkSharedDeclaration(r, field, ref, reader);
   const withheld = (reason: string) => ({ unresolved: { id: common.id, type: common.type, owner: ref.owner, ref, reason } });

@@ -8,6 +8,7 @@
  * 2026-07-25 23:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | GS.wantLobby (?lobby=1) so the bootstrap can skip the resume-last-room path and show the lobby's show picker on demand.
  * 2026-07-26 19:12:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Every incoming event is also handed to GS.onBeat (next to the GS.onReact dispatch) so the broadcast chrome can score reveals/strikes/wins as sound cues.
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | The sync poll is a POST: it is the tick that resolves a lapsed round clock and plays the AI podiums, which writes, and the native kernel admits a GET only as a reader (every poll after a show started answered 500).
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Three things that made a game unplayable: a re-render wiped what a person was typing and jumped the page (GS.mount now keeps the focused field, its caret and the scroll), toasts were dark on dark under a light theme so every refusal was invisible (GS.toast names its ink), and two overlapping polls delivered the same event twice. GS.canPlay says whether this surface acts at a podium; GS.wantSolo (?solo=1) lets a poster start a game against the computer in one press; every poll refreshes the standings and GS.gameOver.
  */
 
 /* global window, document, navigator */
@@ -24,6 +25,8 @@
     joinCode: (qs.get('join') || '').toUpperCase(),
     roomId: qs.get('room') || null,
     wantLobby: qs.has('lobby'),   // ?lobby=1 skips the resume-last-room boot so a new show can be picked
+    wantSolo: qs.has('solo'),     // ?solo=1: a fresh room seats the computer players and starts itself
+    gameOver: false,              // the server's word that the show has played out
     // shared store (one synced state, every surface renders it)
     room: null, seats: [], state: {}, rev: 0, seq: 0, scoreboard: [], events: [], show: null,
     presenceRev: {}, camBust: {}, lastHostAt: 0, render: null, _timer: null,
@@ -40,6 +43,13 @@
 
   /** @description The podium this surface acts as (pinned hotseat first, else my seat). */
   GS.actingSeat = function () { return GS.actAs || ((GS.mySeat() || {}).seatId || null); };
+
+  /** @description Whether this surface acts at a podium, rather than a host who is only running the show. */
+  GS.canPlay = function () {
+    var id = GS.actingSeat();
+    var seat = GS.seats.filter(function (s) { return s.seatId === id; })[0];
+    return !!seat && seat.role !== 'host';
+  };
 
   // ── DOM helpers ─────────────────────────────────────────────────────────
   GS.el = function (tag, attrs) {
@@ -60,9 +70,42 @@
     return node;
   };
   GS.root = function () { return document.getElementById('gs-root'); };
-  GS.mount = function (node) { var r = GS.root(); r.innerHTML = ''; r.appendChild(node); };
+
+  /** @description Note the field a person is typing in, so a re-render can give it back. */
+  function focusedField(root) {
+    var active = document.activeElement;
+    if (!active || !root.contains(active) || !/^(INPUT|TEXTAREA)$/.test(active.tagName)) return null;
+    var same = root.querySelectorAll(active.tagName + '[placeholder="' + (active.getAttribute('placeholder') || '') + '"]');
+    return { tag: active.tagName, placeholder: active.getAttribute('placeholder') || '', index: Array.prototype.indexOf.call(same, active),
+      value: active.value, start: active.selectionStart, end: active.selectionEnd };
+  }
+
+  /** @description Give a re-rendered field its text, focus and caret back. */
+  function restoreField(root, kept) {
+    if (!kept) return;
+    var next = root.querySelectorAll(kept.tag + '[placeholder="' + kept.placeholder + '"]')[Math.max(0, kept.index)];
+    if (!next) return;
+    next.value = kept.value;
+    next.focus({ preventScroll: true });
+    try { next.setSelectionRange(kept.start, kept.end); } catch (_e) { /* a number field has no caret */ }
+  }
+
+  /**
+   * @description Swap the surface in. Every synced change rebuilds the page, so this keeps what the
+   *   person is typing and where they scrolled: an answer half typed when a bot moved used to vanish.
+   * @param {HTMLElement} node - The new surface.
+   * @returns {void}
+   */
+  GS.mount = function (node) {
+    var r = GS.root(), scroller = document.scrollingElement, top = scroller ? scroller.scrollTop : 0;
+    var kept = focusedField(r);
+    r.innerHTML = '';
+    r.appendChild(node);
+    restoreField(r, kept);
+    if (scroller) scroller.scrollTop = top;
+  };
   GS.toast = function (msg) {
-    var t = GS.el('div', { class: 'gs-float', style: 'left:50%;bottom:22vh;transform:translateX(-50%);background:rgba(0,0,0,.7);padding:8px 14px;border-radius:10px;font-size:15px' }, msg);
+    var t = GS.el('div', { class: 'gs-float', style: 'left:50%;bottom:22vh;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fff;padding:8px 14px;border-radius:10px;font-size:15px;z-index:1300;text-align:center;max-width:90vw' }, msg);
     document.body.appendChild(t); setTimeout(function () { t.remove(); }, 2400);
   };
 
@@ -157,21 +200,27 @@
     }
     if (data.changed && data.state) { GS.state = data.state; GS.rev = data.rev; changed = true; }
     else if (typeof data.rev === 'number') GS.rev = data.rev;
-    if (Array.isArray(data.scoreboard) && data.scoreboard.length) GS.scoreboard = data.scoreboard;
-    if (Array.isArray(data.events) && data.events.length) {
-      GS.events = GS.events.concat(data.events);
-      GS.seq = data.events[data.events.length - 1].seq;
+    if (Array.isArray(data.scoreboard) && data.scoreboard.length) {
+      var standings = JSON.stringify(data.scoreboard);
+      if (standings !== GS._standings) { GS._standings = standings; GS.scoreboard = data.scoreboard; changed = true; }
+    }
+    if (typeof data.gameOver === 'boolean' && data.gameOver !== GS.gameOver) { GS.gameOver = data.gameOver; changed = true; }
+    // Two polls can overlap (a move pulls one while the timer fires another): count each event once.
+    var fresh = Array.isArray(data.events) ? data.events.filter(function (e) { return e.seq > GS.seq; }) : [];
+    if (fresh.length) {
+      GS.events = GS.events.concat(fresh);
+      GS.seq = fresh[fresh.length - 1].seq;
       // Reactions are transient floats, not board state — hand them to the surface.
       if (typeof GS.onReact === 'function') {
-        data.events.forEach(function (e) { if (e.kind === 'react') GS.onReact(e.content); });
+        fresh.forEach(function (e) { if (e.kind === 'react') GS.onReact(e.content); });
       }
       // Every event is also a show beat — the broadcast chrome scores it as sfx.
       if (typeof GS.onBeat === 'function') {
-        data.events.forEach(function (e) { GS.onBeat(e); });
+        fresh.forEach(function (e) { GS.onBeat(e); });
       }
       changed = true;
     }
-    if (data.status && GS.room) GS.room.status = data.status;
+    if (data.status && GS.room && GS.room.status !== data.status) { GS.room.status = data.status; changed = true; }
     var host = GS.state && GS.state.host;
     if (host && host.at && host.at > GS.lastHostAt) { GS.lastHostAt = host.at; GS.speak(host.line); }
     return changed;
@@ -191,7 +240,7 @@
       if (!r.body || r.body.ok === false) return r;
       if (typeof r.body.now === 'number') GS.skew = r.body.now - Date.now();
       GS.room = r.body.room; GS.state = r.body.state || {}; GS.rev = r.body.rev || 0;
-      GS.seats = r.body.seats || []; GS.scoreboard = r.body.scoreboard || [];
+      GS.seats = r.body.seats || []; GS.scoreboard = r.body.scoreboard || []; GS.gameOver = !!r.body.gameOver;
       GS.events = r.body.events || []; GS.show = r.body.show || null;
       GS.seq = GS.events.length ? GS.events[GS.events.length - 1].seq : 0;
       GS.seats.forEach(function (s) { GS.presenceRev[s.seatId] = s.presenceRev; GS.camBust[s.seatId] = s.presenceRev; });

@@ -28,7 +28,7 @@ one command, **nothing checks your push**. See
 
 <!-- apps-table:begin (generated - run `node scripts/gen-readme-apps-table.mjs`; do not edit by hand) -->
 
-All **82 packages**, shelved by ADR-097 suite. Versions and status come from
+All **83 packages**, shelved by ADR-097 suite. Versions and status come from
 [`marketplace.json`](marketplace.json), which mirrors each package's `oshal-app.yaml`.
 
 ### AI Productivity
@@ -38,7 +38,7 @@ All **82 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Business** | [`business-experience/`](business-experience/) | 1.0.2 | ready | Your schedule, projects, documents and explicitly connected business applications. |
 | **Calling Assistant** | [`calling-assistant/`](calling-assistant/) | 0.1.10 | ready | Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports. |
 | **Capability Ideation** | [`capability-ideation/`](capability-ideation/) | 1.0.0 | ready | A ticket queue for Capability Ideator: describe a business process and get up to three sourced tool or integration proposals; opens Capability Ideator's review screen. |
-| **Intelligent Communication** | [`email-summarizer/`](email-summarizer/) | 1.6.0 | ready | Your inbox, calendar, social channels and day in one surface. |
+| **Intelligent Communication** | [`email-summarizer/`](email-summarizer/) | 1.6.1 | ready | Your inbox, calendar, social channels and day in one surface. |
 | **Fantasy Football** | [`fantasy-football/`](fantasy-football/) | 0.2.2 | ready | Manage the fantasy football team you actually have. |
 | **Feeds** | [`feeds/`](feeds/) | 1.2.4 | ready | Your connected message feeds in one place - live stream, activity trends, hot channels, and trending topics over your own Slack messages, with a curator bot that answers 'what did I miss'. |
 | **Identity Hub** | [`identity/`](identity/) | 1.2.5 | ready | Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. |
@@ -73,8 +73,8 @@ All **82 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Daily Trade Recap** | [`daily-trade-recap/`](daily-trade-recap/) | 1.3.6 | ready | Review saved trade-recap work and receive owner-qualified recorded-report updates in Jarvis. |
 | **Finance** | [`finance/`](finance/) | 1.2.5 | ready | Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. |
 | **Futures Research** | [`futures-research/`](futures-research/) | 1.1.0 | ready | Opt-in, tool-less queued review of owner-scoped Futures studies. |
-| **Intelligent Trades** | [`trading/`](trading/) | 1.46.1 | ready | Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. |
-| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.6.5 | ready | Find mispriced event contracts on Kalshi (ADR-094). |
+| **Intelligent Trades** | [`trading/`](trading/) | 1.47.3 | ready | Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. |
+| **Kalshi Prediction Markets** | [`kalshi/`](kalshi/) | 1.7.3 | ready | Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. |
 | **Payroll** | [`payroll/`](payroll/) | 2.3.6 | ready | Run payroll for your team, ADP-style, then pay, file and RECONCILE from the same place. |
 | **Sports Edge** | [`sports-edge/`](sports-edge/) | 0.11.3 | ready | Follow a team and really know its next game. |
 | **Venture Plan** | [`venture-plan/`](venture-plan/) | 1.5.1 | ready | Turn an idea into the venture document set a real decision needs — bill of materials, landed cost, channel margin, profit, cash and working capital, schedule, org, funding ask. |
@@ -88,8 +88,8 @@ All **82 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Camera Ops** | [`camera/`](camera/) | 1.1.2 | ready | Remote camera control - connect a GoPro (Open GoPro HTTP) or other cameras as device nodes and drive them: record, photo, modes, settings, low-latency preview. |
 | **Create** | [`create/`](create/) | 1.15.2 | ready | One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes, LoRA characters, 3D scans and brand intro clips — a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have. |
 | **Creative Studio** | [`creative-studio/`](creative-studio/) | 1.2.6 | ready | A creative bot that just keeps making short kid-safe videos - it rotates a public-domain library (fables, fairytales, famous sayings), animates each ~100-word story across ~10 continuous Google Vids Extend scenes on the remote worker (ADR-080), downloads the finished MP4, and saves it to your content folder + Google Drive. |
-| **Dungeon Master** | [`dnd/`](dnd/) | 0.21.8 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
-| **Game Show** | [`game-show/`](game-show/) | 0.11.6 | ready | TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. |
+| **Dungeon Master** | [`dnd/`](dnd/) | 0.21.10 | ready | Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. |
+| **Game Show** | [`game-show/`](game-show/) | 0.12.8 | ready | TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. |
 | **Games** | [`games/`](games/) | 1.1.1 | ready | A focused cockpit toolbar with direct launchers for the AI Dungeon Master and Game Show. |
 | **LoRA Studio** | [`lora/`](lora/) | 1.7.6 | ready | Train a reusable character (a "sprite") from images and captions, validate it on a fixed held-out matrix, and improve it by targeting its weak spots — every version scored so "better" is a number, with an owner-enabled nightly loop and morning review gate. |
 | **Motion Studio** | [`motion-studio/`](motion-studio/) | 0.1.4 | ready | Edit original-owned motion compositions with layers, captions, keyframes, masks and photos. |
@@ -108,8 +108,7 @@ All **82 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Calendar Preparation** | [`calendar/`](calendar/) | 1.1.6 | ready | Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting. |
 | **Commons** | [`commons-experience/`](commons-experience/) | 1.1.2 | ready | Your applications, shared rooms and conversations, with existing household and team boundaries. |
 | **Drone Ops** | [`drone/`](drone/) | 1.3.1 | ready | Drone fleet automation control - arm, take off, fly waypoint missions, and coordinate multi-drone fleet plans inside a hard geofence with deterministic separation checks. |
-| **Eats** | [`eats/`](eats/) | 1.3.6 | ready | AI Uber Eats concierge — search restaurants, browse menus, build an order, and hand off a ready Uber Eats checkout you confirm and pay in your own Uber app. |
-| **Embodied Swarm** | [`embodied/`](embodied/) | 0.18.1 | ready | Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. |
+| **Eats** | [`eats/`](eats/) | 1.5.0 | ready | AI food-delivery concierge: the real restaurants near your delivery address from Google Places, your tastes and allergies remembered, and a one-tap hand-off into Uber Eats at your address with the restaurant you chose. |
 | **Smart Home** | [`home/`](home/) | 1.2.8 | ready | Your smart home, one surface — read device state and scenes across SmartThings and Google Home, ask the home bot to run a routine, and let scheduled 'morning routine' tickets drive the house. |
 | **Home** | [`home-experience/`](home-experience/) | 1.0.5 | ready | Your schedule, shopping list, household updates and explicitly connected applications in the established Home layout. |
 | **Jarvis** | [`jarvis-experience/`](jarvis-experience/) | 1.1.2 | ready | Your assistant briefing, conversations, agenda and admitted applications. |
@@ -131,11 +130,13 @@ All **82 packages**, shelved by ADR-097 suite. Versions and status come from
 | **AI Bake-Off** | [`bake-off/`](bake-off/) | 1.1.6 | ready | Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar. |
 | **CAD Studio** | [`cad-studio/`](cad-studio/) | 0.2.6 | ready | A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively. |
 | **Capability Ideator** | [`capability-ideator/`](capability-ideator/) | 1.1.6 | ready | Discover sourced tools and integration opportunities for business processes, grounded in installed applications and explicit connection requirements. |
-| **Circuit Lab** | [`circuit-lab/`](circuit-lab/) | 0.8.9 | ready | A local circuit and mechanism lab the swarm can drive. |
+| **Circuit Lab** | [`circuit-lab/`](circuit-lab/) | 0.9.0 | ready | A local circuit and mechanism lab the swarm can drive. |
 | **Cloud** | [`cloud/`](cloud/) | 1.1.2 | ready | Inspect and operate your Google Cloud by chat. |
 | **Bot Forge** | [`codex-packer/`](codex-packer/) | 1.2.0 | ready | An interview that drafts a single-purpose application (manifest plus persona) for the operator to commit and install from App Loader. |
+| **Design Studio** | [`design-studio/`](design-studio/) | 0.4.4 | ready | The design-to-build process as one application, for anything. |
 | **Developer Workspace Index** | [`dev-workspace-index/`](dev-workspace-index/) | 0.2.3 | ready | Build a bounded, dev-console-only index of the local OSHAL documentation and ask Jarvis for cited developer references. |
 | **Drone Relay** | [`drone-relay/`](drone-relay/) | 0.4.3 | ready | Design a chain of mini drones that relays commands and telemetry drone to drone so one can work beyond the base link: size the hop from a link budget on ESP-NOW, Wi-Fi Direct, Wi-Fi mesh, BLE, LoRa or Wi-Fi HaLow, place the relay slots and spares, fail a relay in a simulated scenario and read how long the tip was out of reach and when the chain closed the gap and was restored — with the on-board and controller rules a companion firmware carries, and the signed, source-routed envelope shown hop by hop. |
+| **Embodied Swarm** | [`embodied/`](embodied/) | 0.20.1 | ready | Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. |
 | **Hello OSHAL** | [`hello-oshal/`](hello-oshal/) | 1.2.3 | ready | The minimal working example — one route, one ribbon tile. |
 | **Intelligent Operations** | [`intelligent-operations/`](intelligent-operations/) | 1.1.1 | ready | Review incident tickets and check alert source formats in the Operations workspace. |
 | **Intelligent Processing** | [`intelligent-processing/`](intelligent-processing/) | 1.0.1 | ready | A queue for self-monitoring alerts that need a root cause, run on Intelligent Operations' RCA pipeline. |

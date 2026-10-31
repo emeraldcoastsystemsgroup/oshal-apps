@@ -18,6 +18,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: inbox list (receivedDateTime window, clamped $top, @odata.nextLink followed only on graph.microsoft.com and only up to the cap), one message with a text-body preference, today's calendarView and the caller's own address, all normalized to MailSummary.
  *
  * @module outlook-mailbox
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | pageOutlookInbox: one Graph page of the inbox ($top = the page size) with its nextLink as the cursor for the next, so the Inbox can page a Microsoft 365 mailbox; a cursor is followed only when safeNextLink accepts it. listOutlookInbox (digest, search) is unchanged.
  */
 
 import type { summarizeGmailMetadata } from '@/app/routes/email-routes';
@@ -208,6 +209,28 @@ export function buildInboxListUrl(sinceIso: string, top: number): string {
  * @param now - Clock seam for the window start.
  * @returns Normalized summaries.
  */
+/**
+ * @description One page of the inbox, newest first: the first Graph page of a receivedDateTime window ($top = the page
+ * size), or the page a nextLink this adapter gave names. The next page's link is returned as an opaque cursor.
+ * @param token - The caller's Graph token (unused under the kernel egress, which applies its own).
+ * @param options - The window in days, the page size and the cursor to continue from.
+ * @param fetchImpl - The fetch to use.
+ * @param now - The clock (tests).
+ * @returns The page's messages and the cursor for the next page, null at the end.
+ */
+export async function pageOutlookInbox(
+  token: string, options: { days?: unknown; max?: unknown; page?: unknown }, fetchImpl: FetchLike, now: Date = new Date(),
+): Promise<{ messages: MailSummary[]; next: string | null }> {
+  const max = clampListSize(options.max);
+  if (options.page !== undefined && options.page !== '' && !safeNextLink(options.page)) throw new GraphRequestError(400, 'page cursor is not a Graph inbox link');
+  const since = new Date(now.getTime() - clampDays(options.days) * 86_400_000).toISOString();
+  const data = await graphGet(token, safeNextLink(options.page) ?? buildInboxListUrl(since, max), fetchImpl);
+  const rows = Array.isArray(data.value) ? data.value : [];
+  const messages = rows.map(normalizeGraphMessage).filter((m) => m.id).slice(0, max)
+    .sort((a, b) => (Number(b.internalDate) || 0) - (Number(a.internalDate) || 0));
+  return { messages, next: safeNextLink(data['@odata.nextLink']) };
+}
+
 export async function listOutlookInbox(
   token: string, options: { days?: unknown; max?: unknown }, fetchImpl: FetchLike, now: Date = new Date(),
 ): Promise<MailSummary[]> {

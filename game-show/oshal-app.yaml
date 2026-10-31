@@ -10,6 +10,8 @@
 # 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | Declare migrations/002-game-show-seat-key.sql (no version bump): AI and house podiums keep their identity in seat_key with a NULL user_sub, because the native kernel refuses a synthetic subject in an owner field.
 # 2026-10-11 00:00:01 | maintainer@emeraldcoastsystemsgroup.com    | Declare migrations/003-game-show-podiums.sql (no version bump): AI and house podiums move to their own table, because on the native kernel a NULL owner is filled with the caller and collides with the host's seat under uq_gameshow_seat.
 # 2026-10-30 00:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.11.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
+# 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.12.0: a person can now play against the computer. A show poster is one press to a running game; you play at your own seat (POST /seat role: player), which removes the two permanent freezes; the dock says what happened and what to do; the broadcast set stays dark under every theme; the game ends with the winner and Play again. No schema or authorization change.
+# 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.12.1-0.12.7, the live test of 0.12.0: clues, the dock and the lobby fit the screen; every Jeopardy column fits a phone; PRESS holds its place; Wheel pods show the running total; the opening titles no longer eat a person's first chance to buzz; the keyboard is in the answer box when it appears; a phone clicker waits while the host judges, so a second answer is not dropped. 0.12.8: the store gate runs the browser guards; README, description and this log follow.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Game Show (AI game night, live at the table or across phones)
@@ -65,9 +67,10 @@ rating:
       degrade: disable
 displayName: Game Show
 description: >-
-  AI game night that plays like the real TV show. A host opens a room, everyone
-  joins from their phone and takes a podium — shown as their own camera, an avatar,
-  or just a name, their call — and the AI host runs the whole broadcast: a survey
+  AI game night that plays like the real TV show. Press a show to play against
+  computer players right away, or host for friends: everyone joins from their phone
+  and takes a podium — shown as their own camera, an avatar, or just a name, their
+  call — and the AI host runs the whole broadcast: a survey
   generated on the fly, a buzzer race to answer, strikes and steals, a contestant
   interview you actually answer, and cutaway shots (team huddle, audience pan,
   celebration) on the big screen. Watch on a TV and buzz on your phone — say your
@@ -75,7 +78,7 @@ description: >-
   with the rehearsal view. Four shows ship on the one modular engine: Family Feud
   (with Fast Money), Jeopardy (with Double Jeopardy), Wheel of Fortune, and Whammy;
   the host can also play their OWN questions, no AI required.
-version: 0.11.6
+version: 0.12.8
 
 testing:
   version: 1

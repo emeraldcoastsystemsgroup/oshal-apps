@@ -11,6 +11,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=2g,mode=1777
+    # Reports, trained policies and certificates survive a recreate; a training run is hours of a person's work.
+    volumes:
+      - reports:/var/lib/embodied/reports
     cap_drop:
       - ALL
     security_opt:
@@ -85,3 +88,6 @@ networks:
   oshal:
     external: true
     name: ${OSHAL_NETWORK:-oshal-local_oshal}
+
+volumes:
+  reports:

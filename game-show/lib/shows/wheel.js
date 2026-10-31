@@ -5,12 +5,14 @@
  * -----------------------------------------------------------------------------
  * 2026-07-24 10:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Wheel of Fortune — the third show, and the first turn-based one (no buzzer race): a spin resolved server-side, consonants earned per spin, bought vowels, and a solve that rides the shared /answer judge rail with a free local exact-match short-circuit. Deliberately unlike Feud (teams/strikes) and Jeopardy (ring-in/wagers) to keep proving the Show interface is general.
  * 2026-07-26 09:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | npcMove — the Wheel NPC brain: on its turn it spins, calls consonants from the puzzle the server holds (skill decides hit rate and letter quality), buys a vowel when flush, and solves once enough of the board is up (sharp solves early, wild hangs on). No LLM; the solve rides the existing {correct} judge shape.
+ * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | A solved round no longer counts the round banks in the standings: the solver's money was counted twice and every loser kept theirs, so the wrong player could lead and win. The open names the category, and AI podiums leave a seated person the first spin.
  */
 
 'use strict';
 
 const director = require('../director');
 const interview = require('../interview');
+const { FIRST_MOVE_HOLD_MS } = require('../npc');
 
 const ID = 'wheel';
 const DEFAULT_ROUNDS = 3;
@@ -490,6 +492,8 @@ function npcMove(state, actor, ctx = {}) {
   const prof = ctx.profile || {};
   const board = state.board || {};
   if (board.control && board.control !== actor.seatId) return null;   // not this bot's wheel
+  // Nobody holds the wheel yet: the first spin is the seated person's to take.
+  const firstHold = !board.control && (ctx.humans || []).length ? FIRST_MOVE_HOLD_MS : 0;
   // A pending spin means a consonant is owed before anything else.
   if (board.spin && board.spin.value != null) {
     const paying = consonantsInPuzzle(board);
@@ -514,7 +518,7 @@ function npcMove(state, actor, ctx = {}) {
   if (vowelsLeft.length && bankOf(board, actor.seatId) >= VOWEL_COST && ctx.roll('vowel') < 0.35) {
     return { action: { type: 'buyVowel', letter: vowelsLeft.sort((a, b) => countLetter(board.puzzle, b) - countLetter(board.puzzle, a))[0] } };
   }
-  return { action: { type: 'spin' } };
+  return { action: { type: 'spin' }, hold: firstHold };
 }
 
 /**
@@ -536,7 +540,8 @@ function spokenPrompt(mode, state, payload = {}, ctx = {}) {
   const who = payload.name ? ' The contestant is ' + payload.name + '.' : '';
   const solvedLine = state.board && state.board.solved ? ' The puzzle was "' + state.board.puzzle + '".' : '';
   const map = {
-    intro: 'MODE: intro. Welcome the room to Wheel of Fortune, tease the category, and invite the first spin.' + who,
+    intro: 'MODE: intro. Welcome the room to Wheel of Fortune, tease the category, and invite the first spin.' + who
+      + (state.board && state.board.category ? ' The category is "' + state.board.category + '"; never hint at the puzzle itself.' : ' The category is not drawn yet; do not name one.'),
     banter: 'MODE: banter. One quick host line for this moment at the wheel.' + who + ' ' + context,
     reveal: 'MODE: reveal. React to the letters (or the solve) that just landed.' + who + ' ' + context,
     strike: 'MODE: strike. Sell the bad spin or the miss kindly — keep them in it.' + who + ' ' + context,
@@ -562,7 +567,8 @@ function scoreboard(state, seats = []) {
   const banks = (state.board || {}).banks || {};
   return (seats || []).filter((s) => s.role !== 'host').map((s) => {
     const id = s.seatId || s.seat_id;
-    const bank = Number(banks[id]) || 0;
+    // A solved round already paid the solver into scores; what the others held is gone.
+    const bank = (state.board || {}).solved ? 0 : (Number(banks[id]) || 0);
     return { seatId: id, name: s.display_name || s.name || 'Player', team: null, score: (Number((state.scores || {})[id]) || 0) + bank, bank };
   }).sort((a, b) => b.score - a.score);
 }
