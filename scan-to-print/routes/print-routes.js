@@ -176,6 +176,22 @@ function registerSettings(router, deps) {
         const body = (req.body ?? {});
         try {
             const printerId = (0, data_dir_1.requireUuid)(req.params.printerId);
+            if (body.accessCode !== undefined) {
+                const code = typeof body.accessCode === 'string' ? body.accessCode.trim() : '';
+                if (!code || code.length > 64)
+                    throw new RangeError('accessCode is the code on the printer\'s screen');
+                const ciphertext = await (0, personal_data_1.encryptField)(req.scanSub, code);
+                if (!ciphertext || !(0, personal_data_1.isEncrypted)(ciphertext))
+                    throw new Error('Printer key encryption failed closed');
+                const replaced = await (0, job_store_1.updatePrinterKey)(deps.pool, req.scanSub, printerId, ciphertext);
+                if (!replaced) {
+                    res.status(404).json({ error: 'printer_not_found' });
+                    return;
+                }
+                logger.info({ printerId }, 'Printer access code replaced');
+                res.json({ printer: replaced });
+                return;
+            }
             const change = (0, printer_registration_1.parseSettingsChange)(body);
             if (change.needsConfirm) {
                 res.status(428).json((0, explicit_write_confirmation_1.confirmationRequiredPayload)('scan-to-print.auto-start', 'Letting jobs sent by agents and apps start this printer without a click'));
@@ -329,6 +345,10 @@ function registerPrint(router, deps) {
         catch (error) {
             if (error instanceof RangeError) {
                 res.status(400).json({ error: 'invalid_request', message: error.message });
+                return;
+            }
+            if (error instanceof print_service_1.PrinterKeyUnreadable) {
+                res.status(409).json({ error: 'printer_key_unreadable', message: error.message });
                 return;
             }
             logger.error({ err: error, jobId: job?.job_id }, 'Print submission failed');

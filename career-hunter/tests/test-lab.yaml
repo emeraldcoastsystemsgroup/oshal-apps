@@ -28,6 +28,7 @@
 # 24 | maintainer@emeraldcoastsystemsgroup.com | Register native-read-facts: the specialist facts count the board's first page without running the board ranking, which timed out the kernel's 3 s specialist deadline.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | Register local mapped search, account memory, configuration, private LinkedIn leads and real SQLite source-delta/community-feed contracts.
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: Resume Studio and Profile Studio save unsaved edits before an assistant reads, carry the record id and revision, show the assistant's saved change on refresh and keep a draft the person is still editing.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | 1.29.4: register career-published-db-portable.
 version: 1
 cases:
   - id: package-readiness
@@ -705,6 +706,32 @@ cases:
       mode: disposable
       fixtures: [tests/career-engine-pythonpath.test.mjs]
       cleanup: The suite removes its temporary engine stand-in and records directory.
+    sideEffects: none
+    prerequisites: []
+    installation: never
+  - id: career-published-db-portable
+    name: A person database opens read-only after the engine closes it
+    purpose: Prove a first match leaves a file the read-only reader can open.
+      The native kernel's package sandbox names its pinned, read-only Python package runtime on PYTHONPATH. Run the
+      REAL bin/oshal-jobhunter.js with a stand-in engine (JOBHUNTER_PYTHON) that records the PYTHONPATH it was started
+      with, and the COMPILED runner's child environment builder. Scoped doubles: the kernel logger and the user-store
+      path leaf. The real sandbox and the real engine are the kernel's package-sandbox test and its bridge run.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-published-db-portable.test.mjs
+    expected:
+      - The closed file is in rollback-journal mode and opens from a read-only directory.
+      - The next writer turns WAL back on.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 256
+    isolation:
+      mode: disposable
+      fixtures: [tests/career-published-db-portable.test.mjs]
+      cleanup: The suite removes its temporary data directory.
     sideEffects: none
     prerequisites: []
     installation: never

@@ -252,6 +252,16 @@ export async function updatePrinterSettings(
   return (rows[0] as PrinterRow | undefined) ?? null;
 }
 
+/**
+ * @description Replace a printer's stored key; its identity and settings stay as they are.
+ * @param pool - Pool. @param sub - Owner. @param printerId - Printer. @param ciphertext - The sealed key.
+ * @returns The printer, or null when it is not the caller's.
+ */
+export async function updatePrinterKey(pool: QueryablePool, sub: string, printerId: string, ciphertext: string): Promise<PrinterRow | null> {
+  const { rows } = await pool.query(`UPDATE scan_print_printer SET api_key_ciphertext = $3, updated_at = now() WHERE owner_sub = $1 AND printer_id = $2 RETURNING ${PRINTER_COLUMNS}`, [sub, printerId, ciphertext]);
+  return (rows[0] as PrinterRow | undefined) ?? null;
+}
+
 /** @description One printer WITH its ciphertext — only the upload and status paths call this. */
 export async function getPrinterWithKey(pool: QueryablePool, sub: string, printerId: string): Promise<(PrinterRow & { api_key_ciphertext: string }) | null> {
   const { rows } = await pool.query(`SELECT ${PRINTER_COLUMNS}, api_key_ciphertext FROM scan_print_printer WHERE owner_sub = $1 AND printer_id = $2`, [sub, printerId]);

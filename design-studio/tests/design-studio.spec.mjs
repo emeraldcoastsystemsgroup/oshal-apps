@@ -338,7 +338,8 @@ test('the hanger: one CAD Studio box part bound to Design gives a one-file print
   const id = created.json.project.id;
   assert.equal((await api('POST', `/projects/${id}/bind`, { phase: 'design', artifact: { engine: 'cad-studio', kind: 'cad-models', modelIds: [f.cadBoxId] } })).status, 201);
   await goto(`#/product/${id}`);
-  assert.equal(await stage('design'), 'parts-complete'); assert.match(await text('#design-stage'), /^parts-complete · 1 of 1 bound parts built · Hook r1$/);
+  // Built is not designed: a bare box reads blocks (seen on the owner's printer: a plain block had read parts-complete). It can still be fabricated.
+  assert.equal(await stage('design'), 'blocks'); assert.match(await text('#design-stage'), /^blocks · 1 of 1 bound parts is a plain block with no features \(Hook\)/); assert.equal(await text('#act-design'), 'Open in CAD Studio');
   assert.equal(await stage('fabricate'), 'printable'); assert.match(await text('#fabricate-stage'), /^printable · 1 of 1 the bound CAD Studio parts have a program · no print set made yet · 1 printer registered · none chosen in Settings$/);
   const made = await makeSet();
   assert.deepEqual(made.states, [`${f.cadBoxId}:exported`]); assert.match(made.result, /^1 of 1 parts exported watertight · manifest sha256 [0-9a-f]{64}$/);
@@ -370,7 +371,7 @@ test('the hanger: one CAD Studio box part bound to Design gives a one-file print
   await page.click('#act2-fabricate'); await page.locator('#send-dialog[open]').waitFor({ timeout: 5000 });
   await page.check('#send-plate'); await page.click('#send-dialog button[value="send"]');
   await page.locator('.toast').filter({ hasText: /is on Bench P1S: Uploaded; auto-start is off for this printer, start it on the printer\./ }).waitFor({ timeout: 10000 });
-  await page.locator('#poster-fabricate').filter({ hasText: /1 file sent to Bench P1S \(the last one waits on the printer\)/ }).waitFor({ timeout: 10000 });
+  await page.locator('#poster-fabricate').filter({ hasText: /1 file on Bench P1S \(the last one waits on the printer\)/ }).waitFor({ timeout: 10000 });
   assert.deepEqual(f.prints, [{ printerId: 'prn-1', name: `the-hanger-${f.cadBoxId}.stl`, bytes: f.cadStl.get(f.cadBoxId).length, sha256: part.sha256 }], 'the print service got the set\'s bytes for the chosen printer');
   const sent = (await api('GET', `/projects/${id}/print-set`)).json.sent;
   assert.deepEqual(sent.map((x) => [x.file, x.printerId, x.printerLabel, x.submissionId, x.uploaded, x.started]), [[`${f.cadBoxId}.stl`, 'prn-1', 'Bench P1S', 'sub-1', true, false]]);
@@ -546,7 +547,7 @@ test('the design partner\'s engine orders run from the open page: a part built a
   const contract = await api('POST', `/projects/${id}/orders`, { action: 'read', input: { what: 'cad-contract' } });
   assert.equal(contract.status, 201); assert.equal(contract.json.order.status, 'done');
   assert.deepEqual(contract.json.order.result.reply.contract.bases, { box: 'sizeX, sizeY, sizeZ' });
-  const part = await api('POST', `/projects/${id}/orders`, { action: 'cad-create', input: { name: 'Hook', base: { kind: 'box', sizeX: 30, sizeY: 20, sizeZ: 10 }, features: [] } });
+  const part = await api('POST', `/projects/${id}/orders`, { action: 'cad-create', input: { name: 'Hook', base: { kind: 'box', sizeX: 30, sizeY: 20, sizeZ: 10 }, features: [{ id: 'f1', type: 'hole', params: { diameter: 5 } }] } });
   assert.equal(part.status, 201); assert.equal(part.json.order.status, 'done', JSON.stringify(part.json.order.result));
   assert.equal(part.json.order.result.design.bound, true);
   const modelId = part.json.order.result.modelId;

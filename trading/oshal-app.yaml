@@ -1,4 +1,10 @@
 # CHANGE LOG
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 1.48.3: Quant desk industry names that fit what they hold, such as Builders & contractors and Oil majors & refining, and JPMorgan keeps its industry although its SEC record is too large to read.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | 1.48.2: the history test's first limit no longer treats a gap above SPY as the warning sign. On the wider pool the list trails SPY, and the missing failed companies still flatter every signal.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 1.48.1: a Quant desk read that fails gets a second try once the sweep ends. ADP, CME, ENB and LH were marked as having no data on the first full read and read fine a minute later.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | 1.48.0: Roger asked to widen what the Quant desk assesses. It now reads about 3,400 names: the largest listed companies, every name members of Congress have disclosed trading, and themes such as mining, metals, uranium and crypto. Own storage, because the old write read the whole table each time; passes of 12 seconds once a minute, because Trading serves one call at a time and a long pass would hold up the stop watcher.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | 1.47.5: the Quant desk's buttons say what they did. Both worked for Roger, but the repaint wiped the message and all he saw was a flicker.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | 1.47.4: the watcher starts when anything is activated. Activating live trading or watcher exits starts the job that acts on them, and opening the page restarts one the kernel suspended while an approval is active. A job the person deactivated on purpose stays off.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | 1.47.3: the Quant desk paces its price reads to 75 a minute, so it cannot crowd out the watcher on Schwab's shared request limit.
 # 26 | maintainer@emeraldcoastsystemsgroup.com | 1.47.2: the market condition measures the average stock and the momentum leaders, because SPY read 3% off its high while the leaders were 40-50% off theirs; a strong rank far below its high carries a caution; the chart shows the leading signal with and without the biggest winners.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | 1.47.1: from the first run on real prices. A signal resting on a list's eventual winners reads Promising, not Holds up: 12-month momentum fell from 63% to 23% a year without the biggest winners. The list is led by the signal with the best evidence, not the composite, which failed its own test. The 2022 row is the months actually held in 2022, and a bad old candle retries a shorter window.
@@ -120,7 +126,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.47.3
+version: 1.48.3
 status: active
 
 source:
@@ -736,9 +742,10 @@ tools:
     type: api
     category: trading
     description: >-
-      Tonight's ranked stock list: how the market looks, the top 20 and weakest 5 with their score, reasons and
-      cautions, where each of the caller's holdings ranks, and the history-test verdict on the ranking itself.
-      A ranking is research, not a buy or sell instruction. Read-only and owner-scoped. Input: {}.
+      Tonight's ranked stock list across the whole pool: how the market looks, what the pool holds, the top 20 and
+      weakest 5 with their score, reasons and cautions, where each of the caller's holdings ranks, the history-test
+      verdict on the ranking itself, and the industries and themes it can be narrowed to. A ranking is research, not
+      a buy or sell instruction. Read-only and owner-scoped. Input: {}.
     executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/today?view=brief" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -747,6 +754,27 @@ tools:
       properties: {}
     usageInstructions: Call for which stocks look strong or weak, where the person's holdings rank, or how the market looks. If ready is false, call trading_quant_run.
     routingTags: [trading, quant, ranking, stocks]
+    skills: [trading]
+    tags: [intelligent-trades]
+
+  - name: trading_quant_group
+    displayName: Quant Desk Group
+    type: api
+    category: trading
+    description: >-
+      The same ranked list narrowed to one industry or theme: its top 20 and weakest 5 with their rank among the whole
+      pool, score, reasons and cautions. Group names come from trading_quant_today, for example Gold & silver, Uranium &
+      nuclear, Crypto stocks, Crypto funds, Traded by Congress or Banks. Read-only and owner-scoped. Input: {group}.
+    executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/today?view=brief&group={input.group}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      required: [group]
+      properties:
+        group: { type: string, description: "an industry or theme name exactly as trading_quant_today lists it" }
+    usageInstructions: Call when the person asks about an industry, a niche or a theme, or what Congress has been trading.
+    routingTags: [trading, quant, ranking, industry, theme]
     skills: [trading]
     tags: [intelligent-trades]
 
@@ -879,6 +907,7 @@ migrations:
   - migrations/010-report-presenter-media.sql
   - migrations/011-native-account-values.sql
   - migrations/012-native-quant-desk.sql
+  - migrations/013-native-quant-pool.sql
 
 routes:
   - module: routes/home-summary.js
@@ -972,7 +1001,7 @@ schedules:
     description: Paper autopilot tick - multi-timeframe decisions from kernel prices, simulated fills in your own paper book (never a broker order).
     offer: Run my paper trading autopilot every five minutes while the US market is open.
   - id: quant-desk
-    cron: "*/5 17-19 * * 1-5"
+    cron: "* 17-23 * * 1-5"
     timezone: America/New_York
     runsAs: user
     target: service-route
@@ -980,7 +1009,7 @@ schedules:
     method: POST
     body: {}
     timeoutSeconds: 60
-    description: Quant desk - score your stock list after the close from your Schwab daily prices and grade earlier picks against SPY (research only, never an order).
+    description: Quant desk - after the close, score a pool of about 3,400 stocks from your Schwab daily prices in short passes, one a minute, and grade earlier picks against SPY (research only, never an order).
     offer: Score my stock list every evening after the market closes and keep the record of its picks.
   - id: futures-research
     cron: "15 2 * * 2-6"

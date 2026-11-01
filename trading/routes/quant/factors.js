@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | A wider pool brings thinly traded names whose wild swings would crowd the top of every list. A stock now has to trade at least $5 million a day to be ranked, today and in every month of the history test, judged only on what was known then. Dollar volume is used because a stock split changes price and share count together and leaves it alone. Monthly rows drop the columns no signal reads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Ties break by symbol, so a result never depends on the order records were read in.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk's price factors: fixed published definitions, never fitted, computed only from closes up to the day they are dated. A history row's forward return starts at the session after the signal, so no test can trade on a price it could not have seen.
  */
@@ -10,9 +11,13 @@ const MIN_SESSIONS = 253;
 const RECENT_SESSIONS = 320;
 /** A one-day move this large is treated as a data problem, not a return. */
 const GLITCH = 0.75;
+/** The least a stock must trade a day, in dollars, to be ranked or tested. Fixed in advance, not fitted. */
+const MIN_DOLLAR_VOLUME = 5000000;
+/** Sessions the typical day's trading is measured over. */
+const VOLUME_SESSIONS = 63;
 
 /** The columns of one monthly history row, in order. */
-const MONTH_COLUMNS = Object.freeze(['date', 'mom12', 'mom6', 'mom3', 'rev1', 'vsMa200', 'trend', 'fromHigh', 'vol', 'fwd']);
+const MONTH_COLUMNS = Object.freeze(['month', 'mom12', 'rev1', 'vsMa200', 'fromHigh', 'vol', 'fwd']);
 
 /**
  * @description The signals tested on history and tracked forward. Each is scored higher-is-better from one factor row.
@@ -106,22 +111,38 @@ function hasGlitch(c, from, to) {
 }
 
 /**
+ * @description The typical day's trading in dollars: the median over the sessions ending at an index, using nothing later.
+ * @param {number[]} c - Closes.
+ * @param {number[]} v - Share volumes.
+ * @param {number} i - Last index.
+ * @returns {number} Dollars a day.
+ */
+function dollarVolumeAt(c, v, i) {
+  const days = [];
+  for (let k = Math.max(0, i - VOLUME_SESSIONS + 1); k <= i; k += 1) days.push(c[k] * v[k]);
+  days.sort((a, b) => a - b);
+  return days[Math.floor(days.length / 2)];
+}
+
+/**
  * @description Monthly history rows. The signal is the last session of a month; the position is entered at the next
- * session's close and held to the close of the first session of the following month.
+ * session's close and held to the close of the first session of the following month. A month the stock traded too
+ * little to be ranked has no row, so the test only ever holds what the list could have held then.
  * @param {string[]} dates - Session dates.
  * @param {number[]} c - Closes.
+ * @param {number[]} v - Share volumes.
  * @returns {Array<Array<string|number|null>>} Rows in MONTH_COLUMNS order, with a null forward return where it is not known yet.
  */
-function monthlyRows(dates, c) {
+function monthlyRows(dates, c, v) {
   const ends = [];
   for (let i = 0; i < dates.length - 1; i += 1) if (dates[i].slice(0, 7) !== dates[i + 1].slice(0, 7)) ends.push(i);
   const rows = [];
   for (let m = 0; m < ends.length; m += 1) {
     const i = ends[m], f = factorsAt(c, i);
-    if (!f) continue;
+    if (!f || dollarVolumeAt(c, v, i) < MIN_DOLLAR_VOLUME) continue;
     const entry = i + 1, exit = m + 1 < ends.length ? ends[m + 1] + 1 : null;
     const fwd = exit == null || hasGlitch(c, entry, exit) ? null : c[exit] / c[entry] - 1;
-    rows.push([dates[i], round(f.mom12), round(f.mom6), round(f.mom3), round(f.rev1), round(f.vsMa200), f.trend, round(f.fromHigh), round(f.vol), round(fwd, 5)]);
+    rows.push([dates[i].slice(0, 7), round(f.mom12), round(f.rev1), round(f.vsMa200), round(f.fromHigh), round(f.vol), round(fwd, 5)]);
   }
   return rows;
 }
@@ -129,7 +150,7 @@ function monthlyRows(dates, c) {
 /**
  * @description One symbol's stored digest from Schwab daily candles: recent closes and its monthly history rows.
  * @param {string} symbol - Ticker.
- * @param {Array<{t:number,c:number}>} bars - Daily candles (t in epoch seconds).
+ * @param {Array<{t:number,c:number,v:number}>} bars - Daily candles (t in epoch seconds).
  * @param {string} latest - The last completed session; anything newer is an unfinished bar and is dropped.
  * @returns {object|null} The digest, or null when no usable candle remains.
  */
@@ -137,16 +158,16 @@ function digestBars(symbol, bars, latest) {
   const byDate = new Map();
   for (const bar of bars) {
     const close = Number(bar.c), date = new Date(Number(bar.t) * 1000).toISOString().slice(0, 10);
-    if (close > 0 && date <= latest) byDate.set(date, close);
+    if (close > 0 && date <= latest) byDate.set(date, [close, Number(bar.v) || 0]);
   }
   const dates = [...byDate.keys()].sort();
   if (!dates.length) return null;
-  const closes = dates.map((d) => byDate.get(d));
+  const closes = dates.map((d) => byDate.get(d)[0]), volumes = dates.map((d) => byDate.get(d)[1]);
   const tail = Math.max(0, dates.length - RECENT_SESSIONS);
   return {
-    symbol, asOf: dates.at(-1), first: dates[0], sessions: dates.length,
+    symbol, asOf: dates.at(-1), first: dates[0], sessions: dates.length, dollarVolume: Math.round(dollarVolumeAt(closes, volumes, closes.length - 1)),
     recent: { d: dates.slice(tail), c: closes.slice(tail) },
-    monthly: monthlyRows(dates, closes),
+    monthly: monthlyRows(dates, closes, volumes),
   };
 }
 
@@ -161,6 +182,7 @@ function currentFactors(digest, session) {
   if (d.at(-1) !== session) return { factors: null, excluded: 'no-price-for-session' };
   if (c.length < MIN_SESSIONS) return { factors: null, excluded: 'too-new' };
   if (hasGlitch(c, c.length - 252, c.length - 1)) return { factors: null, excluded: 'price-jump' };
+  if (!(digest.dollarVolume >= MIN_DOLLAR_VOLUME)) return { factors: null, excluded: 'thinly-traded' };
   return { factors: factorsAt(c, c.length - 1), excluded: null };
 }
 
@@ -195,4 +217,4 @@ function addComposite(rows) {
   return rows;
 }
 
-module.exports = { MIN_SESSIONS, RECENT_SESSIONS, MONTH_COLUMNS, PRICE_SIGNALS, COMPOSITE_PARTS, round, average, volatility, factorsAt, hasGlitch, monthlyRows, digestBars, currentFactors, percentiles, addComposite };
+module.exports = { MIN_SESSIONS, RECENT_SESSIONS, MIN_DOLLAR_VOLUME, MONTH_COLUMNS, PRICE_SIGNALS, COMPOSITE_PARTS, round, average, volatility, factorsAt, hasGlitch, dollarVolumeAt, monthlyRows, digestBars, currentFactors, percentiles, addComposite };

@@ -490,7 +490,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. Any document in the swarm can be sent here (ADR-139 Send to…) and absorbed into your profile. Single-tenant, multi-user (per-user isolation); multi-tenant ready.",
-      "version": "1.29.3",
+      "version": "1.29.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1374,7 +1374,7 @@
       "suite": "ai-productivity",
       "displayName": "Intelligent Communication",
       "description": "Your inbox, calendar, social channels and day in one surface. Reads the signed-in user's own connected Gmail + Google Calendar or Outlook / Microsoft 365 mail + calendar, builds a prioritized \"My Day\" digest, drafts replies with the communications bot, and publishes to the person's own X, LinkedIn, Facebook Page, Slack and Mastodon accounts from a Buffer-style desk: write once, customize per channel, add to the queue, schedule or post now, answer Slack and X mentions in place, and announce a live stream on every channel. Sending mail is a single explicit-confirm gated action; every social publish goes out on the person's own connection through the kernel. The bot does the reasoning on its own harness/model with cost captured per user.",
-      "version": "1.6.1",
+      "version": "1.6.2",
       "theme": "gray",
       "dependencies": {
         "apps": [],
@@ -1502,7 +1502,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.47.3",
+      "version": "1.48.3",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -2432,7 +2432,7 @@
       "suite": "ai-engineering",
       "displayName": "Scan to Print",
       "description": "Scans and 3D-prints objects. 3D printers only; it cannot print paper documents. Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer (sliced for that printer by a bundled OrcaSlicer engine and sent over your home network). The same printers are a swarm print service any agent or app can call, starting a print on its own only on printers where you turned auto-start on. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
-      "version": "0.7.1",
+      "version": "0.7.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2503,7 +2503,7 @@
       "suite": "ai-engineering",
       "displayName": "Design Studio",
       "description": "The design-to-build process as one application, for anything. A product is a brief plus a chain of phases (brief, design, mechanical, electrical, sensors, controller, simulate, fabricate, build), each bound to the engine that produces its artifact (CAD Studio, Circuit Lab, embodied's plant and gate, the print service) or marked reasoned when no engine here solves it. Every phase is a poster whose stage is read from the engine when the page opens and never stored, with one button; a phase closes on a measured verdict recorded with the engine's evidence line and the artifact revision. The design partner on the right rail works through the chain with you. The spider is the first product.",
-      "version": "0.4.4",
+      "version": "0.4.6",
       "dependencies": {
         "apps": [],
         "tools": [],

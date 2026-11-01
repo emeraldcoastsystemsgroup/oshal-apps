@@ -1,10 +1,13 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The list is read a page at a time, filtered by industry, theme or search and ranked by any signal, and a name left off the list says why. The status read no longer loads the whole list.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The brief list names the signal it is ranked by and that signal's verdict, and the brief scoreboard carries the test without the biggest winners.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk surface, mounted at /api/trading/quant inside the existing Trading route so no authority field changes: read the list, a symbol and the scoreboard, turn the nightly job on or off, and run one bounded pass. The caller is the admitted principal, never a header or body field. Research only.
  */
 'use strict';
 const desk = require('./desk');
 const store = require('./store');
+const { explain } = require('./rank');
+const { screenPage, briefPage, whyNotListed } = require('./view');
 
 /** The package's person schedule the page activates once the person turns the desk on. */
 const QUANT_SCHEDULE = Object.freeze({ app: 'intelligent-trades', name: 'quant-desk', route: '/api/trading/quant/tick' });
@@ -36,12 +39,22 @@ function callerOf(req) {
 }
 
 /**
- * @description A short row for the concierge: enough to explain a rank without the raw factor table.
- * @param {object} row - A list row.
- * @returns {object} The brief row.
+ * @description The list as the concierge reads it. Groups are named so it can offer them, and a group or search narrows the rows.
+ * @param {object} today - The published summary.
+ * @param {Array<object>} rows - Stored rows.
+ * @param {object|null} history - Stored history test.
+ * @param {object} query - {group, q}.
+ * @returns {object} The brief answer.
  */
-function briefRow(row) {
-  return { rank: row.rank, symbol: row.symbol, score: row.score, price: row.price, chg1d: row.chg1d, held: row.held, reasons: row.reasons, cautions: row.cautions };
+function briefToday(today, rows, history, query) {
+  const leader = history && history.signals.find((s) => s.id === today.rankBy);
+  const filter = { group: query.group, q: query.q };
+  const list = briefPage(today, rows, filter, { top: BRIEF_TOP, bottom: BRIEF_BOTTOM });
+  return {
+    ok: true, ready: true, researchOnly: true, session: today.session, at: today.at, scored: today.scored, market: today.market, pool: today.pool,
+    rankedBy: leader ? { id: leader.id, name: leader.name, verdict: leader.verdict } : null, selection: filter.group || filter.q ? { ...filter, matched: list.total } : null, top: list.top, weakest: list.weakest, holdings: today.holdings, coverage: today.coverage,
+    groups: today.groups.map((g) => ({ name: g.name, kind: g.kind, count: g.count, threeMonths: g.threeMonths })),
+  };
 }
 
 /**
@@ -62,9 +75,9 @@ function briefHistory(history) {
  * @returns {Object<string, Function>} Handlers.
  */
 function quantHandlers(ctx, overrides = {}) {
-  const deps = () => ({ ctx, pool: ctx.pool, intent: (name, input) => ctx.intent(name, input), time: () => Date.now(), secTickers: desk.secTickers, readSec: desk.readSecFinancialSummary, ...overrides });
+  const deps = () => ({ ctx, pool: ctx.pool, intent: (name, input) => ctx.intent(name, input), time: () => Date.now(), listedCompanies: desk.listedCompanies, readSec: desk.readSecFinancialSummary, readCompany: desk.readCompany, ...overrides });
   const pool = () => ctx.pool;
-  const settingsOf = async (sub) => (await store.getRecord(pool(), sub, 'settings', 'current')) || { enabled: false };
+  const settingsOf = async (sub) => (await store.getRecord(pool(), sub, 'settings', 'current')) || (await store.oldSettings(pool(), sub)) || { enabled: false };
   return {
     async status(sub) {
       const [settings, state, today] = await Promise.all([settingsOf(sub), store.getRecord(pool(), sub, 'state', 'current'), store.getRecord(pool(), sub, 'today', 'current')]);
@@ -73,18 +86,17 @@ function quantHandlers(ctx, overrides = {}) {
     async today(sub, req) {
       const today = await store.getRecord(pool(), sub, 'today', 'current');
       if (!today) return { status: 200, body: { ok: true, ready: false, researchOnly: true, message: 'The desk has not published a list yet.' } };
-      if ((req.query || {}).view !== 'brief') return { status: 200, body: { ok: true, ready: true, researchOnly: true, ...today } };
-      const history = await store.getRecord(pool(), sub, 'history', 'current');
-      const leader = history && history.signals.find((s) => s.id === today.rankBy);
-      return { status: 200, body: { ok: true, ready: true, researchOnly: true, session: today.session, at: today.at, scored: today.scored, market: today.market, rankedBy: leader ? { id: leader.id, name: leader.name, verdict: leader.verdict } : null, top: today.rows.slice(0, BRIEF_TOP).map(briefRow), weakest: today.rows.slice(-BRIEF_BOTTOM).map(briefRow), holdings: today.holdings, coverage: today.coverage } };
+      const query = req.query || {}, rows = (await store.getRecord(pool(), sub, 'rows', 'current')) || [];
+      if (query.view !== 'brief') return { status: 200, body: { ok: true, ready: true, researchOnly: true, ...screenPage(today, rows, query) } };
+      return { status: 200, body: briefToday(today, rows, await store.getRecord(pool(), sub, 'history', 'current'), query) };
     },
     async symbol(sub, req) {
       const symbol = String(req.params.symbol || '').toUpperCase();
       if (!TICKER.test(symbol)) return { status: 400, body: { error: 'invalid_symbol', message: 'That is not a ticker.' } };
-      const today = await store.getRecord(pool(), sub, 'today', 'current');
-      const row = today && today.rows.find((r) => r.symbol === symbol);
-      if (row) return { status: 200, body: { ok: true, session: today.session, of: today.scored, row } };
-      return { status: 200, body: { ok: true, session: today ? today.session : null, row: null, message: `${symbol} is not on today's list: it may be a fund, too new to have a year of prices, or outside the list.` } };
+      const [today, rows] = await Promise.all([store.getRecord(pool(), sub, 'today', 'current'), store.getRecord(pool(), sub, 'rows', 'current')]);
+      const row = (rows || []).find((r) => r.symbol === symbol);
+      if (row) return { status: 200, body: { ok: true, session: today.session, of: today.scored, row: explain(row) } };
+      return { status: 200, body: { ok: true, session: today ? today.session : null, row: null, message: whyNotListed(symbol, today) } };
     },
     async scoreboard(sub, req) {
       const [history, forward] = await Promise.all([store.getRecord(pool(), sub, 'history', 'current'), store.getRecord(pool(), sub, 'forward', 'current')]);

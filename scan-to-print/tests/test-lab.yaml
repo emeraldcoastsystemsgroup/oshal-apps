@@ -672,6 +672,27 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 256
     installation: never
+  - id: engine-bambu-upload-python
+    name: The Bambu upload from the engine container (self-running)
+    purpose: "engine/tests/test_bambu_upload.py - a native package has no network, so the engine uploads. Over a real local implicit-FTPS server: the bytes arrive, a wrong pin is refused before the access code is sent, a wrong code and a printer without storage are refused by name, no refusal repeats the code."
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - engine/tests/test_bambu_upload.py
+    expected:
+      - "5 tests OK; needs python3 and the openssl command."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback bridge.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
   - id: printing-slicer
     name: Slicer engine client
     purpose: Prove the package and the engine bridge hash the same engine tree the same way (the real bridge run with python3), that a container built from another tree or a stopped engine is refused with the install command before any slice is requested, that a refusal stays a refusal, and that a current engine's archive returns as bytes.

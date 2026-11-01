@@ -85,6 +85,10 @@ perspective: |
   - `design-order-status` — read an order again by id; it waits up to 45 s while the order runs. Read a running order once;
     if it still runs, say it is running and that the poster will show the result, and end the turn. Never poll.
   - After you create a product, order `open` on it so the person sees it; the reply lists every poster's stage and button.
+  - A part is designed for what it does. Never hand over a bare box as a part: a carriage that slides has a bore with
+    clearance, a plate that mounts has holes, parts that join have the features that join them. Build them in the
+    `cad-create` feature list, all at once, because each `cad-edit` costs a tool step and a turn has few. Check each part
+    against the others' sizes, and say what its features are for. A bare box reads `blocks` on the Design poster.
   - Mechanism parts use the `partId` from each `cad-create` reply (`design.partId`). `gearRatio` is motor radians per joint
     radian on a hinge and motor radians per metre of travel on a slide: a rack on a 20 mm pinion is 100. A payload is
     {massKg, attachedTo}. After `design-set-mechanism`, go on to `press` Build the plant in the same turn when asked.

@@ -47,6 +47,7 @@
  *
  * @module email-app-routes
  * 20 | maintainer@emeraldcoastsystemsgroup.com | GET /messages pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A listing without words answers from the copy whenever it is current, over everything the copy holds (`before`/`skip` cursor from `next`, `reach` says how far back it goes, a copy still filling answers what it has), else from the mailbox live with the provider's own page cursor (`page`; Gmail pageToken, Outlook nextLink, Yahoo has one page). A word search is unchanged. The live Gmail metadata reads run ten at a time instead of one after another, so a page of 50 fits the kernel's call. Guard: tests/mail-store.test.cjs.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -72,7 +73,7 @@ import {
 import {
   connectionState, kernelEgress, kernelFetch, kernelSendGmail, kernelSendOutlook, kernelTokenFor, readConnections, summarizeGmail,
 } from './kernel-mail';
-import { listStored, readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
+import { listStored, plantDemoMail, storedMessage, type DemoMail, readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -229,6 +230,7 @@ async function openMailbox(req: Request, res: Response, ctx: AppContext, options
     (provider, err) => logger.error({ err, provider }, 'Mailbox token could not be refreshed'),
   );
   if (connection.token === null) {
+    if (demoMailOn() && !choice.provider && !connection.reconnect) return demoMailbox(ctx, sub);
     if (!choice.provider && !connection.reconnect && options.yahooFallback && ctx.imapMail) return yahooMailbox(ctx.imapMail, sub, true);
     const refusal = { provider: connection.provider, ...missingConnectionBody(connection.provider, connection.reconnect) };
     if (req.query.surface === '1') res.json({ connected: false, ...refusal });
@@ -236,6 +238,29 @@ async function openMailbox(req: Request, res: Response, ctx: AppContext, options
     return null;
   }
   return connection.provider === 'outlook' ? outlookMailbox(connection.token) : gmailMailbox(connection.token);
+}
+
+/** The setting that turns a demo installation's sample mail on; nothing else reads it. */
+function demoMailOn(): boolean {
+  return process.env.EMAIL_DEMO_MAIL === '1';
+}
+
+/** A demo installation's mailbox: the sample rows planted in the stored copy. It has no sync reader and cannot send. */
+function demoMailbox(ctx: AppContext, sub: string): Mailbox {
+  const page = async (_days: number, max: number): Promise<MailPage> => ({ messages: (await listStored(ctx.pool, sub, max)).messages, next: null });
+  return {
+    provider: 'google',
+    list: async (days, max) => (await page(days, max)).messages,
+    page,
+    message: async (id) => {
+      const found = await storedMessage(ctx.pool, sub, id);
+      if (!found) throw new MailboxRefusal(404, 'google', { error: 'not_found', message: 'That sample message is not in this mailbox.' });
+      return found;
+    },
+    eventsToday: async () => [],
+    ownAddress: async () => 'visitor@example.com',
+    send: () => Promise.reject(new MailboxRefusal(403, 'google', { error: 'demo_mail_only', message: 'This is sample mail: nothing is sent from a demo mailbox.' })),
+  };
 }
 
 /** A Yahoo operation the fixed read-only reader does not offer: answered 400, never attempted. */
@@ -575,6 +600,28 @@ function listMessages(ctx: AppContext): RequestHandler {
   };
 }
 
+/** POST /demo-mail — plant sample messages for the caller; 404 unless the installation set EMAIL_DEMO_MAIL. */
+function plantMail(ctx: AppContext): RequestHandler {
+  return async (req, res) => {
+    const sub = callerSub(req);
+    if (!demoMailOn() || !sub) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    const messages = (req.body as { messages?: unknown } | undefined)?.messages;
+    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 50) {
+      res.status(400).json({ error: 'messages_required', message: 'Send 1 to 50 sample messages.' });
+      return;
+    }
+    try {
+      res.json({ ok: true, inserted: await plantDemoMail(ctx.pool, sub, messages as DemoMail[]) });
+    } catch (err) {
+      logger.error({ err }, 'Sample mail could not be planted');
+      res.status(500).json({ error: 'demo_mail_failed' });
+    }
+  };
+}
+
 /** POST /sync — one stored-copy pass for the caller's Gmail (the mail-copy schedule, or "Update now"). */
 function syncMail(ctx: AppContext): RequestHandler {
   return async (req, res) => {
@@ -852,6 +899,7 @@ export function createEmailRoutes(ctx: AppContext): Router {
   router.get('/messages', listMessages(ctx));
   router.get('/message/:id', readMessage(ctx));
   router.post('/sync', syncMail(ctx));
+  router.post('/demo-mail', plantMail(ctx));
   router.get('/sync/status', syncStatus(ctx));
   router.get('/digest', dayDigest(ctx));
 

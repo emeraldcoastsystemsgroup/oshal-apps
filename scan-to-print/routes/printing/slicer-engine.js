@@ -39,6 +39,7 @@ exports.slicerInstallHint = slicerInstallHint;
 exports.parseSlicerAddr = parseSlicerAddr;
 exports.lineAssembler = lineAssembler;
 exports.slicerRequest = slicerRequest;
+exports.uploadThroughEngine = uploadThroughEngine;
 exports.sliceToArchive = sliceToArchive;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_net_1 = __importDefault(require("node:net"));
@@ -54,7 +55,7 @@ exports.DEFAULT_SLICER_ENGINE_ADDR = 'scan-to-print-engine:7414';
 /** @description Environment override for that address. */
 exports.SLICER_ENGINE_ADDR_ENV = 'SCAN_TO_PRINT_ENGINE_ADDR';
 /** @description The files the image bakes that change its answers (mirror of RUNTIME_FILES in the bridge). */
-exports.SLICER_RUNTIME_FILES = ['slicer_worker.py', 'container/slicer_engine_bridge.py', 'container/Dockerfile', 'orcaslicer-lock.txt'];
+exports.SLICER_RUNTIME_FILES = ['slicer_worker.py', 'bambu_upload.py', 'container/slicer_engine_bridge.py', 'container/Dockerfile', 'orcaslicer-lock.txt'];
 /**
  * @description sha256 over the runtime files, each prefixed by its relative name and NUL-framed,
  * CRLF folded to LF (a Windows checkout and the deployed copy of one commit must agree).
@@ -137,6 +138,9 @@ function verifyHello(line, opts) {
     const hello = (msg.bridge && typeof msg.bridge === 'object' ? msg.bridge : {});
     if (hello.protocol !== exports.SLICER_BRIDGE_PROTOCOL)
         return unavailable(`the slicer engine speaks bridge protocol ${field(hello.protocol) ?? 'unknown'}, this package needs ${exports.SLICER_BRIDGE_PROTOCOL}`);
+    // The kernel's sandbox hides the engine's Dockerfile from the package, so its hash of the tree cannot match; the kernel pins this engine.
+    if (opts.exchange)
+        return null;
     if (!opts.expectedBuildHash)
         return unavailable("this package's engine tree could not be read, so the slicer engine build cannot be verified");
     if (hello.buildHash !== opts.expectedBuildHash) {
@@ -217,6 +221,8 @@ function answerOf(line) {
  * @throws SlicerEngineError.
  */
 function slicerRequest(opts, cmd, args) {
+    if (opts.exchange)
+        return nativeRequest(opts, cmd, args);
     if (opts.addrError) {
         const message = `${exports.SLICER_ENGINE_ADDR_ENV} is invalid: ${opts.addrError}`;
         return Promise.reject(new SlicerEngineError('unavailable', message, `${message} — set it to host:port, or unset it for ${exports.DEFAULT_SLICER_ENGINE_ADDR}`));
@@ -277,6 +283,40 @@ function slicerRequest(opts, cmd, args) {
             return false;
         }, (error) => finish(new SlicerEngineError('engine_error', `the slicer engine's answer could not be read (${error.message})`))));
     });
+}
+/** The longest engine.exchange the kernel allows. */
+const NATIVE_MAX_MS = 55_000;
+/** One request through the kernel: the engine's hello and reply arrive together and are verified the same way. */
+async function nativeRequest(opts, cmd, args) {
+    let answer;
+    try {
+        answer = await opts.exchange({ cmd, args }, Math.min(opts.timeoutMs ?? NATIVE_MAX_MS, NATIVE_MAX_MS));
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/deadline/i.test(message))
+            throw new SlicerEngineError('timeout', `the slicer engine did not answer within ${Math.round(NATIVE_MAX_MS / 1000)} s`);
+        throw new SlicerEngineError('unavailable', `the kernel could not reach the slicer engine (${message})`, `the kernel could not reach the slicer engine (${message}) — install or rebuild it: ${opts.installHint}`);
+    }
+    const stale = verifyHello(JSON.stringify(answer?.hello ?? null), opts);
+    if (stale)
+        throw stale;
+    const out = answerOf(JSON.stringify(answer?.reply ?? null));
+    if (out.ok)
+        return out.value;
+    throw out.error;
+}
+/**
+ * @description Upload a sliced archive to a Bambu printer through the engine, on a kernel whose packages have no network. It never starts a print.
+ * @param opts - Engine options with `exchange`.
+ * @param target - Printer host, pinned certificate and access code.
+ * @param fileName - The printer-storage file name.
+ * @param bytes - The archive.
+ * @returns The engine's reply.
+ * @throws SlicerEngineError.
+ */
+function uploadThroughEngine(opts, target, fileName, bytes) {
+    return slicerRequest(opts, 'upload_bambu', { host: target.host, certSha256: target.certSha256, accessCode: target.accessCode, fileName, archive: Buffer.from(bytes).toString('base64') });
 }
 /** @description Build plates the engine slices for (the vendor profiles' curr_bed_type values). */
 exports.BAMBU_PLATES = ['Cool Plate', 'Engineering Plate', 'High Temp Plate', 'Textured PEI Plate', 'Textured Cool Plate', 'Supertack Plate'];

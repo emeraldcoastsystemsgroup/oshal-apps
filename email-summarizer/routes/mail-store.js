@@ -7,6 +7,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com    | The person's own searchable copy of their Gmail (Roger, 2026-10-29: "we shouldn't be hitting the api for emails when we access the tool... we should be storing a local copy of the emails"). A sync pass stores each message's sender, subject, Gmail preview, labels and time (never a body) in oshal_email_messages, new mail first and then older mail back to STORE_DAYS, inside the caller's deadline; a search reads that copy. Native-kernel safe: one-row reads by primary key, plain INSERTs (a duplicate is skipped), no ON CONFLICT, ORDER BY or DISTINCT (sorting is done here), so no statement copies the table into kernel memory.
  * 2   | maintainer@emeraldcoastsystemsgroup.com    | A pass resumes where the last one stopped (Roger's first live passes, 2026-10-29: 290 then only 73 more, still short of the first week). The copy is one contiguous range, oldest_at up to newest_at: a pass reads new mail after newest_at (less OVERLAP_MS), then continues downwards from oldest_at, so it never walks the messages already stored. Before, a pass that had not finished the first week started again from the newest message and re-checked every stored one, so each pass gained less and the copy stalled. A state left by the old passes (no newest_at) resumes from its last run. GET /messages answers from the copy only when the copy reaches back over the window asked for (storeCovers).
  * 3   | maintainer@emeraldcoastsystemsgroup.com    | listStored: one page of the person's inbox from the copy, newest first (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A page is a keyset read: rows received at or before the cursor, in time windows that widen (1, 2, 4 … 32 days) and narrow again when a window holds too many rows, sorted here, light columns only (no search text). The next cursor is the last row's instant plus how many rows at that instant were listed, so a tie is neither dropped nor repeated. No ORDER BY or OFFSET (the native kernel copies a table for those).
+ * 4   | maintainer@emeraldcoastsystemsgroup.com    | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
  */
 /**
  * @module mail-store
@@ -26,6 +27,8 @@ exports.storeCovers = storeCovers;
 exports.parseSearch = parseSearch;
 exports.searchStored = searchStored;
 exports.listStored = listStored;
+exports.plantDemoMail = plantDemoMail;
+exports.storedMessage = storedMessage;
 const DAY_MS = 24 * 3600 * 1000;
 /** How far back the copy reaches. */
 exports.STORE_DAYS = 180;
@@ -387,5 +390,46 @@ async function listStored(db, sub, max, cursor = {}, oldestAt = null, now = Date
         next: more && tail ? { before: new Date(tail.at).toISOString(), skip: atTail } : null,
         reach: new Date(floor).toISOString(),
     };
+}
+/**
+ * @description Plant sample messages in the caller's stored copy and mark the copy complete. A message already
+ * planted is skipped, so a repeat does not duplicate. Only the demo route calls this.
+ * @param db - The caller's store.
+ * @param sub - The owner's subject.
+ * @param messages - The sample messages.
+ * @returns How many rows are new.
+ */
+async function plantDemoMail(db, sub, messages) {
+  const p = { inserted: 0, newestMs: null, oldestMs: null, stopped: false };
+  for (const m of messages) {
+    const internalDate = String(Date.parse(m.receivedAt) || Date.now());
+    const labelIds = m.unread ? ['INBOX', 'UNREAD'] : ['INBOX'];
+    const headers = [{ name: 'From', value: m.from }, { name: 'Subject', value: m.subject }];
+    const row = gmailRow(sub, m.id, { payload: { headers }, snippet: m.snippet, labelIds, internalDate });
+    try {
+      await db.query(INSERT, row.params);
+      p.inserted += 1;
+    } catch (err) {
+      if (!duplicate(err)) throw err;
+    }
+    track(p, row.receivedMs);
+  }
+  const existing = await readRow(db, sub, 'google');
+  await writeRow(db, sub, Boolean(existing), { newest: p.newestMs, oldest: p.oldestMs, done: true, stored: messages.length, pruned: Date.now(), error: null });
+  return p.inserted;
+}
+
+/**
+ * @description One stored message read by id, with its snippet as the body (the copy keeps no bodies).
+ * @param db - The caller's store.
+ * @param sub - The owner's subject.
+ * @param id - The message id.
+ * @returns The message, or null when the caller has no such message.
+ */
+async function storedMessage(db, sub, id) {
+  const r = (await db.query('SELECT message_id, sender, subject, snippet, labels, received_at FROM oshal_email_messages WHERE msg_key = $1', [messageKey(sub, 'google', id)])).rows[0];
+  if (!r) return null;
+  const message = toMessage(r);
+  return { ...message, to: '', body: message.snippet };
 }
 //# sourceMappingURL=mail-store.js.map

@@ -49,7 +49,7 @@ test('the package and the bridge hash the same engine tree the same way', () => 
   }).trim();
   assert.match(ts, /^[0-9a-f]{64}$/);
   assert.equal(ts, py);
-  assert.deepEqual([...client.SLICER_RUNTIME_FILES], ['slicer_worker.py', 'container/slicer_engine_bridge.py', 'container/Dockerfile', 'orcaslicer-lock.txt']);
+  assert.deepEqual([...client.SLICER_RUNTIME_FILES], ['slicer_worker.py', 'bambu_upload.py', 'container/slicer_engine_bridge.py', 'container/Dockerfile', 'orcaslicer-lock.txt']);
   assert.equal(client.slicerEngineBuildHash(path.join(PKG, 'no-such-dir')), null);
 });
 
@@ -191,3 +191,21 @@ test('a slice result of the wrong shape is a typed engine error', async () => {
     } finally { await bridge.close(); }
   }
 });
+
+test('natively the engine is reached through engine.exchange: a slice and an upload, the hello verified, a stale engine and a refusal named', async () => {
+  const expectedBuildHash = 'a'.repeat(64);
+  const hello = { bridge: { protocol: client.SLICER_BRIDGE_PROTOCOL, buildHash: expectedBuildHash } };
+  const seen = [];
+  const reply = { slice: { ok: true, result: { fileName: 'hook.gcode.3mf', archive: Buffer.from('3mf').toString('base64'), estimate: { printSeconds: 60, firstLayerSeconds: 5, filamentGrams: 2 }, profile: { filamentType: 'PLA' } } }, upload_bambu: { ok: true, result: { uploaded: true, fileName: 'hook.gcode.3mf', bytes: 3 } } };
+  const opts = { host: '', port: 0, expectedBuildHash, installHint: 'install', exchange: async (request, timeoutMs) => { seen.push({ request, timeoutMs }); return { hello, reply: reply[request.cmd] }; } };
+  const sliced = await client.sliceToArchive(opts, Buffer.from('stl'), 'hook', { modelId: 'N7', nozzle: '0.4', filament: 'Bambu PLA Basic', plate: null });
+  assert.equal(Buffer.from(sliced.bytes).toString(), '3mf'); assert.ok(seen[0].timeoutMs <= 55000, 'inside the kernel limit');
+  assert.deepEqual(await client.uploadThroughEngine(opts, { host: '192.168.1.9', certSha256: 'AB', accessCode: 'c' }, 'hook.gcode.3mf', Buffer.from('3mf')), reply.upload_bambu.result);
+  assert.equal(seen[1].request.args.host, '192.168.1.9');
+  // The sandbox hides the Dockerfile, so the package's hash differs natively and is not held against the pinned engine; a wrong protocol still is.
+  await client.slicerRequest({ ...opts, expectedBuildHash: 'b'.repeat(64) }, 'upload_bambu', {});
+  await assert.rejects(client.slicerRequest({ ...opts, exchange: async () => ({ hello: { bridge: { protocol: 999 } }, reply: {} }) }, 'hello', {}), (error) => error.code === 'unavailable' && /protocol/.test(error.message));
+  await assert.rejects(client.slicerRequest({ ...opts, exchange: async () => ({ hello, reply: { ok: false, error: { code: 'refused', message: 'no storage' } } }) }, 'hello', {}), (error) => error.code === 'refused' && error.message === 'no storage');
+  await assert.rejects(client.slicerRequest({ ...opts, exchange: async () => { throw new Error('engine container is not reachable'); } }, 'hello', {}), (error) => error.code === 'unavailable' && /install/.test(error.reason));
+});
+

@@ -1,3 +1,15 @@
+1.48.3: the Quant desk's industry names fit what they hold, and JPMorgan keeps its industry.
+
+1.48.2: the Quant desk's history test says plainly that missing failed companies flatter every signal, whether or not the list beat SPY.
+
+1.48.1: a Quant desk read that fails gets a second try once the sweep ends, so a name is not left out because the connection refreshed while it was being read. The history test says how many stocks it could choose from.
+
+1.48.0: the Quant desk assesses about 3,400 names instead of about 200: the 3,000 largest US-listed companies, every name members of Congress have disclosed trading since March 2024, and themes such as gold and silver, copper, steel, uranium, lithium, coal, crypto stocks and funds. A stock must trade at least $5 million a day to be ranked, today and in each month of the history test. The screen reads the list a page at a time with a group filter, a search box and a summary of each industry and theme. Passes are now 12 seconds, once a minute, so the rest of Trading stays quick while it reads.
+
+1.47.5: the Quant desk's buttons say what they did, the state line shows the nightly job's real status and next run, and Run now says when there is nothing new to score.
+
+1.47.4: activating live trading or watcher exits also starts the watcher job they depend on, and opening the page restarts one the kernel suspended while an approval is active. A job you deactivated on purpose stays off.
+
 1.47.2: the Quant desk measures the average stock and the momentum leaders next to SPY, since an index can sit near its high while what led it collapses. A strong rank far below its 52-week high carries a caution.
 
 1.47.1: a Quant desk signal must beat the list both as it stands and without the biggest 20% of eventual winners to read **Holds up**; passing only with them in reads **Promising**, because a list of today's survivors inflates exactly that kind of signal. The list is led by the signal with the best evidence, and you can rank by any other.

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Candles carry volume, and the memory table speaks the desk's one-column-key statements.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Synthetic Quant desk market: deterministic daily closes per symbol as Schwab candles, an in-memory stand-in for the desk's own table for the browser fixture, and a seeded generator so a test run never depends on real prices.
  */
 'use strict';
@@ -33,11 +34,12 @@ function weekdays(end, count) {
  * @param {string[]} dates - Sessions.
  * @param {(i:number) => number} dailyReturn - Return for each session.
  * @param {number} [start] - First close.
- * @returns {Array<{t:number,c:number}>} Candles.
+ * @param {number} [volume] - Shares a day: a million by default, well above the desk's trading floor at these prices.
+ * @returns {Array<{t:number,c:number,v:number}>} Candles.
  */
-function candles(dates, dailyReturn, start = 100) {
+function candles(dates, dailyReturn, start = 100, volume = 1000000) {
   let close = start;
-  return dates.map((date, i) => { close *= 1 + dailyReturn(i); return { t: Date.parse(date + 'T05:00:00Z') / 1000, c: Math.round(close * 10000) / 10000 }; });
+  return dates.map((date, i) => { close *= 1 + dailyReturn(i); return { t: Date.parse(date + 'T05:00:00Z') / 1000, c: Math.round(close * 10000) / 10000, v: volume }; });
 }
 
 /**
@@ -46,13 +48,17 @@ function candles(dates, dailyReturn, start = 100) {
  */
 function memoryPool() {
   const rows = new Map();
+  const keep = (id, group, payload) => rows.set(id, { group, payload });
   return {
     rows,
     async query(sql, args) {
       if (sql.includes('oshal_trading_watchlist')) return { rows: [{ symbol: 'WATCH' }] };
-      if (sql.startsWith('SELECT payload')) { const hit = rows.get(args.join('|')); return { rows: hit ? [{ payload: hit }] : [] }; }
-      if (sql.startsWith('SELECT record_key')) { const prefix = `${args[0]}|${args[1]}|`; return { rows: [...rows.entries()].filter(([k]) => k.startsWith(prefix)).map(([k, payload]) => ({ record_key: k.slice(prefix.length), payload })) }; }
-      if (sql.startsWith('INSERT INTO trading_quant_records')) { rows.set(`${args[0]}|${args[1]}|${args[2]}`, args[3]); return { rows: [] }; }
+      if (sql.includes('trading_quant_records')) return { rows: [], rowCount: 0 };
+      const table = sql.includes('trading_quant_prices') ? 'p:' : 's:';
+      if (sql.startsWith('SELECT payload') && sql.includes('WHERE id=')) { const hit = rows.get(table + args[0]); return { rows: hit ? [{ payload: hit.payload }] : [] }; }
+      if (sql.startsWith('SELECT payload')) return { rows: [...rows.entries()].filter(([k, v]) => k.startsWith(table) && v.group === args[0]).map(([, v]) => ({ payload: v.payload })) };
+      if (sql.startsWith('UPDATE')) { const hit = rows.get(table + args[2]); if (!hit) return { rows: [], rowCount: 0 }; hit.payload = args[0]; return { rows: [], rowCount: 1 }; }
+      if (sql.startsWith('INSERT')) { keep(table + args[0], args[2], args[3]); return { rows: [], rowCount: 1 }; }
       throw new Error(`Unimplemented fixture SQL: ${sql}`);
     },
   };

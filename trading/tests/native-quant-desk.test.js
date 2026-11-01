@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | A read that fails once gets a second try after the sweep, and a name that keeps failing says why.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Guards the wider pool: who is in it and who is not, the $5 million trading floor in both the list and the history test, passes short enough not to hold up the watcher, statements that never read the whole table, a store that outgrows the kernel's single-answer limit, and reading the list by page and group.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Price reads are paced so the desk cannot crowd out the watcher on Schwab's shared request limit.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A strong rank far below its high carries a caution, and the market condition measures the falling leaders SPY hides.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guards from the first run on real prices: a signal resting on a few eventual winners is Promising, never Holds up; 2022 means the months held in 2022; a result does not depend on read order; the list is led by the best evidence; one bad candle retries a shorter window.
@@ -9,10 +11,16 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const { createRequire } = require('node:module');
 const { Pool, Client } = createRequire(path.resolve(__dirname, '../../scripts/toolchain/package.json'))('pg');
 const yaml = createRequire(path.resolve(__dirname, '../../scripts/toolchain/package.json'))('js-yaml');
-const { factorsAt, monthlyRows, digestBars, currentFactors, addComposite, PRICE_SIGNALS, MONTH_COLUMNS } = require('../routes/quant/factors');
+const { factorsAt, monthlyRows, digestBars, currentFactors, addComposite, dollarVolumeAt, PRICE_SIGNALS, MONTH_COLUMNS, MIN_DOLLAR_VOLUME } = require('../routes/quant/factors');
 const { historyTest, verdictFor, compound, maxDrawdown, marketTiming, withoutBiggestWinners, leadingSignal, signalSeries, crossSections } = require('../routes/quant/history');
 const { makeCohort, gradeCohort, horizonRecord, forwardBoard, independentWindows } = require('../routes/quant/scoreboard');
-const { buildToday, FUNDS } = require('../routes/quant/rank');
+const { buildToday, refreshToday, explain, FUNDS } = require('../routes/quant/rank');
+const store = require('../routes/quant/store');
+const { readDirectory, composePool, readCongressNames, LISTED_SIZE } = require('../routes/quant/universe');
+const { CONGRESS_SEED } = require('../routes/quant/congress-seed');
+const { THEMES, themesOf } = require('../routes/quant/themes');
+const { industryOf } = require('../routes/quant/industries');
+const { screenPage, briefPage, whyNotListed } = require('../routes/quant/view');
 const desk = require('../routes/quant/desk');
 const { quantHandlers, createTradingQuantRoutes, QUANT_SCHEDULE } = require('../routes/quant/routes');
 const { seeded, weekdays, candles } = require('./support/native-quant-doubles');
@@ -35,18 +43,18 @@ test('a factor dated at a session is computed from that session and earlier, and
 });
 
 test('a history row cannot see the future: factors stop at the signal, the return starts the session after', () => {
-  const dates = weekdays(SESSION, 700), c = dates.map((_, i) => 100 * 1.0005 ** i);
-  const rows = monthlyRows(dates, c), col = Object.fromEntries(MONTH_COLUMNS.map((n, i) => [n, i]));
-  const row = rows[3], signal = dates.indexOf(row[col.date]);
+  const dates = weekdays(SESSION, 700), c = dates.map((_, i) => 100 * 1.0005 ** i), v = dates.map(() => 1000000);
+  const rows = monthlyRows(dates, c, v), col = Object.fromEntries(MONTH_COLUMNS.map((n, i) => [n, i]));
+  const row = rows[3], signal = dates.findLastIndex((d) => d.slice(0, 7) === row[col.month]);
   assert.ok(dates[signal].slice(0, 7) !== dates[signal + 1].slice(0, 7), 'the signal is the last session of its month');
   const shocked = [...c]; for (let i = signal + 1; i < shocked.length; i += 1) shocked[i] *= 1.5;
-  const after = monthlyRows(dates, shocked)[3];
+  const after = monthlyRows(dates, shocked, v)[3];
   assert.deepEqual(after.slice(1, col.fwd), row.slice(1, col.fwd), 'prices after the signal never change its factors');
   const entryMoved = [...c]; entryMoved[signal] *= 1.2;
-  assert.equal(monthlyRows(dates, entryMoved)[3][col.fwd], row[col.fwd], "the signal day's own close is not the entry price");
+  assert.equal(monthlyRows(dates, entryMoved, v)[3][col.fwd], row[col.fwd], "the signal day's own close is not the entry price");
   assert.equal(rows.at(-1)[col.fwd], null, 'the newest month has no outcome yet');
   const glitch = [...c]; for (let i = signal + 3; i < glitch.length; i += 1) glitch[i] /= 5;
-  assert.equal(monthlyRows(dates, glitch)[3][col.fwd], null, 'a one-day 80% move is a data problem, not a return');
+  assert.equal(monthlyRows(dates, glitch, v)[3][col.fwd], null, 'a one-day 80% move is a data problem, not a return');
 });
 
 test('a digest drops an unfinished bar and keeps what scoring needs', () => {
@@ -70,6 +78,26 @@ test('the composite is the equal blend of its four parts, chosen in advance', ()
   assert.equal(rows[0].factors.composite, 100);
   assert.equal(rows[2].factors.composite, 0);
   assert.equal(rows[3].factors.composite, null, 'a missing part means no composite, never a guess');
+});
+
+test('a stock must trade $5 million a day to count, judged at the time, and a split cannot change that', () => {
+  const dates = weekdays(SESSION, 700), half = 350;
+  const c = dates.map((_, i) => 10 * 1.001 ** i), thinThenLiquid = dates.map((_, i) => (i < half ? 1000 : 2000000));
+  const col = Object.fromEntries(MONTH_COLUMNS.map((n, i) => [n, i]));
+  const rows = monthlyRows(dates, c, thinThenLiquid), firstMonth = rows[0][col.month];
+  assert.ok(firstMonth > dates[half].slice(0, 7), 'months it barely traded are not in the test');
+  assert.ok(rows.length > 5, 'months it did trade are');
+  const later = [...thinThenLiquid]; for (let i = 600; i < later.length; i += 1) later[i] = 0;
+  assert.deepEqual(monthlyRows(dates, c, later)[0], rows[0], 'volume after a month cannot decide that month');
+  const i = 200, split = dates.map((_, k) => (k <= 100 ? 2 : 1));
+  assert.ok(Math.abs(dollarVolumeAt(c.map((x, k) => x / split[k]), thinThenLiquid.map((x, k) => x * split[k]), i) - dollarVolumeAt(c, thinThenLiquid, i)) < 1e-6, 'adjusted price and adjusted volume give the same dollars');
+  const bars = (volume) => candles(weekdays(SESSION, 400), () => 0.001, 100, volume);
+  assert.equal(currentFactors(digestBars('THIN', bars(1000), SESSION), SESSION).excluded, 'thinly-traded');
+  const floor = MIN_DOLLAR_VOLUME;
+  assert.equal(floor, 5000000);
+  assert.equal(currentFactors(digestBars('OK', bars(1000000), SESSION), SESSION).excluded, null);
+  const noVolume = weekdays(SESSION, 400).map((d) => ({ t: Date.parse(d + 'T05:00:00Z') / 1000, c: 100 }));
+  assert.equal(currentFactors(digestBars('NOV', noVolume, SESSION), SESSION).excluded, 'thinly-traded', 'unknown volume never passes as liquid');
 });
 
 /** A market whose stocks keep their own drift (momentum persists) or drift at random each month (no edge). */
@@ -103,6 +131,8 @@ test('the history test finds a real persistent edge, does not invent one, and co
   const short = historyTest(market({ persistent: true, sessions: 800 }), new Date(NOW).toISOString());
   assert.equal(short.signals.find((s) => s.id === 'momentum').verdict, 'Too little history');
   assert.match(edge.limits.join(' '), /today's companies/);
+  assert.match(edge.limits.join(' '), /flatters every signal/, 'the warning stands whether or not the list beat SPY');
+  assert.match(edge.limits.join(' '), /upper limit/);
   assert.match(edge.limits.join(' '), /dividends/);
   const spy = new Map([['2020-01', { fwd: 0.01, vsMa200: 0.05 }], ['2020-02', { fwd: 0.02, vsMa200: -0.05 }], ['2020-03', { fwd: -0.2, vsMa200: -0.1 }], ['2020-04', { fwd: 0.1, vsMa200: 0.02 }]]);
   const timing = marketTiming(spy);
@@ -223,13 +253,13 @@ test("today's list ranks companies with reasons, says where holdings sit, and ne
   assert.deepEqual(today.rows.map((r) => r.symbol), ['AAA', 'CCC', 'BBB'], 'funds and SPY are not ranked');
   assert.equal(today.rankBy, 'composite', 'the fixed blend is the fallback');
   assert.equal(buildToday({ session: SESSION, at: 'x', digests, rankBy: 'reversal', funds: new Map(), congress: new Map(), earnings: new Map(), holdings: new Map() }).rows[0].symbol, 'BBB', 'ranks by the chosen signal: the biggest recent loser leads a reversal list');
-  const [aaa] = today.rows;
+  const aaa = explain(today.rows[0]);
   assert.equal(aaa.rank, 1);
   assert.ok(aaa.reasons.some((r) => /12 months before last month/.test(r)));
   assert.ok(aaa.reasons.some((r) => /revenue up 12%, net margin 25%/.test(r)));
   assert.ok(aaa.reasons.some((r) => /Bought by 2 members of Congress/.test(r)));
   assert.ok(aaa.cautions.includes('Earnings 2026-11-05.'));
-  const bbb = today.rows.find((r) => r.symbol === 'BBB');
+  const bbb = explain(today.rows.find((r) => r.symbol === 'BBB'));
   assert.ok(bbb.cautions.includes('Lost money in its latest annual filing.'));
   assert.ok(bbb.cautions.some((c) => /downtrend/.test(c)));
   assert.equal(bbb.held, true);
@@ -241,7 +271,7 @@ test("today's list ranks companies with reasons, says where holdings sit, and ne
   const hit = buildToday({ session: SESSION, at: 'x', digests: leadersDown, rankBy: 'momentum', funds: new Map(), congress: new Map(), earnings: new Map(), holdings: new Map() });
   assert.equal(hit.market.label, 'Uptrend, but its leaders are falling hard', 'SPY can sit near its high while what led it collapses');
   assert.ok(hit.market.leadersFromHigh <= -0.2);
-  assert.ok(hit.rows[0].cautions.some((c) => /below its 52-week high: the 12-month figure is older than this fall/.test(c)), 'a strong rank does not hide the fall');
+  assert.ok(explain(hit.rows[0]).cautions.some((c) => /below its 52-week high: the 12-month figure is older than this fall/.test(c)), 'a strong rank does not hide the fall');
   assert.deepEqual(today.leftOut['no-data'], ['GONE']);
   assert.ok(FUNDS.has('BIL'));
   assert.equal(JSON.stringify(today).match(/\b(BUY|SELL|winner)\b/i), null, 'a ranking is never an instruction');
@@ -257,13 +287,13 @@ async function database(t) {
   const name = 'quant_' + randomUUID().replaceAll('-', ''); await admin.query('CREATE DATABASE ' + name); base.pathname = '/' + name;
   const pool = new Pool({ connectionString: base.toString() });
   t.after(async () => { await pool.end(); await admin.query('DROP DATABASE ' + name); await admin.end(); });
-  for (const file of ['001-trading-watchlist.sql', '012-native-quant-desk.sql']) await pool.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
+  for (const file of ['001-trading-watchlist.sql', '012-native-quant-desk.sql', '013-native-quant-pool.sql']) await pool.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
   return pool;
 }
 
 /** A synthetic Schwab, Congress feed and calendar, with a clock that moves when work is done. */
 function world({ configured = true, symbols, spyFails = false } = {}) {
-  const dates = weekdays(SESSION, 2400), calls = [], clock = { now: NOW };
+  const dates = weekdays(SESSION, 2400), calls = [], clock = { now: NOW }, flaked = new Set();
   const bars = new Map();
   const barsFor = (symbol) => { if (!bars.has(symbol)) { const r = seeded(symbol.split('').reduce((s, c) => s + c.charCodeAt(0), 0) * 31); bars.set(symbol, candles(dates, () => 0.0005 + (r() - 0.5) * 0.015)); } return bars.get(symbol); };
   const intent = async (name, input) => {
@@ -278,55 +308,75 @@ function world({ configured = true, symbols, spyFails = false } = {}) {
       if (input.symbol !== 'OLDBAD') assert.equal(input.historyDays, desk.HISTORY_DAYS, 'asks for the long history');
       if (spyFails && input.symbol === 'SPY') throw new Error('extended daily history must be 400 to 4000 whole calendar days');
       if (input.symbol === 'GONE') throw new Error('no such instrument');
+      if (input.symbol === 'FLAKY' && !flaked.has('FLAKY')) { flaked.add('FLAKY'); throw new Error('refused: deny_tier: selected connection authority changed'); }
       return { source: 'schwab', symbol: input.symbol, bars: barsFor(input.symbol) };
     }
     throw new Error('Unexpected intent ' + name);
   };
   const sec = { reads: 0 };
-  const overrides = { pauses: [], pause: async (ms) => { overrides.pauses.push(ms); if (ms > 0) clock.now += ms; }, time: () => clock.now, secTickers: async () => ({ 0: { ticker: 'ZZZ', cik_str: 1 }, 1: { ticker: 'AAPL', cik_str: 2 } }), readSec: async (cik, symbol) => { sec.reads += 1; clock.now += 1000; return { symbol, revenueYoYPct: 10, netMarginPct: 20, period: { end: '2025-12-31' } }; } };
+  const overrides = { pauses: [], pause: async (ms) => { overrides.pauses.push(ms); if (ms > 0) clock.now += ms; }, time: () => clock.now, listedCompanies: async () => ({ fields: ['cik', 'name', 'ticker', 'exchange'], data: [[1, 'ZZZ Mining Corp', 'ZZZ', 'NYSE'], [2, 'Apple Inc.', 'AAPL', 'Nasdaq'], [3, 'Shell Acquisition Corp', 'SHEL', 'NYSE']] }), readCompany: async () => { sec.companies = (sec.companies || 0) + 1; clock.now += 300; return { sic: '1040' }; }, readSec: async (cik, symbol) => { sec.reads += 1; clock.now += 1000; return { symbol, revenueYoYPct: 10, netMarginPct: 20, period: { end: '2025-12-31' } }; } };
   return { calls, clock, intent, sec, overrides, symbols };
 }
 
 test('the pipeline resumes across bounded passes against real PostgreSQL, publishes, and keeps owners apart', async (t) => {
   const pool = await database(t), w = world();
-  for (const symbol of ['GONE', 'OLDBAD']) await pool.query('INSERT INTO oshal_trading_watchlist (user_sub, symbol, added_at) VALUES ($1,$2,now())', ['alice', symbol]);
+  for (const symbol of ['GONE', 'OLDBAD', 'FLAKY']) await pool.query('INSERT INTO oshal_trading_watchlist (user_sub, symbol, added_at) VALUES ($1,$2,now())', ['alice', symbol]);
   const h = quantHandlers({ pool, intent: w.intent }, w.overrides);
   assert.equal((await h.today('alice', { query: {} })).body.ready, false, 'nothing published before the first run');
   const first = (await h.run('alice')).body;
   assert.equal(first.status, 'working');
+  assert.equal(w.calls.some((c) => c.name === 'trading.bars'), false, "working out the pool has a pass of its own");
+  assert.equal(first.progress.pool.listed, 2, 'the shell company is not a business to assess');
+  const before = w.clock.now, second = (await h.run('alice')).body;
   const paced = w.calls.filter((c) => c.name === 'trading.bars').length;
   assert.ok(paced / (desk.PASS_BUDGET_MS / 60000) <= 120, 'a pass stays inside the request limit the watcher shares');
   assert.equal(desk.READ_SPACING_MS, 800, 'at most 75 reads a minute');
   assert.equal(w.calls.find((c) => c.name === 'trading.bars').input.symbol, 'SPY', 'SPY is read first');
-  assert.ok(first.progress.read > 0 && first.progress.read < first.progress.total, 'one pass stops at its time budget');
-  assert.ok(w.clock.now - NOW <= desk.PASS_BUDGET_MS + 15000, 'a pass stays well inside the 60-second call limit');
-  let out = first;
-  for (let i = 0; i < 40 && out.status !== 'done'; i += 1) { out = (await h.run('alice')).body; w.clock.now += 300000; }
+  assert.ok(second.progress.read > 0 && second.progress.read < second.progress.total, 'one pass stops at its time budget');
+  assert.ok(desk.PASS_BUDGET_MS <= 15000, 'Trading serves one call at a time, so a pass cannot hold up the stop watcher for long');
+  assert.ok(w.clock.now - before <= desk.PASS_BUDGET_MS + 4000, 'and stops reading on time');
+  let out = second;
+  for (let i = 0; i < 400 && out.status !== 'done'; i += 1) { out = (await h.run('alice')).body; w.clock.now += 60000; }
   assert.equal(out.status, 'done', JSON.stringify(out));
   const reads = w.calls.filter((c) => c.name === 'trading.bars').length;
   assert.equal((await h.run('alice')).body.status, 'done');
   assert.equal(w.calls.filter((c) => c.name === 'trading.bars').length, reads, 'finished work is not repeated');
-  const stored = await require('../routes/quant/store').getRecord(pool, 'alice', 'state', 'current');
-  await require('../routes/quant/store').putRecord(pool, 'alice', 'state', 'current', { ...stored, engine: desk.ENGINE - 1 });
+  const stored = await store.getRecord(pool, 'alice', 'state', 'current');
+  await store.putRecord(pool, 'alice', 'state', 'current', { ...stored, engine: desk.ENGINE - 1 });
   w.clock.now += 60000;
+  for (let i = 0; i < 6 && (await h.run('alice')).body.status !== 'done'; i += 1) w.clock.now += 60000;
   assert.equal((await h.run('alice')).body.status, 'done', 'a changed engine republishes');
   assert.equal(w.calls.filter((c) => c.name === 'trading.bars').length, reads, 'from the stored prices, without reading them again');
-  assert.notEqual((await require('../routes/quant/store').getRecord(pool, 'alice', 'state', 'current')).publishedAt, stored.publishedAt);
-  const today = (await h.today('alice', { query: {} })).body;
+  assert.notEqual((await store.getRecord(pool, 'alice', 'state', 'current')).publishedAt, stored.publishedAt);
+  const midway = await store.getRecord(pool, 'alice', 'state', 'current');
+  await store.putRecord(pool, 'alice', 'state', 'current', { ...midway, phase: 'enrich', engine: desk.ENGINE - 1, publishedAt: 'before' });
+  w.clock.now += 60000;
+  await h.run('alice');
+  assert.notEqual((await store.getRecord(pool, 'alice', 'state', 'current')).publishedAt, 'before', 'a release partway through the filings republishes too');
+  for (let i = 0; i < 40 && (await h.run('alice')).body.status !== 'done'; i += 1) w.clock.now += 60000;
+  const today = (await h.today('alice', { query: { limit: 200 } })).body;
   assert.equal(today.ready, true);
   assert.ok(today.rankBy, 'names the signal it is ranked by');
   assert.equal(today.session, SESSION);
   assert.ok(today.scored > 100, 'a broad list');
   assert.ok(!today.rows.some((r) => FUNDS.has(r.symbol)));
   assert.ok(today.leftOut['no-data'].includes('GONE'), 'a name with no data is reported, not hidden');
-  assert.ok(today.rows.some((r) => r.symbol === 'OLDBAD'), 'one unusable old candle retries a shorter window instead of losing the name');
+  assert.ok((await h.symbol('alice', { params: { symbol: 'FLAKY' } })).body.row, 'a read refused once, as when the connection refreshes under it, gets a second try');
+  assert.ok(!today.leftOut['no-data'].includes('FLAKY'));
+  assert.equal((await store.getRecord(pool, 'alice', 'state', 'current')).readErrors.GONE, 'no such instrument', 'a name still left out keeps its reason');
+  assert.ok((await h.symbol('alice', { params: { symbol: 'OLDBAD' } })).body.row, 'one unusable old candle retries a shorter window instead of losing the name');
   const held = Object.fromEntries(today.holdings.map((h2) => [h2.symbol, h2]));
   assert.equal(held.ZZZ.status, 'ranked');
   assert.equal(held.BIL.status, 'fund');
   assert.equal(held.DUST, undefined, 'dust is left out');
-  assert.equal(today.rows.find((r) => r.symbol === 'ZZZ').earnings, '2026-11-05');
-  assert.ok(today.rows.find((r) => r.symbol === 'ZZZ').fund, 'SEC filings reach the list');
+  const zzz = (await h.symbol('alice', { params: { symbol: 'ZZZ' } })).body.row;
+  assert.equal(zzz.earnings, '2026-11-05');
+  assert.ok(zzz.fund, 'SEC filings reach the list');
+  assert.equal(zzz.name, 'ZZZ Mining Corp', "the company's name comes from the SEC's list");
+  assert.equal(zzz.group, 'Gold & silver mining', 'its industry from the code it reports');
   assert.ok(w.sec.reads >= 2);
+  assert.ok(w.sec.companies >= 2);
+  assert.ok(zzz.reasons.length && Array.isArray(zzz.cautions), 'a row read alone explains itself');
   const board = (await h.scoreboard('alice', { query: {} })).body;
   assert.equal(board.history.signals.length, PRICE_SIGNALS.length);
   assert.equal(board.forward.cohorts, 1);
@@ -335,6 +385,10 @@ test('the pipeline resumes across bounded passes against real PostgreSQL, publis
   assert.equal(brief.top.length, 20);
   assert.ok(brief.rankedBy && brief.rankedBy.verdict, 'the concierge can say what the ranking is worth');
   assert.ok(JSON.stringify(brief).length < 60 * 1024, 'fits the concierge reply limit');
+  assert.ok(brief.groups.some((g) => g.name === 'Gold & silver mining'), 'the concierge can name what to narrow to');
+  const mining = (await h.today('alice', { query: { view: 'brief', group: 'Gold & silver mining' } })).body;
+  assert.equal(mining.selection.group, 'Gold & silver mining');
+  assert.ok(mining.top.length > 0 && mining.top.every((r) => r.group === 'Gold & silver mining'));
   assert.ok(JSON.stringify((await h.scoreboard('alice', { query: { view: 'brief' } })).body).length < 60 * 1024, 'fits the concierge reply limit');
   assert.equal((await h.today('bob', { query: {} })).body.ready, false, 'another owner sees nothing');
   assert.equal((await h.status('bob')).body.progress, null);
@@ -342,6 +396,169 @@ test('the pipeline resumes across bounded passes against real PostgreSQL, publis
   assert.equal(symbol.row.symbol, 'ZZZ');
   assert.equal((await h.symbol('alice', { params: { symbol: 'not a ticker' } })).status, 400);
   assert.equal(w.calls.filter((c) => !['trading.config', 'trading.accounts', 'trading.bars', 'feeds.congress_trades', 'feeds.events'].includes(c.name)).length, 0, 'read-only intents only');
+});
+
+test('every statement stays off the whole-table paths, and the store outgrows a single answer', async (t) => {
+  for (const [name, sql] of Object.entries(store.SQL)) {
+    if (name.startsWith('OLD_')) continue;
+    assert.doesNotMatch(sql, /ON CONFLICT|ORDER BY|DISTINCT|OFFSET/i, `${name} would read the whole table in the kernel`);
+    assert.match(sql, /user_sub/, `${name} is owner-scoped`);
+  }
+  assert.match(store.SQL.GET, /WHERE id=\$1/, 'a record is read by its key');
+  assert.match(store.SQL.UPDATE, /WHERE id=\$3/, 'and written by it');
+  assert.match(fs.readFileSync(path.join(root, 'migrations/013-native-quant-pool.sql'), 'utf8'), /id TEXT PRIMARY KEY[\s\S]*id TEXT PRIMARY KEY/, 'a one-column key is what lets the kernel answer by id');
+  const pool = await database(t);
+  await store.putRecord(pool, 'alice', 'settings', 'current', { enabled: true });
+  await store.putRecord(pool, 'alice', 'settings', 'current', { enabled: false });
+  assert.deepEqual(await store.getRecord(pool, 'alice', 'settings', 'current'), { enabled: false }, 'a second write replaces the first');
+  assert.equal(await store.getRecord(pool, 'bob', 'settings', 'current'), null);
+  const dates = weekdays(SESSION, 2400), digest = (symbol) => digestBars(symbol, candles(dates, () => 0.0004), SESSION), size = JSON.stringify(digest('A')).length;
+  const symbols = Array.from({ length: 200 }, (_, i) => `S${i}`), writes = [];
+  for (const symbol of symbols) writes.push(store.putPrices(pool, 'alice', symbol, digest(symbol)));
+  await Promise.all(writes);
+  await store.putPrices(pool, 'bob', 'S1', digest('S1'));
+  const shards = new Map();
+  for (const symbol of symbols) shards.set(store.shardOf(symbol), (shards.get(store.shardOf(symbol)) || 0) + 1);
+  assert.equal(shards.size, store.PRICE_SHARDS, 'names spread across every shard');
+  const biggest = Math.max(...shards.values()) / symbols.length;
+  assert.ok(4500 * biggest * size < 16 * 1024 * 1024, `even the largest pool stays under the kernel's 16 MB answer: ${Math.round(4500 * biggest * size / 1e6)} MB`);
+  assert.equal((await store.listPrices(pool, 'alice')).length, 200, 'reading every shard returns every digest');
+  assert.equal((await store.listPrices(pool, 'bob')).length, 1, 'and only the owner sees them');
+});
+
+test('settings saved before the move still count, and the first run clears out the old table', async (t) => {
+  const pool = await database(t), w = world();
+  const old = 'INSERT INTO trading_quant_records (user_sub,kind,record_key,payload,updated_at) VALUES ($1,$2,$3,$4,now())';
+  await pool.query(old, ['alice', 'settings', 'current', JSON.stringify({ enabled: true })]);
+  await pool.query(old, ['alice', 'bars', 'OLD', '{}']);
+  const h = quantHandlers({ pool, intent: w.intent }, w.overrides);
+  assert.equal((await h.status('alice')).body.enabled, true, 'a person who turned nightly scoring on keeps it on');
+  assert.equal((await h.tick('alice')).body.status, 'working');
+  const left = await pool.query('SELECT kind FROM trading_quant_records WHERE user_sub=$1', ['alice']);
+  assert.deepEqual(left.rows.map((r) => r.kind), ['settings']);
+  assert.equal((await h.settings('alice', { body: { enabled: false } })).body.enabled, false);
+  assert.equal((await h.status('alice')).body.enabled, false, 'a new choice wins over the old one');
+});
+
+test('the pool holds the largest listed businesses, Congress names and themes, and nothing that is not a stock to assess', async () => {
+  const data = [
+    [1, 'NVIDIA CORP', 'NVDA', 'Nasdaq'], [2, 'BERKSHIRE HATHAWAY INC', 'BRK-B', 'NYSE'], [3, 'Some Acquisition Corp', 'SAQC', 'Nasdaq'], [4, 'Warrant Co', 'ABCDW', 'Nasdaq'],
+    [5, 'Taiwan Fund Inc', 'TWN', 'NYSE'], [6, 'Over The Counter Co', 'OTCX', 'OTC'], [7, 'Preferred Co', 'BAC-PL', 'NYSE'], [8, 'Hecla Mining Co', 'HL', 'NYSE'],
+  ];
+  const directory = readDirectory({ fields: ['cik', 'name', 'ticker', 'exchange'], data });
+  assert.deepEqual(directory.listed, ['NVDA', 'BRK.B', 'HL'], 'common shares of real businesses on the main exchanges, largest first, in the form the kernel reads');
+  assert.equal(directory.ciks['BRK.B'], '0000000002');
+  assert.equal(directory.names.OTCX, 'Over The Counter Co', 'the directory still knows a name traded elsewhere');
+  const big = readDirectory({ fields: ['cik', 'name', 'ticker', 'exchange'], data: Array.from({ length: LISTED_SIZE + 50 }, (_, i) => [i, `Co ${i}`, `A${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + ((i >> 5) % 26))}${String.fromCharCode(65 + ((i >> 10) % 26))}`, 'NYSE']) });
+  assert.ok(big.listed.length <= LISTED_SIZE);
+  const pool = composePool({ holdings: [{ symbol: 'MINE' }, { symbol: 'BIL' }], watchlist: ['WATCHED'], congress: [{ symbol: 'BOUGHT' }], congressNames: ['AAAAX', 'OTCADR'], listed: ['NVDA', 'SMALLCO'] });
+  assert.deepEqual(pool.slice(0, 4), ['SPY', 'MINE', 'WATCHED', 'BOUGHT'], 'SPY first, then what is closest to the person, so a short night still covers it');
+  for (const name of ['SMALLCO', 'OTCADR', 'IBIT', 'ETHA', 'MARA', 'UEC', 'NEM', 'FCX', 'BTU', 'GLD']) assert.ok(pool.includes(name), name);
+  assert.ok(!pool.includes('BIL'), 'a cash fund is a reference, not a stock to assess');
+  assert.ok(!pool.includes('AAAAX'), 'nor is a mutual fund');
+  assert.equal(new Set(pool).size, pool.length);
+  assert.ok(THEMES.length >= 15);
+  for (const { name, tickers } of THEMES) for (const ticker of tickers) assert.match(ticker, /^[A-Z][A-Z0-9.-]{0,9}$/, name);
+  assert.ok(themesOf('NEM').includes('Gold & silver'));
+  assert.ok(themesOf('COIN', new Set(['COIN'])).includes('Traded by Congress'));
+  assert.ok(CONGRESS_SEED.length > 1000, 'names traded before the feed reaches back are kept');
+  assert.equal(industryOf('1040'), 'Gold & silver mining', 'a narrow range wins over the one around it');
+  assert.equal(industryOf('1000'), 'Metal mining');
+  assert.equal(industryOf('3674'), 'Semiconductors & components');
+  assert.equal(industryOf('6798'), 'REITs');
+  assert.equal(industryOf(null), null);
+  assert.equal(industryOf('2911'), 'Oil majors & refining', 'a name that fits what the range holds');
+  assert.equal(industryOf('4991'), 'Power & gas utilities', 'cogeneration is power, not water');
+  assert.equal(industryOf('4953'), 'Water & waste');
+});
+
+test('Congress names are read past the feed limit and never forgotten', async (t) => {
+  const pool = await database(t), calls = [];
+  const intent = async (name, input) => {
+    calls.push(input);
+    assert.equal(name, 'feeds.congress_trades');
+    assert.ok(input.sinceDays <= 365 && input.limit <= 200, 'inside what the feed accepts');
+    if (input.representative === 'Heavy Trader' && input.direction === 'sell') return { trades: [{ ticker: 'BYMEMBER', representative: 'Heavy Trader' }] };
+    if (input.chamber === 'house' && input.direction === 'buy') return { trades: [{ ticker: 'newco', representative: 'Heavy Trader' }, { ticker: 'not a ticker', representative: 'Unknown' }] };
+    return { trades: [] };
+  };
+  const first = await readCongressNames({ pool, intent }, 'alice');
+  assert.ok(first.symbols.includes('NEWCO'), 'ticker case is normalized');
+  assert.ok(first.symbols.includes('BYMEMBER'), 'a name that only a per-member read reaches is found');
+  assert.ok(!first.symbols.includes('NOT A TICKER'));
+  assert.deepEqual(first.members, ['Heavy Trader'], 'an unnamed filer is not a member to read');
+  assert.ok(first.symbols.length > CONGRESS_SEED.length, 'on top of the seed');
+  const quiet = await readCongressNames({ pool, intent: async () => ({ trades: [] }) }, 'alice');
+  assert.ok(quiet.symbols.includes('NEWCO'), 'a name stays once seen, even after it leaves the feed window');
+  assert.ok(calls.some((c) => c.representative === 'Heavy Trader' && c.direction === 'buy'));
+});
+
+/** Stored rows for reading the list a page at a time. */
+function pageRows(n) {
+  return Array.from({ length: n }, (_, i) => ({ rank: i + 1, symbol: `R${String(i).padStart(4, '0')}`, name: i === 7 ? 'Barrick Mining' : `Company ${i}`, group: i % 2 ? 'Banks' : 'Metal mining', themes: i % 10 === 0 ? ['Coal'] : [], price: 10 + i, chg1d: i % 3 ? 0.01 : null, score: 100 - i / n, f: { mom12: i, vsMa200: -i, fromHigh: -i / n, vol: i / n, mom3: 0.1, composite: 1, rev1: 0, vsMa50: 0, trend: 3, mom6: 0 }, pct: { momentum: 100 - (i / n) * 100, lowvol: (i / n) * 100, composite: 50 }, fund: null, congress: null, earnings: null, held: i === 40 }));
+}
+
+test('the list reads a page at a time, by group, search, signal and column, in a size the screen and concierge can hold', () => {
+  const rows = pageRows(3000), today = { session: SESSION, at: 'x', rankBy: 'momentum', scored: 3000, holdings: [{ symbol: 'R0040', rank: 41, of: 3000, score: 98, reasons: [], cautions: [] }], market: null, leftOut: { 'thinly-traded': ['THIN'] }, coverage: {}, groups: [], pool: null };
+  const page = screenPage(today, rows, {});
+  assert.equal(page.rows.length, 25);
+  assert.equal(page.total, 3000);
+  assert.equal(page.of, 3000);
+  assert.equal(page.by, 'momentum', 'the list is led by the signal the night chose');
+  assert.equal(page.rows[0].symbol, 'R0000');
+  assert.ok(page.rows[0].reasons.length > 0, 'the rows being read explain themselves');
+  assert.equal(page.weakest.at(-1).symbol, 'R2999');
+  assert.ok(JSON.stringify(page).length < 200 * 1024, 'a page stays small however long the list is');
+  assert.equal(screenPage(today, rows, { offset: '25' }).rows[0].symbol, 'R0025', 'next page');
+  assert.equal(screenPage(today, rows, { limit: '100000' }).rows.length, 200, 'a page has a ceiling');
+  const banks = screenPage(today, rows, { group: 'Banks' });
+  assert.equal(banks.total, 1500);
+  assert.ok(banks.rows.every((r) => r.group === 'Banks'));
+  assert.equal(banks.rows[0].rank, 2, 'a filtered row keeps its rank among the whole pool');
+  assert.ok(banks.weakest.every((r) => r.group === 'Banks'));
+  assert.equal(screenPage(today, rows, { group: 'Coal' }).total, 300, 'a theme filters like an industry');
+  assert.equal(screenPage(today, rows, { q: 'barrick' }).rows[0].symbol, 'R0007', 'a company name is searchable');
+  assert.equal(screenPage(today, rows, { q: 'r0009' }).rows[0].symbol, 'R0009', 'and so is a ticker');
+  assert.equal(screenPage(today, rows, { q: 'nothing like this' }).total, 0);
+  const calm = screenPage(today, rows, { by: 'lowvol' });
+  assert.equal(calm.by, 'lowvol');
+  assert.equal(calm.rows[0].symbol, 'R2999', 'any signal can rank the list');
+  assert.equal(calm.holdings[0].rank, 2960, "and the person's holdings follow it");
+  assert.equal(screenPage(today, rows, { by: 'made-up' }).by, 'momentum', 'an unknown signal changes nothing');
+  assert.equal(screenPage(today, rows, { sort: 'vol', dir: '-1' }).rows[0].symbol, 'R2999', 'a column sorts the whole list, not just the page');
+  assert.equal(screenPage(today, rows, { sort: 'symbol' }).rows[0].symbol, 'R0000');
+  assert.equal(screenPage(today, rows, { sort: 'chg1d', dir: '1' }).rows.some((r) => r.chg1d == null), false, 'a missing value sorts last');
+  assert.equal(screenPage(today, rows, { sort: 'rank', dir: '-1' }).rows[0].symbol, 'R2999');
+  assert.equal(screenPage(today, rows, { sort: 'pct; DROP' }).rows[0].symbol, 'R0000', 'an unknown column keeps rank order');
+  const brief = briefPage(today, rows, { group: 'Banks' }, { top: 20, bottom: 5 });
+  assert.equal(brief.top.length, 20);
+  assert.equal(brief.total, 1500);
+  assert.ok(JSON.stringify(brief).length < 40 * 1024);
+  assert.match(whyNotListed('THIN', today), /under \$5 million a day/);
+  assert.match(whyNotListed('ELSE', today), /outside the pool/);
+});
+
+test('filings arrive through the night without moving a rank', () => {
+  const dates = weekdays(SESSION, 400);
+  const digests = ['SPY', 'AAA', 'BBB'].map((s) => digestBars(s, candles(dates, () => (s === 'AAA' ? 0.002 : 0.001)), SESSION));
+  const empty = { funds: new Map(), congress: new Map(), earnings: new Map(), holdings: new Map([['AAA', { symbol: 'AAA', marketValue: 100, accounts: [] }]]) };
+  const { rows, ...today } = buildToday({ session: SESSION, at: 'x', digests, rankBy: 'momentum', ...empty });
+  assert.equal(rows[0].group, null, 'no industry until it has been read');
+  assert.deepEqual(today.groups, []);
+  const ranks = rows.map((r) => [r.symbol, r.rank, r.price]);
+  const next = refreshToday(today, rows, { ...empty, funds: new Map([['AAA', { revenueYoYPct: 5, netMarginPct: 5 }]]), companies: new Map([['AAA', { symbol: 'AAA', sic: '3674' }]]), names: new Map([['AAA', 'Triple A']]), congressNames: new Set(['BBB']) });
+  assert.deepEqual(rows.map((r) => [r.symbol, r.rank, r.price]), ranks, 'prices and ranks are untouched');
+  assert.equal(rows[0].name, 'Triple A');
+  assert.equal(rows[0].group, 'Semiconductors & components');
+  assert.deepEqual(rows[1].themes, ['Traded by Congress']);
+  assert.equal(next.coverage.secFilings, 1);
+  assert.equal(next.coverage.classified, 1);
+  assert.deepEqual(next.groups.map((g) => [g.kind, g.name, g.count, g.strongest]), [['industry', 'Semiconductors & components', 1, ['AAA']], ['theme', 'Traded by Congress', 1, ['BBB']]]);
+  assert.equal(next.holdings[0].rank, 1);
+  assert.ok(next.holdings[0].reasons.length > 0);
+  const jpm = [{ symbol: 'JPM', rank: 1, f: { vsMa200: 0.1, mom3: 0.1 }, pct: {}, chg1d: 0 }];
+  refreshToday(today, jpm, { ...empty, companies: new Map([['JPM', { symbol: 'JPM', error: 'response exceeded maximum allowed size' }]]), names: new Map(), congressNames: new Set() });
+  assert.equal(jpm[0].group, 'Banks', 'a company whose SEC record is too large to read still has its industry');
 });
 
 test('the desk stops plainly without Schwab or SPY, and the nightly job respects off', async (t) => {
@@ -358,6 +575,7 @@ test('the desk stops plainly without Schwab or SPY, and the nightly job respects
   assert.equal((await h.status('bob')).body.enabled, false, "one owner's setting is not another's");
   assert.equal((await h.tick('alice')).body.status, 'needs-schwab', 'on, it tries');
   const broken = world({ spyFails: true }), g = quantHandlers({ pool, intent: broken.intent }, broken.overrides);
+  assert.equal((await g.run('carol')).body.status, 'working');
   await assert.rejects(g.run('carol'), (e) => e.status === 502 && e.code === 'quant_prices_unavailable' && /SPY/.test(e.message));
   const retry = (await g.status('carol')).body.progress;
   assert.equal(retry.read, 0, 'nothing is marked read, so the next pass retries');
@@ -379,7 +597,7 @@ test('the desk has no order path and changes no authority', () => {
     for (const m of src.matchAll(/intent\(\s*['"]([^'"]+)['"]/g)) intents.add(m[1]);
     assert.doesNotMatch(src, /trading\.orders|require\(['"][^'"]*(live\/|trading-native-management|trading-manual-order)/, file);
   }
-  assert.deepEqual([...intents].sort(), ['feeds.events', 'trading.accounts', 'trading.bars', 'trading.config']);
+  assert.deepEqual([...intents].sort(), ['feeds.congress_trades', 'feeds.events', 'trading.accounts', 'trading.bars', 'trading.config']);
   const manifest = yaml.load(fs.readFileSync(path.join(root, 'oshal-app.yaml'), 'utf8'));
   assert.ok(!manifest.routes.some((r) => /quant/.test(r.module + r.mountPath)), 'a new manifest route would suspend every person schedule');
   const schedule = manifest.schedules.find((s) => s.id === QUANT_SCHEDULE.name);
@@ -387,13 +605,15 @@ test('the desk has no order path and changes no authority', () => {
   assert.equal(schedule.runsAs, 'user');
   assert.ok(schedule.timeoutSeconds <= 60, 'the kernel ends a package call at 60 seconds');
   assert.ok(manifest.migrations.includes('migrations/012-native-quant-desk.sql'));
+  assert.ok(manifest.migrations.includes('migrations/013-native-quant-pool.sql'));
+  assert.match(schedule.cron, /^\* /, 'short passes need a pass every minute to finish a night');
   for (const file of ['routes/live/management.js', 'routes/live/automation.js', 'routes/trading-native-management.js']) assert.doesNotMatch(fs.readFileSync(path.join(root, file), 'utf8'), /quant\/|quant-desk/i, file);
 });
 
 test('the concierge reads the desk, gives the evidence and never calls a rank an instruction', () => {
   const manifest = yaml.load(fs.readFileSync(path.join(root, 'oshal-app.yaml'), 'utf8'));
   const tools = new Map(manifest.tools.map((tool) => [tool.name, tool]));
-  const declared = { trading_quant_today: 'GET /api/trading/quant/today?view=brief', trading_quant_symbol: 'GET /api/trading/quant/symbol/{input.symbol}', trading_quant_scoreboard: 'GET /api/trading/quant/scoreboard?view=brief', trading_quant_settings: 'POST /api/trading/quant/settings', trading_quant_run: 'POST /api/trading/quant/run' };
+  const declared = { trading_quant_today: 'GET /api/trading/quant/today?view=brief', trading_quant_group: 'GET /api/trading/quant/today?view=brief&group={input.group}', trading_quant_symbol: 'GET /api/trading/quant/symbol/{input.symbol}', trading_quant_scoreboard: 'GET /api/trading/quant/scoreboard?view=brief', trading_quant_settings: 'POST /api/trading/quant/settings', trading_quant_run: 'POST /api/trading/quant/run' };
   const persona = yaml.load(fs.readFileSync(path.join(root, 'personas/trading-analyst.yaml'), 'utf8'));
   for (const [name, endpoint] of Object.entries(declared)) {
     assert.equal(tools.get(name).executor.apiEndpoint, endpoint);
@@ -406,4 +626,6 @@ test('the concierge reads the desk, gives the evidence and never calls a rank an
   assert.match(p, /"Not enough yet" and "Fails" are answers/);
   assert.match(p, /A rank is research, never a buy or sell instruction and never a promise/);
   assert.match(p, /Do not call a stock a winner/);
+  assert.match(p, /Disclosures show trades, not what a\s+member holds now/);
+  assert.match(p, /crypto means listed stocks and funds/);
 });

@@ -50,7 +50,7 @@ import { promisify } from 'node:util';
 import { createChildLogger } from '@/shared/logger';
 import { encryptField, isEncrypted } from '@/features/personal-data';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
-import { deletePrinter, insertPrinter, listPrinters, listSubmissions, updatePrinterSettings, type JobRow, type QueryablePool } from './job-store';
+import { deletePrinter, insertPrinter, listPrinters, listSubmissions, updatePrinterSettings, type JobRow, type QueryablePool, updatePrinterKey } from './job-store';
 import { artifactPath, jobDir, requireUuid } from './data-dir';
 import { BAMBU_KIND, type FetchLike, PRINTER_KINDS } from './engine/print/printer-adapters';
 import { type BambuIo } from './printing/bambu-lan';
@@ -59,7 +59,7 @@ import { type ExecFileLike, resolveSlicerConfig, sliceStl } from './engine/print
 import { sanitizeSolidName } from './engine/geometry/export-stl';
 import { type JobRequest, requireCurrentOutput, withCurrentJob } from './job-outputs';
 import { randomBytes } from 'node:crypto';
-import { type PrintOutcome, type PrintServiceDeps, type StartDecision, evaluateStart, loadPrinter, printerState, recordAttempt, sendToBambu, sendToHttpPrinter } from './print-service';
+import { type PrintOutcome, type PrintServiceDeps, type StartDecision, evaluateStart, loadPrinter, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
 import { type PrinterDraft, parseHttpPrinter, parseSettingsChange, registerBambuPrinter } from './printer-registration';
 
 const logger = createChildLogger({ module: 'scan-to-print-print-routes' });
@@ -173,6 +173,16 @@ function registerSettings(router: Router, deps: PrintRouteDeps): void {
     const body = (req.body ?? {}) as Record<string, unknown>;
     try {
       const printerId = requireUuid(req.params.printerId);
+      if (body.accessCode !== undefined) {
+        const code = typeof body.accessCode === 'string' ? body.accessCode.trim() : '';
+        if (!code || code.length > 64) throw new RangeError('accessCode is the code on the printer\'s screen');
+        const ciphertext = await encryptField(req.scanSub as string, code);
+        if (!ciphertext || !isEncrypted(ciphertext)) throw new Error('Printer key encryption failed closed');
+        const replaced = await updatePrinterKey(deps.pool, req.scanSub as string, printerId, ciphertext);
+        if (!replaced) { res.status(404).json({ error: 'printer_not_found' }); return; }
+        logger.info({ printerId }, 'Printer access code replaced');
+        res.json({ printer: replaced }); return;
+      }
       const change = parseSettingsChange(body);
       if (change.needsConfirm) { res.status(428).json(confirmationRequiredPayload('scan-to-print.auto-start', 'Letting jobs sent by agents and apps start this printer without a click')); return; }
       const printer = await updatePrinterSettings(deps.pool, req.scanSub as string, printerId, { autoStart: change.autoStart, sliceProfile: change.sliceProfile });
@@ -289,6 +299,7 @@ function registerPrint(router: Router, deps: PrintRouteDeps): void {
       res.status(result.status).json(result.body);
     } catch (error) {
       if (error instanceof RangeError) { res.status(400).json({ error: 'invalid_request', message: error.message }); return; }
+      if (error instanceof PrinterKeyUnreadable) { res.status(409).json({ error: 'printer_key_unreadable', message: error.message }); return; }
       logger.error({ err: error, jobId: job?.job_id }, 'Print submission failed'); res.status(500).json({ error: 'print_failed' });
     }
   }));

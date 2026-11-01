@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Activating a live mandate also starts the watcher job it depends on.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Leave individual order research in the library while account strategy controls have a direct Strategies home.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Shared whole-account review includes adopted holdings, debt, retained research and the read-only initial transition.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Display verified native authority and expiry alongside the saved automatic-execution setting.
@@ -59,7 +60,8 @@ async function portfolioManagementAction(button,token){
    const m=LIVE_MANDATES.get(id);if(!m)throw Error('Prepare this account’s exact strategy mandate first.');
    if(!confirm(nativeStrategyConfirmation(m,watch.accountLabel)))return;
    const result=await api('/portfolio/live/activate',jbody('POST',{watchId:id,mandateId:m.mandateId,fingerprint:m.fingerprint,confirm:true,confirmAdoption:m.terms.scope==='whole-account'}));
-   if(!stale(token)){await renderNativePortfolioView(token);managementNotice('Live mandate status: '+result.mandate.status+'. Your watcher schedule must also be active; verify its next retained broker result.');}return;
+   if(typeof watcherScheduleStart==='function')await watcherScheduleStart();
+   if(!stale(token)){await renderNativePortfolioView(token);managementNotice('Live mandate status: '+result.mandate.status+'. The watcher schedule starts with it; verify its next retained broker result.');}return;
   }
   if(act==='management-stop'){await api('/portfolio/watch/stop',jbody('POST',{accountId:watch.accountId,connectionKey:watch.connectionKey}));if(!stale(token))await renderNativePortfolioView(token);return;}
   if(act==='management-cancel'){

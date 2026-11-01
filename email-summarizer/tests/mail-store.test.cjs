@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The stored mail copy on a disposable PostgreSQL with the declared migration and forced owner row security (Roger, 2026-10-29: the concierge should search a stored copy of the mail): a first pass stores the last week and then older mail, a pass that hits its deadline keeps its progress and the next one finishes, a duplicate is skipped, a failed Gmail read is recorded and rethrown, a search finds "ACT prep" by word start (not inside "contact"), handles OR and newer_than, falls back to the closest matches, and one person never reads another's copy. Through the compiled routes: GET /messages answers from a current copy (source stored) and from Gmail when the copy is stale (source live); POST /sync stores the caller's mail; GET /sync/status reports it. The SQL holds no ON CONFLICT, ORDER BY or DISTINCT (the native kernel copied a whole table for those).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A pass resumes where the last stopped: after a pass that ran out of time the next one asks Gmail only for mail older than the copy (before:) and newer than it (after:), never refetching or re-reading what is stored (Roger's first live passes stalled: 290, then 73 more). A state written by the old passes (no newest_at) resumes from its last run. GET /messages answers from a copy still filling only over a window the copy reaches.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The listing pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"): listStored walks the copy newest first in pages by keyset, two messages received at the same instant across a page boundary are each listed once, mail outside the inbox is left out, and the last page says it reached the copy's floor; GET /messages without words answers page after page from a current copy (a still-filling one too, with its reach) and never asks Gmail, and reads the mailbox live with Gmail's own page token when there is no copy, refusing a cursor in another shape.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox: rows planted once on the real schema, listed newest first, read by id, and another person never sees them.
  */
 'use strict';
 const test = require('node:test');
@@ -324,4 +325,21 @@ test('with no copy the listing reads Gmail live page by page with its own token,
   assert.equal(bad.res.statusCode, 400);
   assert.equal(bad.res.body.error, 'invalid_page');
   assert.deepEqual(bad.seen, [], 'a refused cursor reaches no mailbox');
+});
+
+test('sample mail is planted once on the real schema and stays the person\'s own', async (t) => {
+  const db = await database(t);
+  const when = (hours) => new Date(Date.now() - hours * 3600e3).toISOString();
+  const messages = [{ id: 'one', from: 'Dana <dana@example.com>', subject: 'Kickoff', snippet: 'Agenda attached.', receivedAt: when(1), unread: true },
+    { id: 'two', from: 'Sam <sam@example.com>', subject: 'Invoice', snippet: 'Paid, thank you.', receivedAt: when(5) }];
+  assert.equal(await store.plantDemoMail(db.alice, 'alice', messages), 2);
+  assert.equal(await store.plantDemoMail(db.alice, 'alice', messages), 0, 'a repeat duplicates nothing');
+  const page = await store.listStored(db.alice, 'alice', 10);
+  assert.deepEqual(page.messages.map((m) => m.subject), ['Kickoff', 'Invoice']);
+  assert.equal(page.messages[0].unread, true);
+  assert.equal(page.messages[1].unread, false);
+  const one = await store.storedMessage(db.alice, 'alice', 'one');
+  assert.equal(one.body, 'Agenda attached.');
+  assert.equal(await store.storedMessage(db.bob, 'bob', 'one'), null, 'another person has no such message');
+  assert.equal((await store.listStored(db.bob, 'bob', 10)).messages.length, 0);
 });

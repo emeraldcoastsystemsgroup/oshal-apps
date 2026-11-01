@@ -86,3 +86,11 @@ test('with no object open the boot reads the printers and lists them, writing no
   assert.equal(f.state.job, null, 'no object is open');
   assert.equal(f.get('print-step').hidden, true, 'the print step itself still waits for a reconstructed object');
 });
+
+test('a Bambu printer has an access code action that replaces the stored code through PATCH, keeping its identity', () => {
+  const page = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'tools', 'scan-to-print.js'), 'utf8');
+  assert.match(page, /text: 'access code'/); assert.match(page, /type: 'password'/); assert.match(page, /json: \{ accessCode: input\.value \}/);
+  const routes = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'src-routes', 'print-routes.ts'), 'utf8');
+  assert.match(routes, /updatePrinterKey/); assert.match(routes, /printer_key_unreadable/);
+});
+

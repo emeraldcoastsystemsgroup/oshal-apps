@@ -53,7 +53,7 @@ import { requireUuid } from './data-dir';
 import { BAMBU_KIND, fileKindOf } from './engine/print/printer-adapters';
 import { type JobRequest, requireCurrentOutput, withCurrentJob } from './job-outputs';
 import { type PrintRouteDeps, printJob, serviceDepsOf } from './print-routes';
-import { type LoadedPrinter, type PrintModel, type PrintOutcome, loadPrinter, printerFileName, printerState, recordAttempt, sendToBambu, sendToHttpPrinter } from './print-service';
+import { type LoadedPrinter, type PrintModel, type PrintOutcome, loadPrinter, printerFileName, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
 
 const logger = createChildLogger({ module: 'scan-to-print-service-routes' });
 
@@ -201,6 +201,7 @@ function registerJobPrint(router: Router, deps: PrintRouteDeps): void {
       res.status(result.status).json({ ...result.body, printer: { printerId: printer.row.printer_id, label: printer.row.label, kind: printer.row.kind, autoStart } });
     } catch (error) {
       if (error instanceof RangeError) { res.status(400).json({ error: 'invalid_request', message: error.message }); return; }
+      if (error instanceof PrinterKeyUnreadable) { res.status(409).json({ error: 'printer_key_unreadable', message: error.message }); return; }
       logger.error({ err: error, jobId: job?.job_id }, 'Service job print failed'); res.status(500).json({ error: 'print_failed' });
     }
   }));
@@ -226,6 +227,7 @@ function registerFilePrint(router: Router, deps: PrintRouteDeps): void {
       res.status(outcome.status).json({ ...failed, ...answer(outcome, printer, submission, await autoStartForReply(deps, sub, printer.row.printer_id)) });
     } catch (error) {
       if (error instanceof RangeError) { res.status(400).json({ error: 'invalid_request', message: error.message }); return; }
+      if (error instanceof PrinterKeyUnreadable) { res.status(409).json({ error: 'printer_key_unreadable', message: error.message }); return; }
       logger.error({ err: error }, 'Service file print failed'); res.status(500).json({ error: 'print_failed' });
     }
   });

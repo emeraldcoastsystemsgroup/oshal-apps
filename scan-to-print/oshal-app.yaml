@@ -62,6 +62,8 @@
 # docs/adr/036-bot-owned-application-architecture.md, docs/adr/140-local-device-access.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 0.7.3: a stored access code this installation cannot read is named, and a printer's code can be entered again in place; the engine hash is not checked natively because the sandbox hides its Dockerfile.
+# 0.7.2: on the native kernel the slicer engine is reached through engine.exchange and the Bambu upload runs in the engine container, because a native package has no network. No catalog change.
 name: scan-to-print
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -84,7 +86,7 @@ description: >-
   turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
   grid, the grid becomes the mesh and the drawing — and the same occupancy grid
   accepts depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.7.1
+version: 0.7.3
 status: active
 scope: person
 

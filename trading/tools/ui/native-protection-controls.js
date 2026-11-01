@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Activating watcher exits also starts the watcher job they depend on.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Retire the prior protective draft while its replacement is checked and end the progress message when review completes.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Give watcher review a compact activation card with visible limits and expandable execution evidence.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Restore read-only saved protection reviews above research and disable expired or unverifiable activation.
@@ -45,6 +46,7 @@ async function nativeBrokerProtectionAction(action,button,host,context){
   const watcher=review.mandate.terms.execution==='watcher';
   if(!confirm('Activate REAL MONEY '+(watcher?'watcher-managed exits':'broker-held protective stops')+' for '+account.label+' at '+review.mandate.terms.trailBps/100+'% for 30 days? '+(watcher?'OSHAL will submit sell-only seamless DAY limit exits when its floor triggers and may cancel/reprice only its own exit orders.':'This authorizes unattended broker sell orders.')))return;
   await api('/portfolio/backstops/activate',jbody('POST',{...bound,reviewId:review.id,fingerprint:review.mandate.fingerprint,confirm:true}));
+  if(typeof watcherScheduleStart==='function')await watcherScheduleStart();
  }
  if(action==='broker-stop')await api('/portfolio/backstops/stop',jbody('POST',bound));
  if(action==='broker-cancel'){

@@ -480,3 +480,15 @@ This is a core change, and it needs the operator's go.
 **Done when:** the operator asks the Scan to Print operator in the cockpit rail to list his printers.
 It answers on his own brain (node log: protected direct turn, the tool finished), and a print request
 reaches the ask approval.
+
+## B21 — Live status and starting a print on the native kernel
+
+A native package has no network, so the Bambu broker (live state, starting a print) is out of reach; 0.7.2 slices and uploads through the engine and the print waits on the printer.
+
+**Done when:** the engine container serves the broker session through `engine.exchange`, the printer's live state reads on the native kernel, and a person-confirmed start runs on a real P2S.
+
+## B22 — Adding a Bambu printer on the native kernel
+
+Registration reads the printer's certificate over TLS from the package, which has no network natively. A printer registered earlier keeps working once its code is entered again.
+
+**Done when:** the engine identifies the printer through `engine.exchange` and a new P2S registers on the native kernel.

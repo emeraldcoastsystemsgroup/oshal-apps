@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Index the corpus for the pre-resume title browse so its keyword search is covered rather than scanning descriptions.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | INSIGHTS_INDEX_SQL: idx_corpus_insights covers every column Career Insights reads from the lane (company, posted date, state, maximum pay). Without it Insights read each posting row past its inline description: 44.3 s on a cold page cache over a copy of the live corpus, past the native kernel's 10 s package deadline. It is kept out of CORPUS_SCHEMA because the native kernel binds the corpus read-only into every request sandbox, where a CREATE of a missing index would fail the whole schema step; _ensure_insights_index creates it on a writable corpus (the nightly ingest's private copy) and leaves a read-only one as it is.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Persist the geographic covering index on writable ingest copies; read-only older corpora keep ordinary browse available while radius search reports its missing index.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | A person's database closes out of WAL: published and mounted read-only, a WAL file with no side files cannot be opened, which broke the Job Board after the first match for anyone new (found 2026-10-31 on the dev environment).
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -31,6 +32,7 @@ Application provenance is monotonic at the storage chokepoint: a later manual st
 cannot replace a worker report or a confirmation-backed record on any supported backend.
 """
 from __future__ import annotations
+import sys
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -318,6 +320,12 @@ def connect():
         conn.execute("PRAGMA foreign_keys = OFF")  # FKs aren't enforced across an ATTACH boundary
         conn.execute("ATTACH DATABASE ? AS corpus", (str(config.CORPUS_DB),))
         _ensure_multiuser(conn)
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            _close_portable(conn)
+        return
     else:
         conn = sqlite3.connect(config.DB_PATH, timeout=120)
         conn.row_factory = sqlite3.Row
@@ -329,6 +337,18 @@ def connect():
         conn.commit()
     finally:
         conn.close()
+
+
+def _close_portable(conn) -> None:
+    """Close a person's database in a form a read-only reader can open. The kernel publishes this file and mounts it
+    read-only for a read; a WAL-mode file with no -wal or -shm beside it (a clean close removes them) cannot be opened
+    there: "unable to open database file". The next writer turns WAL back on. Another open connection keeps it in WAL,
+    and then its side files stay too, so a refusal here is harmless."""
+    try:
+        conn.execute("PRAGMA main.journal_mode = DELETE")
+    except sqlite3.OperationalError as err:
+        print(f"career db: journal mode kept: {err}", file=sys.stderr)
+    conn.close()
 
 
 def corpus_table() -> str:

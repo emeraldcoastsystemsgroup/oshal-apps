@@ -1,10 +1,12 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The first limit said a gap above SPY was the warning sign. On the wider pool the list no longer beats SPY, and the missing failed companies still flatter every signal, so it now says that whatever the gap is.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The test now runs over the wider pool and says how many names each end of it held, and that small names cost more to trade than the assumed cost.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The value curve follows the signal that leads the list, next to the same signal without the biggest winners, so the upper limit is never drawn alone.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The first run on real prices showed 12-month momentum at 63% a year, falling to 23% once the biggest eventual winners were removed: a list of today's survivors inflates exactly that kind of signal. Every signal is now also tested without the top fifth of lifetime winners, and only one that passes both holds up. The 2022 stress row is now the months actually held in 2022, and ties break by symbol.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk's history test: each fixed signal's top names each month, held from the next session, after costs. The verdict compares with the same list's equal-weight average, because a list of today's survivors flatters any comparison with SPY.
  */
 'use strict';
-const { MONTH_COLUMNS, PRICE_SIGNALS, addComposite, round } = require('./factors');
+const { MIN_DOLLAR_VOLUME, MONTH_COLUMNS, PRICE_SIGNALS, addComposite, round } = require('./factors');
 
 const TOP_N = 10;
 const COST_BPS_PER_SIDE = 10;
@@ -28,7 +30,7 @@ function crossSections(digests) {
       const fwd = row[MONTH_INDEX.fwd];
       if (fwd == null) continue;
       const factors = Object.fromEntries(MONTH_COLUMNS.map((name, i) => [name, row[i]]));
-      const key = String(row[MONTH_INDEX.date]).slice(0, 7);
+      const key = String(row[MONTH_INDEX.month]);
       if (!months.has(key)) months.set(key, []);
       months.get(key).push({ symbol: digest.symbol, factors, fwd });
     }
@@ -45,7 +47,7 @@ function benchmarkMonths(digests) {
   const spy = digests.find((d) => d.symbol === BENCHMARK);
   const out = new Map();
   for (const row of (spy && spy.monthly) || []) {
-    if (row[MONTH_INDEX.fwd] != null) out.set(String(row[MONTH_INDEX.date]).slice(0, 7), { fwd: row[MONTH_INDEX.fwd], vsMa200: row[MONTH_INDEX.vsMa200] });
+    if (row[MONTH_INDEX.fwd] != null) out.set(String(row[MONTH_INDEX.month]), { fwd: row[MONTH_INDEX.fwd], vsMa200: row[MONTH_INDEX.vsMa200] });
   }
   return out;
 }
@@ -223,7 +225,9 @@ function leadingSignal(signals) {
  * @returns {object} Rows per signal, the composite's value curve and the limits of the test.
  */
 function historyTest(digests, at) {
-  const months = crossSections(digests), spy = benchmarkMonths(digests), series = signalSeries(months, spy);
+  const months = crossSections(digests), spy = benchmarkMonths(digests), keys = [...months.keys()].sort();
+  const namesAt = (key) => (key ? months.get(key).length : 0), namesFirst = namesAt(keys[0]), namesLast = namesAt(keys.at(-1));
+  const series = signalSeries(months, spy);
   const harsher = signalSeries(crossSections(withoutBiggestWinners(digests)), spy);
   const rows = PRICE_SIGNALS.map((s) => summarize(s, series.get(s.id), harsher.get(s.id)));
   const leader = leadingSignal(rows), harshBy = new Map(harsher.get(leader.id).map((m) => [m.month, m.net]));
@@ -233,12 +237,13 @@ function historyTest(digests, at) {
     return [m.month, round(value, 3), round(spyValue, 3), round(harshValue, 3)];
   });
   return {
-    at, topN: TOP_N, costBpsPerSide: COST_BPS_PER_SIDE, symbols: digests.length,
+    at, topN: TOP_N, costBpsPerSide: COST_BPS_PER_SIDE, symbols: digests.length, namesFirst, namesLast,
     signals: rows, marketTiming: marketTiming(spy), curve, curveSignal: { id: leader.id, name: leader.name },
     limits: [
-      `The list is today's companies, so failed and delisted ones are missing. Its average made ${rows[0].listAnnual == null ? 'more' : `${(rows[0].listAnnual * 100).toFixed(1)}% a year against SPY's ${(rows[0].spyAnnual * 100).toFixed(1)}%`}; a gap like that is a warning that hindsight is in these numbers, so read the Per year column as an upper limit.`,
+      `The list is today's companies, so failed and delisted ones are missing, and that flatters every signal, most of all those that buy big winners or big losers. Its average made ${rows[0].listAnnual == null ? 'an unknown amount' : `${(rows[0].listAnnual * 100).toFixed(1)}% a year against SPY's ${(rows[0].spyAnnual * 100).toFixed(1)}%`}. Read the Per year column as an upper limit.`,
       `"Holds up" must beat the list both as it stands and with the biggest ${Math.round(WINNERS_REMOVED * 100)}% of winners removed. "Promising" only beats it with them in. The real result is likely between the two.`,
       'Prices only: dividends are left out of the stocks and of SPY.',
+      `A month counts a stock only if it then traded at least $${MIN_DOLLAR_VOLUME / 1000000} million a day. The ${(COST_BPS_PER_SIDE / 100).toFixed(2)}% cost each way is a fair figure for large companies and too low for the smallest names here.`,
       `With ${rows.length + 1} rules tested, one looking good by luck is plausible. Passing needs a t-statistic of at least 2 and a positive result in both halves of the history. Only the forward scoreboard is free of hindsight.`,
     ],
   };

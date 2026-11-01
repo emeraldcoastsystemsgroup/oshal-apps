@@ -20,6 +20,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Armed vs scheduled told apart: the header pill said "autopilot on" and the button offered only Stop for an armed book whose paper-autopilot job was not activated, so nothing traded and the page offered no way to schedule it. After the header paints, nativePaperSync reads the person's job (GET /api/v1/agent/schedules) and paperAutopilotState decides the pill, the button (Activate paper schedule / Stop / Start) and the line under it. A start whose job is not listed or not activated now repaints too, so the header never keeps the pre-arm state.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | The page keeps the paper schedule on: while the person has any armed paper account (one the concierge created in chat, or a Start pressed earlier) and their paper-autopilot job is not active, the page activates it in their own session, on open and every minute while visible. Before this, an account the concierge armed never traded until the person found the separate schedule button, and a Trading update that suspended the job left paper silently stopped.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The keeper also keeps the Quant desk's nightly job on while the person has the desk turned on (view-quant.js).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | The watcher starts when anything is activated: Roger renewed every approval and the job that acts on them stayed suspended behind a separate button. Activating live trading or watcher exits now starts it, and opening the page restarts a job the kernel suspended while an approval is active. A job the person deactivated on purpose stays off.
  */
 
 /* The Jobs screen's own activation configuration (crates/api/src/jobs.js "Activate for me"). */
@@ -233,12 +234,52 @@ async function paperScheduleKeep() {
   } catch { return 'idle'; } finally { PAPER_KEEPER.busy = false; }
 }
 
+/** The watcher job, activated with the configuration every Strategies control uses. */
+const WATCHER_SCHEDULE = { app: 'intelligent-trades', name: 'portfolio-watcher' };
+const WATCHER_ACTIVATION = { class: 'person', configuration: { runBudgetMicros: 1000000, dailyBudgetMicros: 10000000, timeoutMs: 120000 } };
+const WATCHER_KEEPER = { busy: false, refused: null };
+
+/**
+ * @description Start the watcher job in the person's own session, right after they activate an approval it acts on.
+ * Never throws: the approval already succeeded, and the page's schedule bar shows the job's real state either way.
+ * @returns {Promise<string>} 'active', 'activated' or the reason it could not start.
+ */
+async function watcherScheduleStart() {
+  try {
+    const row = await paperScheduleRow(WATCHER_SCHEDULE);
+    if (!row) return 'unlisted';
+    if (paperScheduleActive(row)) return 'active';
+    await paperKernel('/api/v1/agent/schedules/' + encodeURIComponent(row.id) + '/activate', { method: 'POST', body: JSON.stringify(WATCHER_ACTIVATION) });
+    return 'activated';
+  } catch (e) { return e.message || 'refused'; }
+}
+
+/**
+ * @description Restart a watcher job the kernel suspended while the person still holds an active approval.
+ * Only a suspended job: one the person deactivated or paused themselves stays as they left it.
+ * @returns {Promise<string>} What the pass did.
+ */
+async function watcherScheduleKeep() {
+  if (WATCHER_KEEPER.busy || WATCHER_KEEPER.refused) return WATCHER_KEEPER.refused ? 'refused' : 'idle';
+  WATCHER_KEEPER.busy = true;
+  try {
+    const row = await paperScheduleRow(WATCHER_SCHEDULE);
+    if (!row || row.status !== 'suspended' || row.reason === 'owner_paused') return 'idle';
+    const [management, backstops] = await Promise.all([api('/portfolio/management'), api('/portfolio/backstops')]);
+    const approved = ((management && management.watches) || []).some((w) => w.authority && w.authority.active) || ((backstops && backstops.policies) || []).some((p) => p.nativeStatus && p.nativeStatus.effectiveStatus === 'active');
+    if (!approved) return 'idle';
+    const out = await watcherScheduleStart();
+    if (out !== 'activated' && out !== 'active') WATCHER_KEEPER.refused = out;
+    return out;
+  } catch { return 'idle'; } finally { WATCHER_KEEPER.busy = false; }
+}
+
 /**
  * @description Run the keeper now and every minute while the page is visible.
  * @returns {void}
  */
 function startPaperScheduleKeeper() {
-  const pass = () => { if (document.hidden) return; paperScheduleKeep(); if (typeof quantScheduleKeep === 'function') quantScheduleKeep(); };
+  const pass = () => { if (document.hidden) return; paperScheduleKeep(); watcherScheduleKeep(); if (typeof quantScheduleKeep === 'function') quantScheduleKeep(); };
   pass();
   setInterval(pass, 60000);
   document.addEventListener('visibilitychange', pass);

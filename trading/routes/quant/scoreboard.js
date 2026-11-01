@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | A night's picks stored the whole list, thousands of names at the new size, and kept it for good. The list is now dropped once every horizon is graded.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The latest graded picks shown are those of the signal that led the list when they were made.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk's forward scoreboard: each session's top picks per signal are recorded before their outcome exists, entered at the next session's close and graded 5, 21 and 63 sessions later against SPY and the whole list. Verdicts wait for enough non-overlapping windows.
  */
@@ -88,6 +89,7 @@ function gradeCohort(cohort, closes, sessions) {
     cohort.graded[h] = { from, to, spy: round(spy, 5), list: listed.length ? round(listed.reduce((s, r) => s + r, 0) / listed.length, 5) : null, signals };
     changed = true;
   }
+  if (changed && HORIZONS.every((h) => cohort.graded[h])) delete cohort.list;
   return changed;
 }
 

@@ -36,6 +36,7 @@
  *                     |                             | printer key.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.PrinterKeyUnreadable = void 0;
 exports.evaluateStart = evaluateStart;
 exports.loadPrinter = loadPrinter;
 exports.bambuProfileOf = bambuProfileOf;
@@ -68,6 +69,14 @@ async function evaluateStart(start) {
         return { go: false, error: error instanceof Error ? error.message : String(error) };
     }
 }
+/** @description A printer whose stored key cannot be opened on this installation (sealed under an earlier platform's key, for example): the person enters it again. */
+class PrinterKeyUnreadable extends Error {
+    constructor(label) {
+        super(`The access code stored for ${String(label || 'this printer')} cannot be read on this installation. Enter it again in Scan to Print, Printers, access code.`);
+        this.name = 'PrinterKeyUnreadable';
+    }
+}
+exports.PrinterKeyUnreadable = PrinterKeyUnreadable;
 /**
  * @description Load one of the caller's printers with its key decrypted, failing closed.
  * @param pool - Pool.
@@ -80,9 +89,16 @@ async function loadPrinter(pool, sub, printerId) {
     const row = await (0, job_store_1.getPrinterWithKey)(pool, sub, printerId);
     if (!row)
         return null;
-    const secret = await (0, personal_data_1.decryptField)(sub, row.api_key_ciphertext);
+    let secret;
+    try {
+        secret = await (0, personal_data_1.decryptField)(sub, row.api_key_ciphertext);
+    }
+    catch (error) {
+        logger.error({ err: error, printerId }, 'A printer key could not be opened');
+        throw new PrinterKeyUnreadable(row.label);
+    }
     if (!secret || (0, personal_data_1.isEncrypted)(secret))
-        throw new Error('Printer key decryption failed closed');
+        throw new PrinterKeyUnreadable(row.label);
     const { api_key_ciphertext: _ciphertext, ...printer } = row;
     return { row: printer, secret };
 }
@@ -166,8 +182,21 @@ async function sendToBambu(deps, printer, model, start, requestedBy) {
     if ('status' in archive)
         return archive;
     const profile = bambuProfileOf(printer);
-    const upload = await (0, bambu_lan_1.bambuUpload)(profile, archive.fileName, archive.bytes, deps.bambuIo);
     const base = { fileName: archive.fileName, estimate: archive.estimate, sliceProfile: archive.sliceProfile };
+    // A native package has no network: the engine container uploads, and the broker that starts a print is out of reach, so it waits on the printer.
+    if (deps.slicer.exchange) {
+        try {
+            await (0, slicer_engine_1.uploadThroughEngine)(deps.slicer, profile, archive.fileName, archive.bytes);
+        }
+        catch (error) {
+            if (!(error instanceof slicer_engine_1.SlicerEngineError))
+                throw error;
+            logger.error({ printerId: printer.row.printer_id, fileName: archive.fileName, reason: error.message }, 'Bambu printer upload through the engine failed');
+            return { ...base, status: error.code === 'refused' ? 502 : 503, uploaded: false, started: false, message: error.reason ?? error.message };
+        }
+        return { ...base, status: 201, uploaded: true, started: false, message: 'Uploaded. It waits on the printer: start it from the printer\'s screen.' };
+    }
+    const upload = await (0, bambu_lan_1.bambuUpload)(profile, archive.fileName, archive.bytes, deps.bambuIo);
     if (!upload.ok) {
         logger.error({ printerId: printer.row.printer_id, fileName: archive.fileName, reason: upload.message }, 'Bambu printer upload failed');
         return { ...base, status: 502, uploaded: false, started: false, message: upload.message };

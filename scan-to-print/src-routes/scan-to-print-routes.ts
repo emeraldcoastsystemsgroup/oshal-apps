@@ -112,12 +112,23 @@ export function slicerEngineOptions(appPackageDir: string, env: Record<string, s
   return { ...address, expectedBuildHash: slicerEngineBuildHash(engineDir), installHint: slicerInstallHint(engineDir), ...(addrError ? { addrError } : {}), ...(connect ? { connect } : {}) };
 }
 
+/** On the native kernel a package has no network: the slicer engine is reached through the kernel's engine.exchange intent. */
+function nativeSlicer(ctx: AppContext, options: SlicerEngineOptions): SlicerEngineOptions {
+  if ((ctx.pool as unknown as { storageModel?: unknown }).storageModel !== 'kernel-scoped-documents') return options;
+  const intent = (ctx as unknown as { intent?: (name: string, input: unknown) => Promise<unknown> }).intent;
+  return { ...options, installHint: 'on the kernel host run scan-to-print/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES',
+    exchange: async (request, timeoutMs) => {
+      if (typeof intent !== 'function') throw new Error('the kernel intent port is unavailable');
+      return (await intent('engine.exchange', { request, timeoutMs })) as { hello?: unknown; reply?: unknown };
+    } };
+}
+
 /** @description The dependencies the person's print routes and the print service share. */
 function printDeps(ctx: AppContext, opts: ScanToPrintRouteOpts): PrintRouteDeps & JobRouteDeps {
   const env = opts.env ?? (process.env as Record<string, string | undefined>);
   return {
     pool: ctx.pool, dataRoot: opts.dataRoot ?? resolveDataRoot(env), env, callerSub, execFile: opts.execFile, fetchImpl: opts.fetchImpl,
-    slicer: slicerEngineOptions(ctx.appPackageDir ?? '', env, opts.slicerConnect), bambuIo: opts.bambuIo,
+    slicer: nativeSlicer(ctx, slicerEngineOptions(ctx.appPackageDir ?? '', env, opts.slicerConnect)), bambuIo: opts.bambuIo,
   };
 }
 

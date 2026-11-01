@@ -101,12 +101,24 @@ function slicerEngineOptions(appPackageDir, env, connect) {
     }
     return { ...address, expectedBuildHash: (0, slicer_engine_1.slicerEngineBuildHash)(engineDir), installHint: (0, slicer_engine_1.slicerInstallHint)(engineDir), ...(addrError ? { addrError } : {}), ...(connect ? { connect } : {}) };
 }
+/** On the native kernel a package has no network: the slicer engine is reached through the kernel's engine.exchange intent. */
+function nativeSlicer(ctx, options) {
+    if (ctx.pool.storageModel !== 'kernel-scoped-documents')
+        return options;
+    const intent = ctx.intent;
+    return { ...options, installHint: 'on the kernel host run scan-to-print/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES',
+        exchange: async (request, timeoutMs) => {
+            if (typeof intent !== 'function')
+                throw new Error('the kernel intent port is unavailable');
+            return (await intent('engine.exchange', { request, timeoutMs }));
+        } };
+}
 /** @description The dependencies the person's print routes and the print service share. */
 function printDeps(ctx, opts) {
     const env = opts.env ?? process.env;
     return {
         pool: ctx.pool, dataRoot: opts.dataRoot ?? (0, data_dir_1.resolveDataRoot)(env), env, callerSub, execFile: opts.execFile, fetchImpl: opts.fetchImpl,
-        slicer: slicerEngineOptions(ctx.appPackageDir ?? '', env, opts.slicerConnect), bambuIo: opts.bambuIo,
+        slicer: nativeSlicer(ctx, slicerEngineOptions(ctx.appPackageDir ?? '', env, opts.slicerConnect)), bambuIo: opts.bambuIo,
     };
 }
 /**

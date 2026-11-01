@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Activating live trading also starts the watcher job it depends on.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Resolve separate account detail bookmarks without changing strategy bookmarks or exact-account binding.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Remove the previous activation card before refreshing its review and make failed checks visibly actionable.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Put account totals and schedule above two clear control cards and keep activation summaries compact without changing reviewed terms.
@@ -157,6 +158,7 @@ async function nativeAccountStrategyAction(action,host,context){
   const result=nativeAccountStrategyReviews.get(host);if(!result?.review?.activationReady)throw Error('Prepare a fresh, verified transition first.');
   const m=result.mandate;if(!confirm(nativeStrategyConfirmation(m,account.label)))return;
   await api('/portfolio/live/activate',jbody('POST',{watchId:watch.id,mandateId:m.mandateId,fingerprint:m.fingerprint,confirm:true,confirmAdoption:m.terms.scope==='whole-account'}));
+  if(typeof watcherScheduleStart==='function')await watcherScheduleStart();
  }
  if(action==='strategy-stop')await api('/portfolio/live/stop',jbody('POST',{watchId:watch.id}));
  if(!stale(token))await loadNativeAccountManagement(model,token);

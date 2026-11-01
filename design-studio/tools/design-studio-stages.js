@@ -187,6 +187,12 @@ window.DesignStudioStages = (function stages() {
     const missing = ids.length - models.length;
     const line = `${built.length === models.length && !missing ? 'parts-complete' : 'sized'} · ${built.length} of ${ids.length} bound parts built${missing ? ` · ${missing} bound id${missing === 1 ? '' : 's'} not among your parts` : ''} · ${models.map((m) => `${m.title} r${m.revision}`).join(', ')}`;
     const met = built.length === ids.length && !missing;
+    // A bare box is a size, not a part: it has no bore, no hole, nothing that joins it to anything. Built is not the same as designed.
+    const blocks = models.filter((m) => m.base && m.base.kind === 'box' && !(m.features || []).length);
+    if (met && blocks.length) {
+      const said = `blocks · ${blocks.length} of ${ids.length} bound parts ${blocks.length === 1 ? 'is a plain block' : 'are plain blocks'} with no features (${blocks.map((m) => String(m.title).split(' · ').pop()).join(', ')}): sizes, not designs yet. Ask the design partner or open CAD Studio`;
+      return { stage: 'blocks', tone: 'warn', figure: [`${ids.length - blocks.length}/${ids.length}`, 'parts designed'], line: said, action: open, secondary: mechanism };
+    }
     return { stage: met ? 'parts-complete' : 'sized', tone: met ? 'ok' : 'warn', figure: [`${built.length}/${ids.length}`, 'parts built'], line, met, evidence: line, revision: models.map((m) => `${m.model_id.slice(0, 8)}@r${m.revision}`).join('+') || 'none',
       read: { route: r.url, readAt: now(), models: models.map((m) => ({ modelId: m.model_id, title: m.title, revision: m.revision, state: m.state, massG: m.report ? m.report.massG : null })) }, action: open, secondary: mechanism };
   }
@@ -346,7 +352,9 @@ window.DesignStudioStages = (function stages() {
   }
   function fabricateFinished(project, entry, E, set, p, printers) {
     const stale = set.designRevision !== p.revision; const bad = Array.isArray(set.unprintable) ? set.unprintable : [];
-    const sent = Array.isArray(set.sent) && set.sent.length ? ` · ${set.sent.length} file${set.sent.length === 1 ? '' : 's'} sent to ${[...new Set(set.sent.map((x) => x.printerLabel || x.printerId))].join(', ')} (${set.sent[set.sent.length - 1].started ? 'the last one started' : set.sent[set.sent.length - 1].uploaded ? 'the last one waits on the printer' : 'the last one was not sent: ' + (set.sent[set.sent.length - 1].message || '')})` : '';
+    const delivered = Array.isArray(set.sent) ? set.sent.filter((x) => x.uploaded) : [];
+    const newest = Array.isArray(set.sent) && set.sent.length ? set.sent[set.sent.length - 1] : null;
+    const sent = !newest ? '' : `${delivered.length ? ` · ${delivered.length} file${delivered.length === 1 ? '' : 's'} on ${[...new Set(delivered.map((x) => x.printerLabel || x.printerId))].join(', ')}${newest.started ? ' (the last one started)' : newest.uploaded ? ' (the last one waits on the printer)' : ''}` : ''}${newest.uploaded ? '' : ` · the last send did not reach ${newest.printerLabel || newest.printerId}: ${newest.message || 'no reason given'}`}`;
     const sha = String(set.manifestSha256 || '').slice(0, 12);
     const line = stale ? `printable · the set (${set.exported} of ${set.parts} parts, manifest ${sha}) was made at design revision ${set.designRevision}; the design is now ${p.revision}: make it again · ${printers}`
       : bad.length ? `unprintable · ${set.exported} of ${set.parts} parts exported watertight through CAD Studio · ${bad.length} unprintable: ${bad.map((u) => `${u.name} (${u.reason})`).join('; ')} · manifest ${sha}${sent} · ${printers}`

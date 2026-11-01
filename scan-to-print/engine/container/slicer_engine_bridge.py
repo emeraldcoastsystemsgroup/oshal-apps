@@ -36,7 +36,7 @@ import threading
 PROTOCOL = 1
 #: Everything the Dockerfile bakes that changes the engine's answers (mirrored by
 #: src-routes/printing/slicer-engine.ts -- a spec keeps them in step).
-RUNTIME_FILES = ("slicer_worker.py", "container/slicer_engine_bridge.py", "container/Dockerfile", "orcaslicer-lock.txt")
+RUNTIME_FILES = ("slicer_worker.py", "bambu_upload.py", "container/slicer_engine_bridge.py", "container/Dockerfile", "orcaslicer-lock.txt")
 ENGINE_DIR = os.environ.get("SCAN_TO_PRINT_ENGINE_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAX_LINE_BYTES = 96 * 1024 * 1024
 DEFAULT_PORT = 7414

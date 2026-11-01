@@ -44,7 +44,7 @@ export const DEFAULT_SLICER_ENGINE_ADDR = 'scan-to-print-engine:7414';
 /** @description Environment override for that address. */
 export const SLICER_ENGINE_ADDR_ENV = 'SCAN_TO_PRINT_ENGINE_ADDR';
 /** @description The files the image bakes that change its answers (mirror of RUNTIME_FILES in the bridge). */
-export const SLICER_RUNTIME_FILES = ['slicer_worker.py', 'container/slicer_engine_bridge.py', 'container/Dockerfile', 'orcaslicer-lock.txt'] as const;
+export const SLICER_RUNTIME_FILES = ['slicer_worker.py', 'bambu_upload.py', 'container/slicer_engine_bridge.py', 'container/Dockerfile', 'orcaslicer-lock.txt'] as const;
 
 /**
  * @description sha256 over the runtime files, each prefixed by its relative name and NUL-framed,
@@ -86,6 +86,8 @@ export interface SlicerEngineOptions {
   installHint: string;
   /** Socket factory (spec seam). */
   connect?: (host: string, port: number) => net.Socket;
+  /** The kernel's engine.exchange: a native package has no network, so one request reaches the pinned engine through it. */
+  exchange?: (request: { cmd: string; args: Record<string, unknown> }, timeoutMs: number) => Promise<{ hello?: unknown; reply?: unknown }>;
   /** Slice timeout (longer than the worker's own slicer timeout, so the worker answers first). */
   timeoutMs?: number;
   /** Set when SCAN_TO_PRINT_ENGINE_ADDR could not be parsed; every request reports it. */
@@ -138,6 +140,8 @@ function verifyHello(line: string, opts: SlicerEngineOptions): SlicerEngineError
   }
   const hello = (msg.bridge && typeof msg.bridge === 'object' ? msg.bridge : {}) as Record<string, unknown>;
   if (hello.protocol !== SLICER_BRIDGE_PROTOCOL) return unavailable(`the slicer engine speaks bridge protocol ${field(hello.protocol) ?? 'unknown'}, this package needs ${SLICER_BRIDGE_PROTOCOL}`);
+  // The kernel's sandbox hides the engine's Dockerfile from the package, so its hash of the tree cannot match; the kernel pins this engine.
+  if (opts.exchange) return null;
   if (!opts.expectedBuildHash) return unavailable("this package's engine tree could not be read, so the slicer engine build cannot be verified");
   if (hello.buildHash !== opts.expectedBuildHash) {
     return unavailable(`the slicer engine container is out of date: it was built from engine ${(field(hello.buildHash) ?? 'unknown').slice(0, 12)}, this package ships ${opts.expectedBuildHash.slice(0, 12)}`);
@@ -208,6 +212,7 @@ function answerOf(line: string): { ok: true; value: unknown } | { ok: false; err
  * @throws SlicerEngineError.
  */
 export function slicerRequest(opts: SlicerEngineOptions, cmd: string, args: Record<string, unknown>): Promise<unknown> {
+  if (opts.exchange) return nativeRequest(opts, cmd, args);
   if (opts.addrError) {
     const message = `${SLICER_ENGINE_ADDR_ENV} is invalid: ${opts.addrError}`;
     return Promise.reject(new SlicerEngineError('unavailable', message, `${message} — set it to host:port, or unset it for ${DEFAULT_SLICER_ENGINE_ADDR}`));
@@ -252,6 +257,39 @@ export function slicerRequest(opts: SlicerEngineOptions, cmd: string, args: Reco
       return false;
     }, (error) => finish(new SlicerEngineError('engine_error', `the slicer engine's answer could not be read (${error.message})`))));
   });
+}
+
+/** The longest engine.exchange the kernel allows. */
+const NATIVE_MAX_MS = 55_000;
+
+/** One request through the kernel: the engine's hello and reply arrive together and are verified the same way. */
+async function nativeRequest(opts: SlicerEngineOptions, cmd: string, args: Record<string, unknown>): Promise<unknown> {
+  let answer: { hello?: unknown; reply?: unknown };
+  try {
+    answer = await (opts.exchange as NonNullable<SlicerEngineOptions['exchange']>)({ cmd, args }, Math.min(opts.timeoutMs ?? NATIVE_MAX_MS, NATIVE_MAX_MS));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/deadline/i.test(message)) throw new SlicerEngineError('timeout', `the slicer engine did not answer within ${Math.round(NATIVE_MAX_MS / 1000)} s`);
+    throw new SlicerEngineError('unavailable', `the kernel could not reach the slicer engine (${message})`, `the kernel could not reach the slicer engine (${message}) — install or rebuild it: ${opts.installHint}`);
+  }
+  const stale = verifyHello(JSON.stringify(answer?.hello ?? null), opts);
+  if (stale) throw stale;
+  const out = answerOf(JSON.stringify(answer?.reply ?? null));
+  if (out.ok) return out.value;
+  throw out.error;
+}
+
+/**
+ * @description Upload a sliced archive to a Bambu printer through the engine, on a kernel whose packages have no network. It never starts a print.
+ * @param opts - Engine options with `exchange`.
+ * @param target - Printer host, pinned certificate and access code.
+ * @param fileName - The printer-storage file name.
+ * @param bytes - The archive.
+ * @returns The engine's reply.
+ * @throws SlicerEngineError.
+ */
+export function uploadThroughEngine(opts: SlicerEngineOptions, target: { host: string; certSha256: string; accessCode: string }, fileName: string, bytes: Uint8Array): Promise<unknown> {
+  return slicerRequest(opts, 'upload_bambu', { host: target.host, certSha256: target.certSha256, accessCode: target.accessCode, fileName, archive: Buffer.from(bytes).toString('base64') });
 }
 
 /** @description Build plates the engine slices for (the vendor profiles' curr_bed_type values). */

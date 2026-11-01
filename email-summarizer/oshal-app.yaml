@@ -18,6 +18,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: a mail-copy pass resumes where the last stopped (Roger's first live passes stored 290, then only 73 more: every pass re-read the stored week before reaching new mail, so the copy stalled). email-messages answers from the copy only over a window the copy reaches. Guarded by email-summarizer/tests/mail-store.test.cjs.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: the Social desk (Roger, 2026-10-30: the Social tab was one profile card; he wants a publisher's tools a person can use to post or stream to two or three services, Slack included). routes/social-desk.js at /api/email-social: channels (X, LinkedIn, Facebook Page, Slack, Mastodon) on the person's own connections through the kernel egress, a composer that writes once and customizes per channel, Add to queue (the posting plan's next free slot) / Post now / Schedule, Drafts and Sent, Engage (Slack DMs and mentions, X mentions, reply), Go Live events whose announcements are posts, one Settings panel. Migration 002 adds the posts, settings and events tables; the social-publish schedule (every 5 minutes, as the person) sends due posts; the social-post tool lets the communications bot post for the person behind an approval. Guarded by tests/social-rules.test.cjs, social-store.test.cjs and social-desk-browser.test.cjs.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: the Inbox pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the page asked for one page of 30 and never asked for more). GET /api/email/messages without words lists everything the person's copy holds, fifty at a time by keyset cursor (no ORDER BY or OFFSET on the native kernel), from a current copy whether or not it has finished filling, else the mailbox live page by page with the provider's own cursor; the page loads the next page as the list is scrolled to its end and says how far back it reaches. A copy whose job was paused (an authority-surface release suspends person schedules) is said so with "Turn it back on". Guarded by tests/mail-store.test.cjs, mail-store-browser.test.cjs, outlook-mailbox.test.mjs and surface-provider.test.mjs.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -82,7 +83,7 @@ description: >-
   mail is a single explicit-confirm gated action; every social publish goes out
   on the person's own connection through the kernel. The bot does the reasoning
   on its own harness/model with cost captured per user.
-version: 1.6.1
+version: 1.6.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml

@@ -470,6 +470,7 @@
     const parts = [el('span', { text: printerText(p) + ' ' }), el('button', { class: 'link', text: 'status', onclick: () => printerStatus(p.printer_id) }),
       el('button', { class: 'link', text: p.auto_start ? 'turn auto-start off' : 'turn auto-start on', onclick: () => setAutoStart(p, !p.auto_start) })];
     if (isBambu(p)) parts.push(el('button', { class: 'link', text: 'slice settings', onclick: () => editSlice(p) }));
+    if (isBambu(p)) parts.push(el('button', { class: 'link', text: 'access code', onclick: (e) => editCode(p, e.target) }));
     parts.push(el('button', { class: 'link danger', text: 'remove', onclick: () => removePrinter(p.printer_id) }));
     return el('li', {}, parts);
   }
@@ -530,6 +531,14 @@
     const nozzle = window.prompt('Nozzle diameter (0.2, 0.4, 0.6 or 0.8)', current.nozzle || '0.4');
     if (nozzle === null) return;
     try { await api('/printers/' + p.printer_id, { method: 'PATCH', json: { sliceProfile: { plate, filament, nozzle } } }); await loadPrinters(); toast('Slice settings saved for ' + p.label + '.', 'ok'); } catch (e) { toast(e.message, 'error'); }
+  }
+  /** Replace a printer's stored access code in place: its pinned identity stays. */
+  function editCode(p, anchor) {
+    const input = el('input', { type: 'password', placeholder: 'code on the printer screen', autocomplete: 'off', 'aria-label': 'Access code' });
+    const save = el('button', { class: 'link', text: 'save code', onclick: async () => {
+      try { await api('/printers/' + p.printer_id, { method: 'PATCH', json: { accessCode: input.value } }); await loadPrinters(); toast('Access code saved for ' + p.label + '. It is stored encrypted and never shown again.', 'ok'); } catch (e) { toast(e.message, 'error'); }
+    } });
+    anchor.replaceWith(input, save); input.focus();
   }
   async function removePrinter(id) { try { await api('/printers/' + id, { method: 'DELETE' }); await loadPrinters(); } catch (e) { toast(e.message, 'error'); } }
   async function printerStatus(id) {

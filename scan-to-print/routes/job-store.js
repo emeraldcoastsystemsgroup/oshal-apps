@@ -40,6 +40,7 @@ exports.listPrinters = listPrinters;
 exports.insertPrinter = insertPrinter;
 exports.getPrinterAutoStart = getPrinterAutoStart;
 exports.updatePrinterSettings = updatePrinterSettings;
+exports.updatePrinterKey = updatePrinterKey;
 exports.getPrinterWithKey = getPrinterWithKey;
 exports.deletePrinter = deletePrinter;
 exports.insertSubmission = insertSubmission;
@@ -142,6 +143,15 @@ async function getPrinterAutoStart(pool, sub, printerId) {
  */
 async function updatePrinterSettings(pool, sub, printerId, change) {
     const { rows } = await pool.query(`UPDATE scan_print_printer SET auto_start = COALESCE($3, auto_start), slice_profile = COALESCE($4::jsonb, slice_profile), updated_at = now() WHERE owner_sub = $1 AND printer_id = $2 RETURNING ${PRINTER_COLUMNS}`, [sub, printerId, change.autoStart, change.sliceProfile === null ? null : JSON.stringify(change.sliceProfile)]);
+    return rows[0] ?? null;
+}
+/**
+ * @description Replace a printer's stored key; its identity and settings stay as they are.
+ * @param pool - Pool. @param sub - Owner. @param printerId - Printer. @param ciphertext - The sealed key.
+ * @returns The printer, or null when it is not the caller's.
+ */
+async function updatePrinterKey(pool, sub, printerId, ciphertext) {
+    const { rows } = await pool.query(`UPDATE scan_print_printer SET api_key_ciphertext = $3, updated_at = now() WHERE owner_sub = $1 AND printer_id = $2 RETURNING ${PRINTER_COLUMNS}`, [sub, printerId, ciphertext]);
     return rows[0] ?? null;
 }
 /** @description One printer WITH its ciphertext — only the upload and status paths call this. */

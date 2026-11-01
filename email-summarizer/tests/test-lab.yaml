@@ -16,6 +16,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: mail-store expects a pass to resume below and above the copy instead of re-reading it, and a filling copy to answer only windows it reaches.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: register the Social desk cases: social-rules (the posting plan's next slot, post normalization, every publish through the kernel egress with no credential, partial sends and retries, the due pass budget, Engage and replies), social-store (the three tables on a disposable PostgreSQL under forced owner row security) and social-desk-browser (the desk in Chromium over a loopback fixture at 1280 and 412).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: mail-store expects the paged listing (keyset pages, ties once, non-inbox mail left out, a still-filling copy answering with its reach, live Gmail pages by token, a foreign cursor refused); mail-store-browser expects the Inbox to ask for 50, follow the before/skip cursor as the end comes into view, count what is loaded, say how far the copy reaches, and offer "Turn it back on" for a suspended job; outlook-mailbox expects one Graph page per pageOutlookInbox call.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: mail-store expects the demo mailbox rows (planted once, listed, read by id, per person).
 # -----------------------------------------------------------------------------
 version: 1
 cases:

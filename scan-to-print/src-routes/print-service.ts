@@ -40,7 +40,7 @@ import { decryptField, isEncrypted } from '@/features/personal-data';
 import { getPrinterWithKey, insertSubmission, type PrinterRow, type QueryablePool, type SubmissionRow } from './job-store';
 import { BAMBU_KIND, type FetchLike, type HttpPrinterKind, adapterFor, bambuHostOf, hostAccepts } from './engine/print/printer-adapters';
 import { type BambuIo, type BambuProfile, type BambuState, bambuStart, bambuStatus, bambuUpload } from './printing/bambu-lan';
-import { type SliceProfile, type SlicerEngineOptions, SlicerEngineError, sliceToArchive } from './printing/slicer-engine';
+import { type SliceProfile, type SlicerEngineOptions, SlicerEngineError, sliceToArchive, uploadThroughEngine } from './printing/slicer-engine';
 
 const logger = createChildLogger({ module: 'scan-to-print-print-service' });
 
@@ -111,6 +111,14 @@ export async function evaluateStart(start: StartDecision): Promise<{ go: boolean
   }
 }
 
+/** @description A printer whose stored key cannot be opened on this installation (sealed under an earlier platform's key, for example): the person enters it again. */
+export class PrinterKeyUnreadable extends Error {
+  constructor(label: unknown) {
+    super(`The access code stored for ${String(label || 'this printer')} cannot be read on this installation. Enter it again in Scan to Print, Printers, access code.`);
+    this.name = 'PrinterKeyUnreadable';
+  }
+}
+
 /**
  * @description Load one of the caller's printers with its key decrypted, failing closed.
  * @param pool - Pool.
@@ -122,8 +130,12 @@ export async function evaluateStart(start: StartDecision): Promise<{ go: boolean
 export async function loadPrinter(pool: QueryablePool, sub: string, printerId: string): Promise<LoadedPrinter | null> {
   const row = await getPrinterWithKey(pool, sub, printerId);
   if (!row) return null;
-  const secret = await decryptField(sub, row.api_key_ciphertext);
-  if (!secret || isEncrypted(secret)) throw new Error('Printer key decryption failed closed');
+  let secret: string | null | undefined;
+  try { secret = await decryptField(sub, row.api_key_ciphertext); } catch (error) {
+    logger.error({ err: error, printerId }, 'A printer key could not be opened');
+    throw new PrinterKeyUnreadable(row.label);
+  }
+  if (!secret || isEncrypted(secret)) throw new PrinterKeyUnreadable(row.label);
   const { api_key_ciphertext: _ciphertext, ...printer } = row;
   return { row: printer, secret };
 }
@@ -207,8 +219,19 @@ export async function sendToBambu(deps: PrintServiceDeps, printer: LoadedPrinter
   const archive = await bambuArchive(deps, printer, model);
   if ('status' in archive) return archive;
   const profile = bambuProfileOf(printer);
-  const upload = await bambuUpload(profile, archive.fileName, archive.bytes, deps.bambuIo);
   const base = { fileName: archive.fileName, estimate: archive.estimate, sliceProfile: archive.sliceProfile };
+  // A native package has no network: the engine container uploads, and the broker that starts a print is out of reach, so it waits on the printer.
+  if (deps.slicer.exchange) {
+    try {
+      await uploadThroughEngine(deps.slicer, profile, archive.fileName, archive.bytes);
+    } catch (error) {
+      if (!(error instanceof SlicerEngineError)) throw error;
+      logger.error({ printerId: printer.row.printer_id, fileName: archive.fileName, reason: error.message }, 'Bambu printer upload through the engine failed');
+      return { ...base, status: error.code === 'refused' ? 502 : 503, uploaded: false, started: false, message: error.reason ?? error.message };
+    }
+    return { ...base, status: 201, uploaded: true, started: false, message: 'Uploaded. It waits on the printer: start it from the printer\'s screen.' };
+  }
+  const upload = await bambuUpload(profile, archive.fileName, archive.bytes, deps.bambuIo);
   if (!upload.ok) {
     logger.error({ printerId: printer.row.printer_id, fileName: archive.fileName, reason: upload.message }, 'Bambu printer upload failed');
     return { ...base, status: 502, uploaded: false, started: false, message: upload.message };

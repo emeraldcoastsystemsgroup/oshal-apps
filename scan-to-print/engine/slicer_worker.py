@@ -307,7 +307,20 @@ def cmd_hello(_args, state):
     return {"protocol": PROTOCOL, "orcaSlicer": state["version"], "printerModels": len(state["models"])}
 
 
-COMMANDS = {"hello": cmd_hello, "profiles": cmd_profiles, "slice": cmd_slice}
+def cmd_upload_bambu(args, _state):
+    """@description Send a sliced archive to a Bambu printer from here, where the LAN is reachable (a native package has no network). Never starts a print."""
+    from bambu_upload import UploadRefused, upload
+    try:
+        data = base64.b64decode(args.get("archive") or "", validate=True)
+    except ValueError:
+        raise Refused("archive is not base64") from None
+    try:
+        return upload(str(args.get("host") or ""), int(args.get("port") or 990), args.get("certSha256"), str(args.get("accessCode") or ""), str(args.get("fileName") or ""), data)
+    except UploadRefused as exc:
+        raise Refused(str(exc)) from None
+
+
+COMMANDS = {"hello": cmd_hello, "profiles": cmd_profiles, "slice": cmd_slice, "upload_bambu": cmd_upload_bambu}
 
 
 def orca_version():

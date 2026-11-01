@@ -1,14 +1,16 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The list can now hold thousands of names, so a row carries its company name, industry and themes, its reasons are worked out when it is read instead of stored, and each group gets a summary. Gold and silver funds join the ranks because a fund is the plain way to hold them.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | On the first real run SPY read 3% off its high while the momentum leaders were 40-50% off theirs: the market condition now measures the leaders and the average stock, says so in its label, and a stock far below its high carries a caution even when it ranks well.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Lead the list with the signal the history test rates best, and carry every signal's percentile so a person can rank by another. The fixed composite failed its own test on real prices, so it no longer leads.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk's daily list: rank every scorable stock on the fixed composite and say why in plain sentences, with cautions from SEC filings and the earnings calendar, where the person's own holdings rank, and how the market itself looks. A ranking, never a buy or sell instruction.
  */
 'use strict';
 const { currentFactors, addComposite, factorsAt, percentiles, PRICE_SIGNALS, round } = require('./factors');
-const { sectorOf } = require('../paper/universe');
+const { themesOf } = require('./themes');
+const { sicOf, industryOf } = require('./industries');
 
-/** Funds are reference points or cash, not companies to rank. */
-const FUNDS = Object.freeze(new Set(['SPY', 'VOO', 'IVV', 'VTI', 'QQQ', 'IWM', 'DIA', 'EFA', 'EEM', 'VEA', 'VWO', 'DBC', 'GLD', 'SLV', 'IEF', 'TLT', 'AGG', 'BND', 'SHY', 'BIL', 'SGOV', 'VNQ', 'XLE', 'XLF', 'XLK', 'XLV', 'XLI', 'XLP', 'XLU', 'XLY', 'XLB', 'XOP', 'XBI', 'IBB', 'FBT', 'ARKG', 'GNOM']));
+/** Funds that are reference points or cash, not things to rank. A theme fund such as a gold or crypto fund is ranked. */
+const FUNDS = Object.freeze(new Set(['SPY', 'VOO', 'IVV', 'VTI', 'QQQ', 'IWM', 'DIA', 'EFA', 'EEM', 'VEA', 'VWO', 'DBC', 'IEF', 'TLT', 'AGG', 'BND', 'SHY', 'BIL', 'SGOV', 'VNQ', 'XLE', 'XLF', 'XLK', 'XLV', 'XLI', 'XLP', 'XLU', 'XLY', 'XLB', 'XOP', 'XBI', 'IBB', 'FBT', 'ARKG', 'GNOM']));
 
 const pct = (n, d = 0) => `${(Math.abs(n) * 100).toFixed(d)}%`;
 
@@ -53,6 +55,15 @@ function cautionsFor(row) {
 }
 
 /**
+ * @description A stored row with what a person reads about it. Stored rows leave these out to stay small.
+ * @param {object} row - A stored row.
+ * @returns {object} The row with its reasons and cautions.
+ */
+function explain(row) {
+  return { ...row, reasons: reasonsFor(row), cautions: cautionsFor(row) };
+}
+
+/**
  * @description How the market itself looks, from SPY and the breadth of the list.
  * @param {object|undefined} spy - SPY's digest.
  * @param {Array<object>} rows - Scored rows.
@@ -93,22 +104,63 @@ function scorable(digests, session) {
 }
 
 /**
+ * @description Set what a row knows from outside its prices. Run again as filings arrive through the night.
+ * @param {object} row - A row; changed in place.
+ * @param {object} extras - Maps by symbol of names, companies, fundamentals, Congress buying, earnings and holdings, and the set of names Congress has traded.
+ * @returns {object} The row.
+ */
+function applyExtras(row, extras) {
+  row.name = extras.names.get(row.symbol) || null;
+  row.group = industryOf(sicOf(row.symbol, extras.companies.get(row.symbol)));
+  row.themes = themesOf(row.symbol, extras.congressNames);
+  row.fund = extras.funds.get(row.symbol) || null;
+  row.congress = extras.congress.get(row.symbol) || null;
+  row.earnings = extras.earnings.get(row.symbol) || null;
+  row.held = extras.holdings.has(row.symbol);
+  return row;
+}
+
+/**
  * @description One finished row of the list.
  * @param {object} row - Unfinished row.
  * @param {number} rank - 1-based rank.
- * @param {object} extras - The ranking signal and maps of fundamentals, Congress buying, earnings and holdings by symbol.
+ * @param {object} extras - The ranking signal and what applyExtras reads.
  * @returns {object} The row.
  */
 function finishRow(row, rank, extras) {
   const { c } = row.digest.recent;
-  const out = {
-    rank, symbol: row.symbol, sector: sectorOf(row.symbol) || null, price: c.at(-1), chg1d: round(c.at(-1) / c.at(-2) - 1),
+  return applyExtras({
+    rank, symbol: row.symbol, price: c.at(-1), chg1d: round(c.at(-1) / c.at(-2) - 1),
     score: Math.round(row.pct[extras.rankBy] ?? 0), f: storedFactors(row.factors), pct: Object.fromEntries(Object.entries(row.pct).map(([k, v]) => [k, Math.round(v)])),
-    fund: extras.funds.get(row.symbol) || null, congress: extras.congress.get(row.symbol) || null, earnings: extras.earnings.get(row.symbol) || null, held: extras.holdings.has(row.symbol),
-  };
-  out.reasons = reasonsFor(out);
-  out.cautions = cautionsFor(out);
-  return out;
+  }, extras);
+}
+
+/**
+ * @description How each industry and theme looks tonight, strongest names first by the list's ranking.
+ * @param {Array<object>} rows - Ranked rows, best first.
+ * @returns {Array<object>} One summary per group.
+ */
+function groupSummaries(rows) {
+  const groups = new Map();
+  const add = (name, kind, row) => { if (!groups.has(`${kind}:${name}`)) groups.set(`${kind}:${name}`, { name, kind, rows: [] }); groups.get(`${kind}:${name}`).rows.push(row); };
+  for (const row of rows) {
+    if (row.group) add(row.group, 'industry', row);
+    for (const theme of row.themes) add(theme, 'theme', row);
+  }
+  const mean = (list, read) => { const values = list.map(read).filter((v) => v != null); return values.length ? round(values.reduce((s, v) => s + v, 0) / values.length) : null; };
+  return [...groups.values()].map((g) => ({
+    name: g.name, kind: g.kind, count: g.rows.length, oneDay: mean(g.rows, (r) => r.chg1d), threeMonths: mean(g.rows, (r) => r.f.mom3),
+    above200Pct: round((g.rows.filter((r) => r.f.vsMa200 > 0).length / g.rows.length) * 100, 0), strongest: g.rows.slice(0, 3).map((r) => r.symbol),
+  })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * @description How much of the list has each kind of outside evidence.
+ * @param {Array<object>} rows - Ranked rows.
+ * @returns {object} Counts.
+ */
+function coverageOf(rows) {
+  return { secFilings: rows.filter((r) => r.fund).length, congress: rows.filter((r) => r.congress).length, classified: rows.filter((r) => r.group).length };
 }
 
 /**
@@ -123,17 +175,18 @@ function holdingRanks(holdings, rows, excluded) {
   return [...holdings.values()].map((h) => {
     const row = bySymbol.get(h.symbol);
     const status = row ? 'ranked' : FUNDS.has(h.symbol) ? 'fund' : (why.get(h.symbol) || 'no-data');
-    return { symbol: h.symbol, marketValue: h.marketValue, accounts: h.accounts, status, rank: row ? row.rank : null, of: rows.length, score: row ? row.score : null, reasons: row ? row.reasons : [], cautions: row ? row.cautions : [] };
+    return { symbol: h.symbol, marketValue: h.marketValue, accounts: h.accounts, status, rank: row ? row.rank : null, of: rows.length, score: row ? row.score : null, reasons: row ? reasonsFor(row) : [], cautions: row ? cautionsFor(row) : [] };
   }).sort((a, b) => (b.marketValue || 0) - (a.marketValue || 0));
 }
 
 /**
  * @description Build today's list.
- * @param {object} input - {session, at, digests, rankBy, funds:Map, congress:Map, earnings:Map, holdings:Map, noData:string[]}.
+ * @param {object} input - {session, at, digests, rankBy, funds:Map, congress:Map, earnings:Map, holdings:Map, noData:string[], names:Map, companies:Map, congressNames:Set, pool:object}.
  * @returns {object} The ranked rows, holdings, market condition and what was left out.
  */
 function buildToday(input) {
   const { session, at, digests } = input;
+  const extras = { names: new Map(), companies: new Map(), congressNames: new Set(), ...input };
   const { rows, excluded } = scorable(digests, session);
   addComposite(rows);
   const rankBy = input.rankBy || 'composite';
@@ -142,15 +195,28 @@ function buildToday(input) {
     for (const row of rows) if (map.has(row.symbol)) row.pct[signal.id] = map.get(row.symbol);
   }
   const ranked = rows.filter((r) => r.pct[rankBy] != null).sort((a, b) => b.pct[rankBy] - a.pct[rankBy] || a.symbol.localeCompare(b.symbol));
-  const finished = ranked.map((r, i) => finishRow(r, i + 1, { ...input, rankBy }));
+  const finished = ranked.map((r, i) => finishRow(r, i + 1, { ...extras, rankBy }));
   const spy = digests.find((d) => d.symbol === 'SPY');
   return {
     session, at, rankBy, scored: finished.length, rows: finished,
     holdings: holdingRanks(input.holdings, finished, excluded),
     market: marketCondition(spy, finished),
     leftOut: { ...Object.fromEntries(Object.entries(excluded).map(([k, v]) => [k, v.sort()])), 'no-data': [...(input.noData || [])].sort() },
-    coverage: { secFilings: finished.filter((r) => r.fund).length, congress: finished.filter((r) => r.congress).length },
+    coverage: coverageOf(finished), groups: groupSummaries(finished), pool: input.pool || null,
   };
 }
 
-module.exports = { FUNDS, reasonsFor, cautionsFor, marketCondition, holdingRanks, buildToday };
+/**
+ * @description Bring a published list up to date with what the night's filings added, without touching its prices or ranks.
+ * @param {object} today - The published summary.
+ * @param {Array<object>} rows - Its rows; changed in place.
+ * @param {object} extras - What applyExtras reads.
+ * @returns {object} The new summary.
+ */
+function refreshToday(today, rows, extras) {
+  for (const row of rows) applyExtras(row, extras);
+  const excluded = Object.fromEntries(Object.entries(today.leftOut).filter(([reason]) => reason !== 'no-data'));
+  return { ...today, holdings: holdingRanks(extras.holdings, rows, excluded), coverage: coverageOf(rows), groups: groupSummaries(rows) };
+}
+
+module.exports = { FUNDS, reasonsFor, cautionsFor, explain, marketCondition, holdingRanks, buildToday, refreshToday };

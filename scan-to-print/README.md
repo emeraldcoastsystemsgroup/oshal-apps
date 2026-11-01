@@ -1,5 +1,9 @@
 # Scan to Print
 
+0.7.3: **access code** on a Bambu printer in the Printers panel replaces its stored code in place. A code sealed by an earlier platform cannot be read on the native kernel, and the print route now says so instead of a bare failure. Adding a new Bambu printer still needs the network from the package, so on the native kernel it is backlog B22.
+
+0.7.2 makes Bambu slicing and upload work on the native kernel, where a package has no network. The slicer engine is reached through the kernel's `engine.exchange` (pin it in `OSHAL_PACKAGE_ENGINES`), and the upload runs in the engine container (`engine/bambu_upload.py`), checked against the pinned certificate before the access code is sent. It waits on the printer: the broker that starts a print and reads live status is out of reach from a native package, so start it from the printer's screen. One exchange is limited to 55 s and 12 MB. Run `engine/install-engine.sh` after updating.
+
 0.7.0 lets agents use the print service's tools, and makes this app's operator bot a printer bot
 (operator decision 2026-10-06: "agents can use tools that they are assigned to and there should be a
 bot that can call the printer"). The five agent tools run in-process as package tools under the

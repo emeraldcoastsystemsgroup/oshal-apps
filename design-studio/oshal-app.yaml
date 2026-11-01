@@ -31,6 +31,8 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (found on the owner's own account): a product designed in CAD Studio gets the plant path, not only the lift example; the Controller poster closes on the plant; parts the partner builds carry a part id the mechanism names; order open; a read of a running order waits; a new product appears without a reload.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3 (found on the owner's own account): a mechanism changed after the plant was built reads stale and offers Build the plant; reports from an older plant no longer count.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.4.4: an order reads the poster fresh before it presses; a training poster follows by itself; the partner does what the person asks out of chain order and says what is still open.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.4.5: a send that failed no longer reads as a file sent; the poster gives the print service's reason.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.4.6: a bound part that is a bare box reads blocks, not parts-complete (the owner printed-sent one and saw a plain block); the partner designs parts for what they do.
 name: design-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -55,7 +57,7 @@ description: >-
   engine's evidence line and the artifact revision. The design partner on the
   right rail works through the chain with you. The spider is the first product;
   a lifting machine is the first whose plant is generated from its own design.
-version: 0.4.4
+version: 0.4.6
 status: active
 scope: person
 # The print set (ADR-203 D7) is written under this package's own lasting directory on the native kernel

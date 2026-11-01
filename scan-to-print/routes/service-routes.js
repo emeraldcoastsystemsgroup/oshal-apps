@@ -238,6 +238,10 @@ function registerJobPrint(router, deps) {
                 res.status(400).json({ error: 'invalid_request', message: error.message });
                 return;
             }
+            if (error instanceof print_service_1.PrinterKeyUnreadable) {
+                res.status(409).json({ error: 'printer_key_unreadable', message: error.message });
+                return;
+            }
             logger.error({ err: error, jobId: job?.job_id }, 'Service job print failed');
             res.status(500).json({ error: 'print_failed' });
         }
@@ -277,6 +281,10 @@ function registerFilePrint(router, deps) {
         catch (error) {
             if (error instanceof RangeError) {
                 res.status(400).json({ error: 'invalid_request', message: error.message });
+                return;
+            }
+            if (error instanceof print_service_1.PrinterKeyUnreadable) {
+                res.status(409).json({ error: 'printer_key_unreadable', message: error.message });
                 return;
             }
             logger.error({ err: error }, 'Service file print failed');
