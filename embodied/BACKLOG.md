@@ -716,3 +716,15 @@ with done-when:
   on its torque-speed line; the residual recipe (±0.05 m on a slide) and 60 000 steps are what the handover
   measured. Done when: a recipe (a longer run, a shaped target trajectory the policy may advance) wins the
   reached-time facet on the gate's replay, reported like the spider's B30.
+
+## B34 — From the certified gait to a walking spider
+
+The certified gait and its NumPy runtime run in simulation and on fake and serial test bodies. Nothing has touched hardware.
+
+**Done when, in order:** (1) one printed part of each kind is test-fitted, the print set's fit notes are corrected; (2) the serial body drives one real STS3215, then all eighteen; (3) the LD19 and the BNO055 report through the node on the Pi; (4) the certified policy plays on the standing body, then walks, then recovers from a roll, each against the plant's numbers; (5) both jump options are measured on the bench.
+
+## B35 — What "the brain" means here
+
+The package trains and gates policies in its engine: the spider's gait took 40 minutes to about 2 hours a run, not weeks. The modular brain is a separate R&D project and is not part of any package; the only seam is the open body contract `GET /api/design-studio/projects/{id}/body`. A brain raised on a designed body is that project's decision. No claim about training duration or competence on this body has evidence behind it.
+
+**Done when:** the owner decides whether a learning brain is a goal of this chain; if so, a task beyond walking is defined with its gate here, trained from the body contract, and measured on the plant.

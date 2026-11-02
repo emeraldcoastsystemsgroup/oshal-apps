@@ -4,6 +4,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A saved store with no profile yet (the database exists, for example created by the first recruiter added) carries the same upload-a-resume notice; live the concierge answered "set up your profile" with nothing naming the resume upload.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The specialist and tool readers open the owner's published generation read-only and immutable. The engine keeps the owner database in WAL mode and the kernel pins that generation on a read-only mount, where SQLite cannot create the -shm it needs and refused with "unable to open database file": the Career concierge answered 503 on every question. A generation is never written in place (a write publishes a new one), so the checkpointed main file is the whole saved state; while a non-empty -wal sits beside it the ordinary read-only open is kept. Every refusal now logs one closed reason (no_identity, identity_changed, source_invalid, profile_invalid, owner_open_failed, query_failed, source_changed_during_read) so the next failure names its step; no path or SQLite text is logged. Guard: tests/career-native-read-wal.test.mjs.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The specialist's facts skip the board ranking. Jarvis's job questions refused with "specialist context read timed out": the facts read ran the full AI board ranking (2.1 to 3.0 s on a 2.1M-signal store, warm) inside the kernel's 3 s specialist deadline, only to count up to 10 top matches. readCareerSnapshot(..., {factsOnly:true}) counts the scored active matches (capped at 10) in one query and leaves the board, recent applications and fresh count to the career_database tool. Guard: tests/career-native-read-facts.test.mjs.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | A saved resume with no owner database yet reads as a saved resume, not "no resume": a person who had uploaded one and not yet matched was told to upload it.
  */
 'use strict';
 const fs = require('node:fs');
@@ -42,6 +43,7 @@ function sourceFile(filename, required = true) {
 
 const NO_RESUME = 'No resume has been ingested yet. Upload one on Career (Resume) and your scored matches, '
   + 'pipeline and fresh roles will appear here.';
+const NOT_MATCHED = 'The resume is saved. Scored matches appear after Find & score jobs on the Job Board.';
 const NO_CORPUS = 'The job corpus has not been built on this installation yet, so there are no openings to match.';
 
 /** The honest answer for a person with nothing saved yet: zero counts and what to do next. */
@@ -137,6 +139,16 @@ function profileView(raw) {
  * No CLI, provenance migration, model, network, or persisted write is involved. `root` is the host's
  * Career mount and must be the configured store root (a test passes its own disposable mount).
  */
+/** A saved resume with nothing matched yet: the database comes with the first match, the profile came first. */
+function savedProfileOnly(layout, corpusStat) {
+  const empty = emptySnapshot('no_owner_database', corpusStat);
+  const profilePath = path.join(layout.userDir, 'career_db.json'), profileStat = sourceFile(profilePath, false);
+  if (!profileStat) return empty;
+  const {roles, skills} = profileView(readProfile(profilePath, profileStat));
+  return {...empty, notice:NOT_MATCHED, profile:{present:true, roles, skills},
+    source:{...empty.source, profileModifiedAt:profileStat.mtime.toISOString()}};
+}
+
 function readCareerSnapshot(principal, root = '/career', {factsOnly = false} = {}) {
   if (!principal?.subject || !principal.issuer || !principal.id || !principal.tenant || principal.state !== 'active'
       || process.env.OSHAL_CAREER_OWNER_MOUNT !== '1' || process.env.JOBHUNTER_STORE_ROOT !== root) throw fail('no_identity');
@@ -146,7 +158,7 @@ function readCareerSnapshot(principal, root = '/career', {factsOnly = false} = {
   const corpusPresent = sourceFile(corpus, false);
   if (!corpusPresent) return emptySnapshot('no_corpus', null);
   if (!layout) return emptySnapshot('no_owner_store', corpusPresent);
-  if (!sourceFile(layout.userDb, false)) return emptySnapshot('no_owner_database', corpusPresent);
+  if (!sourceFile(layout.userDb, false)) return savedProfileOnly(layout, corpusPresent);
   const corpusStat = sourceFile(corpus), ownerStat = sourceFile(layout.userDb);
   const profilePath = path.join(layout.userDir, 'career_db.json'), profileStat = sourceFile(profilePath, false);
   const raw = readProfile(profilePath, profileStat);

@@ -10,8 +10,10 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Map every failure code the rail records on a run: career-worker-queue-timeout (504, added to the rail with the slot-wait ceiling), not-entitled (403), career-worker-error (502) and run-cancelled (409) were missing, so a manual run that ended on one of them answered a generic 502 without its reason.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Return the successful chain completion marker separately from progressive corpus freshness.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Native refresh is installation-managed; expose capability and refuse a detached shared writer before acknowledging work.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | POST /run/build runs matching and scoring as one background run. Awaited, a match over the corpus says nothing to the kernel for 10 seconds and the call is refused with 503, so Find & score jobs matched nothing and then scored nothing. CAREER_BUILD_LIMIT bounds one person's scoring on an installation that shares its model with strangers.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildBoardArgs = buildBoardArgs;
 exports.startCareerCron = startCareerCron;
 exports.registerCareerRunRoutes = registerCareerRunRoutes;
 const logger_1 = require("@/shared/logger");
@@ -112,6 +114,36 @@ function manualArgs(verb) {
         return ['match'];
     return ['pull'];
 }
+/**
+ * @description The score leg of a Find & score jobs run. A demo installation sets CAREER_BUILD_LIMIT, because its visitors
+ * share one model: a bounded list and two workers. Without it a person scores all their matches, as the nightly pass does.
+ * @param remoteOnly - The person's standing remote-only preference.
+ * @param limit - The installation's limit, when it set one.
+ * @returns The engine arguments, verb first.
+ */
+function buildBoardArgs(remoteOnly, limit = process.env.CAREER_BUILD_LIMIT) {
+    const args = ['build-board', '--min-keyword', '40'];
+    const bound = Number(limit);
+    if (Number.isInteger(bound) && bound > 0)
+        args.push('--limit', String(bound), '--workers', '2');
+    if (remoteOnly)
+        args.push('--remote-only');
+    return args;
+}
+/** Start Find & score jobs in the background; the Job Board watches GET /resume/state for its end. */
+async function startBuild(ctx, res, userSub) {
+    try {
+        const started = await (0, career_engine_dispatch_1.runCareerCliAsync)(ctx.pool, userSub, buildBoardArgs(await (0, career_match_prefs_1.readRemoteOnly)(ctx.pool, userSub)));
+        if ((0, career_engine_response_1.rejectEngineStart)(res, started, 'build'))
+            return;
+        logger.info({ userSub }, 'career board build started');
+        res.status(202).json({ ok: true, started: true });
+    }
+    catch (err) {
+        logger.error({ err, userSub }, 'career board build failed to start');
+        res.status(500).json({ ok: false, err: 'build failed to start' });
+    }
+}
 /** Answer a failed manual run with the status its terminal state earned. */
 function sendRunFailure(res, result, run) {
     const tail = { out: result.out.slice(-1500), err: result.err.slice(-400) };
@@ -133,6 +165,8 @@ async function runManualVerb(ctx, req, res) {
         res.status(401).json({ error: 'unauthorized' });
         return;
     }
+    if (req.params.verb === 'build')
+        return startBuild(ctx, res, userSub);
     const verb = req.params.verb;
     if (!['pull', 'score', 'match'].includes(verb)) {
         res.status(400).json({ error: 'verb' });
@@ -224,4 +258,3 @@ function registerCareerRunRoutes(router, ctx) {
     router.post('/run/:runId/cancel', cancelRun);
     router.post('/run/:verb', (req, res) => runManualVerb(ctx, req, res));
 }
-//# sourceMappingURL=career-run-routes.js.map

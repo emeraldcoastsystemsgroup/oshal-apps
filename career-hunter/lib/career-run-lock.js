@@ -13,6 +13,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Enforce the engine concurrency ceiling with shared filesystem capacity slots across API replicas and direct CLI runs.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Add an isolated upload-body capacity namespace so multipart admission is globally bounded without consuming engine slots.
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | Recover crash-abandoned transition markers and honor the recorded owner's TTL during stale-generation decisions.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | build-board scores, so it takes the same shared slot here as in the dispatcher; the two lists must agree or the child's lease adoption is refused.
  */
 'use strict';
 
@@ -33,7 +34,7 @@ const DEFAULT_RUN_DEADLINE_MS = 2 * 60 * 60_000;
 const MAX_RUN_DEADLINE_MS = 24 * 60 * 60_000;
 const MAX_CAPACITY_SLOTS = 64;
 const SHARED_CORPUS_WRITERS = new Set([
-  'pull', 'score', 'score-titles', 'seturl', 'discover', 'enrich',
+  'pull', 'score', 'build-board', 'score-titles', 'seturl', 'discover', 'enrich',
 ]);
 /** @description Private environment key carrying an exact opaque parent lock adoption proof. */
 const RUN_LOCK_ADOPTION_ENV = 'OSHAL_CAREER_RUN_LOCK_ADOPTION';

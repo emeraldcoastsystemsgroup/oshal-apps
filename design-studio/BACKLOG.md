@@ -118,3 +118,63 @@ lift end to end on the real engines. What it does not carry, each with its reaso
 
 Embodied-side limits (a floating base, a second chain's exact inverse kinematics, a contact between parts)
 are embodied's B33.
+
+## B9 — Built is not designed: nothing checks that parts fit or hold (found on the owner's printer, 2026-10-31)
+
+The partner built `bench lift` as three bare boxes, the poster read parts-complete, and one reached the printer. 0.4.6 reads a bare box as `blocks` and tells the partner to design parts for what they do. Nothing yet checks a part against another: the carriage's pocket against the column, a hole against a fastener, a printed wall against a load. The plant simulates every part as a box of its size and mass, so a certified plant says the motor lifts the load in time, not that the parts fit.
+
+**Done when:** a Design check reads each joint's two parts from CAD Studio and answers fit or interference with the clearance in mm, a refusal blocks parts-complete, and a strength estimate for a named load is either measured by an engine or the poster says none is.
+
+## B10 — The partner runs out of tool steps on a real design
+
+Each `cad-edit` is one order and one tool step, and a turn has few. Redesigning three parts stopped partway with the mounting holes undone. The persona says to build features in the `cad-create` list, but that does not help an edit.
+
+**Done when:** an order edits a part with a list of features in one step, and the partner finishes a three-part redesign in one turn on the Spark.
+
+## B11 — `bench lift` is unfinished and its policy lost
+
+On the owner's account: the carriage has a real pocket; the base plate and the column are still plain blocks; the carriage has no mounting holes (the partner asked top or front, unanswered); the plant is from the older geometry; the print set is stale. The 60 000-step policy finished 5.7 mm off against a 5 mm tolerance and the gate refused it at 5 of 1875 control steps, while the PD baseline reached 5 of 5 in 3.58 s. The old solid-block file is on the P2S's storage and should be deleted there.
+
+**Done when:** the three parts carry their features, the plant is rebuilt, a policy passes the gate or the baseline is chosen as the controller by name, a new print set is made and one part is printed and fitted on the column.
+
+## B12 — A person who is not an administrator has never run this
+
+Every proof ran as the operator persona or the owner. The automated path cannot grant a test person an application role. Native route tools run under the caller's admission (`crates/oshald/src/package_api_tools.rs`), which is the reason to expect it works, not evidence that it does. A person needs design-studio, cad-studio, circuit-lab, embodied and scan-to-print each assigned; there is no one engineering role.
+
+**Done when:** a composite template grants the engineering shelf in one assignment, and a non-administrator signs in and runs New product, a partner-built part, Simulate and Make the print set.
+
+## B13 — A new package reads "Application unavailable" with no reason
+
+Installing a package grants nobody but the operator. The owner's account got `403 no tier over design-studio`, and the cockpit said only to ask an administrator. It cost a round of testing, because every proof until then had been the operator's.
+
+**Done when:** a delivery of a new package says who holds it, the cockpit names the missing access to an administrator, and the delivery recipe has an assignment step.
+
+## B14 — A stopped engine is invisible until a person hits it
+
+`oshal-cad-studio-engine` and `oshal-scan-to-print-engine` had both been stopped since 2026-10-23 with their loopback links still active. Each surfaced only as a failure in the middle of work. What stopped them is not established.
+
+**Done when:** Settings and the poster read each engine's liveness before a button is pressed, and the host's health check alerts on a stopped engine whose link is up.
+
+## B15 — Phases with no engine
+
+Mechanical on a machine that is not the spider, Sensors, and the spider's heat requirement are reasoned: the words are recorded and nothing measures them. A thermal engine does not exist on this shelf.
+
+**Done when:** each reasoned phase either has an engine or its closure names that no engine measured it; a thermal solve of the Pi bay is a named option in the brief.
+
+## B16 — Test products left under the operator persona
+
+`spider-18`, `the hanger`, `lift-1` and `bracket hook` belong to the operator persona, not to the owner. They hold CAD parts and a Circuit Lab copy, and they are test data.
+
+**Done when:** they are deleted or kept on purpose.
+
+## Roadmap
+
+Status as of 2026-11-01. The full picture across packages is in the kernel's `docs/backlog/design-to-build.md`.
+
+| Stage | Item | State |
+|---|---|---|
+| Now, paused for publishing | B11 finish the lift through one fitted print | waiting on the owner's answer in the rail |
+| Next | B9 fit check, B10 batched edits | not started |
+| Next | B12 and B13: a person other than the owner | not started |
+| Then | B14 engine liveness, B8 meshes and more task kinds | not started |
+| Later | B15 thermal and other engines | not started |

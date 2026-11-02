@@ -492,3 +492,9 @@ A native package has no network, so the Bambu broker (live state, starting a pri
 Registration reads the printer's certificate over TLS from the package, which has no network natively. A printer registered earlier keeps working once its code is entered again.
 
 **Done when:** the engine identifies the printer through `engine.exchange` and a new P2S registers on the native kernel.
+
+## B23 — A Send to printer through the kernel has only been proven once, on a part of 12 triangles
+
+Slicing through the engine is limited to 55 s per exchange and 12 MB, and a route call to 60 s in all. The small part fit. The spider's 225 mm plate has not been tried. Nobody has yet read the file on the printer's list and started it from oshal's upload.
+
+**Done when:** the largest part of the spider's print set slices and uploads, or a job path holds the slice past the route limit, and one uploaded file prints to the end on the P2S.

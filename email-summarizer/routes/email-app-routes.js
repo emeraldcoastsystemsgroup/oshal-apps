@@ -49,6 +49,8 @@
  * @module email-app-routes
  * 20 | maintainer@emeraldcoastsystemsgroup.com | GET /messages pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A listing without words answers from the copy whenever it is current, over everything the copy holds (`before`/`skip` cursor from `next`, `reach` says how far back it goes, a copy still filling answers what it has), else from the mailbox live with the provider's own page cursor (`page`; Gmail pageToken, Outlook nextLink, Yahoo has one page). A word search is unchanged. The live Gmail metadata reads run ten at a time instead of one after another, so a page of 50 fits the kernel's call. Guard: tests/mail-store.test.cjs.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox answers when My Day names Google (its summary was refused with 409 before any model was asked) and has today's sample events.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | The saved summary is sealed by the kernel: the package helper needed a SESSION_SECRET the native kernel never hands a package, so saving the model's answer failed with 502. The digest table is a declared migration and is written without ON CONFLICT, which the native kernel refused on the lazily made table.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -98,7 +100,7 @@ const free_tier_rotation_1 = require("@/app/routes/free-tier-rotation");
 const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const email_routes_1 = require("@/app/routes/email-routes");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
-const session_crypto_1 = require("./session-crypto");
+const digest_seal_1 = require("./digest-seal");
 const outlook_mailbox_1 = require("./outlook-mailbox");
 const mail_provider_1 = require("./mail-provider");
 const kernel_mail_1 = require("./kernel-mail");
@@ -211,7 +213,7 @@ async function openMailbox(req, res, ctx, options = { yahooFallback: false }) {
     }
     const connection = await (0, mail_provider_1.selectMailConnection)(choice.provider, await mailTokenLookup(ctx, sub), (provider, err) => logger.error({ err, provider }, 'Mailbox token could not be refreshed'));
     if (connection.token === null) {
-        if (demoMailOn() && !choice.provider && !connection.reconnect)
+        if ((0, mail_store_1.demoMailAnswers)(demoMailOn(), choice.provider, connection.reconnect))
             return demoMailbox(ctx, sub);
         if (!choice.provider && !connection.reconnect && options.yahooFallback && ctx.imapMail)
             return yahooMailbox(ctx.imapMail, sub, true);
@@ -226,27 +228,26 @@ async function openMailbox(req, res, ctx, options = { yahooFallback: false }) {
 }
 /** The setting that turns a demo installation's sample mail on; nothing else reads it. */
 function demoMailOn() {
-  return process.env.EMAIL_DEMO_MAIL === '1';
+    return process.env.EMAIL_DEMO_MAIL === '1';
 }
-
 /** A demo installation's mailbox: the sample rows planted in the stored copy. It has no sync reader and cannot send. */
 function demoMailbox(ctx, sub) {
-  const page = async (_days, max) => ({ messages: (await (0, mail_store_1.listStored)(ctx.pool, sub, max)).messages, next: null });
-  return {
-    provider: 'google',
-    list: async (days, max) => (await page(days, max)).messages,
-    page,
-    message: async (id) => {
-      const found = await (0, mail_store_1.storedMessage)(ctx.pool, sub, id);
-      if (!found) throw new mail_provider_1.MailboxRefusal(404, 'google', { error: 'not_found', message: 'That sample message is not in this mailbox.' });
-      return found;
-    },
-    eventsToday: async () => [],
-    ownAddress: async () => 'visitor@example.com',
-    send: () => Promise.reject(new mail_provider_1.MailboxRefusal(403, 'google', { error: 'demo_mail_only', message: 'This is sample mail: nothing is sent from a demo mailbox.' })),
-  };
+    const page = async (_days, max) => ({ messages: (await (0, mail_store_1.listStored)(ctx.pool, sub, max)).messages, next: null });
+    return {
+        provider: 'google',
+        list: async (days, max) => (await page(days, max)).messages,
+        page,
+        message: async (id) => {
+            const found = await (0, mail_store_1.storedMessage)(ctx.pool, sub, id);
+            if (!found)
+                throw new mail_provider_1.MailboxRefusal(404, 'google', { error: 'not_found', message: 'That sample message is not in this mailbox.' });
+            return found;
+        },
+        eventsToday: async () => (0, mail_store_1.demoEventsToday)(),
+        ownAddress: async () => 'visitor@example.com',
+        send: () => Promise.reject(new mail_provider_1.MailboxRefusal(403, 'google', { error: 'demo_mail_only', message: 'This is sample mail: nothing is sent from a demo mailbox.' })),
+    };
 }
-
 /** A Yahoo operation the fixed read-only reader does not offer: answered 400, never attempted. */
 function yahooUnsupported(what) {
     return Promise.reject(new mail_provider_1.MailboxRefusal(400, 'yahoo', {
@@ -454,10 +455,14 @@ async function ensureEmailSchema(pool) {
         ],
     });
 }
-/** Upsert the latest AI digest for a user (encrypted). */
+/** Save the latest day summary for a person, sealed. One row per person: update it, or add it the first time. */
 async function storeDigest(pool, sub, summary) {
-    await pool.query(`INSERT INTO oshal_email_digests (user_sub, summary, updated_at) VALUES ($1, $2, now())
-     ON CONFLICT (user_sub) DO UPDATE SET summary = $2, updated_at = now()`, [sub, (0, session_crypto_1.encryptSessionValue)(summary)]);
+    const sealed = await (0, digest_seal_1.sealDigest)(sub, summary);
+    const existing = await pool.query('SELECT user_sub FROM oshal_email_digests WHERE user_sub = $1', [sub]);
+    if (existing.rows.length)
+        await pool.query('UPDATE oshal_email_digests SET summary = $2, updated_at = now() WHERE user_sub = $1', [sub, sealed]);
+    else
+        await pool.query('INSERT INTO oshal_email_digests (user_sub, summary, updated_at) VALUES ($1, $2, now())', [sub, sealed]);
 }
 /** Read the cached digest for a user, or null. */
 async function readDigest(pool, sub) {
@@ -465,11 +470,10 @@ async function readDigest(pool, sub) {
     if (!row?.summary)
         return null;
     try {
-        return { summary: (0, session_crypto_1.decryptSessionValue)(row.summary), updatedAt: row.updated_at };
+        const summary = await (0, digest_seal_1.openDigest)(sub, row.summary);
+        return summary === null ? null : { summary, updatedAt: row.updated_at };
     }
     catch (err) {
-        if ((0, session_crypto_1.isSessionSecretRequiredError)(err))
-            throw err;
         logger.error({ err }, 'Stored email digest could not be decrypted');
         return null;
     }
@@ -578,26 +582,26 @@ function listMessages(ctx) {
 }
 /** POST /demo-mail — plant sample messages for the caller; 404 unless the installation set EMAIL_DEMO_MAIL. */
 function plantMail(ctx) {
-  return async (req, res) => {
-    const sub = callerSub(req);
-    if (!demoMailOn() || !sub) {
-      res.status(404).json({ error: 'not_found' });
-      return;
-    }
-    const messages = req.body?.messages;
-    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 50) {
-      res.status(400).json({ error: 'messages_required', message: 'Send 1 to 50 sample messages.' });
-      return;
-    }
-    try {
-      res.json({ ok: true, inserted: await (0, mail_store_1.plantDemoMail)(ctx.pool, sub, messages) });
-    } catch (err) {
-      logger.error({ err }, 'Sample mail could not be planted');
-      res.status(500).json({ error: 'demo_mail_failed' });
-    }
-  };
+    return async (req, res) => {
+        const sub = callerSub(req);
+        if (!demoMailOn() || !sub) {
+            res.status(404).json({ error: 'not_found' });
+            return;
+        }
+        const messages = req.body?.messages;
+        if (!Array.isArray(messages) || messages.length === 0 || messages.length > 50) {
+            res.status(400).json({ error: 'messages_required', message: 'Send 1 to 50 sample messages.' });
+            return;
+        }
+        try {
+            res.json({ ok: true, inserted: await (0, mail_store_1.plantDemoMail)(ctx.pool, sub, messages) });
+        }
+        catch (err) {
+            logger.error({ err }, 'Sample mail could not be planted');
+            res.status(500).json({ error: 'demo_mail_failed' });
+        }
+    };
 }
-
 /** POST /sync — one stored-copy pass for the caller's Gmail (the mail-copy schedule, or "Update now"). */
 function syncMail(ctx) {
     return async (req, res) => {
@@ -924,4 +928,3 @@ function createEmailRoutes(ctx) {
     router.get('/social/profile', socialProfile(ctx));
     return router;
 }
-//# sourceMappingURL=email-app-routes.js.map

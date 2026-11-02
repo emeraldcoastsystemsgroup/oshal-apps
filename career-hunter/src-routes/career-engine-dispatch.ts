@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Enforce one absolute admission deadline across bounded Postgres brokerage, decryption, wrapper adoption, and engine execution.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: broker only the caller's Firecrawl key. Model reasoning runs on the dedicated Career bot through the worker rail, so the engine child is never given a model-provider credential and the caller's Anthropic row is no longer read or decrypted here.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Hand the runner the owner's verified issuer for the run's callback grant (1.25.1). A route caller's issuer is the kernel's request identity for this request (the application-authorization guard establishes it, so nothing a client sends can choose it); scheduled work passes the issuer recorded when the owner opted in. The grant is what the kernel's signed-package-callbacks rail refreshes and authorizes before an engine completion runs.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | build-board scores, so it holds the same cross-user slot as score.
  */
 /**
  * Career engine dispatch with controller-side credential brokering.
@@ -35,7 +36,7 @@ const logger = createChildLogger({ module: 'career-engine-dispatch' });
 const PROVIDER_ENV = { firecrawl: 'OSHAL_CRED_FIRECRAWL' } as const;
 const USER_STORE_SLOT = 'user-store';
 const SHARED_CORPUS_SLOT = 'corpus-write';
-const SHARED_CORPUS_WRITERS = new Set(['pull', 'score', 'score-titles', 'seturl', 'discover', 'enrich']);
+const SHARED_CORPUS_WRITERS = new Set(['pull', 'score', 'build-board', 'score-titles', 'seturl', 'discover', 'enrich']);
 const PULL_TIMEOUT_MS = Number(process.env.CAREER_HUNTER_PULL_TIMEOUT_MS) || 8 * 60 * 60 * 1_000;
 
 interface DeadlineQuery {

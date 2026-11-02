@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted caller-scoped resume indexing and board onboarding state.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Read durable child lifecycle status so an existing profile cannot clear a pending re-upload marker.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Resume state says when a background run of the person's is in flight, so the Job Board can watch Find & score jobs to its end.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: resume state carries a one-line `summary` — the detail the Intelligent Career group's setup dashboard shows under "Upload your resume".
  */
 
@@ -18,6 +19,7 @@ import path from 'path';
 import { createChildLogger } from '@/shared/logger';
 import { callerSub, openUserDb, userPaths } from './career-user-store';
 import { readResumeIngestState } from './career-resume-upload';
+import { nativeRunInProgress } from './career-engine-runner';
 
 const logger = createChildLogger({ module: 'career-onboarding-routes' });
 
@@ -62,12 +64,13 @@ async function getResumeState(req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const { userDir } = userPaths(userSub);
-  const [resume, ingest] = await Promise.all([
-    readResumeState(userDir), readResumeIngestState(userSub),
+  const [resume, ingest, running] = await Promise.all([
+    readResumeState(userDir), readResumeIngestState(userSub), nativeRunInProgress(),
   ]);
   res.json({
     ...resume,
     indexing: ingest.state === 'pending',
+    building: running !== null,
     ingest,
     scored: countScoredJobs(userSub),
     // ADR-141: the one-line status the Intelligent Career setup dashboard shows under "Upload your resume".

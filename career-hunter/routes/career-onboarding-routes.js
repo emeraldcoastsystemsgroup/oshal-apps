@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted caller-scoped resume indexing and board onboarding state.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Read durable child lifecycle status so an existing profile cannot clear a pending re-upload marker.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | Resume state says when a background run of the person's is in flight, so the Job Board can watch Find & score jobs to its end.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: resume state carries a one-line `summary` — the detail the Intelligent Career group's setup dashboard shows under "Upload your resume".
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
@@ -18,6 +19,7 @@ const path_1 = __importDefault(require("path"));
 const logger_1 = require("@/shared/logger");
 const career_user_store_1 = require("./career-user-store");
 const career_resume_upload_1 = require("./career-resume-upload");
+const career_engine_runner_1 = require("./career-engine-runner");
 const logger = (0, logger_1.createChildLogger)({ module: 'career-onboarding-routes' });
 async function readResumeState(userDir) {
     const careerDb = path_1.default.join(userDir, 'career_db.json');
@@ -60,12 +62,13 @@ async function getResumeState(req, res) {
         return;
     }
     const { userDir } = (0, career_user_store_1.userPaths)(userSub);
-    const [resume, ingest] = await Promise.all([
-        readResumeState(userDir), (0, career_resume_upload_1.readResumeIngestState)(userSub),
+    const [resume, ingest, running] = await Promise.all([
+        readResumeState(userDir), (0, career_resume_upload_1.readResumeIngestState)(userSub), (0, career_engine_runner_1.nativeRunInProgress)(),
     ]);
     res.json({
         ...resume,
         indexing: ingest.state === 'pending',
+        building: running !== null,
         ingest,
         scored: countScoredJobs(userSub),
         // ADR-141: the one-line status the Intelligent Career setup dashboard shows under "Upload your resume".
@@ -82,4 +85,3 @@ async function getResumeState(req, res) {
 function registerCareerOnboardingRoutes(router) {
     router.get('/resume/state', getResumeState);
 }
-//# sourceMappingURL=career-onboarding-routes.js.map

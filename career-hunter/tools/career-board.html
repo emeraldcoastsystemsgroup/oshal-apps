@@ -23,6 +23,8 @@
   12 | maintainer@emeraldcoastsystemsgroup.com | Bound board reads and show explicit retryable failures without automatic duplicate requests or false empty results.
   13 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the browse header read "60 open roles" for the first page of a corpus of 163,730 (the concierge repeated it). A full page reads "60 open roles shown" with "more roles match: search or filter to narrow"; a last page keeps its count.
   14 | maintainer@emeraldcoastsystemsgroup.com | Add a seven-day preview and explicit permanent purge for only the caller's stale Ready queue, with a count-checked server cleanup that preserves every other status.
+  15 | maintainer@emeraldcoastsystemsgroup.com | Find & score jobs starts one background run and watches /resume/state to its end; a run that scores nothing says so.
+  16 | maintainer@emeraldcoastsystemsgroup.com | A finished Find & score jobs run opens on the person's best fit.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="board-native"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -1075,18 +1077,23 @@ function renderBuildBoard(){
     <button class="btn go" id="obBuild" onclick="buildBoard()" style="font-size:14px;padding:10px 18px;">Find &amp; score jobs for me</button>
   </div>`;
 }
+function renderBuilding(){
+  $('onboard').innerHTML = `
+  <div style="border:1px solid var(--line);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;text-align:center;background:rgba(255,255,255,.02);">
+    <div style="font-size:30px;margin-bottom:8px;">⏳</div>
+    <h2 style="margin:0 0 6px;font-size:18px;">Finding and scoring jobs for you…</h2>
+    <p class="sub" style="margin:0;">This usually takes <b>2–3 minutes</b>. You can leave this open and keep browsing: your scored board appears here on its own.</p>
+  </div>`;
+}
+// True from pressing the button until the run ends, so an end with nothing scored is said out loud.
+let boardBuilding=false;
 async function buildBoard(){
-  const ob=$('onboard');
-  const step=(m)=>{ ob.innerHTML=`<div style="border:1px solid var(--line);border-radius:14px;padding:28px;max-width:680px;margin:18px auto;text-align:center;background:rgba(255,255,255,.02);"><div style="font-size:30px;margin-bottom:8px;">⏳</div><h2 style="margin:0 0 6px;font-size:18px;">${m}</h2><p class="sub" style="margin:0;">A couple minutes — it finishes on its own.</p></div>`; };
   try {
-    step('Matching jobs to your resume…');
-    let r=await (await fetch('/api/career-hunter/run/match',{method:'POST'})).json();
-    if(r && r.ok===false) throw new Error(r.err||'match failed');
-    step('Scoring your best matches…');
-    r=await (await fetch('/api/career-hunter/run/score',{method:'POST'})).json();
-    if(r && r.ok===false) throw new Error(r.err||'score failed');
-    checkOnboarding();
-  } catch(e){ toast('Build failed: '+e.message,true); renderBuildBoard(); }
+    const answer=await fetch('/api/career-hunter/run/build',{method:'POST'});
+    const r=await answer.json().catch(()=>({}));
+    if(!answer.ok||r.ok===false) throw new Error(r.err||r.error||('HTTP '+answer.status));
+    boardBuilding=true; renderBuilding(); setTimeout(checkOnboarding,6000);
+  } catch(e){ toast('Could not start: '+e.message,true); renderBuildBoard(); }
 }
 // The onboarding gate used to run BEFORE the feed: /resume/state resolved, and only then did the
 // board start fetching jobs + stats. That put two serialized round-trips in front of the first
@@ -1117,8 +1124,16 @@ async function checkOnboarding(prefetch){
   if(st && st.ingest && st.ingest.state==='failed'){
     setMode('hidden'); ob.hidden=false; renderIngestFailure(st.ingest.error); return;
   }
+  if(st && st.building){
+    setMode('browse'); ob.hidden=false; renderBuilding();
+    if(!listEl.querySelector('.card')) loadJobs();
+    setTimeout(checkOnboarding,6000); return;
+  }
   if(st && st.hasResume && st.scored>0){
+    const justBuilt=boardBuilding; boardBuilding=false;
     ob.hidden=true; setMode('scored'); renderIntentBanner();
+    // The run they just watched ends on their best fit, not on the browse sort they were left on.
+    if(justBuilt){ $('sort').value='ai'; loadStats(); loadJobs(); return; }
     if(feed){
       const data=await feed;
       if(generation!==jobLoadGeneration) return;
@@ -1131,7 +1146,10 @@ async function checkOnboarding(prefetch){
   // a live, searchable browse feed instead of replacing it, so the openings are what sells the
   // upload rather than the other way round.
   ob.hidden=false; setMode('browse');
-  if(st && st.hasResume) renderBuildBoard();              // resume done, nothing scored yet
+  if(st && st.hasResume){                                 // resume done, nothing scored yet
+    renderBuildBoard();
+    if(boardBuilding){ boardBuilding=false; toast('That run scored nothing. Try again, or browse the openings below.',true); }
+  }
   else renderGetStarted(readIntent());
   loadJobs();
 }

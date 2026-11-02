@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: a CareerWorkerUnavailable from the model chokepoint ends the scoring run instead of being counted as one more skipped posting, so a lost Career worker fails the run visibly and the nightly scoring cursor does not advance.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Facts learned about a posting go through db.enrich_corpus, so a shared read-only corpus does not fail the pass.
 
 """The matching algorithm: for every relevant posting, fetch the FULL job description,
 then have the LLM score it against the user's actual resume — fit 0-100, why it fits, what
@@ -275,10 +276,10 @@ def _commit_one(res, model) -> bool:
         f = res.get("fetched")
         if f and f.get("description"):
             ct = db.corpus_table()   # description/salary/posted are objective -> shared corpus
-            conn.execute(f"UPDATE {ct} SET description=? WHERE id=?", (f["description"], res["id"]))
+            db.enrich_corpus(conn, f"UPDATE {ct} SET description=? WHERE id=?", (f["description"], res["id"]))
             if f.get("salary_min"):
                 # detail.fetch() already float()s these, so they suit REAL and NUMERIC alike.
-                conn.execute(f"""UPDATE {ct} SET salary_min=?, salary_max=?, salary_currency=?,
+                db.enrich_corpus(conn, f"""UPDATE {ct} SET salary_min=?, salary_max=?, salary_currency=?,
                                 salary_period=?, salary_source=COALESCE(salary_source,'listed') WHERE id=?""",
                              (f.get("salary_min"), f.get("salary_max"), f.get("salary_currency", "USD"),
                               f.get("salary_period", "year"), res["id"]))
@@ -295,7 +296,7 @@ def _commit_one(res, model) -> bool:
                 # writes on the ingest path.
                 posted_at_val = (db._pg_ts(f["posted_at"], "postings.posted_at")
                                  if config.POSTGRES else f["posted_at"])
-                conn.execute(f"UPDATE {ct} SET posted_at=COALESCE(posted_at,?), posted_date=COALESCE(posted_date,?) WHERE id=?",
+                db.enrich_corpus(conn, f"UPDATE {ct} SET posted_at=COALESCE(posted_at,?), posted_date=COALESCE(posted_date,?) WHERE id=?",
                              (posted_at_val, dates.normalize(f["posted_at"]), res["id"]))
         data = res.get("data")
         if not data:

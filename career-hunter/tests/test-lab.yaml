@@ -29,6 +29,7 @@
 # 25 | maintainer@emeraldcoastsystemsgroup.com | Register local mapped search, account memory, configuration, private LinkedIn leads and real SQLite source-delta/community-feed contracts.
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: Resume Studio and Profile Studio save unsaved edits before an assistant reads, carry the record id and revision, show the assistant's saved change on refresh and keep a draft the person is still editing.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | 1.29.4: register career-published-db-portable.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | 1.29.5: run status expects Find & score jobs as one bounded background run; native read expects a saved resume with nothing matched to read as saved.
 version: 1
 cases:
   - id: package-readiness
@@ -342,6 +343,7 @@ cases:
         - tests/career-provenance-loader.test.mjs
         - tests/career-resume-multipart.test.mjs
         - tests/career-run-status.test.mjs
+        - tests/career-readonly-corpus.test.mjs
         - tests/career-targets.test.mjs
         - tests/migration-index-names.test.mjs
         - tests/session-crypto.test.mjs

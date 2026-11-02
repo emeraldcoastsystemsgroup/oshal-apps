@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Jarvis's job questions refused with "specialist context read timed out": the specialist facts ran the full AI board ranking (2.1 to 3.0 s warm on a 2.1M-signal store) inside the kernel's 3 s deadline only to count up to 10 top matches. Over a disposable store, the facts never run the board ranking, count the board's first-page matches with its own default filters, capped at 10 (an inactive or unscored posting does not count), and agree with the full snapshot's first board page; the career_database tool still reads the board.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A saved resume with no owner database yet reads as saved; with neither it still says no resume.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -98,4 +99,22 @@ test('the specialist facts count capped scored active matches without the board 
   assert.equal(boardReads.count, 1, 'the full snapshot still reads the board');
   assert.equal(full.topMatches.length, facts['matches.sample_count']);
   assert.equal(records.length, 0);
+});
+
+test('a saved resume with nothing matched yet reads as a saved resume, not as no resume', () => {
+  const person = { subject: 'person-r', issuer: 'https://issuer.test', id: 'p-r', tenant: 't-f', state: 'active' };
+  const dir = path.join(tenant, 'person-r');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(tenant, 'corpus.db'), fs.existsSync(path.join(tenant, 'corpus.db')) ? fs.readFileSync(path.join(tenant, 'corpus.db')) : '');
+  fs.writeFileSync(path.join(dir, 'career_db.json'), JSON.stringify({ roles: [{ title: 'Staff Engineer' }, { title: 'Lead' }], skills: {} }));
+  const saved = reader.readCareerSnapshot(person, root);
+  assert.equal(saved.profile.present, true);
+  assert.equal(saved.profile.roles.length, 2);
+  assert.ok(!/No resume/.test(saved.notice), saved.notice);
+  assert.equal(saved.source.reason, 'no_owner_database');
+  assert.deepEqual(saved.topMatches, []);
+  fs.rmSync(path.join(dir, 'career_db.json'));
+  const none = reader.readCareerSnapshot(person, root);
+  assert.equal(none.profile.present, false);
+  assert.match(none.notice, /No resume/);
 });

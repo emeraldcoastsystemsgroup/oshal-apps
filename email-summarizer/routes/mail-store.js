@@ -8,6 +8,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com    | A pass resumes where the last one stopped (Roger's first live passes, 2026-10-29: 290 then only 73 more, still short of the first week). The copy is one contiguous range, oldest_at up to newest_at: a pass reads new mail after newest_at (less OVERLAP_MS), then continues downwards from oldest_at, so it never walks the messages already stored. Before, a pass that had not finished the first week started again from the newest message and re-checked every stored one, so each pass gained less and the copy stalled. A state left by the old passes (no newest_at) resumes from its last run. GET /messages answers from the copy only when the copy reaches back over the window asked for (storeCovers).
  * 3   | maintainer@emeraldcoastsystemsgroup.com    | listStored: one page of the person's inbox from the copy, newest first (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A page is a keyset read: rows received at or before the cursor, in time windows that widen (1, 2, 4 … 32 days) and narrow again when a window holds too many rows, sorted here, light columns only (no search text). The next cursor is the last row's instant plus how many rows at that instant were listed, so a tie is neither dropped nor repeated. No ORDER BY or OFFSET (the native kernel copies a table for those).
  * 4   | maintainer@emeraldcoastsystemsgroup.com    | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com    | The demo mailbox answers when My Day names Google, and it has a day of sample events: "Summary unavailable" and an empty calendar were the first thing a demo visitor saw.
  */
 /**
  * @module mail-store
@@ -28,6 +29,8 @@ exports.parseSearch = parseSearch;
 exports.searchStored = searchStored;
 exports.listStored = listStored;
 exports.plantDemoMail = plantDemoMail;
+exports.demoMailAnswers = demoMailAnswers;
+exports.demoEventsToday = demoEventsToday;
 exports.storedMessage = storedMessage;
 const DAY_MS = 24 * 3600 * 1000;
 /** How far back the copy reaches. */
@@ -400,25 +403,55 @@ async function listStored(db, sub, max, cursor = {}, oldestAt = null, now = Date
  * @returns How many rows are new.
  */
 async function plantDemoMail(db, sub, messages) {
-  const p = { inserted: 0, newestMs: null, oldestMs: null, stopped: false };
-  for (const m of messages) {
-    const internalDate = String(Date.parse(m.receivedAt) || Date.now());
-    const labelIds = m.unread ? ['INBOX', 'UNREAD'] : ['INBOX'];
-    const headers = [{ name: 'From', value: m.from }, { name: 'Subject', value: m.subject }];
-    const row = gmailRow(sub, m.id, { payload: { headers }, snippet: m.snippet, labelIds, internalDate });
-    try {
-      await db.query(INSERT, row.params);
-      p.inserted += 1;
-    } catch (err) {
-      if (!duplicate(err)) throw err;
+    const p = { inserted: 0, newestMs: null, oldestMs: null, stopped: false };
+    for (const m of messages) {
+        const internalDate = String(Date.parse(m.receivedAt) || Date.now());
+        const labelIds = m.unread ? ['INBOX', 'UNREAD'] : ['INBOX'];
+        const headers = [{ name: 'From', value: m.from }, { name: 'Subject', value: m.subject }];
+        const row = gmailRow(sub, m.id, { payload: { headers }, snippet: m.snippet, labelIds, internalDate });
+        try {
+            await db.query(INSERT, row.params);
+            p.inserted += 1;
+        }
+        catch (err) {
+            if (!duplicate(err))
+                throw err;
+        }
+        track(p, row.receivedMs);
     }
-    track(p, row.receivedMs);
-  }
-  const existing = await readRow(db, sub, 'google');
-  await writeRow(db, sub, Boolean(existing), { newest: p.newestMs, oldest: p.oldestMs, done: true, stored: messages.length, pruned: Date.now(), error: null });
-  return p.inserted;
+    const existing = await readRow(db, sub, 'google');
+    await writeRow(db, sub, Boolean(existing), { newest: p.newestMs, oldest: p.oldestMs, done: true, stored: messages.length, pruned: Date.now(), error: null });
+    return p.inserted;
 }
-
+/**
+ * @description Whether a demo installation's sample mailbox answers this read. My Day remembers the provider the first read
+ * reported and names it on the next call, so naming Google must reach the sample too; naming another mailbox, or a person whose
+ * real connection only needs reconnecting, must not.
+ * @param on - Whether the installation set EMAIL_DEMO_MAIL.
+ * @param requested - The provider the call named, or null.
+ * @param reconnect - Whether the person has a connection that needs reconnecting.
+ * @returns True when the sample mailbox answers.
+ */
+function demoMailAnswers(on, requested, reconnect) {
+    return on && !reconnect && (!requested || requested === 'google');
+}
+/**
+ * @description Today's events on a demo mailbox, worked out from the clock so a person seated days after being set up still has a
+ * day. The same titles and hours are on the sample person's Calendar.
+ * @param now - The clock.
+ * @returns Today's sample events, in order.
+ */
+function demoEventsToday(now = new Date()) {
+    const zone = 'America/Chicago';
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(now);
+    const named = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' }).formatToParts(now);
+    const utcShift = (named.find((part) => part.type === 'timeZoneName')?.value || 'GMT-06:00').replace('GMT', '');
+    // With its shift from UTC, as Google answers, so the model reads the time a person reads on the screen.
+    const at = (hour) => `${date}T${String(hour).padStart(2, '0')}:00:00${utcShift}`;
+    return [{ summary: 'Team standup', start: at(9), location: 'Video call' },
+        { summary: 'Budget review', start: at(13), location: 'Conference room A' },
+        { summary: 'Coffee with Maya', start: at(16), location: 'Downtown' }];
+}
 /**
  * @description One stored message read by id, with its snippet as the body (the copy keeps no bodies).
  * @param db - The caller's store.
@@ -427,9 +460,9 @@ async function plantDemoMail(db, sub, messages) {
  * @returns The message, or null when the caller has no such message.
  */
 async function storedMessage(db, sub, id) {
-  const r = (await db.query('SELECT message_id, sender, subject, snippet, labels, received_at FROM oshal_email_messages WHERE msg_key = $1', [messageKey(sub, 'google', id)])).rows[0];
-  if (!r) return null;
-  const message = toMessage(r);
-  return { ...message, to: '', body: message.snippet };
+    const r = (await db.query('SELECT message_id, sender, subject, snippet, labels, received_at FROM oshal_email_messages WHERE msg_key = $1', [messageKey(sub, 'google', id)])).rows[0];
+    if (!r)
+        return null;
+    const message = toMessage(r);
+    return { ...message, to: '', body: message.snippet };
 }
-//# sourceMappingURL=mail-store.js.map

@@ -28,6 +28,7 @@ const kernel = { calls: [], keep: async () => ({}), runs: [] };
 const port = {
   native: true,
   keepRunAlive: (runId, seconds) => { kernel.calls.push(['keep', runId, seconds]); return kernel.keep(runId); },
+  run: async (runId, action) => { kernel.calls.push(['run', runId]); return action(); },
   runFinished: async (runId, code) => { kernel.calls.push(['finished', runId, code]); return { finished: true }; },
   status: async () => ({ runs: kernel.runs }),
 };
@@ -72,7 +73,7 @@ test('a background start is acknowledged only after the kernel keeps it, and its
   assert.ok(seconds >= 1 && seconds <= 1800, `bounded keep: ${seconds}`);
   child.emit('close', 0);
   await tick();
-  assert.deepEqual(kernel.calls.slice(1), [['finished', runId, 0]]);
+  assert.deepEqual(kernel.calls.slice(1), [['run', runId], ['finished', runId, 0]]);
 });
 
 test('a failed run reports a non-zero end so the kernel discards its writes', async () => {

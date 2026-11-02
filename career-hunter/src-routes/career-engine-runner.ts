@@ -25,6 +25,7 @@
  * 20 | maintainer@emeraldcoastsystemsgroup.com  | Mint a per-run callback grant instead of a bearer token, and stop forwarding the fleet service secret to the engine child (1.25.1). The rail moved onto the kernel's signed-package-callbacks rail because under ADR-149 enforce a service-secret caller was refused before the package ran; a run now records its owner's verified issuer (CliRunOptions.ownerIssuer, which the dispatch reads from the kernel's request identity and the cron from the owner's recorded automation opt-in) and the child gets CAREER_RAIL_GRANT to sign its completions with. A run launched without a verified issuer is registered and cancellable but gets no rail entries, so its model calls stop at rail-not-configured rather than being minted a grant the kernel can never admit. The retired 1.24.0 names (CAREER_RAIL_TOKEN, CAREER_RAIL_SERVICE_SECRET) are stripped from any caller-supplied environment.
  * 21 | maintainer@emeraldcoastsystemsgroup.com  | Pass an inherited PYTHONPATH to the wrapper. The native kernel's package sandbox names its pinned, read-only Python package runtime there; dropping it left the engine without its dependencies (tenacity, Jinja2) on the native runtime.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel a background run (runCliAsync) asks the kernel to keep this request's sandbox alive for the run before the route answers 202 (`@/shared/package-runs`), and reports the child's exit so the kernel publishes the owner's writes only on success; if the kernel refuses, the child is stopped and the start fails. nativeRunInProgress() reads the caller's in-flight runs from the kernel for status polls.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | A background run that fails logs its code and the end of its stderr: its writes are discarded and nothing else says why.
  */
 /**
  * Career Hunter engine process boundary.
@@ -198,6 +199,7 @@ interface ActiveCli {
 interface NativeRuns {
   native: true;
   keepRunAlive(runId: string, maxSeconds: number): Promise<unknown>;
+  run(runId: string, action: () => void): Promise<unknown>;
   runFinished(runId: string, code: number): Promise<unknown>;
   status(): Promise<{ runs?: Array<{ runId: string }> }>;
 }
@@ -627,7 +629,7 @@ function bindChildLease(
 /** Launch one claimed child and guarantee deadline cleanup plus exactly-once slot release. */
 function launchCli(
   userSub: string, args: string[], extraEnv: Record<string, string>,
-  options: CliRunOptions, captureOutput: boolean,
+  options: CliRunOptions, captureOutput: boolean, notifyCompletion: boolean = !captureOutput,
 ): ActiveCli | CliResult {
   const claim = claimForLaunch(userSub, args, options);
   if ('ok' in claim) return claim;
@@ -647,7 +649,7 @@ function launchCli(
     if (claim.automatic) releaseRun(claim.lease);
     return { ok: false, out: '', err: error instanceof Error ? error.message : String(error) };
   }
-  return { proc, timedOut: bindChildLease(proc, claim, args, options, !captureOutput, runId), runId };
+  return { proc, timedOut: bindChildLease(proc, claim, args, options, notifyCompletion, runId), runId };
 }
 
 /**
@@ -665,12 +667,12 @@ export function runCliAsync(
   extraEnv: Record<string, string> = {},
   options: CliRunOptions = {},
 ): Promise<CliStartResult> {
-  const launched = launchCli(userSub, args, extraEnv, options, false);
+  const runs = nativeRuns();
+  const launched = launchCli(userSub, args, extraEnv, options, runs !== null, true);
   if ('ok' in launched) {
     return Promise.resolve({ started: false, err: launched.err, limitReason: launched.limitReason });
   }
   const { proc } = launched;
-  const runs = nativeRuns();
   if (runs) return keepNativeRun(runs, launched, options);
   return new Promise((resolve) => {
     proc.once('spawn', () => resolve({ started: true }));
@@ -691,7 +693,21 @@ function keepNativeRun(runs: NativeRuns, launched: ActiveCli, options: CliRunOpt
     void runs.runFinished(runId, exit === 0 && !timedOut() ? 0 : 1)
       .catch((err) => logger.error({ err, runId }, 'native run end report failed'));
   };
-  proc.once('close', (code) => { exit = code; if (kept) report(); });
+  // A background run's writes are discarded when it fails, so its last words are the only account of why.
+  let lastWords = '';
+  const hear = (chunk: unknown): void => { lastWords = (lastWords + String(chunk)).slice(-1500); };
+  proc.stdout?.on('data', hear);
+  proc.stderr?.on('data', hear);
+  proc.once('close', (code) => {
+    exit = code;
+    // The request that started the run has closed, so its log goes through the run's own binding.
+    const said = (): void => {
+      if (code === 0 && !timedOut()) logger.info({ runId, lastWords }, 'career background run finished');
+      else logger.error({ runId, code, timedOut: timedOut(), lastWords }, 'career background run failed');
+    };
+    if (!kept) { said(); return; }
+    void Promise.resolve(runs.run(runId, said)).catch((err) => logger.error({ err, runId }, 'career background run log failed')).finally(report);
+  });
   const seconds = Math.min(1800, Math.max(1, Math.ceil(timeoutFor(options) / 1000)));
   return new Promise((resolve) => {
     proc.once('error', (error) => resolve({ started: false, err: error.message }));

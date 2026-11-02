@@ -800,7 +800,7 @@ jobs:
         run: >-
           node --test
           scripts/check-no-public-secret-fallback.test.mjs
-          email-summarizer/tests/session-crypto.test.mjs
+          email-summarizer/tests/digest-seal.test.cjs
           finance/tests/session-crypto.test.mjs
           youtube-kids/tests/session-crypto.test.mjs
       # The job board reads a 1.4M-posting corpus, so its failure mode is latency, not a wrong

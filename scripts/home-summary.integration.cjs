@@ -28,7 +28,7 @@ const {runWithRequestIdentity} = load(path.join(core,'src/shared/services/databa
 const {buildOwnerRlsPolicyStatements} = load(path.join(core,'src/shared/services/database/owner-rls-policy.ts'));
 const {createAppHomePreferenceRoutes} = load(path.join(core,'src/app/routes/app-home-preferences.ts'));
 const {buildHomePlan,readManifest,validateSummaryDeclaration} = load(path.join(core,'src/features/swarm-apps/index.ts'));
-const {encryptSessionValue} = require('../email-summarizer/routes/session-crypto.js');
+const {encryptField} = load(path.join(core,'src/features/personal-data/index.ts'));
 const apps = ['feeds','email-summarizer','switchboard'];
 
 /** @description Select a real area/source through the current shipped Home controls.
@@ -86,7 +86,7 @@ async function main() {
     }
     await admin.query("INSERT INTO feed_messages(user_sub,channel_id,ts,posted_at,text) VALUES ('bob','private','private',now(),'Bob private feed entry')");
     await admin.query("INSERT INTO feed_settings(user_sub,last_synced_at) VALUES ('alice',now() - interval '12 minutes')");
-    await admin.query('INSERT INTO oshal_email_digests VALUES ($1,$2,$3),($4,$5,$3)', ['alice',encryptSessionValue('Review the meeting agenda. ' + 'Details. '.repeat(30)),new Date(now-3600000),'bob',encryptSessionValue('Bob private digest')]);
+    await admin.query('INSERT INTO oshal_email_digests VALUES ($1,$2,$3),($4,$5,$3)', ['alice',await encryptField('alice','Review the meeting agenda. ' + 'Details. '.repeat(30)),new Date(now-3600000),'bob',await encryptField('bob','Bob private digest')]);
     for(const state of ['in_review','scheduled','failed','published']) await admin.query('INSERT INTO oshal_switchboard_stream_posts(user_sub,body,state,scheduled_at) VALUES ($1,$2,$3,$4)', ['alice','private publishing content',state,new Date(now-3600000)]);
     await admin.query("INSERT INTO oshal_switchboard_stream_posts(user_sub,body,state) VALUES ('bob','Bob private post','in_review')");
     for(const status of ['pending','sending','sent','failed','uncertain']) {
@@ -141,8 +141,7 @@ async function main() {
     assert.equal(values(await get('switchboard','empty'))['replies-pending'],'0');
     const secret=process.env.SESSION_SECRET; delete process.env.SESSION_SECRET;
     assert.equal((await get('email-summarizer')).status,503); process.env.SESSION_SECRET=secret;
-    const corrupt=encryptSessionValue('unrecoverable').split(':');corrupt[1]=Buffer.alloc(16).toString('base64');
-    await admin.query("INSERT INTO oshal_email_digests VALUES ('corrupt',$1,now())",[corrupt.join(':')]);
+    await admin.query("INSERT INTO oshal_email_digests VALUES ('corrupt',$1,now())",['v1:bad:bad:bad']);
     assert.equal((await get('email-summarizer','corrupt')).status,503);
     browser=await chromium.launch({headless:true});
     const page=await browser.newPage({viewport:{width:1440,height:1100}});

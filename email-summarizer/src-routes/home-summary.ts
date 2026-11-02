@@ -2,10 +2,11 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | Codex | Expose the caller's previously saved digest on Home without mailbox reads or generation.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Open the digest through the kernel's seal; a summary only the earlier platform could open reads as not saved.
  */
 import { Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
-import { decryptSessionValue } from './session-crypto';
+import { openDigest } from './digest-seal';
 
 /** @description Read a bounded cached digest in the caller's session. @param ctx Package context. @returns Summary router. */
 export function createHomeSummaryRoutes(ctx: AppContext): Router {
@@ -17,7 +18,7 @@ export function createHomeSummaryRoutes(ctx: AppContext): Router {
     if (!sub || oidc?.isAuthenticated?.() !== true) { res.status(401).json({ error: 'not_authenticated' }); return; }
     try {
       const row = (await ctx.pool.query('SELECT summary, updated_at FROM oshal_email_digests WHERE user_sub = $1', [String(sub)])).rows[0];
-      const summary = row?.summary ? decryptSessionValue(row.summary).replace(/\s+/g, ' ').trim() : '';
+      const summary = row?.summary ? ((await openDigest(String(sub), row.summary)) ?? '').replace(/\s+/g, ' ').trim() : '';
       const now = new Date();
       const at = summary && row?.updated_at ? new Date(row.updated_at).getTime() : NaN;
       const validTime = Number.isFinite(at) && at <= now.getTime();

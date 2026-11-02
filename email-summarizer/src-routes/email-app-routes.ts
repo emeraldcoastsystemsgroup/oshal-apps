@@ -48,6 +48,8 @@
  * @module email-app-routes
  * 20 | maintainer@emeraldcoastsystemsgroup.com | GET /messages pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A listing without words answers from the copy whenever it is current, over everything the copy holds (`before`/`skip` cursor from `next`, `reach` says how far back it goes, a copy still filling answers what it has), else from the mailbox live with the provider's own page cursor (`page`; Gmail pageToken, Outlook nextLink, Yahoo has one page). A word search is unchanged. The live Gmail metadata reads run ten at a time instead of one after another, so a page of 50 fits the kernel's call. Guard: tests/mail-store.test.cjs.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox answers when My Day names Google (its summary was refused with 409 before any model was asked) and has today's sample events.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | The saved summary is sealed by the kernel: the package helper needed a SESSION_SECRET the native kernel never hands a package, so saving the model's answer failed with 502. The digest table is a declared migration and is written without ON CONFLICT, which the native kernel refused on the lazily made table.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -62,7 +64,7 @@ import { resolveUserLlmConnection } from '@/app/routes/free-tier-rotation';
 import { executeBotOrInline } from '@/app/routes/inline-bot-execution';
 import { sendGmail, sendOutlookMail, summarizeGmailMetadata } from '@/app/routes/email-routes';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
-import { decryptSessionValue, encryptSessionValue, isSessionSecretRequiredError } from './session-crypto';
+import { openDigest, sealDigest } from './digest-seal';
 import {
   clampDays, clampListSize, getOutlookMessage, listOutlookInbox, outlookEventsToday, outlookOwnAddress, pageOutlookInbox, safeNextLink, validMessageId,
   type CalendarEvent, type MailDetail,
@@ -73,7 +75,7 @@ import {
 import {
   connectionState, kernelEgress, kernelFetch, kernelSendGmail, kernelSendOutlook, kernelTokenFor, readConnections, summarizeGmail,
 } from './kernel-mail';
-import { listStored, plantDemoMail, storedMessage, type DemoMail, readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
+import { demoEventsToday, demoMailAnswers, listStored, plantDemoMail, storedMessage, type DemoMail, readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -230,7 +232,7 @@ async function openMailbox(req: Request, res: Response, ctx: AppContext, options
     (provider, err) => logger.error({ err, provider }, 'Mailbox token could not be refreshed'),
   );
   if (connection.token === null) {
-    if (demoMailOn() && !choice.provider && !connection.reconnect) return demoMailbox(ctx, sub);
+    if (demoMailAnswers(demoMailOn(), choice.provider, connection.reconnect)) return demoMailbox(ctx, sub);
     if (!choice.provider && !connection.reconnect && options.yahooFallback && ctx.imapMail) return yahooMailbox(ctx.imapMail, sub, true);
     const refusal = { provider: connection.provider, ...missingConnectionBody(connection.provider, connection.reconnect) };
     if (req.query.surface === '1') res.json({ connected: false, ...refusal });
@@ -257,7 +259,7 @@ function demoMailbox(ctx: AppContext, sub: string): Mailbox {
       if (!found) throw new MailboxRefusal(404, 'google', { error: 'not_found', message: 'That sample message is not in this mailbox.' });
       return found;
     },
-    eventsToday: async () => [],
+    eventsToday: async () => demoEventsToday(),
     ownAddress: async () => 'visitor@example.com',
     send: () => Promise.reject(new MailboxRefusal(403, 'google', { error: 'demo_mail_only', message: 'This is sample mail: nothing is sent from a demo mailbox.' })),
   };
@@ -479,13 +481,12 @@ export async function ensureEmailSchema(pool: AppContext['pool']): Promise<void>
   });
 }
 
-/** Upsert the latest AI digest for a user (encrypted). */
+/** Save the latest day summary for a person, sealed. One row per person: update it, or add it the first time. */
 async function storeDigest(pool: AppContext['pool'], sub: string, summary: string): Promise<void> {
-  await pool.query(
-    `INSERT INTO oshal_email_digests (user_sub, summary, updated_at) VALUES ($1, $2, now())
-     ON CONFLICT (user_sub) DO UPDATE SET summary = $2, updated_at = now()`,
-    [sub, encryptSessionValue(summary)],
-  );
+  const sealed = await sealDigest(sub, summary);
+  const existing = await pool.query('SELECT user_sub FROM oshal_email_digests WHERE user_sub = $1', [sub]);
+  if (existing.rows.length) await pool.query('UPDATE oshal_email_digests SET summary = $2, updated_at = now() WHERE user_sub = $1', [sub, sealed]);
+  else await pool.query('INSERT INTO oshal_email_digests (user_sub, summary, updated_at) VALUES ($1, $2, now())', [sub, sealed]);
 }
 
 /** Read the cached digest for a user, or null. */
@@ -493,9 +494,9 @@ async function readDigest(pool: AppContext['pool'], sub: string): Promise<{ summ
   const row = (await pool.query('SELECT summary, updated_at FROM oshal_email_digests WHERE user_sub = $1', [sub])).rows[0];
   if (!row?.summary) return null;
   try {
-    return { summary: decryptSessionValue(row.summary), updatedAt: row.updated_at };
+    const summary = await openDigest(sub, row.summary);
+    return summary === null ? null : { summary, updatedAt: row.updated_at };
   } catch (err) {
-    if (isSessionSecretRequiredError(err)) throw err;
     logger.error({ err }, 'Stored email digest could not be decrypted');
     return null;
   }

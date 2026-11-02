@@ -25,6 +25,7 @@ const frameworkSends = [];
 // null and the email module is inert. A kernel path that still leaned on either would produce empty rows or a fake send.
 const STUBS = {
   express: { Router: () => { const routes = {}; const add = (m) => (p, ...h) => { routes[`${m} ${p}`] = h[h.length - 1]; }; return { routes, get: add('GET'), post: add('POST') }; } },
+  '@/features/personal-data': { isEncrypted: () => true, encryptField: async (_o, v) => v, decryptField: async (_o, v) => v },
   '@/shared/logger': { createChildLogger: () => ({ error() {}, info() {}, warn() {}, debug() {} }) },
   '@/shared/skill-profiles': { resolveSkillProfileByApp: () => null, composeSkillProfilePrompt: (p) => p },
   '@/shared/services/database': { runRuntimeSchemaBootstrap: async () => {}, buildOwnerRlsPolicyStatements: () => [] },

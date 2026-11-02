@@ -43,6 +43,9 @@
 # 39 | maintainer@emeraldcoastsystemsgroup.com | Release date-indexed exact scoring for posted-date board filters as version 1.29.1. When a recent-posted window is sparse or empty, drive from the corpus date index instead of probing every historical résumé score.
 # 40 | maintainer@emeraldcoastsystemsgroup.com | 1.29.3: Resume Studio and Profile Studio save their unsaved edits before Jarvis or the Career concierge reads them and redraw the saved resume or plan when the change returns (shared document handoff); AI draft reads the plan with the latest edit saved.
 # 41 | maintainer@emeraldcoastsystemsgroup.com | 1.29.4: a person's database closes out of WAL, so the Job Board opens after a first match on a read-only mount.
+# 42 | maintainer@emeraldcoastsystemsgroup.com | 1.29.5: Find & score jobs is one background run the Job Board watches to its end (awaited, the match stalled at the kernel's 10 seconds and answered 503), bounded by CAREER_BUILD_LIMIT on a shared model. A saved resume with nothing matched yet no longer reads as no resume.
+# 43 | maintainer@emeraldcoastsystemsgroup.com | 1.29.6: A person's database leaves WAL once as the process ends. Per connection, scoring workers locked each other out and the run ended with every score discarded.
+# 44 | maintainer@emeraldcoastsystemsgroup.com | 1.29.7: A finished Find & score jobs run opens on the person's best fit.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -136,7 +139,7 @@ description: >-
   posting against your private career profile, and turns the best fits into a human-in-the-loop
   application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
   cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.29.4
+version: 1.29.7
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
 # to Career: the handle is redeemed through the kernel relay and rides the SAME

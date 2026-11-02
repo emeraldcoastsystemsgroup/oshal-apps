@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | Codex | Exercise packaged Home routes: session gate, unavailable sources, no secret leakage and no outbound dependencies.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Intelligent Communication's digest opens through the kernel's seal, doubled here.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: Pumpkin Review printed a saved time as a raw UTC instant ('saved 2026-10-13T10:55:35.857Z'); thirteen review pages render a summary item's detail the same way. Every page that renders item.detail formats its instants in the viewer's zone (localInstants, run as shipped).
  */
 const test = require('node:test');
@@ -11,6 +12,16 @@ const crypto = require('node:crypto');
 const root = path.resolve(__dirname, '..');
 const packages = ['feeds', 'email-summarizer', 'switchboard'];
 
+/** A double of the kernel's seal; the real one is crates/oshald/tests/personal_data_intent.rs in the kernel repository. */
+const KERNEL_SEAL = {
+  isEncrypted: value => typeof value === 'string' && value.startsWith('opd1:'),
+  encryptField: async (_owner, value) => `opd1:${Buffer.from(value).toString('base64')}`,
+  decryptField: async (_owner, value) => {
+    if (value === 'opd1:corrupt') throw new Error('sealed value could not be opened');
+    return Buffer.from(value.slice(5), 'base64').toString();
+  },
+};
+
 function loadRoute(app, pool) {
   let handler;
   const router = { get: (_path, fn) => { handler = fn; } };
@@ -19,7 +30,8 @@ function loadRoute(app, pool) {
     const requireAllowed = name => {
       if (name === 'express') return { Router: () => router };
       if (name === 'crypto') return crypto;
-      if (name === './session-crypto') return load(path.join(root, app, 'routes/session-crypto.js'));
+      if (name === './digest-seal') return load(path.join(root, app, 'routes/digest-seal.js'));
+      if (name === '@/features/personal-data') return KERNEL_SEAL;
       throw new Error(`Unexpected runtime dependency: ${name}`);
     };
     new Function('require', 'module', 'exports', fs.readFileSync(file, 'utf8'))(requireAllowed, module, module.exports);
@@ -81,9 +93,14 @@ test('Switchboard: unavailable outbox never zeroes it or discards publishing sta
   assert.equal(response.body.metrics[0].value,'2');
   assert.equal(response.body.metrics[4].value,'Unavailable');
 });
-test('Email: corrupt saved ciphertext is unavailable', async () => {
-  const response = await loadRoute('email-summarizer', {async query() {return {rows:[{summary:'bad:cipher:text',updated_at:new Date()}]};}})();
+test('Email: a seal the kernel cannot open is unavailable', async () => {
+  const response = await loadRoute('email-summarizer', {async query() {return {rows:[{summary:'opd1:corrupt',updated_at:new Date()}]};}})();
   assert.equal(response.code,503);
+});
+test('Email: a summary only the earlier platform could open reads as not saved', async () => {
+  const response = await loadRoute('email-summarizer', {async query() {return {rows:[{summary:'aXY=:dGFn:Y2lwaGVy',updated_at:new Date()}]};}})();
+  assert.equal(response.code,200);
+  assert.equal(response.body.tiles[0].value,'Not saved');
 });
 test('Feeds: latest saved entries carry their own bounded context and never other owners', async () => {
   const response = await loadRoute('feeds', {async query(sql,args) {
@@ -100,17 +117,12 @@ test('Feeds: latest saved entries carry their own bounded context and never othe
   assert.match(item.actions[0].context.notes,/Project discussion/);
   assert.equal(item.actions[0].context.notes.length,2000);
 });
-test('Email: decrypted saved digest becomes a review draft only', async () => {
-  const prior=process.env.SESSION_SECRET;process.env.SESSION_SECRET='fixture-secret';
-  try {
-    const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',crypto.createHash('sha256').update(process.env.SESSION_SECRET).digest(),iv);
-    const encrypted=Buffer.concat([cipher.update('A saved commitment to review','utf8'),cipher.final()]);
-    const summary=[iv.toString('base64'),cipher.getAuthTag().toString('base64'),encrypted.toString('base64')].join(':');
-    const response=await loadRoute('email-summarizer',{async query(){return {rows:[{summary,updated_at:new Date()}]};}})();
-    assert.equal(response.code,200);
-    assert.equal(response.body.items[0].actions[0].context.notes,'A saved commitment to review');
-    assert.deepEqual(response.body.items[0].actions.map(a=>a.integration),['prepare-document','review-sales']);
-  } finally {if(prior===undefined)delete process.env.SESSION_SECRET;else process.env.SESSION_SECRET=prior;}
+test('Email: an opened saved digest becomes a review draft only', async () => {
+  const summary=await KERNEL_SEAL.encryptField('alice','A saved commitment to review');
+  const response=await loadRoute('email-summarizer',{async query(){return {rows:[{summary,updated_at:new Date()}]};}})();
+  assert.equal(response.code,200);
+  assert.equal(response.body.items[0].actions[0].context.notes,'A saved commitment to review');
+  assert.deepEqual(response.body.items[0].actions.map(a=>a.integration),['prepare-document','review-sales']);
 });
 
 test('every review page shows a summary detail\'s saved instants in the viewer\'s zone, not as UTC text', () => {

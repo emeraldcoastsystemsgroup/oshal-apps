@@ -11,6 +11,8 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | INSIGHTS_INDEX_SQL: idx_corpus_insights covers every column Career Insights reads from the lane (company, posted date, state, maximum pay). Without it Insights read each posting row past its inline description: 44.3 s on a cold page cache over a copy of the live corpus, past the native kernel's 10 s package deadline. It is kept out of CORPUS_SCHEMA because the native kernel binds the corpus read-only into every request sandbox, where a CREATE of a missing index would fail the whole schema step; _ensure_insights_index creates it on a writable corpus (the nightly ingest's private copy) and leaves a read-only one as it is.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Persist the geographic covering index on writable ingest copies; read-only older corpora keep ordinary browse available while radius search reports its missing index.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | A person's database closes out of WAL: published and mounted read-only, a WAL file with no side files cannot be opened, which broke the Job Board after the first match for anyone new (found 2026-10-31 on the dev environment).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | enrich_corpus: a scoring pass on a shared read-only corpus skips the corpus facts and keeps the person's scores; the refusal used to fail the run and discard them all.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | A person's database leaves WAL once, as the process ends, not per connection: scoring workers switching the mode against each other failed with "database is locked", ending the run and discarding every score.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -32,9 +34,11 @@ Application provenance is monotonic at the storage chokepoint: a later manual st
 cannot replace a worker report or a confirmation-backed record on any supported backend.
 """
 from __future__ import annotations
+import atexit
 import sys
 import json
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from contextlib import contextmanager
 
@@ -313,6 +317,7 @@ def connect():
         # view (main shadows the attached corpus table `postings_corpus`).
         config.USER_DB.parent.mkdir(parents=True, exist_ok=True)
         config.CORPUS_DB.parent.mkdir(parents=True, exist_ok=True)
+        _portable_at_exit(config.USER_DB)
         conn = sqlite3.connect(config.USER_DB, timeout=120)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout = 120000")
@@ -324,7 +329,7 @@ def connect():
             yield conn
             conn.commit()
         finally:
-            _close_portable(conn)
+            conn.close()
         return
     else:
         conn = sqlite3.connect(config.DB_PATH, timeout=120)
@@ -339,16 +344,32 @@ def connect():
         conn.close()
 
 
-def _close_portable(conn) -> None:
-    """Close a person's database in a form a read-only reader can open. The kernel publishes this file and mounts it
+_portable_paths: set = set()
+_portable_lock = threading.Lock()
+
+
+def _portable_at_exit(path) -> None:
+    """Remember to leave this person's database portable when the process ends."""
+    with _portable_lock:
+        if not _portable_paths:
+            atexit.register(_leave_portable)
+        _portable_paths.add(str(path))
+
+
+def _leave_portable() -> None:
+    """Leave a person's database in a form a read-only reader can open. The kernel publishes this file and mounts it
     read-only for a read; a WAL-mode file with no -wal or -shm beside it (a clean close removes them) cannot be opened
-    there: "unable to open database file". The next writer turns WAL back on. Another open connection keeps it in WAL,
-    and then its side files stay too, so a refusal here is harmless."""
-    try:
-        conn.execute("PRAGMA main.journal_mode = DELETE")
-    except sqlite3.OperationalError as err:
-        print(f"career db: journal mode kept: {err}", file=sys.stderr)
-    conn.close()
+    there: "unable to open database file". This runs once as the process ends and never per connection: scoring opens
+    a connection per worker, and a connection switching the mode while another opens fails with "database is locked",
+    which ended the run and discarded every score. A refusal here is harmless: the next writer finds the file as it was."""
+    for path in _portable_paths:
+        conn = sqlite3.connect(path, timeout=30)
+        try:
+            conn.execute("PRAGMA main.journal_mode = DELETE")
+        except sqlite3.OperationalError as err:
+            print(f"career db: journal mode kept: {err}", file=sys.stderr)
+        finally:
+            conn.close()
 
 
 def corpus_table() -> str:
@@ -1275,6 +1296,21 @@ def save_ai_fit(conn, posting_id, score, rationale, matched, gaps, model):
              ai_model=model, ai_scored_at=now())
 
 
+def enrich_corpus(conn, sql, params=()) -> bool:
+    """One objective fact a scoring pass learned about a posting, written to the shared corpus. An
+    installation that reads its corpus from a shared read-only master (OSHAL_CAREER_SHARED_CORPUS) has
+    no write to make, and the master's own refresh owns those facts. The person's scores are the point
+    of the pass, so a refused enrichment returns False instead of failing the run and discarding them.
+    Any other failure is still an error."""
+    try:
+        conn.execute(sql, params)
+        return True
+    except sqlite3.OperationalError as error:
+        if "readonly database" in str(error):
+            return False
+        raise
+
+
 def save_salary_estimate(conn, posting_id, smin, smax, currency="USD", period="year"):
     """Only fills AI estimate when there's no listed salary already. Salary is OBJECTIVE
     (about the job, same for all users) so it lives on the shared corpus row."""
@@ -1282,12 +1318,12 @@ def save_salary_estimate(conn, posting_id, smin, smax, currency="USD", period="y
         f"SELECT salary_source FROM {read_postings_table()} WHERE id=?", (posting_id,)).fetchone()
     if row and row["salary_source"] == "listed":
         return False
-    conn.execute(
+    return enrich_corpus(
+        conn,
         f"""UPDATE {corpus_table()} SET salary_min=?, salary_max=?, salary_currency=?,
            salary_period=?, salary_source='ai_estimated' WHERE id=?""",
         (smin, smax, currency, period, posting_id),
     )
-    return True
 
 
 def set_status(conn, posting_id, status, **fields):

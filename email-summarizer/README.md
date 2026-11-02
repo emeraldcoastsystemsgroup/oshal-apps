@@ -139,23 +139,20 @@ touches your digests or your mail.
 
 <!-- 2026-08-05 | maintainer@emeraldcoastsystemsgroup.com | Document fail-closed digest recovery after removal of the public encryption-key fallback. -->
 
-## `SESSION_SECRET` digest recovery
+## Saved summary
 
-Set a nonblank `SESSION_SECRET` before creating or reading cached summaries. A digest encrypted
-under the retired public fallback cannot be authenticated with a newly provisioned secret; use
-**Summarize my day** again to replace that cache. Reconnect Google only if the kernel Accounts page
-also reports its separately managed connector credential as unreadable.
+The saved day summary is sealed by the kernel, which holds the key (`uses: memory`). A summary saved under the earlier platform's key reads as not saved; **Summarize my day** replaces it.
 
 ## Configurable Home summary (1.1.0)
 
-GET /api/email-summarizer/home-summary reads only the caller's saved oshal_email_digests row and decrypts it with the existing package helper. Both data points default on:
+GET /api/email-summarizer/home-summary reads only the caller's saved oshal_email_digests row and opens it through the kernel's seal. Both data points default on:
 
 | Metric id | Meaning |
 |---|---|
 | cached-digest | Whether a nonempty, decryptable digest is saved. The first 120 normalized characters appear as a cached excerpt. |
 | digest-age | Age of the saved digest's updated_at. This is generation time, not current mailbox freshness. |
 
-No cached row is "Not saved", not an empty inbox. A missing table, missing encryption key, or corrupt ciphertext returns 503. No summary GET calls Gmail/Calendar, generates AI text, dispatches work, or creates schema. Connect a mailbox and generate a digest from email-myday; the Home link opens that same surface. Hiding cached-digest also hides its excerpt and associated highlight.
+No cached row is "Not saved", not an empty inbox. A missing table or a seal the kernel refuses to open returns 503. No summary GET calls Gmail/Calendar, generates AI text, dispatches work, or creates schema. Connect a mailbox and generate a digest from email-myday; the Home link opens that same surface. Hiding cached-digest also hides its excerpt and associated highlight.
 
 This manifest requires the matching core metricsPointer support (core PR #411). The matching core and this package were deployed and authenticated Home rendering was verified on 2026-09-10 UTC; see APP-HOME-EXTRACTION-PLAN.md for the rollout record. Validation: 12 compiled-route tests in scripts/home-summary.test.cjs; scripts/home-summary.integration.cjs exercises actual PostgreSQL schemas, owner RLS and SELECT-only source grants, plus Chromium desktop/mobile and saved metric hiding. Run the integration harness from the matching core checkout with HOME_TEST_DATABASE_URL pointing to a disposable localhost database named home_summary_test. It uses mock sign-in and seeded records, not live accounts.
 
@@ -165,7 +162,7 @@ This manifest requires the matching core metricsPointer support (core PR #411). 
 
 | Test entry | Level | Execution boundary |
 | --- | --- | --- |
-| `tests/session-crypto.test.mjs` | unit | Isolated Node runner; synthetic data only |
+| `tests/digest-seal.test.cjs` | unit | Isolated Node runner; synthetic data only; the kernel seal is a double, proven live on the dev kernel |
 | `tests/outlook-mailbox.test.mjs` | unit | Compiled Graph adapter and provider switch with a recording fetch |
 | `tests/surface-provider.test.mjs` | unit | Inbox / My Day scripts in `node:vm` with a recording fetch (not a browser receipt) |
 | `tests/isolation.core.test.js` | integration | Runs `tests/email-mailbox-isolation.spec.ts` (Vitest) against a framework checkout: real broker, core migrations 060/100/101 with forced RLS on a disposable PostgreSQL, loopback HTTP, and core's real IMAP reader against a loopback IMAP responder |

@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Map every failure code the rail records on a run: career-worker-queue-timeout (504, added to the rail with the slot-wait ceiling), not-entitled (403), career-worker-error (502) and run-cancelled (409) were missing, so a manual run that ended on one of them answered a generic 502 without its reason.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Return the successful chain completion marker separately from progressive corpus freshness.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Native refresh is installation-managed; expose capability and refuse a detached shared writer before acknowledging work.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | POST /run/build runs matching and scoring as one background run. Awaited, a match over the corpus says nothing to the kernel for 10 seconds and the call is refused with 503, so Find & score jobs matched nothing and then scored nothing. CAREER_BUILD_LIMIT bounds one person's scoring on an installation that shares its model with strangers.
  */
 
 /**
@@ -20,7 +21,7 @@ import { createChildLogger } from '@/shared/logger';
 import { readRemoteOnly } from './career-match-prefs';
 import type { AppContext } from '@/app/composition/app-context';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
-import { runCareerCliAwait } from './career-engine-dispatch';
+import { runCareerCliAsync, runCareerCliAwait } from './career-engine-dispatch';
 import { rejectEngineStart } from './career-engine-response';
 import { isCareerAdmin } from './career-company-routes';
 import { callerSub, listStoreUsers, openUserDb } from './career-user-store';
@@ -112,6 +113,34 @@ function manualArgs(verb: ManualVerb): string[] {
   return ['pull'];
 }
 
+/**
+ * @description The score leg of a Find & score jobs run. A demo installation sets CAREER_BUILD_LIMIT, because its visitors
+ * share one model: a bounded list and two workers. Without it a person scores all their matches, as the nightly pass does.
+ * @param remoteOnly - The person's standing remote-only preference.
+ * @param limit - The installation's limit, when it set one.
+ * @returns The engine arguments, verb first.
+ */
+export function buildBoardArgs(remoteOnly: boolean, limit: string | undefined = process.env.CAREER_BUILD_LIMIT): string[] {
+  const args = ['build-board', '--min-keyword', '40'];
+  const bound = Number(limit);
+  if (Number.isInteger(bound) && bound > 0) args.push('--limit', String(bound), '--workers', '2');
+  if (remoteOnly) args.push('--remote-only');
+  return args;
+}
+
+/** Start Find & score jobs in the background; the Job Board watches GET /resume/state for its end. */
+async function startBuild(ctx: AppContext, res: Response, userSub: string): Promise<void> {
+  try {
+    const started = await runCareerCliAsync(ctx.pool, userSub, buildBoardArgs(await readRemoteOnly(ctx.pool, userSub)));
+    if (rejectEngineStart(res, started, 'build')) return;
+    logger.info({ userSub }, 'career board build started');
+    res.status(202).json({ ok: true, started: true });
+  } catch (err) {
+    logger.error({ err, userSub }, 'career board build failed to start');
+    res.status(500).json({ ok: false, err: 'build failed to start' });
+  }
+}
+
 /** Answer a failed manual run with the status its terminal state earned. */
 function sendRunFailure(
   res: Response, result: { out: string; err: string; timedOut?: boolean }, run: EngineRunView | null,
@@ -133,6 +162,7 @@ function sendRunFailure(
 async function runManualVerb(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (req.params.verb === 'build') return startBuild(ctx, res, userSub);
   const verb = req.params.verb as ManualVerb;
   if (!['pull', 'score', 'match'].includes(verb)) {
     res.status(400).json({ error: 'verb' });

@@ -38,7 +38,7 @@ All **83 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Business** | [`business-experience/`](business-experience/) | 1.0.2 | ready | Your schedule, projects, documents and explicitly connected business applications. |
 | **Calling Assistant** | [`calling-assistant/`](calling-assistant/) | 0.1.10 | ready | Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports. |
 | **Capability Ideation** | [`capability-ideation/`](capability-ideation/) | 1.0.0 | ready | A ticket queue for Capability Ideator: describe a business process and get up to three sourced tool or integration proposals; opens Capability Ideator's review screen. |
-| **Intelligent Communication** | [`email-summarizer/`](email-summarizer/) | 1.6.2 | ready | Your inbox, calendar, social channels and day in one surface. |
+| **Intelligent Communication** | [`email-summarizer/`](email-summarizer/) | 1.6.4 | ready | Your inbox, calendar, social channels and day in one surface. |
 | **Fantasy Football** | [`fantasy-football/`](fantasy-football/) | 0.2.2 | ready | Manage the fantasy football team you actually have. |
 | **Feeds** | [`feeds/`](feeds/) | 1.2.4 | ready | Your connected message feeds in one place - live stream, activity trends, hot channels, and trending topics over your own Slack messages, with a curator bot that answers 'what did I miss'. |
 | **Identity Hub** | [`identity/`](identity/) | 1.2.5 | ready | Every account you've connected, in one place - click to jump straight into Gmail, LinkedIn, your smart-home app, and more, reconnect a login that's expired, or connect a new one, plus an optional access review that flags what needs attention. |
@@ -59,7 +59,7 @@ All **83 packages**, shelved by ADR-097 suite. Versions and status come from
 
 | App | Folder | Version | Status | What it is |
 |---|---|---|---|---|
-| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.29.4 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
+| **Intelligent Career** | [`career-hunter/`](career-hunter/) | 1.29.7 | ready | Reads openings from employers' own public ATS job feeds into a shared corpus, scores every posting against your private career profile, and turns the best fits into a human-in-the-loop application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume + cover letter. |
 | **Classroom** | [`classroom-experience/`](classroom-experience/) | 1.0.4 | ready | Classwork, class schedules and personal learning through existing school roles and roster rules. |
 | **Intelligent Career** | [`intelligent-career/`](intelligent-career/) | 1.1.2 | ready | One front door for your job search: the board, search, resume and strengthen tools, your profile picture, your LinkedIn and Facebook presence, and the documents you print into the swarm — with a setup page that shows what is connected and what still needs you. |
 | **Job Apply** | [`job-apply/`](job-apply/) | 1.1.6 | ready | Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. |
@@ -133,7 +133,7 @@ All **83 packages**, shelved by ADR-097 suite. Versions and status come from
 | **Circuit Lab** | [`circuit-lab/`](circuit-lab/) | 0.9.0 | ready | A local circuit and mechanism lab the swarm can drive. |
 | **Cloud** | [`cloud/`](cloud/) | 1.1.2 | ready | Inspect and operate your Google Cloud by chat. |
 | **Bot Forge** | [`codex-packer/`](codex-packer/) | 1.2.0 | ready | An interview that drafts a single-purpose application (manifest plus persona) for the operator to commit and install from App Loader. |
-| **Design Studio** | [`design-studio/`](design-studio/) | 0.4.6 | ready | The design-to-build process as one application, for anything. |
+| **Design Studio** | [`design-studio/`](design-studio/) | 0.4.7 | ready | The design-to-build process as one application, for anything. |
 | **Developer Workspace Index** | [`dev-workspace-index/`](dev-workspace-index/) | 0.2.3 | ready | Build a bounded, dev-console-only index of the local OSHAL documentation and ask Jarvis for cited developer references. |
 | **Drone Relay** | [`drone-relay/`](drone-relay/) | 0.4.3 | ready | Design a chain of mini drones that relays commands and telemetry drone to drone so one can work beyond the base link: size the hop from a link budget on ESP-NOW, Wi-Fi Direct, Wi-Fi mesh, BLE, LoRa or Wi-Fi HaLow, place the relay slots and spares, fail a relay in a simulated scenario and read how long the tip was out of reach and when the chain closed the gap and was restored — with the on-board and controller rules a companion firmware carries, and the signed, source-routed envelope shown hop by hop. |
 | **Embodied Swarm** | [`embodied/`](embodied/) | 0.20.1 | ready | Drones are the eyes, a detached rolling six-axis arm is the hands, the swarm plans and you hold command — and the machine knows only what its sensors have seen. |

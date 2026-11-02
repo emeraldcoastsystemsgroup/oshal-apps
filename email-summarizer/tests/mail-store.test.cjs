@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A pass resumes where the last stopped: after a pass that ran out of time the next one asks Gmail only for mail older than the copy (before:) and newer than it (after:), never refetching or re-reading what is stored (Roger's first live passes stalled: 290, then 73 more). A state written by the old passes (no newest_at) resumes from its last run. GET /messages answers from a copy still filling only over a window the copy reaches.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The listing pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"): listStored walks the copy newest first in pages by keyset, two messages received at the same instant across a page boundary are each listed once, mail outside the inbox is left out, and the last page says it reached the copy's floor; GET /messages without words answers page after page from a current copy (a still-filling one too, with its reach) and never asks Gmail, and reads the mailbox live with Gmail's own page token when there is no copy, refusing a cursor in another shape.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox: rows planted once on the real schema, listed newest first, read by id, and another person never sees them.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox answers a call that names Google and never one that names another mailbox or needs a reconnect; its events are always today's.
  */
 'use strict';
 const test = require('node:test');
@@ -24,6 +25,7 @@ if (!DSN) throw new Error('OSHAL_TEST_POSTGRES must name the disposable PostgreS
 
 const STUBS = {
   express: { Router: () => { const routes = {}; const add = (m) => (p, ...h) => { routes[`${m} ${p}`] = h[h.length - 1]; }; return { routes, get: add('GET'), post: add('POST') }; } },
+  '@/features/personal-data': { isEncrypted: () => true, encryptField: async (_o, v) => v, decryptField: async (_o, v) => v },
   '@/shared/logger': { createChildLogger: () => ({ error() {}, info() {}, warn() {}, debug() {} }) },
   '@/shared/skill-profiles': { resolveSkillProfileByApp: () => null, composeSkillProfilePrompt: (p) => p },
   '@/shared/services/database': { runRuntimeSchemaBootstrap: async () => {}, buildOwnerRlsPolicyStatements: () => [] },
@@ -342,4 +344,21 @@ test('sample mail is planted once on the real schema and stays the person\'s own
   assert.equal(one.body, 'Agenda attached.');
   assert.equal(await store.storedMessage(db.bob, 'bob', 'one'), null, 'another person has no such message');
   assert.equal((await store.listStored(db.bob, 'bob', 10)).messages.length, 0);
+});
+
+test('the demo mailbox answers My Day when it names Google, and only then', () => {
+  assert.equal(store.demoMailAnswers(true, null, false), true);
+  assert.equal(store.demoMailAnswers(true, 'google', false), true, 'My Day names the provider its first read reported');
+  assert.equal(store.demoMailAnswers(true, 'outlook', false), false);
+  assert.equal(store.demoMailAnswers(true, 'google', true), false, 'a real connection that needs reconnecting is not replaced by samples');
+  assert.equal(store.demoMailAnswers(false, 'google', false), false, 'off unless the installation set it');
+});
+
+test('the demo mailbox always has today\'s events', () => {
+  const now = new Date('2031-03-09T23:30:00Z');
+  const events = store.demoEventsToday(now);
+  assert.ok(events.length > 0);
+  assert.ok(events.every((event) => event.start.startsWith('2031-03-09T') && event.summary && event.location));
+  assert.ok(events.every((event) => /T\d\d:00:00-0[56]:00$/.test(event.start)), 'with an offset, so a model reads the time a person reads');
+  assert.deepEqual(events.map((event) => event.start), events.map((event) => event.start).sort());
 });

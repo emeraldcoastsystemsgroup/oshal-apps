@@ -38,6 +38,7 @@
  * 32 | maintainer@emeraldcoastsystemsgroup.com  | Map `packet-purge-preview` and `packet-purge` to the seven-day, count-checked owner-only generated-queue purge. The engine removes only that user's old generated packets and score/application rows; it never touches the shared corpus or later lifecycle statuses.
  * 32 | maintainer@emeraldcoastsystemsgroup.com  | Keep the Python engine in this wrapper's process group under the runner's adopted lease (1.27.1). The engine was always started detached, so on Linux it led a session and group of its own, and the runner's cancel, deadline and lease-loss fence (process.kill(-wrapperPid)) killed only the wrapper: a cancelled run's engine kept calling the rail and held the inherited pipes, so the run stayed `running` until the engine exited by itself. It now joins the wrapper's group whenever /proc proves the wrapper leads that group (the runner always starts it detached), and the wrapper's own deadline and lease-loss fence kill every other member of that group instead of the engine's group, sparing the wrapper so its lease release and terminal-state write still run. A direct CLI run, or a wrapper that shares its parent's group, keeps the engine in a group of its own as before.
  * 33 | maintainer@emeraldcoastsystemsgroup.com  | Put an inherited PYTHONPATH after the engine directory instead of replacing it. The native kernel's package sandbox names its pinned, read-only Python package runtime there (/python-runtime); replacing it left `python3 -m jobhunter` without tenacity and Jinja2 on the native runtime. The engine directory stays first, so the engine's own modules always win.
+ * 34 | maintainer@emeraldcoastsystemsgroup.com  | build-board: keyword matching then scoring as one background run, for the Job Board's Find & score jobs.
  *
  * Verbs (each forwards extra args to the engine):
  *   pull      -> scrape --all  then  match.rescore_recent  (nightly corpus refresh + keyword index)
@@ -338,6 +339,11 @@ function corpusRuns(verb, rest) {
       ['-c', 'from jobhunter import match; print("keyword-indexed", match.rescore_recent(14), "recent")'],
     ];
     case 'score': return [['-m', 'jobhunter', 'score', ...rest]];
+    // The Job Board's "Find & score jobs": both legs in one background run, so the page never waits on them.
+    case 'build-board': return [
+      ['-c', 'from jobhunter import match; print("keyword-indexed", match.rescore_recent(14), "recent")'],
+      ['-m', 'jobhunter', 'score', ...rest],
+    ];
     case 'score-titles': return [['-c', 'import os, json\nfrom jobhunter import db, score\n'
       + 'db.init_db()\n'
       + 'terms=[t.strip() for t in os.environ.get("CH_TITLES","").split("\\n") if t.strip()]\n'

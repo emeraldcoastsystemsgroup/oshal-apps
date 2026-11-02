@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A manual run that failed on the rail's slot-wait ceiling answers 504 career-worker-queue-timeout with its run id and state, and every failure code the COMPILED rail can record on a run (read from routes/career-worker-rail.js) answers with the rail's own status instead of the generic 502.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Guard the refresh status completion field separately from corpus freshness.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Include the explicit application-managed manual refresh capability in the persisted completion contract.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Find & score jobs is one background run, refused to the person when the store refuses it and bounded on a shared model.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,6 +22,8 @@ const originalLoad = Module._load;
 let runResult = { ok: true, out: 'done', err: '' };
 let runObserver = () => undefined;
 let refreshStarts = 0;
+const buildStarts = [];
+let buildStart = { started: true };
 
 Module._load = function loadWithRunRouteStubs(request, ...rest) {
   if (request === '@/shared/deployment-mode') return deploymentModeStub();
@@ -29,7 +32,7 @@ Module._load = function loadWithRunRouteStubs(request, ...rest) {
   }
   if (request === '@/shared/middleware/authz') return { getTrustedServiceUserSub: () => null };
   if (request === './career-engine-dispatch') {
-    return { runCareerCliAwait: async (_pool, userSub, args, _extra, options) => { runObserver(userSub, args, options); return runResult; } };
+    return { runCareerCliAsync: async (_pool, userSub, args) => { buildStarts.push({ userSub, args }); return buildStart; }, runCareerCliAwait: async (_pool, userSub, args, _extra, options) => { runObserver(userSub, args, options); return runResult; } };
   }
   if (request === './career-engine-response') {
     return { rejectEngineStart: (res, result, label) => {
@@ -40,6 +43,7 @@ Module._load = function loadWithRunRouteStubs(request, ...rest) {
     } };
   }
   if (request === './career-company-routes') return { isCareerAdmin: () => true };
+  if (request === './career-match-prefs') return { readRemoteOnly: async () => false };
   if (request === './career-user-store') {
     return {
       callerSub: (req) => req.userSub,
@@ -236,4 +240,46 @@ test('refresh status separates the persisted successful completion from corpus f
     running: false, corpusFreshAt: null, lastCompletedAt: '2026-10-06T08:48:47.612Z',
     manualRefreshAvailable: true, refreshMode: 'application-managed',
   });
+});
+
+test('Find & score jobs starts one background run and answers 202 without awaiting the engine', async () => {
+  buildStarts.length = 0;
+  buildStart = { started: true };
+  const response = responseRecorder();
+  await captureHandlers().get('POST /run/:verb')({ userSub: 'run-user', params: { verb: 'build' } }, response);
+  assert.equal(response.statusCode, 202);
+  assert.deepEqual(response.body, { ok: true, started: true });
+  assert.equal(buildStarts.length, 1);
+  assert.equal(buildStarts[0].args[0], 'build-board');
+  assert.equal(buildStarts[0].userSub, 'run-user');
+});
+
+test('a Find & score jobs run the store refuses is refused to the person, not reported as started', async () => {
+  buildStart = { started: false, limitReason: 'inflight' };
+  const response = responseRecorder();
+  await captureHandlers().get('POST /run/:verb')({ userSub: 'run-user', params: { verb: 'build' } }, response);
+  assert.equal(response.statusCode, 409);
+  assert.equal(response.body.ok, false);
+});
+
+test('a shared-model installation bounds one person\'s scoring; without the setting a person scores everything', () => {
+  assert.deepEqual(runRoutes.buildBoardArgs(false, '25'), ['build-board', '--min-keyword', '40', '--limit', '25', '--workers', '2']);
+  assert.deepEqual(runRoutes.buildBoardArgs(false, undefined), ['build-board', '--min-keyword', '40']);
+  assert.deepEqual(runRoutes.buildBoardArgs(true, 'nonsense'), ['build-board', '--min-keyword', '40', '--remote-only']);
+});
+
+test('the Job Board starts the background run and watches it, and never awaits the match in the page', () => {
+  const board = readFileSync(new URL('../tools/career-board.html', import.meta.url), 'utf8');
+  assert.match(board, /\/api\/career-hunter\/run\/build/);
+  assert.doesNotMatch(board, /\/api\/career-hunter\/run\/match/);
+  assert.match(board, /st && st\.building/);
+  assert.match(board, /if\(justBuilt\)\{ \$\('sort'\)\.value='ai'/, 'the run ends on the best fit, not the browse sort');
+});
+
+test('the dispatcher and the engine wrapper agree that build-board takes the shared slot, or adoption is refused', () => {
+  const dispatch = readFileSync(new URL('../src-routes/career-engine-dispatch.ts', import.meta.url), 'utf8');
+  const locks = readFileSync(new URL('../lib/career-run-lock.js', import.meta.url), 'utf8');
+  const listed = (source) => source.match(/SHARED_CORPUS_WRITERS = new Set\(\[([^\]]*)\]/)[1].match(/'[^']+'/g).sort();
+  assert.deepEqual(listed(dispatch), listed(locks));
+  assert.ok(listed(locks).includes("'build-board'"));
 });

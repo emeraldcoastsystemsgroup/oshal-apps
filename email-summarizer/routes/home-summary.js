@@ -5,9 +5,10 @@ exports.createHomeSummaryRoutes = createHomeSummaryRoutes;
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | Codex | Expose the caller's previously saved digest on Home without mailbox reads or generation.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Open the digest through the kernel's seal; a summary only the earlier platform could open reads as not saved.
  */
 const express_1 = require("express");
-const session_crypto_1 = require("./session-crypto");
+const digest_seal_1 = require("./digest-seal");
 /** @description Read a bounded cached digest in the caller's session. @param ctx Package context. @returns Summary router. */
 function createHomeSummaryRoutes(ctx) {
     const router = (0, express_1.Router)();
@@ -21,7 +22,7 @@ function createHomeSummaryRoutes(ctx) {
         }
         try {
             const row = (await ctx.pool.query('SELECT summary, updated_at FROM oshal_email_digests WHERE user_sub = $1', [String(sub)])).rows[0];
-            const summary = row?.summary ? (0, session_crypto_1.decryptSessionValue)(row.summary).replace(/\s+/g, ' ').trim() : '';
+            const summary = row?.summary ? ((await (0, digest_seal_1.openDigest)(String(sub), row.summary)) ?? '').replace(/\s+/g, ' ').trim() : '';
             const now = new Date();
             const at = summary && row?.updated_at ? new Date(row.updated_at).getTime() : NaN;
             const validTime = Number.isFinite(at) && at <= now.getTime();
@@ -42,4 +43,3 @@ function createHomeSummaryRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=home-summary.js.map
