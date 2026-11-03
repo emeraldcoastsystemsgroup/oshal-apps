@@ -1,0 +1,994 @@
+{
+ "lessons": {
+  "agreement": {
+   "teacher": "Bluebold",
+   "seconds": 99,
+   "bytes": 10977904,
+   "sha256": "d90e42cd87d9de78a1e9cc226e143dac7ecd5c117562fa4718f2732add04ed90",
+   "script": "2172ef1d84eada1c331eae11c2986e742437a40125a9e344bffbc906b4829ca9",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.8-flash-lite-tts",
+    "voice": "Leda"
+   },
+   "checks": {
+    "wordMatch": 0.986,
+    "pitchSpreadSemitones": 16.8
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hey, it's Bluebold! Sentences wear disguises. Today we're unmasking the real subject."
+    },
+    {
+     "label": "Watch me",
+     "text": "The box of pencils, is or are on the desk? Your ear hears pencils, and wants to say are. That's the trap. So cross out the phrase in the middle, just for a moment. Of pencils, gone. Now what's left? The box. The subject is box, not pencils. One box. So, is. The box is on the desk."
+    },
+    {
+     "label": "The idea",
+     "text": "A verb agrees in number with its subject, not with whatever noun happens to be standing next to it."
+    },
+    {
+     "label": "Picture this",
+     "text": "Think of a seesaw: subject on one side, verb on the other. Two boxes, are. Level. Take one away, and it tips. Switch to is, level again. Now stand pencils right beside it. Nothing moves. It only weighs the subject."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. The list of chores, is or are long? Go. Is! Cross out of chores. One list, so, is. The list is long."
+    },
+    {
+     "label": "Watch out",
+     "text": "But don't cross out too much. The box and the bag are on the desk. Cross out and the bag, and you lose a subject. Two things joined by and: that's two subjects. So, are."
+    },
+    {
+     "label": "Remember",
+     "text": "Nearby plurals are decoys. They distract you from a singular subject. Cross out the phrase, then match subject and verb. Now hit Try this skill, and go unmask them!"
+    }
+   ]
+  },
+  "boundaries": {
+   "teacher": "Bluebold",
+   "seconds": 95,
+   "bytes": 11300349,
+   "sha256": "27b8ac712272e85a8fc48f8e0c9597a310654fc149b794f6a9174c07f355de7f",
+   "script": "8f0f60ba967a5a67f325efdcf689a5307d3bfed057ad31ce2d30b91282853693",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.8-flash-lite-tts",
+    "voice": "Leda"
+   },
+   "checks": {
+    "wordMatch": 0.98,
+    "pitchSpreadSemitones": 14.8
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hi! I'm Bluebold, and I catch sentences breaking the law. Today's crime: two complete sentences, glued together with a comma."
+    },
+    {
+     "label": "Watch me",
+     "text": "Here's the evidence. The lab closed, the students went home. Is that okay? Let's test it. Find the subject and verb on the left. The lab, closed. Complete. On the right. The students, went. Also complete. Both sides could stand alone."
+    },
+    {
+     "label": "The idea",
+     "text": "Two complete sentences need a real connection. A period. A semicolon. Or a comma with a joining word, like and, or so. A comma alone is not enough."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. The rain stopped, we went outside. Legal, or illegal? Go. Illegal! Two complete thoughts, and just a comma. Fix it with a semicolon, or a comma and so."
+    },
+    {
+     "label": "Watch out",
+     "text": "Careful, though. A semicolon needs a complete sentence on both sides. Because it rained, we stayed in. Because it rained can't stand alone. So a semicolon there is wrong. A comma works here."
+    },
+    {
+     "label": "A faster way",
+     "text": "The fast way: before you look at the punctuation choices, find the subject and verb on each side. And read the whole sentence, not just the underlined words."
+    },
+    {
+     "label": "Remember",
+     "text": "Two complete sides. Period. Semicolon. Or a comma and a joining word. Now hit Try this skill, and go catch some criminals!"
+    }
+   ]
+  },
+  "concision": {
+   "teacher": "Bluebold",
+   "seconds": 86,
+   "bytes": 9944128,
+   "sha256": "2e27d5af4ae6fa0169c4ffe3bc2a15d0e9fb91fa969d541b86b4feef1b681f53",
+   "script": "2eba02de4e15b86f00ed3d09ee46eaa0391d0d140fd6d507497f705936985f68",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.8-flash-lite-tts",
+    "voice": "Leda"
+   },
+   "checks": {
+    "wordMatch": 1,
+    "pitchSpreadSemitones": 14.4
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hi, Bluebold here! Some sentences carry luggage they don't need. Today we throw out the extra bags. But only the extra ones."
+    },
+    {
+     "label": "Watch me",
+     "text": "The final outcome was clear. Look at final, and outcome. An outcome is already how things ended up. So final is just repeating. Drop it. The outcome was clear. Same meaning, fewer words. That's concise."
+    },
+    {
+     "label": "The idea",
+     "text": "Concise means removing repeated meaning, while keeping every detail, and the grammar."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. We returned back home. Which word is extra? Go. Back! Returned already means came back. We returned home."
+    },
+    {
+     "label": "Watch out",
+     "text": "But shortest is not automatically right. The store closes at nine on weekdays. Cut on weekdays, and it's shorter, but you lost information. Those words were doing a job."
+    },
+    {
+     "label": "Watch out",
+     "text": "The right answer keeps the meaning, the grammar, and the emphasis the question asks for."
+    },
+    {
+     "label": "A faster way",
+     "text": "So compare the meaning of each word. Only remove words that add nothing. Then read the whole new sentence, to be sure it still works."
+    },
+    {
+     "label": "Remember",
+     "text": "Repeat? Cut it. New information? Keep it. Now hit Try this skill, and go pack light!"
+    }
+   ]
+  },
+  "data": {
+   "teacher": "Pinky",
+   "seconds": 102,
+   "bytes": 10748699,
+   "sha256": "0dcc1fa3b5f357df84e0bfc1e76da6595a887bb795f876523a0b79459044d865",
+   "script": "3558d8ba896433c4420da8d08c38def9a4cc80eae574a50426d6603805150d0d",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 0.98,
+    "pitchSpreadSemitones": 22.3
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Pinky here! Here's a question that looks impossible. Four scores. You don't know any of them, just their average. Add one more. What's the new average? Totally doable."
+    },
+    {
+     "label": "The idea",
+     "text": "The mean is the total, divided by how many. Which means: mean times how many gets you the total back."
+    },
+    {
+     "label": "Watch me",
+     "text": "Four scores average twelve. Picture four bars, all leveled at twelve. So the total is four times twelve: forty-eight. Add a score of seventeen. New total: forty-eight plus seventeen, sixty-five. New count: five. Sixty-five divided by five is thirteen."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Three scores average ten. Add an eighteen. What's the new mean? Go. Twelve! Thirty plus eighteen is forty-eight, divided by four."
+    },
+    {
+     "label": "A faster way",
+     "text": "See what we skipped? We never needed the original scores. Recover the old total first, and the rest is easy."
+    },
+    {
+     "label": "Watch out",
+     "text": "Now the trap: averaging two averages when the groups aren't the same size. Two students average ninety. Eight students average seventy. The class average is not eighty. Use totals. One eighty plus five sixty is seven forty, over ten: seventy-four."
+    },
+    {
+     "label": "Remember",
+     "text": "When you add a value, update both the total and the count. Now hit Try this skill, and go get 'em!"
+    }
+   ]
+  },
+  "evidence": {
+   "teacher": "Tealy",
+   "seconds": 93,
+   "bytes": 9863505,
+   "sha256": "b2b3f2e3f3774d5f6c09ec23b40b959c74d3b4ab605db5d9bda468694ac32d0f",
+   "script": "952b6e467586711f1bee1e0df0cc98d6f6936c62e70448f58aa51964cb6791c6",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-2.5-flash-preview-tts",
+    "voice": "Laomedeia"
+   },
+   "checks": {
+    "wordMatch": 0.983,
+    "pitchSpreadSemitones": 18.5
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Tealy here. Some answers just sound right. Today, we make them prove it."
+    },
+    {
+     "label": "The idea",
+     "text": "An inference has to follow from the evidence. Sounding plausible isn't enough. If you can't point to it, you can't pick it."
+    },
+    {
+     "label": "Watch me",
+     "text": "A museum extended its Saturday hours after visitors requested evening access. Now, what does that support? Choice one: the requests influenced the schedule. Can I point to it? Yes: after visitors requested. That follows. Choice two: attendance doubled. Where's that? Nowhere. It's a new assumption. Out."
+    },
+    {
+     "label": "Sort it",
+     "text": "So sort it into three bins. Stated: the hours were extended. Follows: the requests mattered. Merely possible: attendance went up."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. A cafe added oat milk after customers kept asking. Does that prove sales rose? Yes or no? Go. No! All it supports is that the asking mattered. It says nothing about sales."
+    },
+    {
+     "label": "Watch out",
+     "text": "And leave what you already know outside. Outside knowledge can't replace evidence from the passage."
+    },
+    {
+     "label": "Remember",
+     "text": "For every choice, put your finger on a specific fact. No fact? Eliminate it. Now hit Try this skill, and happy hunting!"
+    }
+   ]
+  },
+  "geometry": {
+   "teacher": "Pinky",
+   "seconds": 103,
+   "bytes": 10688289,
+   "sha256": "c9f65e181abd581e2089582639bff6c0e3601f8df8edffe58b259d87c560cda7",
+   "script": "7c8aabde8c24efd9c50d794a1d1377cc546e632d36ede38e1f116e39da571395",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 1,
+    "pitchSpreadSemitones": 22.6
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hi, Pinky here! Quick one. If you double the sides of a square, how much bigger is the area? Most people's gut says double. Let's see."
+    },
+    {
+     "label": "Watch me",
+     "text": "Here's a square with side three. Its area is three squared: nine. Now double every side. Side six. Six squared is thirty-six. Thirty-six is not two times nine. It's four times nine. Look. Four copies of the little square fit inside the big one."
+    },
+    {
+     "label": "The idea",
+     "text": "That's the rule. If lengths get multiplied by k, area gets multiplied by k squared."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. A shape has an area of five. Make every length three times as long. What's the new area? Go. Forty-five! Three squared is nine. Nine times five."
+    },
+    {
+     "label": "A faster way",
+     "text": "This is the fast way, because you don't have to recalculate every side. Just find the scale factor."
+    },
+    {
+     "label": "Even in 3D",
+     "text": "It even works in three dimensions. Volume scales by the cube of the length factor. Double the sides of a cube, and you get eight times the volume."
+    },
+    {
+     "label": "Watch out",
+     "text": "One condition. The shapes have to be similar. Every matching length scaled by the same amount. Stretch just one side, and this rule is off."
+    },
+    {
+     "label": "Remember",
+     "text": "And watch your units. Plain units for length. Square units for area. Cubic units for volume. Now hit Try this skill, and go scale something!"
+    }
+   ]
+  },
+  "linear": {
+   "teacher": "Pinky",
+   "seconds": 136,
+   "bytes": 14599620,
+   "sha256": "ce26b242f27759fbe5cb34a5d27d28201cec01ddcb15cb3fdd9026ec63ae9460",
+   "script": "9edda4cd4afda67f5bd3285e44607704dff089983e0d0051d1d7538edcd4532f",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 0.979,
+    "pitchSpreadSemitones": 24.4
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hey! I'm Pinky. Today I'm going to save you from doing extra work on algebra questions. Seriously. Extra work is how they get you."
+    },
+    {
+     "label": "The idea",
+     "text": "An equation is a balance. Whatever you do to one side, you do to the other side, and it stays level."
+    },
+    {
+     "label": "Watch me",
+     "text": "Okay, look at this one. Three x plus seven equals twenty-two. And the question says: what is the value of three x? Not x. Three x. So I circle that, right now, before I do anything else. Subtract seven from both sides. Plus seven, minus seven: gone. Twenty-two minus seven is fifteen. So three x equals fifteen. And stop. Right there. Three x is fifteen. That is the answer. But a lot of people keep going, divide by three, get five, and pick five. Which is sitting right there in the choices, waiting for them."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Five y minus four equals twenty-six. What is five y? Go on, I'll wait. Thirty! Add four to both sides, and stop. If you got thirty, you're already better at this than you were two minutes ago."
+    },
+    {
+     "label": "A faster way",
+     "text": "On multiple choice, there's another move: try the answers. Put a choice into the original equation and see if it balances. Three times five, plus seven. Twenty-two. It works!"
+    },
+    {
+     "label": "Watch out",
+     "text": "But careful. Plugging in found x. X is five. The question wanted three x. So don't stop at x when the question asks for three x. And whatever you try has to work in the original equation, not a line you changed along the way."
+    },
+    {
+     "label": "Remember",
+     "text": "One habit. Underline what they're asking for, before you calculate anything. Do that every time, and this trap never gets you. Now hit Try this skill, and go get 'em!"
+    }
+   ]
+  },
+  "mainidea": {
+   "teacher": "Tealy",
+   "seconds": 106,
+   "bytes": 12420408,
+   "sha256": "cfcbbe10419db75815d0a2fc15012bc351a013b012b26fba799c23dc5e8e884f",
+   "script": "67b0600200490b508cf2e71a07119e26b43c66b10776ae2c6a895355bbb101b6",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-2.5-flash-preview-tts",
+    "voice": "Laomedeia"
+   },
+   "checks": {
+    "wordMatch": 1,
+    "pitchSpreadSemitones": 20.8
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hello, I'm Tealy. I love reading. And here's my secret for main idea questions: it's all about size."
+    },
+    {
+     "label": "The idea",
+     "text": "A main idea has to be the right size. It covers the central point of the passage. Not just one small detail. And not some giant claim the passage never made."
+    },
+    {
+     "label": "Watch me",
+     "text": "Here's a passage. A neighborhood garden planted native flowers. Over two summers, those flowers drew more visits from local pollinators. Too narrow: the garden planted flowers. True, but just a detail. Too broad: all gardens everywhere save pollinators. The passage never said that. Just right: this neighborhood garden increased local pollinator visits."
+    },
+    {
+     "label": "A faster way",
+     "text": "Here's the fast way. Before you look at the options, write a short headline for the passage. Like a newspaper. Garden draws more local pollinators. Then find the answer that matches."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. A town's new bike lane cut commute times for local riders. Main idea? Choice A: bikes are the best way to travel. Choice B: one town's bike lane helped its riders. Go. B! Choice A goes way bigger than the passage."
+    },
+    {
+     "label": "Watch out",
+     "text": "Watch for words like always, and all. They need very strong support. If the author said some, or may, your answer can't say always."
+    },
+    {
+     "label": "Remember",
+     "text": "Match the author's scope, and how certain they are. Now hit Try this skill, and happy reading!"
+    }
+   ]
+  },
+  "percent": {
+   "teacher": "Pinky",
+   "seconds": 115,
+   "bytes": 11618926,
+   "sha256": "aa11d2d2b03d6ce272563e3019e24532bfcaed3ee8fe106124283a190bc64015",
+   "script": "e555d594e13b9ccbf7654b54e840a4b7d362a324986420d74c3f2d3ec75b4a28",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 0.996,
+    "pitchSpreadSemitones": 20.4
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hey, it's Pinky! If you've been finding the percent, then subtracting, then doing it all over again, I have good news. One move does all of it."
+    },
+    {
+     "label": "The idea",
+     "text": "A percent change is just a multiplication: the starting value, times one plus or minus the rate. Twenty percent off means you keep eighty percent. So you multiply by point eight. Twenty percent up? Multiply by one point two."
+    },
+    {
+     "label": "Watch me",
+     "text": "A fifty dollar hoodie, twenty percent off. Don't find the twenty percent and then subtract. You keep eighty percent. Fifty times point eight. Forty dollars."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Eighty dollars, twenty-five percent off. What do you multiply by, and what's the price? Go. Point seven five! Eighty times that is sixty dollars."
+    },
+    {
+     "label": "A faster way",
+     "text": "Here's why this is so good. Two changes in a row? Just multiply the factors. Up twenty percent, then down twenty percent. One point two, times point eight. Point nine six. And look at that."
+    },
+    {
+     "label": "Watch out",
+     "text": "Up twenty, down twenty, and you do not get back to the start. They don't cancel, because the second twenty percent is twenty percent of a bigger number."
+    },
+    {
+     "label": "Watch out",
+     "text": "Last trap. Always name the base. Going from forty to fifty is a change of ten. Ten out of forty, the starting value, is twenty-five percent. Not twenty."
+    },
+    {
+     "label": "Remember",
+     "text": "A percent change is a multiplication. And always ask: percent of what? Now hit Try this skill, and go get 'em!"
+    }
+   ]
+  },
+  "possessives": {
+   "teacher": "Bluebold",
+   "seconds": 89,
+   "bytes": 9976782,
+   "sha256": "185e40241ebcfd1edd86e6d1d8e972c5fc27a5d5617fe9fafc5523571fafee82",
+   "script": "f58449ee91bd2dcc9960ebb289e8c2ba570eb0bdb2a1b3551329a7f61c519e76",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.8-flash-lite-tts",
+    "voice": "Leda"
+   },
+   "checks": {
+    "wordMatch": 0.953,
+    "pitchSpreadSemitones": 13.6
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hey, Bluebold here! The apostrophe may be the most abused mark in English. Today, we set it free."
+    },
+    {
+     "label": "The idea",
+     "text": "An apostrophe does two jobs. It shows ownership, or it marks a contraction. It does not make a plain plural. Two cats. No apostrophe."
+    },
+    {
+     "label": "Watch me",
+     "text": "Ask one question first: how many owners? One teacher owns a desk. Take teacher. Add apostrophe, s. The teacher's desk."
+    },
+    {
+     "label": "Watch me",
+     "text": "Several teachers share a lounge. Take teachers, which already ends in s, and just add the apostrophe. The teachers' lounge."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Two dogs share one bowl. Where does the apostrophe go? Go. After the s! Dogs, apostrophe. Two owners."
+    },
+    {
+     "label": "Watch out",
+     "text": "Irregular plurals are different. Children doesn't end in s, so it's children's books. Apostrophe s."
+    },
+    {
+     "label": "Watch out",
+     "text": "And the famous one. I T S shows ownership. I T apostrophe S means it is, or it has."
+    },
+    {
+     "label": "The test",
+     "text": "To test it, say it is. The cat licked it is paw? Nope. So, no apostrophe."
+    },
+    {
+     "label": "Remember",
+     "text": "How many owners? Then place the mark. Now hit Try this skill, and go set some apostrophes free!"
+    }
+   ]
+  },
+  "probability": {
+   "teacher": "Pinky",
+   "seconds": 106,
+   "bytes": 11835688,
+   "sha256": "4ea386619ece213a8cd5a34fe5c571394be6bbf9a485a56e203d26cf9239f03f",
+   "script": "161c17ac48d02201490638db27e3f92ebe6eadb287307e0d9cb2daac716859c3",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 0.995,
+    "pitchSpreadSemitones": 22.1
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hey, Pinky here, with a bag of tiles! Probability is really just counting. The trick is counting the right things."
+    },
+    {
+     "label": "The idea",
+     "text": "Probability is what you want, over everything that could happen, the sample space. As long as every outcome is equally likely."
+    },
+    {
+     "label": "Watch me",
+     "text": "Three red tiles. Seven blue. Reach in. What's the chance of red? Three red, ten tiles in total. Three tenths."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Five red. Three blue. What's the chance of blue? Go. Three eighths! Three blue, eight in total. If you said three fifths, you left the blues out of the total."
+    },
+    {
+     "label": "Watch out",
+     "text": "Now watch what happens when I draw a red tile, and I don't put it back. The bag changes. Two red left, nine tiles in total. The chance of red is now two ninths, not three tenths. These draws aren't independent. The second depends on the first."
+    },
+    {
+     "label": "A faster way",
+     "text": "For at least one, flip it around: one minus the chance of none. Flip a coin twice. At least one heads? Don't count them all. The only way to fail is tails, tails. That's one fourth. So one minus one fourth: three fourths."
+    },
+    {
+     "label": "Remember",
+     "text": "So read the little words. Given that. Without replacement. At least. They tell you what to count. Now hit Try this skill!"
+    }
+   ]
+  },
+  "purpose": {
+   "teacher": "Bluebold",
+   "seconds": 94,
+   "bytes": 10854730,
+   "sha256": "696ac4647a6283288f54b3f7180b1709ed0dcbf81f094fe104cf9ea4b0c0fd48",
+   "script": "6df1acec7bafda6136c4283cad146ff115b277fae5aa1c69a2e476eb6c0bc237",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.8-flash-lite-tts",
+    "voice": "Leda"
+   },
+   "checks": {
+    "wordMatch": 0.986,
+    "pitchSpreadSemitones": 14.9
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hi, Bluebold here! These questions give you a pile of true choices. But only one of them does the job."
+    },
+    {
+     "label": "The idea",
+     "text": "The writer has a goal. The right answer has to serve that exact goal, using facts that are actually supported."
+    },
+    {
+     "label": "Watch me",
+     "text": "Goal: emphasize that a library is accessible. Now, here are the notes: three true facts. It has brick walls. It is open in the evening. It has a step-free entrance. Brick walls? True. But do they make the library easier to visit? No. Gone. Evening hours and a step-free entrance? Those do the job."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Goal: show that a park is good for families. Choice A: it was built in nineteen fifty. Choice B: it has a playground and picnic tables. Which one? Go. B! The date is true, but it doesn't do the job."
+    },
+    {
+     "label": "A faster way",
+     "text": "So read the goal first, before the choices. Then eliminate anything that's accurate, but off target."
+    },
+    {
+     "label": "Watch out",
+     "text": "But relevant isn't enough either. Back at the library, one choice says everyone can attend. Sounds perfect for accessibility, right? But nothing in the notes says that. You can't add a claim without evidence."
+    },
+    {
+     "label": "Remember",
+     "text": "True is necessary. But the answer must also do the requested job. Now hit Try this skill, and go hit the target!"
+    }
+   ]
+  },
+  "quadratic": {
+   "teacher": "Pinky",
+   "seconds": 126,
+   "bytes": 12560915,
+   "sha256": "565d2ead4b2e0f8d928c1f5a1f9cbfe7e4e4ce47939bf8cca7f11173a652aebe",
+   "script": "ff2edf85ff719d90504111ec4d764859a3abd83935d94081f82d98bda47e5eba",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 0.983,
+    "pitchSpreadSemitones": 23.5
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Pinky here! Factored quadratics look scary. But they're basically handing you the answer. You just have to read them."
+    },
+    {
+     "label": "The idea",
+     "text": "Here's the whole idea. If two things multiply to zero, at least one of them has to be zero. There's no other way to get zero out of a multiplication."
+    },
+    {
+     "label": "Watch me",
+     "text": "So look. X minus three, times x plus five, equals zero. Two factors. Make the first one zero: x is three. Make the second one zero: x is negative five. Those are the solutions. Watch that sign! Plus five gives you negative five. And if they ask for the sum? Three plus negative five is negative two."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. X minus two, times x plus six, equals zero. What is the sum of the solutions? Go. Negative four! The solutions are two and negative six."
+    },
+    {
+     "label": "A faster way",
+     "text": "Here's a shortcut. If it's written x squared plus b x plus c, the solutions add up to negative b. Multiply ours out: x squared plus two x minus fifteen. B is two, so the sum is negative two. Same answer! And if there's a number in front of x squared, that's A, and the sum is negative b over A."
+    },
+    {
+     "label": "Watch out",
+     "text": "But this only gives you the sum. Not the solutions themselves. And keep track of the signs, and that leading number."
+    },
+    {
+     "label": "Remember",
+     "text": "So before you start, read what they want. One solution. Both. Their sum. Or their product. Now hit Try this skill!"
+    }
+   ]
+  },
+  "science-claims": {
+   "teacher": "Sprout",
+   "seconds": 82,
+   "bytes": 9035069,
+   "sha256": "9a2be1df31cd8ca354a824978100c8b8874a805e68830fbd293ed62b7d8a48eb",
+   "script": "02367432500c004977ceaf7cf39ac3862ee83518e9b3d357cde1fe698ddbcc03",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-2.5-flash-preview-tts",
+    "voice": "Fenrir"
+   },
+   "checks": {
+    "wordMatch": 1,
+    "pitchSpreadSemitones": 20.8
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Sprout here! Today, two scientists disagree. And I love that, because there's a way to settle it."
+    },
+    {
+     "label": "The idea",
+     "text": "When two models compete, you look for an observation where they predict different things. That's the test."
+    },
+    {
+     "label": "Watch me",
+     "text": "Model one says: salt speeds up melting. Model two says: salt changes nothing. They disagree! So let's test it. Two equal pieces of ice. Same room, same temperature. Salt on one. Model one predicts the salted ice melts first. Model two predicts a tie. If the salted ice melts first, that supports model one."
+    },
+    {
+     "label": "A faster way",
+     "text": "Make a small table. Each model, its prediction, and what you observed. Then just compare."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Model A says heavier balls fall faster. Model B says they fall at the same rate. You drop two balls together, and they land together. Which model does that support? Go. Model B! The observation matches its prediction."
+    },
+    {
+     "label": "Watch out",
+     "text": "But careful. Agreement with one observation supports a model. It doesn't prove it's true everywhere, forever."
+    },
+    {
+     "label": "Remember",
+     "text": "And when a question says according to model A, answer according to model A, even if another claim seems more familiar. Now hit Try this skill!"
+    }
+   ]
+  },
+  "science-data": {
+   "teacher": "Sprout",
+   "seconds": 94,
+   "bytes": 10093866,
+   "sha256": "3030a68b779c51862615691f015465d382230eee8823db1006260a4448fed8c0",
+   "script": "c31507002d1058a7402c567efa7710a079c8f203d312715a1dbcfb2808e6e185",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-2.5-flash-preview-tts",
+    "voice": "Fenrir"
+   },
+   "checks": {
+    "wordMatch": 0.974,
+    "pitchSpreadSemitones": 21
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hi! I'm Sprout, and I love a good graph. ACT science looks like hard science. A lot of it is reading charts very carefully."
+    },
+    {
+     "label": "The idea",
+     "text": "A table or a graph is just measurements. So before comparing anything, read what's being measured, and its units."
+    },
+    {
+     "label": "Watch me",
+     "text": "Here's a table. Time, in minutes. Temperature, in degrees. Ten minutes, eighteen degrees. Twenty minutes, twenty-two. Thirty minutes, twenty-six. Question: what's the temperature at twenty minutes? Don't read everything. Go straight to the row. Twenty minutes. Across. Twenty-two degrees."
+    },
+    {
+     "label": "Same on a graph",
+     "text": "On a graph, it's the same move. Find twenty on the axis. Up to the line. Across. Twenty-two."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. This one is between the points. What's the temperature at fifteen minutes, roughly? Go. About twenty! It's halfway between the points, and the line is steady."
+    },
+    {
+     "label": "Watch out",
+     "text": "That's interpolation: inside the data, and pretty safe. Going beyond the data, like at two hours? That's extrapolation. It's uncertain. The trend might not continue."
+    },
+    {
+     "label": "Watch out",
+     "text": "And check the legends and axis scales. A broken scale, or a logarithmic one, changes what distance on the graph means."
+    },
+    {
+     "label": "Remember",
+     "text": "Variables. Units. Then go straight to what the question asks. Now hit Try this skill!"
+    }
+   ]
+  },
+  "science-design": {
+   "teacher": "Sprout",
+   "seconds": 89,
+   "bytes": 9750970,
+   "sha256": "263a9fb351e4c473fb6466f3ce5a462c19f79935a62ef4283a724e67117c0b01",
+   "script": "0a4872ed27ff320c4d2648466d9e54a1f9418d6a379b463aacbcbc89a8845216",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-2.5-flash-preview-tts",
+    "voice": "Fenrir"
+   },
+   "checks": {
+    "wordMatch": 1,
+    "pitchSpreadSemitones": 19.8
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Sprout here! Want to test something properly? You get one rule. Change one thing."
+    },
+    {
+     "label": "The idea",
+     "text": "In a controlled experiment, you change one thing on purpose: the independent variable. You measure what happens: the dependent variable. And you keep everything else the same."
+    },
+    {
+     "label": "Watch me",
+     "text": "Does light affect plant growth? Three pots. Two hours of light. Six hours. Ten hours. Light is what we change. Height is what we measure. Same species. Same water. Same soil. Those stay locked."
+    },
+    {
+     "label": "What if?",
+     "text": "If I also gave the ten hour plant more water, and it grew taller, was it the light, or the water? I can't tell. That's not a fair test."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Does music help people remember words? Some people hear music, some sit in silence, then everyone takes a word test. What's the independent variable? Go. The music! That's what the researchers changed. The test score is the dependent variable."
+    },
+    {
+     "label": "A faster way",
+     "text": "On the test, ask two questions. What changed on purpose? What got measured? Those are your independent and dependent variables."
+    },
+    {
+     "label": "Watch out",
+     "text": "And be careful with observational studies. Ice cream sales and sunburns rise together. Ice cream doesn't cause sunburn. It's just summer. Correlation, by itself, isn't proof of causation."
+    },
+    {
+     "label": "Remember",
+     "text": "A fair comparison controls the other explanations. Now hit Try this skill!"
+    }
+   ]
+  },
+  "structure": {
+   "teacher": "Tealy",
+   "seconds": 89,
+   "bytes": 8902235,
+   "sha256": "52e0f83ff7b158c9267172bfc20155b1e2ea42838f48e9e79b3d1589a484b56f",
+   "script": "39a2bd7e70034d2ba8ffd94eda7da2afa9cd62fcb5018e8b8c5721b020e6d0be",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-2.5-flash-preview-tts",
+    "voice": "Laomedeia"
+   },
+   "checks": {
+    "wordMatch": 1,
+    "pitchSpreadSemitones": 17
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Tealy here. Every sentence in a passage has a job. And test questions love to ask what that job is."
+    },
+    {
+     "label": "The idea",
+     "text": "Mostly, sentences do four jobs. They introduce a claim. They give evidence. They admit a limitation. Or they contrast ideas."
+    },
+    {
+     "label": "Watch me",
+     "text": "Here's a report. A new fertilizer may help tomatoes grow. Treated plants grew taller than untreated ones. However, only six plants were tested. First sentence: that's the claim. Second: that's the evidence. Third: only six plants. That's a limitation. Its job is to say: don't get too excited."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Trees can cool city streets. In one study, shaded streets were three degrees cooler. What's the job of the second sentence? Go. Evidence! It backs up the claim."
+    },
+    {
+     "label": "A faster way",
+     "text": "The fast way: label as you read. Claim. Evidence. Limitation. Just little arrows in your head."
+    },
+    {
+     "label": "Watch out",
+     "text": "But a limitation doesn't overturn the result. It doesn't say the fertilizer failed. So avoid answers that exaggerate the disagreement."
+    },
+    {
+     "label": "Remember",
+     "text": "And explain why the sentence is there, not just what topic it mentions. Now hit Try this skill!"
+    }
+   ]
+  },
+  "systems": {
+   "teacher": "Pinky",
+   "seconds": 120,
+   "bytes": 11811336,
+   "sha256": "2df418beaf832f7b1e097f51f77b7e9e61cfc7d1fed88aea768abfd99dd39f5e",
+   "script": "489b13430cbab4fc522de18c928ff3e8d9cf129c33e339841e9aee05d6c40994",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 1,
+    "pitchSpreadSemitones": 23.2
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hi again, it's Pinky! Two equations, two unknowns. It looks like double the work. It's not. Watch one letter vanish."
+    },
+    {
+     "label": "The idea",
+     "text": "You're allowed to add two equations together, or subtract them. If both are true, the sum is true too, and the solution stays the same. And when the letters are set up right, one of them just cancels."
+    },
+    {
+     "label": "Watch me",
+     "text": "Look. X plus y equals twelve. X minus y equals four. See the plus y, and the minus y? They're opposites. That's the signal. Add them, straight down. X plus x is two x. Plus y, minus y: gone! Twelve plus four is sixteen. Two x equals sixteen, so x is eight. Put eight back in. Eight plus y is twelve, so y is four."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. X plus y equals ten. X minus y equals two. What is x? I'll wait. Six! Add them, and you get two x equals twelve. X is six."
+    },
+    {
+     "label": "A faster way",
+     "text": "Before you do anything, look for matching or opposite coefficients. Matching? Subtract. Opposite? Add. That's the whole scan."
+    },
+    {
+     "label": "On the SAT: graph it",
+     "text": "And on the SAT, you can also graph both equations. Where the lines cross, that's your solution."
+    },
+    {
+     "label": "Watch out",
+     "text": "But a graph window can hide a crossing. Zoom in the wrong place, and the lines look like they never meet. So check your point in both of the original equations. A point on only one line is not a solution."
+    },
+    {
+     "label": "Remember",
+     "text": "So: scan for matching or opposite terms. Add or subtract. Then check both equations. Now hit Try this skill, and go make some letters vanish!"
+    }
+   ]
+  },
+  "transitions": {
+   "teacher": "Bluebold",
+   "seconds": 98,
+   "bytes": 11063111,
+   "sha256": "477a5aa9db36e0460fd327f302da555fe874a44dd935e8c8349acade6e9a4bd9",
+   "script": "dad6d30714bf285af2f99f2567ff32d0c6b3817b334634d541d16aff512f1708",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.8-flash-lite-tts",
+    "voice": "Leda"
+   },
+   "checks": {
+    "wordMatch": 0.99,
+    "pitchSpreadSemitones": 16
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Bluebold here! Transition words are road signs. They tell the reader which way the next sentence is turning. Put up the wrong sign, and everyone crashes."
+    },
+    {
+     "label": "The idea",
+     "text": "There are four main turns. Contrast, like however or nevertheless. Continuation, like also or moreover. Example, like for instance. And cause and effect, like as a result."
+    },
+    {
+     "label": "Watch me",
+     "text": "The team practiced daily. Blank. It lost the match. Hmm. You'd expect practice to help. But they lost! That's a surprise. That's contrast. So the sign is nevertheless. The team practiced daily. Nevertheless, it lost the match."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. The bus was late. Blank. I missed class. Which turn is it? Go. Cause and effect! The late bus caused it. As a result fits."
+    },
+    {
+     "label": "A faster way",
+     "text": "Here's the fast way. Predict the relationship in your own words, before you look at the options. Say it. That's a surprise. Or, that's why. Then look for your match."
+    },
+    {
+     "label": "Watch out",
+     "text": "One warning. Two facts sitting together don't prove cause and effect. Sales rose. The weather was warm. Therefore? Not unless the passage says so."
+    },
+    {
+     "label": "Remember",
+     "text": "Read the sentence before the blank, and the sentence after. Name the turn. Then pick the sign. Now hit Try this skill!"
+    }
+   ]
+  },
+  "trig": {
+   "teacher": "Pinky",
+   "seconds": 96,
+   "bytes": 10123185,
+   "sha256": "a942e094496d2925b6762c1cd3e83c5625d7c602c1769b14664c43c4c81aec6c",
+   "script": "62606f9d9a352292b84aa39f61e89681263fc223d46fbd54e67349ff156b4e4c",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-3.1-flash-tts-preview",
+    "voice": "Achird"
+   },
+   "checks": {
+    "wordMatch": 0.921,
+    "pitchSpreadSemitones": 24.2
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Pinky here! Three ratios, and one silly word that holds them all: SOH CAH TOA."
+    },
+    {
+     "label": "The idea",
+     "text": "Sine is opposite over hypotenuse. Cosine is adjacent over hypotenuse. Tangent is opposite over adjacent. That's it. S O H, C A H, T O A."
+    },
+    {
+     "label": "Watch me",
+     "text": "Here's a right triangle. Legs three and four, hypotenuse five. Start with the hypotenuse. It faces the right angle, and it's always the longest side. Now pick an angle. This one, right here. Stand on it, and look across. The side you see, that's opposite: three. The leg touching you is adjacent: four. So the sine of this angle is opposite over hypotenuse: three fifths."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. Same triangle, same angle. What's the tangent? Go. Three fourths! Opposite over adjacent."
+    },
+    {
+     "label": "Watch out",
+     "text": "Now switch to the other angle. Watch the labels swap. The four is now opposite. The three is adjacent. The hypotenuse never moves. So always label from the angle they named."
+    },
+    {
+     "label": "Remember",
+     "text": "These ratios work directly on right triangles. So find the right angle. Label from the named angle. Then SOH CAH TOA. Now hit Try this skill!"
+    }
+   ]
+  },
+  "vocabulary": {
+   "teacher": "Tealy",
+   "seconds": 105,
+   "bytes": 12600897,
+   "sha256": "f30d77fb6d1276a75642e5364c276ce688398c94c24e237847c5fac0746a92ff",
+   "script": "fc728af5fcb067b64b44a46e5c6228124118df4d72afc878d396d90be390a06d",
+   "voice": {
+    "engine": "gemini",
+    "model": "gemini-2.5-flash-preview-tts",
+    "voice": "Laomedeia"
+   },
+   "checks": {
+    "wordMatch": 0.99,
+    "pitchSpreadSemitones": 17.5
+   },
+   "transcript": [
+    {
+     "label": "",
+     "text": "Hi, Tealy here. Vocabulary questions aren't testing whether you memorized a dictionary. They're testing whether you can read."
+    },
+    {
+     "label": "Watch me",
+     "text": "The researcher advanced a hypothesis. What does advanced mean here? Your brain says: moved forward. Like somebody walking. But hypotheses don't walk. So cover the choices, and cover the word. The researcher, blank, a hypothesis. What simple word would you put there? Suggested. Proposed. Now you have a meaning, before you even see the options. Then uncover the choices, and compare meanings. Moved forward? No. Proposed? That's your word. Improved? No."
+    },
+    {
+     "label": "The idea",
+     "text": "A word means what the author is using it to mean, in this sentence. The car advanced. It moved forward. The researcher advanced a hypothesis. She proposed it. Same word, different job."
+    },
+    {
+     "label": "Your turn",
+     "text": "Your turn. The critic's review was sharp. Does sharp mean pointed, like a knife, or harsh? Go. Harsh! A review can't cut paper."
+    },
+    {
+     "label": "Watch out",
+     "text": "A familiar dictionary meaning can be wrong in this sentence. So check the tone. Is the writer being kind, or harsh? And check the grammar too. The researcher proposal a hypothesis? Nope. Proposed fits."
+    },
+    {
+     "label": "Remember",
+     "text": "Then reread the sentence with your choice in it. If it still makes sense, you've got it. Now hit Try this skill!"
+    }
+   ]
+  }
+ }
+}

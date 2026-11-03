@@ -41,6 +41,7 @@ This is the index to all of its documentation. Start with the row that matches y
 - **[Architecture on oshal](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/architecture/little-monsters-on-oshal-plan.md)** — architecture and sprint history.
 - **[Education content sources](https://github.com/emeraldcoastsystemsgroup/oshal/blob/main/docs/backlog/education-content-sources.md)** — backlog for content/material sources.
 - **[Package manifest — `oshal-app.yaml`](../oshal-app.yaml)** — the single source of truth: bots, routes, surfaces, theme.
+- **[Can local models make the lesson videos?](lesson-studio-local-models.md)** — measured on 2026-11-02: the local model can draft a lesson's outline and script but not hand-code its animation; three local voices can read one.
 
 ---
 

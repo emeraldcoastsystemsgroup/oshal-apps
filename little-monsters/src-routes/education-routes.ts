@@ -24,7 +24,9 @@
  * 15  | maintainer@emeraldcoastsystemsgroup.com     | Closed tenant/authz gaps and decomposed class, roster, tutor, assignment, progress, dashboard, and schema boundaries
  * 16  | maintainer@emeraldcoastsystemsgroup.com     | Register structural learner and teaching adapters before the package becomes available
  * 17  | maintainer@emeraldcoastsystemsgroup.com     | Serve standard-view.html at /email and /storage: the Email and Storage tabs keep the Little Monsters top bar above the standard email viewer and personal file browser
+ * 19  | maintainer@emeraldcoastsystemsgroup.com | Mount SAT/ACT study, progress, practice and captioned lesson media.
  * 18  | maintainer@emeraldcoastsystemsgroup.com     | Mount the book routes (education-book-routes: /my-books and a book's chapter)
+ * 20  | maintainer@emeraldcoastsystemsgroup.com     | Lesson media through education-prep-media: videos stream from lasting storage with byte ranges
  * ---------------------------------------------------------------------------
  *
  * @module education-routes
@@ -52,6 +54,8 @@ import { createEducationRosterRoutes } from './education-roster-routes';
 import { createEducationStudyRoutes } from './education-study-routes';
 import { createEducationTeacherRoutes } from './education-teacher-routes';
 import { createEducationTutorRoutes } from './education-tutor-routes';
+import { createEducationPrepRoutes } from './education-prep-routes';
+import { createPrepMediaHandler } from './education-prep-media';
 import { ensureEducationSchema } from './education-schema';
 import { registerEducationAuthorization } from './education-authorization';
 
@@ -88,6 +92,10 @@ export function serveFile(fileName: string): RequestHandler {
 }
 
 function registerEducationUiRoutes(router: Router): void {
+  router.get('/test-prep', serveFile('test-prep.html'));
+  router.get('/prep.js', serveFile('test-prep.js'));
+  router.get('/prep.css', serveFile('test-prep.css'));
+  router.get('/prep-media/:file', createPrepMediaHandler(path.join(packageToolsRoot, 'prep-media')));
   router.get('/dashboard', serveFile('student-dashboard.html'));
   router.get('/my-day', serveFile('my-day.html'));
   router.get('/class', serveFile('class-view.html'));
@@ -121,6 +129,7 @@ function registerEducationUiRoutes(router: Router): void {
 }
 
 function mountEducationFeatureRoutes(router: Router, ctx: AppContext): void {
+  router.use(createEducationPrepRoutes(ctx));
   router.use(createEducationClassRoutes(ctx));
   router.use(createEducationRosterRoutes(ctx));
   router.use(createEducationMaterialsRoutes(ctx));

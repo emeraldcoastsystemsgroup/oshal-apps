@@ -1,3 +1,9 @@
+-- Study Lab records are removed only by the existing explicit data teardown.
+DROP TABLE IF EXISTS lm_prep_answers;
+DROP TABLE IF EXISTS lm_prep_training;
+DROP TABLE IF EXISTS lm_prep_questions;
+DROP TABLE IF EXISTS lm_prep_sessions;
+DROP TABLE IF EXISTS lm_prep_profiles;
 -- ═══════════════════════════════════════════════════════════════════════════
 -- little-monsters — UNINSTALL (schema teardown)
 -- ADR-085 §5: uninstall keeps schema by default; running this file is the

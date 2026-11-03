@@ -21,6 +21,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadStudyClass = loadStudyClass;
+exports.runStudyModel = runStudyModel;
 exports.generateStudyCards = generateStudyCards;
 exports.generateStudyQuiz = generateStudyQuiz;
 const prompt_containment_1 = require("@/features/swarm-orchestration/services/prompt-containment");
@@ -65,6 +66,9 @@ function parseJsonArray(raw) {
  * @description The class's most recent lecture notes (or transcripts when a lecture has no notes),
  * newest first and bounded, read through the lecture workspace's safe-path check. Callers have
  * already authorized the class.
+ * @param pool - database pool
+ * @param classId - the authorized class
+ * @returns The joined text, or '' when the class has no readable lecture yet.
  */
 async function recentLectureNotes(pool, classId) {
     if (!pool)
@@ -95,14 +99,11 @@ async function retrieveClassMaterial(context, topic, pool) {
     ];
     // Read the material's live approval instead of keeping an unrevocable class copy.
     if (pool) {
-      const materials = await pool.query(
-        `SELECT rag_collection FROM lm_materials
-          WHERE class_id = $1 AND shared = true AND share_status = 'approved'
-            AND rag_collection IS NOT NULL
-          ORDER BY created_at DESC LIMIT 50`,
-        [context.classId],
-      );
-      collections.push(...materials.rows.map((row) => String(row.rag_collection)));
+        const materials = await pool.query(`SELECT rag_collection FROM lm_materials
+        WHERE class_id = $1 AND shared = true AND share_status = 'approved'
+          AND rag_collection IS NOT NULL
+        ORDER BY created_at DESC LIMIT 50`, [context.classId]);
+        collections.push(...materials.rows.map((row) => String(row.rag_collection)));
     }
     const query = topic
         ? `${topic} ${context.subject} ${context.className} key concepts definitions formulas important terms`

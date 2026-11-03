@@ -1,0 +1,79 @@
+/*
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR                                  | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1   | maintainer@emeraldcoastsystemsgroup.com | Look of the lesson stage: classroom plate, wood-framed chalkboard, chalk lettering, marks and labels
+ */
+@font-face { font-family: 'Chalk'; src: url('../fonts/patrick-hand-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Fredoka'; font-weight: 500; src: url('../fonts/fredoka-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Fredoka'; font-weight: 600; src: url('../fonts/fredoka-latin-600-normal.woff2') format('woff2'); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #123; }
+#world { position: absolute; inset: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+#room { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+
+/* The rolling board: a wood frame on a stand, so it can stand in front of the wainscoting. */
+#board { position: absolute; left: 36px; top: 22px; width: 1272px; height: 806px; border-radius: 16px;
+  background: linear-gradient(180deg, #a86f3d, #8a5427 55%, #74441e); padding: 22px;
+  box-shadow: 0 26px 46px rgba(40, 18, 8, .46), inset 0 2px 0 rgba(255, 224, 180, .55), inset 0 -3px 0 rgba(50, 22, 6, .5); }
+#slate { position: absolute; left: 22px; top: 22px; right: 22px; bottom: 22px; border-radius: 6px;
+  background: radial-gradient(ellipse at 42% 36%, #2f6a58 0%, #245646 48%, #1b4538 100%);
+  box-shadow: inset 0 0 44px rgba(5, 22, 16, .62), inset 0 0 3px rgba(0, 0, 0, .8); }
+#chalk { position: absolute; left: 22px; top: 22px; right: 22px; bottom: 22px; overflow: hidden; }
+#grain { position: absolute; left: 22px; top: 22px; right: 22px; bottom: 22px; pointer-events: none;
+  background-image: url('../art/chalk-grain.png'); background-size: 512px 512px; }
+#tray { position: absolute; left: 40px; right: 40px; bottom: -16px; height: 24px; border-radius: 4px 4px 9px 9px;
+  background: linear-gradient(180deg, #b47c46, #7c4a21); box-shadow: 0 8px 14px rgba(40, 18, 8, .45); }
+#tray .stick { position: absolute; top: -7px; height: 11px; width: 66px; border-radius: 5px; box-shadow: 0 2px 2px rgba(0, 0, 0, .35); }
+#tray .white { left: 150px; background: #f3f1e8; }
+#tray .yellow { left: 240px; width: 48px; background: #ffd66b; }
+#tray .pink { left: 310px; width: 38px; background: #ff9ccf; }
+#stand .leg { position: absolute; top: 820px; width: 30px; height: 182px; background: linear-gradient(90deg, #9a6432, #6f4119); border-radius: 6px; box-shadow: 0 10px 14px rgba(40, 18, 8, .34); }
+#stand .left { left: 210px; }
+#stand .right { left: 1100px; }
+#stand .bar { position: absolute; left: 150px; top: 985px; width: 1040px; height: 24px; border-radius: 12px; background: linear-gradient(180deg, #8a5629, #643812); box-shadow: 0 12px 16px rgba(40, 18, 8, .4); }
+
+/* Chalk lettering. */
+.page { position: absolute; inset: 0; }
+.layer { position: absolute; inset: 0; }
+.ink { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.txt { position: absolute; white-space: nowrap; font-family: 'Chalk', sans-serif; color: #f5f3ea; line-height: 1.1;
+  text-shadow: 0 0 2px rgba(255, 255, 255, .35); }
+.txt .w { display: inline-block; position: relative; }
+.txt sup { font-size: .62em; line-height: 0; }
+.frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1; font-size: .86em; }
+.frac > :first-child { border-bottom: .06em solid currentColor; padding: 0 .12em .04em; }
+.frac > :last-child { padding: .04em .12em 0; }
+.swipe { position: absolute; border-radius: .22em 1em .3em .9em; transform-origin: 0 50%; opacity: .9; }
+.chip { position: absolute; left: 18px; top: 16px; padding: 7px 24px 9px; border-radius: 26px; font: 600 34px 'Fredoka', sans-serif;
+  color: #173a30; background: #ffd66b; box-shadow: 0 5px 0 rgba(0, 0, 0, .22); transform-origin: 0 50%; letter-spacing: .4px; }
+.tag { position: absolute; white-space: nowrap; padding: 6px 20px 8px; border-radius: 18px; font: 500 34px 'Fredoka', sans-serif;
+  color: #173a30; background: #8fe6cf; box-shadow: 0 4px 0 rgba(0, 0, 0, .22); }
+.box { position: absolute; border-radius: 22px; border: 4px dashed rgba(245, 243, 234, .55); }
+.card { position: absolute; border-radius: 20px; background: rgba(245, 243, 234, .1); border: 3px solid rgba(245, 243, 234, .55); }
+.shape { position: absolute; overflow: visible; }
+
+/* Felt eraser that wipes the board between chapters. */
+#eraser { position: absolute; left: 0; top: 0; width: 190px; height: 96px; opacity: 0; border-radius: 14px;
+  background: linear-gradient(180deg, #b78246 0 44%, #4b4b57 44% 100%); box-shadow: 0 10px 18px rgba(0, 0, 0, .35); }
+
+/* Monster. */
+#floorShadow { position: absolute; left: 1336px; top: 1000px; width: 520px; height: 68px; border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(52, 24, 12, .58), rgba(52, 24, 12, 0) 70%); transform-origin: 50% 50%; }
+#monster { position: absolute; left: 0; top: 0; width: 1300px; height: 1500px; transform-origin: 0 0; }
+#monster > * { position: absolute; }
+#monster .part { position: absolute; left: 0; top: 0; }
+.armHolder { position: absolute; width: 800px; height: 800px; }
+.armHolder canvas { position: absolute; left: 0; top: 0; }
+#face { position: absolute; left: 0; top: 0; width: 1300px; height: 1500px; overflow: visible; }
+
+/* Effects. */
+#fx { position: absolute; inset: 0; pointer-events: none; }
+.star { position: absolute; width: 46px; height: 46px; }
+
+/* A small corner badge: the series, not an interface. */
+#bug { position: absolute; right: 26px; top: 20px; display: flex; align-items: center; gap: 10px; padding: 7px 18px 7px 8px; border-radius: 30px;
+  background: rgba(255, 255, 255, .86); color: #5b1f6b; font: 600 24px 'Fredoka', sans-serif; box-shadow: 0 4px 14px rgba(40, 18, 8, .22); }
+#bugLogo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }

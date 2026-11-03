@@ -19,6 +19,7 @@
  * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | Carry the page frame (window.LM) in this already-bound script so the authorization catalog stays at its installed revision; every surface loads it
  * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | The frame renders the profile as served: the server filters tools per caller through the app's tool-keys route, so the client keeps no teacher-only list
  * 2026-10-11     | maintainer@emeraldcoastsystemsgroup.com     | First visit completes school setup: when /me answers "complete school setup" the frame makes the screen's open-time write (the caller's own reminder check, the one non-GET every school role is bound to), which provisions the learner, then reads /me again. Native reads never provision, so a new person was stuck at that message inside the app
+ * 2026-10-28     | maintainer@emeraldcoastsystemsgroup.com | Keep SAT & ACT visible in the primary school navigation.
  * 2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | When embedded, the page frame owns the full window (zen-mode; the host header, ribbon, status bar and chat rail hidden, never the Jarvis orb) and navigates its own frame instead of relaying to the host.
  * ---------------------------------------------------------------------------
  *
@@ -360,7 +361,7 @@ var LM_FRAME = (function () {
   var LOGO_PATH = '/api/education/logo-96.png';
   var TOOL_PREFIX = 'tool-lm-';
   /** Views that stay in the bar; everything else the caller is admitted to sits under More. */
-  var PRIMARY = ['dashboard', 'myday', 'tutor', 'flashcards', 'recorder', 'arcade', 'monsters', 'teacher'];
+  var PRIMARY = ['dashboard', 'test-prep', 'myday', 'tutor', 'flashcards', 'recorder', 'arcade', 'monsters', 'teacher'];
 
   /**
    * @description Escape text for safe insertion into HTML.

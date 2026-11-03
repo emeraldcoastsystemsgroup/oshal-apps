@@ -388,3 +388,31 @@ Defined in `migrations/019-education-platform.sql` · RLS **off**
 | `metadata` | jsonb | no | '{}' |  |
 | `created_at` | timestamp with time zone | no | now() |  |
 | `dedupe_key` | character varying(160) | yes |  |  |
+
+## Test preparation (migrations 039–041)
+
+`lm_prep_sessions` stores owner/tenant IDs, server revision, ready/active/complete status, creation and
+completion timestamps, and the versioned session snapshot (questions/keys, deadlines, answers,
+active time and reflections). Reads and writes require both owner and tenant; the active API view
+withholds keys and future questions. `lm_prep_profiles` uses `(student_id, tenant_id)` as its key
+and stores goals and lesson reviews. Both are private native relationship tables and cascade when
+the learner is deleted. The explicit uninstall teardown removes them. No existing quiz or XP
+records are used as a substitute for test-prep evidence.
+
+`lm_prep_questions` is a common, versioned bank keyed by `(catalog_version, question_id)`.
+Migration 041 seeds 222 original items through an existing school administrator. Students can read
+but cannot mutate it; administrators may insert new versions, but no application actor can update
+or delete an existing bank row. Its JSON excludes
+grading keys and explanations, which remain in server curriculum files. Session creation validates
+the bank against that curriculum and attaches keys only inside the private session snapshot.
+
+`lm_prep_answers` stores one row per `(session_id, question_id)`, including student/tenant IDs,
+exam, section, skill, position, choice, active milliseconds, target time, confidence, flag,
+grading outcome and reflection. Session and ledger changes share a transaction and revision check.
+Correctness is recorded only when the session completes. Old session JSON remains readable; its
+ledger fills on the next session save or reflection. History returns only the caller's graded rows.
+
+`lm_prep_training` stores immutable lesson content with private, revision-checked progress:
+reviewed card IDs, notes and the student's completion marker. Generated text never changes the
+common bank or its answer keys. All private tables require the caller's student and tenant and
+cascade on deletion. The common bank has no student owner and survives individual learner deletion.

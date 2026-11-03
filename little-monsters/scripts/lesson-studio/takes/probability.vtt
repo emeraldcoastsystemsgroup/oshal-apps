@@ -1,0 +1,130 @@
+WEBVTT
+
+00:00:01.300 --> 00:00:02.820
+Hey, Pinky here,
+
+00:00:02.820 --> 00:00:04.120
+with a bag of tiles!
+
+00:00:05.240 --> 00:00:07.500
+Probability is really just counting.
+
+00:00:08.020 --> 00:00:10.440
+The trick is counting the right things.
+
+00:00:12.260 --> 00:00:14.020
+Probability is what you want,
+
+00:00:14.020 --> 00:00:16.040
+over everything that could happen,
+
+00:00:16.460 --> 00:00:17.360
+the sample space.
+
+00:00:17.140 --> 00:00:20.900
+As long as every outcome is equally likely.
+
+00:00:22.660 --> 00:00:23.760
+Three red tiles.
+
+00:00:24.260 --> 00:00:26.120
+Seven blue. Reach in.
+
+00:00:26.120 --> 00:00:27.500
+What's the chance of red?
+
+00:00:27.500 --> 00:00:30.620
+Three red, ten tiles in total.
+
+00:00:30.620 --> 00:00:32.300
+Three tenths.
+
+00:00:33.350 --> 00:00:35.590
+Your turn. Five red.
+
+00:00:36.070 --> 00:00:38.490
+Three blue. What's the chance of blue?
+
+00:00:39.250 --> 00:00:40.150
+Go.
+
+00:00:45.570 --> 00:00:48.050
+Three eighths! Three blue,
+
+00:00:48.590 --> 00:00:49.490
+eight in total.
+
+00:00:50.010 --> 00:00:51.450
+If you said three fifths,
+
+00:00:51.610 --> 00:00:53.310
+you left the blues out of the total.
+
+00:00:55.250 --> 00:00:57.430
+Now watch what happens when I draw a red tile,
+
+00:00:57.430 --> 00:00:58.990
+and I don't put it back.
+
+00:00:59.530 --> 00:01:00.450
+The bag changes.
+
+00:01:00.790 --> 00:01:02.170
+Two red left,
+
+00:01:02.870 --> 00:01:03.910
+nine tiles in total.
+
+00:01:04.610 --> 00:01:07.130
+The chance of red is now two ninths,
+
+00:01:07.130 --> 00:01:08.490
+not three tenths.
+
+00:01:08.690 --> 00:01:10.410
+These draws aren't independent.
+
+00:01:11.010 --> 00:01:12.510
+The second depends on the first.
+
+00:01:13.990 --> 00:01:16.050
+For at least one,
+
+00:01:16.590 --> 00:01:17.490
+flip it around:
+
+00:01:18.090 --> 00:01:20.050
+one minus the chance of none.
+
+00:01:20.830 --> 00:01:21.730
+Flip a coin twice.
+
+00:01:22.190 --> 00:01:23.270
+At least one heads?
+
+00:01:23.910 --> 00:01:24.810
+Don't count them all.
+
+00:01:25.350 --> 00:01:27.130
+The only way to fail is tails,
+
+00:01:27.130 --> 00:01:28.790
+tails. That's one fourth.
+
+00:01:29.170 --> 00:01:31.330
+So one minus one fourth:
+
+00:01:31.950 --> 00:01:33.510
+three fourths.
+
+00:01:34.560 --> 00:01:36.000
+So read the little words.
+
+00:01:36.680 --> 00:01:38.780
+Given that. Without replacement.
+
+00:01:39.380 --> 00:01:41.560
+At least. They tell you what to count.
+
+00:01:42.360 --> 00:01:43.780
+Now hit Try this skill!

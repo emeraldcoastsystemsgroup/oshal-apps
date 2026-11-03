@@ -80,8 +80,8 @@
       "name": "little-monsters",
       "suite": "ai-home",
       "displayName": "Little Monsters",
-      "description": "Voice-first ADHD study companion for K-12: lecture capture, flashcards, authoritative quizzes, and a Socratic tutor grounded in caller-owned or teacher/admin-approved class material.",
-      "version": "1.4.18",
+      "description": "SAT and ACT Study Lab with a shared question bank, private answer and timing history, progress dashboard, saved topic training, monster-taught lesson videos and a Jarvis study coach, plus class lectures, flashcards and tutoring.",
+      "version": "1.7.0",
       "theme": "little-monsters",
       "dependencies": {
         "apps": [

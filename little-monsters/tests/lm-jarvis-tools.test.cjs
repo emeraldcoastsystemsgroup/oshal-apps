@@ -23,12 +23,16 @@ const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(PKG, '../
 const manifest = yaml.load(fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8'));
 const catalog = yaml.load(fs.readFileSync(path.join(PKG, 'authorization.yaml'), 'utf8'));
 const MOUNT = '/api/education';
-const TOOLS = ['lm-my-classes', 'lm-add-class', 'lm-my-schedule', 'lm-my-assignments', 'lm-add-reminder', 'lm-remove-reminder',
+const TOOLS = [
+  'lm-test-prep-topics','lm-test-prep-start','lm-test-prep-answers','lm-test-prep-create-training',
+  'lm-test-prep-my-training','lm-test-prep-training-content','lm-test-prep-save-training','lm-test-prep-save-plan',
+  'lm-test-prep-progress','lm-my-classes', 'lm-add-class', 'lm-my-schedule', 'lm-my-assignments', 'lm-add-reminder', 'lm-remove-reminder',
   'lm-my-lectures', 'lm-lecture-notes', 'lm-make-flashcards', 'lm-make-quiz', 'lm-lecture-summary-pdf',
   'lm-my-books', 'lm-book-chapter'];
 const WRITES = new Set(['lm-add-class', 'lm-add-reminder', 'lm-remove-reminder']);
 /** Automatic study-material generation for the person's own classes (like AI Office decks). */
-const GENERATES = new Set(['lm-make-flashcards', 'lm-make-quiz', 'lm-lecture-summary-pdf']);
+const GENERATES = new Set(['lm-make-flashcards', 'lm-make-quiz', 'lm-lecture-summary-pdf',
+  'lm-test-prep-start','lm-test-prep-create-training','lm-test-prep-save-training','lm-test-prep-save-plan']);
 
 /** @description The declared tool by name. @param {string} name @returns {object} */
 function tool(name) {
@@ -52,7 +56,7 @@ function httpBinding(declared) {
   return found;
 }
 
-test('the six tools are declared and each has exactly one tool binding', () => {
+test('the student tools are declared and each has exactly one tool binding', () => {
   assert.deepEqual((manifest.tools || []).map(entry => entry.name).sort(), [...TOOLS].sort());
   const bound = catalog.bindings.tools.map(entry => entry.id);
   assert.deepEqual([...bound].sort(), [...TOOLS].sort());

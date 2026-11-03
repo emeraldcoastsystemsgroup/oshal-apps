@@ -1,4 +1,7 @@
 # CHANGE LOG
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the 21 Study Lab lessons are real videos taught by the app's monsters: directed voices, a rigged fur puppet, chalk writing and math that move on the spoken word (scripts/lesson-studio). The retired videos were five still cards read by a flat synthesizer. Videos stream with byte ranges from lasting storage (routes/education-prep-media.js), because a package reply stops at 8 MiB and every package file is copied into every sandbox: each installation runs scripts/lesson-studio/install-videos.py. The lesson list shows posters. No contract change.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: shared SAT/ACT question bank, private transactional answer ledger, progress dashboard, Test Prep Coach and eight additional Jarvis tools; saved topic lessons and optional personalized training with review progress.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: SAT/ACT Study Lab, original practice curriculum, private saved sessions and captioned videos.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -79,9 +82,17 @@ rating:
       tier: T3
       generation: hosted
       degrade: disable
+    - id: personalized-test-prep
+      unit: personalized topic training pack
+      tier: T2
+      generation: hosted
+      degrade: template
 displayName: Little Monsters
 description: >-
-  Voice-first ADHD study companion for K-12 students. Record lectures, then
+  Voice-first ADHD study companion for K-12 students. SAT and ACT Study Lab
+  provides a student progress dashboard, shared question bank, private answer and timing records,
+  saved topic training packs, timed diagnostics, focused practice, and shortcut lessons
+  taught on video by the app's monsters at /api/education/test-prep. Record lectures, then
   make flashcards, a practice quiz or a summary of the lecture as a PDF from
   them; read the student's class textbooks (list their books, read a chapter,
   make chapter flashcards and a lesson summary); keep the student's classes,
@@ -89,7 +100,7 @@ description: >-
   their school calendar; and chat with a Socratic tutor grounded only in
   caller-owned or teacher/admin-approved class material through per-material
   RAG collections.
-version: 1.4.18
+version: 1.7.0
 lastingStorage: true
 chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 
@@ -346,6 +357,12 @@ bots:
     persona: personas/class-tutor.yaml
     role: education/tutor
     capabilities: [tutoring, socratic-method, subject-expertise, rag-query, text-to-speech]
+  - agentId: ed000000-0000-0000-0000-000000000007
+    name: test-prep-coach
+    persona: personas/test-prep-coach.yaml
+    role: education/test-prep
+    capabilities: [tutoring, test-preparation, study-planning, training-generation]
+    routingKeywords: [SAT prep, ACT prep, SAT practice, ACT practice, test prep progress, SAT shortcuts, ACT shortcuts, test prep training]
   - agentId: ed000000-0000-0000-0000-000000000003
     name: quiz-master
     persona: personas/quiz-master.yaml
@@ -375,6 +392,344 @@ bots:
 # package's /api/education mount). Each one calls an existing caller-scoped route, so a student sees
 # and changes only their own classes and events; the two writes are held for the person's approval.
 tools:
+  - name: lm-test-prep-progress
+    displayName: My SAT and ACT Progress
+    type: api
+    category: education
+    description: Read the student's saved test-prep accuracy, speed, focus skills, practice history and study plan. Returns the Study Lab link for lessons, videos and timed practice.
+    executor: { executorType: api, apiEndpoint: "GET /api/education/prep/progress" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        exam: { type: string, enum: [SAT, ACT] }
+        science: { type: boolean, description: "Include optional ACT Science skills." }
+      required: [exam]
+    usageInstructions: Read before describing test-prep progress. Link studyUrl for diagnostics, lessons and practice. These are raw original-practice results, not official or predicted scaled scores. Never infer mastery from a watched video or one diagnostic answer.
+    routingTags: [education, sat, act, test-prep]
+    tags: [education, route-backed]
+  - name: lm-test-prep-topics
+    displayName: SAT and ACT Training Topics
+    type: api
+    category: education
+    description: Find supported SAT/ACT topic IDs, sections, tips, limitations and related foundation lesson IDs.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/education/prep/topics
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        exam:
+          type: string
+          enum:
+            - SAT
+            - ACT
+        query:
+          type: string
+          maxLength: 120
+      required:
+        - exam
+    usageInstructions: >-
+      Call before creating training or choosing a practice skill. Use topic ids for training and lessonId for
+      focused practice.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
+  - name: lm-test-prep-start
+    displayName: Prepare SAT or ACT Practice
+    type: api
+    category: education
+    description: >-
+      Save a private diagnostic, focused practice or full-length pacing session ready for the student. Timer
+      starts only when the student presses Begin practice.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/education/prep/launch
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        exam:
+          type: string
+          enum:
+            - SAT
+            - ACT
+        mode:
+          type: string
+          enum:
+            - diagnostic
+            - practice
+            - simulation
+        skill:
+          type: string
+          description: Optional foundation lessonId returned by topics or progress.
+        science:
+          type: boolean
+        multiplier:
+          type: number
+          enum:
+            - 1
+            - 1.5
+            - 2
+      required:
+        - exam
+        - mode
+    usageInstructions: >-
+      Call once when asked for practice. For weak areas read progress first; omit skill to target the focus
+      queue. Return practiceUrl exactly. Never answer the questions for the student or promise an official
+      score.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
+  - name: lm-test-prep-answers
+    displayName: My Test Prep Answer History
+    type: api
+    category: education
+    description: >-
+      Read the caller’s latest graded answer records: correctness, active question time, confidence, flags,
+      mistake category and reflection. Includes review links.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/education/prep/answers
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        exam:
+          type: string
+          enum:
+            - SAT
+            - ACT
+        skill:
+          type: string
+      required:
+        - exam
+    usageInstructions: >-
+      Use for completed-practice review or slow-question analysis. These are this student’s saved records. Do
+      not invent timing or results; use reviewUrl to inspect the finished session.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
+  - name: lm-test-prep-create-training
+    displayName: Create My Test Prep Training
+    type: api
+    category: education
+    description: >-
+      Create and save a private topic training pack with lesson steps, worked examples, recall cards, tips and
+      relevant practice links. Guided packs use the reviewed method library; personalized packs ask the study
+      model for a tailored explanation.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/education/prep/training
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        exam:
+          type: string
+          enum:
+            - SAT
+            - ACT
+        strategyIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+        mode:
+          type: string
+          enum:
+            - guided
+            - personalized
+        goal:
+          type: string
+          maxLength: 300
+      required:
+        - exam
+        - strategyIds
+    usageInstructions: >-
+      Find topic IDs with topics first. Use guided unless the student asks for a tailored explanation. Include
+      only a learning goal, not personal details. Return trainingUrl exactly; creation succeeds only with a
+      returned id. Existing progress and the shared bank are unchanged.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
+  - name: lm-test-prep-my-training
+    displayName: My Saved Test Prep Training
+    type: api
+    category: education
+    description: List the caller’s saved topic training packs, reviewed cards, notes and completion state.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/education/prep/training
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        exam:
+          type: string
+          enum:
+            - SAT
+            - ACT
+      required:
+        - exam
+    usageInstructions: >-
+      Read before resuming an existing pack. Return its trainingUrl exactly. Lesson completion means study
+      activity, not demonstrated mastery.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
+  - name: lm-test-prep-training-content
+    displayName: Read My Test Prep Training
+    type: api
+    category: education
+    description: Read one caller-owned saved training pack, its source methods, examples, recall cards and progress.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/education/prep/training/{input.trainingId}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        trainingId:
+          type: string
+          format: uuid
+      required:
+        - trainingId
+    usageInstructions: >-
+      Use the id from my-training or create-training. Teach from this saved content and link its sources. Never
+      read another student’s content.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
+  - name: lm-test-prep-save-training
+    displayName: Save My Training Reflection
+    type: api
+    category: education
+    description: Save the caller’s training note, a reviewed recall card or a student-reported lesson completion.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/education/prep/training/{input.trainingId}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        trainingId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+        action:
+          type: string
+          enum:
+            - note
+            - review-card
+            - complete
+        cardId:
+          type: string
+        note:
+          type: string
+          maxLength: 1000
+      required:
+        - trainingId
+        - revision
+        - action
+    usageInstructions: >-
+      Read training-content for the current revision. Save only the note or study activity the student reports.
+      Do not mark mastery or completion on their behalf without their request. On conflict reload rather than
+      overwriting.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
+  - name: lm-test-prep-save-plan
+    displayName: Save My SAT and ACT Study Plan
+    type: api
+    category: education
+    description: Save the caller’s test choice, daily study budget and optional test date.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/education/prep/profile
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        exam:
+          type: string
+          enum:
+            - SAT
+            - ACT
+        dailyMinutes:
+          type: integer
+          enum:
+            - 10
+            - 15
+            - 20
+            - 30
+        testDate:
+          type: string
+          description: YYYY-MM-DD or empty string when not set.
+      required:
+        - exam
+        - dailyMinutes
+        - testDate
+    usageInstructions: >-
+      Read progress first to retain settings the student did not change. Use the date and budget they requested.
+      Return studyUrl.
+    routingTags:
+      - education
+      - sat
+      - act
+      - test-prep
+    tags:
+      - education
+      - route-backed
   - name: lm-my-classes
     displayName: My Classes
     type: api
@@ -595,6 +950,7 @@ ui:
   # or read their schedule. The Tutor is the lm-tutor tab below; the corner is Jarvis, which reaches
   # this app through the tools declared under `tools:`.
   static:
+    - { toolName: lm-test-prep, label: SAT & ACT, icon: codicon codicon-mortar-board, iframeUrl: /api/education/test-prep, section: top }
     - { toolName: lm-dashboard,     label: Class dashboard,   icon: codicon codicon-home,        iframeUrl: /api/education/dashboard,        section: top }
     - { toolName: lm-myday,         label: My Day,            icon: codicon codicon-calendar,            iframeUrl: /api/education/my-day,           section: top }
     - { toolName: lm-tutor,         label: Tutor,             icon: codicon codicon-comment-discussion,  iframeUrl: /api/education/tutor,            section: top }
@@ -688,6 +1044,9 @@ migrations:
   - migrations/036-authoritative-progress.sql
   - migrations/037-authorization-audit.sql
   - migrations/038-rewards.sql
+  - migrations/039-test-prep.sql
+  - migrations/040-test-prep-records.sql
+  - migrations/041-test-prep-bank.sql
   - migrations/native/001-little-monsters.sql
 # The native kernel applies the final-shape native file above in place of the PostgreSQL-only
 # forms below (it accepts no PL/pgSQL triggers, catalog-probing DO guards or platform tables).

@@ -25,7 +25,9 @@
  * 15  | maintainer@emeraldcoastsystemsgroup.com     | Closed tenant/authz gaps and decomposed class, roster, tutor, assignment, progress, dashboard, and schema boundaries
  * 16  | maintainer@emeraldcoastsystemsgroup.com     | Register structural learner and teaching adapters before the package becomes available
  * 17  | maintainer@emeraldcoastsystemsgroup.com     | Serve standard-view.html at /email and /storage: the Email and Storage tabs keep the Little Monsters top bar above the standard email viewer and personal file browser
+ * 19  | maintainer@emeraldcoastsystemsgroup.com | Mount SAT/ACT study, progress, practice and captioned lesson media.
  * 18  | maintainer@emeraldcoastsystemsgroup.com     | Mount the book routes (education-book-routes: /my-books and a book's chapter)
+ * 20  | maintainer@emeraldcoastsystemsgroup.com     | Lesson media through education-prep-media: videos stream from lasting storage with byte ranges
  * ---------------------------------------------------------------------------
  *
  * @module education-routes
@@ -82,6 +84,8 @@ const education_roster_routes_1 = require("./education-roster-routes");
 const education_study_routes_1 = require("./education-study-routes");
 const education_teacher_routes_1 = require("./education-teacher-routes");
 const education_tutor_routes_1 = require("./education-tutor-routes");
+const education_prep_routes_1 = require("./education-prep-routes");
+const education_prep_media_1 = require("./education-prep-media");
 const education_schema_1 = require("./education-schema");
 const education_authorization_1 = require("./education-authorization");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-routes' });
@@ -116,6 +120,10 @@ function serveFile(fileName) {
     };
 }
 function registerEducationUiRoutes(router) {
+    router.get('/test-prep', serveFile('test-prep.html'));
+    router.get('/prep.js', serveFile('test-prep.js'));
+    router.get('/prep.css', serveFile('test-prep.css'));
+    router.get('/prep-media/:file', (0, education_prep_media_1.createPrepMediaHandler)(path.join(packageToolsRoot, 'prep-media')));
     router.get('/dashboard', serveFile('student-dashboard.html'));
     router.get('/my-day', serveFile('my-day.html'));
     router.get('/class', serveFile('class-view.html'));
@@ -148,6 +156,7 @@ function registerEducationUiRoutes(router) {
     router.use('/games', (0, express_1.static)(path.join(packageToolsRoot, 'games')));
 }
 function mountEducationFeatureRoutes(router, ctx) {
+    router.use((0, education_prep_routes_1.createEducationPrepRoutes)(ctx));
     router.use((0, education_class_routes_1.createEducationClassRoutes)(ctx));
     router.use((0, education_roster_routes_1.createEducationRosterRoutes)(ctx));
     router.use((0, education_materials_routes_1.createEducationMaterialsRoutes)(ctx));

@@ -427,7 +427,7 @@ function resolveStagedTextbookUpload(textbookId: string): { file: UploadedFile; 
 async function uploadMaterial(ctx: AppContext, req: Request, res: Response): Promise<void> {
   try {
     const classId = String(req.body?.classId || '');
-    let file = (req as Request & { file?: UploadedFile }).file;
+    let file: UploadedFile | undefined = (req as Request & { file?: UploadedFile }).file;
     let bodyInput = req.body || {};
     requireUuid(classId, 'classId');
     if (!file?.buffer && bodyInput.textbookId) {

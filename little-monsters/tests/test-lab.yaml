@@ -15,6 +15,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register lm-phone-layout: the shipped pages at 412 and 360px in Chromium (no sideways scroll, controls on screen).
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register lm-book-chapters: the chapter finder and the book routes' read rule.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register lm-read-aloud: pages speak through the neural voice (lm-voice.js) with the browser voice only as fallback.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | Register lm-lesson-videos, lm-lesson-studio and lm-prep-media-route: the monster-taught lesson videos decoded, the lesson scripts on the real stage, and the streaming route with its installer.
 version: 1
 cases:
   - id: lm-read-aloud
@@ -38,6 +39,151 @@ cases:
       mode: none
     limits:
       timeoutMs: 120000
+    installation: never
+  - id: lm-test-prep-native
+    name: Study Lab through the native kernel
+    purpose: Run the shipped migrations and compiled learning routes inside the isolated native process host with real shared-school policies.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/authorization/native-prep.test.cjs
+    expected:
+      - The shared bank contains 222 questions and students cannot change it.
+      - Practice starts only on Begin and saves private graded answers and topic training.
+      - Another student cannot read the session or training and forged identity headers are ignored.
+      - The actual concierge executes all nine declared prep tools through native HTTP; only model wording is scripted.
+    prerequisites:
+      - runner:node-test
+      - engine-container:disposable-postgres
+      - checkout:native-kernel
+      - runtime:kernel-node-dependencies
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/authorization/native-prep.rs
+        - tests/authorization/native-prep.test.cjs
+      cleanup: Remove the uniquely named Rust test target and fixture directory; drop only the owned database on the explicitly supplied disposable loopback PostgreSQL.
+    limits:
+      timeoutMs: 300000
+    installation: never
+  - id: lm-test-prep-postgres-browser
+    name: Saved Study Lab on PostgreSQL and a phone
+    purpose: Prove private persistence, conflicting saves, reload, review, playable lesson media and failed-save recovery through the compiled routes.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/authorization/prep-postgres-browser.test.cjs
+    expected:
+      - Another learner or school cannot read or change a session and anonymous requests fail.
+      - Concurrent saves conflict and a completed grade is immutable.
+      - Answer ledger and session updates roll back together, and saved topic training is private and conflict-safe.
+      - A ready Jarvis session withholds questions until Begin and training completion does not inflate mastery.
+      - A phone browser reloads an answer, completes practice, saves a reflection, plays lesson media and retries a failed save.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+      - engine-container:disposable-postgres
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/authorization/prep-postgres-browser.test.cjs
+      cleanup: Drop the unique test schema, close the loopback server and Chromium; the harness owns the disposable container named by LM_PREP_TEST_DATABASE_URL.
+    limits:
+      timeoutMs: 120000
+    installation: never
+  - id: lm-test-prep
+    name: SAT and ACT study loop
+    purpose: Verify original curriculum, timing, authoritative grading, fresh evidence and progress recommendations.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-test-prep.test.cjs
+    expected:
+      - Active sessions withhold keys and expired submissions cannot change saved answers.
+      - Fixed simulations use current counts and timing; SAT retains its break.
+      - Repeated question IDs do not inflate mastery and correct slow work gets pace practice.
+      - Every initial lesson has a video and captions.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: lm-lesson-videos
+    name: Monster-taught lesson videos
+    purpose: Decode every published lesson video and prove it is real moving video with a monster in it and a voice that moves like a person's, matching its script and captions.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-lesson-videos.test.cjs
+    expected:
+      - Every lesson is 1080p H.264 with its index first, at least a minute long.
+      - The picture changes across nearly every keyframe and the monster is present in it.
+      - Pitch moves at least 10 semitones (the retired flat voice moved 2.7) at one common loudness.
+      - A video that no longer matches its script, or carries a rehearsal voice, fails.
+      - Still cards, an empty room and a flat tone are caught by negative controls.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 240000
+    installation: never
+  - id: lm-lesson-studio
+    name: Lesson scripts on the real stage
+    purpose: Build every lesson script on the real stage in Chromium against its recorded timing and the catalog.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-lesson-studio.test.cjs
+    expected:
+      - Every catalog lesson has a script, taught by a monster from the app's roster.
+      - Every stated calculation evaluates to the number the lesson states.
+      - Each lesson has a moving demonstration, a highlight, a your-turn pause and the Try this skill ending.
+      - Nothing is written off the board or too small for a phone; negative controls prove both checks.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 180000
+    installation: never
+  - id: lm-prep-media-route
+    name: Lesson video streaming route
+    purpose: Prove lesson videos go out by lasting-file reference from a whole content-named copy and that only a lesson's own files are served.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-prep-media-route.test.cjs
+    expected:
+      - A video is answered by reference to a byte-identical copy; a truncated copy is replaced.
+      - Hosts with no lasting storage get real byte ranges.
+      - Traversal and other file names answer 404; a failed copy answers 503 and is logged.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never
   - id: lm-book-chapters
     name: Book chapters

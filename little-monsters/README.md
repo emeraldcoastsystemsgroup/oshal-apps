@@ -178,8 +178,34 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 | lecture-recording-pipeline | lecture recording ticket | T4 | none | disable | not yet measured | none recorded |
 | study-set-generation | flashcard set or quiz | T2 | none | disable | not yet measured | none recorded |
 | tutoring-turn | tutoring turn | T3 | hosted | disable | not yet measured | none recorded |
+| personalized-test-prep | personalized topic training pack | T2 | hosted | template | not yet measured | none recorded |
 <!-- oshal-rating:end -->
 
 ### Native shared-school storage
 
 `storage/relationships.json` declares the trusted relationship policy for authoritative school rows. The native operator installs and validates that policy and its schemas in tenant metadata before native shared-school use; app data cannot authorize itself. Migrated deployments reconcile existing issuer/subject bindings and school membership before installation. Person-only projections are retired so teacher edits and enrollments use the same records. New user provisioning is an explicit write, and classroom dependency permissions remain in `oshal-app.yaml`.
+
+## SAT & ACT Study Lab
+
+Open **SAT & ACT** for saved diagnostics, targeted timed practice, full-length pacing simulations,
+21 shortcut lessons taught on video by the app's monsters (Pinky, Bluebold, Tealy and Sprout), with
+captions and a transcript, and separate accuracy/speed progress. The
+starter library contains 222 original foundation question variants; it does not predict official
+scores or reproduce adaptive SAT scoring. See the [specification](docs/test-prep-spec.md) and
+[implementation and verification notes](docs/test-prep-release.md) for coverage and release state.
+The [official-practice and strategy research](docs/test-prep-strategy-research.md) adds 47
+question-type methods, selected question references, and a reproducible index of 32 official free
+practice PDFs. Study Lab links those publisher resources; external answers and timing are not
+automatically imported into student progress.
+
+Version 1.6 adds a progress dashboard and Test Prep Coach, with Jarvis tools to find topics,
+prepare practice, review graded answers, save a study plan, and create/reopen topic training.
+One versioned question table serves every student. Answer choices, question time, confidence,
+flags, mistakes, reflections, goals and training progress belong to the signed-in student and
+school. Jarvis-prepared practice starts its clock only when the student presses **Begin practice**.
+
+**Create training** saves a lesson, worked example, shortcut cautions and recall cards on a chosen
+topic. Guided packs use the researched library; personalized packs use the configured study model
+with a bounded learning goal. Notes and card reviews survive reload. Reviewing a pack is tracked
+separately from assessed improvement. The dashboard prioritizes weak or slow skills using fresh
+practice evidence and compares accuracy and pace over time.

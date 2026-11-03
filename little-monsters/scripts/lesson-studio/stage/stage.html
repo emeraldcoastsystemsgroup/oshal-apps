@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Little Monsters lesson stage</title>
+<!--
+  CHANGE LOG
+  ___________________________________________________________________________
+  SEQ | AUTHOR                                  | DESCRIPTION
+  1   | maintainer@emeraldcoastsystemsgroup.com | The classroom, chalkboard and monster that every lesson video is filmed on; render.mjs drives it frame by frame
+-->
+<link rel="stylesheet" href="stage.css">
+</head>
+<body>
+<div id="world">
+  <img id="room" src="../art/room.jpg" alt="">
+  <div id="stand"><i class="leg left"></i><i class="leg right"></i><i class="bar"></i></div>
+  <div id="board">
+    <div id="slate"></div>
+    <div id="chalk"></div>
+    <div id="grain"></div>
+    <div id="tray"><i class="stick white"></i><i class="stick yellow"></i><i class="stick pink"></i></div>
+  </div>
+  <div id="eraser"></div>
+  <div id="floorShadow"></div>
+  <div id="monster"></div>
+  <div id="fx"></div>
+</div>
+<div id="bug"><img id="bugLogo" src="../art/logo.png" alt=""><span>Little Monsters</span></div>
+<script src="monster.js"></script>
+<script src="stage.js"></script>
+</body>
+</html>

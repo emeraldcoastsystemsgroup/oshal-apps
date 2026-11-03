@@ -1,0 +1,113 @@
+{
+  "id": "linear",
+  "teacher": "pinky",
+  "title": "Solve for what is asked",
+  "facts": [["22 - 7", 15], ["15 / 3", 5], ["26 + 4", 30], ["3 * 5", 15], ["3 * 5 + 7", 22]],
+  "beats": [
+    {
+      "page": null,
+      "say": "Hey! I'm Pinky. Today I'm going to save you from doing extra work on algebra questions. [playful] Seriously. Extra work is how they get you.",
+      "board": [
+        { "text": "Solve for what is asked", "onWord": "save" },
+        { "text": "extra work", "onWord": "extra" },
+        { "text": "how they get you", "onWord": "how" }
+      ],
+      "highlight": [ { "onWord": "extra", "nth": 1, "target": "extra work", "style": "mark" } ]
+    },
+    {
+      "page": "The idea",
+      "say": "An equation is a balance. Whatever you do to one side, you do to the other side, and it stays level.",
+      "board": [ { "text": "It stays level", "onWord": "level" } ],
+      "highlight": [],
+      "demo": { "type": "balance", "onWord": "balance", "left": "one side", "right": "other side", "changes": [ { "do": "the same to both", "onWord": "other" } ] }
+    },
+    {
+      "page": "Watch me",
+      "say": "Okay, look at this one. Three x plus seven equals twenty-two. And the question says: what is the value of three x? Not x. [emphatic] Three x. So I circle that, right now, before I do anything else.",
+      "board": [
+        { "text": "3x + 7 = 22", "onWord": "three" },
+        { "text": "What is the value of 3x ?", "onWord": "what" },
+        { "text": "x", "onWord": "not" }
+      ],
+      "highlight": [
+        { "onWord": "x", "nth": 2, "target": "x", "style": "strike" },
+        { "onWord": "circle", "target": "3x ?", "style": "circle" }
+      ]
+    },
+    {
+      "page": null,
+      "say": "Subtract seven from both sides. Plus seven, minus seven: gone. Twenty-two minus seven is fifteen. So three x equals fifteen.",
+      "board": [],
+      "highlight": [],
+      "demo": {
+        "type": "equation-steps", "onWord": "subtract",
+        "steps": [ { "text": "3x + 7 − 7 = 22 − 7", "onWord": "subtract" }, { "text": "3x = 15", "onWord": "so" } ],
+        "cancel": [ { "text": "+ 7 − 7", "onWord": "gone" } ]
+      }
+    },
+    {
+      "page": null,
+      "say": "And stop. [firmly] Right there. Three x is fifteen. That is the answer. But a lot of people keep going, divide by three, get five, and pick five. Which is sitting right there in the choices, waiting for them.",
+      "board": [
+        { "text": "3x = 15", "onWord": "three" },
+        { "text": "÷ 3", "onWord": "divide" },
+        { "text": "x = 5", "onWord": "get" },
+        { "text": "A trap!", "onWord": "them" }
+      ],
+      "highlight": [
+        { "onWord": "answer", "target": "3x = 15", "style": "circle" },
+        { "onWord": "pick", "target": "x = 5", "style": "strike" }
+      ],
+      "demo": { "type": "table", "onWord": "choices", "columns": ["A", "B", "C", "D"], "rows": [["5", "7", "15", "22"]] }
+    },
+    {
+      "page": "Your turn",
+      "say": "Your turn. Five y minus four equals twenty-six. What is five y? Go on, I'll wait.",
+      "board": [
+        { "text": "5y − 4 = 26", "onWord": "five" },
+        { "text": "What is 5y ?", "onWord": "what" }
+      ],
+      "highlight": [ { "onWord": "y", "nth": 1, "target": "5y ?", "style": "circle" } ],
+      "pause": 5
+    },
+    {
+      "page": null,
+      "gap": 0.1,
+      "say": "Thirty! Add four to both sides, and stop. If you got thirty, you're already better at this than you were two minutes ago.",
+      "board": [ { "text": "5y = 30", "onWord": "thirty" }, { "text": "Better already!", "onWord": "better" } ],
+      "highlight": [ { "onWord": "stop", "target": "30", "style": "circle" } ]
+    },
+    {
+      "page": "A faster way",
+      "say": "On multiple choice, there's another move: try the answers. Put a choice into the original equation and see if it balances. Three times five, plus seven. Twenty-two. It works!",
+      "board": [
+        { "text": "Try x = 5", "onWord": "try" },
+        { "text": "3 × 5 + 7 = 22", "onWord": "three" },
+        { "text": "It works!", "onWord": "works" }
+      ],
+      "highlight": [ { "onWord": "twenty-two", "target": "= 22", "style": "mark" } ],
+      "demo": { "type": "balance", "onWord": "balances", "left": "3 × 5 + 7", "right": "22" }
+    },
+    {
+      "page": "Watch out",
+      "say": "But careful. Plugging in found x. X is five. The question wanted three x. So don't stop at x when the question asks for three x. And whatever you try has to work in the original equation, not a line you changed along the way.",
+      "board": [
+        { "text": "You found: x = 5", "onWord": "found" },
+        { "text": "They asked: 3x = ?", "onWord": "wanted" },
+        { "text": "3x = 15", "onWord": "asks" }
+      ],
+      "highlight": [ { "onWord": "stop", "target": "x = 5", "style": "strike" }, { "onWord": "wanted", "target": "3x = ?", "style": "circle" } ],
+      "demo": { "type": "two-column-compare", "onWord": "original", "left": { "title": "the original", "items": ["3x + 7 = 22"] }, "right": { "title": "a line you changed", "items": ["3x = 15"] } }
+    },
+    {
+      "page": "Remember",
+      "say": "One habit. Underline what they're asking for, before you calculate anything. Do that every time, and this trap never gets you. Now hit Try this skill, and go get 'em!",
+      "board": [
+        { "text": "What is the value of 3x ?", "onWord": "one" },
+        { "text": "Underline what they're asking for", "onWord": "underline" },
+        { "text": "Next: Try this skill", "onWord": "try" }
+      ],
+      "highlight": [ { "onWord": "underline", "target": "3x", "style": "underline" } ]
+    }
+  ]
+}

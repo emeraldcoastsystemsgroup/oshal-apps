@@ -156,7 +156,7 @@ function getStudyBotClient(): any {
 }
 
 /** Execute one bounded education-model request without provider tools or credential material. */
-async function runStudyModel(
+export async function runStudyModel(
   ctx: AppContext,
   userSub: string,
   studentId: string,

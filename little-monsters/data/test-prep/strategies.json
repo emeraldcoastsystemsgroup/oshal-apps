@@ -1,0 +1,1059 @@
+{
+  "verifiedOn": "2026-10-28",
+  "scope": "Original practice methods organized by question type, grounded in publisher syllabi, guidance and inspected examples. This is not an exhaustive annotation of the downloaded exams or a publisher-endorsed course.",
+  "sources": [
+    {
+      "id": "sat-rw",
+      "title": "College Board: Reading and Writing domains",
+      "url": "https://satsuite.collegeboard.org/sat/whats-on-the-test/reading-writing",
+      "scope": "Question-type coverage; the practice methods below are our instructional derivations."
+    },
+    {
+      "id": "sat-algebra",
+      "title": "College Board: Algebra",
+      "url": "https://satsuite.collegeboard.org/sat/whats-on-the-test/math/types/algebra",
+      "scope": "Algebra topic coverage."
+    },
+    {
+      "id": "sat-advanced",
+      "title": "College Board: Advanced Math",
+      "url": "https://satsuite.collegeboard.org/sat/whats-on-the-test/math/types/advanced",
+      "scope": "Nonlinear equations, functions and equivalent expressions."
+    },
+    {
+      "id": "sat-data",
+      "title": "College Board: Problem-Solving and Data Analysis",
+      "url": "https://satsuite.collegeboard.org/sat/whats-on-the-test/math/types/problem-solving",
+      "scope": "Data, probability, rates and statistical reasoning coverage."
+    },
+    {
+      "id": "sat-geometry",
+      "title": "College Board: Geometry and Trigonometry",
+      "url": "https://satsuite.collegeboard.org/sat/whats-on-the-test/math/types/geometry-trigonometry",
+      "scope": "Geometry topic coverage."
+    },
+    {
+      "id": "act-english",
+      "title": "ACT: English tips",
+      "url": "https://www.act.org/content/act/en/students-and-parents/high-school-success/testing-advice-for-the-act/act-english-test-tips.html",
+      "scope": "Publisher guidance on context, choice differences and checking revisions."
+    },
+    {
+      "id": "act-math",
+      "title": "ACT: Math tips",
+      "url": "https://www.act.org/content/act/en/students-and-parents/high-school-success/testing-advice-for-the-act/act-math-test-tips.html",
+      "scope": "Publisher guidance on tool choice, the requested quantity and reasonableness."
+    },
+    {
+      "id": "act-reading",
+      "title": "ACT: Reading tips",
+      "url": "https://www.act.org/content/act/en/students-and-parents/high-school-success/testing-advice-for-the-act/act-reading-test-tips.html",
+      "scope": "Publisher guidance on reading relationships and returning to textual evidence."
+    },
+    {
+      "id": "act-science",
+      "title": "ACT: Science tips",
+      "url": "https://www.act.org/content/act/en/students-and-parents/high-school-success/testing-advice-for-the-act/act-science-test-tips.html",
+      "scope": "Use the reasoning guidance only. The page still says 35 minutes; the current booklet says 40."
+    },
+    {
+      "id": "act-writing",
+      "title": "ACT: Writing tips",
+      "url": "https://www.act.org/content/act/en/students-and-parents/high-school-success/testing-advice-for-the-act/act-writing-test-tips.html",
+      "scope": "Planning, argument support and revision guidance. Ignore the unrelated Science promotional copy."
+    },
+    {
+      "id": "act-guide",
+      "title": "ACT: Preparing for the ACT, 2026–2027",
+      "url": "https://www.act.org/content/dam/act/unsecured/documents/Preparing-for-the-ACT.pdf",
+      "scope": "Current section instructions, practice form and paper scoring; download is hash-pinned in the resource index."
+    },
+    {
+      "id": "desmos",
+      "title": "Desmos: Graphing calculator introduction",
+      "url": "https://help.desmos.com/hc/en-us/articles/4406040715149-Getting-Started-Desmos-Graphing-Calculator",
+      "scope": "Graphing and locating intersections/intercepts; our examples are independently authored."
+    },
+    {
+      "id": "desmos-test",
+      "title": "Desmos: Practice with testing calculators",
+      "url": "https://help.desmos.com/hc/en-us/articles/18228147914381-Practice-With-Testing-Calculators",
+      "scope": "Use the calculator configured for the assessment; consumer features may differ."
+    }
+  ],
+  "strategies": [
+    {
+      "id": "words-context",
+      "title": "Words in context",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "reading"
+      },
+      "method": "Read the surrounding idea and restate the missing meaning in everyday language. Then test each option in the sentence.",
+      "shortcut": "Use contrast and cause clues to predict the meaning before the choices distract you.",
+      "caution": "A familiar definition can be wrong in this context. Keep negation and tone intact.",
+      "example": "Original example: “Although costly, the repair was essential” requires a word meaning necessary, not inexpensive.",
+      "sources": [
+        "sat-rw",
+        "act-reading"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "vocabulary"
+    },
+    {
+      "id": "central-idea",
+      "title": "Central idea and scope",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "reading"
+      },
+      "method": "State the topic and the main thing the author says about it. Check the beginning, turning point and ending.",
+      "shortcut": "Reduce the passage to one sentence; compare every answer with that sentence.",
+      "caution": "A true detail is not necessarily the main point. Avoid answers broader than the evidence.",
+      "example": "Original example: a passage about one city testing buses does not establish that every city has solved pollution.",
+      "sources": [
+        "sat-rw",
+        "act-reading"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "mainidea"
+    },
+    {
+      "id": "text-evidence",
+      "title": "Text evidence and details",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "reading"
+      },
+      "method": "Locate the claim in the question, then find the exact passage evidence that supports it.",
+      "shortcut": "Give every surviving choice an evidence location. Eliminate a choice with one unsupported required claim.",
+      "caution": "Matching a word is not enough; the relationship and speaker must also match.",
+      "example": "Original example: evidence that a device is cheaper does not show that it is more durable.",
+      "sources": [
+        "sat-rw",
+        "act-reading"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "evidence"
+    },
+    {
+      "id": "inference",
+      "title": "Inference and logical completion",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "reading"
+      },
+      "method": "Combine the stated facts into the smallest conclusion they support. Check each qualifier in the answer.",
+      "shortcut": "Look for the missing logical link, then reject choices that need an extra assumption.",
+      "caution": "Strong language can be correct when supported. Do not automatically reject all words such as always.",
+      "example": "Original example: “All samples in this trial changed color” does not mean every possible sample will change color.",
+      "sources": [
+        "sat-rw",
+        "act-reading"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "evidence"
+    },
+    {
+      "id": "structure-purpose",
+      "title": "Sentence function and text structure",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "reading"
+      },
+      "method": "Describe what each relevant sentence does: introduces, exemplifies, challenges, explains or qualifies.",
+      "shortcut": "Summarize the movement as two verbs, such as presents a claim → questions it.",
+      "caution": "The subject of a sentence and its job in the argument are different things.",
+      "example": "Original example: a laboratory result after a prediction may test the prediction, not introduce a new topic.",
+      "sources": [
+        "sat-rw",
+        "act-reading"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "structure"
+    },
+    {
+      "id": "paired-texts",
+      "title": "Paired texts and viewpoints",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "reading"
+      },
+      "method": "Summarize each author’s position separately. Find the precise issue on which the question asks you to compare them.",
+      "shortcut": "Use a tiny A/B comparison: claim, evidence, agreement, disagreement.",
+      "caution": "Do not transfer a statement from one author to the other. Shared subject does not imply shared opinion.",
+      "example": "Original example: both authors can favor public transit while disagreeing about how to fund it.",
+      "sources": [
+        "sat-rw",
+        "act-reading"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "evidence"
+    },
+    {
+      "id": "quantitative-evidence",
+      "title": "Graphs supporting a text claim",
+      "sections": {
+        "SAT": "rw"
+      },
+      "method": "Read the claim first, then the graph title, axes, units and legend. Identify which comparison would support the claim.",
+      "shortcut": "Inspect only the relevant series once you understand the display.",
+      "caution": "A statement can be numerically true but irrelevant. Correlation alone does not establish a cause.",
+      "example": "Original example: a claim about faster growth needs a change over time, not just the largest final value.",
+      "sources": [
+        "sat-rw",
+        "sat-data"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "evidence"
+    },
+    {
+      "id": "sentence-boundaries",
+      "title": "Sentence boundaries",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Identify subjects and finite verbs, and decide which groups are independent clauses before choosing punctuation.",
+      "shortcut": "Two independent clauses can be joined by a semicolon, or by a comma plus a coordinating conjunction.",
+      "caution": "A comma alone does not join independent clauses. A colon needs a complete clause before it.",
+      "example": "Original example: “The trial ended; the researchers packed up.” Each side can stand alone.",
+      "sources": [
+        "sat-rw",
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "boundaries"
+    },
+    {
+      "id": "supplements",
+      "title": "Nonessential phrases and paired punctuation",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Temporarily remove the inserted phrase and check the remaining sentence. Decide whether the phrase is essential to identifying its noun.",
+      "shortcut": "A removable mid-sentence aside often needs matching punctuation at both ends.",
+      "caution": "Do not insert commas around essential information or between a subject and its main verb.",
+      "example": "Original example: “Our tutor, a former engineer, explains the model.” Removing the aside leaves a complete sentence.",
+      "sources": [
+        "sat-rw",
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "boundaries"
+    },
+    {
+      "id": "subject-agreement",
+      "title": "Subject–verb agreement",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Find the grammatical subject and its main verb. Set intervening phrases aside, then decide singular or plural.",
+      "shortcut": "Cross out an intervening “of…” phrase while checking agreement.",
+      "caution": "The noun nearest the verb may not be its subject. A gerund phrase can function as a singular subject.",
+      "example": "Original example: “The box of pencils is missing.” The box, not the pencils, controls the verb.",
+      "sources": [
+        "sat-rw",
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "agreement"
+    },
+    {
+      "id": "pronouns-ownership",
+      "title": "Pronouns, plurals and ownership",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Identify the noun the pronoun refers to, its number, and whether the sentence needs possession or a contraction.",
+      "shortcut": "Expand contractions mentally: it’s → it is; they’re → they are.",
+      "caution": "An apostrophe does not form a normal plural. Make sure the antecedent is unambiguous.",
+      "example": "Original example: “The club changed its schedule” uses possession; “it’s closed” means it is closed.",
+      "sources": [
+        "sat-rw",
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "possessives"
+    },
+    {
+      "id": "verb-time",
+      "title": "Verb tense and form",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Use the passage timeline to decide the tense. Identify whether the sentence already has a main verb.",
+      "shortcut": "Time markers such as before, since and by then often resolve tense more quickly than how an option sounds.",
+      "caution": "A participle alone may create a fragment. Do not force all verbs into one tense when times differ.",
+      "example": "Original example: “She had left before the guests arrived” distinguishes two past events.",
+      "sources": [
+        "sat-rw",
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "modifiers-parallel",
+      "title": "Modifiers and parallel structure",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Place a description beside what it describes. Compare the grammatical form of items in a list or comparison.",
+      "shortcut": "After an opening participial phrase, check who performs that action.",
+      "caution": "A sentence can be grammatical yet describe the wrong actor. Parallel form must preserve meaning.",
+      "example": "Original example: “Carrying the books, Maya opened the door” identifies the carrier; “the door opened” would not.",
+      "sources": [
+        "sat-rw",
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "concision",
+      "title": "Concision without lost meaning",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Remove duplicated meaning and unnecessary filler while preserving the needed facts and grammatical structure.",
+      "shortcut": "Compare the shortest choice first, then test whether anything essential vanished.",
+      "caution": "Shortest is not automatically correct. Keep required distinctions, transitions and details.",
+      "example": "Original example: “They returned back again” may become “They returned” if the context does not require repetition.",
+      "sources": [
+        "act-english",
+        "sat-rw"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "concision"
+    },
+    {
+      "id": "transitions",
+      "title": "Logical transitions",
+      "sections": {
+        "SAT": "rw",
+        "ACT": "english"
+      },
+      "method": "Describe the relationship between the ideas: contrast, cause, example, addition or sequence. Then choose the connector.",
+      "shortcut": "Predict the relationship before considering the transition words.",
+      "caution": "A transition that fits the topic can still reverse the logic. Read across the sentence boundary.",
+      "example": "Original example: a successful outcome after a failed prediction calls for contrast, not a connector implying confirmation.",
+      "sources": [
+        "sat-rw",
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "transitions"
+    },
+    {
+      "id": "rhetorical-notes",
+      "title": "SAT notes and rhetorical goals",
+      "sections": {
+        "SAT": "rw"
+      },
+      "method": "Read the requested writing goal, then select only notes that help accomplish it. Check every factual claim in the choice.",
+      "shortcut": "Turn the goal into a checklist: compare two things, introduce a person, or emphasize a difference.",
+      "caution": "Using many notes is not the objective. Accurate information can still miss the requested audience or purpose.",
+      "example": "Original example: to compare two bridges’ lengths, use both measurements rather than only their architects’ names.",
+      "sources": [
+        "sat-rw"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "purpose"
+    },
+    {
+      "id": "add-delete",
+      "title": "ACT add/delete and writer’s goal",
+      "sections": {
+        "ACT": "english"
+      },
+      "method": "Decide what the proposed sentence contributes to the paragraph’s purpose. Evaluate the explanation as well as yes or no.",
+      "shortcut": "Name its role: relevant support, distraction, repetition or needed context.",
+      "caution": "A fact being interesting or true is insufficient. The reason in the answer must also fit.",
+      "example": "Original example: a recipe’s history may distract from a paragraph explaining a single safety step.",
+      "sources": [
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "purpose"
+    },
+    {
+      "id": "sentence-placement",
+      "title": "ACT sentence and paragraph placement",
+      "sections": {
+        "ACT": "english"
+      },
+      "method": "Find what information the sentence assumes and what the next sentence needs. Track pronouns, transitions and chronology.",
+      "shortcut": "Look for dependency words such as this discovery; place the sentence after the discovery has been introduced.",
+      "caution": "Reading only the sentence before a proposed location can miss a broken connection after it.",
+      "example": "Original example: introduce a new researcher before referring to that person as she.",
+      "sources": [
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "structure"
+    },
+    {
+      "id": "tone-precision",
+      "title": "ACT tone and precise wording",
+      "sections": {
+        "ACT": "english"
+      },
+      "method": "Match the passage’s level of formality and choose the word that expresses the intended action exactly.",
+      "shortcut": "Separate style errors from grammar errors when the choices mainly change vocabulary.",
+      "caution": "Formal does not mean elaborate. A word can sound impressive and still mean the wrong thing.",
+      "example": "Original example: “The team investigated the result” may fit a research account better than “checked the weird thing out.”",
+      "sources": [
+        "act-english"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "requested-quantity",
+      "title": "Solve for the requested quantity",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Write the exact quantity requested before calculating. Look for an equation manipulation that produces it directly.",
+      "shortcut": "If 4x + 9 = 29 and the task asks for 4x, subtract 9 without first finding x.",
+      "caution": "Stop at the requested expression, not an intermediate answer. Check units and signs.",
+      "example": "Original example: from 4x + 9 = 29, 4x = 20; x = 5 answers a different question.",
+      "sources": [
+        "sat-algebra",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "linear"
+    },
+    {
+      "id": "backsolve",
+      "title": "Backsolve from numeric choices",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Substitute a plausible answer into the original conditions and check whether all conditions hold.",
+      "shortcut": "Ordered choices can speed the search when the relevant relationship is monotonic over the allowed domain.",
+      "caution": "Starting in the middle only gives directional information under monotonicity. Quadratics and constraints can break that assumption.",
+      "example": "Original example: for 3x + 4 = 25, test a candidate x in the original left side; keep one giving 25.",
+      "sources": [
+        "act-math",
+        "sat-algebra"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "linear"
+    },
+    {
+      "id": "choose-values",
+      "title": "Choose values to eliminate expressions",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "For an identity-style question, choose permitted values and compare the original expression with each answer.",
+      "shortcut": "Avoid 0 and 1 when they make distinct expressions accidentally equal; a second value can eliminate a tie.",
+      "caution": "One matching example does not prove an identity. Respect restrictions and use algebra to resolve surviving choices.",
+      "example": "Original example: x² and 2x agree at x = 2; checking x = 3 reveals they are different.",
+      "sources": [
+        "sat-advanced",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "quadratic"
+    },
+    {
+      "id": "estimate",
+      "title": "Estimate and eliminate impossible answers",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Predict the sign, size and units before doing exact arithmetic. Remove choices outside a justified range.",
+      "shortcut": "Wide spacing between answers can make an interval enough to identify the only possible choice.",
+      "caution": "Close choices and student-produced answers usually need exact work. Sketches may not be drawn to scale.",
+      "example": "Original example: 19% of 203 must be near 40, so 4 and 400 are unreasonable.",
+      "sources": [
+        "act-math",
+        "sat-data"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "percent"
+    },
+    {
+      "id": "units",
+      "title": "Units and rates",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Write the units beside every factor and choose conversion fractions that cancel unwanted units.",
+      "shortcut": "Let unit cancellation guide the setup before multiplying numbers.",
+      "caution": "Converting square or cubic units requires squaring or cubing the conversion factor.",
+      "example": "Original example: 3 hours × 60 minutes/hour = 180 minutes; square feet require area conversions.",
+      "sources": [
+        "sat-data",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "percent-multipliers",
+      "title": "Percent change and reverse percentages",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Identify the base quantity. Convert each change to a multiplier and apply changes in order.",
+      "shortcut": "A 15% increase is ×1.15; to recover the old amount, divide the new amount by 1.15.",
+      "caution": "Equal percent increases and decreases do not cancel because their bases differ.",
+      "example": "Original example: 100 × 1.20 × 0.80 = 96, not 100.",
+      "sources": [
+        "sat-data",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "percent"
+    },
+    {
+      "id": "ratios",
+      "title": "Ratios and proportional shares",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Express the parts as multiples of a common unit. Use the total to find the size of that unit.",
+      "shortcut": "Add ratio parts first, then divide the total by their sum.",
+      "caution": "Part-to-part ratios are not part-to-whole fractions. Confirm whether the relationship is proportional.",
+      "example": "Original example: splitting 70 in a 2:5 ratio gives seven units of 10, hence shares 20 and 50.",
+      "sources": [
+        "sat-data",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "probability"
+    },
+    {
+      "id": "systems",
+      "title": "Systems and number of solutions",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Align coefficients and use elimination or substitution. Before solving, inspect whether equations describe the same or parallel lines.",
+      "shortcut": "Proportional variable coefficients with incompatible constants mean no solution.",
+      "caution": "Proportional coefficients and constants mean infinitely many solutions, not none.",
+      "example": "Original example: x + y = 3 and 2x + 2y = 8 are inconsistent; replacing 8 by 6 makes them the same line.",
+      "sources": [
+        "sat-algebra",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "systems"
+    },
+    {
+      "id": "desmos-intersections",
+      "title": "SAT graphing: intersections and intercepts",
+      "sections": {
+        "SAT": "math"
+      },
+      "method": "In the SAT testing calculator, graph each side as a function or graph both equations. Inspect intersections and verify in the original equation.",
+      "shortcut": "An intersection can give a candidate solution; an x-intercept can locate a zero.",
+      "caution": "Adjust the viewing window and check domain restrictions. An approximate graph does not prove an exact identity or show every root. Practice in Bluebook’s calculator.",
+      "example": "Original example: graph y = 2x + 1 and y = 7 to find a candidate x, then substitute it back.",
+      "sources": [
+        "desmos",
+        "desmos-test",
+        "sat-algebra"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "systems"
+    },
+    {
+      "id": "quadratic-forms",
+      "title": "Quadratic roots and vertex",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Choose the useful form: factored for zeros, vertex form for the turning point, expanded form for coefficients.",
+      "shortcut": "For y = a(x − h)² + k, the vertex is (h,k); for y = (x − r)(x − s), zeros are r and s.",
+      "caution": "Read signs carefully. The vertex is a minimum only if a is positive.",
+      "example": "Original example: y = 2(x − 4)² + 3 has minimum value 3 at x = 4.",
+      "sources": [
+        "sat-advanced",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "quadratic"
+    },
+    {
+      "id": "discriminant",
+      "title": "Quadratic number of real solutions",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "For ax² + bx + c = 0 with a ≠ 0, compute b² − 4ac to count distinct real roots.",
+      "shortcut": "Positive gives two, zero gives one repeated real root, negative gives no real roots.",
+      "caution": "First put the equation in standard form. If a depends on a parameter, check separately when a becomes zero.",
+      "example": "Original example: x² + 2x + 5 = 0 has discriminant −16, so it has no real roots.",
+      "sources": [
+        "sat-advanced",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "quadratic"
+    },
+    {
+      "id": "exponential",
+      "title": "Linear versus exponential change",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Check whether equal steps add a constant amount or multiply by a constant factor. Build the corresponding model.",
+      "shortcut": "A repeated percent change becomes the base of an exponential expression.",
+      "caution": "The exponent must count matching time intervals. A changing percentage is not a fixed multiplier model.",
+      "example": "Original example: 200 growing 3% per year is 200(1.03)^t after t years.",
+      "sources": [
+        "sat-advanced",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "percent"
+    },
+    {
+      "id": "functions",
+      "title": "Function evaluation and transformations",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Substitute the input with parentheses, then apply operations in order. For a transformation, track inside and outside changes separately.",
+      "shortcut": "Build a tiny input/output table when notation is confusing.",
+      "caution": "f(x + h) shifts a graph left by h; adding h outside shifts it up. Squaring a negative input needs parentheses.",
+      "example": "Original example: if f(x) = x² − 1, then f(−3) = (−3)² − 1 = 8.",
+      "sources": [
+        "sat-advanced",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "rational-radical",
+      "title": "Rational and radical equations",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Record denominator restrictions first. Isolate radicals before squaring, then check candidates in the original equation.",
+      "shortcut": "Factoring may cancel common factors after you record excluded inputs.",
+      "caution": "Squaring can introduce extraneous solutions; cancellation never restores an excluded input.",
+      "example": "Original example: (x² − 4)/(x − 2) simplifies to x + 2 only when x ≠ 2.",
+      "sources": [
+        "sat-advanced",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "scale-geometry",
+      "title": "Similar figures, area and volume",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Identify the length scale factor between similar figures and the dimension of the requested quantity.",
+      "shortcut": "Lengths scale by k, areas by k², volumes by k³.",
+      "caution": "The figures must be similar. Equal area alone does not determine a common side scale.",
+      "example": "Original example: doubling every length multiplies surface area by 4 and volume by 8.",
+      "sources": [
+        "sat-geometry",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "geometry"
+    },
+    {
+      "id": "triangle-trig",
+      "title": "Right triangles and trigonometric ratios",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Mark the angle, opposite side, adjacent side and hypotenuse. Use the relevant ratio or the Pythagorean theorem.",
+      "shortcut": "Recognize verified 3–4–5 or 5–12–13 side ratios to reduce arithmetic.",
+      "caution": "The ratio depends on the marked angle. Check degree/radian mode and confirm a right angle.",
+      "example": "Original example: for an angle opposite the 3-side in a 3–4–5 triangle, sine is 3/5 and cosine is 4/5.",
+      "sources": [
+        "sat-geometry",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "trig"
+    },
+    {
+      "id": "circles",
+      "title": "Circle equations, arcs and sectors",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Read center and radius from (x − h)² + (y − k)² = r². Use the angle’s fraction of a full turn for an arc or sector.",
+      "shortcut": "Arc length is θ/360 times the circumference when θ is in degrees.",
+      "caution": "The right side of the circle equation is radius squared, not radius. Radian formulas require radians.",
+      "example": "Original example: a 90° sector contains one quarter of the circle’s area.",
+      "sources": [
+        "sat-geometry",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "geometry"
+    },
+    {
+      "id": "means-spread",
+      "title": "Means, totals and spread",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Convert a mean to a total using total = count × mean. For combined groups, add totals and counts separately.",
+      "shortcut": "A missing observation equals the required total minus the known total.",
+      "caution": "Averaging group means is valid only with equal group sizes. Spread and center describe different features.",
+      "example": "Original example: two scores averaging 80 and three averaging 90 have mean (160 + 270)/5 = 86.",
+      "sources": [
+        "sat-data",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "data"
+    },
+    {
+      "id": "probability",
+      "title": "Probability and conditional sample spaces",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Define the possible outcomes and the event. If a condition is given, restrict the sample space to that group first.",
+      "shortcut": "In a two-way table, a “given” condition usually identifies the new denominator.",
+      "caution": "Multiplying marginal probabilities requires independence. With no replacement, later denominators change.",
+      "example": "Original example: among 12 selected club members, 3 play chess; within that group the proportion is 3/12.",
+      "sources": [
+        "sat-data",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "probability"
+    },
+    {
+      "id": "statistical-claims",
+      "title": "Samples, experiments and claims",
+      "sections": {
+        "SAT": "math",
+        "ACT": "math"
+      },
+      "method": "Ask how participants were selected and whether treatments were randomly assigned. Separate association from a causal claim.",
+      "shortcut": "Selection concerns generalization; assignment concerns comparing treatment effects.",
+      "caution": "Large samples do not repair systematic selection bias. A margin of error is not a guarantee that a particular interval contains the truth.",
+      "example": "Original example: a voluntary online survey may overrepresent people with strong views even if many respond.",
+      "sources": [
+        "sat-data",
+        "act-math"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "science-lookup",
+      "title": "Science data lookup and comparisons",
+      "sections": {
+        "ACT": "science"
+      },
+      "method": "Read the question’s named table or figure, variables, units and legend. Locate the exact condition before comparing values.",
+      "shortcut": "For a direct lookup, use the referenced display first, then read the context needed to interpret it.",
+      "caution": "Do not generalize “never read the passage.” Definitions, methods and viewpoint questions require text.",
+      "example": "Original example: comparing two habitats requires the same species, behavior and unit in both columns.",
+      "sources": [
+        "act-science"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "science-data"
+    },
+    {
+      "id": "science-trends",
+      "title": "Science trends and predictions",
+      "sections": {
+        "ACT": "science"
+      },
+      "method": "Follow the requested series as one variable changes. Distinguish a measured point from an estimate between or beyond points.",
+      "shortcut": "Sketch a small ↑, ↓ or flat note for each relevant relationship.",
+      "caution": "A trend may change direction. Extrapolation needs an explicit assumption that the relationship continues.",
+      "example": "Original example: increasing values from 10 to 20 do not establish the trend at 100.",
+      "sources": [
+        "act-science"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "science-data"
+    },
+    {
+      "id": "science-design",
+      "title": "Science experimental design",
+      "sections": {
+        "ACT": "science"
+      },
+      "method": "Identify what was varied, what was measured and what was held constant. Compare trials that isolate the variable in the question.",
+      "shortcut": "Write a three-part note: changed / measured / controlled.",
+      "caution": "Two changed factors can confound a comparison. Repeated trials improve reliability but do not automatically remove bias.",
+      "example": "Original example: to test light’s effect on growth, keep water and plant type consistent across light conditions.",
+      "sources": [
+        "act-science"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "science-design"
+    },
+    {
+      "id": "science-viewpoints",
+      "title": "Science competing explanations",
+      "sections": {
+        "ACT": "science"
+      },
+      "method": "Summarize each explanation and the prediction it makes. Test the proposed observation against each prediction separately.",
+      "shortcut": "Build a small support / contradict / does not distinguish table.",
+      "caution": "A result can fit several explanations. Distinguish what a speaker claims from established fact.",
+      "example": "Original example: two models may both predict melting, but disagree about whether warming occurs above or below the ice.",
+      "sources": [
+        "act-science"
+      ],
+      "basis": "original-instruction-with-primary-source-context",
+      "lessonId": "science-claims"
+    },
+    {
+      "id": "science-background",
+      "title": "Science background knowledge",
+      "sections": {
+        "ACT": "science"
+      },
+      "method": "Use supplied definitions first; recognize when a question additionally needs a basic science concept. Review that concept after practice.",
+      "shortcut": "Keep a small concept list from missed questions: density, heat, variables, energy and basic biology.",
+      "caution": "Not every answer is recoverable from a graph. Guessing the meaning of technical words can mislead you.",
+      "example": "Original example: a floating object has lower average density than the fluid it displaces in simple equilibrium.",
+      "sources": [
+        "act-guide"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "writing-plan",
+      "title": "ACT Writing: plan an argument",
+      "sections": {
+        "ACT": "writing"
+      },
+      "method": "Read the issue, perspectives and task. Choose a clear position, supporting reasons and a meaningful relationship to another perspective.",
+      "shortcut": "Outline claim → example → explanation before drafting paragraphs.",
+      "caution": "A memorized essay that ignores the prompt will not demonstrate analysis. Address the actual competing ideas.",
+      "example": "Original example: for a technology policy, explain a concrete benefit, a cost, and why your proposed balance is justified.",
+      "sources": [
+        "act-writing"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "writing-revise",
+      "title": "ACT Writing: support and revise",
+      "sections": {
+        "ACT": "writing"
+      },
+      "method": "Explain how examples support the argument. Reserve part of the session for checking logic, organization and sentence clarity.",
+      "shortcut": "Review the thesis and each paragraph’s first sentence to catch a disconnected argument quickly.",
+      "caution": "Length alone is not quality. A specific explanation matters more than an invented statistic or ornate vocabulary.",
+      "example": "Original example: after describing an outcome, add why it supports your claim and what limitation remains.",
+      "sources": [
+        "act-writing"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    },
+    {
+      "id": "pacing-review",
+      "title": "Pacing, flags and productive review",
+      "sections": {
+        "SAT": "general",
+        "ACT": "general"
+      },
+      "method": "When you stop making progress, record a best attempt, flag the question and move on within the current permitted section or module. Return with remaining time.",
+      "shortcut": "After practice, separate concept errors from slow correct answers and try a different method on fresh questions.",
+      "caution": "Section averages are planning guides, not fixed question deadlines. A shortcut is useful only if accuracy holds on unfamiliar problems.",
+      "example": "Original example: compare median time on fresh correct questions before and after a method change; do not count a memorized repeat as new evidence.",
+      "sources": [
+        "act-guide"
+      ],
+      "basis": "original-instruction-with-primary-source-context"
+    }
+  ],
+  "questionExamples": [
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Reading and Writing, module 1",
+      "question": 1,
+      "pdfPage": 2,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "words-context",
+      "note": "Predict an action word from the event, then test the options."
+    },
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Reading and Writing, module 1",
+      "question": 4,
+      "pdfPage": 4,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "words-context",
+      "note": "Track the negation and the later clarification together."
+    },
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Reading and Writing, module 1",
+      "question": 5,
+      "pdfPage": 4,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "central-idea",
+      "note": "Account for the change in attitude across the whole passage."
+    },
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Reading and Writing, module 1",
+      "question": 6,
+      "pdfPage": 5,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "structure-purpose",
+      "note": "Describe what the speaker does first and then."
+    },
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Reading and Writing, module 1",
+      "question": 9,
+      "pdfPage": 6,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "paired-texts",
+      "note": "Compare the authors on the exact claim named in the question."
+    },
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Reading and Writing, module 1",
+      "question": 11,
+      "pdfPage": 7,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "text-evidence",
+      "note": "Match the comparison to an explicitly supported shared feature."
+    },
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Math, module 1",
+      "question": 1,
+      "pdfPage": 34,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "estimate",
+      "note": "Locate the requested category and bracket the bar height."
+    },
+    {
+      "exam": "SAT",
+      "test": 4,
+      "section": "Math, module 1",
+      "question": 2,
+      "pdfPage": 34,
+      "resourceId": "sat-4-explanations",
+      "strategyId": "percent-multipliers",
+      "note": "Identify the whole before converting a part-to-whole fraction to a percentage."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "English",
+      "question": 7,
+      "pdfPage": 15,
+      "resourceId": "act-1-test",
+      "strategyId": "concision",
+      "note": "Check which wording removes repeated meaning without losing the point."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "English",
+      "question": 9,
+      "pdfPage": 15,
+      "resourceId": "act-1-test",
+      "strategyId": "subject-agreement",
+      "note": "Find the grammatical subject before choosing the verb."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "Math",
+      "question": 14,
+      "pdfPage": 29,
+      "resourceId": "act-1-test",
+      "strategyId": "systems",
+      "note": "Compare coefficient ratios and constants before doing elimination."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "Math",
+      "question": 20,
+      "pdfPage": 30,
+      "resourceId": "act-1-test",
+      "strategyId": "scale-geometry",
+      "note": "Use corresponding lengths under the stated similarity conditions."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "Reading",
+      "question": 25,
+      "pdfPage": 43,
+      "resourceId": "act-1-test",
+      "strategyId": "paired-texts",
+      "note": "Identify the focus unique to the specified passage."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "Reading",
+      "question": 27,
+      "pdfPage": 43,
+      "resourceId": "act-1-test",
+      "strategyId": "text-evidence",
+      "note": "Find independent support in both passages for an agreement claim."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "Science",
+      "question": 1,
+      "pdfPage": 47,
+      "resourceId": "act-1-test",
+      "strategyId": "science-lookup",
+      "note": "Use the named behavior and habitats in the requested table."
+    },
+    {
+      "exam": "ACT",
+      "test": 1,
+      "section": "Science",
+      "question": 10,
+      "pdfPage": 49,
+      "resourceId": "act-1-test",
+      "strategyId": "science-viewpoints",
+      "note": "Compare only the seasons claimed by the two named speakers."
+    }
+  ]
+}

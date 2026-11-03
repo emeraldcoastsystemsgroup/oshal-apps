@@ -212,6 +212,89 @@
         "class_id",
         "uploaded_by"
       ]
+    },
+    "lm_prep_sessions": {
+      "read": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "update": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "session_id",
+        "student_id",
+        "tenant_id"
+      ]
+    },
+    "lm_prep_profiles": {
+      "read": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "update": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "student_id",
+        "tenant_id"
+      ],
+      "unique": [
+        [
+          "student_id",
+          "tenant_id"
+        ]
+      ]
+    },
+    "lm_prep_questions": {
+      "read": "true",
+      "insert": "$3->>'role'='admin'",
+      "immutable": [
+        "catalog_version",
+        "question_id",
+        "skill",
+        "question"
+      ],
+      "unique": [
+        [
+          "catalog_version",
+          "question_id"
+        ]
+      ]
+    },
+    "lm_prep_answers": {
+      "read": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id' AND EXISTS(SELECT 1 FROM lm_prep_sessions s WHERE s.session_id=r.session_id AND s.student_id=$3->>'student_id' AND s.tenant_id=$3->>'tenant_id')",
+      "update": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id' AND EXISTS(SELECT 1 FROM lm_prep_sessions s WHERE s.session_id=r.session_id AND s.student_id=$3->>'student_id' AND s.tenant_id=$3->>'tenant_id')",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "session_id",
+        "question_id",
+        "student_id",
+        "tenant_id",
+        "catalog_version",
+        "exam",
+        "section",
+        "skill",
+        "block_index",
+        "question_position",
+        "target_ms"
+      ],
+      "unique": [
+        [
+          "session_id",
+          "question_id"
+        ]
+      ]
+    },
+    "lm_prep_training": {
+      "read": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "update": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "training_id",
+        "student_id",
+        "tenant_id",
+        "exam",
+        "title",
+        "content",
+        "created_at"
+      ]
     }
   }
 }

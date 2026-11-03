@@ -55,3 +55,7 @@ Dockerfile* text eol=lf
 # concurrent appends from different sessions auto-merge instead of conflicting — each session
 # appends self-contained entries at the end. Same rule as the core repo.
 COLLABORATE.md merge=union
+
+# Lesson videos are installed into lasting storage, never copied with the package (little-monsters/scripts/lesson-studio/README.md).
+little-monsters/.videos/** export-ignore
+little-monsters/.videos/** -text

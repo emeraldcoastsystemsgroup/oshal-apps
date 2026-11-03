@@ -1,0 +1,124 @@
+WEBVTT
+
+00:00:01.300 --> 00:00:02.940
+Hi! I'm Sprout,
+
+00:00:03.300 --> 00:00:04.980
+and I love a good graph.
+
+00:00:05.780 --> 00:00:08.000
+ACT science looks like hard science.
+
+00:00:08.500 --> 00:00:10.780
+A lot of it is reading charts very carefully.
+
+00:00:12.520 --> 00:00:14.700
+A table or a graph is just measurements.
+
+00:00:15.200 --> 00:00:16.660
+So before comparing anything,
+
+00:00:17.120 --> 00:00:18.160
+read what's being measured,
+
+00:00:18.160 --> 00:00:19.140
+and its units.
+
+00:00:20.960 --> 00:00:21.860
+Here's a table.
+
+00:00:22.200 --> 00:00:23.140
+Time, in minutes.
+
+00:00:23.840 --> 00:00:24.740
+Temperature, in degrees.
+
+00:00:25.260 --> 00:00:26.780
+Ten minutes, eighteen degrees.
+
+00:00:27.300 --> 00:00:28.540
+Twenty minutes, twenty-two.
+
+00:00:29.200 --> 00:00:30.560
+Thirty minutes, twenty-six.
+
+00:00:31.720 --> 00:00:33.980
+Question: what's the temperature at twenty minutes?
+
+00:00:34.600 --> 00:00:35.500
+Don't read everything.
+
+00:00:35.980 --> 00:00:37.000
+Go straight to the row.
+
+00:00:37.520 --> 00:00:38.720
+Twenty minutes. Across.
+
+00:00:38.720 --> 00:00:39.620
+Twenty-two degrees.
+
+00:00:40.230 --> 00:00:42.250
+On a graph,
+
+00:00:42.570 --> 00:00:43.470
+it's the same move.
+
+00:00:43.970 --> 00:00:45.010
+Find twenty on the axis.
+
+00:00:45.390 --> 00:00:46.290
+Up to the line.
+
+00:00:46.590 --> 00:00:47.690
+Across. Twenty-two.
+
+00:00:49.710 --> 00:00:51.690
+Your turn. This one is between the points.
+
+00:00:52.330 --> 00:00:53.910
+What's the temperature at fifteen minutes,
+
+00:00:54.310 --> 00:00:55.210
+roughly? Go.
+
+00:01:00.590 --> 00:01:03.430
+About twenty! It's halfway between the points,
+
+00:01:03.790 --> 00:01:04.690
+and the line is steady.
+
+00:01:06.390 --> 00:01:08.770
+That's interpolation: inside the data,
+
+00:01:09.090 --> 00:01:09.990
+and pretty safe.
+
+00:01:10.410 --> 00:01:11.330
+Going beyond the data,
+
+00:01:11.550 --> 00:01:12.450
+like at two hours?
+
+00:01:12.690 --> 00:01:14.730
+That's extrapolation. It's uncertain.
+
+00:01:15.210 --> 00:01:16.590
+The trend might not continue.
+
+00:01:18.310 --> 00:01:20.070
+And check the legends and axis scales.
+
+00:01:20.590 --> 00:01:21.490
+A broken scale,
+
+00:01:21.610 --> 00:01:22.610
+or a logarithmic one,
+
+00:01:22.850 --> 00:01:24.790
+changes what distance on the graph means.
+
+00:01:26.610 --> 00:01:29.430
+Variables. Units. Then go straight to what the question
+
+00:01:29.430 --> 00:01:31.170
+asks. Now hit Try this skill!

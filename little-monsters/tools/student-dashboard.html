@@ -454,7 +454,9 @@ function paintHero() {
 
 /** Quick actions differ by role because lecture writes and flashcard generation are teacher-only on the server. */
 function paintActions() {
+  // SAT/ACT opens the student's saved diagnostics, lessons and progress.
   var learner = [
+    ['test-prep', '🎓', 'is-info', 'SAT & ACT', 'Practice, learn shortcuts and track your progress'],
     ['topicpack', '✨', 'is-accent', 'Topic Study Pack', 'Summary, PowerPoint & flashcards on any topic'],
     ['tutor', '💬', '', 'Ask the tutor', 'Help with a topic, grounded in your class'],
     ['flashcards', '🃏', 'is-info', 'Study flashcards', 'Review what is due today'],
@@ -465,6 +467,7 @@ function paintActions() {
     ['monsters', '🐾', 'is-danger', 'My Monsters', 'Open boxes, collect and equip']
   ];
   var teacher = [
+    ['test-prep', '🎓', 'is-info', 'SAT & ACT', 'Practice, lessons and saved personal progress'],
     ['topicpack', '✨', 'is-accent', 'Topic Study Pack', 'Make a Summary, PowerPoint & Flashcards on any topic'],
     ['recorder', '🎤', 'is-danger', 'Record a lecture', 'Captions now, replay, cards and notes after'],
     ['teacher', '📊', '', 'Teacher view', 'Rosters, quiz averages and activity'],

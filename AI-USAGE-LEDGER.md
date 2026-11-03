@@ -97,6 +97,7 @@ Coverage: 83 packages, 83 rated, 0 unrated.
 | little-monsters | 32 / 128 (declared) | lecture-recording-pipeline | lecture recording ticket | T4 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | study-set-generation | flashcard set or quiz | T2 | none | disable | not yet measured | none recorded |
 | little-monsters | 32 / 128 (declared) | tutoring-turn | tutoring turn | T3 | hosted | disable | not yet measured | none recorded |
+| little-monsters | 32 / 128 (declared) | personalized-test-prep | personalized topic training pack | T2 | hosted | template | not yet measured | none recorded |
 | lora | 32 / 128 (declared) | training-ticket-review | training loop ticket | T2 | local | disable | not yet measured | none recorded |
 | marketing-engine | 32 / 128 (declared) | channel-post-draft | channel post draft | T2 | none | disable | not yet measured | none recorded |
 | marketing-engine | 32 / 128 (declared) | icp-research | ideal customer profile refinement | T2 | none | disable | not yet measured | none recorded |
