@@ -1,6 +1,13 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 27 | maintainer@emeraldcoastsystemsgroup.com | Correct only an explicit mistaken manual submission mark through the original-owner write lease, retaining audit history and refusing actual submission evidence.
+ * 26 | maintainer@emeraldcoastsystemsgroup.com | Read and revise owner-private additional experience, validate exact per-application selections, and pass explicit saved priorities to board pagination.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Persist reversible original-owner Not interested feedback through the existing status permission and apply it before feed pagination.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | Return original-owner assessment date/model evidence on job polling and mark retired derived ranks null.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | Normalize the read-only job's remote display with the same workplace evidence used by board and public filters.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | Serve full exact private employer context with job details against the read-only corpus.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | Reconcile exact native submission evidence under the existing original-person mailbox schedule before checking employer updates.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -14,6 +21,9 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | The Insights BY STATE label for a posting with no state showed a twice-encoded em dash (its UTF-8 bytes saved again as Latin-1 text). The SQL now names the em dash as an ASCII escape, so the label is "(remote/—)" whatever the file encoding. Guard: tests/career-insights-state-label.test.mjs.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | GET /analytics reads through career-insights.ts (covering indexes, one pass of the caller's scores); live 2026-10-12 the five corpus-row aggregates stalled past the kernel's 10 s frame deadline on a cold page cache (503, Insights all zeros). A corpus without the Insights index answers 503 with a plain reason at once instead of scanning.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Add an owner-scoped preview + count-checked permanent purge for generated packets older than seven days. The engine removes only that user's generated packet directories and match/application rows, leaving other statuses and the shared corpus intact.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Read the caller's saved matching area for the board without changing independent job browsing.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | Add original-owner saved stars, selected-job preparation and explicit queue/status views, with conservative submission-email receipts.
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | Return the same derived score metrics on job polling as the board feed so a regenerated packet refreshes its visible fit without reloading the board.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerCareerBoardRoutes = registerCareerBoardRoutes;
@@ -22,15 +32,27 @@ const logger_1 = require("@/shared/logger");
 const career_match_prefs_1 = require("./career-match-prefs");
 const apply_run_ledger_1 = require("@/app/apply-run-ledger");
 const career_board_feed_1 = require("./career-board-feed");
+const career_search_scope_1 = require("./career-search-scope");
 const career_resume_preview_1 = require("./career-resume-preview");
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
 const career_targets_1 = require("./career-targets");
 const career_user_store_1 = require("./career-user-store");
 const career_insights_1 = require("./career-insights");
+const crypto_1 = require("crypto");
+const career_engine_runner_1 = require("./career-engine-runner");
+const boardState = require('../lib/career-board-state');
+const applicationDraft = require('../lib/career-application-draft');
+const manualSubmission = require('../lib/career-manual-submission');
+const feedback = require('../lib/career-job-feedback');
+const experienceBank = require('../lib/career-experience-bank');
+const career_surface_routes_1 = require("./career-surface-routes");
+const pay = require('../lib/career-pay');
+const fit = require('../lib/career-fit');
+const emailUpdates = require('../lib/career-email-updates');
 const logger = (0, logger_1.createChildLogger)({ module: 'career-board-routes' });
 const ALLOWED_STATUS = new Set([
-    'new', 'applied', 'dismissed', 'promoted', 'generated', 'interview', 'offer', 'deferred',
+    'new', 'applied', 'dismissed', 'promoted', 'generated', 'interview', 'offer', 'deferred', 'rejected',
 ]);
 async function getJobs(ctx, req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
@@ -50,9 +72,13 @@ async function getJobs(ctx, req, res) {
         // the feed keeps the query builder pure and leaves the Job Search screen — which is a browse
         // surface with its own pills, not a match surface — deliberately untouched.
         const query = { ...req.query };
-        if (query.remote === undefined && await (0, career_match_prefs_1.readRemoteOnly)(ctx.pool, userSub))
+        if (!query.status && query.remote === undefined && await (0, career_match_prefs_1.readRemoteOnly)(ctx.pool, userSub))
             query.remote = '1';
-        const result = (0, career_board_feed_1.fetchBoardPage)(db, query);
+        const state = boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir);
+        const currentQueue = Object.entries(state.jobs).filter(([, value]) => value.favorite || value.workflowEnteredAt || value.applicationDraft).map(([id]) => Number(id));
+        const result = (0, career_board_feed_1.fetchBoardPage)(db, query, (0, career_search_scope_1.readJobSearchScope)((0, career_user_store_1.userPaths)(userSub).userDir), query.status === 'saved' ? boardState.favoriteIds(state) : query.status === 'queue' && query.current === '1' ? currentQueue : undefined, feedback.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.favoriteIds(state));
+        const emails = emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir);
+        result.jobs = result.jobs.map(job => emailUpdates.decorate(emails, boardState.decorateJob(state, job)));
         logger.info({
             userSub,
             sort: req.query.sort || 'ai',
@@ -62,9 +88,13 @@ async function getJobs(ctx, req, res) {
             poolSize: result.poolSize,
             ms: Date.now() - started,
         }, 'career board feed served');
-        res.json(result);
+        res.json({ ...result, exclusions: feedback.read((0, career_user_store_1.userPaths)(userSub).userDir) });
     }
     catch (err) {
+        if (err instanceof pay.PayRangeError) {
+            res.status(400).json({ error: err.code, message: err.message });
+            return;
+        }
         logger.error({ err, userSub, ms: Date.now() - started }, 'career jobs read failed');
         res.status(500).json({ error: 'read failed' });
     }
@@ -103,7 +133,11 @@ function getJobStats(req, res) {
             .sort((left, right) => right.n - left.n);
         const applied = buckets.get('applied') || 0;
         const interviewing = buckets.get('interview') || 0;
-        res.json({ byStatus, total, applied, interviewing });
+        const state = boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir), ids = Object.entries(state.jobs).filter(([, value]) => value.favorite || value.workflowEnteredAt || value.applicationDraft).map(([id]) => Number(id));
+        const queued = ids.length ? Number(db.prepare(`SELECT COUNT(*) AS n FROM user_signals WHERE status IN ('promoted','generated','deferred') AND posting_id IN (${ids.map(() => '?').join(',')})`).get(...ids).n) : 0;
+        res.json({ byStatus, total, applied, interviewing, queued, tracked: applied + interviewing + (buckets.get('offer') || 0) + (buckets.get('rejected') || 0),
+            earlierPreparation: Math.max(0, (buckets.get('promoted') || 0) + (buckets.get('generated') || 0) + (buckets.get('deferred') || 0) - queued),
+            saved: boardState.favoriteIds(state).length });
     }
     catch (err) {
         logger.error({ err, userSub }, 'career jobs stats failed');
@@ -210,7 +244,34 @@ function serveResumeFile(req, res, postingId) {
         return;
     }
     const { userDir } = (0, career_user_store_1.userPaths)(userSub);
+    res.setHeader('Cache-Control', 'private, no-store');
     const resolved = filePath ? resolvePacketPath(filePath, userDir) : null;
+    if (req.query.submitted === '1') {
+        try {
+            const queued = require('../lib/career-submission-queue'), native = require('../lib/career-submission-native'), saved = Object.values(queued.read(userDir).items).filter((value) => value.postingId === postingId && value.status === 'submitted').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+            if (saved) {
+                const input = native.snapshot(userDir, saved.id), name = kind === 'cover_path' ? 'CoverLetter.pdf' : 'Resume_ATS.pdf', bytes = Buffer.from(input.task.documents[name], 'base64');
+                const expected = kind === 'cover_path' ? saved.coverSha256 : saved.resumeSha256;
+                if (queued.digest(bytes) !== expected) {
+                    res.status(409).json({ error: 'Submitted document evidence changed.' });
+                    return;
+                }
+                if (req.query.as !== 'html') {
+                    res.type('pdf').send(bytes);
+                    return;
+                }
+                if (!resolved || queued.digest(require('fs').readFileSync(resolved)) !== expected) {
+                    res.status(404).json({ error: 'The exact submitted HTML is unavailable. Download the retained PDF.' });
+                    return;
+                }
+            }
+        }
+        catch (error) {
+            logger.error({ err: error }, 'submitted document read failed');
+            res.status(409).json({ error: 'Submitted document evidence unavailable.' });
+            return;
+        }
+    }
     if (!resolved) {
         res.status(404).json({ error: 'not found' });
         return;
@@ -233,8 +294,15 @@ async function updateJobStatus(ctx, req, res) {
         return;
     }
     const postingId = Number(req.params.id);
-    const status = String(req.body?.status || '');
-    if (!Number.isFinite(postingId) || !ALLOWED_STATUS.has(status)) {
+    let status = typeof req.body?.status === 'string' ? req.body.status : '';
+    const favorite = req.body?.favorite;
+    const draftInput = req.body?.draft, draftMutation = draftInput !== undefined;
+    const correction = req.body?.correction, undoManual = correction === 'undo-manual-submission';
+    if (!Number.isSafeInteger(postingId) || postingId <= 0 || (status && !ALLOWED_STATUS.has(status))
+        || (favorite !== undefined && typeof favorite !== 'boolean') || (correction !== undefined && !undoManual)
+        || (undoManual && (status || favorite !== undefined || req.body?.feedback || draftMutation))
+        || (draftMutation && (status || favorite !== undefined || req.body?.feedback || correction !== undefined))
+        || (!status && typeof favorite !== 'boolean' && !req.body?.feedback && !undoManual && !draftMutation)) {
         res.status(400).json({ error: 'bad request' });
         return;
     }
@@ -244,6 +312,32 @@ async function updateJobStatus(ctx, req, res) {
         return;
     }
     try {
+        const posting = db.prepare('SELECT p.id,p.title,p.location,c.name AS company FROM corpus.postings_corpus p JOIN corpus.companies c ON c.id=p.company_id WHERE p.id=?').get(postingId);
+        if (posting && req.body?.feedback) {
+            const exclusions = feedback.update((0, career_user_store_1.userPaths)(userSub).userDir, req.body.feedback, posting);
+            res.json({ ok: true, exclusions });
+            return;
+        }
+        if (!posting) {
+            res.status(404).json({ error: 'posting not found' });
+            return;
+        }
+        if (undoManual) {
+            res.json(manualSubmission.undoManualSubmission(db, (0, career_user_store_1.userPaths)(userSub).userDir, postingId, req.body.reason));
+            return;
+        }
+        const signal = db.prepare('SELECT status,resume_path,cover_path FROM user_signals WHERE posting_id=?').get(postingId);
+        if (draftMutation) {
+            const record = { ...signal, status: signal?.status, has_resume: !!signal?.resume_path, has_cover: !!signal?.cover_path };
+            res.json({ ok: true, application: applicationDraft[draftInput?.restore === true ? 'restore' : 'save']((0, career_user_store_1.userPaths)(userSub).userDir, postingId, record, draftInput) });
+            return;
+        }
+        if (!status && favorite === true && signal?.status === 'dismissed')
+            status = 'new';
+        if (status && ['applied', 'interview', 'offer', 'rejected'].includes(signal?.status || '') && ['new', 'promoted', 'generated', 'deferred'].includes(status)) {
+            res.status(409).json({ error: 'A submitted application cannot return to document preparation.' });
+            return;
+        }
         if (status === 'applied') {
             const exists = db.prepare('SELECT 1 AS found FROM user_signals WHERE posting_id=?')
                 .get(postingId);
@@ -258,15 +352,44 @@ async function updateJobStatus(ctx, req, res) {
                 sourceRoute: 'career-board-status',
             });
         }
+        // The native request publishes SQL and metadata together as one owner generation.
+        db.prepare('BEGIN IMMEDIATE').run();
+        db.prepare('INSERT OR IGNORE INTO user_signals(posting_id) VALUES(?)').run(postingId);
         const appliedAt = status === 'applied' ? "COALESCE(applied_at, datetime('now'))" : 'applied_at';
         const provenance = status === 'applied'
             ? `, application_source=CASE
           WHEN application_source IN ('verified-submission','worker-reported','manual-mark')
             THEN application_source ELSE 'manual-mark' END` : '';
-        const info = db.prepare(`UPDATE user_signals SET status=@status, applied_at=${appliedAt}${provenance} WHERE posting_id=@id`).run({ status, id: postingId });
-        res.json({ ok: info.changes > 0, status });
+        if (status)
+            db.prepare(`UPDATE user_signals SET status=@status, applied_at=${appliedAt},
+        promoted_at=${status === 'promoted' ? "COALESCE(promoted_at,datetime('now'))" : 'promoted_at'}${provenance} WHERE posting_id=@id`).run({ status, id: postingId });
+        const patch = {};
+        if (typeof favorite === 'boolean')
+            patch.favorite = favorite;
+        if (status === 'promoted') {
+            patch.favorite = true;
+            patch.phase = 'queued';
+            patch.error = null;
+            patch.completedAt = null;
+            patch.workflowEnteredAt = boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir).jobs[postingId]?.workflowEnteredAt || new Date().toISOString();
+        }
+        if (patch.favorite === true)
+            patch.savedAt = boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir).jobs[postingId]?.savedAt || new Date().toISOString();
+        if (status === 'dismissed')
+            patch.favorite = false;
+        const saved = boardState.updateBoardState((0, career_user_store_1.userPaths)(userSub).userDir, postingId, patch);
+        db.prepare('COMMIT').run();
+        res.json({ ok: true, status, favorite: saved.favorite === true });
     }
     catch (err) {
+        try {
+            db.prepare('ROLLBACK').run();
+        }
+        catch (_) { /* No transaction remains after commit. */ }
+        if ([400, 409, 503].includes(err.status || 0)) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
         logger.error({ err, userSub, postingId }, 'career status update failed');
         res.status(500).json({ error: 'update failed' });
     }
@@ -288,7 +411,7 @@ function parseJsonList(value) {
         return [];
     }
 }
-function getJob(req, res) {
+async function getJob(req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
         res.status(401).json({ error: 'unauthorized' });
@@ -305,11 +428,13 @@ function getJob(req, res) {
         return;
     }
     try {
-        const row = db.prepare(`SELECT p.*, c.name AS company, c.industry, c.homepage, c.careers_url,
+        const row = db.prepare(`SELECT p.*, CASE WHEN ${(0, career_search_scope_1.fullyRemoteSql)()} THEN 1 ELSE 0 END AS remote,
+              c.name AS company, c.industry, c.homepage, c.careers_url,
               COALESCE(c.referral,0) AS referral, s.fit_score, s.ai_fit_score,
-              s.ai_fit_rationale, s.ai_fit_matched, s.ai_fit_gaps, s.status,
+              s.ai_fit_rationale, s.ai_fit_matched, s.ai_fit_gaps, s.ai_scored_at, s.ai_model, s.ai_input_fingerprint, s.status,
               s.applied_at, s.promoted_at, s.generated_at, s.notes,
               s.confirmation_path, s.application_source, s.application_task_id,
+              ${career_board_feed_1.LAND_PROB} AS land_prob, ${career_board_feed_1.HIGH_WIN} AS high_win,
               CASE WHEN s.resume_path IS NOT NULL AND s.resume_path<>'' THEN 1 ELSE 0 END AS has_resume,
               CASE WHEN s.cover_path IS NOT NULL AND s.cover_path<>'' THEN 1 ELSE 0 END AS has_cover
          FROM corpus.postings_corpus p JOIN corpus.companies c ON c.id=p.company_id
@@ -318,9 +443,12 @@ function getJob(req, res) {
             res.status(404).json({ error: 'not found' });
             return;
         }
+        Object.assign(row, require('../lib/career-job-context').applyJobContext((0, career_user_store_1.userPaths)(userSub).userDir, row));
         row.matched = parseJsonList(row.ai_fit_matched);
         row.gaps = parseJsonList(row.ai_fit_gaps);
-        res.json({ job: row });
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.json({ job: { ...emailUpdates.decorate(emailUpdates.read((0, career_user_store_1.userPaths)(userSub).userDir), boardState.decorateJob(boardState.readBoardState((0, career_user_store_1.userPaths)(userSub).userDir), fit.decorateFit(pay.decoratePay(row)))), application: applicationDraft.view((0, career_user_store_1.userPaths)(userSub).userDir, postingId, row) },
+            processing: !!(await (0, career_engine_runner_1.nativeRunInProgress)()) });
     }
     catch (err) {
         logger.error({ err, userSub, postingId }, 'career job detail failed');
@@ -342,20 +470,61 @@ async function generatePacket(ctx, req, res) {
         return;
     }
     const postingId = Number(req.params.id);
-    if (!Number.isFinite(postingId)) {
+    if (!Number.isSafeInteger(postingId) || postingId <= 0) {
         res.status(400).json({ error: 'bad id' });
         return;
     }
     const includeOshal = req.body?.oshal === true || req.body?.oshal === 'true';
+    const experienceIds = req.body?.experienceIds ?? (includeOshal ? [experienceBank.LEGACY] : []);
+    let bank;
+    try {
+        const current = experienceBank.read((0, career_user_store_1.userPaths)(userSub).userDir);
+        bank = experienceBank.selection((0, career_user_store_1.userPaths)(userSub).userDir, experienceIds, req.body?.experienceRevision || (includeOshal ? current.revision : undefined));
+    }
+    catch (error) {
+        res.status(error.status || 503).json({ error: error.message });
+        return;
+    }
     const guidance = String(req.body?.guidance || '').trim();
-    const started = await (0, career_engine_dispatch_1.runCareerCliAsync)(ctx.pool, userSub, ['tailor'], {
+    if (guidance.length > 2000) {
+        res.status(400).json({ error: 'Keep application guidance within 2,000 characters.' });
+        return;
+    }
+    const requestId = typeof req.body?.requestId === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(req.body.requestId) ? req.body.requestId : (0, crypto_1.randomUUID)();
+    const documents = req.body?.documents !== false;
+    try {
+        const db = (0, career_user_store_1.openUserDb)(userSub);
+        if (!db) {
+            res.status(404).json({ error: 'Upload a résumé first.' });
+            return;
+        }
+        let job;
+        try {
+            job = db.prepare('SELECT status,resume_path,cover_path,CASE WHEN resume_path IS NOT NULL AND resume_path<>\'\' THEN 1 ELSE 0 END AS has_resume,CASE WHEN cover_path IS NOT NULL AND cover_path<>\'\' THEN 1 ELSE 0 END AS has_cover FROM user_signals WHERE posting_id=?').get(postingId) || {};
+        }
+        finally {
+            db.close();
+        }
+        applicationDraft.begin((0, career_user_store_1.userPaths)(userSub).userDir, postingId, job, { revision: req.body?.draftRevision, guidance, experienceIds, experienceRevision: bank.revision }, requestId, documents);
+    }
+    catch (error) {
+        res.status(error.status || 503).json({ error: error.message });
+        return;
+    }
+    const started = await (0, career_engine_dispatch_1.runCareerCliAsync)(ctx.pool, userSub, ['prepare-job'], {
         CH_JOB: String(postingId),
-        CH_OSHAL: includeOshal ? '1' : '',
+        CH_OSHAL: '',
+        CH_EXPERIENCE_IDS: JSON.stringify(experienceIds),
+        CH_EXPERIENCE_REVISION: bank.revision,
         CH_GUIDANCE: guidance,
+        CH_DOCUMENTS: req.body?.documents === false ? '0' : '1',
+        CH_REQUEST_ID: requestId,
     });
+    if (!started.started && documents)
+        applicationDraft.refused((0, career_user_store_1.userPaths)(userSub).userDir, postingId, requestId);
     if ((0, career_engine_response_1.rejectEngineStart)(res, started, 'tailor'))
         return;
-    res.status(202).json({ ok: true, status: 'generating' });
+    res.status(202).json({ ok: true, status: req.body?.documents === false ? 'scoring' : 'generating', requestId });
 }
 /** HTTP status for each refusal code the engine's packets.remove returns. */
 const PACKET_REFUSAL_STATUS = { 'not-found': 404, conflict: 409 };
@@ -510,6 +679,26 @@ function setReferral(req, res) {
  * @returns Nothing.
  */
 function registerCareerBoardRoutes(router, ctx) {
+    router.get('/experience-library', (0, career_surface_routes_1.createCareerToolFileHandler)('career-experience-bank.html'));
+    router.get('/experience-bank', (req, res) => { const sub = (0, career_user_store_1.callerSub)(req); if (!sub) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    } try {
+        const bank = experienceBank.read((0, career_user_store_1.userPaths)(sub).userDir);
+        res.json(req.query.summary === '1' ? { ...bank, entries: bank.entries.map(({ facts, ...entry }) => entry) } : bank);
+    }
+    catch (error) {
+        res.status(error.status || 503).json({ error: error.message });
+    } });
+    router.post('/experience-bank', (req, res) => { const sub = (0, career_user_store_1.callerSub)(req); if (!sub) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+    } try {
+        res.json({ ok: true, ...experienceBank.update((0, career_user_store_1.userPaths)(sub).userDir, req.body) });
+    }
+    catch (error) {
+        res.status(error.status || 503).json({ error: error.message });
+    } });
     router.get('/jobs', (req, res) => { void getJobs(ctx, req, res); });
     router.get('/jobs/stats', getJobStats);
     router.get('/jobs/purge-generated', (req, res) => { void previewGeneratedPurge(ctx, req, res); });
@@ -517,6 +706,41 @@ function registerCareerBoardRoutes(router, ctx) {
     router.get('/analytics', getAnalytics);
     router.get('/resume', (req, res) => serveResumeFile(req, res, Number(req.query.id)));
     router.post('/jobs/:id/status', (req, res) => updateJobStatus(ctx, req, res));
+    router.get('/jobs/updates', (req, res) => {
+        const sub = (0, career_user_store_1.callerSub)(req);
+        if (!sub) {
+            res.status(401).json({ error: 'unauthorized' });
+            return;
+        }
+        try {
+            res.json(emailUpdates.publicState(emailUpdates.read((0, career_user_store_1.userPaths)(sub).userDir)));
+        }
+        catch (_) {
+            res.status(500).json({ error: 'Application email state unavailable' });
+        }
+    });
+    router.post('/jobs/updates/check', async (req, res) => {
+        const sub = (0, career_user_store_1.callerSub)(req);
+        if (!sub) {
+            res.status(401).json({ error: 'unauthorized' });
+            return;
+        }
+        const db = (0, career_user_store_1.openUserDb)(sub, false);
+        if (!db) {
+            res.status(404).json({ error: 'Upload a resume before monitoring application email.' });
+            return;
+        }
+        try {
+            const submissionReconciliation = await require('../lib/career-submission-routes').reconcileCareerSubmissions(ctx, sub);
+            res.json({ ...await emailUpdates.check((0, career_user_store_1.userPaths)(sub).userDir, db), submissionReconciliation });
+        }
+        catch (_) {
+            res.status(500).json({ error: 'Application email check failed' });
+        }
+        finally {
+            db.close();
+        }
+    });
     router.get('/jobs/:id', getJob);
     router.post('/jobs/:id/generate', (req, res) => generatePacket(ctx, req, res));
     router.delete('/jobs/:id/packet', (req, res) => { void removePacket(ctx, req, res); });
@@ -530,4 +754,3 @@ function registerCareerBoardRoutes(router, ctx) {
 function registerCareerResumeAlias(router) {
     router.get('/resume/:id', (req, res) => serveResumeFile(req, res, Number(req.params.id)));
 }
-//# sourceMappingURL=career-board-routes.js.map

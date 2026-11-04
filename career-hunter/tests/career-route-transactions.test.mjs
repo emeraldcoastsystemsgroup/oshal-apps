@@ -16,6 +16,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Pin runner leases to the disposable fixture so failed tests cannot strand locks in a checkout-local default store.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Prove the independent global upload ceiling rejects resume and artifact bodies with exact 429 semantics before parsing.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Keep the fifty-artifact metadata bound distinct from the single no-follow ownership probe for LinkedIn saved jobs.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | The save fixture answers the application-lock read that the 1.47 save makes first.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -63,6 +64,7 @@ multerStub.memoryStorage = () => ({});
 function openFixtureUserDb(userSub) {
   return {
     prepare(sql) {
+      if (sql.startsWith('SELECT status FROM user_signals')) return { get: () => ({ status: 'generated' }) };
       if (sql.startsWith('SELECT resume_path')) {
         return { get: (postingId) => {
           const value = signalPaths.get(`${userSub}:${postingId}`);

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Guards the dip pair: the deep-dip price signal sits in the history test like any other; the quality dip takes only a 25%+ fall with a profitable, growing filing behind it, deepest first, and the screen ranks by the exact rule the scoreboard grades; the brief carries tonight's candidates and names the forward verdict for a ranking with no history test.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | A read that fails once gets a second try after the sweep, and a name that keeps failing says why.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Guards the wider pool: who is in it and who is not, the $5 million trading floor in both the list and the history test, passes short enough not to hold up the watcher, statements that never read the whole table, a store that outgrows the kernel's single-answer limit, and reading the list by page and group.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Price reads are paced so the desk cannot crowd out the watcher on Schwab's shared request limit.
@@ -20,7 +21,7 @@ const { readDirectory, composePool, readCongressNames, LISTED_SIZE } = require('
 const { CONGRESS_SEED } = require('../routes/quant/congress-seed');
 const { THEMES, themesOf } = require('../routes/quant/themes');
 const { industryOf } = require('../routes/quant/industries');
-const { screenPage, briefPage, whyNotListed } = require('../routes/quant/view');
+const { screenPage, briefPage, rankedBy, whyNotListed } = require('../routes/quant/view');
 const desk = require('../routes/quant/desk');
 const { quantHandlers, createTradingQuantRoutes, QUANT_SCHEDULE } = require('../routes/quant/routes');
 const { seeded, weekdays, candles } = require('./support/native-quant-doubles');
@@ -132,6 +133,9 @@ test('the history test finds a real persistent edge, does not invent one, and co
   assert.equal(short.signals.find((s) => s.id === 'momentum').verdict, 'Too little history');
   assert.match(edge.limits.join(' '), /today's companies/);
   assert.match(edge.limits.join(' '), /flatters every signal/, 'the warning stands whether or not the list beat SPY');
+  const dip = edge.signals.find((s) => s.id === 'dip');
+  assert.ok(dip && dip.months > 80, 'the dip-buying hypothesis is tested on the same years of history as every other signal');
+  assert.ok(['Holds up', 'Promising', 'Mixed', 'Fails'].includes(dip.verdict), 'and gets a verdict, not a pass');
   assert.match(edge.limits.join(' '), /upper limit/);
   assert.match(edge.limits.join(' '), /dividends/);
   const spy = new Map([['2020-01', { fwd: 0.01, vsMa200: 0.05 }], ['2020-02', { fwd: 0.02, vsMa200: -0.05 }], ['2020-03', { fwd: -0.2, vsMa200: -0.1 }], ['2020-04', { fwd: 0.1, vsMa200: 0.02 }]]);
@@ -217,6 +221,23 @@ test('every pick is recorded before its outcome, entered the next session and gr
   gradeCohort(cohort, closes, sessions);
   assert.equal(JSON.stringify(cohort.graded[5]), frozen, 'a recorded grade never changes');
   assert.ok(cohort.graded[21], 'a later horizon is graded when it arrives');
+});
+
+test('a quality dip is a 25% fall with a real business behind it, deepest first, and one rule serves the cohort and the screen', () => {
+  const row = (symbol, fromHigh, fund) => ({ symbol, price: 100, chg1d: 0, f: { composite: 50, mom12: 0.1, vsMa200: -0.1, fromHigh, vol: 0.3, rev1: -0.1 }, pct: { composite: 50 }, fund, congress: null, name: null, group: null, themes: [], earnings: null, held: false });
+  const rows = [
+    row('SHALLOW', -0.10, { revenueYoYPct: 20, netMarginPct: 15 }),
+    row('DEEPBAD', -0.50, { revenueYoYPct: 30, netMarginPct: -4 }),
+    row('DEEPQ', -0.40, { revenueYoYPct: 12, netMarginPct: 8 }),
+    row('DEEPQ2', -0.30, { revenueYoYPct: 5, netMarginPct: 2 }),
+    row('NOFILING', -0.60, null),
+  ];
+  const cohort = makeCohort(SESSION, rows);
+  assert.deepEqual(cohort.picks['quality-dip'], ['DEEPQ', 'DEEPQ2'], 'deepest qualifying fall first; a loss-maker, a shallow dip or a missing filing never qualifies');
+  assert.deepEqual(cohort.picks.dip, ['NOFILING', 'DEEPBAD', 'DEEPQ', 'DEEPQ2', 'SHALLOW'], 'the price-only deep dip ranks pure depth for the record to judge');
+  assert.deepEqual(cohort.picks['quality-growth'], ['SHALLOW', 'DEEPQ', 'DEEPQ2'], 'the existing filing signal is unchanged by the refactor');
+  assert.deepEqual(rankedBy(rows, 'quality-dip').map((r) => [r.symbol, r.rank]), [['DEEPQ', 1], ['DEEPQ2', 2]], 'the screen shows exactly the selection the scoreboard grades');
+  assert.ok(forwardBoard([cohort], 'x').signals.some((s) => s.id === 'quality-dip'), 'judged by the forward record, like the other filing signals');
 });
 
 test('overlapping windows are not counted twice, and a verdict waits for enough of them', () => {
@@ -381,11 +402,18 @@ test('the pipeline resumes across bounded passes against real PostgreSQL, publis
   assert.equal(board.history.signals.length, PRICE_SIGNALS.length);
   assert.equal(board.forward.cohorts, 1);
   assert.equal(board.forward.graded[5], 0, 'no pick can be graded the night it is made');
+  assert.ok(board.forward.signals.some((s) => s.id === 'quality-dip'), 'the quality dip is on the forward scoreboard from its first night');
   const brief = (await h.today('alice', { query: { view: 'brief' } })).body;
   assert.equal(brief.top.length, 20);
   assert.ok(brief.rankedBy && brief.rankedBy.verdict, 'the concierge can say what the ranking is worth');
+  assert.ok(brief.qualityDip && /25% below/.test(brief.qualityDip.what) && typeof brief.qualityDip.matched === 'number', "tonight's quality-dip candidates ride along with their rule");
   assert.ok(JSON.stringify(brief).length < 60 * 1024, 'fits the concierge reply limit');
   assert.ok(brief.groups.some((g) => g.name === 'Gold & silver mining'), 'the concierge can name what to narrow to');
+  const briefDips = (await h.today('alice', { query: { view: 'brief', by: 'quality-dip' } })).body;
+  assert.match(briefDips.rankedBy.verdict, /forward record only/, 'a ranking with no history test says so instead of borrowing a verdict');
+  assert.equal(briefDips.top.length, Math.min(20, briefDips.qualityDip.matched), 'asked for the dips, the list IS the dips');
+  assert.deepEqual(briefDips.qualityDip.top, [], 'and the block does not repeat them');
+  assert.equal((await h.today('alice', { query: { by: 'quality-dip', limit: 200 } })).body.by, 'quality-dip', 'the screen can rank by it too');
   const mining = (await h.today('alice', { query: { view: 'brief', group: 'Gold & silver mining' } })).body;
   assert.equal(mining.selection.group, 'Gold & silver mining');
   assert.ok(mining.top.length > 0 && mining.top.every((r) => r.group === 'Gold & silver mining'));
@@ -525,6 +553,9 @@ test('the list reads a page at a time, by group, search, signal and column, in a
   assert.equal(calm.rows[0].symbol, 'R2999', 'any signal can rank the list');
   assert.equal(calm.holdings[0].rank, 2960, "and the person's holdings follow it");
   assert.equal(screenPage(today, rows, { by: 'made-up' }).by, 'momentum', 'an unknown signal changes nothing');
+  const dips = screenPage(today, rows, { by: 'quality-dip' });
+  assert.equal(dips.by, 'quality-dip', 'a forward signal is a ranking the screen can be asked for');
+  assert.equal(dips.total, 0, 'without a filing behind it, a deep fall is not a quality dip');
   assert.equal(screenPage(today, rows, { sort: 'vol', dir: '-1' }).rows[0].symbol, 'R2999', 'a column sorts the whole list, not just the page');
   assert.equal(screenPage(today, rows, { sort: 'symbol' }).rows[0].symbol, 'R0000');
   assert.equal(screenPage(today, rows, { sort: 'chg1d', dir: '1' }).rows.some((r) => r.chg1d == null), false, 'a missing value sorts last');

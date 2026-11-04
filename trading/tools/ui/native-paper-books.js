@@ -1,4 +1,7 @@
 /* CHANGE LOG
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.51.1: the film panel's status line survives the redraw that replaced it after every pass, so the countdown and the final or refusal message reach the person; only one film loop runs at a time and its buttons read disabled meanwhile.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: Film today's report / Film again repeat the pass until every account is filmed (one account per call), and the copy no longer names a studio engine: the films are made inside Trading.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Report films: the OSHAL report tab lists and plays the per-account videos the studio engine renders, films on demand (Film today's report / Film again), sends the presenter clip to the studio once, and activates the daily report-video schedule beside the daily report.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Show every connected account’s real executions, recent history and coverage exceptions separately from simulated fills.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Pair reusable private presenter footage with the current report; keep archived audio muted and narration local.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Local paper accounts and the private OSHAL report, including archive-before-reset and browser narration. No real-money controls.
@@ -46,15 +49,61 @@ function reportTable(report){
  return '<div class="panel"><div style="display:flex;justify-content:space-between;flex-wrap:wrap"><div><h2>'+esc(report.title)+'</h2><div class="sub">'+esc(report.presenter)+' · '+esc(report.sessionDate)+' · private report · as of '+esc(report.generatedAt)+'</div></div><div><button class="btn primary" data-or="play">Play briefing</button> <button class="btn" data-or="stop">Stop voice</button> <button class="btn" data-or="export">Download report</button></div></div><p>'+report.headlines.map(esc).join('<br>')+'</p>'+reportPresenterHtml(report)+'<div id="orSlide" class="panel" style="min-height:140px;background:var(--surface-2,rgba(90,90,150,.08))"></div><button class="btn" data-or="previous">← Previous</button> <button class="btn" data-or="next">Next →</button></div>'+report.live.map(r=>'<div class="panel"><h3>'+esc(r.label)+' · real account snapshot</h3><p>'+money(r.equity)+' equity · '+money(r.cash)+' cash</p><p>'+esc(r.strategyName||'No assigned strategy')+'</p><p>Strategy authority: <b>'+esc(r.authority)+'</b> · Watcher exits: <b>'+esc(r.protectionAuthority)+'</b></p><p class="sub">Last watcher check '+esc(r.lastWatcherAt||'not recorded')+'</p>'+reportActivityHtml(r.activity,false)+research(r)+'</div>').join('')+report.paper.map(r=>'<div class="panel"><h3>'+esc(r.label)+' · '+(r.archived?'archived paper':'paper simulation')+'</h3><p>'+money(r.equity)+' equity · '+r.returnPct+'% since '+esc(r.startedAt.slice(0,10))+' · '+money(r.realizedPl)+' realized</p><p>Drawdown from recorded high: '+r.drawdownPct+'% · '+(r.halted?'Entries halted by drawdown rule':r.armed?'Armed':'Stopped')+'</p><p class="sub">Last tick '+esc(r.lastTickAt||'none')+' · source '+esc(r.priceSource)+' · unavailable '+esc(r.missing.join(', ')||'none recorded')+'</p>'+reportActivityHtml(r.activity,true)+'</div>').join('')+'<div class="panel"><h3>Evidence and limitations</h3>'+report.errors.concat(report.limitations).map(x=>'<p>'+esc(x)+'</p>').join('')+'<details><summary>Presenter script</summary><div style="white-space:pre-wrap">'+esc(report.narration)+'</div></details></div>';
 }
 function reportPaintSlide(){const host=$('orSlide');if(!host||!LOCAL_REPORT)return;const slide=LOCAL_REPORT.storyboard[LOCAL_REPORT_SLIDE];host.innerHTML='<div class="sub">'+esc(LOCAL_REPORT.presenter)+' · '+(LOCAL_REPORT_SLIDE+1)+' / '+LOCAL_REPORT.storyboard.length+'</div><h2>'+esc(slide.title)+'</h2><p style="white-space:pre-wrap;font-size:1.15rem;line-height:1.7">'+esc(slide.text)+'</p>';}
+let REPORT_FILMING=false,REPORT_FILM_STATUS='';
+function reportFilmSay(text){REPORT_FILM_STATUS=text;if($('orVideoMsg'))$('orVideoMsg').textContent=text;}
+function reportVideosHtml(data){
+ const rows=data.videos||[],sessions=[...new Set(rows.map(v=>v.session))].slice(0,3);
+ const chip=v=>v.status==='ready'?'':v.status==='failed'?'<p class="err">Could not film: '+esc(v.detail||'unknown reason')+'</p>':'<p class="sub">Filming…</p>';
+ const session=s=>'<h4>'+esc(s)+'</h4><div style="display:flex;gap:16px;flex-wrap:wrap">'+rows.filter(v=>v.session===s).map(v=>'<figure style="margin:0;max-width:420px"><figcaption><b>'+esc(v.account)+'</b>'+(v.seconds?' · '+Math.round(v.seconds)+'s':'')+'</figcaption>'+(v.url?'<video controls preload="metadata" src="'+esc(v.url)+'" style="width:100%;border-radius:12px"></video>':chip(v))+'</figure>').join('')+'</div>';
+ const clip=data.presenter&&data.presenter.present?'<p class="sub">Your presenter clip is in place and plays silently in each film.</p>':'<p class="sub">No presenter clip yet; films render as slides with narration. <button class="btn" data-or="sendclip">Use my presenter clip</button></p>';
+ return '<div class="panel"><h3>Report films</h3><p>One video per connected account, filmed from each day\'s saved report inside Trading on your oshal installation. Narrated by the installation\'s own voice; nothing is uploaded.</p>'+clip+'<button class="btn primary" data-or="film"'+(REPORT_FILMING?' disabled':'')+'>Film today\'s report</button> <button class="btn" data-or="refilm"'+(REPORT_FILMING?' disabled':'')+'>Film again</button> <button class="btn" data-or="refreshvideos">Refresh films</button><div id="orVideoMsg" role="status"></div><div id="orVideoList">'+(sessions.length?sessions.map(session).join(''):'<p class="sub">No films yet. The report-video job films each close once you turn it on (Activate daily films), or press Film today\'s report.</p>')+'</div></div>';
+}
+async function renderReportVideos(host,poll){
+ const box=$('orVideos');if(!box||!host.contains(box))return;
+ try{const data=await api('/paper/reports/videos');if($('tabbody')!==host)return;box.innerHTML=reportVideosHtml(data);if($('orVideoMsg'))$('orVideoMsg').textContent=REPORT_FILM_STATUS;
+  if(poll&&(data.videos||[]).some(v=>v.status==='rendering'))setTimeout(()=>renderReportVideos(host,poll-1),10000);
+ }catch(e){box.innerHTML='<div class="panel err">'+esc(e.message)+'</div>';}
+}
+function reportFilmProgress(out){
+ const videos=out.videos||[],left=videos.filter(v=>v.status!=='ready'&&v.status!=='failed').length,failed=videos.filter(v=>v.status==='failed').length;
+ if(out.waiting)return out.message;
+ if(!out.done)return 'Filming… '+left+' account'+(left===1?'':'s')+' to go.';
+ return failed?failed+' of '+videos.length+' could not be filmed; the reason is on each one below.':'Films for '+out.session+' are ready below.';
+}
+async function filmReport(host,force){
+ if(REPORT_FILMING)return;REPORT_FILMING=true;
+ try{
+  reportFilmSay('Filming the first account…');await renderReportVideos(host,0);
+  for(let pass=0;pass<12;pass++){
+   const out=await api('/paper/reports/videos/tick',jbody('POST',force&&pass===0?{force:true}:{}));
+   if($('tabbody')!==host)return;
+   REPORT_FILM_STATUS=reportFilmProgress(out);
+   if(out.waiting||out.done){REPORT_FILMING=false;await renderReportVideos(host,0);return;}
+   await renderReportVideos(host,0);
+  }
+  reportFilmSay('Still filming; the daily job finishes the rest.');
+ }catch(err){reportFilmSay(err.message);}finally{if(REPORT_FILMING){REPORT_FILMING=false;await renderReportVideos(host,0);}}
+}
+async function reportSendClip(){
+ const url=LOCAL_REPORT&&LOCAL_REPORT.presenterVideoUrl;if(!url)throw Error('Save a Video Studio clip link on the report first (Presenter visual above), then refresh the report.');
+ const blob=await (await fetch(url)).blob();if(blob.size>4*1024*1024)throw Error('The clip is over 4 MiB; export a shorter presenter clip.');
+ const bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+32768));
+ await api('/paper/reports/videos/presenter',jbody('POST',{dataBase64:btoa(binary)}));
+}
 async function renderOshalReport(){
+ REPORT_FILM_STATUS='';
  const host=$('tabbody'),gen=host?.getAttribute('data-gen');if(!host)return;host.innerHTML='<div class="panel">'+spinner('Reading saved OSHAL reports…')+'</div>';
  try{
   const result=await api('/paper/reports');if($('tabbody')!==host||host.getAttribute('data-gen')!==gen)return;
   LOCAL_REPORT=result.reports[0]||null;LOCAL_REPORT_SLIDE=0;
-  host.innerHTML='<div class="panel"><h2>Your OSHAL report</h2><p>A private briefing of real trades across every connected account, account snapshots, separate local paper results and completed strategy research. No satellite click-and-transfer workflow is needed for this presentation.</p><label>Presenter name <input id="orPresenter" maxlength="80" value="'+esc(LOCAL_REPORT?.presenter||'OSHAL market desk')+'"></label><details><summary>Presenter visual</summary><label>Private clip link <input id="orPresenterVideoLink" style="width:100%" value="'+esc(LOCAL_REPORT?.presenterVideoUrl||'')+'" placeholder="Paste a private Video Studio clip link"></label><p class="sub">Imported presenter footage stays in your Video Studio library and is played silently with the current report.</p></details> <button class="btn primary" data-or="generate">Refresh report now</button> <button class="btn" data-or="schedule">Activate daily report</button><p class="sub">Daily report: 5:05 p.m. Central, weekdays. Narration uses a local voice installed on this device. Presenter footage is archival and plays silently alongside the current briefing.</p><div id="orMsg" role="status"></div></div><div id="orContent">'+(LOCAL_REPORT?reportTable(LOCAL_REPORT):'<div class="panel">No native report has been recorded. Refresh report now to create the first.</div>')+'</div>';
-  reportPaintSlide();host.onclick=async e=>{const b=e.target.closest('[data-or]');if(!b||!host.contains(b))return;const action=b.dataset.or;try{
+  host.innerHTML='<div class="panel"><h2>Your OSHAL report</h2><p>A private briefing of real trades across every connected account, account snapshots, separate local paper results and completed strategy research. No satellite click-and-transfer workflow is needed for this presentation.</p><label>Presenter name <input id="orPresenter" maxlength="80" value="'+esc(LOCAL_REPORT?.presenter||'OSHAL market desk')+'"></label><details><summary>Presenter visual</summary><label>Private clip link <input id="orPresenterVideoLink" style="width:100%" value="'+esc(LOCAL_REPORT?.presenterVideoUrl||'')+'" placeholder="Paste a private Video Studio clip link"></label><p class="sub">Imported presenter footage stays in your Video Studio library and is played silently with the current report.</p></details> <button class="btn primary" data-or="generate">Refresh report now</button> <button class="btn" data-or="schedule">Activate daily report</button> <button class="btn" data-or="filmschedule">Activate daily films</button><p class="sub">Daily report: 5:05 p.m. Central, weekdays. Daily films: from 5:20 p.m. Central, one video per connected account, made inside Trading. Narration uses the installation\'s own voice. Presenter footage is archival and plays silently alongside the current briefing.</p><div id="orMsg" role="status"></div></div><div id="orVideos"></div><div id="orContent">'+(LOCAL_REPORT?reportTable(LOCAL_REPORT):'<div class="panel">No native report has been recorded. Refresh report now to create the first.</div>')+'</div>';
+  reportPaintSlide();renderReportVideos(host,6);host.onclick=async e=>{const b=e.target.closest('[data-or]');if(!b||!host.contains(b))return;const action=b.dataset.or;try{
    if(action==='generate'){b.disabled=true;await api('/paper/presenter',jbody('POST',{presenterName:$('orPresenter').value,presenterVideoUrl:reportPresenterInput()}));const r=await api('/paper/reports',jbody('POST',{}));if($('tabbody')!==host)return;LOCAL_REPORT=r.report;LOCAL_REPORT_SLIDE=0;$('orContent').innerHTML=reportTable(LOCAL_REPORT);reportPaintSlide();}
    if(action==='schedule'){await localPaperSchedule('oshal-daily-report');$('orMsg').textContent='Daily report schedule is active for you.';}
+   if(action==='filmschedule'){await localPaperSchedule('report-video');$('orMsg').textContent='Daily films schedule is active for you: one video per account, from 5:20 p.m. Central.';}
+   if(action==='film'||action==='refilm')await filmReport(host,action==='refilm');
+   if(action==='refreshvideos'){renderReportVideos(host,0);}
+   if(action==='sendclip'){b.disabled=true;await reportSendClip();REPORT_FILM_STATUS='Presenter clip is in place; the next film includes it.';renderReportVideos(host,0);}
    if(action==='next'||action==='previous'){LOCAL_REPORT_SLIDE=(LOCAL_REPORT_SLIDE+(action==='next'?1:-1)+LOCAL_REPORT.storyboard.length)%LOCAL_REPORT.storyboard.length;reportPaintSlide();}
    if(action==='stop'){if(window.speechSynthesis)window.speechSynthesis.cancel();$('orPresenterVideo')?.pause();}
    if(action==='play'){const visual=$('orPresenterVideo');if(visual){visual.muted=true;visual.play().catch(()=>{});}if(!window.speechSynthesis)throw Error('This browser has no narration voice. The script is available below.');const voice=speechSynthesis.getVoices().find(v=>v.localService&&/^en\b/i.test(v.lang))||speechSynthesis.getVoices().find(v=>v.localService);if(!voice)throw Error('No local narration voice is available yet. Use the presenter script below; remote voices are not used for account data.');speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(LOCAL_REPORT.narration);utterance.voice=voice;utterance.rate=.95;speechSynthesis.speak(utterance);}

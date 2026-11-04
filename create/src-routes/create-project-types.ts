@@ -2,6 +2,7 @@
  * CHANGE LOG
  * SEQ | AUTHOR | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Define private Create projects, immutable revision snapshots and bounded image asset metadata.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: a ProjectError may carry the validator's reason as `detail`.
  */
 import type { Pool } from 'pg';
 import type { PackageAuthorizationContext } from '@/app/composition/application-authorization-runtime';
@@ -18,7 +19,7 @@ export interface ProjectContext { pool: Pick<Pool, 'connect'>; authorization?: P
 export type ConfirmProjectAccess = () => Promise<void>;
 
 export class ProjectError extends Error {
-  constructor(public readonly status: number, public readonly code: string) { super(code); }
+  constructor(public readonly status: number, public readonly code: string, public readonly detail?: string) { super(code); }
 }
 
 export const PROJECT_LIMITS = Object.freeze({ documentBytes: 262144, layers: 200, depth: 12, nodes: 100000,

@@ -1,10 +1,14 @@
 /**
  * CHANGE LOG
+ * 22 | maintainer@emeraldcoastsystemsgroup.com | Allow indexed feeds and full-text searches to continue past the legacy depth ceiling; preserve a declared bound only for the unindexed fallback.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy remote flags in public filters and card projections so hybrid or occupational text is not advertised as fully remote.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Plan a corpus-only board feed so a signed-in user with no indexed resume can still search the openings.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Permit bounded 200-result pages selected by the user.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply offline location/radius constraints inside every search arm before pools and pages, with exact distance and required geo-index readiness; expose real posting coordinates and salary provenance.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Search titles and descriptions from the primary keyword box through FTS, retain employer matches and independent advanced-field constraints, and keep legacy fallback semantics consistent.
  */
 /**
  * Career Hunter — corpus-only browse feed.
@@ -21,11 +25,10 @@
  *
  *   - There are no scores here, so there is no `fit` ranking to preserve. The default order is
  *     `first_seen_at DESC`, which `idx_corpus_seen` serves as a bounded index walk.
- *   - A keyword search matches **titles only**. `postings_corpus.description` is ~1.1GB of the
- *     ~2.0GB live corpus and is stored inline, so `title LIKE ? OR description LIKE ?` drags every
- *     row's description through the page cache — the exact shape that measured 50s on the scored
- *     board before it was replanned. Titles alone fit in a covering index.
- *   - That search runs as a bounded **candidate CTE** over `idx_corpus_browse (active, title)`.
+ *   - Keywords search titles and descriptions through FTS5, with employer names joined from
+ *     the small company table. Description-only matches are available from the main box.
+ *   - A legacy corpus without FTS uses a bounded **candidate CTE** over title, company and
+ *     description arms. The title arm uses `idx_corpus_browse (active, title)`.
  *     Selecting only `id` keeps the statement covered by that index, so a leading-wildcard LIKE
  *     scans ~65MB of title keys instead of ~2GB of rows, and the LIMIT lets a common term stop
  *     early. The pool is unordered — every ordering the browse offers lives on the corpus side, so
@@ -34,6 +37,10 @@
  * @module career-browse-feed
  */
 import { resolveCareerLocation, careerDistanceSql, careerRadiusPredicate, normalizeCareerCity, type CareerLocation } from './career-geo';
+import { fullyRemoteSql } from './career-search-scope';
+
+const pay = require('../lib/career-pay');
+const feedback = require('../lib/career-job-feedback');
 
 interface SqliteStatement {
   all(...params: unknown[]): unknown[];
@@ -56,10 +63,10 @@ export const BROWSE_SORT_MAP: Record<string, string> = {
   // no index can serve it, and ordering 1.6M postings by employer name to show twenty rows
   // measured 29.9s -- for an answer ("twenty jobs at companies starting with a digit") that
   // nobody asked for. Filter by company instead; that is indexed and instant.
-  recent: 'p.first_seen_at DESC',
-  posted: 'p.posted_date DESC NULLS LAST',
-  salary: 'COALESCE(p.salary_max,p.salary_min,0) DESC',
-  title: 'p.title ASC',
+  recent: 'p.first_seen_at DESC, p.id DESC',
+  posted: 'p.posted_date DESC NULLS LAST, p.id DESC',
+  salary: 'COALESCE(p.salary_max,p.salary_min,0) DESC, p.id DESC',
+  title: 'p.title ASC, p.id ASC',
 };
 
 /**
@@ -78,12 +85,13 @@ export const BROWSE_POOL = 20000;
 export const ARM_POOL = 600;
 
 /** Page geometry ceilings. Deep paging on a scan-shaped feed is where latency actually lives. */
-export const MAX_PER = 100;
+export const MAX_PER = 200;
 export const MAX_OFFSET = 2000;
 
 /** The browse card's columns. Deliberately excludes `p.description` (1.1GB of the corpus). */
 const SELECT_COLS = `p.id, p.title, c.name AS company, c.industry, p.location, p.url,
-        p.posted_date, p.first_seen_at, p.job_type, p.remote, p.state, p.city, p.lat, p.lon,
+        p.posted_date, p.first_seen_at, p.job_type, CASE WHEN ${fullyRemoteSql()} THEN 1 ELSE 0 END AS remote,
+        p.state, p.city, p.lat, p.lon,
         p.salary_min, p.salary_max, p.salary_currency, p.salary_period, p.salary_source`;
 
 /** Project distance for the exact center used by SQL filtering. */
@@ -142,13 +150,14 @@ export interface BrowseFilters {
  * @param query - The browse request query.
  * @returns The split predicates and their positional bind arguments.
  */
-export function browseFilters(query: BrowseQuery): BrowseFilters {
+export function browseFilters(query: BrowseQuery, exclusions?: unknown[]): BrowseFilters {
   const g = (k: string) => param(query, k);
   const location = resolveCareerLocation(query);
   const posting: string[] = ['p.active = 1'];
   const postingArgs: unknown[] = [];
   const company: string[] = [];
   const companyArgs: unknown[] = [];
+  const hidden=feedback.predicate(exclusions);if(hidden.sql){company.push(hidden.sql);companyArgs.push(...hidden.args);}
   // The DEFAULT here is the whole corpus, and that inverts the scored board on purpose.
   // `target_role` marks the postings this deployment tracks for resume matching; filtering
   // by it on a general search means a search for "nurse" returns almost nothing, because
@@ -157,20 +166,16 @@ export function browseFilters(query: BrowseQuery): BrowseFilters {
   // the database. `lane=target` opts back into the tracked lane for callers that want it.
   if (g('lane') === 'target') posting.push('p.target_role = 1');
   if (g('company')) { company.push('c.name LIKE ?'); companyArgs.push(`%${g('company')}%`); }
-  if (g('remote') === '0' || g('remote') === '1') { posting.push('p.remote = ?'); postingArgs.push(Number(g('remote'))); }
+  if (g('remote') === '1') { posting.push(`p.remote = ? AND ${fullyRemoteSql()}`); postingArgs.push(1); }
+  if (g('remote') === '0') { posting.push(`(p.remote = ? OR NOT ${fullyRemoteSql()})`); postingArgs.push(0); }
   if (g('state')) { posting.push('p.state = ?'); postingArgs.push(g('state').toUpperCase()); }
   if (g('city')) { posting.push('lower(trim(p.city)) = ?'); postingArgs.push(normalizeCareerCity(g('city'))); }
   if (location) posting.push(careerRadiusPredicate(location));
   if (g('type')) { posting.push('p.job_type = ?'); postingArgs.push(g('type')); }
   const days = parseInt(g('days'), 10);
   if (days > 0) { posting.push("p.posted_date IS NOT NULL AND p.posted_date >= date('now', ?)"); postingArgs.push(`-${days} days`); }
-  const minPay = parseInt(g('min_pay'), 10);
-  if (minPay > 0) {
-    posting.push(g('include_unknown_pay') === '1'
-      ? '(COALESCE(p.salary_max,p.salary_min,0) >= ? OR (p.salary_min IS NULL AND p.salary_max IS NULL))'
-      : 'COALESCE(p.salary_max,p.salary_min,0) >= ?');
-    postingArgs.push(minPay);
-  }
+  const payRange = pay.payFilter(query);
+  if (payRange.sql) { posting.push(payRange.sql); postingArgs.push(...payRange.args); }
   return {
     location,
     where: [...posting, ...company].join(' AND '),
@@ -203,19 +208,18 @@ export interface BrowsePage {
 }
 
 /**
- * @description Normalises page geometry, clamping both the page size and how deep a caller may
- *   page. A scan-shaped feed has no cheap way to reach offset 50,000, so the depth is refused
- *   explicitly instead of being served slowly.
+ * @description Normalises finite integer page geometry. Indexed feeds page through the full
+ *   matching set; only the legacy unindexed keyword fallback retains its explicit depth ceiling.
  * @param query - The browse request query.
  * @returns The page number, page size, row offset, and whether the depth was clamped.
  */
 export function browsePageGeometry(
   query: BrowseQuery,
 ): { page: number; per: number; offset: number; capped: boolean } {
-  const per = Math.min(Math.max(Number(query.per) || 60, 1), MAX_PER);
-  const page = Math.max(1, Number(query.page) || 1);
-  const offset = (page - 1) * per;
-  return { page, per, offset: Math.min(offset, MAX_OFFSET), capped: offset > MAX_OFFSET };
+  const size=Number(query.per),number=Number(query.page);
+  const per=Math.min(Math.max(Number.isFinite(size)&&size?Math.trunc(size):60,1),MAX_PER);
+  const page=Math.min(Math.max(Number.isFinite(number)?Math.trunc(number)||1:1,1),Math.floor(Number.MAX_SAFE_INTEGER/per));
+  return {page,per,offset:(page-1)*per,capped:false};
 }
 
 /**
@@ -299,12 +303,18 @@ export function searchCandidateSql(
  */
 function runSearch(
   db: SqliteDb,
-  term: string,
-  deep: boolean,
+  query: BrowseQuery,
   filters: BrowseFilters,
   plan: { order: string; per: number; offset: number },
 ): Record<string, unknown>[] {
-  const candidates = searchCandidateSql(deep, filters.postingWhere, !!filters.location);
+  const term = param(query, 'q');
+  const title = param(query, 'title');
+  const description = param(query, 'description');
+  const candidates = searchCandidateSql(!!(term || description), filters.postingWhere, !!filters.location);
+  const extra = [];
+  const extraArgs: unknown[] = [];
+  if (title) { extra.push('p.title LIKE ?'); extraArgs.push(`%${title}%`); }
+  if (description) { extra.push('p.description LIKE ?'); extraArgs.push(`%${description}%`); }
   const sql = `WITH cand AS (
         ${candidates.sql}
          LIMIT ${BROWSE_POOL})   /* backstop only — each arm is already bounded */
@@ -312,10 +322,10 @@ function runSearch(
         FROM cand
         JOIN corpus.postings_corpus p ON p.id = cand.id
         JOIN corpus.companies c ON c.id = p.company_id
-       WHERE ${filters.where}
+       WHERE ${filters.where}${extra.length ? ` AND ${extra.join(' AND ')}` : ''}
        ORDER BY ${plan.order}
        LIMIT ? OFFSET ?`;
-  const like = `%${term}%`;
+  const like = `%${term || title || description}%`;
   // Each arm carries the pushed-down predicate AND the term, in the order they appear in
   // its SQL. The employer arm reads its term FIRST (the company name leads its WHERE), so
   // the binding order is per-arm rather than uniform.
@@ -326,7 +336,7 @@ function runSearch(
     else bindings.push(...filters.postingArgs, like);
   });
   return db.prepare(sql).all(
-    ...bindings, ...filters.args, plan.per, plan.offset,
+    ...bindings, ...filters.args, ...extraArgs, plan.per, plan.offset,
   ) as Record<string, unknown>[];
 }
 
@@ -376,6 +386,7 @@ function runFullText(
   employer: string,
   filters: BrowseFilters,
   plan: { order: string; per: number; offset: number },
+  advanced: string,
 ): Record<string, unknown>[] {
   // UNION inside one `IN`, never `OR`. An `OR c.name LIKE ?` beside the match forces
   // SQLite to abandon the FTS set as a driver and evaluate both halves per row: measured
@@ -387,7 +398,8 @@ function runFullText(
         SELECT id FROM (SELECT p2.id AS id FROM corpus.companies c2
                 CROSS JOIN corpus.postings_corpus p2 ON p2.company_id = c2.id
                WHERE c2.name LIKE ? AND ${filters.postingWhere.replace(/\bp\./g, 'p2.')}
-               ORDER BY p2.id DESC LIMIT ${ARM_POOL})`;
+                 ${advanced ? `AND p2.id IN (SELECT rowid FROM corpus.${FTS_TABLE} WHERE ${FTS_TABLE} MATCH ?)` : ''}
+               ORDER BY p2.id DESC)`;
   const candidates = `SELECT rowid FROM corpus.${FTS_TABLE} WHERE ${FTS_TABLE} MATCH ?`
     + (employer ? employerArm : '');
   const sql = `SELECT ${selectCols(filters.location)}
@@ -398,6 +410,7 @@ function runFullText(
        LIMIT ? OFFSET ?`;
   const args: unknown[] = [expression];
   if (employer) args.push(`%${employer}%`, ...filters.postingArgs);
+  if (employer && advanced) args.push(advanced);
   return db.prepare(sql).all(
     ...args, ...filters.args, plan.per, plan.offset,
   ) as Record<string, unknown>[];
@@ -410,30 +423,22 @@ function runFullText(
  * @param query - The browse request query (`q`, filters, `sort`, `per`, `page`).
  * @returns The page of score-free job cards plus the plan that produced it.
  */
-export function fetchBrowsePage(db: SqliteDb, query: BrowseQuery): BrowsePage {
+export function fetchBrowsePage(db: SqliteDb, query: BrowseQuery, exclusions?: unknown[]): BrowsePage {
   const sort = String(query.sort || 'recent');
   const order = BROWSE_SORT_MAP[sort] || BROWSE_SORT_MAP.recent;
-  const { page, per, offset, capped } = browsePageGeometry(query);
-  const filters = browseFilters(query);
+  const { page, per, offset } = browsePageGeometry(query);
+  const filters = browseFilters(query, exclusions);
   if (filters.location) requireGeoIndex(db);
   const term = param(query, 'q');
 
-  if (capped) {
-    return {
-      jobs: [], page, per, browse: true, pooled: false, poolSize: null, location: filters.location,
-      fullText: false, deep: false,
-      exhausted: true, capped,
-    };
-  }
   const description = param(query, 'description');
   const advancedTitle = param(query, 'title');
   const wantsText = !!(term || advancedTitle || description);
-  const plan = { order, per, offset };
-
-  // Prefer the full-text index whenever the corpus carries one; fall back to the LIKE
-  // arms otherwise, so a corpus that predates it still searches (just more slowly).
   const fullText = wantsText && hasFullText(db);
   const expression = fullText ? ftsExpressionFor(query) : '';
+  const capped=wantsText&&!fullText&&offset>MAX_OFFSET;
+  if(capped)return {jobs:[],page,per,browse:true,pooled:true,poolSize:BROWSE_POOL,location:filters.location,fullText:false,deep:true,exhausted:true,capped};
+  const plan = { order, per, offset };
 
   let jobs: Record<string, unknown>[];
   if (fullText && expression) {
@@ -441,14 +446,14 @@ export function fetchBrowsePage(db: SqliteDb, query: BrowseQuery): BrowsePage {
     // costs nothing; the date column would re-sort the match set for the same answer.
     const ftsPlan = plan.order === BROWSE_SORT_MAP.recent
       ? { ...plan, order: 'p.id DESC' } : plan;
-    jobs = runFullText(db, expression, term, filters, ftsPlan);
+    jobs = runFullText(db, expression, term, filters, ftsPlan, ftsExpressionFor({ ...query, q: '' }));
   } else if (wantsText) {
-    jobs = runSearch(db, term || advancedTitle, !!description, filters, plan);
+    jobs = runSearch(db, query, filters, plan);
   } else {
     jobs = runFeed(db, filters, plan);
   }
   return {
-    jobs,
+    jobs: jobs.map(job => pay.decoratePay(job, query)),
     location: filters.location,
     page,
     per,
@@ -456,7 +461,7 @@ export function fetchBrowsePage(db: SqliteDb, query: BrowseQuery): BrowsePage {
     pooled: wantsText && !fullText,
     poolSize: wantsText && !fullText ? BROWSE_POOL : null,
     fullText: fullText && !!expression,
-    deep: !!description,
+    deep: !!(term || description),
     exhausted: jobs.length < per,
     capped,
   };
@@ -516,13 +521,13 @@ export function ftsMatchExpression(column: string, text: string): string {
 
 /**
  * @description Builds the MATCH expression for a request from the three text inputs the
- *   screen offers: the simple box (`q`, titles), and the advanced title/description fields.
+ *   screen offers: the primary box (`q`, titles and descriptions), plus independent advanced fields.
  * @param query - The browse request query.
  * @returns The combined MATCH expression, or '' when no full-text term was asked for.
  */
 export function ftsExpressionFor(query: BrowseQuery): string {
   const parts = [
-    ftsMatchExpression('title', param(query, 'q')),
+    ftsMatchExpression('{title description}', param(query, 'q')),
     ftsMatchExpression('title', param(query, 'title')),
     ftsMatchExpression('description', param(query, 'description')),
   ].filter(Boolean);

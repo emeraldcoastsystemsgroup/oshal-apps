@@ -1,4 +1,11 @@
 # CHANGE LOG
+# 40 | maintainer@emeraldcoastsystemsgroup.com | 1.51.3: from the demo line, for every installation: with no brokerage connected the Strategies landing lists the person's paper accounts (what each runs, armed state, last pass) with paths to Reports and Strategy research, instead of the dead-end "No connected trading accounts" panel, and the landing's live-account line reads as state, not an instruction. UI only; no route, schedule or authorization change.
+# 38 | maintainer@emeraldcoastsystemsgroup.com | 1.51.1: pressing Film in a real browser showed nothing: the panel redrew after every pass and replaced its status line. The line now survives, counts the accounts down and says why nothing was filmed. A press after the session rolls at 11 pm Central films the newest saved report, and a report with no connected accounts says so.
+# 39 | maintainer@emeraldcoastsystemsgroup.com | 1.51.2: the daily report, Quant desk and Futures study declare startsItself: none places an order or spends money, and each answers 200 for a person who has set nothing up. The watcher (real orders), paper autopilot (409 until armed) and report film stay a person's decision. Guarded by tests/native-jobs-start-themselves.test.js.
+# 37 | maintainer@emeraldcoastsystemsgroup.com | 1.51.0: Roger: an installable application must not need command-line host steps. The report films now render inside Trading itself: slides drawn by the installation's ffmpeg with the image's DejaVu fonts, narration from the kernel's voice.speak (the installation's own voice settings), files in the package's lasting storage (lastingStorage: true). One account per call, so the report-video schedule fires every five minutes from 5:20 to 5:55 pm Central and the page repeats the call. The report studio engine container, its install script and the engine.exchange use are removed: no container, link unit or OSHAL_PACKAGE_ENGINES entry.
+# 36 | maintainer@emeraldcoastsystemsgroup.com | 1.50.1: report films: a long value such as the assigned research strategy name printed over its label on the account slide of the first real film; it now drops to its own row, smaller, cut with an ellipsis if it still does not fit (guarded by the layout test with real Pillow text boxes).
+# 35 | maintainer@emeraldcoastsystemsgroup.com | 1.50.0: the OSHAL report is a film again, the platform way. The report-video schedule (weekdays after the daily report saves) feeds the saved report to the package's report studio engine (trading/engine, the circuit-lab shape: Pillow slides, Kokoro am_michael narration, the owner's silent presenter clip, ffmpeg) over the kernel's engine.exchange relay; the engine renders ONE VIDEO PER CONNECTED ACCOUNT into the lasting directory, migration 014 keeps the owner-scoped index, and the Reports page lists and plays them with byte ranges (the little-monsters prep-media shape). Replaces the Docker-era Daily Trade Recap render rail; no broker call, no external upload, no model spend.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | 1.49.0: Roger: the desk found no buys among legitimate companies that just took a 25% hit. The deep-dip price signal ranks the furthest falls from the 52-week high and is graded by the history test; the quality-dip ranking (25%+ below the high, profitable, growing revenue in the latest annual filing, deepest first) joins the forward-judged signals, the Rank by choices and the concierge brief. Research only, as before.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | 1.48.3: Quant desk industry names that fit what they hold, such as Builders & contractors and Oil majors & refining, and JPMorgan keeps its industry although its SEC record is too large to read.
 # 32 | maintainer@emeraldcoastsystemsgroup.com | 1.48.2: the history test's first limit no longer treats a gap above SPY as the warning sign. On the wider pool the list trails SPY, and the missing failed companies still flatter every signal.
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 1.48.1: a Quant desk read that fails gets a second try once the sweep ends. ADP, CME, ENB and LH were marked as having no data on the first full read and read fine a minute later.
@@ -126,7 +133,8 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.48.3
+version: 1.51.3
+lastingStorage: true
 status: active
 
 source:
@@ -743,8 +751,9 @@ tools:
     category: trading
     description: >-
       Tonight's ranked stock list across the whole pool: how the market looks, what the pool holds, the top 20 and
-      weakest 5 with their score, reasons and cautions, where each of the caller's holdings ranks, the history-test
-      verdict on the ranking itself, and the industries and themes it can be narrowed to. A ranking is research, not
+      weakest 5 with their score, reasons and cautions, where each of the caller's holdings ranks, the verdict on the
+      ranking itself, tonight's quality-dip candidates (at least 25% below the 52-week high yet profitable with growing
+      revenue, deepest first), and the industries and themes it can be narrowed to. A ranking is research, not
       a buy or sell instruction. Read-only and owner-scoped. Input: {}.
     executor: { executorType: api, apiEndpoint: "GET /api/trading/quant/today?view=brief" }
     defaultAuthMode: auto
@@ -908,6 +917,7 @@ migrations:
   - migrations/011-native-account-values.sql
   - migrations/012-native-quant-desk.sql
   - migrations/013-native-quant-pool.sql
+  - migrations/014-report-videos.sql
 
 routes:
   - module: routes/home-summary.js
@@ -968,6 +978,7 @@ routes:
 # Triggered exits retain their floor and native attempt ledger. No model inference runs in the tick.
 schedules:
   - id: oshal-daily-report
+    startsItself: true
     cron: "5 17 * * 1-5"
     timezone: America/Chicago
     runsAs: user
@@ -978,6 +989,17 @@ schedules:
     timeoutSeconds: 120
     description: Save your private OSHAL report from current account snapshots, local simulated results and assigned research. No publication, generation spend or broker orders.
     offer: Prepare my private OSHAL report after the market closes.
+  - id: report-video
+    cron: "20-55/5 17 * * 1-5"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/trading/paper/reports/videos/tick
+    method: POST
+    body: {}
+    timeoutSeconds: 60
+    description: Film the saved OSHAL report inside Trading - one video per connected account, with the day's fills, positions and strategy, narrated by the installation's own voice beside your silent presenter clip; each pass films the next account. No broker call, no external upload, no model spend.
+    offer: Film my OSHAL report after each close, one video per account.
   - id: portfolio-watcher
     cron: "* * * * *"
     timezone: America/New_York
@@ -1001,6 +1023,7 @@ schedules:
     description: Paper autopilot tick - multi-timeframe decisions from kernel prices, simulated fills in your own paper book (never a broker order).
     offer: Run my paper trading autopilot every five minutes while the US market is open.
   - id: quant-desk
+    startsItself: true
     cron: "* 17-23 * * 1-5"
     timezone: America/New_York
     runsAs: user
@@ -1012,6 +1035,7 @@ schedules:
     description: Quant desk - after the close, score a pool of about 3,400 stocks from your Schwab daily prices in short passes, one a minute, and grade earlier picks against SPY (research only, never an order).
     offer: Score my stock list every evening after the market closes and keep the record of its picks.
   - id: futures-research
+    startsItself: true
     cron: "15 2 * * 2-6"
     timezone: America/New_York
     runsAs: user

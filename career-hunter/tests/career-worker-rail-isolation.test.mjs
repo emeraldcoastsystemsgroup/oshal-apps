@@ -45,6 +45,11 @@ function loadRunner() {
 }
 
 const runner = loadRunner();
+test('the native network mode survives the runner environment boundary',()=>{
+  const original=process.env.OSHAL_EGRESS;
+  try{process.env.OSHAL_EGRESS='kernel';assert.equal(runner.buildCareerEngineProcessEnv('user-a').OSHAL_EGRESS,'kernel');}
+  finally{if(original===undefined)delete process.env.OSHAL_EGRESS;else process.env.OSHAL_EGRESS=original;}
+});
 let server;
 
 before(async () => {

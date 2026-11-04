@@ -1,12 +1,13 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare real bounded Publishing routes and original held agent contracts.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: automatically save inspector drafts and refresh the concierge document handoff.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the page opens inside the cockpit. Its query rule refused the v= every cockpit frame carries and the audience= an experience adds, so the screen showed {"error":"publishing_personal_scope_only"} instead of the studio. Found by the main menu's every-screen sweep. No contract change.
 name: publishing-studio
 suite: ai-creative
 displayName: Publishing Studio
 description: >-
   Original-owned bounded English print layouts, linked stories, styles, masters and native Typst
   PDF/PNG output.
-version: 0.1.1
+version: 0.1.2
 runtime: process
 lastingStorage: true
 status: active

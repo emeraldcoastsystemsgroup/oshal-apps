@@ -1,4 +1,11 @@
 # CHANGE LOG
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Bind the owner-private additional experience library to existing open/read/change grants and expose its read-only selection tool.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Bind the reserved owner-run cancellation control and Jarvis tool to existing career.change authority.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Bind bounded master reads/approved edits and native score-run receipts to the existing owner read/change grants.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Bind the native job read, save, promote and document tools to existing read/change grants.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Bind original-owner interview UI, private reads and model-backed preparation/practice to existing app.open, career.read and career.execute permissions; add matching Jarvis tool bindings.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Bind native submission reads, approval, dispatch, question answers, reconciliation and the dedicated browser worker to existing owner permissions.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Bind the original-owner read-only mailbox check and private status projection to career.change.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -55,6 +62,20 @@ roles:
       - { permission: career.administer, scope: own }
 bindings:
   http:
+    - { id: interview-ui, method: GET, path: /interview, allOf: [app.open] }
+    - { id: interview-read, method: GET, path: /interview/:postingId, allOf: [career.read] }
+    - { id: interview-prepare, method: POST, path: /interview/:postingId/prepare, allOf: [career.execute] }
+    - { id: interview-practice, method: POST, path: /interview/:postingId/practice, allOf: [career.execute] }
+    - { id: submission-list, method: GET, path: /submission-queue, allOf: [career.read] }
+    - { id: submission-review, method: GET, path: /submission-review/:postingId, allOf: [career.read] }
+    - { id: submission-approve, method: POST, path: /submission-queue, allOf: [career.change] }
+    - { id: submission-bind, method: POST, path: /submission-queue/:id/bind, allOf: [career.change] }
+    - { id: submission-start, method: POST, path: /submission-queue/:id/start, allOf: [career.execute] }
+    - { id: submission-sync, method: POST, path: /submission-queue/:id/sync, allOf: [career.change] }
+    - { id: submission-answers, method: POST, path: /submission-queue/:id/answers, allOf: [career.change] }
+    - { id: submission-cancel, method: POST, path: /submission-queue/:id/cancel, allOf: [career.change] }
+    - { id: submission-confirmation, method: GET, path: /submission-queue/:id/confirmation, allOf: [career.read] }
+    - { id: application-mail-check, method: POST, path: /jobs/updates/check, allOf: [career.change] }
     # Surfaces (career-surface-routes, career-profile-studio-routes): the app's own pages and assets.
     - { id: board-native, method: GET, path: /board-native, allOf: [app.open] }
     - { id: search-ui, method: GET, path: /search-ui, allOf: [app.open] }
@@ -82,6 +103,9 @@ bindings:
     - { id: summary, method: GET, path: /, allOf: [career.read] }
     - { id: review, method: GET, path: /review, allOf: [career.read] }
     - { id: readiness, method: GET, path: /readiness, allOf: [career.read] }
+    - { id: experience-library-ui, method: GET, path: /experience-library, allOf: [app.open] }
+    - { id: experience-bank-read, method: GET, path: /experience-bank, allOf: [career.read] }
+    - { id: experience-bank-write, method: POST, path: /experience-bank, allOf: [career.change] }
     # Board, search and job detail (career-board-routes, career-browse-routes, career-job-guide).
     - { id: jobs, method: GET, path: /jobs, allOf: [career.read] }
     - { id: job, method: GET, path: /jobs/:id, allOf: [career.read] }
@@ -108,6 +132,7 @@ bindings:
     - { id: resume-upload, method: POST, path: /resume/upload, allOf: [career.execute] }
     - { id: resume-guide, method: POST, path: /resume/guide, allOf: [career.execute] }
     - { id: resume-save, method: POST, path: /resume/save, allOf: [career.change] }
+    - { id: resume-master-edit, method: POST, path: /resume/master-edit, allOf: [career.change] }
     # Artifacts, including the ADR-139 Send-to-Career destination (career-artifacts).
     - { id: artifacts, method: GET, path: /artifacts, allOf: [career.read] }
     - { id: artifact-upload, method: POST, path: /artifacts/upload, allOf: [career.execute] }
@@ -164,6 +189,7 @@ bindings:
     - { id: run-refresh-state, method: GET, path: /run/refresh, allOf: [career.read] }
     - { id: run-verb, method: POST, path: /run/:verb, allOf: [career.execute] }
     - { id: run-cancel, method: POST, path: /run/:runId/cancel, allOf: [career.change] }
+    - { id: native-run-cancel, method: POST, path: /_runtime/runs/:runId/cancel, allOf: [career.change] }
     # The guest tier's seed (handler admits guest subjects only).
     - { id: guest-seed, method: POST, path: /guest-seed, allOf: [career.change] }
     # Graph mount (career-graph-routes).
@@ -180,15 +206,35 @@ bindings:
     - { id: companies-admin-seturl, method: POST, path: /companies-admin/seturl, allOf: [career.administer] }
     - { id: cutover-status, method: GET, path: /status, allOf: [career.administer] }
   tools:
+    - { id: career_job, allOf: [career.read] }
+    - { id: career_save, allOf: [career.change] }
+    - { id: career_promote, allOf: [career.change] }
+    - { id: career_documents, allOf: [career.read] }
+    - { id: career_interview, allOf: [career.read] }
+    - { id: career_interview_prepare, allOf: [career.execute] }
+    - { id: career_interview_practice, allOf: [career.execute] }
+    - { id: career_submission_review, allOf: [career.read] }
+    - { id: career_submission_approve, allOf: [career.change] }
+    - { id: career_submission_bind, allOf: [career.change] }
+    - { id: career_submission_start, allOf: [career.execute] }
+    - { id: career_submissions, allOf: [career.read] }
+    - { id: career_submission_sync, allOf: [career.change] }
+    - { id: career_submission_answers, allOf: [career.change] }
     - { id: career_database, allOf: [career.read] }
     - { id: career_draft, allOf: [career.execute] }
+    - { id: career_experience_bank, allOf: [career.read] }
     - { id: career_draft_oshal, allOf: [career.execute] }
     - { id: career_score, allOf: [career.execute] }
     - { id: career_refresh, allOf: [career.execute] }
     - { id: career_refresh_status, allOf: [career.read] }
+    - { id: career_runs, allOf: [career.read] }
+    - { id: career_run_cancel, allOf: [career.change] }
     - { id: career_resume_read, allOf: [career.read] }
+    - { id: career_resume_section, allOf: [career.read] }
+    - { id: career_resume_patch, allOf: [career.change] }
     - { id: career_resume_save, allOf: [career.change] }
   bots:
     - { id: cb000000-0000-0000-0000-000000000001, allOf: [app.open, career.execute] }
+    - { id: cb000000-0000-0000-0000-000000000004, allOf: [app.open, career.execute] }
   artifactActions:
     - { id: absorb, allOf: [app.open, career.execute] }

@@ -25,6 +25,7 @@
   opened directly on a phone at /api/career-hunter/mobile); follows the operator's cockpit theme.
 
   CHANGE LOG
+  8 | maintainer@emeraldcoastsystemsgroup.com | Distinguish AI assessments from keyword matches and show saved assessment dates in the swipe deck, ready list and job review.
   -----------------------------------------------------------------------------
   SEQ                 | AUTHOR                                      | DESCRIPTION
   -----------------------------------------------------------------------------
@@ -33,6 +34,8 @@
   3 | maintainer@emeraldcoastsystemsgroup.com | Join the canonical surface theme rail (surface-themes.css + surface-theme.js) and derive every palette alias from framework tokens. The surface hardcoded a dark palette plus a prefers-color-scheme override, so it ignored the operator's chosen cockpit theme and rendered near-black on a light theme.
   4 | maintainer@emeraldcoastsystemsgroup.com | Paint the swipe deck's cards on the document's opaque ground. --card/--card2 are glass tokens and the deck stacks the next role under the lead one at the same inset, so the operator could read the next opportunity straight through the card they were about to swipe.
   5 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Preserve an explicit zero AI fit on swipe cards, the ready queue and selected review instead of substituting the keyword score or hiding it.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Display salary amounts with their explicit units and currencies, including per-course and unknown periods.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="mobile">
 <head>
@@ -144,6 +147,7 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .row .rt{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .rc{color:var(--muted);font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .rfit{flex:0 0 auto;font-weight:850;font-size:.82rem;color:var(--teal);min-width:34px;text-align:right}
+.row .rfit small{display:block;font-size:.62rem;font-weight:500;color:var(--muted)}
 .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;font:inherit;font-weight:800;cursor:pointer}
 .btn.primary{background:var(--teal);color:var(--teal-ink);border-color:transparent}
 .btn.ghost{background:transparent}
@@ -279,6 +283,8 @@ nav button .badge{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="/api/career-hunter/static/career-job-actions.js"></script>
+<script src="/api/career-hunter/static/career-submit.js"></script>
 <script>
 const CH='/api/career-hunter', AP='/api/apply-operator';
 const $=(s,r=document)=>r.querySelector(s);
@@ -322,7 +328,13 @@ function applicationProofHtml(record){
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600);}
 async function jget(u){const r=await fetch(u,{headers:{Accept:'application/json'}});if(!r.ok)throw Object.assign(new Error('HTTP '+r.status),{status:r.status});return r.json();}
 async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});let j={};try{j=await r.json();}catch{}return{status:r.status,ok:r.ok,body:j};}
-const money=v=>v?('$'+Math.round(v/1000)+'k'):'';
+function salary(j){
+  const a=j.salary_max||j.salary_min; if(!a) return '';
+  const suffix=({year:' /yr',hour:' /hr',month:' /month',course:' /course'})[j.salary_period]||' · period unknown';
+  const currency=j.salary_currency==='USD'?'$':j.salary_currency?j.salary_currency+' ':'';
+  const amount=n=>currency+(j.salary_period==='year'&&n>=10000?Math.round(n/1000)+'k':Number(n).toLocaleString('en-US',{maximumFractionDigits:2}));
+  return ((j.salary_min&&j.salary_max&&j.salary_min!==j.salary_max)?`${amount(j.salary_min)}–${amount(j.salary_max)}`:amount(a))+suffix+(currency?'':' · currency unknown');
+}
 const jobCache=new Map();               // posting_id -> {title, company} (title enrichment for lanes/inflight)
 
 /* ============================ view switching ============================ */
@@ -364,21 +376,28 @@ async function ensureDetail(i){
        if(i<=1)renderDeck(); }catch{ c.detail={}; }
 }
 
+function fitEvidence(job){
+  const ai=typeof job.ai_fit_score==='number'&&Number.isFinite(job.ai_fit_score)&&job.ai_fit_score>=0&&job.ai_fit_score<=100;
+  const value=ai?job.ai_fit_score:job.fit_score;
+  const score=typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=100?Math.round(value):null;
+  const at=ai?job.fit_assessment?.assessedAt:null;
+  return{score,label:ai?'AI fit':'Keyword fit',date:ai?(at?'Assessed '+new Date(at).toLocaleDateString():'Assessment date unknown'):'Not AI assessed'};
+}
 function cardHTML(c,top){
   const d=c.detail||{};
-  const fit=Math.round(d.ai_fit_score||d.fit_score||0);
-  const pay=money(d.salary_max||d.salary_min);
+  const evidence=fitEvidence(d),fit=evidence.score;
+  const pay=salary(d);
   const loc=d.location||(d.remote?'Remote':'');
   const why=d.ai_fit_rationale||'';
   return `<article class="jobcard settle" data-id="${c.posting_id}" style="z-index:${top?2:1};${top?'':'transform:scale(.96) translateY(10px);opacity:.85'}">
     <div class="stamp like">QUEUE</div><div class="stamp nope">PASS</div>
     <div class="co">${esc(c.company||d.company||'')}</div>
     <h2>${esc(c.title||d.title||'Role')}</h2>
-    ${fit?`<div class="fit"><div class="ring" style="--v:${fit}"><i>${fit}</i></div><div class="lbl">Fit<br>score</div></div>`:''}
+    ${fit!=null?`<div class="fit"><div class="ring" style="--v:${fit}"><i>${fit}</i></div><div class="lbl">${esc(evidence.label)}<br>${esc(evidence.date)}</div></div>`:''}
     <div class="jc-meta">
       ${loc?`<span class="chip">${esc(loc)}</span>`:''}
       ${d.remote?`<span class="chip remote">Remote</span>`:''}
-      ${pay?`<span class="chip pay">${pay}</span>`:''}
+      ${pay?`<span class="chip pay">${esc(pay)}</span>`:''}
       ${d.job_type?`<span class="chip">${esc(d.job_type)}</span>`:''}
     </div>
     <div class="jc-body">${why?esc(why):(c.detail?'<em>No fit rationale on file.</em>':'<span class="spin"></span> loading…')}</div>
@@ -496,14 +515,14 @@ async function loadReady(){
     if(draftingRows.length) html+=section('✍️ Drafting your résumé…',draftingRows.map(a=>
       `<div class="row"><div class="rmeta"><div class="rt">${esc(a.title)}</div><div class="rc">${esc(a.company)}</div></div>
        <div class="rfit" style="color:var(--amber)"><span class="spin"></span></div></div>`).join(''));
-    if(erroredRows.length) html+=section('⚠ Couldn’t draft — check your Anthropic key, then retry',erroredRows.map(a=>
+    if(erroredRows.length) html+=section('⚠ Couldn’t prepare — review the failure before retrying',erroredRows.map(a=>
       `<div class="row"><div class="rmeta"><div class="rt">${esc(a.title)}</div><div class="rc">${esc(a.company)}</div></div>
        <button class="btn small" data-retry="${a.posting_id}">Retry</button></div>`).join(''));
     if(ready.length) html+=section('📋 Ready to review + apply',ready.map(j=>{
-      const fit=Math.round(j.ai_fit_score||j.fit_score||0);
+      const evidence=fitEvidence(j),fit=evidence.score;
       return `<div class="row" data-id="${j.id}" role="button">
         <div class="rmeta"><div class="rt">${esc(j.title)}</div><div class="rc">${esc(j.company)}${j.location?' · '+esc(j.location):''}${j.has_resume?'':' · <span style="color:var(--amber)">no packet</span>'}</div></div>
-        <div class="rfit">${fit||'—'}</div>
+        <div class="rfit">${fit??'—'}${fit!=null?`<small>${esc(evidence.label)}</small>`:''}</div>
         <button class="btn small primary" data-open="${j.id}">Review</button></div>`;
     }).join(''));
     if(!html) html=`<div class="empty"><div class="big">📋</div><b>Nothing here yet</b><div class="tsub" style="margin-top:6px">Swipe right in Discover to queue résumés; they draft in the background and land here to review + apply.</div></div>`;
@@ -532,15 +551,16 @@ async function openReview(id){
     const {job}=await jget(CH+'/jobs/'+id);
     jobCache.set(id,{title:job.title,company:job.company});
     $('#revTitle').textContent=job.title||'Role'; $('#revCompany').textContent=job.company||'';
-    const fit=Math.round(job.ai_fit_score||job.fit_score||0);
+    const evidence=fitEvidence(job),fit=evidence.score;
     const matched=(job.matched||[]).slice(0,8), gaps=(job.gaps||[]).slice(0,6);
     $('#pane-posting').innerHTML=`
       <div class="jc-meta">
-        ${fit?`<span class="chip remote">Fit ${fit}</span>`:''}
+        ${fit!=null?`<span class="chip remote">${esc(evidence.label)} ${fit}</span>`:''}
         ${job.location?`<span class="chip">${esc(job.location)}</span>`:''}
         ${job.remote?`<span class="chip remote">Remote</span>`:''}
-        ${money(job.salary_max||job.salary_min)?`<span class="chip pay">${money(job.salary_max||job.salary_min)}</span>`:''}
+        ${salary(job)?`<span class="chip pay">${esc(salary(job))}</span>`:''}
       </div>
+      ${fit!=null?`<p class="tsub">${esc(evidence.date)}. Saved fit is not a hiring probability; changes to your résumé or this job need a new assessment.</p>`:''}
       ${job.ai_fit_rationale?`<p style="color:var(--muted)">${esc(job.ai_fit_rationale)}</p>`:''}
       ${matched.length?`<div class="kchips">${matched.map(m=>`<span class="chip ok">✓ ${esc(m)}</span>`).join('')}</div>`:''}
       ${gaps.length?`<div class="kchips">${gaps.map(m=>`<span class="chip gap">△ ${esc(m)}</span>`).join('')}</div>`:''}
@@ -557,7 +577,7 @@ async function openReview(id){
 
 function renderReviewFoot(job){
   $('#revFoot').innerHTML=`
-    <p class="hint disclaimer"><b>How auto-apply works.</b> Auto-apply is an outward action on a connected <b>desktop worker node</b>. Clicking below authorizes this one exact task to fill the employer form and click its final Submit button. Bulk auto-submit requires a separate Settings opt-in. Watch the target machine: CAPTCHA or two-factor prompts pause for you. Your résumé and cover letter are AI-assisted from the profile you provided — review them before applying.</p>
+    <p class="hint disclaimer"><b>How auto-apply works.</b> Auto-apply is an outward action on a connected <b>desktop worker node</b>. Clicking below authorizes this one exact task to fill the employer form and click its final Submit button. Every application requires review of its exact documents and facts. Watch the target machine: CAPTCHA or two-factor prompts pause for you. Your résumé and cover letter are AI-assisted from the profile you provided — review them before applying.</p>
     <button class="btn primary block" id="doApply">⚡ Auto-apply on a desktop worker</button>`;
   $('#doApply').onclick=()=>doApply(job);
 }
@@ -567,7 +587,7 @@ async function doApply(job){
   // Durable path: file a job-apply TICKET (one per résumé). The swarm queue dispatches it to your
   // desktop worker one at a time and it SURVIVES a restart — unlike the old fire-and-forget submit.
   // If the desktop is momentarily offline the ticket just waits its turn instead of hard-failing.
-  const r=await jpost(AP+'/enqueue',{postingId:reviewId,company:job.company||job.company_name,title:job.title,url:job.url,location:job.location});
+  let r;try{const result=await CareerSubmit.reviewAndSubmit(reviewId);r=result?{status:201,body:{ok:true}}:{status:409,body:{error:'Submission review cancelled.'}};}catch(error){r={status:503,body:{error:error.message}};}
   if(r.status===201||r.status===200){
     toast(r.status===200?'Already queued for submission':'Queued — your desktop will submit it'); closeReview(); show('status');
   }else{

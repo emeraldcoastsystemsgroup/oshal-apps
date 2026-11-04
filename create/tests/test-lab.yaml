@@ -25,6 +25,9 @@
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.9.6 Brand Graphics: register the real Home, Quick start and New launchers, the access-gated owner summary and the exact handoffs on the existing isolated Create fixture.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | Register the catalog binding guard: the create-editor concierge turn and every route tool are bound to named permissions a workspace member holds, an unbound bot stays refused, and owners delete only their own records.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register real PSD format, forced-owner source transactions and desktop/phone original-preserving browser proof without container provisioning.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: agent colour names become hex and a refused agent project says why (editor-agent and editor-api expectations).
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4: the schema checked before a card is held and the worked drawing (editor-agent expectations).
+# 26 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: the generated-image route's refusals (region-edit HTTP expectations) and its save against the real store (generated-image-postgres).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -160,6 +163,39 @@ cases:
         - tests/region-edit.fixture.mjs
         - tests/project-api.fixture.mjs
       cleanup: Close loopback servers and remove owned temporary asset directories; synthetic actors and a named fixture provider only.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: generated-image-postgres
+    name: A picture from a sentence in PostgreSQL
+    purpose: Apply the real migrations to a uniquely named disposable PostgreSQL and run the generated-image route over real HTTP with the explicitly named fixture provider.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/generated-image-postgres.test.mjs
+    expected:
+      - A sentence makes a new project whose one layer is the saved picture, served to its owner.
+      - With an id the picture is a new centred layer and one new revision, and the rest of the project is kept.
+      - Another owner cannot add to a project, and a failed generation saves nothing and reports the provider's words.
+      - The daily ceiling refuses before the provider is asked, per person.
+      - A generator still waking is asked again inside the request, so the person approves once.
+      - One call makes a project and draws it; a refused batch leaves no project and says why.
+    prerequisites:
+      - runner:node
+      - core:dependencies
+      - harness:oshal-core-root
+      - service:docker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/project-postgres.fixture.mjs
+        - tests/project-api.fixture.mjs
+        - tests/region-edit.fixture.mjs
+      cleanup: Remove the uniquely named disposable PostgreSQL and owned temporary asset directories; synthetic actors and a named fixture provider only.
     limits:
       timeoutMs: 120000
       maxMemoryMb: 512
@@ -625,6 +661,7 @@ cases:
       files:
         - tests/project-api.test.mjs
     expected:
+      - A refused agent project answers 400 with the editor validator's reason in detail, before any query.
       - Only the active framework actor establishes ownership, including multipart continuation.
       - Invalid inputs, denied operations and failed transactions do not become successful writes.
     prerequisites:
@@ -962,6 +999,8 @@ cases:
       - Valid edits use the editor model and rejected batches never mutate the source.
       - Locked layers or tracks are refused and source geometry or linked timing is retained.
       - The editing contract gives exact units and bounds and marks unbuilt domains unsupported.
+      - A colour named in words (white, red, Sky Blue) becomes the hex the editor stores under colour fields only; an unknown name is still refused.
+      - The schema the kernel checks before holding a card states the layer types and path bounds the validator refuses, and the contract's worked drawing is valid.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: disposable }

@@ -1,4 +1,44 @@
 # CHANGE LOG
+# 84 | maintainer@emeraldcoastsystemsgroup.com | Allow an audited correction of a mistaken manual submission mark without resetting actual submission evidence as version 1.46.6.
+# 83 | maintainer@emeraldcoastsystemsgroup.com | Keep the read-only submitted packet available from Application status as version 1.46.5.
+# 82 | maintainer@emeraldcoastsystemsgroup.com | Release a single document viewer, visible regeneration, inert previews and submitted-state synchronization as version 1.46.4.
+# 81 | maintainer@emeraldcoastsystemsgroup.com | Keep stage changes in the current board document and reveal newly promoted preparation as version 1.46.3.
+# 80 | maintainer@emeraldcoastsystemsgroup.com | Preserve each stage's own searches, sorting and page-size preferences as version 1.46.2.
+# 79 | maintainer@emeraldcoastsystemsgroup.com | Follow the registered member-qualified screen during stage and promotion navigation inside Intelligent Career as version 1.46.1.
+# 78 | maintainer@emeraldcoastsystemsgroup.com | Release starred-first pagination and a deliberate queue, optional-experience, generation, review, submission and interview flow as version 1.46.0.
+# 77 | maintainer@emeraldcoastsystemsgroup.com | Keep board cards mounted, load deeper batches, publish saves faster, and retain reversible owner job exclusions as version 1.45.6.
+# 75 | maintainer@emeraldcoastsystemsgroup.com | Recover interrupted exact-packet starts from Submission activity without new intents or automatic retries of uncertain outcomes as version 1.45.5.
+# 74 | maintainer@emeraldcoastsystemsgroup.com | Release dated AI-versus-keyword assessments, original-owner Jarvis match scope and consistent remote evidence as version 1.45.0; retire unsupported hiring rankings.
+# 73 | maintainer@emeraldcoastsystemsgroup.com | Release exact employer pay parsing, conservative remote eligibility, saved-title manual scoring and interactive board menus as version 1.44.0.
+# 72 | maintainer@emeraldcoastsystemsgroup.com | Present managed matching, selected-job document preparation and exact-packet submission without unsupported legacy automation controls as version 1.43.1.
+# 71 | maintainer@emeraldcoastsystemsgroup.com | Support bounded anonymous public careers-page browsing in native pulls, preserve full embedded job evidence and report explicit runtime/read outcomes as version 1.43.0.
+# 70 | maintainer@emeraldcoastsystemsgroup.com | Bind score reuse to the dedicated bot's verified native routing configuration and record actual completion attribution as version 1.42.0.
+# 69 | maintainer@emeraldcoastsystemsgroup.com | Revalidate private employer evidence within scoring budgets and preserve complete authoritative replacements as version 1.41.0.
+# 68 | maintainer@emeraldcoastsystemsgroup.com | Give Career readers and Jarvis actual safe native pull/publication observations without a corpus scan as version 1.40.0.
+# 67 | maintainer@emeraldcoastsystemsgroup.com | Add exact original-owner native run cancellation with truthful stopping and publication states as version 1.39.0.
+# 66 | maintainer@emeraldcoastsystemsgroup.com | Route manual scoring and operational reads through native owner APIs, add bounded revision-checked master tools, and support existing large master lists as version 1.38.0.
+# 65 | maintainer@emeraldcoastsystemsgroup.com | Preserve complete source-backed qualifications during intake and refresh saved card scoring after document preparation as version 1.37.0.
+# 64 | maintainer@emeraldcoastsystemsgroup.com | Recover schedule controls immediately after a source-review refusal as version 1.36.1.
+# 63 | maintainer@emeraldcoastsystemsgroup.com | Re-score changed candidate/job inputs within existing batch limits and expose owner email-monitor recovery controls as version 1.36.0.
+# 62 | maintainer@emeraldcoastsystemsgroup.com | Preserve valid fits when auxiliary salary output is invalid, disclose limited job text, and label selected scoring with the actual worker rail as version 1.35.1.
+# 61 | maintainer@emeraldcoastsystemsgroup.com | Score selected and nightly jobs against the complete compact recorded profile instead of a 3500-character overview, preserving all skills and qualifications as version 1.35.0.
+# 60 | maintainer@emeraldcoastsystemsgroup.com | Preserve employer requirements and the gated source profile in the final cover-editing pass in version 1.34.3.
+# 59 | maintainer@emeraldcoastsystemsgroup.com | Require the selected draft request's own terminal receipt before Jarvis reports a regenerated packet ready as version 1.34.3.
+# 58 | maintainer@emeraldcoastsystemsgroup.com | Preserve native network mode through both engine environment boundaries so employer detail reads reach the signed kernel broker as version 1.34.2.
+# 57 | maintainer@emeraldcoastsystemsgroup.com | Route native Workday detail reads through original-run signed callbacks and declared anonymous egress, and allow complete structured fit output as version 1.34.1.
+# 56 | maintainer@emeraldcoastsystemsgroup.com | Expose native job saving, promotion, document reads and generation to Jarvis; preserve full private employer context and bounded completion budgets as version 1.34.0.
+# 54 | maintainer@emeraldcoastsystemsgroup.com | Admit declared interview and exact-packet submission tools to the Career persona, preserving person approval; retain closed diagnostic codes for interview failures as version 1.33.1.
+# 55 | maintainer@emeraldcoastsystemsgroup.com | Use the native input placeholder contract for interview/submission tools, an admitted question enum, and the question's verified facts for practice feedback as version 1.33.2.
+# 53 | maintainer@emeraldcoastsystemsgroup.com | Add owner-private job-specific interview preparation and practice with verified experience references, saved feedback, UI and Jarvis API tools as version 1.33.0.
+# 52 | maintainer@emeraldcoastsystemsgroup.com | Fix native heartbeat device authentication and prove the actual browser worker process reaches its claim loop as version 1.32.2.
+# 51 | maintainer@emeraldcoastsystemsgroup.com | Add explicit original-owner browser enrollment, private configuration and pinned bare-metal worker installation as version 1.32.1.
+# 50 | maintainer@emeraldcoastsystemsgroup.com | Release owner-approved native browser submission intents, exact evidence recovery and Jarvis submission tools as version 1.32.0.
+# 49 | maintainer@emeraldcoastsystemsgroup.com | Put saved-search controls behind a header bookmark popup with no dedicated results row as version 1.30.5.
+# 48 | maintainer@emeraldcoastsystemsgroup.com | Offset the 15-minute mailbox checks from half-hour matching so both do not start private owner writes together as version 1.30.4.
+# 47 | maintainer@emeraldcoastsystemsgroup.com | Execute Check email now through the original-person native schedule, renewing its reviewed source and resolving the caller-owned Gmail credential on each route execution as version 1.30.3.
+# 46 | maintainer@emeraldcoastsystemsgroup.com | Report retry progress honestly and render PDFs through the native read-only browser runtime with isolated temporary profiles as version 1.30.2.
+# 45 | maintainer@emeraldcoastsystemsgroup.com | Compact complete document prompts for native admission and bring newly queued documents to the front as version 1.30.1.
+# 44 | maintainer@emeraldcoastsystemsgroup.com | Release saved stars, exact single-job scoring, document preparation, queue/status screens and caller-owned Gmail application updates as version 1.30.0.
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                                      | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -41,11 +81,21 @@
 # 37 | maintainer@emeraldcoastsystemsgroup.com | Release faster progressive search with deferred map assets and superseded-request cancellation in 1.28.1.
 # 38 | maintainer@emeraldcoastsystemsgroup.com | Release the owner-only seven-day generated-queue preview and permanent purge, plus a generated_at/status index for both store backends, as version 1.29.0. The purge count-checks the preview and removes only the caller's Ready packets and score/application rows; it leaves later statuses and shared postings untouched. Add DELETE /jobs/purge-generated to the authorization catalog; the catalog revision needs its AUTH-07 review.
 # 39 | maintainer@emeraldcoastsystemsgroup.com | Release date-indexed exact scoring for posted-date board filters as version 1.29.1. When a recent-posted window is sparse or empty, drive from the corpus date index instead of probing every historical résumé score.
-# 40 | maintainer@emeraldcoastsystemsgroup.com | 1.29.3: Resume Studio and Profile Studio save their unsaved edits before Jarvis or the Career concierge reads them and redraw the saved resume or plan when the change returns (shared document handoff); AI draft reads the plan with the latest edit saved.
-# 41 | maintainer@emeraldcoastsystemsgroup.com | 1.29.4: a person's database closes out of WAL, so the Job Board opens after a first match on a read-only mount.
-# 42 | maintainer@emeraldcoastsystemsgroup.com | 1.29.5: Find & score jobs is one background run the Job Board watches to its end (awaited, the match stalled at the kernel's 10 seconds and answered 503), bounded by CAREER_BUILD_LIMIT on a shared model. A saved resume with nothing matched yet no longer reads as no resume.
-# 43 | maintainer@emeraldcoastsystemsgroup.com | 1.29.6: A person's database leaves WAL once as the process ends. Per connection, scoring workers locked each other out and the run ended with every score discarded.
-# 44 | maintainer@emeraldcoastsystemsgroup.com | 1.29.7: A finished Find & score jobs run opens on the person's best fit.
+# 41 | maintainer@emeraldcoastsystemsgroup.com | Add selectable result page sizes and extend the existing read-only Career tool with city/ZIP or saved-home radius search filters.
+# 40 | maintainer@emeraldcoastsystemsgroup.com | Offer owner-activated native nightly resume matching after shared corpus publication, followed by a durable daily-bounded 50-job title pass on the existing authorized route.
+# 42 | maintainer@emeraldcoastsystemsgroup.com | Fix matched board, status and resume-count reads for checkpointed WAL owner databases mounted read-only; preserve pending WAL visibility and writable store behavior.
+# 43 | maintainer@emeraldcoastsystemsgroup.com | Keep recent matched-board queries on the corpus date ranges even when a saved geographic scope is present, avoiding an active-corpus scan and native timeout.
+# 44 | maintainer@emeraldcoastsystemsgroup.com | Put keyword search at the top of Search Jobs and Job Board; search titles and descriptions through FTS from the main box, retain employer matches in open search and independent advanced-field filters.
+# 85 | maintainer@emeraldcoastsystemsgroup.com | 1.29.3: Resume Studio and Profile Studio save their unsaved edits before Jarvis or the Career concierge reads them and redraw the saved resume or plan when the change returns (shared document handoff); AI draft reads the plan with the latest edit saved.
+# 86 | maintainer@emeraldcoastsystemsgroup.com | 1.29.4: a person's database closes out of WAL, so the Job Board opens after a first match on a read-only mount.
+# 87 | maintainer@emeraldcoastsystemsgroup.com | 1.29.5: Find & score jobs is one background run the Job Board watches to its end (awaited, the match stalled at the kernel's 10 seconds and answered 503), bounded by CAREER_BUILD_LIMIT on a shared model. A saved resume with nothing matched yet no longer reads as no resume.
+# 88 | maintainer@emeraldcoastsystemsgroup.com | 1.29.6: A person's database leaves WAL once as the process ends. Per connection, scoring workers locked each other out and the run ended with every score discarded.
+# 89 | maintainer@emeraldcoastsystemsgroup.com | 1.29.7: A finished Find & score jobs run opens on the person's best fit.
+# 90 | maintainer@emeraldcoastsystemsgroup.com | 1.47.3: The live 1.47.2 feature set landed on main with main's fixes from 1.29.3 to 1.29.7: Find & score jobs as one watched background run that opens on the best fit, a person's database leaving WAL at process end, scoring that keeps its results on a read-only shared corpus, a failed background run logging why, and a saved resume with nothing matched yet reading as saved.
+# 91 | maintainer@emeraldcoastsystemsgroup.com | 1.47.3: on the native kernel Find & score jobs is the bounded title pass as one background run with matching first; the merge had moved it to the unbounded generic run. The Test Lab catalog parses again.
+# 92 | maintainer@emeraldcoastsystemsgroup.com | 1.47.4: Jobs stay and the resume match finishes. One employer refusing a page no longer ends the scoring pass and discards its results. Saved employer details no longer expire after a day, so the job page keeps them and unchanged jobs are not read again. Workday's 2,000-job search cap no longer closes the jobs past it: a capped board is read whole by facet, and one that cannot be proven whole closes nothing.
+# 93 | maintainer@emeraldcoastsystemsgroup.com | 1.47.5: A capped Workday search splits on a facet that agrees with its size before a wider one, which could miss jobs and left a board short of whole.
+# 94 | maintainer@emeraldcoastsystemsgroup.com | 1.47.6: Nightly source review. Each full pull ends with a bounded review of the sources it could not read: a source moves only on evidence from the employer's own page, a name match is a suggestion, an employer that refuses is left alone, and only public addresses are read. The Companies page shows the report. No route, permission, schedule or migration changes.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -118,6 +168,11 @@ rating:
       tier: T3
       generation: none
       degrade: disable
+    - id: interview-preparation
+      unit: interview guide or practice feedback
+      tier: T3
+      generation: none
+      degrade: disable
     - id: linkedin-profile-draft
       unit: profile draft turn
       tier: T2
@@ -135,11 +190,13 @@ rating:
       degrade: template
 displayName: Intelligent Career
 description: >-
-  Reads openings from employers' own public ATS job feeds into a shared corpus, scores every
-  posting against your private career profile, and turns the best fits into a human-in-the-loop
-  application queue — approve, approve-with-OSHAL, or deny, then it writes a tailored resume +
-  cover letter. Single-tenant, multi-user (per-user isolation); multi-tenant ready.
-version: 1.29.7
+  Search employers' public job feeds, score selected recent openings against your private career
+  profile, and save jobs to your board. Move a selected job to your submission queue, choose optional
+  additional experience, generate and review its resume and cover letter, then approve submission.
+  Prepare for interviews after submitting.
+  Track recorded applications and matching email updates in your private workspace.
+version: 1.47.6
+
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
 # to Career: the handle is redeemed through the kernel relay and rides the SAME
@@ -362,10 +419,12 @@ bots:
       - resume-tailoring
       - recruiter-outreach
       - career-coaching
-  # NOTE: Apply submission is a controller-owned, trusted rail rather than a framework tool.
-  # Core selects and claims the job, stages job/profile data, and records the model-hidden
-  # completion through private oshal-apply.js calls. The dedicated apply-operator worker bot
-  # (cb…003) drives only the browser and is registered in the kernel registry, not here.
+  - agentId: cb000000-0000-0000-0000-000000000004
+    name: career-submission-browser
+    posture: node
+    persona: Execute only an approved exact application form intent through browser-form-v1. No model inference, invented answers or automatic final-action retries.
+    role: career/submission-browser
+    capabilities: [application-submission]
 
 # Bot tools auto-discovered at load (wrap the CLI verbs + the surface HTML).
 
@@ -382,20 +441,50 @@ tools:
     description: >-
       Read the signed-in user's career-hunter data — scored job matches, applied/generated
       pipeline counts, fresh high-fit roles, and a bounded profile — from their migrated jobs
-      database. Use it to answer anything about their job search with real numbers.
+      database. With search filters, find public employer openings by title/description/company, city/ZIP
+      and radius, including useHome:true for this user's saved Career matching area.
+      Supports per/page pagination. These searches are read-only and do not change preferences.
     executor:
       executorType: builtin
       builtinKey: package
-    inputSchema: { type: object, properties: {}, additionalProperties: false }
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        q: { type: string, maxLength: 240, description: "Job title, description, skill, or employer keywords" }
+        title: { type: string, maxLength: 240 }
+        company: { type: string, maxLength: 240 }
+        description: { type: string, maxLength: 240 }
+        state: { type: string, maxLength: 2 }
+        near: { type: string, maxLength: 160, description: 'US city and state or ZIP, for example Destin, FL' }
+        useHome: { type: boolean, description: Use only this user's saved Career matching-area center as home }
+        radiusMiles: { type: number, minimum: 1, maximum: 250 }
+        remote: { type: string, enum: [any, remote, on-site] }
+        days: { type: integer, minimum: 1, maximum: 365 }
+        sort: { type: string, enum: [recent, posted, salary, title] }
+        per: { type: integer, minimum: 1, maximum: 200 }
+        page: { type: integer, minimum: 1, maximum: 2001 }
     outputSchema: { type: object, additionalProperties: true }
     defaultAuthMode: auto
     usageInstructions: >-
-      Call career_database with {} to get a read-only JSON snapshot of THIS user's saved hunt.
+      To FIND jobs near a location, call career_database with near (US city/state or ZIP)
+      and radiusMiles. "Within 50 miles of my home" means useHome:true,radiusMiles:50.
+      Home references only this user's saved Career matching area; ask for a city/ZIP if missing.
+      Search results are public openings, not resume fit scores. Return the searchUrl and use
+      page+1 until exhausted/capped. Distances are approximate straight-line miles, not driving time.
+      A temporary radius does not change saved preferences. No refresh or scoring is required.
+      q combines its words; for alternative role categories, make separate searches rather
+      than combining every category into one query. Cover each requested category and report
+      when it has no results. For recent postings use days:7 and state that window. If a
+      category has no recent results, older active listings can be checked and clearly dated.
+      With {}, career_database returns a read-only JSON snapshot of THIS user's saved hunt.
       The snapshot reports source timestamps, a bounded profile, scored topMatches, recentApplied,
       pipeline and freshHighFit. It does not refresh or score jobs. topGaps explicitly reports
       unavailable until a native gap reader exists. If the saved source is unavailable, report
       that refusal; never invent matches or claim that a refresh ran.
-      freshHighFit.count = saved roles ≥70% fit first seen in the last 3 days; topMatches = best-fit
+      freshHighFit.count = saved AI-scored roles with fit ≥70/100 first seen in the last 3 days,
+      within the saved matching area and remote preference, excluding dismissed jobs.
+      Keyword-only matches do not count as AI assessments. topMatches = saved best-fit
       roles (title/company/fit/salary/status); recentApplied = the user's MOST RECENTLY
       APPLIED jobs (title/company/fit/salary_max/applied_at), newest first; pipeline =
       applied/generated/promoted counts. For ANY question about jobs the user APPLIED to / recent applications, answer
@@ -403,87 +492,345 @@ tools:
       applications). ALWAYS call this before answering questions about their jobs, matches,
       applications, fit, or gaps. The data is already scoped to the signed-in user — never
       request another user's data or infer missing details.
+      source.profileModifiedAt is null because retained/exported file mtimes are not résumé
+      content revision dates. Never infer résumé edits or score staleness from source-file
+      modification timestamps. Not-revalidated proves neither currentness nor staleness.
+      topMatches and recentApplied carry fitAssessment: kind distinguishes AI, keyword and
+      absent scores; assessedAt and model describe saved provenance. currentness is not-revalidated:
+      never describe these as newly scored or current after a resume/job change without a new
+      scoring receipt. Give the assessment date when relevant. A fit score is not a hiring probability.
+
+  - name: career_interview
+    displayName: Read interview preparation and practice
+    type: api
+    description: Read your saved preparation guide, exact experience references, practice answers and feedback for one job. Reports whether the job or profile changed.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/interview/{input.postingId}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+      required: [postingId]
+    usageInstructions: Read the persisted result. Questions are suggested practice, not the employer's actual interview script. Never claim preparation succeeded while only a background run is acknowledged.
+  - name: career_interview_prepare
+    displayName: Prepare for this job's interview
+    type: api
+    description: Start a job-specific guide using recorded candidate experience. Preserves earlier practice and does not change the resume profile.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/interview/{input.postingId}/prepare"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+      required: [postingId]
+    usageInstructions: After acknowledgement, read career_interview until its operation receipt completes. Show experience citations and gaps honestly, with the workspace link /api/career-hunter/interview?postingId=POSTING_ID.
+  - name: career_interview_practice
+    displayName: Save an interview practice answer and get feedback
+    type: api
+    description: Assess the person's own answer to one saved question. Saves private feedback without treating new claims as verified profile facts.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/interview/{input.postingId}/practice"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        planId: {type: string, minLength: 32, maxLength: 32}
+        questionId: {type: string, enum: [q1, q2, q3, q4, q5, q6, q7, q8, q9, q10]}
+        answer: {type: string, minLength: 1, maxLength: 8000}
+      required: [postingId, planId, questionId, answer]
+    usageInstructions: Use the current planId and questionId from career_interview and the person's actual answer. Do not invent an answer or achievements on their behalf. Read the saved receipt and feedback after the background run completes.
+  - name: career_submission_review
+    displayName: Review application for submission
+    type: api
+    description: Read one prepared job's exact documents, packet digest and applicant facts before proposing submission.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/submission-review/{input.postingId}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+      required: [postingId]
+    usageInstructions: Read this first. Show the job, employer, document links and application facts to the person. Never infer missing answers or claim submission happened.
+  - name: career_submission_approve
+    displayName: Approve this application for auto-submit
+    cardText: Authorize one application using the reviewed job, exact resume, cover letter and applicant facts. The browser may click final Submit once.
+    type: api
+    description: Approve one reviewed job packet for automatic submission. This saves consent and input but does not start a browser yet.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/submission-queue"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        packetDigest: {type: string, minLength: 64, maxLength: 64}
+        approved: {type: boolean, enum: [true]}
+      required: [postingId, packetDigest, approved]
+    usageInstructions: Use only the exact packetDigest just read from career_submission_review. Wait for the person's approval card. After approval returns its intent id, bind it, then start it; never say it was submitted until its retained result confirms it.
+  - name: career_submission_bind
+    displayName: Bind approved submission ticket
+    type: api
+    description: Save the native ticket reference of an already specifically approved submission intent. This cannot run a browser.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/submission-queue/{input.id}/bind"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, minLength: 36, maxLength: 36}
+      required: [id]
+  - name: career_submission_start
+    displayName: Start approved browser submission
+    type: api
+    description: Start the original ticket with the already approved immutable packet. Repeated calls recover the same dispatch and cannot create another final-submit intent.
+    usageInstructions: >-
+      If approval, binding or start was interrupted, read career_submissions first.
+      Reuse its exact intent id. Sync an existing ticket before binding or starting;
+      only queued, unexpired approvals may resume. Never create a replacement intent
+      to recover a lost acknowledgement, and never restart an unknown outcome.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/submission-queue/{input.id}/start"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, minLength: 36, maxLength: 36}
+      required: [id]
+  - name: career_submissions
+    displayName: Read submission activity
+    type: api
+    description: Read the caller's own durable submission intents, exact states, missing questions and retained confirmation references.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/submission-queue"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_submission_sync
+    displayName: Reconcile submission outcome
+    type: api
+    description: Read the exact native result and retained employer confirmation into application status without opening or submitting the form again.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/submission-queue/{input.id}/sync"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, minLength: 36, maxLength: 36}
+      required: [id]
+  - name: career_submission_answers
+    displayName: Save employer question answers
+    cardText: Save your answers for this specific employer. A fresh review and approval are required before another submission attempt.
+    type: api
+    description: Save only the person's explicit answers to the questions returned by this exact submission. No browser is started and its previous approved input is immutable.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/submission-queue/{input.id}/answers"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        id: {type: string, minLength: 36, maxLength: 36}
+        answers: {type: object}
+      required: [id, answers]
 
   # ── engine work tools: what the codex sandbox shell-out used to do, now server-side ──
+  - name: career_job
+    displayName: Read a job and its preparation progress
+    type: api
+    description: Read one job's employer details, fit, private status, saved star and document-generation receipt.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/jobs/{input.postingId}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {postingId: {type: integer, minimum: 1}}
+      required: [postingId]
+    usageInstructions: >-
+      job.fit_assessment distinguishes a saved AI assessment from a keyword-only match.
+      Use its score, date and model provenance; an old or date-unknown assessment is not
+      evidence that the current resume and job were rechecked. Retired land_prob/high_win
+      fields are null. Never turn a fit score into a probability of being hired.
+  - name: career_save
+    displayName: Save and star a job
+    type: api
+    description: Add one selected job to your private saved board and star it. Sends no application.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        favorite: {type: boolean, enum: [true]}
+      required: [postingId, favorite]
+  - name: career_promote
+    displayName: Promote a job to the document queue
+    type: api
+    description: Move one selected job to your submission preparation queue and star it. Generates no documents. Select optional experience and request document generation as the next step.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/status"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        status: {type: string, enum: [promoted]}
+      required: [postingId, status]
+  - name: career_documents
+    displayName: Read one job's generated application documents
+    type: api
+    description: Read the actual saved resume and cover-letter content for one prepared job.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/doc?id={input.postingId}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {postingId: {type: integer, minimum: 1}}
+      required: [postingId]
   - name: career_draft
     displayName: Draft Application
-    type: cli
+    type: api
     description: >-
-      Write the tailored resume + cover letter PDFs for ONE approved posting — the engine
-      tailors against the user's real profile (the model pass runs on the career-bot through
-      the worker rail) and returns the output packet paths.
-    executor:
-      executorType: cli
-      cliCommand: node {packageDir}/bin/oshal-jobhunter.js draft --job {input.postingId}
+      Start fit scoring and tailored resume/cover generation for one selected job using its employer details and your recorded experience. Returns an acknowledgement, not finished documents.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/generate"}
     defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        guidance: {type: string, maxLength: 2000}
+        experienceIds: {type: array, maxItems: 12, uniqueItems: true, items: {type: string, pattern: '^[a-zA-Z0-9-]{8,80}$'}}
+        experienceRevision: {type: string, pattern: '^[a-f0-9]{64}$'}
+      required: [postingId]
     usageInstructions: >-
+      Additional experience is opt-in per application. Read career_experience_bank to obtain IDs
+      and its current revision; pass experienceIds and experienceRevision only for entries the user
+      chose. Otherwise use the core resume alone.
       Call career_draft with input.postingId (the posting id from the ticket or
       career_database) to produce the tailored resume + cover letter for that ONE job.
-      Report the output paths it prints. This is the standard draft — never claim a draft
-      was made without calling it.
-  - name: career_draft_oshal
-    displayName: Draft Application (OSHAL variant)
-    type: cli
-    description: >-
-      Same as career_draft but includes the OSHAL/open-source resume section. OPT-IN only.
-    executor:
-      executorType: cli
-      cliCommand: node {packageDir}/bin/oshal-jobhunter.js draft --job {input.postingId} --oshal
+      Read career_job after the acknowledgement and wait for its board.completedAt receipt.
+      The board.requestId must equal the requestId returned by this draft acknowledgement.
+      A different requestId is an older packet receipt: report that this preparation is still in progress.
+      A receipt with phase ready means documents exist; phase failed gives the observed error.
+      Link the saved resume and cover from /api/career-hunter/resume?id=POSTING_ID&kind=resume or kind=cover.
+  - name: career_experience_bank
+    displayName: Read additional experience library
+    type: api
+    description: Read the original owner's recorded optional projects, other work and skills, with IDs for per-application selection. Does not edit the core resume.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/experience-bank?summary=1"}
     defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+  - name: career_draft_oshal
+    displayName: Draft with saved independent experience
+    type: api
+    description: >-
+      Legacy opt-in for the original owner's saved independent portfolio. Prefer career_experience_bank and career_draft for explicit additional experience selection.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/jobs/{input.postingId}/generate"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        postingId: {type: integer, minimum: 1}
+        oshal: {type: boolean, enum: [true]}
+      required: [postingId, oshal]
     usageInstructions: >-
       Call career_draft_oshal ONLY when the ticket or operator explicitly approved the
       OSHAL/open-source variant for input.postingId. When in doubt, use career_draft.
+      Use career_job to check completion, requiring the same requestId as this acknowledgement.
   - name: career_score
     displayName: Score Fresh Postings
-    type: cli
+    type: api
     description: >-
-      AI fit-score the signed-in user's fresh in-lane postings (bounded to recent postings;
-      each fit judgement runs on the career-bot through the worker rail).
-    executor:
-      executorType: cli
-      cliCommand: node {packageDir}/bin/oshal-jobhunter.js score
+      Start a bounded fit-score pass for the signed-in user's recent saved target titles,
+      including teaching/support roles, using their saved area and remote preference.
+      An accepted run is not a finished pass.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/run/score"}
     defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 50}
     usageInstructions: >-
-      Call career_score (no arguments) when a ticket or the operator asks to score fresh
-      postings. It is bounded to recent in-lane roles; report the counts it prints.
+      Start only when asked to score fresh postings. limit defaults to 50 and must be 1..50.
+      The seven-day window uses the employer posted date, or first-seen date if undated.
+      On native installations a 202 acknowledgement means accepted and running, not scored.
+      Read career_runs and match this exact runId to a succeeded receipt before reporting its
+      scored/skipped counts. Missing status or no receipt is unconfirmed; never invent completion.
+      Unavailable or changed scoring configuration is a failure; previously saved fits are not new results.
+
+  - name: career_runs
+    displayName: Career Run Status
+    type: api
+    description: Read the signed-in user's actual active engine runs and retained manual-score success receipt.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/runs"}
+    defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
+    usageInstructions: >-
+      Match the exact acknowledged runId. A running entry means still active. Only a succeeded
+      entry with saved scored/skipped counts confirms a manual score pass. Absence does not
+      establish success, failure or cancellation. These are personal engine runs, not the shared corpus ingest.
+
+  - name: career_run_cancel
+    displayName: Stop Career Engine Run
+    type: api
+    description: Request cancellation of one original-owner Career engine run identified by its start acknowledgement.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/_runtime/runs/{input.runId}/cancel"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        runId: {type: string, format: uuid}
+      required: [runId]
+    usageInstructions: >-
+      Use only when the person requests stopping a specific in-progress engine task. Use the
+      exact runId from that task's acknowledgement or the person's explicit selection; never
+      guess which task an unidentified active id belongs to. Check career_runs and require
+      that exact active entry's canCancel true before requesting a stop. A 202 cancelling response is only
+      a stop request. Read career_runs for that exact id's cancelled receipt before confirming
+      it stopped. A finishing response means publication already began: check the saved result.
+      Stopped-run receipts are bounded and expire after 30 minutes or a kernel restart; missing
+      evidence is unconfirmed, never success. This does not withdraw an employer application.
 
   # The kernel's oshal-apply.js profile/queue/trace verbs intentionally are NOT registered here.
   # They remain controller-private implementation details of staged dispatch and trusted ingest.
   - name: career_refresh
     displayName: Refresh Jobs Database
-    type: cli
+    type: api
     description: >-
-      Start the full jobs-database refresh NOW — scrape every company's ATS feed, re-index all
-      users' keyword matches, AI-score the new roles, and queue the top drafts. The same chain
-      the nightly 18:00-CT cron runs. Admin-only; runs detached for hours.
-    executor:
-      executorType: cli
-      cliCommand: node {packageDir}/bin/oshal-jobhunter.js refresh
+      Request the existing authenticated refresh route. Native shared-corpus ingestion is
+      installation-managed and this route refuses a personal refresh request explicitly.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/run/refresh"}
     defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
     usageInstructions: >-
-      Call career_refresh (no arguments) when the operator asks you to update, refresh, rescrape,
-      or re-index the jobs database. It returns immediately with {ok,started} — the scrape runs
-      detached and takes hours, so tell the operator it's underway, never that it's done. If it
-      returns 403/admin-only, this user isn't a career admin: say so and stop (do not retry). If
-      it returns "already running", report that the refresh is in progress. To check progress,
-      Once admitted through the existing authenticated route,
-      career_refresh_status reports {running, corpusFreshAt, lastCompletedAt}.
+      Use only for an explicit refresh request. A native 409 installation-managed response
+      means this action did not start anything; say that the shared pull is managed by the
+      installation schedule. A 403 means refused, not started. Only an actual started response
+      confirms a start; none of these establish completion. Do not shell out or bypass a refusal.
   - name: career_refresh_status
     displayName: Refresh Status
-    type: cli
+    type: api
     description: >-
-      Whether a jobs-database refresh is currently running, the corpus's newest
-      last-seen timestamp, and the last successful chain completion timestamp.
-    executor:
-      executorType: cli
-      cliCommand: node {packageDir}/bin/oshal-jobhunter.js refresh-status
+      Read actual native pull state, last successful publication and its recorded counts;
+      legacy installations retain their own refresh and corpus observations.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/run/refresh"}
     defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
     usageInstructions: >-
-      Call career_refresh_status (no arguments) to answer "is the refresh done / how fresh is
-      the jobs data". {running:true} = scrape+index still going; corpusFreshAt = newest
-      last-seen timestamp in the shared corpus (UTC), which advances during a scrape.
-      lastCompletedAt = last successful chain completion (UTC), or null if unavailable.
-      Use lastCompletedAt to confirm completion; fresh corpus rows alone do not confirm it.
+      Read the actual returned facts. With observationAvailable true, status describes the native
+      scheduler: running, idle, failed, disabled or unavailable. A running pull is not published.
+      lastPublishedAt and lastPublication describe the previous successful publication, including
+      its recorded job and source counts; they do not describe current partial progress. Compare
+      lastStartedAt with lastCompletedAt before claiming the latest pull finished. running:null
+      means unavailable. corpusFreshAt is not supplied by the native scheduler; never substitute
+      publication time for a row-freshness scan. Missing counts are unknown, not zero. Source
+      failures remain separate from successful overall publication. This read starts no pull.
 
   # ── resume editing tools: "a bot and a tool to edit the database and re-render the resume" ──
   # The bot reads the master editor document with career_resume_read, proposes edits in
@@ -493,19 +840,75 @@ tools:
   # changes the durable career profile without the user confirming the tool call.
   - name: career_resume_read
     displayName: Read Resume (Master Document)
-    type: cli
+    type: api
     description: >-
       Read the signed-in user's editable resume document — the durable master career profile
       (headline, summary, competencies, experience with bullets, skills, clearance) every
       tailored resume is generated from.
-    executor:
-      executorType: cli
-      cliCommand: node {packageDir}/bin/oshal-jobhunter.js resume base
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/doc?id=master"}
     defaultAuthMode: auto
+    inputSchema: {type: object, additionalProperties: false, properties: {}}
     usageInstructions: >-
-      Call career_resume_read (no arguments) BEFORE proposing or making any resume edit — it
-      returns {ok, resume} where resume is the current master document. Quote the user's real
-      content back when discussing changes; never invent sections that are not in the document.
+      Read recorded content before discussing edits. Large profiles should use career_resume_section
+      instead: it explicitly pages every section and returns the revision needed by career_resume_patch.
+      Quote real content and never infer credentials or experience from a missing section.
+  - name: career_resume_section
+    displayName: Read Resume Section
+    type: api
+    description: Read one bounded page of the signed-in user's master profile, including read-only qualifications.
+    executor: {executorType: api, apiEndpoint: "GET /api/career-hunter/resume/master-section?field={input.field}&index={input.index}&offset={input.offset}"}
+    defaultAuthMode: auto
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        field: {type: string, enum: [overview, headline, summary, clearance, competencies, skills, experience, education, certifications, licenses]}
+        index: {type: integer, minimum: 0, maximum: 9999}
+        offset: {type: integer, minimum: 0, maximum: 1000000}
+      required: [field, index, offset]
+    usageInstructions: >-
+      Start with field overview, index 0, offset 0. For experience use the role's zero-based
+      index; other fields require index 0. Follow nextOffset until complete. List entries have
+      zero-based indices; text offsets count Unicode code points. Every page names its exact
+      revision. If revisions differ, reread affected sections. Qualifications are source statements,
+      including expired or pending status, and read-only here. Role titles, employers and dates are anchors.
+  - name: career_resume_patch
+    displayName: Save Selected Master Edits
+    type: api
+    description: Apply at most 20 small exact edits to the current master revision with backup and audit.
+    executor: {executorType: api, apiEndpoint: "POST /api/career-hunter/resume/master-edit"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        revision: {type: string, minLength: 64, maxLength: 64}
+        edits:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              op: {type: string, enum: [set, add, remove]}
+              field: {type: string, enum: [headline, summary, clearance, competencies, skills, experience]}
+              index: {type: integer, minimum: 0}
+              roleIndex: {type: integer, minimum: 0}
+              roleTitle: {type: string}
+              before: {type: string}
+              value: {type: string}
+            required: [op, field, before]
+      required: [revision, edits]
+    usageInstructions: >-
+      Use only after approval of these specific changes. Carry the exact revision and before
+      text from career_resume_section. Text fields accept set only, without indices. List edits
+      require index; experience also requires roleIndex and exact roleTitle. add inserts before
+      index (before must match that item), or appends at total with before empty. set/add need
+      value; remove must omit value. Keep the entire request below 12 KiB. A conflict requires
+      rereading and reviewing new text, never an automatic overwrite. All edits apply or none.
+      Do not change role anchors or qualifications here; never add unverified claims.
   - name: career_resume_save
     displayName: Save Resume Edits
     type: api
@@ -520,16 +923,22 @@ tools:
       type: object
       properties:
         postingId:
+          type: string
+          maxLength: 32
           description: "'master' for the durable profile, or the numeric posting id for a job packet"
         resume:
           type: object
           description: The FULL edited resume document (start from career_resume_read's output)
+        cover:
+          type: object
+          description: The full saved cover document, required when editing a job packet.
       required: [postingId, resume]
     usageInstructions: >-
-      Call career_resume_save ONLY after the user approves the specific edits. Send the FULL
-      resume document (career_resume_read's shape with your changes applied), never a fragment.
-      postingId 'master' = update the durable profile; a numeric postingId = save + re-render
-      that packet's PDF. Report the changelog/paths the call returns. Titles, organizations and
+      Call career_resume_save ONLY after the user approves the specific edits. For a numeric
+      postingId send the FULL saved resume AND cover documents; this saves and re-renders that
+      packet's PDF. For master edits prefer career_resume_patch so large profiles need not be
+      round-tripped; this legacy master route accepts whitelisted fields. Report only the
+      changelog/paths actually returned. Titles, organizations and
       date spans on master experience entries are anchors and cannot be changed here — say so
       if asked.
 
@@ -586,17 +995,29 @@ ui:
     # the ticket lanes, and the narrated screenshot story per run. Sits next to the Job Board because
     # that is where a submission is queued and this is where you watch it.
     - toolName: career-submissions
-      label: Submissions
+      label: Prepare & submit
       icon: codicon codicon-desktop-download
-      iframeUrl: /api/career-hunter/submissions
+      iframeUrl: /api/career-hunter/board-native?view=queue
       section: top
       group: Job Search
+    - toolName: career-application-status
+      label: Application status
+      icon: codicon codicon-checklist
+      iframeUrl: /api/career-hunter/board-native?view=status
+      section: top
+      group: Job Search
+    - toolName: career-submission-activity
+      label: Submission activity
+      icon: codicon codicon-history
+      iframeUrl: /api/career-hunter/submissions
+      section: top
+      group: Activity
     - toolName: career-recruiters
       label: Recruiters
       icon: codicon codicon-organization
       iframeUrl: /api/career-hunter/recruiters-ui
       section: top
-      group: Job Search
+      group: Connections
     # Insights is search ANALYTICS (pipeline funnel, open roles by company/state, salary
     # bands) — it reads the hunt, so it belongs with the hunt, not with the resume.
     - toolName: career-insights
@@ -604,7 +1025,7 @@ ui:
       icon: codicon codicon-graph-line
       iframeUrl: /api/career-hunter/insights-ui
       section: top
-      group: Job Search
+      group: Review
     # ── Resume ──────────────────────────────────────────────────────────────
     - toolName: career-strengthen
       label: Strengthen
@@ -616,6 +1037,12 @@ ui:
       label: Resume Studio
       icon: codicon codicon-edit
       iframeUrl: /api/career-hunter/resume-studio
+      section: top
+      group: Resume
+    - toolName: career-experience-library
+      label: Additional experience
+      icon: codicon codicon-library
+      iframeUrl: /api/career-hunter/experience-library
       section: top
       group: Resume
     # ── Presence — how a recruiter sees you before they read the resume ──────
@@ -675,6 +1102,35 @@ ui:
 # not a form — an edit must go through applyAction so it stays a real document
 # mutation) and navigate (nothing here needs to move the ribbon).
 # ─────────────────────────────────────────────────────────────────────────────
+# Native egress keeps the original person's Gmail credential inside the kernel.
+egress:
+  - host: '*.myworkdayjobs.com'
+  - host: gmail.googleapis.com
+    credential: { connector: gmail, header: authorization, prefix: "Bearer " }
+
+schedules:
+  - id: career-application-updates
+    cron: "7,22,37,52 * * * *"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/career-hunter/jobs/updates/check
+    method: POST
+    timeoutSeconds: 60
+    # The original-person route resolves the declared Gmail egress credential on each check.
+    # Native dependency-bound connection scheduling is unavailable; no credential is captured here.
+    description: Read your submission mailbox for exact employer and job-title matches on submitted applications; retain acknowledgements and update interview, offer or rejection status. Sends no email and submits no applications.
+  - id: career-nightly-matches
+    cron: "*/30 * * * *"
+    timezone: America/Chicago
+    runsAs: user
+    target: service-route
+    route: /api/career-hunter/title-pass/run-now
+    method: POST
+    timeoutSeconds: 60
+    description: After a new shared job corpus is published, keyword-match the last 14 days to your resume and AI-score up to 50 new or changed target-title jobs from the last 7 days using your saved matching area. Checks every 30 minutes; runs once per evening publication cycle. Creates no application submissions.
+    body: { nightly: true }
+
 surface:
   ops: [context, custom, notify]
 
@@ -682,6 +1138,20 @@ surface:
 # ROUTES — mounted conditionally by the loader.
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: lib/career-interview-routes.js
+    factory: createCareerInterviewRoutes
+    mountPath: /api/career-hunter
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+  - module: lib/career-submission-routes.js
+    factory: createCareerSubmissionRoutes
+    mountPath: /api/career-hunter
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
   - module: lib/native-career-read.js
     factory: createNativeCareerReadRoutes
     mountPath: /api/career-hunter
@@ -813,6 +1283,8 @@ migrations:
   - migrations/native/001-career-hunter.sql
   # 108 needs the native table created above; keep the same index on both backends.
   - migrations/108-career-generated-queue-index.sql
+  # 109 records the private score's semantic input identity without changing public job views.
+  - migrations/109-career-score-freshness.sql
 # The native kernel applies 031, 077, 082 and the native file above in place of 090-107, whose DO blocks, GRANTs and triggers are PostgreSQL-only.
 nativeMigrations:
   - id: migrations/090-career-rls.sql
@@ -875,6 +1347,14 @@ workflow:
   pipeline: career-application
   workerBot: career-hunter
 
+workflows:
+  - id: career-hunter:career-submission
+    ticketType: career-submission
+    name: Approved Career Submission
+    phases:
+      - {name: submit-approved-application, bot: career-submission-browser}
+      - {name: complete, action: complete}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # THEMING
 # ─────────────────────────────────────────────────────────────────────────────
@@ -887,13 +1367,14 @@ workflow:
 # ─────────────────────────────────────────────────────────────────────────────
 ribbon:
   hideFrameworkItems:
+    - tickets
     - chat
     - calendar
     - addressbook
     - dashboard
     - logs
     - operations
-  defaultView: career-board
+  defaultView: career-search
 
 summary:
   path: /api/career-hunter/home-summary

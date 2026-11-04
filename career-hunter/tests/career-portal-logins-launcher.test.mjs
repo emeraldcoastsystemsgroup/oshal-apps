@@ -19,6 +19,7 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const binPath = path.join(packageRoot, 'bin', 'oshal-jobhunter.js');
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'career-portal-logins-'));
 const hostileEnv = {
+  OSHAL_EGRESS: 'kernel',
   // The retired carve's two gates, and its verdict, all present at once.
   DEMO_MODE: 'true',
   OSHAL_OPERATOR_SUBS: 'operator-1',
@@ -87,6 +88,7 @@ test('no verb hands the engine a vendor login or a model-provider key, for the d
     for (const verb of MODEL_VERBS) {
       const env = await buildEngineEnv(subject, 'default', verb, store, Date.now() + 60_000);
       const where = `${subject} ${verb}`;
+      assert.equal(env.OSHAL_EGRESS,'kernel',`${where}: native employer requests stay on the signed kernel rail`);
       assert.equal(env.CLAUDE_CONFIG_DIR, path.join(store.userDir, '.brokered-auth-only', 'claude'), where);
       assert.equal(env.CODEX_HOME, path.join(store.userDir, '.brokered-auth-only', 'codex'), where);
       for (const key of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OSHAL_CRED_ANTHROPIC', 'OSHAL_PORTAL_LOGINS', 'DEMO_MODE',

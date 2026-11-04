@@ -1,5 +1,8 @@
 <!doctype html>
-<html lang="en" data-theme="midnight">
+<!-- Office is a LIGHT product by default (Word/Excel/PowerPoint are paper): the manifest declares
+     theme light-blue (the cockpit wears it for the app when the person never saved a theme), and
+     standalone opens default to the same look below. A person's saved theme still wins. -->
+<html lang="en" data-theme="light-blue">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,13 +11,15 @@
 <!-- 2.11.1: the making bar uses the starter's own article (a Budget, an Invoice), not the kind's. -->
 <!-- 2.12.0: your brand from Create's brand kit: the nearest built-in look is badged (and picked when nothing else chose one), the brand name fills an empty cover byline, and AI drafts can use the brand voice. -->
 <!-- 2.13.0: "Your brand" is a real look: the server builds it from the kit (its exact colors and faces on the nearest look's layout), it leads both galleries and is picked when nothing else chose a look, and every render and send carries the kit so the file is drawn in it. -->
+<!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | The studio lands on the latest saved work when nothing was asked of it and nothing is typed (resumeLatest: the file explorer reopen, run for the person; ?kind= narrows to that format), instead of an empty editor (Roger, 2026-11-02, on the demo). -->
 <!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: a failed generate left every generate button disabled until a reload (the error path returned before the re-enable); the buttons now come back on every way out, and a draft whose outline was cut off says so beside the saved file. -->
+<!-- 2.15.0 | maintainer@emeraldcoastsystemsgroup.com | The slide canvas gets a real design row (Roger, 2026-11-03, on the demo: "no controls... can't add an image"): a layout picker, an image file with its caption, all over the renderer's own #layout:/#image:/#caption: directives, drawn in the draft and the My-files quick look. The AI-partner box takes the rail's width and grows as you type, with Dictate and Send under it. The phantom empty "making" bar is gone (.making's display:flex defeated the hidden attribute). Where Create is installed, the studio names its suite (✦ Create suite). -->
 <!-- 2.11.0: the studio speaks the purpose — a starter folds the setup away behind one "making" bar, every label uses the kind's words (sections / sheets / slides), the AI-draft prompt is the purpose's own. -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colors at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
-<script src="/shared/ui/js/surface-theme.js"></script>
+<script src="/shared/ui/js/surface-theme.js" data-theme-default="light-blue"></script>
 <!-- Audience views (ADR-164 D6). The Business shell opens this page with ?audience=company: what is on file and
      three ways to start. The Classroom shell opens it with ?audience=classroom: five friendly starters and the
      learner's own work. Both read the same routes as the full studio and are painted by the shared kit; their only
@@ -263,6 +268,8 @@
   .pvSlide .ttl { font-weight:800; font-size:15px; margin:0 0 8px; }
   .pvSlide .kick { font-size:9px; letter-spacing:1.2px; text-transform:uppercase; font-weight:700; display:inline-block; padding:2px 8px; border-radius:9px; margin-bottom:8px; }
   .pvSlide ul { margin:0; padding-left:18px; } .pvSlide li { font-size:12px; line-height:1.55; margin:3px 0; }
+  .pvSlide .pvImg { margin:10px 0 0; } .pvSlide .pvImg img { display:block; max-width:100%; max-height:190px; border-radius:6px; object-fit:cover; }
+  .pvSlide .pvImg figcaption { font-size:11px; opacity:.75; margin-top:4px; }
   .pvSlide table { border-collapse:collapse; width:100%; font-size:11.5px; margin:6px 0; }
   .pvSlide th, .pvSlide td { border:1px solid; padding:4px 8px; text-align:left; }
   .pvSlide .q { font-size:14px; font-style:italic; line-height:1.5; margin:8px 0 4px; }
@@ -318,8 +325,12 @@
   .msg.bot { background:var(--panel); border:1px solid var(--line); align-self:flex-start; border-bottom-left-radius:3px; }
   .msg.you { background:var(--accent); color:#fff; align-self:flex-end; border-bottom-right-radius:3px; }
   .msg.note { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); align-self:center; font-size:11.5px; max-width:100%; text-align:center; padding:6px 10px; }
-  .chatbar { display:flex; gap:8px; align-items:flex-end; margin-top:12px; flex:0 0 auto; }
-  .chatbar textarea { min-height:0; height:44px; max-height:120px; resize:none; font-family:inherit; }
+  /* The message box gets the full rail width and grows as you type; Dictate and Send sit under it
+     (side by side they left a sliver of textarea beside a large mic — Roger, 2026-11-03, on the demo). */
+  .chatbar { display:flex; flex-direction:column; gap:8px; align-items:stretch; margin-top:12px; flex:0 0 auto; }
+  .chatbar textarea { min-height:0; height:64px; max-height:180px; resize:none; font-family:inherit; width:100%; box-sizing:border-box; }
+  .chatActions { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+  .chatActions .micBtn { padding:8px 12px; font-size:14px; border-radius:9px; }
   ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
   ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
@@ -339,7 +350,6 @@
     .opts .in { width: 100%; }
     input, textarea, .chatbar textarea { font-size: 16px; }
     .btn { padding: 13px 16px; }
-    .chatbar { flex-direction: row; }
     .top { padding: 12px 14px 10px; }
   }
 
@@ -414,6 +424,7 @@
   .wzKu { color:var(--text); font-size:12px; margin:6px 14px 2px; line-height:1.4; min-height:1.4em; }
   .tplGroup { flex-basis:100%; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin:4px 0 -2px; font-weight:700; }
   .making { display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
+  .making[hidden] { display:none; } /* display:flex would defeat the hidden attribute: the demo showed an empty bar with one Change button */
   .making .mk { flex:1; font-size:13.5px; } .making .mk b { color:var(--text); }
   .btn.sm { padding:7px 12px; font-size:12.5px; }
   details.setup > summary { cursor:pointer; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; margin:0 0 10px; list-style:none; }
@@ -592,7 +603,8 @@
     <div class="office-top-actions"><label class="office-format-label">Format <select id="officeFormat" aria-label="Office format"><option value="pptx">Presentation</option><option value="docx">Document</option><option value="xlsx">Spreadsheet</option></select></label><button class="btn ghost" id="officeSetup" type="button">Look &amp; setup</button>
     <button class="btn ghost" id="openBtn" type="button">Open file</button>
     <button class="btn ghost" id="officePartner" type="button" aria-controls="officePartnerPane" aria-expanded="false">AI partner</button>
-    <button class="btn ghost" id="wzReopen" title="Restart the guided walkthrough">✨ Walkthrough</button></div>
+    <button class="btn ghost" id="wzReopen" title="Restart the guided walkthrough">✨ Walkthrough</button>
+    <a class="btn ghost" id="createSuiteLink" href="/cockpit/?app=create" target="_top" hidden title="AI Office is one studio of the Create suite — posters, images, video, 3D and more">✦ Create suite</a></div>
   </div>
   <div class="split">
     <div class="pane left">
@@ -704,9 +716,11 @@
         <div id="guideProposal" hidden aria-live="polite"></div>
         <div class="chips" id="chatChips"></div>
         <div class="chatbar">
-          <textarea id="chatIn" rows="1" placeholder="Ask about your selected slide, section or cell…"></textarea>
-          <button class="btn ghost" id="micChat" title="Dictate" aria-label="Dictate a message">🎤</button>
-          <button class="btn" id="chatSend">Send</button>
+          <textarea id="chatIn" rows="2" placeholder="Ask about your selected slide, section or cell…"></textarea>
+          <div class="chatActions">
+            <button class="btn ghost micBtn" id="micChat" title="Dictate" aria-label="Dictate a message">🎤</button>
+            <button class="btn" id="chatSend">Send</button>
+          </div>
         </div>
       </div>
 
@@ -890,7 +904,8 @@ let themeChosen = false;
 // kit is never asked for. globalThis rather than window: the brand test runs this block in a bare script context.
 const brandReady = globalThis.AppView && AppView.active() ? Promise.resolve() : fetch('/api/create/brand-kit', { credentials: 'same-origin', cache: 'no-store',
   signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(4000) : undefined })
-  .then(r => (r.ok ? r.json() : null)).then(j => { if (j && j.kit) BRAND.kit = j.kit; })
+  .then(r => { const link = $('createSuiteLink'); if (r.ok && link) link.hidden = false; return r.ok ? r.json() : null; }) // Create answered: this installation has the suite, so the door to it shows
+  .then(j => { if (j && j.kit) BRAND.kit = j.kit; })
   .catch(() => { /* No Create access or no kit: the studio keeps its own looks. */ });
 function hslOf(hex){
   const n = parseInt(String(hex).replace('#', ''), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
@@ -1342,6 +1357,14 @@ function pvBlock(lines, t){
   if (out.bullets.length) h += `<ul>${out.bullets.slice(0,9).map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`;
   return h;
 }
+/** The slide's #image: (with its #caption:) as a draft figure — only the sources the renderer
+ *  itself accepts (an inline data image or an http(s) URL), so the draft never invents a surface. */
+function pvImage(content){
+  const read = name => { for (const raw of String(content||'').split('\n')){ const m = new RegExp('^#\\s*'+name+'\\s*:\\s*(.+)$','i').exec(raw.trim()); if (m) return m[1].trim(); } return ''; };
+  const src = read('image'), caption = read('caption');
+  if (!/^(data:image\/|https:\/\/|http:\/\/)/i.test(src)) return '';
+  return `<figure class="pvImg"><img src="${esc(src)}" alt="${esc(caption||'Slide image')}" loading="lazy">${caption?`<figcaption>${esc(caption)}</figcaption>`:''}</figure>`;
+}
 /** Themed cards from outline blocks [{title, content}] — the ONE renderer behind both the
  *  Draft tab (live, from the editor) and the My-files quick look (from the stored record). */
 function slideCards(blocks, t, kindName){
@@ -1352,6 +1375,7 @@ function slideCards(blocks, t, kindName){
         <span class="kick" style="background:${hx(c.accent)};color:${lum(c.accent)>0.45?'#111':'#fff'}">${kindName} ${i+1}</span>
         <div class="ttl" style="color:${hx(c.ink)}">${esc(t.headingCase==='upper'?String(b.title||'').toUpperCase():String(b.title||''))}</div>
         ${pvBlock(pvLines(b.content), t)}
+        ${pvImage(b.content)}
       </div>
     </div>`).join('');
 }
@@ -1423,6 +1447,10 @@ function readEditorSlides(){
     title: b.title, bullets: String(b.content || '').split('\n'),
   }));
 }
+/** What the AI partner may see of the draft: never image bytes, only that an image is attached. */
+function guideSlides(){
+  return readEditorSlides().map(s => ({ ...s, bullets: s.bullets.map(b => /^#\s*image\s*:\s*data:/i.test(String(b).trim()) ? '#image: (attached)' : b) }));
+}
 /** Write [{title, bullets[]}] back into the outline editor's block format. */
 function writeOutline(slides){
   $('outline').value = serializeSlides(slides);
@@ -1437,16 +1465,29 @@ function toBridgeEvents(a){
   if (!a || typeof a.op !== 'string') return [];
   if (a.op === 'set_title')    return [{ op: 'set_field', field: 'title', value: String(a.title ?? '') }];
   if (a.op === 'set_theme')    return [{ op: 'set_field', field: 'theme', value: String(a.theme ?? '') }];
-  if (a.op === 'set_outline')  return [{ op: 'set_content', region: 'outline', content: serializeSlides(a.slides) }];
+  if (a.op === 'set_outline')  return [{ op: 'set_content', region: 'outline', content: serializeHelperSlides(a.slides) }];
   if (a.op === 'update_cell') return [{op:'custom',name:'update_cell',data:{index:a.index,cell:a.cell,value:a.value}}];
   if (a.op === 'add_slide')    return [{ op: 'custom', name: 'add_slide', data: { title: a.title, bullets: a.bullets || [] } }];
   if (a.op === 'update_slide') return [{ op: 'custom', name: 'update_slide', data: { index: a.index, title: a.title, bullets: a.bullets } }];
   if (a.op === 'set_field' || a.op === 'set_content' || a.op === 'custom') return [a];
   return [];
 }
-/** Serialize [{title,bullets[]}] into the outline editor's block format (writeOutline's text). */
+/** The module exposes the shared design helpers once loaded; before that, keep the raw lines. */
+function mergeSectionLines(oldContent, lines){
+  return window.officeDesign ? window.officeDesign.mergeDesign(oldContent, lines) : (lines || []).join('\n');
+}
+/** Serialize [{title,bullets[]}] into the outline editor's block format (writeOutline's text).
+ *  Internal writes (reopening a saved file above all) keep every line verbatim — stored data-URI
+ *  images included. Helper proposals go through serializeHelperSlides instead. */
 function serializeSlides(slides){
   return serializeOfficeSections((slides || []).map(s => ({title:s.title || '',content:(s.bullets || []).join('\n')})));
+}
+/** A full-outline proposal from the AI partner: each section merges onto the matching existing
+ *  section, so the person's design directives (the attached image above all) survive the rewrite —
+ *  the helper never sees image bytes and must not silently delete them (mergeDesign rules). */
+function serializeHelperSlides(slides){
+  const current = readEditorSlides();
+  return serializeOfficeSections((slides || []).map((s, i) => ({title:s.title || '',content: mergeSectionLines(current[i] ? current[i].bullets.join('\n') : '', s.bullets || [])})));
 }
 /** Apply ONE contract event to the editor; return a short note of what changed, or null. */
 function applyBridgeEvent(ev){
@@ -1462,13 +1503,13 @@ function applyBridgeEvent(ev){
   if (ev.op === 'custom' && ev.name === 'update_cell') return window.officeCellEdit?.(ev.data || {}) || null;
   if (ev.op === 'custom' && ev.name === 'add_slide'){
     const d = ev.data || {}; const s = readEditorSlides();
-    s.push({ title: d.title, bullets: d.bullets || [] }); writeOutline(s); return 'added a slide';
+    s.push({ title: d.title, bullets: mergeSectionLines('', d.bullets || []).split('\n').filter(l => l.trim()) }); writeOutline(s); return 'added a slide';
   }
   if (ev.op === 'custom' && ev.name === 'update_slide'){
     const d = ev.data || {}; const s = readEditorSlides(); const i = (d.index | 0) - 1;
     if (i < 0 || !s[i]) return null;
     if (d.title != null) s[i].title = d.title;
-    if (d.bullets) s[i].bullets = d.bullets;
+    if (d.bullets) s[i].bullets = mergeSectionLines(s[i].bullets.join('\n'), d.bullets).split('\n').filter(l => l.trim());
     writeOutline(s); return 'updated slide ' + d.index;
   }
   if (ev.op === 'custom' && ev.name === 'set_theme'){
@@ -1511,7 +1552,7 @@ async function sendChat(){
   const typing = addMsg('bot', '…', true);
   try {
     const r = await fetch('/api/presentations/sections/guide', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ message: text, title: $('title').value.trim(), slides: readEditorSlides(), theme: THEME, kind: KIND, selection: window.officeSelection?.(), history: hist }) });
+      body: JSON.stringify({ message: text, title: $('title').value.trim(), slides: guideSlides(), theme: THEME, kind: KIND, selection: window.officeSelection?.(), history: hist }) });
     const j = await r.json().catch(() => ({}));
     typing.remove();
     if (!r.ok || j.error){ addMsg('bot', '⚠ ' + ((j && j.error) || ('HTTP ' + r.status))); }
@@ -1522,6 +1563,8 @@ async function sendChat(){
 }
 $('chatSend').onclick = sendChat;
 $('chatIn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } });
+// The box grows with the message instead of scrolling a 44px sliver (its CSS caps the height).
+$('chatIn').addEventListener('input', () => { const t = $('chatIn'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight + 2, 180) + 'px'; });
 
 $('saveTo').addEventListener('change', refreshDest);
 $('destChip').onclick = () => {
@@ -1535,7 +1578,7 @@ $('destChip').onclick = () => {
 if (!window.AppView || !AppView.active()) {
   renderKinds(); renderTemplates(); loadThemes(); loadDecks(); refreshDest(); applyKindVocabulary();
   // The starters and the deep link ride the same boot: once the looks AND the shapes are known.
-  Promise.all([themesReady, loadStarters()]).then(applyDeepLink);
+  Promise.all([themesReady, loadStarters()]).then(applyDeepLink).then(resumeLatest);
   // Your brand settles beside the deep link; whichever runs second, a chosen look is never overridden.
   Promise.all([themesReady, brandReady]).then(applyBrand);
 }
@@ -1675,6 +1718,26 @@ function applyDeepLink(){
   if (p.get('workspace') === '1' && kindOk){ closeWiz(true); window.officeRefresh?.(); return; }
   if (kindOk && $('wiz').classList.contains('on')) wzStepGo(themeOk ? 3 : 2);
 }
+// With nothing asked of the studio and nothing typed, land on the latest saved work instead of an
+// empty editor (Roger, 2026-11-02, on the demo): the file explorer's reopen, run for the person. A
+// deep link that landed something, or a single keystroke, wins; ?kind= narrows to that format.
+async function resumeLatest(){
+  try {
+    if ($('title').value.trim() || $('outline').value.trim()) return;
+    const p = new URLSearchParams(location.search);
+    if (p.get('open') || p.get('starter') || p.get('topic')) return;
+    const wantKind = KINDS.some(k => k.id === p.get('kind')) ? p.get('kind') : null;
+    let list = FILES;
+    if (!list.length){
+      const r = await fetch('/api/presentations/sections/list'); if (!r.ok) return;
+      list = (await r.json()).decks || [];
+    }
+    if ($('title').value.trim() || $('outline').value.trim()) return; // typed while the list loaded
+    const d = list.filter(x => x.outlineComplete && Array.isArray(x.outline) && x.outline.length && (!wantKind || x.format === wantKind))
+      .sort((x, y) => String(y.createdAt || '').localeCompare(String(x.createdAt || '')))[0]; // the list is not recency-ordered
+    if (d) reopenDeck(d);
+  } catch(e){ /* an empty studio is the fallback, never an error */ }
+}
 // Reopen a saved file into the editor from its list record (its outline rides the record; no download).
 function reopenDeck(d){
   if (d.format && KINDS.some(k => k.id === d.format)) pickKind(d.format);
@@ -1798,7 +1861,8 @@ void mountConnectedActions({ app:"presentations", element, contextForOffer:()=>{
 }
 </script>
 <script type="module">
-import {createSlideWorkspace} from '/api/presentations/sections/assets/slide-workspace.mjs';
+import {createSlideWorkspace, splitDesign, mergeDesign, readDirective, writeDirective, readImageFile} from '/api/presentations/sections/assets/slide-workspace.mjs';
+window.officeDesign = { splitDesign, mergeDesign, readDirective, writeDirective, readImageFile };
 import {createSheetWorkspace,editSheetCell,readSheet} from '/api/presentations/sections/assets/sheet-workspace.mjs';
 import {createProposalReview,draftSnapshot} from '/api/presentations/sections/assets/office-assistant.mjs';
 if (!window.AppView || !AppView.active()) {
@@ -1809,7 +1873,7 @@ const selectionChanged = () => {
   const s = window.officeSelection();
   $('officeSelection').textContent = s ? `${KIND === 'xlsx' ? 'Sheet' : KIND === 'docx' ? 'Section' : 'Slide'} ${s.index}: ${s.title}${s.cell ? ' · '+s.cell : ''}` : 'Whole draft';
 };
-const slides = createSlideWorkspace({host:$('slideWorkspace'),readSections,writeSections,getTheme:pvTheme,renderDraft:(section,index)=>slideCards([section],pvTheme(),'slide'),onChange:selectionChanged});
+const slides = createSlideWorkspace({host:$('slideWorkspace'),readSections,writeSections,getTheme:pvTheme,renderDraft:(section,index)=>slideCards([section],pvTheme(),'slide'),getLayouts:()=>LAYOUTS,onChange:selectionChanged});
 const sheets = createSheetWorkspace({host:$('sheetWorkspace'),readSections,writeSections,onChange:selectionChanged});
 let documentIndex = 0;
 let documentStamp = '';
@@ -1831,6 +1895,32 @@ function documentHistory(forward){
   documentPublish(target.sections,target.index,false);from.pop();to.push(current);
   documentStamp='';refreshDocument();selectionChanged();
 }
+/** The document design row — only what the .docx renderer honours: the #image: data URI it embeds
+ *  fitted to the page width. No caption control here: the document exporter does not render
+ *  #caption: (a deck-layout feature), and a knob the file ignores would be a fake control. */
+function documentDesignRow(section){
+  const row=document.createElement('div');row.className='office-slide-design';row.setAttribute('role','group');row.setAttribute('aria-label','Section design');
+  const uri=readDirective(section.content,'image');
+  const pick=document.createElement('button');pick.type='button';pick.className='office-slide-button';pick.textContent=uri?'Replace image':'Add image';
+  const file=document.createElement('input');file.type='file';file.accept='image/png,image/jpeg,image/gif,image/webp';file.hidden=true;file.setAttribute('aria-label','Section image file');
+  pick.onclick=()=>file.click();
+  file.onchange=async()=>{const chosen=file.files&&file.files[0];file.value='';if(!chosen)return;try{const image=await readImageFile(chosen);const current=readSections();current[documentIndex]={...current[documentIndex],content:writeDirective(current[documentIndex].content,'image',image)};documentPublish(current,documentIndex);documentStamp='';refreshDocument();selectionChanged();}catch(error){addMsg('note',error.message,true);}};
+  row.append(pick,file);
+  if(uri){
+    const remove=document.createElement('button');remove.type='button';remove.className='office-slide-button';remove.textContent='Remove image';
+    remove.onclick=()=>{const current=readSections();current[documentIndex]={...current[documentIndex],content:writeDirective(writeDirective(current[documentIndex].content,'caption',''),'image','')};documentPublish(current,documentIndex);documentStamp='';refreshDocument();selectionChanged();};
+    row.append(remove);
+  }
+  return row;
+}
+/** The embedded image as the export will carry it (data URIs only — exactly what the renderer embeds). */
+function documentImageFigure(section){
+  const uri=readDirective(section.content,'image');
+  if(!uri||!/^data:image\//i.test(uri))return null;
+  const figure=document.createElement('figure');figure.className='pvImg office-doc-image';
+  const img=document.createElement('img');img.src=uri;img.alt='Section image';figure.append(img);
+  return figure;
+}
 function refreshDocument(){
   if(documentWriting)return;
   const sections = readSections(); documentIndex = Math.max(0,Math.min(documentIndex,sections.length-1));
@@ -1844,9 +1934,12 @@ function refreshDocument(){
   const section=sections[documentIndex];if(!section){const note=document.createElement('p');note.textContent='Add a section to start writing, open an existing file, or ask your AI partner.';host.append(note);return;}
   const page=document.createElement('div');page.className='office-page';
   const title=document.createElement('input');title.setAttribute('aria-label','Section heading');title.value=section.title;
-  const text=document.createElement('textarea');text.setAttribute('aria-label','Section content');text.value=section.content;
-  const change=()=>{title.setCustomValidity(title.value.trim() && title.value.length<=200 ? '' : 'Give this section a heading of at most 200 characters.');if(!title.checkValidity())return;const current=readSections();current[documentIndex]={title:title.value.replace(/[\r\n]/g,' '),content:text.value};if(JSON.stringify(current)===documentStamp)return;try{documentPublish(current,documentIndex);text.setCustomValidity('');}catch(error){text.setCustomValidity(error.message);}};
-  title.oninput=change;text.oninput=change;page.append(title,text);host.append(page);
+  // The textarea holds the prose only; the section's design directives (#image:/#caption:, and any
+  // #layout: carried over from a deck) stay in the model and are edited through the design row.
+  const text=document.createElement('textarea');text.setAttribute('aria-label','Section content');text.value=splitDesign(section.content).body;
+  const change=()=>{title.setCustomValidity(title.value.trim() && title.value.length<=200 ? '' : 'Give this section a heading of at most 200 characters.');if(!title.checkValidity())return;const current=readSections();const design=splitDesign(current[documentIndex].content).design;current[documentIndex]={title:title.value.replace(/[\r\n]/g,' '),content:[...design,text.value].join('\n').replace(/^\n+|\n+$/g,'')};if(JSON.stringify(current)===documentStamp)return;try{documentPublish(current,documentIndex);text.setCustomValidity('');}catch(error){text.setCustomValidity(error.message);}};
+  title.oninput=change;text.oninput=change;
+  page.append(title,documentDesignRow(section));const figure=documentImageFigure(section);if(figure)page.append(figure);page.append(text);host.append(page);
   page.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'){event.preventDefault();documentHistory(event.shiftKey);}});
   const note=document.createElement('p');note.className='office-page-note';note.textContent='Write paragraphs normally. Export creates the paginated document.';host.append(note);
 }

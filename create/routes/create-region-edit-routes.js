@@ -30,6 +30,9 @@ const logger = (0, logger_1.createChildLogger)({ module: 'create-region-edit-rou
 /** Image spend is attributed to the concierge Create declares (chatBot: general-bot, core registry a0...0099) and to the person. */
 exports.REGION_EDIT_COST_AGENT_ID = 'a0000000-0000-0000-0000-000000000099';
 const bodyParser = (0, express_1.json)({ limit: 262144, strict: true });
+const IMAGE_PROMPT_CHARS = 1000;
+/** Inside the kernel's 60 second package call. */
+const IMAGE_REQUEST_MS = 55000;
 const DEFAULT_DEPENDENCIES = {
     resolveProvider: options => (0, video_generation_1.resolveStoryboardImageProvider)(options),
     recordCost: (pool, event) => (0, video_generation_1.recordStoryboardImageCost)(pool, event),
@@ -45,7 +48,7 @@ function bounded(value, fallback, minimum, maximum) {
  */
 function regionEditSettings(env = process.env) {
     return { dailyCap: bounded(env.CREATE_REGION_EDIT_DAILY_CAP, 25, 1, 1000), concurrency: bounded(env.CREATE_REGION_EDIT_MAX_CONCURRENT, 2, 1, 16),
-        timeoutMs: bounded(env.CREATE_REGION_EDIT_TIMEOUT_MS, 120000, 10000, 600000) };
+        timeoutMs: bounded(env.CREATE_REGION_EDIT_TIMEOUT_MS, 120000, 10000, 600000), imageDailyCap: bounded(env.CREATE_IMAGE_DAILY_CAP, 25, 1, 1000) };
 }
 /** A process-wide bound on concurrent provider calls, shared by every person. */
 class Slots {
@@ -245,6 +248,80 @@ function requestRoutes(router, env) {
             ...(usable ? {} : { reason: 'region_edit_provider_unavailable' }) });
     }));
 }
+/** Only a sentence, a title for a new project and, to add to one, the project. */
+function imageRequest(body) {
+    (0, create_project_validation_1.exactFields)(body, ['prompt', 'title', 'id']);
+    const value = body;
+    const prompt = typeof value.prompt === 'string' ? value.prompt.trim() : '';
+    if (!prompt || prompt.length > IMAGE_PROMPT_CHARS)
+        throw new create_project_types_1.ProjectError(400, 'invalid_image_prompt');
+    if (value.title !== undefined && (typeof value.title !== 'string' || !value.title.trim() || value.title.length > 120))
+        throw new create_project_types_1.ProjectError(400, 'invalid_project_title');
+    return { prompt, title: typeof value.title === 'string' ? value.title.trim() : prompt.slice(0, 60).trim(), id: value.id === undefined ? null : (0, create_project_validation_1.projectId)(value.id) };
+}
+/** The project's document with the picture as a new top layer, centred and scaled to fit the canvas. */
+function withImageLayer(document, asset) {
+    const current = document;
+    const key = `generated-${asset.id.slice(0, 8)}`, scale = Math.min(1, current.width / asset.width, current.height / asset.height);
+    const w = Math.round(asset.width * scale), h = Math.round(asset.height * scale);
+    const layer = { id: key, type: 'image', name: 'Generated image', assetId: key, x: Math.round((current.width - w) / 2), y: Math.round((current.height - h) / 2), w, h };
+    return { ...document, layers: [...current.layers, layer], images: { ...current.images, [key]: { src: asset.src, width: asset.width, height: asset.height } } };
+}
+/** The generator sleeps when idle and answers that it is starting; the person already approved this, so keep asking inside the request's time. */
+async function pictureOnceAwake(provider, prompt, budgetMs, retryMs) {
+    const deadline = Date.now() + budgetMs;
+    for (;;) {
+        try {
+            return await withTimeout(generate(provider, prompt, null), Math.max(1, deadline - Date.now()));
+        }
+        catch (error) {
+            const waking = error instanceof Error && /starting|still be loading/i.test(error.message);
+            if (!waking || Date.now() + retryMs >= deadline)
+                throw error;
+            await new Promise(resolve => setTimeout(resolve, retryMs));
+        }
+    }
+}
+/** Make and keep the picture. The native kernel ends the package process when a request answers and allows it 60 seconds,
+ *  so this finishes inside the request; a generator still waking answers in its own words, and only a free provider serves. */
+async function generatedAsset(env, owner, prompt, allowed) {
+    const provider = await resolveFor(env, owner);
+    if (!provider || !(await servesRegionEdits(provider)))
+        throw new create_project_types_1.ProjectError(503, 'image_provider_unavailable');
+    enforceCostCap(provider, 'free');
+    if (await env.projects.assetsToday(owner) >= (env.settings.imageDailyCap ?? 25))
+        throw new create_project_types_1.ProjectError(429, 'image_daily_cap_reached');
+    await allowed();
+    await env.slots.acquire();
+    try {
+        const answer = await pictureOnceAwake(provider, prompt, Math.min(env.settings.timeoutMs, IMAGE_REQUEST_MS), env.settings.imageRetryMs ?? 5000);
+        await allowed();
+        return await (0, create_project_assets_1.saveProjectImage)(env.dataRoot, env.projects, owner, answer.image, allowed);
+    }
+    catch (error) {
+        if (error instanceof create_project_types_1.ProjectError)
+            throw error;
+        logger.error({ err: error }, 'image generation failed');
+        throw new create_project_types_1.ProjectError(503, 'image_generation_failed', error instanceof Error ? error.message.slice(0, 200) : undefined);
+    }
+    finally {
+        env.slots.release();
+    }
+}
+function imageRoutes(router, env) {
+    router.post('/generated-images', admit(env, 'generate'), bodyParser, handler(env, 'generate', async (req, res, owner) => {
+        const request = imageRequest(req.body), writes = request.id ? 'change' : 'create';
+        const allowed = async () => { await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, 'generate', owner); await (0, create_project_authorization_1.requireProjectAccess)(env.ctx, writes, owner); };
+        await allowed();
+        const current = request.id ? await env.projects.get(owner, request.id) : null;
+        const validate = await env.validator, asset = await generatedAsset(env, owner, request.prompt, allowed);
+        const base = current?.document ?? { version: 1, name: request.title, width: asset.width, height: asset.height, background: 'transparent', layers: [], images: {} };
+        const input = { title: current?.title ?? request.title, document: (0, create_project_validation_1.validateDocument)(withImageLayer(base, asset), validate) };
+        const project = current ? await env.projects.save(owner, current.id, current.revision, input, allowed) : await env.projects.create(owner, input, allowed);
+        logger.info({ projectId: project.id, revision: project.revision }, 'generated image saved as a layer');
+        res.status(201).json({ project });
+    }));
+}
 function decisionRoutes(router, env) {
     router.post('/projects/:id/region-edits/:edit/accept', admit(env, 'change'), bodyParser, handler(env, 'change', async (req, res, owner) => {
         (0, create_project_validation_1.exactFields)(req.body, ['baseRevision']);
@@ -272,6 +349,7 @@ function registerRegionEditRoutes(router, options) {
     const env = { ...options, edits: new create_region_edit_store_1.CreateRegionEditStore(options.projects), settings, slots: new Slots(settings.concurrency),
         deps: options.dependencies ?? DEFAULT_DEPENDENCIES, region: loadRegionModule(options.ctx.appPackageDir ?? (0, node_path_1.resolve)(__dirname, '..')) };
     requestRoutes(router, env);
+    imageRoutes(router, env);
     decisionRoutes(router, env);
 }
 //# sourceMappingURL=create-region-edit-routes.js.map

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual Career HTML and shared theme code in Chromium, preserving drafts, print content and read-only palette changes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The title filter is always visible; there is no longer a summary to open first.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -138,7 +139,6 @@ test('Search retains a selected filter and its results when the portal changes c
   await page.goto(`${fixture.origin}/fixture/search-ui`);
   await page.waitForFunction(() => document.documentElement.dataset.ready === 'true');
   const frame = page.frameLocator('iframe');
-  await frame.locator('#adv > summary').click();
   await frame.locator('#title').fill('Platform');
   await frame.locator('#list').getByText('Platform Engineer', { exact: true }).waitFor();
   await page.locator('#midnight').click();

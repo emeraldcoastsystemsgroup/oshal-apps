@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The listing pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"): listStored walks the copy newest first in pages by keyset, two messages received at the same instant across a page boundary are each listed once, mail outside the inbox is left out, and the last page says it reached the copy's floor; GET /messages without words answers page after page from a current copy (a still-filling one too, with its reach) and never asks Gmail, and reads the mailbox live with Gmail's own page token when there is no copy, refusing a cursor in another shape.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox: rows planted once on the real schema, listed newest first, read by id, and another person never sees them.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox answers a call that names Google and never one that names another mailbox or needs a reconnect; its events are always today's.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | A copy days behind catches up across passes that each run out of time: every pass after the first asks Gmail only for mail above the stretch it stored and for the gap below it, never re-reading the stretch, and the copy joins up when the gap is read (Roger's copy, 2026-11-03: four days behind, each pass re-read everything stored and gained 85, 65, then 13).
  */
 'use strict';
 const test = require('node:test');
@@ -60,6 +61,7 @@ async function database(t) {
   const owner = new Pool({ connectionString: url.toString(), max: 2 });
   await owner.query(fs.readFileSync(path.join(PKG, 'migrations', '001-email-mail-store.sql'), 'utf8'));
   await owner.query(fs.readFileSync(path.join(PKG, 'migrations', '001-email-mail-store.sql'), 'utf8')); // idempotent
+  await owner.query(fs.readFileSync(path.join(PKG, 'migrations', '004-email-sync-gap.sql'), 'utf8'));
   await owner.query(`CREATE ROLE ${role} NOSUPERUSER NOBYPASSRLS NOLOGIN; GRANT USAGE ON SCHEMA public TO ${role};
     GRANT SELECT, INSERT, UPDATE, DELETE ON oshal_email_messages, oshal_email_sync TO ${role}; GRANT ${role} TO CURRENT_USER`);
   const as = (sub) => new Pool({ connectionString: url.toString(), max: 2, options: `-c role=${role} -c oshal.current_sub=${sub}` });
@@ -145,6 +147,41 @@ test('a pass that reaches its deadline keeps what it stored and the next pass fi
   const done = await store.readStoreState(db.alice, 'alice');
   assert.equal(done.stored, 4);
   assert.equal(done.complete, true);
+});
+
+test('a copy days behind catches up across passes that run out of time, never re-reading what it stored', async (t) => {
+  const db = await database(t);
+  const HOUR = 3600 * 1000;
+  const early = [{ id: 'seen', subject: 'Already stored', at: NOW - 5 * DAY }];
+  await store.syncGmail(db.alice, 'alice', gmail(early).reader, Date.now() + 10_000, NOW - 4 * DAY);
+  // Four days pass with the job stopped: twelve messages arrive, one every eight hours.
+  const later = Array.from({ length: 12 }, (_, n) => ({ id: `gap${n}`, subject: `Gap ${n}`, at: NOW - 4 * DAY + (n + 1) * 8 * HOUR - HOUR }));
+  const mail = [...early, ...later];
+  const stopAfter = (box, count) => {
+    let deadline = Date.now() + 10_000;
+    const reader = { list: box.reader.list, metadata: async (id) => { const m = await box.reader.metadata(id); if (box.calls.metadata.length >= count) deadline = 0; return m; } };
+    return { reader, deadline: { valueOf: () => deadline } };
+  };
+  const first = gmail(mail);
+  const one = stopAfter(first, 4);
+  const partial = await store.syncGmail(db.alice, 'alice', one.reader, one.deadline, NOW);
+  assert.equal(partial.inserted, 4, 'the first pass stores the newest four and runs out of time');
+  assert.equal(partial.caughtUp, false);
+  const second = gmail(mail);
+  const two = stopAfter(second, 4);
+  const more = await store.syncGmail(db.alice, 'alice', two.reader, two.deadline, NOW + 600_000);
+  assert.equal(more.inserted, 4, 'the second pass stores four more, not fewer');
+  assert.deepEqual(second.calls.metadata, ['gap7', 'gap6', 'gap5', 'gap4'], 'it went straight to the gap below the stored stretch');
+  assert.ok(second.calls.list.some((q) => /^before:\d+ after:\d+ /.test(q)), 'the gap is read with both bounds');
+  const third = gmail(mail);
+  const rest = await store.syncGmail(db.alice, 'alice', third.reader, Date.now() + 10_000, NOW + 1_200_000);
+  assert.deepEqual(third.calls.metadata, ['gap3', 'gap2', 'gap1', 'gap0'], 'the last pass reads only what is still missing');
+  assert.equal(rest.caughtUp, true);
+  const state = await store.readStoreState(db.alice, 'alice');
+  assert.equal(state.stored, 13);
+  assert.equal(state.syncedThrough, new Date(NOW + 1_200_000).toISOString(), 'the copy reaches the last pass');
+  const gap = (await db.owner.query('SELECT gap_top_at, gap_low_at FROM oshal_email_sync')).rows[0];
+  assert.deepEqual(gap, { gap_top_at: null, gap_low_at: null }, 'no gap is left');
 });
 
 test('a state written by the passes that did not resume picks up from its last run', async (t) => {

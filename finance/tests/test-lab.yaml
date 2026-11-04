@@ -250,3 +250,24 @@ cases:
     limits:
       timeoutMs: 30000
     installation: never
+  - id: demo-data
+    name: Demo installations get a labelled sample household
+    purpose: POST /api/finance/demo-data answers 404 until the installation sets FINANCE_DEMO_DATA, requires a signed-in
+      caller, and writes that caller's sample aggregate - positive net worth, named banks (never a Plaid placeholder),
+      a note saying it is sample data, dates relative to now, the saved brief cleared so Re-analyze runs the real analyst.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/demo-data.test.cjs
+    expected:
+    - 404 with nothing written when the setting is off; 401 unauthenticated; the recorded INSERT carries the labelled solvent aggregate.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+    installation: never

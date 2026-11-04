@@ -95,6 +95,12 @@
         <div class="layer-actions"><button id="raiseLayer" data-selected disabled aria-label="Move selected layer up">Up</button><button id="lowerLayer" data-selected disabled aria-label="Move selected layer down">Down</button>
           <button id="groupBelow" data-selected disabled>Group with layer below</button><button id="ungroupLayer" data-selected disabled>Ungroup</button><button id="duplicateLayer" data-selected disabled>Duplicate</button><button id="deleteLayer" data-selected disabled>Delete</button></div>
       </section>
+      <section id="generateImagePanel" class="region-edit-panel" aria-labelledby="generateImageTitle" hidden>
+        <h2 id="generateImageTitle">Generate an image</h2>
+        <label>What should it show?<textarea id="generatePrompt" maxlength="1000" rows="3" placeholder="For example: a cartoon rocket ship over a night sky"></textarea></label>
+        <div class="region-edit-actions"><button id="generateSend" type="button" class="primary">Generate image</button></div>
+        <p id="generateStatus" class="hint" role="status" aria-live="polite"></p>
+      </section>
       <section id="regionEditPanel" class="region-edit-panel" aria-labelledby="regionEditTitle" hidden>
         <h2 id="regionEditTitle">Change a region</h2>
         <p id="regionSummary" class="hint"></p>

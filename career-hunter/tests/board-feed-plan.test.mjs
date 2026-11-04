@@ -84,7 +84,7 @@ test('the feed drives from user_signals, never from a full corpus join', () => {
   assert.ok(q, 'expected a candidate-pool statement');
   // The pool must be a bounded, ordered walk of the signal rows...
   assert.match(q, /FROM user_signals s/);
-  assert.match(q, /ORDER BY s\.ai_fit_score DESC LIMIT \d+/);
+  assert.match(q, /ORDER BY s\.ai_fit_score DESC, s\.posting_id ASC LIMIT \d+/);
   // ...and the corpus must be reached only through that pool.
   assert.match(q, /FROM cand s\s+CROSS JOIN corpus\.postings_corpus p/);
   // The old shape — corpus first, signals LEFT JOINed on — is the 50s query.
@@ -131,10 +131,10 @@ test('a short page does not escalate when the pool was not saturated', () => {
   assert.equal(pools.length, 1, 'expected no pointless escalation');
 });
 
-test('corpus-keyed sorts report that they ranked within a pool', () => {
+test('corpus-keyed sorts rank the complete scored set without claiming a bounded pool', () => {
   const salary = feed.fetchBoardPage(recordingDb([page(150)]), { per: '150', sort: 'salary' });
-  assert.equal(salary.pooled, true);
-  assert.ok(salary.poolSize > 0);
+  assert.equal(salary.pooled, false);
+  assert.equal(salary.poolSize, null);
   // Fit-ranked sorts are an ordered prefix of the pool, so truncation cannot change them.
   const ai = feed.fetchBoardPage(recordingDb([page(150)]), { per: '150', sort: 'ai' });
   assert.equal(ai.pooled, false);
@@ -155,7 +155,7 @@ test('a search term still filters on description, only inside the pool', () => {
   const db = recordingDb([page(150)]);
   feed.fetchBoardPage(db, { per: '150', q: 'platform' });
   const q = poolSql(db);
-  assert.ok(q.includes('(p.title LIKE ? OR p.description LIKE ?)'));
+  assert.ok(q.includes('(p.title LIKE ? OR p.description LIKE ? OR c.name LIKE ?)'));
   // The LIKE is applied after the join to a bounded candidate set, not to 1.45M rows.
   assert.match(q, /FROM cand s/);
 });

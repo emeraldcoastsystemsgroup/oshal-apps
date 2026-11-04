@@ -8,20 +8,23 @@
   (/api/career-hunter/applications) and the desktop dispatcher's worker answer
   (/api/apply-operator/workers), both served by the native kernel, and folds them into the lanes.
 
-  Read-only. The only actions live on the Job Board (queue one) — this watches.
+  Exact approved intents can resume an interrupted start here. Employer answers
+  require a new packet review. No action creates approval without that review.
 
   CHANGE LOG
   -----------------------------------------------------------------------------
+  6 | maintainer@emeraldcoastsystemsgroup.com | Show interrupted approval/start states and resume the existing approved packet without a fresh intent; keep expired and uncertain outcomes out of automatic recovery.
   SEQ                 | AUTHOR                                      | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Merge safe board-feed provenance summaries into completed runs and default missing evidence to unverified.
   2 | maintainer@emeraldcoastsystemsgroup.com | Render exact assigned-worker acknowledgement, callback-pending, no-worker, assist-review, and failed states; animate only confirmed running work.
   3 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Isolate activity cards from shared row styles, align the page with Career, and add responsive title/status/action layouts.
   4 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: build the queue from the caller's application records and the native worker answer instead of the old platform's /api/apply-operator/queue, /story and /shot, which the native kernel does not serve (the screen showed "Could not reach the queue"). Narrated runs are not retained natively, so a run says so instead of fetching them.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="submissions"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Submissions</title>
+<title>Submission activity</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"/>
 <script src="/shared/ui/js/surface-theme.js"></script>
 <style>
@@ -49,8 +52,8 @@
   .lane.active { border-color:var(--accent); }
   .lane .n { font-size:17px; font-weight:600; } .lane .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
 
-  .row { border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:11px 13px; margin:0 0 8px; }
-  .row.live { border-color:var(--accent); }
+  .activity-row { border:1px solid var(--line); background:var(--panel); border-radius:10px; padding:11px 13px; margin:0 0 8px; }
+  .activity-row.live { border-color:var(--accent); }
   .rtop { display:flex; gap:10px; align-items:baseline; justify-content:space-between; flex-wrap:wrap; }
   .rtitle { font-weight:600; font-size:13.5px; margin:0; }
   .rco { color:var(--muted); font-size:12px; }
@@ -96,22 +99,63 @@
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css"/>
 <script src="/api/artifacts/send-to.js" defer></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<style>
+  html[data-career-surface="submissions"] .wrap { width:100%; max-width:1280px; padding:26px 28px 56px; }
+  html[data-career-surface="submissions"] .career-intro { align-items:flex-start; margin-bottom:24px; }
+  .activity-row { display:block; padding:18px 20px; margin-bottom:12px; }
+  .activity-row .rtop { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px 24px; align-items:start; }
+  .ridentity { min-width:0; }
+  .rtitle { font-size:16px; line-height:1.4; overflow-wrap:anywhere; }
+  .rco { margin-top:4px; font-size:13px; }
+  .activity-row .rmeta { margin-top:14px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; line-height:1.5; align-items:center; gap:10px 18px; }
+  .activity-row .rmeta > span:first-child { flex:1; min-width:180px; }
+  .activity-row .rmeta a { padding:4px 0; font-weight:600; }
+  .pill { padding:4px 10px; font-size:11px; font-weight:600; letter-spacing:.025em; }
+  .pill.needs_you { color:var(--warn); border-color:color-mix(in srgb,var(--warn) 45%,var(--line)); background:color-mix(in srgb,var(--warn) 8%,var(--panel)); }
+  .lanes { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:10px; margin:20px 0; }
+  .lane { text-align:left; padding:12px 14px; min-width:0; }
+  .lane .n { font-size:24px; line-height:1.2; margin-bottom:5px; }
+  .lane .l { text-transform:none; letter-spacing:0; font-size:12px; overflow-wrap:anywhere; }
+  .lane.active { background:color-mix(in srgb,var(--accent) 8%,var(--panel)); box-shadow:inset 0 0 0 1px var(--accent); }
+  .nodebar { margin-bottom:12px; gap:10px 16px; }
+  .nodebar label { display:flex; align-items:center; gap:8px; }
+  .nodebar select { min-height:36px; }
+  .worker { padding:14px 16px; margin-bottom:0; }
+  .worker p { font-size:13px; max-width:850px; }
+  @media(max-width:900px) { .career-intro { flex-wrap:wrap; gap:16px; } .lanes { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+  @media(max-width:600px) {
+    html[data-career-surface="submissions"] .wrap { padding:20px 16px 40px; }
+    .career-intro h1 { font-size:25px; } .career-view-nav { flex-wrap:wrap; }
+    .lanes { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    .lane { padding:10px; } .activity-row { padding:15px; }
+    .activity-row .rtop { grid-template-columns:minmax(0,1fr); gap:10px; }
+    .activity-row .pill { justify-self:start; } .rtitle { font-size:15px; }
+    .activity-row .rmeta { align-items:flex-start; } .activity-row .rmeta > span:first-child { flex-basis:100%; min-width:0; }
+  }
+</style>
 </head><body>
 
 <div class="wrap">
-  <h1>Submissions</h1>
-  <p class="sub">What your desktop is doing with your résumés. Queue one from the <a href="/api/career-hunter/board-native" target="_top">Job Board</a>; they run one at a time.</p>
+  <header class="career-intro">
+    <div><p class="career-eyebrow">Career / Job search</p><h1>Submission activity</h1>
+      <p class="sub">Track queued applications, review requests, and submission records.</p></div>
+    <nav class="career-view-nav" aria-label="Application workflow"><a href="/api/career-hunter/board-native?view=queue">Submission queue</a><a href="/api/career-hunter/board-native?view=status">Application status ↗</a></nav>
+  </header>
 
   <div class="nodebar">
     <label>Computer <select id="nodeSel"><option value="">default</option></select></label>
     <span class="nodehint" id="nodeHint"></span>
   </div>
+  <button class="btn" onclick="CareerSubmit.connectWorker()">Connect browser worker</button>
   <div class="worker" id="worker"><span class="dot"></span><div><b>Checking your desktop worker…</b></div></div>
   <div class="lanes" id="lanes"></div>
+  <p id="submissionNotice" role="status" hidden></p>
   <div id="list"><div class="empty">Loading…</div></div>
 </div>
 <div class="lb" id="lb" onclick="this.classList.remove('show')"><img id="lbimg" alt="Submission screenshot"/></div>
 
+<script src="/api/career-hunter/static/career-job-actions.js"></script>
+<script src="/api/career-hunter/static/career-submit.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 // APPLICATION_PROVENANCE_START
@@ -175,12 +219,28 @@ function workerFromNative(w){
   return {available,connected:workers.length>0,detail,lastSeenAt:seen?new Date(seen).toISOString():null};
 }
 /** The lanes, counts and rows from the caller's application records (GET /api/career-hunter/applications). */
-function queueFromNative(applications, workers){
-  const items=(Array.isArray(applications)?applications:[]).map(a=>{
+function queueFromNative(applications, workers, submissions=[]){
+  const nativeItems=(Array.isArray(submissions)?submissions:[]).map(a=>{
+    const expired=!Number.isFinite(Date.parse(a.authorizationExpiresAt))||Date.parse(a.authorizationExpiresAt)<=Date.now();
+    const queuedDetail=expired?'Approval expired. This approved application cannot be resumed.'
+      :!a.nativeTicketId?'Approval saved; finish queueing this application.'
+      :!a.nativeWorkId?'Ticket saved; finish starting the approved application.'
+      :'Approved and waiting for your browser worker.';
+    const lane={queued:'queued',claimed:'submitting',reviewing:'submitting',submitting:'submitting',submitted:'applied',needs_you:'needs_you',failed:'failed',unknown:'needs_you',cancelled:'dismissed'}[a.status]||'needs_you';
+    return {ticketId:a.id,submissionId:a.id,postingId:a.postingId,title:a.title,company:a.company,lane,status:a.status,
+      executionState:['claimed','reviewing','submitting'].includes(a.status)?'working':'settled',
+      executionDetail:a.reason||({queued:queuedDetail,claimed:'Worker claimed this application.',reviewing:'Filling and verifying your approved application.',submitting:'Final action authorized; awaiting employer confirmation.'}[a.status]||a.status),
+      canResume:a.status==='queued'&&!a.nativeWorkId&&!expired,
+      updatedAt:a.updatedAt,jobUrl:a.url,assignedClientId:a.nativeNodeId,questions:a.questions||[],milestones:a.milestones||[],
+      metrics:a.metrics,confirmationFile:a.confirmationFile,application_source:a.status==='submitted'?'worker-reported':null};
+  });
+  const submittedIds=new Set(nativeItems.map(i=>i.postingId));
+  const items=(Array.isArray(applications)?applications:[]).filter(a=>!submittedIds.has(a.posting_id)).map(a=>{
     const [lane,detail]=STATUS_LANES[a.status]||['failed','Unknown state: '+String(a.status||'none')+'.'];
     return {ticketId:a.ticket_id||('posting-'+a.posting_id),postingId:a.posting_id,title:a.title,company:a.company,lane,status:a.status,
       executionState:lane==='queued'?'queued':'settled',executionDetail:detail,updatedAt:a.updated_at,application_source:a.application_source};
   });
+  items.push(...nativeItems);
   const counts={}; items.forEach(it=>{ counts[it.lane]=(counts[it.lane]||0)+1; });
   return {worker:workerFromNative(workers),counts,items};
 }
@@ -190,6 +250,7 @@ let filter='';            // '' = all lanes
 let openTicket=null;      // the run whose story is expanded
 let stories={};           // ticketId -> beats (kept across polls so an open run doesn't flicker)
 let lastSig='';           // change signature, so a poll that changed nothing doesn't re-render
+const resuming=new Set();
 const applicationProofs=new Map(); // postingId -> redacted summary; no task id or path is retained.
 let applicationProofReadAt=0;
 
@@ -239,6 +300,10 @@ function beatHtml(t,b){
 }
 
 function storyHtml(it){
+  if(it.submissionId){
+    const evidence=it.confirmationFile?`<p><a target="_blank" rel="noopener" href="/api/career-hunter/submission-queue/${encodeURIComponent(it.submissionId)}/confirmation">View retained employer confirmation ↗</a></p>`:'';
+    return `<div class="story"><p>${esc(it.executionDetail||'')}</p>${(it.milestones||[]).map(m=>`<p>✓ ${esc(m.replace(/_/g,' '))}</p>`).join('')}${it.metrics?`<p>${esc(it.metrics.actions||0)} actions · ${esc(it.metrics.screenshots||0)} screenshots</p>`:''}${evidence}${it.status==='needs_you'&&it.questions?.length?`<button class="btn" onclick="answerSubmission('${it.submissionId}',${Number(it.postingId)})">Answer employer questions</button>`:''}</div>`;
+  }
   const beats=stories[it.ticketId];
   if(beats===undefined) return `<div class="story"><div class="empty">Loading the run…</div></div>`;
   if(!beats.length){
@@ -258,9 +323,9 @@ function rowHtml(it){
   const n=stories[it.ticketId]?stories[it.ticketId].length:0;
   const proof=it.lane==='applied'
     ? (applicationProofs.get(Number(it.postingId))||applicationProvenance(it)) : null;
-  return `<div class="row${live?' live':''}">
+  return `<div class="activity-row${live?' live':''}">
     <div class="rtop">
-      <div>
+      <div class="ridentity">
         <p class="rtitle">${esc(it.title||'Application')}</p>
         ${it.company?`<div class="rco">${esc(it.company)}</div>`:''}
       </div>
@@ -271,12 +336,34 @@ function rowHtml(it){
       ${it.assignedClientId?`<span class="rtarget">assigned to ${esc(it.assignedHostname||it.assignedClientId.slice(0,12))}</span>`
         :it.targetClientId?`<span class="rtarget">target ${esc(it.targetHostname||it.targetClientId.slice(0,12))}</span>`:''}
       ${it.jobUrl?`<a href="${esc(it.jobUrl)}" target="_blank" rel="noopener">posting ↗</a>`:''}
-      <a href="#" onclick="toggle('${it.ticketId}');return false">${open?'hide the run ▲':(n?`show the run (${n} steps) ▼`:'show the run ▼')}</a>
+      <a href="#" onclick="toggle('${it.ticketId}');return false">${open?'Hide activity ▲':(n?`View activity (${n} steps) ▾`:'View activity ▾')}</a>
+      ${it.canResume?`<button class="btn" onclick="resumeSubmission('${it.submissionId}')" ${resuming.has(it.submissionId)?'disabled':''}>${resuming.has(it.submissionId)?'Resuming…':'Resume approved submission'}</button>`:''}
     </div>
     ${proof?applicationProofHtml(proof):''}
     ${live?'<div class="bar"><i></i></div>':''}
     ${open?storyHtml(it):''}
   </div>`;
+}
+
+async function answerSubmission(id,postingId){
+  try{await CareerSubmit.answerAndReview(id,postingId);lastSig='';await poll();}
+  catch(error){window.alert(error.message);}
+}
+
+async function resumeSubmission(id){
+  if(resuming.has(id))return;resuming.add(id);
+  const notice=$('submissionNotice');notice.hidden=false;notice.setAttribute('role','status');
+  notice.textContent='Resuming the same approved application…';
+  try{
+    lastSig='';await poll();
+    const item=await CareerSubmit.resumeApproved(id);
+    notice.textContent=item.status==='queued'?'Approved application queued for your browser worker.'
+      :item.status==='submitted'?'This application is already recorded as submitted.'
+      :item.status==='unknown'?'The employer outcome is uncertain. Check the employer before any further attempt.'
+      :['claimed','reviewing','submitting'].includes(item.status)?'This application is already in progress.'
+      :'Application status: '+item.status.replace(/_/g,' ')+'.';
+  }catch(error){notice.setAttribute('role','alert');notice.textContent=error.message;}
+  finally{resuming.delete(id);lastSig='';await poll();}
 }
 
 function zoom(src){ $('lbimg').src=src; $('lb').classList.add('show'); }
@@ -298,13 +385,14 @@ function selectedNode(){ const s=$('nodeSel'); return s ? s.value : ''; }
 async function loadWorkers(){
   const sel=$('nodeSel'), hint=$('nodeHint'); if(!sel) return;
   try {
-    const { workers=[], defaultClientId } = await (await fetch('/api/apply-operator/workers')).json();
+    const { workers=[], defaultClientId } = await CareerSubmit.workers();
+    sel.disabled=true;
     const keep=sel.value;
     const label=w=>`${w.hostname||w.clientId.slice(0,12)}${w.isDefault?' (default)':''}${w.available?'':' — '+w.state}`;
     sel.innerHTML='<option value="">default'+(defaultClientId?'':' — none connected')+'</option>'
       + workers.map(w=>`<option value="${esc(w.clientId)}">${esc(label(w))}</option>`).join('');
     sel.value = workers.some(w=>w.clientId===keep) ? keep : '';
-    if(hint) hint.textContent = workers.length ? `${workers.length} leaf node${workers.length===1?'':'s'} available` : 'No leaf node connected — install one with screen control on the machine that has your Chrome.';
+    if(hint) hint.textContent = workers.length ? `${workers.length} leaf node${workers.length===1?'':'s'} available` : 'Connect a dedicated browser worker to submit your approved packets.';
   } catch(e){ if(hint) hint.textContent=''; }
 }
 
@@ -321,16 +409,20 @@ async function refreshApplicationProofs(){
   }catch(e){ /* Queue rows remain explicitly unverified when the evidence feed is unavailable. */ }
 }
 
+let pollBusy=false;
 async function poll(){
+  if(pollBusy)return;pollBusy=true;
+  try{
   let q;
   const node=selectedNode();
   const proofLoad=refreshApplicationProofs();
   try {
+    const submissions=await CareerSubmit.synchronize();
     const [apps,workers]=await Promise.all([
       fetch('/api/career-hunter/applications').then(r=>{ if(!r.ok) throw new Error('applications HTTP '+r.status); return r.json(); }),
-      fetch('/api/apply-operator/workers'+(node?('?clientId='+encodeURIComponent(node)):'')).then(r=>r.ok?r.json():null).catch(()=>null),
+      CareerSubmit.workers().catch(()=>null),
     ]);
-    q=queueFromNative(apps&&apps.applications,workers);
+    q=queueFromNative(apps&&apps.applications,workers,submissions);
   }
   catch(e){ $('list').innerHTML='<div class="empty">Could not read your applications: '+esc(e.message)+'</div>'; return; }
   if(!q||!q.worker) return;
@@ -357,13 +449,14 @@ async function poll(){
   lastSig=sig;
 
   $('list').innerHTML = items.length ? items.map(rowHtml).join('')
-    : `<div class="empty">${filter?'Nothing in this lane.':'No submissions yet. Generate a résumé on the Job Board, review it, then hit <b>Submit on my desktop</b>.'}</div>`;
+    : `<div class="empty">${filter?'Nothing in this lane.':'No submissions yet. Generate a résumé on the Job Board, review it, then choose <b>Review and submit</b>.'}</div>`;
+  }finally{pollBusy=false;}
 }
 
 const nsel=$('nodeSel');
 if(nsel) nsel.addEventListener('change', ()=>{ lastSig=''; poll(); });
 loadWorkers();
 poll();
-setInterval(()=>{ loadWorkers(); poll(); }, 5000);
+setInterval(()=>{ if(!document.hidden){loadWorkers();poll();} }, 15000);
 </script>
 </body></html>

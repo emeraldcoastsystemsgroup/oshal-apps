@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The admin list carries each company's source_lists so the portal table shows which rows arrived through a user's own target list (`user:<sub>` provenance) rather than the seeds.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | The administrator-only page speaks to the person: it told them an operator adds their subject to CAREER_HUNTER_ADMIN_SUBS 'and recreating the API container', a Docker-era step that does not exist on the native runtime. It now says to ask the person who runs the installation; the operator log line names the empty allow-list without the container step. Guard: tests/career-company-admin-copy.test.mjs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Project retained source attempts and content-delta counts through the existing administrator list; older snapshots explicitly have no recorded health.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | The same administrator list carries the latest nightly source review, so the report needs no new route or permission.
  */
 
 /**
@@ -23,7 +24,7 @@ import { callerSub, openCorpusDb } from './career-user-store';
 import { runCareerCliAwait } from './career-engine-dispatch';
 import { rejectEngineStart } from './career-engine-response';
 import { createCareerToolFileHandler } from './career-surface-routes';
-const { sourceHealthByCompany } = require('../lib/career-source-health');
+const { sourceHealthByCompany, latestSourceReview } = require('../lib/career-source-health');
 
 const logger = createChildLogger({ module: 'career-company-routes' });
 const CAREER_ADMIN_SUBS = new Set(
@@ -146,7 +147,7 @@ function listCompanies(req: Request, res: Response): void {
     const health = sourceHealthByCompany(db);
     res.json({ companies: companies.map((company) => ({ ...company,
       pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' },
-    })), sourceHealth: { available: health.available, reason: health.reason } });
+    })), sourceHealth: { available: health.available, reason: health.reason }, sourceReview: latestSourceReview(db) });
   } catch (err) {
     logger.error({ err, userSub }, 'company list failed');
     res.status(500).json({ error: 'read failed' });

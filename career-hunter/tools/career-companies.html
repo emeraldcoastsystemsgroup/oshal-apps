@@ -6,6 +6,7 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   2 | maintainer@emeraldcoastsystemsgroup.com | Show retained per-source attempts, complete pulls, failures, HTTP 304 checks and posting delta counts; unavailable history stays explicit.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Show the latest nightly source review above the table: what was repaired, what needs a person, what the pull did and what is still broken.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="companies-admin">
@@ -73,6 +74,14 @@
   .msg.ok { color: var(--accent); } .msg.err { color: var(--bad); }
   .empty { padding: 40px 20px; color: var(--muted); }
   .wrap { max-height: calc(100vh - 140px); overflow: auto; }
+  .review { margin: 0 12px 14px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .review h2 { margin: 0 0 2px; font-size: 14px; font-weight: 650; }
+  .review-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0; }
+  .review-stats div { display: flex; flex-direction: column; }
+  .review-stats strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .review details { margin-top: 6px; }
+  .review summary { cursor: pointer; font-weight: 600; font-size: 12.5px; }
+  .review ul { margin: 6px 0 0; padding-inline-start: 18px; font-size: 12.5px; overflow-wrap: anywhere; }
   @media (max-width: 640px) {
     header, .bar { padding-left: 12px; padding-right: 12px; }
     input[type=search] { width: 100%; }
@@ -150,6 +159,7 @@
   <div class="wrap">
     <p class="sub" id="healthNote" role="status">Checking source history…</p>
     <p class="sub" id="healthSummary" role="status"></p>
+    <section class="review" id="sourceReview" aria-labelledby="sourceReviewTitle" hidden></section>
     <table>
       <thead><tr><th>Company</th><th style="text-align:right">Jobs</th><th>Platform</th><th>Latest pull</th>
         <th>Careers / jobs URL — paste the real search URL &amp; Resolve</th></tr></thead>
@@ -168,16 +178,58 @@ function needsAttention(c) { return !c.ats_type || (c.active_jobs || 0) === 0 ||
   || ['failed', 'partial', 'empty_unconfirmed'].includes(c.pull_health?.status); }
 function unconfirmedPull(c) { return ['failed', 'partial', 'empty_unconfirmed', 'running'].includes(c.pull_health?.status); }
 
+const PULL_REASONS = { fetch_failed: 'The source could not be read.', http_refused: 'The source refused a request.', pagination_incomplete: 'Not every page was received.', completion_unverified: 'This connector has no complete-feed proof yet.', empty_unconfirmed: 'An empty response does not prove every job closed.', invalid_feed_rows: 'The source returned invalid or duplicate job records.', page_limit_reached: 'The source has more jobs than could be read.', browser_navigation_failed: 'The page could not be opened.', browser_read_failed: 'The page could not be read.', challenge_detected: 'The site asked for a human check.' };
+
+/** One expandable list; nothing at all when it is empty, so the card stays short on a quiet night. */
+function reviewList(title, items, line, hint) {
+  const shown = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!shown.length) return '';
+  return '<details><summary>' + esc(title) + ' (' + shown.length + ')</summary>'
+    + (hint ? '<p class="sub">' + esc(hint) + '</p>' : '')
+    + '<ul>' + shown.map(item => '<li>' + esc(line(item)) + '</li>').join('') + '</ul></details>';
+}
+
+function renderSourceReview(r) {
+  const card = $('#sourceReview');
+  card.hidden = !r;
+  if (!r) return;
+  if (r.unreadable || !r.review || !r.sources || !r.delta) {
+    card.innerHTML = '<h2 id="sourceReviewTitle">Nightly source review</h2><p class="sub">The latest report could not be read.</p>';
+    return;
+  }
+  const n = (value) => Number(value || 0).toLocaleString();
+  const outcomes = r.review.outcomes || {};
+  const stat = (label, value) => '<div><strong>' + n(value) + '</strong><span class="sub">' + esc(label) + '</span></div>';
+  const was = r.previousSources ? ' (was ' + n(r.previousSources.whole) + ')' : '';
+  const when = Number.isFinite(Date.parse(r.finishedAt)) ? new Date(r.finishedAt).toLocaleString() : 'not recorded';
+  card.innerHTML = '<h2 id="sourceReviewTitle">Nightly source review</h2>'
+    + '<p class="sub">' + esc(when) + '. Checked ' + n(r.review.checked) + ' sources; ' + n(r.review.waiting) + ' waiting for a later night.</p>'
+    + '<div class="review-stats">' + stat('Repaired', outcomes.repaired) + stat('Suggested', outcomes.suggested)
+    + stat('Refused us', outcomes.blocked) + stat('Reading nothing', r.sources.empty) + stat('Failing', r.sources.failed)
+    + stat('No feed', r.sources.noFeed) + '</div>'
+    + '<p class="sub">Verified whole: ' + n(r.sources.whole) + esc(was) + '. Partly verified: ' + n(r.sources.unverified) + '.</p>'
+    + '<p class="sub">Last pull read ' + n(r.delta.read) + ' jobs: ' + n(r.delta.new) + ' new, ' + n(r.delta.changed) + ' changed, '
+    + n(r.delta.unchanged) + ' unchanged, ' + n(r.delta.closed) + ' closed. ' + n(r.delta.notModified) + ' sources answered not modified.</p>'
+    + reviewList('Repaired', r.review.repaired, i => i.company + ': ' + i.from + ' → ' + i.to + ', ' + n(i.jobs) + ' jobs')
+    + reviewList('Suggested, not applied', r.review.suggested, i => i.company + ': ' + (i.options || []).join(', ') + (i.jobs == null ? '' : ', ' + n(i.jobs) + ' jobs') + ', ' + i.reason,
+      'To accept one, paste that employer\'s job board URL into its row below and press Resolve.')
+    + reviewList('Board already held by another employer', r.review.duplicates, i => i.company + ': ' + i.board + ' is held by ' + i.owner)
+    + reviewList('Closed more than half its jobs in this pull', r.massClosed, i => i.company + ' (' + i.ats + '): ' + n(i.closed) + ' closed, ' + n(i.kept) + ' kept',
+      'A large closure can be real, or a feed that stopped returning everything.')
+    + reviewList('Same job count three pulls running', r.stuck, i => i.company + ' (' + i.ats + '): ' + n(i.jobs) + ' jobs',
+      'Usually a limit on how many jobs the source returns, so some jobs may be missing.')
+    + reviewList('Still broken', r.stillBroken, i => i.company + ' (' + i.ats + '): ' + (PULL_REASONS[i.code] || 'Could not be confirmed.') + ' ' + n(i.pulls) + ' pulls in a row');
+}
+
 function pullHealth(c) {
   const h = c.pull_health;
   if (!h || h.status === 'unavailable') return '<span class="sub">No pull recorded yet</span>';
   const labels = { ok: 'Complete', not_modified: 'Unchanged · HTTP 304', running: 'Attempt unfinished', failed: 'Pull failed', partial: 'Partial · existing jobs kept', empty_unconfirmed: 'Empty result · existing jobs kept' };
   const stamp = (value) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'not recorded';
-  const reason = { fetch_failed: 'The source could not be read.', http_refused: 'The source refused a request.', pagination_incomplete: 'Not every page was received.', completion_unverified: 'This connector has no complete-feed proof yet.', empty_unconfirmed: 'An empty response does not prove every job closed.', invalid_feed_rows: 'The source returned invalid or duplicate job records.' };
   return '<strong>' + esc(labels[h.status] || 'Unknown outcome') + '</strong>'
     + '<div class="sub">Attempt: ' + esc(stamp(h.last_attempt_at)) + '</div>'
     + '<div class="sub">Last complete pull: ' + esc(stamp(h.last_success_at)) + '</div>'
-    + (h.last_error_code ? '<div class="sub">' + esc(reason[h.last_error_code] || 'Pull could not be confirmed.') + '</div>' : '')
+    + (h.last_error_code ? '<div class="sub">' + esc(PULL_REASONS[h.last_error_code] || 'Pull could not be confirmed.') + '</div>' : '')
     + '<div class="sub">' + Number(h.new_count || 0) + ' new · ' + Number(h.changed_count || 0) + ' changed · '
     + Number(h.unchanged_count || 0) + ' unchanged · ' + Number(h.closed_count || 0) + ' closed</div>'
     + (h.consecutive_failures ? '<div class="sub">' + Number(h.consecutive_failures) + ' consecutive unconfirmed attempts</div>' : '');
@@ -295,6 +347,8 @@ async function load() {
     $('#healthNote').textContent = d.sourceHealth?.available
       ? 'Source history records each employer separately. Boards may still be fetched in full; unchanged posting bodies are retained. Only verified complete results may close missing jobs.'
       : 'This snapshot has no recorded pull history yet. Existing jobs and dates do not prove that every source was checked. History appears after the updated ingestion runs.';
+    try { renderSourceReview(d.sourceReview); }
+    catch { renderSourceReview({ unreadable: true }); } // A bad report must not hide the company list.
     render();
   } catch (e) {
     $('#healthNote').textContent = e.message || 'Source configuration could not be read.';

@@ -25,7 +25,8 @@ process.env.JOBHUNTER_STORE_ROOT = fixtureRoot;
 
 /** Dependency-free better-sqlite3 double implementing only the migration's statements. */
 class FixtureDatabase {
-  constructor(filePath) {
+  constructor(filePath, options = {}) {
+    this.readonly = options.readonly === true;
     this.state = databases.get(filePath) || { columns: new Set(), rows: [] };
     databases.set(filePath, this.state);
   }
@@ -37,7 +38,8 @@ class FixtureDatabase {
   exec(sql) {
     if (/^ATTACH DATABASE/.test(sql)) return;
     const added = sql.match(/ALTER TABLE user_signals ADD COLUMN (\w+)/)?.[1];
-    if (added) { this.state.columns.add(added); return; }
+    if (added && !this.readonly) { this.state.columns.add(added); return; }
+    if (added) throw new Error('read-only fixture cannot migrate');
     throw new Error(`unexpected fixture exec: ${sql}`);
   }
 
@@ -52,6 +54,7 @@ class FixtureDatabase {
     }
     if (sql === 'UPDATE user_signals SET application_source=? WHERE posting_id=?') {
       return { run: (source, postingId) => {
+        if (this.readonly) throw new Error('read-only fixture cannot update');
         const row = this.state.rows.find((candidate) => candidate.posting_id === postingId);
         if (row) row.application_source = source;
         return { changes: row ? 1 : 0 };
@@ -119,7 +122,7 @@ test('historical migration trusts contained evidence but not notes or evidence-f
     { id: 2, confirmationPath: outside, notes: 'worker said submitted' },
     { id: 3 },
   ]);
-  const handle = userStore.openUserDb(userSub);
+  const handle = userStore.openUserDb(userSub, false);
   assert.ok(handle);
   handle.close();
   assert.deepEqual(readSources(seeded.userDb), [
@@ -142,10 +145,26 @@ test('historical migration rejects a confirmation reached through a symlink', (c
     throw error;
   }
   const seeded = seedUser(userSub, [{ id: 4, confirmationPath: join(linkedDir, 'proof.png') }]);
-  const handle = userStore.openUserDb(userSub);
+  const handle = userStore.openUserDb(userSub, false);
   assert.ok(handle);
   handle.close();
   assert.deepEqual(readSources(seeded.userDb), [
     { posting_id: 4, application_source: 'unverified', application_task_id: null },
   ]);
+});
+
+test('read-only user store opens do not run the writable provenance migration', () => {
+  const userSub = 'provenance-read-only';
+  const seeded = seedUser(userSub, [{ id: 5 }]);
+  const readHandle = userStore.openUserDb(userSub);
+  assert.ok(readHandle);
+  readHandle.close();
+  assert.equal(databases.get(seeded.userDb).columns.has('application_source'), false);
+  assert.equal(readSources(seeded.userDb)[0].application_source, null);
+
+  const writeHandle = userStore.openUserDb(userSub, false);
+  assert.ok(writeHandle);
+  writeHandle.close();
+  assert.equal(databases.get(seeded.userDb).columns.has('application_source'), true);
+  assert.equal(readSources(seeded.userDb)[0].application_source, 'unverified');
 });

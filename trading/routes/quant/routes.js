@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The brief carries tonight's quality-dip candidates and can be asked for any ranking (by=quality-dip and the other forward signals included), naming the forward verdict where no history test exists, so the concierge answers a dip question from the one tool it already has.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The list is read a page at a time, filtered by industry, theme or search and ranked by any signal, and a name left off the list says why. The status read no longer loads the whole list.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The brief list names the signal it is ranked by and that signal's verdict, and the brief scoreboard carries the test without the biggest winners.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk surface, mounted at /api/trading/quant inside the existing Trading route so no authority field changes: read the list, a symbol and the scoreboard, turn the nightly job on or off, and run one bounded pass. The caller is the admitted principal, never a header or body field. Research only.
@@ -7,7 +8,7 @@
 const desk = require('./desk');
 const store = require('./store');
 const { explain } = require('./rank');
-const { screenPage, briefPage, whyNotListed } = require('./view');
+const { screenPage, briefPage, knownRanking, whyNotListed } = require('./view');
 
 /** The package's person schedule the page activates once the person turns the desk on. */
 const QUANT_SCHEDULE = Object.freeze({ app: 'intelligent-trades', name: 'quant-desk', route: '/api/trading/quant/tick' });
@@ -39,20 +40,41 @@ function callerOf(req) {
 }
 
 /**
- * @description The list as the concierge reads it. Groups are named so it can offer them, and a group or search narrows the rows.
+ * @description What a ranking's own record says about it: the history-test verdict for a price signal, or the
+ * 21-session forward verdict for a signal whose inputs are only known today.
+ * @param {string} by - Signal id.
+ * @param {object|null} history - Stored history test.
+ * @param {object|null} forward - Stored forward scoreboard.
+ * @returns {object|null} {id, name, verdict}.
+ */
+function rankingRecord(by, history, forward) {
+  const leader = history && history.signals.find((s) => s.id === by);
+  if (leader) return { id: leader.id, name: leader.name, verdict: leader.verdict };
+  const row = forward && forward.signals.find((s) => s.id === by);
+  if (!row) return null;
+  const m = row.horizons.find((h) => h.h === 21);
+  return { id: row.id, name: row.name, verdict: `forward record only; 21 sessions: ${m ? m.verdict : 'Not enough yet'}` };
+}
+
+/**
+ * @description The list as the concierge reads it. Groups are named so it can offer them, a group or search narrows the
+ * rows, `by` reads another ranking, and tonight's quality-dip candidates ride along so a dip question needs no second call.
  * @param {object} today - The published summary.
  * @param {Array<object>} rows - Stored rows.
  * @param {object|null} history - Stored history test.
- * @param {object} query - {group, q}.
+ * @param {object|null} forward - Stored forward scoreboard.
+ * @param {object} query - {group, q, by}.
  * @returns {object} The brief answer.
  */
-function briefToday(today, rows, history, query) {
-  const leader = history && history.signals.find((s) => s.id === today.rankBy);
+function briefToday(today, rows, history, forward, query) {
+  const by = knownRanking(rows, query.by) ? String(query.by) : today.rankBy;
   const filter = { group: query.group, q: query.q };
-  const list = briefPage(today, rows, filter, { top: BRIEF_TOP, bottom: BRIEF_BOTTOM });
+  const list = briefPage(today, rows, filter, { top: BRIEF_TOP, bottom: BRIEF_BOTTOM }, by);
+  const dips = by === 'quality-dip' ? list : briefPage(today, rows, {}, { top: BRIEF_TOP / 2, bottom: 0 }, 'quality-dip');
   return {
     ok: true, ready: true, researchOnly: true, session: today.session, at: today.at, scored: today.scored, market: today.market, pool: today.pool,
-    rankedBy: leader ? { id: leader.id, name: leader.name, verdict: leader.verdict } : null, selection: filter.group || filter.q ? { ...filter, matched: list.total } : null, top: list.top, weakest: list.weakest, holdings: today.holdings, coverage: today.coverage,
+    rankedBy: rankingRecord(by, history, forward), selection: filter.group || filter.q ? { ...filter, matched: list.total } : null, top: list.top, weakest: list.weakest, holdings: today.holdings, coverage: today.coverage,
+    qualityDip: { what: 'At least 25% below its 52-week high, yet profitable with growing revenue in its latest annual SEC filing, deepest fall first. A candidate list, not a buy instruction; judged only by the forward scoreboard.', matched: dips.total, top: by === 'quality-dip' ? [] : dips.top },
     groups: today.groups.map((g) => ({ name: g.name, kind: g.kind, count: g.count, threeMonths: g.threeMonths })),
   };
 }
@@ -88,7 +110,8 @@ function quantHandlers(ctx, overrides = {}) {
       if (!today) return { status: 200, body: { ok: true, ready: false, researchOnly: true, message: 'The desk has not published a list yet.' } };
       const query = req.query || {}, rows = (await store.getRecord(pool(), sub, 'rows', 'current')) || [];
       if (query.view !== 'brief') return { status: 200, body: { ok: true, ready: true, researchOnly: true, ...screenPage(today, rows, query) } };
-      return { status: 200, body: briefToday(today, rows, await store.getRecord(pool(), sub, 'history', 'current'), query) };
+      const [history, forward] = await Promise.all([store.getRecord(pool(), sub, 'history', 'current'), store.getRecord(pool(), sub, 'forward', 'current')]);
+      return { status: 200, body: briefToday(today, rows, history, forward, query) };
     },
     async symbol(sub, req) {
       const symbol = String(req.params.symbol || '').toUpperCase();

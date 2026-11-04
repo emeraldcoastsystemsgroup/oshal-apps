@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: declare travel-concierge as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: with no Duffel rail, flight, hotel and car searches answer the Google Flights, Booking.com and Kayak search links for the trip (no fares invented); search-flights says to hand the person that link. Guarded by travel/tests/travel-search-handoff.test.js.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: Duffel flight search on the native kernel through its fenced egress: api.duffel.com is declared below with the kernel-held `duffel` key (OSHAL_CONNECTOR_SECRET_DUFFEL) as the bearer token, so the package never holds it. Hotels and cars stay search links. A test-mode key's offers are labelled Duffel test fares and kept out of the price history. Guarded by travel/tests/travel-duffel-egress.test.js.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — travel ("Travel", the AI travel concierge — ADR-059)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -46,11 +47,11 @@ rating:
       degrade: disable
 displayName: Travel
 description: >-
-  AI travel concierge (ADR-059) — search real flights (Duffel), see an honest price read from
+  AI travel concierge (ADR-059) — search flights through Duffel, see an honest price read from
   the swarm's shared price history, watch routes for a fare drop, and book via a deep-link
-  handoff. Hotels and cars are deep-link handoffs today. Other swarm bots can ask it to plan a
+  handoff. Hotels and cars are deep-link handoffs (Google Flights, Booking.com, Kayak). Other swarm bots can ask it to plan a
   trip or check a fare on a traveller's behalf.
-version: 1.2.6
+version: 1.3.0
 
 testing:
   version: 1
@@ -80,8 +81,8 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# Runtime connector allow-list — the flight-search API the concierge drives via the
-# per-user broker (a pasted Duffel access token at /utilities).
+# Runtime connector allow-list — the flight-search API the concierge drives. On the native kernel the
+# Duffel access token is the installation's (OSHAL_CONNECTOR_SECRET_DUFFEL), applied at the egress below.
 dependencies:
   required:
     apps: []
@@ -91,6 +92,12 @@ dependencies:
     apps: []
     tools: []
     connectors: []
+
+# Outbound hosts (native kernel: the sandbox reaches only these). Duffel answers flight offers; the kernel adds
+# the duffel key as the bearer token and this package never sees it.
+egress:
+  - host: api.duffel.com
+    credential: { connector: duffel, header: authorization, prefix: "Bearer " }
 
 # Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
 # `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core

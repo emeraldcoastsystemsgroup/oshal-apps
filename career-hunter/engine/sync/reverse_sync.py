@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # CHANGE LOG
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve private fit fingerprints in strict score projection after migration 109.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -157,7 +158,7 @@ REPUTATION_COLUMNS = _cols({
 SCORE_COLUMNS = _cols({
     "fit_score": _int, "ai_fit_score": _int, "ai_fit_rationale": _same,
     "ai_fit_matched": _json_text, "ai_fit_gaps": _json_text, "ai_model": _same,
-    "ai_scored_at": _ts,
+    "ai_scored_at": _ts, "ai_input_fingerprint": _same,
 })
 APPLICATION_COLUMNS = _cols({
     "status": _same, "resume_path": _same, "cover_path": _same, "promoted_at": _ts,

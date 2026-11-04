@@ -1,5 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL application GROUP — Intelligent Career (ADR-141)
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Hide the framework Tickets workbench and open directly on Search Jobs instead of falling back to an unfiltered global queue.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: Rebuilt on main together with Career 1.47.3; no change to the toolbar, setup or ribbon.
 #
 # A group carries NO code. It binds four installed applications into one front
 # door with one toolbar and a setup dashboard:
@@ -35,7 +38,7 @@ description: >-
   tools, your profile picture, your LinkedIn and Facebook presence, and the
   documents you print into the swarm — with a setup page that shows what is
   connected and what still needs you.
-version: 1.1.2
+version: 1.1.6
 status: active
 scope: public
 theme: daylight
@@ -80,13 +83,15 @@ dependencies:
 # `group:` bands render in first-appearance order; `section: bottom` is the pinned
 # base tray (ungrouped by the renderer). The kernel prepends its Setup tile.
 toolbar:
-  - { app: career-hunter,   surface: career-board }
   - { app: career-hunter,   surface: career-search,         group: Job Search }
+  - { app: career-hunter,   surface: career-board,          group: Job Search }
   - { app: career-hunter,   surface: career-submissions,    group: Job Search }
-  - { app: career-hunter,   surface: career-recruiters,     group: Job Search }
+  - { app: career-hunter,   surface: career-application-status, group: Job Search }
+  - { app: career-hunter,   surface: career-recruiters,     group: Connections }
   - { app: career-hunter,   surface: career-approvals,      group: Review }
   - { app: career-hunter,   surface: career-insights,       group: Review }
   - { app: career-hunter,   surface: career-resume-studio,  group: Resume }
+  - { app: career-hunter,   surface: career-experience-library, group: Resume }
   - { app: career-hunter,   surface: career-strengthen,     group: Resume }
   - { app: career-hunter,   surface: career-profile-studio, group: Presence }
   - { app: portrait-studio, surface: portrait-studio,       group: Presence }
@@ -94,6 +99,7 @@ toolbar:
   - { app: social,          surface: social-workspace,      group: Presence }
   - { app: social,          surface: social-signals,        group: Presence }
   - { app: print-ingest,    surface: print-ingest,          group: Documents }
+  - { app: career-hunter,   surface: career-submission-activity, group: Activity }
   - { app: social,          surface: social-accounts,       section: bottom }
   - { app: career-hunter,   surface: career-settings,       group: Configuration }
   - { app: career-hunter,   surface: career-companies,      group: Configuration }
@@ -110,11 +116,13 @@ setup:
   - { label: Add performance reports and other documents, app: career-hunter,   readiness: materials,    fix: career-settings }
   - { label: Subscribe to the print service,              app: print-ingest,    readiness: subscription, fix: print-ingest }
 
-# ── Ribbon chrome (mirrors career-hunter's) ───────────────────────────────────
-# Tickets hides itself (a group owns no queue). The Setup tile is the default
-# landing view; it offers "Open" onto the board once every step is done.
+# ── Ribbon chrome ───────────────────────────────────────────────────────────
+# This front door opens on job discovery. Generic tickets stay outside the Career
+# rail; application preparation and submission have their own Career surfaces.
 ribbon:
+  defaultView: career-hunter--career-search
   hideFrameworkItems:
+    - tickets
     - chat
     - calendar
     - addressbook

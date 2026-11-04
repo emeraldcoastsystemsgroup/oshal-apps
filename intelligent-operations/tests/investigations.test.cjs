@@ -1,8 +1,9 @@
+/* CHANGE LOG: investigate again | maintainer@emeraldcoastsystemsgroup.com | Guard Investigate again in real SQL (only a failed or cancelled ticket, one new ticket however many ask, the same sealed bytes, earlier attempts kept, another person opens nothing) and on the shipped evidence card; listed investigations carry their alert label. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The funnel's recovery card counts cohort tickets with a healthy response outcome (zero without executions), never unrelated tickets. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise real SQL reservations, canonical-service boundary seams, concurrent/uncertain creation, immutable dispatch inputs and cohort-linked receipt counts. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{createHash,randomUUID}=require('node:crypto');
-const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),{admit}=require('../routes/intake'),{publishPolicy,evaluateDelivery}=require('../routes/pipeline'),{prepareInvestigation,investigationRecords}=require('../routes/investigations'),{metrics}=require('../experience/lifecycle.js'),{example}=require('../ui/source-contract');
+const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),{admit}=require('../routes/intake'),{publishPolicy,evaluateDelivery}=require('../routes/pipeline'),{prepareInvestigation,investigationRecords,investigateAgain}=require('../routes/investigations'),{investigationLabels}=require('../experience/rca-library.js'),{metrics}=require('../experience/lifecycle.js'),{example}=require('../ui/source-contract');
 const {saveExternalConfig}=require('../routes/external-evidence');
 async function setup(f,owner='alice',intercept){const pool=f.caller(owner,intercept),source=loadExperience().sourceDefinition({name:'Investigations',source:'urn:triagenorth:test:'+randomUUID(),environment:'test'}),event=example();event.id=randomUUID();event.source=source.source;event.data.environment='test';const delivery=(await admit(pool,owner,source,event)).record
  // The production detection engine has its own actual OpenSearch tests. This boundary fixture returns a sealed exact rule and one actual match to exercise SQL handoff, never a live detector acceptance claim.
@@ -52,5 +53,47 @@ test('actual experience dispatches sealed bytes to the canonical start route and
   server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));browser=await chromium.launch({headless:true,args:['--disable-gpu']});const page=await browser.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#data');await page.locator('.operator-evidence-work>summary').click();await page.getByRole('button',{name:'Start AI investigation',exact:true}).click();await page.getByRole('link',{name:'Open canonical ticket',exact:true}).waitFor();assert.equal(starts,1);assert.equal(port.creates,1);const panel=page.locator('#pipeline-lifecycle');assert.match(await panel.innerText(),/AI assessments completed\n1/);assert.match(await panel.innerText(),/Verified infrastructure recovery\n0/);
   await Promise.all([page.waitForResponse(r=>r.url().endsWith('/work')&&r.status()===200),page.getByRole('button',{name:'Open or resume investigation',exact:true}).click()]);await page.waitForFunction(()=>document.getElementById('pipeline-lifecycle').getAttribute('aria-busy')==='false');assert.equal(starts,1);assert.equal(port.creates,1);
   readStatus=403;await page.getByRole('button',{name:'Refresh workflow progress',exact:true}).click();await page.waitForFunction(()=>document.getElementById('pipeline-lifecycle').childElementCount===0);assert.equal(await page.getByRole('link',{name:'Open canonical ticket',exact:true}).count(),0);assert.deepEqual(errors,[]);
+ }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
+});
+
+test('a failed or cancelled investigation runs again once on a fresh ticket for the same sealed evidence; nothing else may',async()=>{
+ const f=await fixture();try{const x=await setup(f),port=ticketPort(),ctx={pool:x.pool,ticketService:port};
+  await assert.rejects(investigateAgain(ctx,'alice',x.workId),e=>e.status===409&&/no investigation yet/.test(e.message));
+  const first=await prepareInvestigation(ctx,'alice',x.workId);
+  await assert.rejects(investigateAgain(ctx,'alice',x.workId),e=>e.status===409&&/this ticket is queued/.test(e.message));assert.equal(port.creates,1);
+  port.tickets.get(first.ticketId).status='failed';
+  const results=await Promise.allSettled(Array.from({length:6},()=>investigateAgain(ctx,'alice',x.workId)));
+  assert.equal(port.creates,2,'one new ticket however many ask at once');
+  const opened=results.filter(r=>r.status==='fulfilled').map(r=>r.value);assert.ok(opened.length>=1);assert.equal(new Set(opened.map(v=>v.ticketId)).size,1);
+  for(const r of results.filter(r=>r.status==='rejected'))assert.equal(r.reason.status,409);
+  const again=opened[0];assert.notEqual(again.ticketId,first.ticketId);assert.equal(again.ticket.status,'queued');assert.equal(again.state,'queued');
+  assert.deepEqual(again.startInput,first.startInput,'the same sealed evidence, byte for byte');assert.equal(again.inputSha256,first.inputSha256);assert.notEqual(again.attempt,first.attempt);
+  assert.deepEqual(again.previousAttempts.map(p=>[p.ticketId,p.endedAs,p.attempt]),[[first.ticketId,'failed',first.attempt]]);assert.equal(again.executionAuthorized,false);
+  port.tickets.get(again.ticketId).status='cancelled';const third=await investigateAgain(ctx,'alice',x.workId);assert.equal(port.creates,3);
+  assert.deepEqual(third.previousAttempts.map(p=>p.endedAs),['failed','cancelled']);
+  port.tickets.get(third.ticketId).status='done';await assert.rejects(investigateAgain(ctx,'alice',x.workId),e=>e.status===409&&/this ticket is done/.test(e.message));
+  await assert.rejects(investigateAgain({pool:f.caller('bob'),ticketService:port},'bob',x.workId),e=>e.status===409);assert.equal(port.creates,3,'another person opens nothing');
+  const listed=(await investigationRecords(ctx,'alice')).items;assert.equal(listed.length,1);assert.equal(listed[0].ticketId,third.ticketId);
+  assert.equal(listed[0].alert.alertType,x.delivery.normalized.data.alertType);assert.equal(listed[0].alert.environment,'test');
+  const labels=investigationLabels(listed);assert.match(labels.get(third.ticketId),new RegExp(listed[0].alert.alertType));assert.match(labels.get(first.ticketId),/\(earlier attempt, failed\)$/);assert.match(labels.get(again.ticketId),/\(earlier attempt, cancelled\)$/);
+ }finally{await f.close();}
+});
+test('a failed investigation offers Investigate again on its evidence card, which opens and starts one new ticket for the same sealed evidence',async()=>{
+ const f=await fixture(),express=dependency('express'),{chromium}=dependency('playwright');let browser,server;
+ try{
+  const x=await setup(f),port=ticketPort(),app=express(),errors=[],started=[];
+  app.use(express.json({limit:'1mb'}));app.get('/tickets/:id/work',(_req,res)=>res.json({work:[]}));
+  app.post('/tickets/:id/start',(req,res)=>{const t=port.tickets.get(req.params.id);assert.equal(t.status,'queued','only a queued ticket is started');started.push([req.params.id,createHash('sha256').update(Buffer.from(req.body.files[0].bytes)).digest('hex')]);t.status='running';res.json({ticket:t});});
+  app.use((req,_res,next)=>{req.oidc={user:{sub:'alice'}};next();});app.use('/api/intelligent-operations',loadExperience().createOperationsExperienceRoutes({appPackageDir:root,pool:x.pool,ticketService:port,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}}));
+  server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));browser=await chromium.launch({headless:true,args:['--disable-gpu']});const page=await browser.newPage();page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#data');await page.locator('.operator-evidence-work>summary').click();
+  await page.getByRole('button',{name:'Start AI investigation',exact:true}).click();await page.getByRole('link',{name:'Open canonical ticket',exact:true}).waitFor();assert.equal(started.length,1);
+  assert.equal(await page.getByRole('button',{name:'Investigate again',exact:true}).count(),0,'a running investigation offers no second ticket');
+  const panel=page.locator('#pipeline-lifecycle');assert.match(await panel.locator('h4').first().innerText(),new RegExp(x.delivery.normalized.data.alertType));
+  port.tickets.get(started[0][0]).status='failed';await page.getByRole('button',{name:'Refresh workflow progress',exact:true}).click();
+  await panel.getByText('This investigation failed without a report.',{exact:false}).waitFor();await page.getByRole('button',{name:'Investigate again',exact:true}).click();
+  await panel.getByText('Earlier attempts: 1; the last one failed.',{exact:true}).waitFor();
+  assert.equal(port.creates,2);assert.equal(started.length,2);assert.notEqual(started[1][0],started[0][0]);assert.equal(started[1][1],started[0][1],'the same sealed packet');
+  assert.equal(await page.getByRole('button',{name:'Investigate again',exact:true}).count(),0);assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
 });

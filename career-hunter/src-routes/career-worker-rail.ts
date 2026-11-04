@@ -1,5 +1,8 @@
 /**
  * CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Read fixed original-owner native scoring identity without inference and forward guarded turns with validated per-completion routing attribution.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Let the same signed original-owner run read anonymous structured employer details through declared kernel egress; keep model accounting and external networking separate.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve the engine output budget through native completions with a validated 8192-token ceiling.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -54,7 +57,8 @@ const logger = createChildLogger({ module: 'career-worker-rail' });
 const CAREER_AGENT_ID = 'cb000000-0000-0000-0000-000000000001';
 const JSON_ONLY = 'Respond with ONLY a single JSON object, no prose, no code fence.';
 
-interface RailInput { system: string; prompt: string; jsonMode: boolean }
+/** Preserve the engine's bounded output allowance through the native bot bridge. */
+interface RailInput { system: string; prompt: string; jsonMode: boolean; maxTokens: number; expectedModelIdentity?: string }
 interface RailOutcome { status: number; body: Record<string, unknown> }
 type BodyResult = { ok: true; value: unknown } | { ok: false; outcome: RailOutcome };
 type WorkerCall = (run: EngineRunRecord, subject: string, input: RailInput) => Promise<BotNodeResponse>;
@@ -152,7 +156,37 @@ function railInput(value: unknown): RailInput | null {
   const system = doc.system === undefined ? '' : doc.system;
   if (typeof system !== 'string' || typeof doc.prompt !== 'string' || !doc.prompt.trim()) return null;
   if (doc.jsonMode !== undefined && typeof doc.jsonMode !== 'boolean') return null;
-  return { system, prompt: doc.prompt, jsonMode: doc.jsonMode !== false };
+  const maxTokens = doc.maxTokens === undefined ? 2048 : doc.maxTokens;
+  if (typeof maxTokens !== 'number' || !Number.isInteger(maxTokens) || maxTokens<1 || maxTokens>8192) return null;
+  if (doc.expectedModelIdentity !== undefined && (process.env.OSHAL_EGRESS !== 'kernel'
+    || typeof doc.expectedModelIdentity !== 'string' || !/^[a-f0-9]{64}$/.test(doc.expectedModelIdentity))) return null;
+  return { system, prompt: doc.prompt, jsonMode: doc.jsonMode !== false, maxTokens,
+    ...(doc.expectedModelIdentity === undefined ? {} : {expectedModelIdentity: doc.expectedModelIdentity as string}) };
+}
+
+/** Configured labels are bounded metadata, never routing selectors supplied by a browser. */
+function modelLabel(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && Array.from(value).length <= 256
+    && value === value.trim() && !/[\x00-\x1f\x7f]/.test(value);
+}
+
+/** One fixed, source-checked kernel read; no model call or model-call accounting. */
+async function scoringIdentity(deps: RailDeps, value: Record<string, unknown>): Promise<RailOutcome> {
+  if (Object.keys(value).some(key => key !== 'operation')) return {status:400,body:{ok:false,error:'invalid-model-identity'}};
+  const unavailable = {status:503,body:{ok:false,error:'model-identity-unavailable'}};
+  if (process.env.OSHAL_EGRESS !== 'kernel') return unavailable;
+  try {
+    const native = deps.ctx as unknown as {intent?: (name: string, input: object) => Promise<unknown>};
+    const answer = native.intent ? await native.intent('career.model_identity', {}) : null;
+    const identity = answer as {version?: unknown; identity?: unknown; primary?: {provider?: unknown; model?: unknown}} | null;
+    if (!identity || identity.version !== 1 || typeof identity.identity !== 'string' || !/^[a-f0-9]{64}$/.test(identity.identity)
+        || !modelLabel(identity.primary?.provider) || !modelLabel(identity.primary?.model)) return unavailable;
+    // Do not forward arbitrary kernel metadata, source documents or selectors to the child.
+    return {status:200,body:{ok:true,identity:{version:1,identity:identity.identity,
+      primary:{provider:identity.primary.provider,model:identity.primary.model}}}};
+  } catch {
+    return unavailable;
+  }
 }
 
 /** Compose the one text the Career bot answers, in the order the engine's prompts assume. */
@@ -163,7 +197,7 @@ function railPrompt(input: RailInput): string {
 }
 
 /** The accountable, owner-scoped bot request: direct, non-agentic, one task per engine run. */
-function workerRequest(run: EngineRunRecord, subject: string, input: RailInput): BotNodeRequest {
+function workerRequest(run: EngineRunRecord, subject: string, input: RailInput): BotNodeRequest & {max_output_tokens: number; expectedModelIdentity?: string} {
   return {
     text: railPrompt(input),
     taskId: `career-engine-${run.runId}`,
@@ -172,6 +206,8 @@ function workerRequest(run: EngineRunRecord, subject: string, input: RailInput):
     direct: true,
     agenticMode: false,
     userSub: subject,
+    max_output_tokens: input.maxTokens,
+    ...(input.expectedModelIdentity === undefined ? {} : {expectedModelIdentity:input.expectedModelIdentity}),
   };
 }
 
@@ -228,7 +264,10 @@ function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<{ done: tr
 
 /** Map a kernel refusal or transport failure onto the rail's stable failure codes. */
 function failureOf(err: unknown): RailOutcome {
-  const e = err as { code?: unknown; statusCode?: unknown } | null;
+  const e = err as { code?: unknown; statusCode?: unknown; message?: unknown } | null;
+  if (typeof e?.message === 'string' && /\bcareer-model-identity-mismatch\b/.test(e.message)) {
+    return {status:409,body:{ok:false,error:'model-identity-mismatch'}};
+  }
   if (e?.code === 'budget_cap_exceeded' || e?.statusCode === 402) {
     return { status: 402, body: { ok: false, error: 'budget-cap-exceeded' } };
   }
@@ -252,9 +291,18 @@ function notAdmittedOutcome(run: EngineRunRecord, waitTimedOut: boolean): RailOu
 }
 
 /** Turn the bot's answer into the rail response the engine parses. */
-function answerOf(result: BotNodeResponse): RailOutcome {
+function answerOf(result: BotNodeResponse, input: RailInput): RailOutcome {
   if (!result || result.success === false) {
     return { status: 502, body: { ok: false, error: 'career-worker-error' } };
+  }
+  const metadata = result as BotNodeResponse & {modelIdentity?: unknown; fallback?: unknown};
+  if (input.expectedModelIdentity !== undefined) {
+    if (metadata.modelIdentity !== input.expectedModelIdentity || !modelLabel(result.provider)
+        || !modelLabel(result.model) || typeof metadata.fallback !== 'boolean') {
+      return {status:503,body:{ok:false,error:'model-identity-unavailable'}};
+    }
+    return {status:200,body:{ok:true,text:String(result.response ?? ''),model:result.model,provider:result.provider,
+      modelIdentity:metadata.modelIdentity,fallback:metadata.fallback}};
   }
   return {
     status: 200,
@@ -295,7 +343,7 @@ async function executeOnWorker(
       work.catch((err) => logger.error({ err, runId: run.runId }, 'abandoned career rail call failed'));
       return abandonedOutcome(run, call.timedOut());
     }
-    return answerOf(raced.value);
+    return answerOf(raced.value, input);
   } catch (err) {
     logger.error({ err, runId: run.runId }, 'career rail worker call failed');
     return failureOf(err);
@@ -322,6 +370,18 @@ async function handleComplete(deps: RailDeps, req: Request, res: Response): Prom
   const run = admittedRun(req, res);
   if (!run) return;
   const body = parseRailJson(req);
+  if (body.ok && body.value && typeof body.value === 'object' && !Array.isArray(body.value)
+      && (body.value as Record<string, unknown>).operation === 'model-identity') {
+    const outcome = await scoringIdentity(deps, body.value as Record<string, unknown>);
+    res.status(outcome.status).json(outcome.body);
+    return;
+  }
+  if (body.ok && body.value && typeof body.value === 'object' && (body.value as Record<string, unknown>).operation === 'employer-detail-get') {
+    const outcome = await require('../lib/career-employer-detail').employerDetailGet(deps.ctx, body.value);
+    logger.info({ runId: run.runId, status: outcome.status, employerStatus: outcome.body.status ?? null, durationMs: Date.now()-startedAt }, 'career employer detail read');
+    res.status(outcome.status).json(outcome.body);
+    return;
+  }
   const input = body.ok ? railInput(body.value) : null;
   if (!body.ok || !input) {
     const outcome = body.ok ? { status: 400, body: { ok: false, error: 'invalid-completion' } } : body.outcome;

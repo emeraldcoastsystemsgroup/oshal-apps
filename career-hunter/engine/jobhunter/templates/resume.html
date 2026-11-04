@@ -77,6 +77,18 @@
   </div>
   {% endfor %}
   {% endif %}
+  {% if r.additional_experience %}
+  <h2>Additional Experience</h2>
+  {% for e in r.additional_experience %}
+  <div class="role">
+    <div class="role-h">
+      <div><span class="role-t">{{ e.title }}</span>{% if e.org %}<span class="role-o">, {{ e.org }}</span>{% endif %}</div>
+      <div class="role-s">{{ e.span }}</div>
+    </div>
+    <ul>{% for b in e.bullets %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+  </div>
+  {% endfor %}
+  {% endif %}
 
   {% if r.skills %}
   <h2>Technical Skills</h2>

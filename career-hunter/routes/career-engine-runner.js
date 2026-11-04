@@ -3,6 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.nativeEngineRunStatus = nativeEngineRunStatus;
+exports.cancelNativeEngineRun = cancelNativeEngineRun;
 exports.nativeRunInProgress = nativeRunInProgress;
 exports.resolveEngineCli = resolveEngineCli;
 exports.buildCareerEngineProcessEnv = buildCareerEngineProcessEnv;
@@ -17,6 +19,9 @@ exports.runCliAsync = runCliAsync;
 exports.runCliAwait = runCliAwait;
 /**
  * CHANGE LOG
+ * 26 | maintainer@emeraldcoastsystemsgroup.com | Preserve native stopping/final-publication phases and bounded stopped-run receipts without treating a stop acknowledgement as a terminal result.
+ * 25 | maintainer@emeraldcoastsystemsgroup.com | Expose authoritative owner-scoped native run status and an optional native cancellation port without treating request-local memory as cross-request completion.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | Preserve non-secret native network mode across the engine environment boundary so public employer reads use the signed kernel broker.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -42,7 +47,9 @@ exports.runCliAwait = runCliAwait;
  * 20 | maintainer@emeraldcoastsystemsgroup.com  | Mint a per-run callback grant instead of a bearer token, and stop forwarding the fleet service secret to the engine child (1.25.1). The rail moved onto the kernel's signed-package-callbacks rail because under ADR-149 enforce a service-secret caller was refused before the package ran; a run now records its owner's verified issuer (CliRunOptions.ownerIssuer, which the dispatch reads from the kernel's request identity and the cron from the owner's recorded automation opt-in) and the child gets CAREER_RAIL_GRANT to sign its completions with. A run launched without a verified issuer is registered and cancellable but gets no rail entries, so its model calls stop at rail-not-configured rather than being minted a grant the kernel can never admit. The retired 1.24.0 names (CAREER_RAIL_TOKEN, CAREER_RAIL_SERVICE_SECRET) are stripped from any caller-supplied environment.
  * 21 | maintainer@emeraldcoastsystemsgroup.com  | Pass an inherited PYTHONPATH to the wrapper. The native kernel's package sandbox names its pinned, read-only Python package runtime there; dropping it left the engine without its dependencies (tenacity, Jinja2) on the native runtime.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel a background run (runCliAsync) asks the kernel to keep this request's sandbox alive for the run before the route answers 202 (`@/shared/package-runs`), and reports the child's exit so the kernel publishes the owner's writes only on success; if the kernel refuses, the child is stopped and the start fails. nativeRunInProgress() reads the caller's in-flight runs from the kernel for status polls.
- * 23 | maintainer@emeraldcoastsystemsgroup.com | A background run that fails logs its code and the end of its stderr: its writes are discarded and nothing else says why.
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | Complete background observers inside the kept native run's fresh service binding before reporting the run finished and releasing its sandbox.
+ * 27 | maintainer@emeraldcoastsystemsgroup.com | A background run that fails logs its code and the end of its stderr: its writes are discarded and nothing else says why.
+ * 28 | maintainer@emeraldcoastsystemsgroup.com | Merged: a kept native run pipes stdout and stderr for its end log and keeps the completion scope. The end log runs after the observer settles, so the run's binding is entered once at a time.
  */
 /**
  * Career Hunter engine process boundary.
@@ -95,7 +102,7 @@ const SAFE_INHERITED_ENV_KEYS = new Set([
     'JOBHUNTER_APP_DIR', 'JOBHUNTER_CAREER_DB_DEFAULT', 'JOBHUNTER_UA', 'JOBHUNTER_TIMEOUT',
     'JOBHUNTER_DELAY', 'JOBHUNTER_RETRIES', 'JOBHUNTER_ANTHROPIC_MODEL',
     'JOBHUNTER_SCORE_MODEL', 'JOBHUNTER_OPENAI_MODEL', 'JOBHUNTER_RESUME_PREFIX',
-    'CAREER_HUNTER_MAX_RUNS', 'PYTHONPATH',
+    'CAREER_HUNTER_MAX_RUNS', 'PYTHONPATH', 'OSHAL_EGRESS',
 ]);
 /** The kernel's background-run port when this package runs on the native kernel. */
 function nativeRuns() {
@@ -107,6 +114,36 @@ function nativeRuns() {
     catch {
         return null;
     }
+}
+/** Read the admitted owner's real native runs; status failure must remain distinguishable from idle. */
+async function nativeEngineRunStatus() {
+    const runs = nativeRuns();
+    if (!runs)
+        return null;
+    const status = await runs.status();
+    if (!status || !Array.isArray(status.runs) || status.runs.length > 16
+        || status.runs.some(run => !run || typeof run.runId !== 'string' || run.runId.length > 128
+            || run.state !== undefined && !['running', 'cancelling', 'finishing'].includes(run.state))
+        || status.cancelled !== undefined && (!Array.isArray(status.cancelled) || status.cancelled.length > 256
+            || status.cancelled.some(run => !run || typeof run.runId !== 'string' || run.runId.length > 128
+                || run.state !== 'cancelled' || typeof run.completedAt !== 'string' || !Number.isFinite(Date.parse(run.completedAt))))) {
+        throw new Error('Native run status is unavailable');
+    }
+    return { runs: status.runs.map(run => ({ runId: run.runId, ...(run.state ? { state: run.state } : {}) })),
+        cancelled: (status.cancelled || []).map(run => ({ runId: run.runId, state: 'cancelled', completedAt: run.completedAt })),
+        canCancel: typeof runs.cancel === 'function' };
+}
+/** Use an owner-bound kernel cancellation port when one exists; never simulate its acknowledgement. */
+async function cancelNativeEngineRun(runId) {
+    const runs = nativeRuns();
+    if (!runs?.cancel)
+        return 'unavailable';
+    const result = await runs.cancel(runId);
+    if (result?.cancelled === true && result.state === 'cancelled')
+        return 'cancelled';
+    if (result?.cancellationRequested === true && result.state === 'cancelling')
+        return 'cancelling';
+    return result?.state === 'finishing' ? 'finishing' : 'unconfirmed';
 }
 /**
  * @description The id of a background run of the caller's still in flight on the native kernel,
@@ -455,7 +492,8 @@ function completionTimeoutFor(options) {
 }
 /** Notify one background observer under an abortable deadline while its generation is still held. */
 async function notifyBackgroundCompletion(args, options, completion) {
-    logger.info({ verb: args.slice(0, 2), ...completion }, 'career CLI finished');
+    const { stdout, ...terminal } = completion;
+    logger.info({ verb: args.slice(0, 2), ...terminal, ...(stdout ? { stdoutBytes: Buffer.byteLength(stdout) } : {}) }, 'career CLI finished');
     if (!options.onComplete)
         return;
     const controller = new AbortController();
@@ -486,10 +524,12 @@ function releaseChildClaim(claim, options, spawned) {
         releaseRun(claim.lease);
 }
 /** Bind deadline, completion notification, and exactly-once lease cleanup to one child. */
-function bindChildLease(proc, claim, args, options, notifyCompletion, runId) {
+function bindChildLease(proc, claim, args, options, notifyCompletion, runId, stdout, completionScope) {
     let didTimeout = false;
     let spawned = false;
     let settled = false;
+    let releaseSettlement;
+    const settlement = new Promise((resolve) => { releaseSettlement = resolve; });
     proc.once('spawn', () => { spawned = true; });
     const timer = setTimeout(() => { didTimeout = true; terminateProcessTree(proc); }, timeoutFor(options));
     const settle = async (code) => {
@@ -500,21 +540,35 @@ function bindChildLease(proc, claim, args, options, notifyCompletion, runId) {
         // Settled first and synchronously: the run's token is revoked and its terminal state is
         // recorded before any awaited observer runs, so a route reading it on close sees the truth.
         engineRuns.settleEngineRun(runId, { code, timedOut: didTimeout });
-        if (spawned && notifyCompletion) {
-            const completion = { code, timedOut: didTimeout, ok: code === 0 && !didTimeout };
-            if (options.onComplete)
-                await notifyBackgroundCompletion(args, options, completion);
-            else
-                logger.info({ verb: args.slice(0, 2), ...completion }, 'career CLI finished');
+        try {
+            if (spawned && notifyCompletion) {
+                const completion = {
+                    code, timedOut: didTimeout, ok: code === 0 && !didTimeout,
+                    ...(stdout ? { stdout: stdout() } : {}),
+                };
+                if (completionScope) {
+                    await completionScope(runId, () => notifyBackgroundCompletion(args, options, completion));
+                }
+                else if (options.onComplete)
+                    await notifyBackgroundCompletion(args, options, completion);
+                else
+                    logger.info({ verb: args.slice(0, 2), ...completion }, 'career CLI finished');
+            }
         }
-        releaseChildClaim(claim, options, spawned);
+        catch (err) {
+            logger.error({ err, runId }, 'career CLI completion scope failed');
+        }
+        finally {
+            releaseChildClaim(claim, options, spawned);
+            releaseSettlement();
+        }
     };
     proc.once('error', () => { void settle(null); });
     proc.once('close', (code) => { void settle(code); });
-    return () => didTimeout;
+    return { timedOut: () => didTimeout, settled: settlement };
 }
 /** Launch one claimed child and guarantee deadline cleanup plus exactly-once slot release. */
-function launchCli(userSub, args, extraEnv, options, captureOutput, notifyCompletion = !captureOutput) {
+function launchCli(userSub, args, extraEnv, options, captureOutput, notifyCompletion = !captureOutput, captureStdout = false, completionScope) {
     const claim = claimForLaunch(userSub, args, options);
     if ('ok' in claim)
         return claim;
@@ -523,7 +577,7 @@ function launchCli(userSub, args, extraEnv, options, captureOutput, notifyComple
     try {
         proc = (options.spawnProcess || child_process_1.spawn)('node', [resolveEngineCli(), ...args], {
             env: adoptedChildEnv(userSub, extraEnv, claim.lease, options, rail),
-            stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'ignore',
+            stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : captureStdout ? ['ignore', 'pipe', 'ignore'] : 'ignore',
             detached: process.platform !== 'win32',
         });
         const active = claimsInFlight.get(claim.lease.token);
@@ -537,7 +591,15 @@ function launchCli(userSub, args, extraEnv, options, captureOutput, notifyComple
             releaseRun(claim.lease);
         return { ok: false, out: '', err: error instanceof Error ? error.message : String(error) };
     }
-    return { proc, timedOut: bindChildLease(proc, claim, args, options, notifyCompletion, runId), runId };
+    let output = '';
+    const stdout = captureStdout ? () => output : undefined;
+    if (captureStdout && proc.stdout) {
+        proc.stdout.on('data', (chunk) => {
+            const next = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+            output = Buffer.concat([Buffer.from(output), next]).subarray(-8192).toString('utf8');
+        });
+    }
+    return { proc, ...bindChildLease(proc, claim, args, options, notifyCompletion, runId, stdout, completionScope), runId, stdout };
 }
 /**
  * @description Starts a bounded background engine command and acknowledges it only after the OS
@@ -550,13 +612,23 @@ function launchCli(userSub, args, extraEnv, options, captureOutput, notifyComple
  */
 function runCliAsync(userSub, args, extraEnv = {}, options = {}) {
     const runs = nativeRuns();
-    const launched = launchCli(userSub, args, extraEnv, options, runs !== null, true);
+    if (!runs && process.env.OSHAL_EGRESS === 'kernel') {
+        return Promise.resolve({ started: false, err: 'native background runs are unavailable' });
+    }
+    let admitCompletion = () => { };
+    const kept = new Promise((resolve) => { admitCompletion = resolve; });
+    const completionScope = runs ? async (runId, action) => {
+        if (await kept)
+            await runs.run(runId, action);
+    } : undefined;
+    const launched = launchCli(userSub, args, extraEnv, options, runs !== null, true, options.captureStdout === true, completionScope);
     if ('ok' in launched) {
+        admitCompletion(false);
         return Promise.resolve({ started: false, err: launched.err, limitReason: launched.limitReason });
     }
     const { proc } = launched;
     if (runs)
-        return keepNativeRun(runs, launched, options);
+        return keepNativeRun(runs, launched, options, admitCompletion);
     return new Promise((resolve) => {
         proc.once('spawn', () => resolve({ started: true }));
         proc.once('error', (error) => resolve({ started: false, err: error.message }));
@@ -567,12 +639,12 @@ function runCliAsync(userSub, args, extraEnv = {}, options = {}) {
  * this run. Ask before acknowledging the start, and report the child's exit (once kept) so the
  * kernel publishes the run's writes only when it succeeded.
  */
-function keepNativeRun(runs, launched, options) {
+function keepNativeRun(runs, launched, options, admitCompletion) {
     const { proc, runId, timedOut } = launched;
     let kept = false;
     let exit;
     const report = () => {
-        void runs.runFinished(runId, exit === 0 && !timedOut() ? 0 : 1)
+        void launched.settled.then(() => runs.runFinished(runId, exit === 0 && !timedOut() ? 0 : 1))
             .catch((err) => logger.error({ err, runId }, 'native run end report failed'));
     };
     // A background run's writes are discarded when it fails, so its last words are the only account of why.
@@ -593,18 +665,20 @@ function keepNativeRun(runs, launched, options) {
             said();
             return;
         }
-        void Promise.resolve(runs.run(runId, said)).catch((err) => logger.error({ err, runId }, 'career background run log failed')).finally(report);
+        void launched.settled.then(() => runs.run(runId, async () => said())).catch((err) => logger.error({ err, runId }, 'career background run log failed')).finally(report);
     });
     const seconds = Math.min(1800, Math.max(1, Math.ceil(timeoutFor(options) / 1000)));
     return new Promise((resolve) => {
-        proc.once('error', (error) => resolve({ started: false, err: error.message }));
+        proc.once('error', (error) => { admitCompletion(false); resolve({ started: false, err: error.message }); });
         proc.once('spawn', () => {
             runs.keepRunAlive(runId, seconds).then(() => {
                 kept = true;
+                admitCompletion(true);
                 if (exit !== undefined)
                     report();
                 resolve({ started: true });
             }, (error) => {
+                admitCompletion(false);
                 terminateProcessTree(proc);
                 resolve({ started: false, err: `background run refused: ${error instanceof Error ? error.message : String(error)}` });
             });

@@ -1,11 +1,16 @@
 <!doctype html>
 <!--
   CHANGE LOG
+  19 | maintainer@emeraldcoastsystemsgroup.com | Show selected additional experience alongside the core and job-specific resume bank.
   -----------------------------------------------------------------------------
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
+  3 | maintainer@emeraldcoastsystemsgroup.com | Put editor input beside its heading so the shell assistant cannot intercept Send.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Bind document loads, guided edits and saves to the selected resume; reject stale or malformed edits, close bridge editing while busy, and preserve packet deep links.
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   2 | maintainer@emeraldcoastsystemsgroup.com | Register the open resume with the shared document handoff: before Jarvis or a concierge reads, edits not yet saved are saved through POST /resume/save and the context carries the resume id and a fingerprint of the saved document; after the turn the studio re-reads GET /resume/doc and redraws the assistant's saved change, or keeps the person's unsaved edits and says so in the status line.
+  20 | maintainer@emeraldcoastsystemsgroup.com | Merged: the shared document handoff on the 1.47 document binding, as already live.
+  21 | maintainer@emeraldcoastsystemsgroup.com | Show the reason a save failed in the editor log again; the 1.47.2 merge had dropped it.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio">
@@ -74,11 +79,11 @@
   .msg.you { align-self: flex-end; background: var(--accent); color: var(--on-accent); }
   .msg.bot { align-self: flex-start; background: var(--card); border: 1px solid var(--line); }
   .msg.sys { align-self: center; color: var(--muted); font-size: 12px; }
-  .composer { padding: 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
-  .composer textarea { flex: 1; resize: none; height: 44px; background: var(--card); color: var(--text);
+  .composer { padding: 12px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
+  .composer textarea { flex: 1; resize: none; height: 66px; background: var(--card); color: var(--text);
     border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+  .cover-preview { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
   .empty { color: var(--muted); padding: 40px; text-align: center; }
-  @media (max-width: 880px) { .composer textarea { height: 66px; } }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
@@ -86,10 +91,12 @@
 <body>
 <div class="wrap">
   <div class="preview">
+    <nav style="margin-bottom:14px"><a href="/api/career-hunter/experience-library">Additional experience library</a> · <a href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit</a></nav>
     <div class="toolbar">
       <select id="pick"><option value="">Pick a resume…</option><option value="master">⭐ My resume (master)</option></select>
       <button id="save" class="primary" disabled>Save &amp; re-render PDF</button>
-      <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open PDF</a>
+      <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open résumé PDF</a>
+      <a id="coverPdf" href="#" target="_blank" rel="noopener" style="display:none">Open cover PDF</a>
       <span id="status" style="color:var(--muted)"></span>
     </div>
     <div id="sheet" class="sheet" hidden></div>
@@ -100,11 +107,11 @@
   </div>
   <div class="chat">
     <header>Resume Editor <small>· reaches in and fixes the resume</small></header>
-    <div id="log" class="log"></div>
     <div class="composer">
       <textarea id="msg" placeholder="e.g. emphasize SAP DevOps; cut the metrics on bullet 2" disabled></textarea>
       <button id="send" disabled>Send</button>
     </div>
+    <div id="log" class="log"></div>
   </div>
 </div>
 <!-- Surface bridge: publish WHAT IS OPEN so the floating Jarvis can talk about this resume, and
@@ -120,11 +127,14 @@
   window.__bridge = bridge;
   window.dispatchEvent(new Event('bridge-ready'));
 </script>
+<script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script>
 // Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
 const API = '/api/career-hunter';
 let state = { postingId: null, resume: null, cover: null, history: [] };
+let documentEpoch = 0;
+let documentBusy = '';
 // Shared document handoff: the saved document's fingerprint, the count of edits applied in this page,
 // whether any of them is not yet saved, and the load or save in flight.
 let docRevision = null, edits = 0, dirty = false, opening = null, saving = null;
@@ -150,6 +160,27 @@ async function fetchDoc(id){
 }
 function add(role, text){ const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; $('log').appendChild(d); $('log').scrollTop = $('log').scrollHeight; }
 
+// One document owns each in-flight read/edit/save; a loading picker may move on,
+// while an edit or save keeps the current selection until its reply settles.
+function setDocumentBusy(phase){
+  documentBusy = phase;
+  const blocked = Boolean(phase) || !state.postingId;
+  ['save','msg','send'].forEach(id => { $(id).disabled = blocked; });
+  $('pick').disabled = Boolean(phase && phase !== 'loading');
+  publishContext();
+}
+function readyDocument(){ return Boolean(state.postingId && state.resume && !documentBusy); }
+function selectLoadedDocument(){
+  const id = String(state.postingId), sel = $('pick');
+  if (![...sel.options].some(o => o.value === id)) {
+    const o = document.createElement('option'); o.value = id;
+    o.textContent = id === 'master' ? '⭐ My resume (master)'
+      : `${window.__meta.title || 'Selected job packet'} — ${window.__meta.company || ''}`;
+    sel.appendChild(o);
+  }
+  sel.value = id;
+}
+
 // ADR-141 D7: a bullet asserts, a story proves. The review records every story against the bullet
 // it supports, so the preview shows it THERE — under the claim — instead of in a separate list the
 // reader has to reconcile. A story whose bullet has since been rewritten is NOT dropped: it falls to
@@ -171,6 +202,17 @@ function expHtml(experience){
   }).join('');
 }
 
+function qualificationHtml(label,value){
+  const items = Array.isArray(value) ? value.filter(item => typeof item === 'string') : [];
+  return items.length ? `<h2>${label}</h2><ul>${items.map(item => `<li>${esc(item)}</li>`).join('')}</ul>` : '';
+}
+function coverHtml(cover){
+  if (state.postingId === 'master' || !cover) return '';
+  const paragraphs = Array.isArray(cover.paragraphs) ? cover.paragraphs.filter(p => typeof p === 'string') : [];
+  const text = [cover.greeting,...paragraphs,cover.closing].filter(p => typeof p === 'string' && p);
+  return text.length ? `<section class="cover-preview"><h2>Cover letter</h2>${text.map(p => `<p>${esc(p)}</p>`).join('')}</section>` : '';
+}
+
 function renderPreview(){
   const r = state.resume || {};
   const exp = expHtml(r.experience);
@@ -181,26 +223,36 @@ function renderPreview(){
     + (r.summary ? `<h2>Summary</h2><p class="summary">${esc(r.summary)}</p>` : '')
     + (comp ? `<h2>Core Competencies</h2><div class="comp">${comp}</div>` : '')
     + (exp ? `<h2>Experience</h2>${exp}` : '')
+    + ((r.additional_experience||[]).length?`<h2>Additional Experience</h2>${expHtml(r.additional_experience)}`:'')
+    + ((r.open_source||[]).length?`<h2>Independent project work</h2>${expHtml(r.open_source)}`:'')
     + ((r.skills || []).length ? `<h2>Skills</h2><p>${esc((r.skills || []).join(' · '))}</p>` : '')
-    + (r.clearance ? `<h2>Clearance</h2><p>${esc(r.clearance)}</p>` : '');
+    + qualificationHtml('Education',r.education)
+    + qualificationHtml('Certifications',r.certifications)
+    + (r.clearance ? `<h2>Clearance</h2><p>${esc(r.clearance)}</p>` : '')
+    + coverHtml(state.cover);
   $('sheet').hidden = false; $('empty').hidden = true;
 }
 
 // Apply one whitelisted bot action to the in-memory resume/cover, then re-render.
 function applyAction(a){
-  const r = state.resume; if (!r) return;
-  if (a.op === 'set_headline') r.headline = a.text;
-  else if (a.op === 'set_summary') r.summary = a.text;
-  else if (a.op === 'set_clearance') r.clearance = a.text;
-  else if (a.op === 'set_competencies') r.competencies = a.items;
-  else if (a.op === 'set_skills') r.skills = a.items;
-  else if (a.op === 'set_cover_paragraphs') { state.cover = state.cover || {}; state.cover.paragraphs = a.items; }
-  else if (a.op === 'update_experience') {
-    const e = (r.experience || [])[a.index - 1]; if (e) {
-      if (a.title != null) e.title = a.title; if (a.org != null) e.org = a.org;
-      if (a.span != null) e.span = a.span; if (a.bullets != null) e.bullets = a.bullets;
-    }
-  }
+  const r = state.resume; if (!r || !a) return false;
+  const texts = {set_headline:'headline',set_summary:'summary',set_clearance:'clearance'};
+  const list = value => Array.isArray(value) && value.every(item => typeof item === 'string');
+  if (Object.hasOwn(texts,a.op) && typeof a.text === 'string') r[texts[a.op]] = a.text;
+  else if (a.op === 'set_competencies' && list(a.items)) r.competencies = a.items;
+  else if (a.op === 'set_skills' && list(a.items)) r.skills = a.items;
+  else if (a.op === 'set_cover_paragraphs' && state.postingId !== 'master' && list(a.items)) {
+    state.cover = state.cover || {}; state.cover.paragraphs = a.items;
+  } else if (a.op === 'update_experience' && Number.isInteger(a.index) && a.index > 0) {
+    const e = (r.experience || [])[a.index - 1]; if (!e) return false;
+    if (state.postingId === 'master' && ['title','org','span'].some(key => a[key] != null)) return false;
+    if (['title','org','span'].some(key => a[key] != null && typeof a[key] !== 'string')
+      || (a.bullets != null && !list(a.bullets))) return false;
+    const keys = ['title','org','span','bullets'].filter(key => a[key] != null);
+    if (!keys.length) return false;
+    keys.forEach(key => { e[key] = a[key]; });
+  } else return false;
+  return true;
 }
 
 // ── Surface bridge: tell the floating assistant what is on this screen ──────────────────────
@@ -231,7 +283,14 @@ function resumeDigest(){
 }
 
 function publishContext(){
-  if (!window.__bridge || !state.postingId) return;
+  if (!window.__bridge) return;
+  if (!readyDocument()) {
+    try { window.__bridge.emitContext({surface:'resume-studio',title:'Resume editor unavailable',
+      recordId:String(state.postingId || 'unselected'),
+      digest:documentBusy ? 'Wait for the selected document operation to finish before editing.' : 'Choose a resume to edit.',
+      fields:{busy:Boolean(documentBusy)},can:['notify'],customOps:[]}); } catch (_) { /* optional bridge */ }
+    return;
+  }
   const isMaster = state.postingId === 'master';
   try {
     window.__bridge.emitContext({
@@ -267,13 +326,13 @@ document.addEventListener('surface-bridge:custom', (evt) => {
   // The floating assistant's panel iframe is created lazily, so it asks for a snapshot when it
   // opens — by then our load-time publish has already been and gone.
   if (detail.name === 'request_context') { publishContext(); return; }
-  if (detail.name !== 'resume_action' || !state.resume) return;
+  if (detail.name !== 'resume_action' || !readyDocument()) return;
   const actions = Array.isArray(detail.data && detail.data.actions)
     ? detail.data.actions
     : [detail.data];
   let applied = 0;
   for (const a of actions) {
-    if (a && typeof a.op === 'string') { applyAction(a); applied += 1; }
+    if (a && typeof a.op === 'string' && applyAction(a)) applied += 1;
   }
   if (!applied) return;
   markEdited();
@@ -299,45 +358,65 @@ async function loadList(){
   master.value = 'master'; master.textContent = '⭐ My resume (master)';
   sel.appendChild(master);
   jobs.forEach((x) => { const o = document.createElement('option'); o.value = x.id; o.textContent = `${x.title} — ${x.company}`; sel.appendChild(o); });
-  if (keep) sel.value = keep;
+  if (state.postingId && String(state.postingId) === keep) selectLoadedDocument();
+  else if (keep) sel.value = keep;
 }
 
 function openDoc(id){ opening = loadDoc(id); return opening; }
 
 async function loadDoc(id){
-  setStatus('loading…');
-  const isMaster = id === 'master';
-  let j;
-  try { j = await fetchDoc(id); } catch (e) { setStatus('could not load'); return; }
-  state = { postingId: isMaster ? 'master' : Number(id), resume: j.resume || {}, cover: j.cover || {}, history: [] };
-  docRevision = revisionOf(j); dirty = false;
-  window.__meta = j.meta || {}; $('log').innerHTML = '';
-  add('sys', isMaster
-    ? 'Editing your MASTER resume — changes here update the durable profile every tailored resume is generated from.'
-    : `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
-  renderPreview(); publishContext(); $('save').disabled = false; $('msg').disabled = false; $('send').disabled = false;
-  // The master has no packet PDF (packets render PDFs; the master saves straight into the durable
-  // profile), so the PDF affordances are hidden and Save is relabelled rather than left implying a
-  // re-render that cannot happen.
-  $('save').textContent = isMaster ? 'Save master resume' : 'Save & re-render PDF';
-  if (isMaster) { $('pdf').style.display = 'none'; $('pdf').removeAttribute('href'); }
-  else { $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block'; }
-  setStatus('');
+  if (documentBusy && documentBusy !== 'loading') return;
+  const epoch = ++documentEpoch, isMaster = id === 'master';
+  state = {postingId:null,resume:null,cover:null,history:[]}; window.__meta = {};
+  $('sheet').hidden = true; $('sheet').innerHTML = ''; $('empty').hidden = false;
+  $('empty').textContent = id ? 'Loading the selected resume…' : 'Choose a resume to edit.';
+  $('log').innerHTML = ''; $('msg').value = '';
+  for (const link of ['pdf','coverPdf']) { $(link).style.display = 'none'; $(link).removeAttribute('href'); }
+  setDocumentBusy(id ? 'loading' : ''); setStatus(id ? 'loading…' : '');
+  if (!id) return;
+  try {
+    const j = await fetchDoc(id); if (epoch !== documentEpoch) return;
+    state = {postingId:isMaster ? 'master' : Number(id),resume:j.resume || {},cover:j.cover || {},history:[]};
+    docRevision = revisionOf(j); dirty = false;
+    window.__meta = j.meta || {}; selectLoadedDocument();
+    add('sys', isMaster
+      ? 'Editing your MASTER resume — changes here update the durable profile every tailored resume is generated from.'
+      : `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
+    renderPreview(); publishContext();
+    $('save').textContent = isMaster ? 'Save master resume' : applicationContext ? 'Save & return to application' : 'Save & re-render PDF';
+    if (!isMaster) {
+      $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
+      if (coverHtml(state.cover)) { $('coverPdf').href = `${API}/resume?id=${encodeURIComponent(id)}&kind=cover`; $('coverPdf').style.display = 'inline-block'; }
+    }
+    setStatus('');
+  } catch (_) {
+    if (epoch === documentEpoch) {
+      $('empty').textContent = 'The selected resume could not be loaded. Choose a resume again to retry.';
+      setStatus('could not load the selected resume');
+    }
+  } finally { if (epoch === documentEpoch) setDocumentBusy(''); }
 }
 
 async function send(){
-  const text = $('msg').value.trim(); if (!text || !state.postingId) return;
-  $('msg').value = ''; add('you', text); state.history.push({ role: 'you', text });
-  $('send').disabled = true; setStatus('thinking…');
+  const text = $('msg').value.trim(); if (!text || !readyDocument()) return;
+  const doc = state, epoch = documentEpoch;
+  $('msg').value = ''; add('you', text); doc.history.push({role:'you',text});
+  setDocumentBusy('guiding'); setStatus('thinking…');
   try {
-    const res = await fetch(`${API}/resume/guide`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postingId: state.postingId, message: text, resume: state.resume, cover: state.cover, history: state.history }) });
-    const j = await res.json();
-    if (j.error) { add('bot', 'Sorry, that edit failed.'); }
-    else { (j.actions || []).forEach(applyAction); if ((j.actions || []).length) markEdited(); renderPreview(); publishContext(); add('bot', j.reply || 'Updated.'); state.history.push({ role: 'bot', text: j.reply || '' });
-      if ((j.actions || []).length) setStatus('edited — Save to re-render the PDF'); }
-  } catch (e) { add('bot', 'Network error.'); }
-  finally { $('send').disabled = false; setStatus(''); }
+    const res = await fetch(`${API}/resume/guide`, {method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({postingId:doc.postingId,message:text,resume:doc.resume,cover:doc.cover,history:doc.history})});
+    const j = await res.json(); if (state !== doc || epoch !== documentEpoch) return;
+    if (!res.ok || j.error) { add('bot','That edit could not be prepared. Your draft is unchanged.'); setStatus('edit failed'); }
+    else {
+      const applied = (Array.isArray(j.actions) ? j.actions : []).filter(applyAction).length;
+      if (applied) markEdited();
+      renderPreview(); publishContext(); add('bot',j.reply || (applied ? 'Updated the draft.' : 'No supported edits returned.'));
+      doc.history.push({role:'bot',text:j.reply || ''});
+      setStatus(applied ? 'edited — Save to keep these changes' : 'no document changes');
+    }
+  } catch (_) {
+    if (state === doc && epoch === documentEpoch) { add('bot','That edit could not be prepared. Your draft is unchanged.'); setStatus('edit failed'); }
+  } finally { if (state === doc && epoch === documentEpoch) setDocumentBusy(''); }
 }
 
 // Save through the one existing route, then re-read the saved document so the page and the handoff
@@ -357,23 +436,27 @@ async function persist(){
 }
 
 async function save(){
-  if (!state.postingId) return; $('save').disabled = true;
-  const isMaster = state.postingId === 'master';
+  if (!readyDocument()) return;
+  const doc = state, epoch = documentEpoch, isMaster = doc.postingId === 'master';
+  setDocumentBusy('saving');
   setStatus(isMaster ? 'saving your master resume…' : 'saving + re-rendering…');
   try {
     saving = persist();
-    const j = await saving;
+    const j = await saving; if (state !== doc || epoch !== documentEpoch) return;
     if (isMaster) {
       const log = (j.changelog || []).join('; ');
       setStatus(j.changed ? 'master resume updated' : 'no changes to save');
       add('sys', j.changed ? ('Updated your master resume: ' + (log || 'saved.')) : 'No changes to save — your master resume already matches.');
     } else {
-      setStatus('saved — PDF re-rendered');
-      add('sys', 'Saved and re-rendered the PDF.');
+      setStatus(j.ok ? 'saved — PDF re-rendered' : 'save failed');
+      add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
+      if(j.ok&&window.parent!==window&&typeof window.parent?.postMessage==='function')window.parent.postMessage({type:'career-documents-saved',postingId:doc.postingId},location.origin);
+      if(j.ok&&applicationContext)CareerJobActions.openApplication(Number(doc.postingId),false,'documents');
     }
   } catch (e) { setStatus('save failed'); add('sys', e.message); }
-  finally { saving = null; $('save').disabled = false; }
+  finally { saving = null; if (state === doc && epoch === documentEpoch) setDocumentBusy(''); }
 }
+
 
 // ── Shared document handoff: Jarvis and the concierge read the SAVED resume ──────────────────
 // prepare saves every edit applied here but not yet saved, through the same save path as the Save
@@ -418,7 +501,7 @@ import('/shared/ui/js/document-handoff.js').then(({ registerDocumentSession }) =
   refresh: async (expected) => { try { await refreshDocumentHandoff(expected); } catch (e) { setStatus(e.message); throw e; } },
 })).catch((e) => setStatus('The assistant cannot synchronize this resume: ' + e.message));
 
-$('pick').addEventListener('change', (e) => { if (e.target.value) openDoc(e.target.value); });
+$('pick').addEventListener('change', (e) => { openDoc(e.target.value); });
 $('send').addEventListener('click', send);
 $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('save').addEventListener('click', save);
@@ -428,6 +511,13 @@ loadList();
 // "the studio doesn't know about my resume" (operator, 2026-08-11) was exactly this idle state.
 const pre = new URLSearchParams(location.search).get('id');
 const initial = pre || 'master';
+const applicationContext=new URLSearchParams(location.search).get('application')==='1'&&/^[1-9]\d{0,14}$/.test(initial);
+if(applicationContext){
+  $('pick').hidden=true;$('pick').disabled=true;
+  const nav=document.querySelector('.preview>nav'),back=document.createElement('button');
+  back.textContent='← Return to application';back.onclick=()=>CareerJobActions.openApplication(Number(initial),false,'documents');nav.replaceChildren(back);
+  $('save').textContent='Save & return to application';
+}
 $('pick').value = initial;
 openDoc(initial);
 // The bridge is a module script, so it can resolve AFTER loadDoc's publish attempt. Publish again

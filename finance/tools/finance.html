@@ -11,6 +11,9 @@
   Brief: the page reads the saved brief (GET /brief?cached=1; none saved is a plain notice, not an
   error) and Re-analyze asks for a new one with POST /brief/refresh, which saves it. A missing payment
   rail is said in words with where to go (Connections, Payments), never an environment variable.
+  First screen: the money view whenever there is money to show (startScreen: linked items OR a saved
+  aggregate - a demo installation's sample household, or banks disconnected after a sync); the connect
+  card only greets a person with nothing saved (1.3.0).
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -41,7 +44,7 @@
   /** The shared read: status first, then the aggregate; a not-linked or not-synced answer becomes a model instead of an error. */
   function picture(ctx, audience) {
     return call('/status').then(function (st) {
-      if (!st.connected) return { setup: 'link', st: st };
+      if (!st.connected && !st.hasData) return { setup: 'link', st: st }; // money to show (a saved aggregate) beats the connect card here too
       return call('/summary').then(function (sum) { return { st: st, sum: sum }; }, function (e) { if (e.code === 'no_data' || e.status === 404) return { setup: 'sync', st: st }; throw e; });
     }).then(function (r) {
       var kicker = audience === 'company' ? 'Finance' : 'Money at home';
@@ -492,13 +495,16 @@ $('syncBtn').onclick = doSync;
 $('addBtn').onclick = startLink;
 $('briefBtn').onclick = () => loadBrief(true);
 
+/** The first screen: the money view whenever there is money to show (linked items, or a saved aggregate such as a
+ *  demo installation's sample household or a person whose banks were disconnected after a sync); connect otherwise. */
+function startScreen(st) { return (st.connected > 0 || st.hasData) ? 'dashboard' : 'connect'; }
 /** Boot: dashboard if connected, else the connect screen. */
 // The full page only: under an audience view the shared kit paints instead (see the head script).
 if (!window.AppView || !AppView.active()) (async function init() {
   try {
     if (await resumeOAuth()) return;
     const st = await api('/status');
-    if (st.connected > 0) await renderDashboard(false);
+    if (startScreen(st) === 'dashboard') await renderDashboard(false);
     else renderConnect(st);
   } catch (e) {
     main.innerHTML = '<div class="notice err">Could not load: ' + e.message + '</div>';

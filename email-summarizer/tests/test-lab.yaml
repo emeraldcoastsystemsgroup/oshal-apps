@@ -19,6 +19,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: mail-store expects the demo mailbox rows (planted once, listed, read by id, per person).
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.6.3: mail-store expects the demo mailbox to answer a call naming Google, never another mailbox or a reconnect, and to have today's events.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: digest-seal replaces session-crypto: the kernel seals the day summary.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.6.6: the mail copy turns itself on for a connected Gmail; nothing to press, and a person's own stop stands.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -146,12 +147,12 @@ cases:
       files:
         - tests/mail-store-browser.test.cjs
     expected:
-      - Before a copy exists the line says search reads Gmail directly (30 days) and offers Keep a copy.
-      - Keep a copy activates the person's mail-copy job with class person and runs one POST /api/email/sync; the line then gives the count, how far back, when it was updated and that it updates every 10 minutes, with Update now.
+      - Opening the Inbox with Gmail connected turns the copy on with nothing to press; with no mailbox, a mailbox that is not Gmail, a job the person paused or a copy whose job they removed, nothing starts.
+      - Starting activates the person's mail-copy job with class person and runs one POST /api/email/sync; the line then gives the count, how far back, when it was updated and that it updates every 10 minutes, with Update now.
       - Search all your mail asks GET /api/email/messages with the words and days=180, lists the stored matches, and a match opens in the reader.
-      - A failed pass shows its reason and keeps the button; at 412 px the page does not scroll sideways.
+      - A failed first pass shows its reason and offers Try again; at 412 px the page does not scroll sideways.
       - The list asks for 50 and follows the answer's before/skip cursor as the end of the list comes into view; the heading counts what is loaded and the end note says how far back the copy reaches.
-      - A suspended job with a stale copy reads "stopped updating … (an update of this application paused its job)" with Turn it back on, which activates the job, runs one pass and reloads the list from the copy.
+      - A job an update stopped restarts when the Inbox opens, runs one pass and reloads the list from the copy; Keep it up to date turns a job the person stopped back on only when they ask.
     prerequisites: [runner:node-test, browser:chromium]
     sideEffects: none
     isolation:

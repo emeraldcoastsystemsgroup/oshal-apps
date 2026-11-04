@@ -9,15 +9,18 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync,mkdtempSync,rmSync } from 'node:fs';
+import {join}from 'node:path';import {tmpdir}from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { loadCompiledModules } from './helpers/career-route-harness.mjs';
 
+const ownerDir=mkdtempSync(join(tmpdir(),'career-native-surface-'));test.after(()=>rmSync(ownerDir,{recursive:true,force:true}));
 let nextDb;
 const { modules } = loadCompiledModules({
   board: 'routes/career-board-routes.js', surface: 'routes/career-surface-routes.js',
 }, {
-  './career-user-store': { callerSub: (req) => req.userSub, openUserDb: () => nextDb },
+  './career-user-store': { callerSub: (req) => req.userSub, openUserDb: () => nextDb,careerTenant:()=> 'default',userPaths:()=>({userDir:ownerDir}) },
+  './career-engine-runner':{nativeRunInProgress:async()=>false},
   './career-engine-dispatch': {},
 });
 

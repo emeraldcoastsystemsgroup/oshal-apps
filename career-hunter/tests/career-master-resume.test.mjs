@@ -221,12 +221,12 @@ test('the studio routes carry the master branch while numeric ids keep the packe
   assert.match(wrapper, /if \(verb === 'resume'\) return resumeRuns\(rest\);/);
 });
 
-test('the studio surface always offers the master entry and saves it with the master flag', () => {
+test('the studio surface always offers the master entry and its save labels', () => {
   const surface = fs.readFileSync(
     path.join(packageRoot, 'tools', 'career-resume-studio.html'), 'utf8',
   );
   assert.match(surface, /master\.value = 'master'; master\.textContent = '⭐ My resume \(master\)'/);
-  assert.match(surface, /\{ postingId: 'master', resume: state\.resume \}/);
+  // The actual master save payload is exercised by career-resume-studio-io.test.mjs.
   assert.match(surface, /Save master resume/);
   assert.match(surface, /j\.changelog/);
   const list = surface.slice(surface.indexOf('async function loadList'));

@@ -49,3 +49,27 @@ test('at 412 px the resume select and the page stay inside the viewport, and the
   assert.ok(m.sw <= m.cw, `page scrolls sideways: ${m.sw} > ${m.cw}`);
   assert.ok(m.taH >= m.need - 1, `placeholder needs ${m.need} px, composer shows ${m.taH}`);
 });
+
+test('the desktop editor Send remains clickable beside the floating shell assistant', async (t) => {
+  assert.ok(CORE, 'OSHAL_CORE_DIR must name the pinned browser toolchain');
+  const { chromium } = createRequire(path.join(CORE, 'package.json'))('playwright');
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const tab = await browser.newPage({ viewport: { width: 1854, height: 870 } });
+  await tab.setContent(`<iframe title="Resume Studio" style="position:absolute;left:185px;top:110px;width:calc(100% - 209px);height:calc(100% - 154px);border:0"></iframe>
+    <button id="orb" style="position:fixed;right:22px;bottom:22px;width:60px;height:60px;z-index:2147483000">Jarvis</button>`);
+  const frame = tab.frames().find(f => f !== tab.mainFrame());
+  await frame.setContent(page);
+  await frame.locator('#send').evaluate(button => { button.disabled = false; });
+  const local = await frame.locator('#send').boundingBox();
+  assert.ok(local, 'Send is visible');
+  const hit = await tab.evaluate(({ x, y, width, height }) => document.elementFromPoint(x + width / 2, y + height / 2)?.tagName, local);
+  assert.equal(hit, 'IFRAME', 'the shell assistant must not intercept the editor Send click');
+  const placeholder = await frame.locator('#msg').evaluate(ta => {
+    const cs = getComputedStyle(ta), probe = document.createElement('div');
+    Object.assign(probe.style, {position:'absolute',visibility:'hidden',width:ta.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)+'px',font:cs.font,lineHeight:cs.lineHeight,whiteSpace:'pre-wrap'});
+    probe.textContent = ta.placeholder; document.body.append(probe);
+    return {available:ta.clientHeight,needed:probe.getBoundingClientRect().height+parseFloat(cs.paddingTop)+parseFloat(cs.paddingBottom)};
+  });
+  assert.ok(placeholder.available >= placeholder.needed - 1, 'the narrow desktop editor shows its whole prompt');
+});

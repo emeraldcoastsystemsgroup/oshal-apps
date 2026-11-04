@@ -13,7 +13,7 @@ function store() {
 }
 test('last and named searches persist for one account, isolated across accounts and tenants', () => {
   const storage = store(), a = create(storage, 'tenant:a');
-  const search = { near: 'a regional federal hub, FL', radius_miles: '35', remote: '0', min_pay: '140000', include_unknown_pay: '1', view: 'map' };
+  const search = { near: 'a regional federal hub, FL', radius_miles: '35', remote: '0', min_pay: '140000', max_pay: '180000', pay_period: 'year', include_unknown_pay: '1', view: 'map' };
   a.remember(search); const row = a.save('Local IT', search);
   assert.deepEqual(create(storage, 'tenant:a').last(), search);
   assert.deepEqual(create(storage, 'tenant:a').list()[0].criteria, search);

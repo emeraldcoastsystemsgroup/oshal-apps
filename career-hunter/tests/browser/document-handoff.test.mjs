@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove the shared document handoff on the shipped Resume Studio and Profile Studio pages in Chromium with the real shared module: unsaved edits are saved through the compiled routes before an assistant reads (the master resume through the real engine dispatch, runner, launcher and engine on a fixture store; the profile plan through the PostgreSQL ProfilePlanStore compiled in the core checkout, on a disposable database), the context carries the record id and revision, an edit saved through the same routes is shown after refresh, the next manual edit reaches the next handoff, and unsaved edits survive a refresh. Scoped doubles: the kernel leaves in tests/helpers/career-route-harness.mjs, the Firecrawl pool query (no row), and the Career bot turn (executeBotOrInline), which answers the studios' embedded editor and AI draft with fixed JSON and records the prompt it was given.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove a refused Resume Studio save shows the route's own reason in the editor log, so a merge cannot drop it again.
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -195,6 +196,18 @@ test('resume: edits the person has not saved survive a refresh that finds the as
   assert.equal(await page.locator('#msg').inputValue(), 'half-typed request');
   assert.match(await page.locator('#status').textContent(), /unsaved edits are still here/);
   assert.equal(await masterSummary('bob'), 'Saved by the concierge');
+});
+
+test('resume: a refused save tells the person the reason the route gave', { timeout: 300_000 }, async (t) => {
+  seedProfile('erin');
+  const page = await openStudio(t, 'erin', 'career-resume-studio.html', '/api/career-hunter/resume-studio');
+  await page.locator('#sheet .summary', { hasText: 'Seasoned platform lead.' }).waitFor();
+  // Over the real route's master document limit, so the 413 and its words come from the route itself.
+  await page.evaluate(() => { state.resume.summary = 'x'.repeat(100_000); });
+  await page.locator('#save').click();
+  await page.waitForFunction(() => document.querySelector('#status').textContent === 'save failed');
+  assert.equal((await page.locator('#log .msg.sys').allTextContents()).at(-1), 'Save failed: master resume payload too large');
+  assert.equal(await masterSummary('erin'), 'Seasoned platform lead.', 'the refused document was not stored');
 });
 
 const readPlan = async (sub) => (await api(sub, 'GET', '/profile-studio/plan')).plan;

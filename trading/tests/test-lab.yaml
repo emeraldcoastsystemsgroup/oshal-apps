@@ -23,6 +23,9 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Register quant-desk: fixed signals with no look-ahead, the history test's verdict rule, the forward scoreboard, the nightly pipeline against a real disposable PostgreSQL, no order path, and the screen at desktop and phone widths.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Register watcher-autostart: activating an approval starts the watcher job, and the page restarts one the kernel suspended, never one the person turned off.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | quant-desk covers the wider pool: who is in it, the trading floor, passes short enough not to hold up the watcher, statements that stay off whole-table reads, and reading the list by page and group. Its real-interpreter companion is the kernel's trading_quant_store.rs.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | quant-desk covers the dip pair: the history-tested deep dip, the forward-judged quality dip, one pick rule for the cohort and the screen, and the brief's candidates with their forward verdict.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | jobs-start-themselves: the exact list of Trading jobs allowed to start by themselves.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | Register paper-strategy-landing: with no brokerage connected the Strategies landing lists the person's paper accounts with their strategy, state and paths onward, keeps the dead-end copy only for a failed paper read, and never replaces a live account's strategy controls.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -404,6 +407,21 @@ cases:
     expected:
       - The leg-off note reads "Event trading is switched off on this installation ..." and the watcher-off note "Earnings rules are switched off ...", neither naming a variable.
       - With both on the posture is enabled with no note.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+
+  - id: paper-strategy-landing
+    name: The Strategies landing without a brokerage shows the paper accounts
+    purpose: Run the shipped landing module over route fixtures with zero live accounts.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-paper-strategy-landing.test.js] }
+    expected:
+      - With no live accounts the landing lists the paper accounts (label, value, assigned strategy, armed state, last pass) and both buttons navigate to Reports and Strategy research.
+      - A failed paper read keeps the honest "No connected trading accounts" copy and invents no roster; an archived paper account is not offered.
+      - A connected live account keeps the live account-strategies roster; the paper panel never replaces it.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
@@ -1619,6 +1637,7 @@ cases:
       - A stock trading under $5 million a day is not ranked or tested, judged only on what was known then, and a split cannot change that.
       - A pass stops reading within 15 seconds, and no store statement uses a form that reads the whole table; the kernel's trading_quant_store.rs runs them on the real interpreter past the 64 MB limit.
       - The list reads by page, group, search, signal and column; filings refresh it without moving a rank.
+      - The deep-dip signal sits in the history test like any other; the quality dip takes only a 25%+ fall with a profitable, growing filing, deepest first, the screen ranks by the exact rule the scoreboard grades, and the brief carries tonight's candidates with the forward verdict named.
       - The screen runs the desk, pages, filters, searches and sorts across the whole list, explains a rank, shows holdings and the scoreboard at desktop and phone widths, and writes only to the desk and its own job.
     prerequisites: [runner:node-test]
     sideEffects: fixture-write
@@ -1635,6 +1654,40 @@ cases:
       - Every path that activates an approval starts the watcher job right after it.
       - A suspended job restarts while a strategy or exit approval is active, and not without one.
       - A job the person deactivated or paused stays off, and a refused restart is not retried until the page is opened again.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: None. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: report-films
+    name: The OSHAL report films itself per account inside Trading, privately
+    purpose: Verify the report-video pipeline films the saved daily report inside the package (the installation's ffmpeg and the kernel's voice.speak), one account per pass, into the lasting directory with an owner-scoped index row; the stream route serves only the owner's own files; a finished file is indexed rather than filmed twice; and a missing report, a missing speech service or a bad presenter clip answer honestly.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-report-video.test.js, tests/native-report-film-status-browser.test.js] }
+    expected:
+      - Each pass films exactly one account into a real mp4 whose index row carries its exact size and playing time; narration length is measured from the bytes present.
+      - The slide layout never places a long value over its label, and every slide draws its title, header and footer.
+      - The stream route refuses an unauthenticated caller, a malformed name, and a caller without the index row; the owner is served the exact file.
+      - A complete file already on disk is indexed as ready without filming it again; Film again clears the day and films every account anew.
+      - A session without a saved report answers waiting; a speech service that fails marks the account failed with the reason, and the listing still reads.
+      - The presenter clip must be an MP4 of at most 4 MiB and lands only in the caller's own directory.
+      - A press after the session rolled films the newest saved report, and a report with no connected accounts says there is nothing to film.
+      - In a real browser the status line counts the accounts down, says why nothing was filmed, and never calls a failed account ready; one film loop runs at a time.
+    prerequisites: [runner:node-test, host:ffmpeg, browser:chromium]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Drop the disposable PostgreSQL database and remove the temporary lasting directory. }
+    limits: { timeoutMs: 180000 }
+    installation: never
+
+  - id: jobs-start-themselves
+    name: Only the Trading jobs that place no order and spend nothing start by themselves
+    purpose: Pin the exact list of jobs that declare startsItself, because adding one is a money decision. The order-placing watcher, the paper autopilot and the report film stay a person's decision.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-jobs-start-themselves.test.js] }
+    expected:
+      - The daily report, the Quant desk and the Futures study declare startsItself, and no other job does.
+      - The portfolio watcher, the paper autopilot and the report film are still declared.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: disposable, cleanup: None. }

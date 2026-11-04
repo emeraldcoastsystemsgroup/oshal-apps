@@ -29,7 +29,7 @@ let THEMES=[${JSON.stringify(theme)}],THEME='executive',SEL=null,workspace;const
 function pickTheme(id){THEME=id;}function renderTemplates(){}function pvKick(){workspace?.refresh();}
 ${applier}
 $('outline').value=serializeSections(${JSON.stringify(sections)});
-workspace=createSlideWorkspace({host:$('host'),readSections:()=>parseOutline($('outline').value),writeSections:next=>{$('outline').value=serializeSections(next);pvKick();},getTheme:()=>THEMES[0],renderDraft:(section,index)=>slideCards([section],THEMES[0],'slide'),onChange:event=>{changes.push(event);}});
+workspace=createSlideWorkspace({host:$('host'),readSections:()=>parseOutline($('outline').value),writeSections:next=>{$('outline').value=serializeSections(next);pvKick();},getTheme:()=>THEMES[0],renderDraft:(section,index)=>slideCards([section],THEMES[0],'slide'),getLayouts:()=>[{id:'bullets',name:'Bullets',needs:'plain lines'},{id:'image-right',name:'Image beside text',needs:'an image and bullets'},{id:'statement',name:'Statement',needs:'one big line'}],onChange:event=>{changes.push(event);}});
 window.officeFixture={read:()=>parseOutline($('outline').value),selection:()=>workspace.getSelection(),guide:actions=>applyActions(actions),refresh:()=>workspace.refresh(),theme:next=>{THEMES=[next];workspace.refresh();},exportPayload:()=>({sections:parseOutline($('outline').value)}),destroy:()=>workspace.destroy(),changes};
 </script></body></html>`;}
 async function fixture(t){
@@ -70,4 +70,28 @@ test('phone keeps thumbnails reachable and selected title editing visible withou
  const page=await browserPage(t,412);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.getByRole('button',{name:'Slide 3: Next steps',exact:true}).click();assert.equal((await page.evaluate(()=>officeFixture.selection())).index,3);assert.equal(await page.locator('.office-slide-canvas .pvSlide').count(),1);
  const title=page.getByRole('textbox',{name:'Edit slide title on canvas'});await title.fill('Phone title');await title.blur();assert.equal((await page.evaluate(()=>officeFixture.read()))[2].title,'Phone title');assert.equal(await page.locator('.office-slide-canvas').isVisible(),true);
+});
+
+test('the design row writes only renderer-honoured directives: layout picked, an image file landing as an inline data URI drawn on the canvas, its caption, removal and undo',async t=>{
+ const page=await browserPage(t);
+ const content=async()=>(await page.evaluate(()=>officeFixture.read()))[0].content;
+ await page.locator('.office-slide-layout-select').selectOption('statement');
+ assert.match(await content(),/^#layout: statement\n/,'the picker writes the engine #layout: directive');
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64');
+ await page.locator('input[aria-label="Slide image file"]').setInputFiles({name:'logo.png',mimeType:'image/png',buffer:png});
+ await page.waitForFunction(()=>document.querySelector('.office-slide-canvas .pvImg img'));
+ assert.match(await content(),/#image: data:image\/png;base64,/,'the file lands as the inline data URI the renderer embeds');
+ assert.equal(await page.locator('.office-slide-design button',{hasText:'Replace image'}).count(),1);
+ const caption=page.getByRole('textbox',{name:'Image caption'});assert.equal(await caption.isVisible(),true);
+ await caption.fill('Our team');await caption.blur();
+ assert.match(await content(),/#caption: Our team/);
+ assert.equal(await page.locator('.office-slide-canvas .pvImg figcaption').textContent(),'Our team');
+ assert.deepEqual((await content()).split('\n').slice(0,3).map(l=>l.split(':')[0]).sort(),['#caption','#image','#layout'],'the three directives lead the content');
+ assert.match(await content(),/First point\nSecond point$/);
+ await page.getByRole('button',{name:'Remove image',exact:true}).click();
+ assert.doesNotMatch(await content(),/#image:|#caption:/,'removal drops the image and its caption together');
+ assert.equal(await page.locator('.office-slide-design button',{hasText:'Add image'}).count(),1);
+ await page.getByRole('button',{name:'Undo',exact:true}).click();
+ assert.match(await content(),/#image: data:image\/png/,'directive edits ride the same undo history as every edit');
+ assert.equal(await page.locator('.office-slide-canvas .pvImg img').count(),1,'the canvas draws the restored image');
 });

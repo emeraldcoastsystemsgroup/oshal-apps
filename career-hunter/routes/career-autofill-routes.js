@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Share the exact bounded owner profile reader with approved native submission preparation.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -11,6 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.loadAutofillProfile = loadAutofillProfile;
 exports.registerCareerAutofillRoutes = registerCareerAutofillRoutes;
 /**
  * Caller-scoped offline application autofill route.
@@ -165,4 +167,3 @@ async function getAutofillBookmarklet(req, res) {
 function registerCareerAutofillRoutes(router) {
     router.get('/autofill/bookmarklet', (req, res) => { void getAutofillBookmarklet(req, res); });
 }
-//# sourceMappingURL=career-autofill-routes.js.map

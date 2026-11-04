@@ -59,6 +59,7 @@ function scalarFacts(facts) {
 function specialistRead() {
   let entry;
   const ctx = {
+    pool: {query:async()=>({rows:[{remote_only:false}]})},
     tools: { register() {} },
     specialistContext: { register: (e) => { entry = e; } },
     intent: async () => ({ principal }),

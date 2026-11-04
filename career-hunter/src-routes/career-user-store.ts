@@ -14,9 +14,11 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Ensure route-opened user stores also carry the durable Apply run id and exact claim token.
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | callerSub now resolves the verified trusted-service identity ahead of the OIDC session (eats/spotify tool idiom): the framework tool-executor's api-type tools call these routes with X-Service-Secret + the signed-in user's sub, and the OIDC-only read returned null for exactly those calls — which is why no career tool could ever reach the resume rails. The mount is already service-or-oidc; the kernel helper verifies the secret before trusting the header.
  * 11 | maintainer@emeraldcoastsystemsgroup.com   | Open the tenant-shared corpus on its own so the board stays searchable before a resume exists.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com   | Read checkpointed native owner generations immutably so WAL-mode board, stats and resume reads need no sidecar files on the read-only mount. Keep normal locking when WAL contains pending data or the store is mutable.
  */
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import Database from 'better-sqlite3';
 import { createChildLogger } from '@/shared/logger';
 import { getTrustedServiceUserSub } from '@/shared/middleware/authz';
@@ -111,11 +113,26 @@ export function userPaths(userSub: string) {
 export function openUserDb(userSub: string, readonly = true): any {
   const { corpusDb, userDb, userDir } = userPaths(userSub);
   if (!fs.existsSync(corpusDb) || !fs.existsSync(userDb)) return null;
-  migrateApplicationProvenance(userDb, userDir);
-  const db = new Database(userDb, { readonly });
-  db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
-  tuneDatabase(db);
-  return db;
+  // Reads can be mounted against the published generation read-only. Keep compatibility
+  // migrations on the writable path so opening the board never mutates a read request's store.
+  if (!readonly) migrateApplicationProvenance(userDb, userDir);
+  // Native reads pin an immutable published generation. A checkpointed WAL database still
+  // carries WAL in its header, and a normal readonly open tries to create forbidden -shm.
+  // Never bypass a pending WAL, or disable locking for a mutable/legacy store.
+  const wal = `${userDb}-wal`;
+  const immutable = readonly && process.env.OSHAL_CAREER_OWNER_MOUNT === '1'
+    && !(fs.existsSync(wal) && fs.lstatSync(wal).size > 0);
+  const source = immutable ? `${pathToFileURL(userDb).href}?immutable=1` : userDb;
+  const db = new Database(source, { readonly });
+  try {
+    db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
+    tuneDatabase(db);
+    if (readonly) db.pragma('query_only=true');
+    return db;
+  } catch (err) {
+    db.close();
+    throw err;
+  }
 }
 
 /**

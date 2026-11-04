@@ -21,6 +21,9 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.6.2: A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.6.3: The demo mailbox answers when My Day names Google and has today's sample events. A demo visitor saw "Summary unavailable" and an empty calendar because the second read named the provider the first one reported.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: The day summary is sealed by the kernel (uses: memory). The package helper needed a SESSION_SECRET the native kernel never hands a package, so the model answered and saving failed: My Day showed "Summary unavailable".
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: The mail copy's catch-up on new mail resumes where the last pass stopped (migration 004, gap_top_at/gap_low_at). Roger's copy, four days behind after the job was stopped, re-read every message earlier passes had stored and gained 85, 65, then 13 messages a pass without closing the gap.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.6.6: The mail copy turns itself on (Roger, 2026-11-03: "it better be automated when someone installs the application"). Opening the Inbox with Gmail connected activates the mail-copy job and stores the first mail, and a job an update stopped restarts the same way; Keep a copy and Turn it back on are gone. A job the person paused, or a copy whose job they removed, stays off until they press Keep it up to date. Guarded by tests/mail-store-browser.test.cjs.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.6.7: mail-copy and social-publish declare startsItself, so a kernel that reads it starts them when a person uses the application, the mail copy once Gmail is connected. Older kernels ignore the key and the Inbox still starts the mail copy.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -85,7 +88,7 @@ description: >-
   mail is a single explicit-confirm gated action; every social publish goes out
   on the person's own connection through the kernel. The bot does the reasoning
   on its own harness/model with cost captured per user.
-version: 1.6.4
+version: 1.6.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -386,10 +389,13 @@ migrations:
   - migrations/001-email-mail-store.sql
   - migrations/002-email-social-desk.sql
   - migrations/003-email-digests.sql
+  - migrations/004-email-sync-gap.sql
 
 # The stored copy is kept current by the person's own job: every 10 minutes, as the person who turned it on.
 schedules:
   - id: mail-copy
+    startsItself: true
+    startsWhenConnected: google
     cron: "*/10 * * * *"
     runsAs: user
     target: service-route
@@ -400,6 +406,7 @@ schedules:
     description: Keep a searchable copy of your Gmail (sender, subject, preview and time; never the full message) so Intelligent Communication searches it without asking Gmail each time.
     offer: Keep a searchable copy of my Gmail so Intelligent Communication can search all of it.
   - id: social-publish
+    startsItself: true
     cron: "*/5 * * * *"
     runsAs: user
     target: service-route

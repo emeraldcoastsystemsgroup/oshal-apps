@@ -1,3 +1,6 @@
+/* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.5: Investigate again and alert-named incident lists. */
+/* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.4: Your SSH connection on Connections. */
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.2: the Spark detection engine compose project and installer (engine/container, engine/install-engine.sh). */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Require the installed native permission binding for server-side ticket readback; a handler alone is unreachable. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Allow route-backed read tools for Jarvis; still no CLI executor tool. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the Swarm hand-off navigation entry. */
@@ -84,7 +87,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.1.1');
+  assert.equal(manifest.version, '1.1.5');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);

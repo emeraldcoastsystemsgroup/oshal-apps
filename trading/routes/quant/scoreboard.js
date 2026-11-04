@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The quality-dip signal: at least 25% below the 52-week high yet profitable with growing revenue in the latest annual filing, deepest fall first. Its fundamentals are only known today, so it is judged by the forward record like profitable growth. Each forward signal now carries its own pick rule, used by the cohort and the screen alike, so what is graded is exactly what is shown.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A night's picks stored the whole list, thousands of names at the new size, and kept it for good. The list is now dropped once every horizon is graded.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The latest graded picks shown are those of the signal that led the list when they were made.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk's forward scoreboard: each session's top picks per signal are recorded before their outcome exists, entered at the next session's close and graded 5, 21 and 63 sessions later against SPY and the whole list. Verdicts wait for enough non-overlapping windows.
@@ -11,10 +12,19 @@ const HORIZONS = Object.freeze([5, 21, 63]);
 const TOP_N = 10;
 const MIN_WINDOWS = 12;
 
-/** Signals with no history test: their inputs are only known today, so only the forward record can judge them. */
+/** A latest annual SEC filing showing a real, growing business: positive net margin and growing revenue. */
+const quality = (r) => Boolean(r.fund && r.fund.revenueYoYPct > 0 && r.fund.netMarginPct > 0);
+/**
+ * Signals with no history test: their inputs are only known today, so only the forward record can judge them.
+ * Each carries its own pick rule, best first, shared by the cohort and the screen so what is graded is what is shown.
+ */
 const FORWARD_SIGNALS = Object.freeze([
-  { id: 'quality-growth', name: 'Profitable growth', what: 'Growing revenue and positive net margin in the latest annual SEC filing, strongest first', source: 'Related: Novy-Marx, 2013' },
-  { id: 'congress', name: 'Congress buying', what: 'Bought by members of Congress in the last 90 days of disclosures, most buyers first', source: 'Disputed: Ziobrowski et al., 2004; Eggers & Hainmueller, 2013' },
+  { id: 'quality-growth', name: 'Profitable growth', what: 'Growing revenue and positive net margin in the latest annual SEC filing, strongest first', source: 'Related: Novy-Marx, 2013',
+    picks: (rows) => rows.filter(quality).sort((a, b) => (b.fund.revenueYoYPct + b.fund.netMarginPct) - (a.fund.revenueYoYPct + a.fund.netMarginPct) || a.symbol.localeCompare(b.symbol)) },
+  { id: 'quality-dip', name: 'Quality dip', what: 'At least 25% below its 52-week high, yet profitable with growing revenue in its latest annual SEC filing, deepest fall first', source: 'Operator rule, fixed 2026-11-03; related: De Bondt & Thaler, 1985',
+    picks: (rows) => rows.filter((r) => r.f.fromHigh <= -0.25 && quality(r)).sort((a, b) => a.f.fromHigh - b.f.fromHigh || a.symbol.localeCompare(b.symbol)) },
+  { id: 'congress', name: 'Congress buying', what: 'Bought by members of Congress in the last 90 days of disclosures, most buyers first', source: 'Disputed: Ziobrowski et al., 2004; Eggers & Hainmueller, 2013',
+    picks: (rows) => rows.filter((r) => r.congress && r.congress.buyers > 0).sort((a, b) => b.congress.buyers - a.congress.buyers || String(b.congress.latest).localeCompare(String(a.congress.latest)) || a.symbol.localeCompare(b.symbol)) },
 ]);
 
 /**
@@ -28,10 +38,7 @@ function makeCohort(session, rows) {
   for (const signal of PRICE_SIGNALS) {
     picks[signal.id] = rows.map((r) => ({ s: r.symbol, v: signal.score(r.f) })).filter((x) => x.v != null).sort((a, b) => b.v - a.v).slice(0, TOP_N).map((x) => x.s);
   }
-  const growing = rows.filter((r) => r.fund && r.fund.revenueYoYPct > 0 && r.fund.netMarginPct > 0);
-  picks['quality-growth'] = growing.sort((a, b) => (b.fund.revenueYoYPct + b.fund.netMarginPct) - (a.fund.revenueYoYPct + a.fund.netMarginPct)).slice(0, TOP_N).map((r) => r.symbol);
-  const bought = rows.filter((r) => r.congress && r.congress.buyers > 0);
-  picks.congress = bought.sort((a, b) => b.congress.buyers - a.congress.buyers || String(b.congress.latest).localeCompare(String(a.congress.latest))).slice(0, TOP_N).map((r) => r.symbol);
+  for (const signal of FORWARD_SIGNALS) picks[signal.id] = signal.picks(rows).slice(0, TOP_N).map((r) => r.symbol);
   return { session, picks, list: rows.map((r) => r.symbol), graded: {} };
 }
 

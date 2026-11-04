@@ -1,3 +1,4 @@
+/* CHANGE LOG: overview tickets | maintainer@emeraldcoastsystemsgroup.com | Guard the incident card and Incident work with more than a thousand tickets of other applications and their alert labels. */
 /* CHANGE LOG: overview schedule | maintainer@emeraldcoastsystemsgroup.com | Overview shows a suspended processing schedule with a Re-activate action and counts unfiled delegations. */
 /* CHANGE LOG: overview actions | maintainer@emeraldcoastsystemsgroup.com | Needs attention counts operator actions from response plans, the detector and tickets; incident chips default to Needs you. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Pin the canonical backend symptom key in event inspection. */
@@ -13,18 +14,18 @@ const records={sources:[a,b],events:[event('event-a',a),event('event-b',b,'quara
 const asset=(id,kind,extra={})=>({id,kind,nativeId:id,name:id,provider:'kubernetes',scope:'cluster-a',observedAt:at,health:'unknown',properties:{namespace:'demo'},...extra});
 const graph={asOf:at,assets:[asset('cluster-a','cluster'),asset('pod-a','pod',{health:'degraded',properties:{namespace:'demo',phase:'Pending',image:'registry/'+('long-image-'.repeat(30))}})],relationships:[],collections:[{complete:true}]};
 const pipeline={policies:[],bindings:[],decisions:[{id:'d-a',deliveryId:'event-a',at,outcome:'matched',reduction:{outcome:'admitted',symptomKey:'symptom-a'}}],symptoms:[],evidenceWork:[],correlations:[]};
-let schedules=[],activations=0;
+let schedules=[],activations=0,otherTickets=0,investigationItems=[];
 async function fixture(run){
  let refused=false,held=null,holdTickets=false;const requests=[];
  const server=http.createServer((req,res)=>{requests.push([req.method,req.url]);const url=new URL(req.url,'http://localhost');const json=(body,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(body));};
-  if(url.pathname==='/api/tickets'){if(holdTickets){held=res;return;}return json({tickets:[{id:'11111111-1111-4111-8111-111111111111',kind:'intelligent-operations',title:'Untitled',description:'Review pod availability',status:'awaiting_approval'},{id:'22222222-2222-4222-8222-222222222222',kind:'intelligent-operations',title:'Finished drill',status:'done'},{id:'33333333-3333-4333-8333-333333333333',kind:'intelligent-operations',title:'Broken drill',status:'failed'}]});}
+  if(url.pathname==='/api/tickets'){if(holdTickets){held=res;return;}return json({tickets:[{id:'11111111-1111-4111-8111-111111111111',kind:'intelligent-operations',title:'Untitled',description:'Review pod availability',status:'awaiting_approval'},{id:'22222222-2222-4222-8222-222222222222',kind:'intelligent-operations',title:'Finished drill',status:'done'},{id:'33333333-3333-4333-8333-333333333333',kind:'intelligent-operations',title:'Broken drill',status:'failed'},...Array.from({length:otherTickets},(_,i)=>({id:'44444444-4444-4444-8444-'+String(i).padStart(12,'0'),kind:'build',title:'Another application '+i,status:'done'}))]});}
   if(url.pathname==='/api/v1/agent/schedules')return json({schedules});
   if(url.pathname==='/api/v1/agent/schedules/s1/activate'&&req.method==='POST'){activations++;schedules=schedules.map(x=>({...x,status:'active',reason:null}));return json({status:'activated'});}
   if(url.pathname==='/api/v1/peer-inbox')return json({delegations:[{id:'i1'},{id:'i2'}],executionAuthorized:false});
   const prefix='/api/intelligent-operations',route=url.pathname.slice(prefix.length);
   if(url.pathname.startsWith(prefix)&&!route.startsWith('/assets/')&&route!=='/app'){
    if(refused)return json({error:'Scope withdrawn'},403);
-   if(route==='/records')return json(records);if(route==='/pipeline')return json(pipeline);if(route==='/investigations')return json({items:[]});
+   if(route==='/records')return json(records);if(route==='/pipeline')return json(pipeline);if(route==='/investigations')return json({items:investigationItems});
    if(route==='/pipeline/processing')return json({config:{enabled:false,sourceIds:[],batchSize:10,maxAttempts:8,retrySeconds:30,revision:0},scheduleName:'fixture',jobs:[],limit:200,leaseSeconds:120});
    if(route==='/executions')return json({items:[{id:'p1',invalidated:false,approval:null,executions:[],promotions:[]},{id:'p2',invalidated:false,approval:{expired:false},executions:[{state:'completed',recovery:{outcome:'regressed'}}],promotions:[{overdue:true}]}]});
    if(route==='/delegations')return json({items:[{direction:'inbound',inboxId:'i1',state:'started'}]});
@@ -79,3 +80,14 @@ test('Overview says when the processing schedule is suspended, re-activates it o
  assert.match(await actions.innerText(),/1\s+Delegations from other swarms not yet filed/);
  await actions.getByRole('button',{name:'Re-activate',exact:true}).click();await actions.getByText('Processing schedule suspended',{exact:true}).waitFor();assert.equal(activations,1);assert.equal(await actions.getByRole('button',{name:'Re-activate',exact:true}).count(),0);
 });}finally{schedules=[];}});
+
+test('the incident card keeps the Operations tickets among more than a thousand others, and both lists name them by their alert',async()=>{
+ otherTickets=1500;investigationItems=[{id:'a'.repeat(64),ticketId:'33333333-3333-4333-8333-333333333333',alert:{alertType:'SiteDown',severity:'critical',environment:'gsquared-staging',resource:{kind:'host',scope:'gsquared-staging',id:'https://staging.example/health'}},previousAttempts:[{ticketId:'22222222-2222-4222-8222-222222222222',endedAs:'failed'}]}];
+ try{await fixture(async({page,base,errors})=>{
+  await page.goto(base+'#overview');const tickets=page.locator('#overview-tickets');await tickets.getByRole('button',{name:/All · 3/}).click();
+  const shown=await tickets.innerText();assert.match(shown,/\[critical\] SiteDown · gsquared-staging · https:\/\/staging\.example\/health/);assert.match(shown,/\(earlier attempt, failed\)/);assert.match(shown,/Review pod availability/);
+  assert.doesNotMatch(shown,/unavailable/i);assert.doesNotMatch(shown,/Another application/,'tickets of other applications stay out');
+  await page.goto(base+'#incidents');await page.locator('#incident-list').getByText('[critical] SiteDown · gsquared-staging · https://staging.example/health',{exact:true}).waitFor();
+  assert.doesNotMatch(await page.locator('#incident-list').innerText(),/Another application/);assert.deepEqual(errors,[]);
+ });}finally{otherTickets=0;investigationItems=[];}
+});

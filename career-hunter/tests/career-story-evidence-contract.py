@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Give the generation fixture a complete employer description so citation checks remain deterministic without starting employer hydration.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -147,9 +148,9 @@ def storyless_prompt(profile, generate, _path) -> None:
     check("no stories means no evidence block", generate.story_evidence_suffix(prof) == "")
     prompt = generate.build_prompt(prof, "Target Co", "Platform Director", "Remote", "A job.")
     expected = generate.PROMPT.format(
-        profile=json.dumps(generate._prep_profile(prof, False), indent=1)[:120000],
+        profile=json.dumps(generate._prep_profile(prof, False), ensure_ascii=False, separators=(',', ':')),
         company="Target Co", title="Platform Director", location="Remote", description="A job.")
-    check("the prompt is byte-identical to the one this module always sent", prompt == expected)
+    check("the prompt preserves complete profile JSON using compact native-safe formatting", prompt == expected)
     check("nothing asks for a citation", "story_evidence" not in prompt)
 
 
@@ -218,8 +219,9 @@ def citations(profile, generate, _path) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 JOB_ROW = {
-    "id": 7, "company": "Target Co", "title": "Platform Director", "location": "Remote",
-    "description": "Run the platform org.", "url": "https://example.invalid/jobs/7",
+    "id": 7, "company_id": 1, "company": "Target Co", "title": "Platform Director", "location": "Remote",
+    "description": "Run the platform org. " + "Lead reliable platform delivery, improve release automation, and develop the engineering team. " * 14,
+    "url": "https://example.invalid/jobs/7",
     "ats_job_id": "REQ-9", "status": "new",
 }
 

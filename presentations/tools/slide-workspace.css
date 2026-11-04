@@ -4,6 +4,11 @@
 .office-slide-button{font:600 12px system-ui;padding:7px 10px;border:1px solid var(--line,#344458);border-radius:7px;background:var(--panel2,#263449);color:inherit;cursor:pointer;white-space:nowrap}
 .office-slide-button:disabled{opacity:.4;cursor:default}
 .office-slide-button:focus-visible,.office-slide-thumbnail:focus-visible{outline:2px solid var(--accent,#53b8fa);outline-offset:2px}
+.office-slide-design{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:none;padding:7px 10px;border:1px solid var(--line,#344458);border-radius:10px;background:var(--panel,#1d2938)}
+.office-slide-design-item{display:flex;align-items:center;gap:6px;font:600 12px system-ui;color:var(--muted,#9dacc0)}
+.office-slide-design-item[hidden]{display:none}
+.office-slide-layout-select{padding:6px 8px;border:1px solid var(--line,#344458);border-radius:7px;background:var(--panel2,#263449);color:var(--text,#e6edf5);font:600 12px system-ui;max-width:200px}
+.office-slide-caption-input{padding:6px 9px;border:1px solid var(--line,#344458);border-radius:7px;background:var(--bg,#111c29);color:var(--text,#e6edf5);font:12px system-ui;min-width:170px}
 .office-slide-layout{display:grid;grid-template-columns:154px minmax(0,1fr);min-height:0;min-width:0;flex:1;gap:12px}
 .office-slide-rail{overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:10px;padding:3px 6px 12px 2px;scrollbar-width:thin}
 .office-slide-thumbnail{display:flex;align-items:flex-start;gap:6px;background:transparent;border:2px solid transparent;padding:4px;border-radius:8px;color:inherit;cursor:pointer;text-align:left;flex:none;width:100%;min-width:0}

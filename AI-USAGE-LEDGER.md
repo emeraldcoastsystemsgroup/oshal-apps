@@ -43,6 +43,7 @@ Coverage: 83 packages, 83 rated, 0 unrated.
 | career-hunter | 64 / 256 (declared) | application-packet | tailored resume and cover letter | T3 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | resume-studio-guide | resume edit turn | T3 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | job-guide | job guide turn | T3 | none | disable | not yet measured | none recorded |
+| career-hunter | 64 / 256 (declared) | interview-preparation | interview guide or practice feedback | T3 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | linkedin-profile-draft | profile draft turn | T2 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | profile-ingest | resume or artifact ingest | T2 | none | disable | not yet measured | none recorded |
 | career-hunter | 64 / 256 (declared) | story-review | story review answer | T2 | none | template | not yet measured | none recorded |
@@ -53,6 +54,7 @@ Coverage: 83 packages, 83 rated, 0 unrated.
 | commons-experience | 16 / 64 (declared) | assistant-handoff | assistant request | T1 | none | disable | not yet measured | none recorded |
 | create | 32 / 512 (declared) | create-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | create | 32 / 512 (declared) | region-regenerate | region regeneration | T0 | hosted | disable | not yet measured | none recorded |
+| create | 32 / 512 (declared) | generate-image | generated picture | T0 | hosted | disable | not yet measured | none recorded |
 | creative-studio | 32 / 128 (declared) | story-video | story video | T2 | hosted | disable | not yet measured | none recorded |
 | daily-trade-recap | 32 / 128 (declared) | daily-recap-production | daily recap production | T4 | hosted | disable | not yet measured | none recorded |
 | design-studio | 32 / 128 (declared) | design-partner-chat | design partner chat turn | T4 | none | disable | not yet measured | none recorded |

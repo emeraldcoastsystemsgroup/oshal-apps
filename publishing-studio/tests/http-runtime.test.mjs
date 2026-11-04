@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Mandatory genuine mounted HTTP, original-owner PostgreSQL and pinned Typst proofs.
  * HTTP actor header and keep callbacks are named Source seams; no native kernel/held approval proof is claimed.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The page answers the v= every cockpit frame carries and the audience= an experience adds; anything else is still refused.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,6 +18,8 @@ test('real mounted original-owner SQL HTTP saves/reopens, fences foreign and Rea
  const json=async(path,options,status=200)=>{const response=await call(path,options),result=await response.json();assert.equal(response.status,status,JSON.stringify(result));return result;};
  const wait=async job=>{const deadline=Date.now()+90000;for(;;){const answer=await json('/jobs/'+job);if(['ready','failed','cancelled'].includes(answer.job.state))return answer.job;assert.ok(Date.now()<deadline,'real Source engine job deadline');await new Promise(resolve=>setTimeout(resolve,50));}};
  try{
+  for(const address of ['/app','/app?v=1762213000000','/app?audience=company&v=1762213000000'])assert.equal((await call(address)).status,200,address);
+  await json('/app?owner=bob',{},400);
   const key=randomUUID(),created=await json('/documents',{method:'POST',body:{title:'HTTP owned brochure',pageCount:2,requestKey:key}}),document=created.document.id;
   assert.equal(created.document.revision,1);assert.equal((await json('/documents',{method:'POST',body:{title:'HTTP owned brochure',pageCount:2,requestKey:key}})).document.id,document);
   await json('/documents',{method:'POST',body:{title:'different intent',pageCount:2,requestKey:key}},409);

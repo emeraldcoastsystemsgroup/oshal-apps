@@ -21,6 +21,7 @@
  * 2026-10-11     | maintainer@emeraldcoastsystemsgroup.com     | First visit completes school setup: when /me answers "complete school setup" the frame makes the screen's open-time write (the caller's own reminder check, the one non-GET every school role is bound to), which provisions the learner, then reads /me again. Native reads never provision, so a new person was stuck at that message inside the app
  * 2026-10-28     | maintainer@emeraldcoastsystemsgroup.com | Keep SAT & ACT visible in the primary school navigation.
  * 2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | When embedded, the page frame owns the full window (zen-mode; the host header, ribbon, status bar and chat rail hidden, never the Jarvis orb) and navigates its own frame instead of relaying to the host.
+ * 2026-11-04     | maintainer@emeraldcoastsystemsgroup.com | The frame hides the cockpit's menu, so the More menu carries the way back: All applications, top-level, for everyone but a child-safe kiosk (Roger, 2026-11-03: the main menu now opens every Little Monsters screen, and a person who follows one had no way back but the browser's Back button).
  * ---------------------------------------------------------------------------
  *
  * @module lm-mascot
@@ -444,6 +445,20 @@ var LM_FRAME = (function () {
     return status === 403 && Boolean(body) && body.error === SETUP_REFUSAL;
   }
 
+  /**
+   * @description The link back to every other application, shown because this frame hides the cockpit's own menu.
+   * A child-safe kiosk (?student=1, ?kiosk=1 or ?view=student on the top page) stays inside this application.
+   * @param {Window} win The page's window.
+   * @returns {string} The link's markup, or an empty string in a kiosk or when the top page cannot be read.
+   */
+  function allApplicationsLink(win) {
+    var search = '';
+    try { search = win.top.location.search; } catch (_) { return ''; }
+    var params = new URLSearchParams(search);
+    if (params.get('student') === '1' || params.get('kiosk') === '1' || params.get('view') === 'student') return '';
+    return '<a class="lm-all-applications" href="/cockpit/?screen=applications" target="_top">← All applications</a>';
+  }
+
   /** @description True when this page is hosted by another document (cockpit or experience). */
   function isEmbedded(win) {
     try { return win.top !== win.self; } catch (_) { return true; }
@@ -539,7 +554,8 @@ var LM_FRAME = (function () {
     function topbarHtml(list, active, who, progress) {
       var primary = list.filter(function (e) { return PRIMARY.indexOf(e.view) !== -1; }), more = list.filter(function (e) { return PRIMARY.indexOf(e.view) === -1; });
       var moreOpen = Boolean(active && more.some(function (e) { return e.id === active.id; }));
-      var moreHtml = more.length ? '<details class="lm-more"><summary' + (moreOpen ? ' aria-current="page"' : '') + '>More ▾</summary><div class="lm-more-menu">' + more.map(function (e) { return navLink(e, active); }).join('') + '</div></details>' : '';
+      var back = allApplicationsLink(w);
+      var moreHtml = more.length || back ? '<details class="lm-more"><summary' + (moreOpen ? ' aria-current="page"' : '') + '>More ▾</summary><div class="lm-more-menu">' + back + more.map(function (e) { return navLink(e, active); }).join('') + '</div></details>' : '';
       var name = who && who.name ? '<span class="lm-pill is-neutral" title="' + esc(who.email || '') + '">' + esc(String(who.name).split(' ')[0]) + (who.role ? ' · ' + esc(who.role) : '') + '</span>' : '';
       var level = progress ? '<span class="lm-level" title="' + progress.inLevel + ' / ' + progress.needed + ' XP"><span class="lm-level-ring" style="--pct:' + progress.pct + '"><span>' + progress.level + '</span></span>Level ' + progress.level + '</span>' : '';
       return '<a class="lm-brand" href="' + esc(list.length ? list[0].href : '/api/education/dashboard') + '"><img src="' + LOGO_PATH + '" alt="">little monsters</a><nav aria-label="Little Monsters">' + primary.map(function (e) { return navLink(e, active); }).join('') + '</nav><div class="lm-topbar-side">' + moreHtml + level + name + '</div>';
@@ -569,7 +585,7 @@ var LM_FRAME = (function () {
     return api;
   }
 
-  var exported = { esc: esc, navEntries: navEntries, activeEntry: activeEntry, hrefForView: hrefForView, levelProgress: levelProgress, isEmbedded: isEmbedded, needsSchoolSetup: needsSchoolSetup, createFrame: createFrame };
+  var exported = { esc: esc, allApplicationsLink: allApplicationsLink, navEntries: navEntries, activeEntry: activeEntry, hrefForView: hrefForView, levelProgress: levelProgress, isEmbedded: isEmbedded, needsSchoolSetup: needsSchoolSetup, createFrame: createFrame };
   if (typeof window !== 'undefined' && window.document && !window.LM) window.LM = createFrame(window);
   return exported;
 })();

@@ -4,12 +4,16 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the exit-code contract of scripts/store-ci-local.mjs. The first cut of that runner printed "Never treat SKIPPED as green" and then exited 0 anyway, so on any layout where the TypeScript compiler could not be resolved - which is every fresh clone - the little-monsters SECURITY suite, kalshi and career-hunter were all skipped and the run still reported success. A hook and a human both read `$?`, not the prose, so the skip has to reach the exit code. These two cases hold that: a prerequisite-missing run is non-zero, and --allow-skips is the deliberate opt-out that returns zero while still NAMING what did not run. Driven over a disposable fixture store through STORE_CI_LOCAL_ROOT rather than the real 45-check tree, so the guard stays fast and cannot be perturbed by the repository's own state.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin the two guards that keep a hung suite from holding a push: a step whose workflow names a service address fails in seconds, before its suite starts, when the variable is unset or nothing answers there (and --allow-skips does not accept it); and a suite that never exits fails at the deadline with no process of it left running. Two pushes on 2026-11-03 waited 15,214 s and 8,377 s on exactly that shape.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin which skips block: a LEGACY step or a suite's own LEGACY cases pass the push and stay printed, and a skipped case with any other reason still blocks it.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { setTimeout as pause } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -76,16 +80,18 @@ function buildFixture() {
  * @description Run the real runner over the fixture with every compiler hint stripped.
  * @param {string} root The fixture store root.
  * @param {string[]} args Extra argv for the runner.
+ * @param {Record<string,string>} extra Variables this case sets; the service variables are otherwise absent.
  * @returns {{status:number,output:string}} Exit status and combined output.
  */
-function runRunner(root, args = []) {
+function runRunner(root, args = [], extra = {}) {
   // NODE_TEST_CONTEXT must go: a `node --test` child that inherits it reports into THIS test run
   // and exits 0 regardless, which would make both assertions below pass vacuously.
   const {
-    OSHAL_ROOT: _r, OSHAL_CORE_DIR: _c, NODE_TEST_CONTEXT: _n, STORE_CI_TOOLCHAIN: _t, ...env
+    OSHAL_ROOT: _r, OSHAL_CORE_DIR: _c, NODE_TEST_CONTEXT: _n, STORE_CI_TOOLCHAIN: _t,
+    OSHAL_TEST_POSTGRES: _p, OSHAL_TEST_SEARCH: _s, STORE_CI_CHECK_DEADLINE_SECONDS: _d, ...env
   } = process.env;
   const result = spawnSync(process.execPath, [RUNNER, ...args], {
-    env: { ...env, STORE_CI_LOCAL_ROOT: root },
+    env: { ...env, ...extra, STORE_CI_LOCAL_ROOT: root },
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
@@ -240,6 +246,186 @@ test('a step that needs the framework checkout is SKIPPED with a LEGACY reason',
     assert.match(output, /SKIPPED\s+framework-coupled/);
     assert.match(output, /LEGACY: needs the old TypeScript platform checkout \(oshal\/src\)/);
     assert.equal(status, 0, output);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** A workflow whose one suite reports its own skipped case, with this reason. */
+function skippingCase(root, reason) {
+  writeFileSync(join(root, 'pkg', 'tests', 'a.test.js'), SUITE
+    + `test('a case this box cannot run', { skip: ${JSON.stringify(reason)} }, () => {});\n`);
+  writeFileSync(join(root, '.github', 'workflows', 'store-ci.yml'), WORKFLOW.split('  needs-compiler:')[0]);
+}
+
+test('a LEGACY step does not block a push, and the run still says it did not run', () => {
+  const root = buildFixture();
+  try {
+    plantCompiler(join(root, 'scripts', 'toolchain'));
+    writeFileSync(join(root, '.github', 'workflows', 'store-ci.yml'), WORKFLOW.split('  needs-compiler:')[0] + [
+      '  framework-coupled:',
+      '    name: a package whose suites read the framework source',
+      '    runs-on: ubuntu-latest',
+      '    steps:',
+      '      - uses: actions/checkout@v4',
+      '      - name: Run framework-coupled suites',
+      '        working-directory: pkg',
+      '        env:',
+      '          OSHAL_FRAMEWORK: framework',
+      '        run: node --test "tests/*.test.js"',
+      '',
+    ].join('\n'));
+    const { status, output } = runRunner(root);
+    assert.equal(status, 0, output);
+    assert.match(output, /SKIPPED\s+framework-coupled/, 'it is still reported');
+    assert.match(output, /did not fully run/, 'the verdict still says so');
+    assert.doesNotMatch(output, /INCOMPLETE/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a suite's own LEGACY or engine cases do not block a push", () => {
+  for (const reason of ['LEGACY: needs the old checkout', 'EMBODIED_ENGINE_ADDR not set - the live suite needs an engine']) {
+    const root = buildFixture();
+    try {
+      skippingCase(root, reason);
+      const { status, output } = runRunner(root);
+      assert.equal(status, 0, output);
+      assert.match(output, /PARTIAL/, 'it is still reported');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('a skipped case with any other reason still blocks a push', () => {
+  const root = buildFixture();
+  try {
+    skippingCase(root, 'CAREER_TEST_POSTGRES_ADMIN_URL not set');
+    const { status, output } = runRunner(root);
+    assert.notEqual(status, 0, output);
+    assert.match(output, /INCOMPLETE/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** A package step that names its disposable services the way the Operations step does. */
+const SERVICE_JOB = [
+  '  needs-service:',
+  '    name: a package whose suites need disposable services',
+  '    runs-on: ubuntu-latest',
+  '    steps:',
+  '      - uses: actions/checkout@v4',
+  '      - name: Run service suites',
+  '        working-directory: svc',
+  '        env:',
+  '          OSHAL_TEST_POSTGRES: postgresql://postgres:operations-contract-ci@127.0.0.1:35689/postgres',
+  '          OSHAL_TEST_SEARCH: http://127.0.0.1:35690',
+  '        run: node --test "tests/*.test.js"',
+  '',
+].join('\n');
+
+/** Records that it ran, so a case can prove the suite never started. */
+const MARKER_SUITE = "const test=require('node:test'),fs=require('node:fs'),path=require('node:path');"
+  + "test('the service suite ran',()=>{fs.writeFileSync(path.join(__dirname,'..','ran'),'yes');});";
+
+/** Finishes its only test and then never exits: the leaked-handle shape. */
+const HANGING_SUITE = "const test=require('node:test'),fs=require('node:fs'),path=require('node:path');"
+  + "test('leaves a handle open',()=>{fs.writeFileSync(path.join(__dirname,'..','pid'),String(process.pid));setInterval(()=>{},1000);});";
+
+/** @description Build a fixture store whose second job names two service addresses. */
+function buildServiceFixture() {
+  const root = buildFixture();
+  writeFileSync(join(root, '.github', 'workflows', 'store-ci.yml'), WORKFLOW.split('  needs-compiler:')[0] + SERVICE_JOB);
+  mkdirSync(join(root, 'svc', 'tests'), { recursive: true });
+  writeFileSync(join(root, 'svc', 'tests', 'a.test.js'), MARKER_SUITE);
+  return root;
+}
+
+/**
+ * @description Listen on a loopback port, or find one nothing listens on.
+ * @param {boolean} keep Keep the listener open (an answering service) or close it (a dead address).
+ * @returns {Promise<{port:number,close:Function}>} The port and a closer.
+ */
+async function loopbackPort(keep) {
+  const server = createServer((socket) => socket.end());
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address();
+  const close = () => new Promise((done) => server.close(done));
+  if (!keep) await close();
+  return { port, close };
+}
+
+test('a step whose service variable is unset fails in seconds and never starts its suite', () => {
+  const root = buildServiceFixture();
+  try {
+    const started = Date.now();
+    const { status, output } = runRunner(root, ['--allow-skips']);
+    assert.match(output, /FAIL\s+needs-service/, output);
+    assert.match(output, /OSHAL_TEST_POSTGRES is unset\. store-ci gives this step OSHAL_TEST_POSTGRES=postgresql:\/\/postgres:operations-contract-ci@127\.0\.0\.1:35689\/postgres/);
+    assert.equal(existsSync(join(root, 'svc', 'ran')), false, 'the suite must not start without its service');
+    assert.notEqual(status, 0, 'a missing service is a failure, which --allow-skips does not accept');
+    assert.ok(Date.now() - started < 30000, 'the refusal must come in seconds, not at a deadline');
+    assert.match(output, /PASS\s+plain/, 'the job with no service still ran');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a service address nothing answers at fails before the suite starts', async () => {
+  const root = buildServiceFixture();
+  const live = await loopbackPort(true);
+  const dead = await loopbackPort(false);
+  try {
+    const { status, output } = runRunner(root, [], {
+      OSHAL_TEST_POSTGRES: `host=127.0.0.1 port=${live.port} user=fixture dbname=kernel`,
+      OSHAL_TEST_SEARCH: `http://127.0.0.1:${dead.port}`,
+    });
+    assert.match(output, new RegExp(`nothing answers at 127\\.0\\.0\\.1:${dead.port}, the disposable service OSHAL_TEST_SEARCH names`), output);
+    assert.equal(existsSync(join(root, 'svc', 'ran')), false, 'the suite must not start against a dead address');
+    assert.notEqual(status, 0);
+  } finally {
+    await live.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('services that answer, in URL or keyword form, let the suite run', async () => {
+  const root = buildServiceFixture();
+  const live = await loopbackPort(true);
+  try {
+    const { status, output } = runRunner(root, [], {
+      OSHAL_TEST_POSTGRES: `host=127.0.0.1 port=${live.port} user=fixture dbname=kernel`,
+      OSHAL_TEST_SEARCH: `http://127.0.0.1:${live.port}`,
+    });
+    assert.match(output, /PASS\s+needs-service/, output);
+    assert.equal(readFileSync(join(root, 'svc', 'ran'), 'utf8'), 'yes', 'the suite really ran');
+    assert.equal(status, 0, output);
+  } finally {
+    await live.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a suite that never exits fails at the deadline and leaves no process behind', async () => {
+  const root = buildFixture();
+  try {
+    writeFileSync(join(root, '.github', 'workflows', 'store-ci.yml'), WORKFLOW.split('  needs-compiler:')[0]);
+    writeFileSync(join(root, 'pkg', 'tests', 'a.test.js'), HANGING_SUITE);
+    const started = Date.now();
+    const { status, output } = runRunner(root, [], { STORE_CI_CHECK_DEADLINE_SECONDS: '3' });
+    assert.ok(Date.now() - started < 60000, 'the deadline, not the suite, must end the check');
+    assert.match(output, /FAIL\s+plain/, output);
+    assert.match(output, /no verdict after 3s: stopped with every process it started/);
+    assert.notEqual(status, 0);
+    const pid = Number(readFileSync(join(root, 'pkg', 'pid'), 'utf8'));
+    let alive = true;
+    for (let attempt = 0; attempt < 50 && alive; attempt += 1) {
+      try { process.kill(pid, 0); await pause(100); } catch (error) { assert.equal(error.code, 'ESRCH'); alive = false; }
+    }
+    assert.equal(alive, false, `the hung test process ${pid} outlived the gate`);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -1,5 +1,32 @@
 # Career presentation
 
+## Nightly source review — next stages
+
+[The review](SOURCE-REVIEW.md) rechecks failing sources, repairs on evidence and reports. These are not built.
+
+- **An agent that works the report.** Each night an agent reads the latest report, writes fixes for what repeats (a
+  broken connector, a limit on how many jobs a source returns, a board the review could not reach), tests them and opens
+  pull requests. It uses the installation's model account and changes code unattended, so it needs an explicit go-ahead.
+  Done when: seven nightly reports exist and show which failures repeat; the owner has approved the model spend; the agent
+  works only on a branch and never merges, delivers or changes production; every pull request carries a regression test
+  that fails without the fix and names the report entry it answers; and a night's work has a spending limit that stops it.
+- **Read limited sources whole.** The report's `stuck` list names sources returning the same round count every pull. They
+  are partial, so they close nothing, and jobs past the limit are never seen. Accenture is the Workday case: splitting by
+  facet read 32,158 of its 41,399 jobs on 2026-11-03 and then met a search it could not divide further. Done when: each
+  connector on the list either reads every job or is recorded as limited with the reason.
+- **Close what is really gone on partly verified sources.** Their jobs never close, so listings that have gone stay open.
+  Done when: each connector can prove a whole feed, or a job not seen for a stated time closes, and the report shows how
+  many open jobs are affected.
+- **A kernel release costs the whole pull.** A restart ends the running pull and it starts again from nothing, which
+  happened three times on the night of 2026-11-03. With Accenture and Target read whole a pull takes about 5 hours, so a busy
+  deploy night can publish late or not at all. Done when: a restart loses at most the source being read, or a release waits
+  for a running pull.
+- **Find employers not yet in the corpus.** The review only rechecks employers already listed. Done when: new employers
+  come from a stated, reviewed list, each passing the same evidence rules, and the report shows how many were added.
+- **Check existing sources against their employer.** Older discovery accepted name matches, and at least one source (Crown
+  Castle) points at another company's board. Done when: every source returning jobs either has evidence from the employer's
+  own page or is listed in the report for a person to check.
+
 ## 1.27.1 Stopping a run stops its engine — open items
 
 The engine now runs inside the wrapper's process group under the runner's adopted lease (README

@@ -6,6 +6,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | Rank by the forward-judged signals too: the new quality dip (25%+ below the 52-week high, profitable, growing), profitable growth and Congress buying join the Rank by choices with their forward verdicts, so the dip candidates Roger asked for are one selection away.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | The history test says how many stocks it could choose from at each end of its years, because a stock only counts once it traded enough.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | The list can hold thousands of names, so the screen reads it a page at a time: filter by industry or theme, search by ticker or company, rank and sort on the server, and see how each group looks. Run now pauses between passes so the rest of Trading stays quick while it reads.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Every click says what it did. Roger pressed Run now and Turn on nightly scoring and both worked, but the repaint wiped the message so all he saw was a flicker. The message now survives the repaint, the state line shows the job's real status and next run, and Run now says when there is nothing new to score instead of repainting.
@@ -143,11 +144,17 @@ function qdTodayPath() {
   return '/quant/today?' + q.toString();
 }
 
-/** @description The signal choices with their verdicts. @returns {string} HTML. */
+/** @description The signal choices with their verdicts: the history-tested signals, then the forward-judged ones such as the quality dip. @returns {string} HTML. */
 function qdRankControl() {
-  const signals = (QD.board && QD.board.history && QD.board.history.signals) || [], by = QD.today.by;
-  const lead = signals.find((s) => s.id === by);
-  return '<label class="sub">Rank by <select data-qd-rank>' + signals.map((s) => '<option value="' + esc(s.id) + '"' + (s.id === by ? ' selected' : '') + '>' + esc(s.name) + ' (' + esc(s.verdict) + ')</option>').join('') + '</select></label>' + (lead ? '<p class="sub" data-quant-lead>History test verdict for this ranking: <b class="' + (QD_VERDICT_CLASS[lead.verdict] || '') + '">' + esc(lead.verdict) + '</b>. Score is the stock’s percentile on this signal. A rank is research, not a recommendation.</p>' : '');
+  const history = (QD.board && QD.board.history && QD.board.history.signals) || [], by = QD.today.by;
+  const seen = new Set(history.map((s) => s.id));
+  const forward = ((QD.board && QD.board.forward && QD.board.forward.signals) || []).filter((s) => !seen.has(s.id));
+  const verdict21 = (s) => { const m = (s.horizons || []).find((h) => h.h === 21); return m ? m.verdict : 'Not enough yet'; };
+  const option = (s, label) => '<option value="' + esc(s.id) + '"' + (s.id === by ? ' selected' : '') + '>' + esc(s.name) + ' (' + esc(label) + ')</option>';
+  const lead = history.find((s) => s.id === by), fwd = forward.find((s) => s.id === by);
+  const note = lead ? 'History test verdict for this ranking: <b class="' + (QD_VERDICT_CLASS[lead.verdict] || '') + '">' + esc(lead.verdict) + '</b>. Score is the stock’s percentile on this signal.'
+    : fwd ? esc(fwd.what) + '. This ranking’s inputs are only known today, so only the forward scoreboard judges it; its 21-session verdict so far: <b class="' + (QD_VERDICT_CLASS[verdict21(fwd)] || '') + '">' + esc(verdict21(fwd)) + '</b>. Score is the stock’s position on this rule.' : '';
+  return '<label class="sub">Rank by <select data-qd-rank>' + history.map((s) => option(s, s.verdict)).join('') + forward.map((s) => option(s, 'forward record: ' + verdict21(s))).join('') + '</select></label>' + (note ? '<p class="sub" data-quant-lead>' + note + ' A rank is research, not a recommendation.</p>' : '');
 }
 
 /** @description Market condition tiles. @param {object} m - Market condition. @returns {string} HTML. */

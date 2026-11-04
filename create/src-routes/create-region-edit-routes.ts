@@ -4,6 +4,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Selected-region regeneration behind the separately named project.generate permission: validate the request against the exact source revision with the same selection module the browser runs, generate through the media-generation kernel skill with the region crop as the one anchor, composite only inside the region, and keep the result as a candidate the person accepts (optimistic on the revision they hold), rejects or cancels. Spend is captured in the canonical ledger; manual editing never reaches this path.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Advertise cost-consent v1 and validate optional per-request cost-class caps before storage work. Enforce the cap on the actual post-queue provider immediately before generation; omitted caps preserve legacy behavior.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Accept the operator-only antigravity-cli rail (operator decision 2026-10-02, core ADR-130 amendment: the render bot's own harness picks the storyboard image rail). The provider must report itself available for this person before generation (the kernel's CLI rails are available only to the deployment operator in demo mode), and a person the resolver has no provider for gets region_edit_provider_unavailable on the edit and configured:false on the provider report, never another provider and never a 500. codex-cli stays refused by name; project.generate is still checked first.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: a picture from a sentence (POST /generated-images, behind project.generate): saved as a layer of a new or named project, finished inside the request, local provider only, a daily ceiling counted from the person's saved images.
  */
 import { json, type Router, type Request, type Response, type RequestHandler } from 'express';
 import { createHash } from 'node:crypto';
@@ -39,7 +40,7 @@ export interface RegionEditDependencies {
   recordCost(pool: ProjectContext['pool'], event: RegionCostEvent): Promise<void>;
 }
 interface RegionModule { validateSelection(value: unknown): RegionSelection; resolveSelection(project: unknown, selection: RegionSelection): { layer: { assetId: string } } }
-export interface RegionEditSettings { dailyCap: number; concurrency: number; timeoutMs: number }
+export interface RegionEditSettings { dailyCap: number; concurrency: number; timeoutMs: number; imageDailyCap?: number; imageRetryMs?: number }
 export interface RegionRouteGuards { personalOnly(req: Request): void; sendError(res: Response, error: unknown): void }
 interface RegionEnvironment {
   ctx: ProjectContext; projects: CreateProjectStore; edits: CreateRegionEditStore; dataRoot: string; guards: RegionRouteGuards;
@@ -47,6 +48,9 @@ interface RegionEnvironment {
 }
 type RegionWork = (req: Request, res: Response, owner: ProjectOwner) => Promise<void>;
 type RegionCostCap = 'free' | 'paid';
+const IMAGE_PROMPT_CHARS = 1000;
+/** Inside the kernel's 60 second package call. */
+const IMAGE_REQUEST_MS = 55000;
 
 const DEFAULT_DEPENDENCIES: RegionEditDependencies = {
   resolveProvider: options => resolveStoryboardImageProvider(options),
@@ -65,7 +69,7 @@ function bounded(value: string | undefined, fallback: number, minimum: number, m
  */
 export function regionEditSettings(env: NodeJS.ProcessEnv = process.env): RegionEditSettings {
   return { dailyCap: bounded(env.CREATE_REGION_EDIT_DAILY_CAP, 25, 1, 1000), concurrency: bounded(env.CREATE_REGION_EDIT_MAX_CONCURRENT, 2, 1, 16),
-    timeoutMs: bounded(env.CREATE_REGION_EDIT_TIMEOUT_MS, 120000, 10000, 600000) };
+    timeoutMs: bounded(env.CREATE_REGION_EDIT_TIMEOUT_MS, 120000, 10000, 600000), imageDailyCap: bounded(env.CREATE_IMAGE_DAILY_CAP, 25, 1, 1000) };
 }
 
 /** A process-wide bound on concurrent provider calls, shared by every person. */
@@ -163,7 +167,7 @@ function withTimeout<T>(work: Promise<T>, milliseconds: number): Promise<T> {
   return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
 
-async function generate(provider: RegionImageProvider, prompt: string, anchor: Buffer): Promise<{ image: Buffer; costUsd: number | null; model: string }> {
+async function generate(provider: RegionImageProvider, prompt: string, anchor: Buffer | null): Promise<{ image: Buffer; costUsd: number | null; model: string }> {
   if (provider.generateWithMeta) return provider.generateWithMeta(prompt, anchor);
   return { image: await provider.generate(prompt, anchor), costUsd: null, model: `${provider.id}-default` };
 }
@@ -237,6 +241,73 @@ function requestRoutes(router: Router, env: RegionEnvironment): void {
   }));
 }
 
+/** Only a sentence, a title for a new project and, to add to one, the project. */
+function imageRequest(body: unknown): { prompt: string; title: string; id: string | null } {
+  exactFields(body, ['prompt', 'title', 'id']);
+  const value = body as { prompt?: unknown; title?: unknown; id?: unknown };
+  const prompt = typeof value.prompt === 'string' ? value.prompt.trim() : '';
+  if (!prompt || prompt.length > IMAGE_PROMPT_CHARS) throw new ProjectError(400, 'invalid_image_prompt');
+  if (value.title !== undefined && (typeof value.title !== 'string' || !value.title.trim() || value.title.length > 120)) throw new ProjectError(400, 'invalid_project_title');
+  return { prompt, title: typeof value.title === 'string' ? value.title.trim() : prompt.slice(0, 60).trim(), id: value.id === undefined ? null : projectId(value.id) };
+}
+
+/** The project's document with the picture as a new top layer, centred and scaled to fit the canvas. */
+function withImageLayer(document: ProjectDocument, asset: { id: string; src: string; width: number; height: number }): ProjectDocument {
+  const current = document as unknown as { width: number; height: number; layers: Array<Record<string, unknown>>; images: Record<string, unknown> };
+  const key = `generated-${asset.id.slice(0, 8)}`, scale = Math.min(1, current.width / asset.width, current.height / asset.height);
+  const w = Math.round(asset.width * scale), h = Math.round(asset.height * scale);
+  const layer = { id: key, type: 'image', name: 'Generated image', assetId: key, x: Math.round((current.width - w) / 2), y: Math.round((current.height - h) / 2), w, h };
+  return { ...document, layers: [...current.layers, layer], images: { ...current.images, [key]: { src: asset.src, width: asset.width, height: asset.height } } } as unknown as ProjectDocument;
+}
+
+/** The generator sleeps when idle and answers that it is starting; the person already approved this, so keep asking inside the request's time. */
+async function pictureOnceAwake(provider: RegionImageProvider, prompt: string, budgetMs: number, retryMs: number): Promise<{ image: Buffer; costUsd: number | null; model: string }> {
+  const deadline = Date.now() + budgetMs;
+  for (;;) {
+    try { return await withTimeout(generate(provider, prompt, null), Math.max(1, deadline - Date.now())); }
+    catch (error) {
+      const waking = error instanceof Error && /starting|still be loading/i.test(error.message);
+      if (!waking || Date.now() + retryMs >= deadline) throw error;
+      await new Promise(resolve => setTimeout(resolve, retryMs));
+    }
+  }
+}
+
+/** Make and keep the picture. The native kernel ends the package process when a request answers and allows it 60 seconds,
+ *  so this finishes inside the request; a generator still waking answers in its own words, and only a free provider serves. */
+async function generatedAsset(env: RegionEnvironment, owner: ProjectOwner, prompt: string, allowed: () => Promise<void>) {
+  const provider = await resolveFor(env, owner);
+  if (!provider || !(await servesRegionEdits(provider))) throw new ProjectError(503, 'image_provider_unavailable');
+  enforceCostCap(provider, 'free');
+  if (await env.projects.assetsToday(owner) >= (env.settings.imageDailyCap ?? 25)) throw new ProjectError(429, 'image_daily_cap_reached');
+  await allowed();
+  await env.slots.acquire();
+  try {
+    const answer = await pictureOnceAwake(provider, prompt, Math.min(env.settings.timeoutMs, IMAGE_REQUEST_MS), env.settings.imageRetryMs ?? 5000);
+    await allowed();
+    return await saveProjectImage(env.dataRoot, env.projects, owner, answer.image, allowed);
+  } catch (error) {
+    if (error instanceof ProjectError) throw error;
+    logger.error({ err: error }, 'image generation failed');
+    throw new ProjectError(503, 'image_generation_failed', error instanceof Error ? error.message.slice(0, 200) : undefined);
+  } finally { env.slots.release(); }
+}
+
+function imageRoutes(router: Router, env: RegionEnvironment): void {
+  router.post('/generated-images', admit(env, 'generate'), bodyParser, handler(env, 'generate', async (req, res, owner) => {
+    const request = imageRequest(req.body), writes = request.id ? 'change' : 'create';
+    const allowed = async () => { await requireProjectAccess(env.ctx, 'generate', owner); await requireProjectAccess(env.ctx, writes, owner); };
+    await allowed();
+    const current = request.id ? await env.projects.get(owner, request.id) : null;
+    const validate = await env.validator, asset = await generatedAsset(env, owner, request.prompt, allowed);
+    const base = current?.document ?? ({ version: 1, name: request.title, width: asset.width, height: asset.height, background: 'transparent', layers: [], images: {} } as unknown as ProjectDocument);
+    const input = { title: current?.title ?? request.title, document: validateDocument(withImageLayer(base, asset), validate) };
+    const project = current ? await env.projects.save(owner, current.id, current.revision, input, allowed) : await env.projects.create(owner, input, allowed);
+    logger.info({ projectId: project.id, revision: project.revision }, 'generated image saved as a layer');
+    res.status(201).json({ project });
+  }));
+}
+
 function decisionRoutes(router: Router, env: RegionEnvironment): void {
   router.post('/projects/:id/region-edits/:edit/accept', admit(env, 'change'), bodyParser, handler(env, 'change', async (req, res, owner) => {
     exactFields(req.body, ['baseRevision']);
@@ -266,5 +337,5 @@ export function registerRegionEditRoutes(router: Router, options: { ctx: Project
   const settings = options.settings ?? regionEditSettings();
   const env: RegionEnvironment = { ...options, edits: new CreateRegionEditStore(options.projects), settings, slots: new Slots(settings.concurrency),
     deps: options.dependencies ?? DEFAULT_DEPENDENCIES, region: loadRegionModule(options.ctx.appPackageDir ?? resolve(__dirname, '..')) };
-  requestRoutes(router, env); decisionRoutes(router, env);
+  requestRoutes(router, env); imageRoutes(router, env); decisionRoutes(router, env);
 }

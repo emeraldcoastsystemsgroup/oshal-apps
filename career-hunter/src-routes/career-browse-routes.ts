@@ -1,10 +1,12 @@
 /**
  * CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Apply original-owner Not interested preferences to open search before pagination.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve the corpus-only browse feed so a signed-in account without an indexed resume can still search the openings.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Return closed location and index-readiness refusals without logging coordinates; initialize the geographic index only for radius requests.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | Add original-owner saved stars, selected-job preparation and explicit queue/status views, with conservative submission-email receipts.
  */
 
 /**
@@ -25,7 +27,9 @@ import { type Request, type Response, type Router } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import { fetchBrowsePage, CareerGeoIndexUnavailable, CAREER_GEO_INDEX } from './career-browse-feed';
 import { resolveCareerLocation, CareerLocationError } from './career-geo';
-import { callerSub, openCorpusDb } from './career-user-store';
+import { callerSub, openCorpusDb, userPaths } from './career-user-store';
+const boardState = require('../lib/career-board-state');
+const pay = require('../lib/career-pay');
 
 const logger = createChildLogger({ module: 'career-browse-routes' });
 
@@ -187,7 +191,10 @@ function getBrowse(req: Request, res: Response): void {
   const started = Date.now();
   try {
     ensureBrowseIndex(db, !!location);
-    const result = fetchBrowsePage(db, query);
+    const exclusions=require('../lib/career-job-feedback').read(userPaths(userSub).userDir);
+    const result = {...fetchBrowsePage(db, query, exclusions),exclusions};
+    const saved = boardState.readBoardState(userPaths(userSub).userDir);
+    result.jobs = result.jobs.map(job => boardState.decorateJob(saved,job));
     logger.info({
       userSub,
       searched: !!result.pooled,
@@ -199,7 +206,7 @@ function getBrowse(req: Request, res: Response): void {
     }, 'career browse feed served');
     res.json(result);
   } catch (err) {
-    if (err instanceof CareerLocationError || err instanceof CareerGeoIndexUnavailable) {
+    if (err instanceof CareerLocationError || err instanceof CareerGeoIndexUnavailable || err instanceof pay.PayRangeError) {
       logger.warn({ userSub, code: err.code, ms: Date.now() - started }, 'career browse request refused');
       res.status(err.status).json({ error: err.code, code: err.code, message: err.message });
       return;

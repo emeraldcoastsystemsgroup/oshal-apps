@@ -37,7 +37,11 @@ function sendError(res, error) {
     if (res.headersSent)
         return;
     const typed = error instanceof create_project_types_1.ProjectError ? error : null;
-    res.status(typed?.status ?? 503).json({ error: typed?.code ?? 'project_service_unavailable' });
+    res.status(typed?.status ?? 503).json(typed?.detail ? { error: typed.code, detail: typed.detail } : { error: typed?.code ?? 'project_service_unavailable' });
+}
+/** The editor validator's own sentence ("Use a hex color or transparent"), so a concierge can correct its next call; nothing else is repeated. */
+function reason(error) {
+    return error instanceof TypeError ? error.message.slice(0, 200) : undefined;
 }
 /** Authorize before decoding request bodies or doing any persistence work. */
 function admit(env, action) {
@@ -98,13 +102,19 @@ function projectWrites(router, env) {
         res.json((await agent).editingContract());
     }));
     router.post('/agent-projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
-        (0, create_project_validation_1.exactFields)(req.body, ['title', 'width', 'height', 'background']);
+        (0, create_project_validation_1.exactFields)(req.body, ['title', 'width', 'height', 'background', 'operations']);
+        if (Buffer.byteLength(JSON.stringify(req.body)) > 16384)
+            throw new create_project_types_1.ProjectError(413, 'project_operations_too_large');
+        const { operations, ...blank } = req.body;
         let document;
         try {
-            document = (await agent).blankProject(req.body);
+            const tools = await agent;
+            document = tools.blankProject(blank);
+            if (operations !== undefined)
+                document = tools.applyAgentOperations(document, operations);
         }
-        catch {
-            throw new create_project_types_1.ProjectError(400, 'invalid_project_document');
+        catch (error) {
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_document', reason(error));
         }
         const input = (0, create_project_validation_1.projectInput)({ title: req.body.title, document }, await env.validator);
         const project = await env.store.create(owner, input, confirm(env, 'create', owner));
@@ -125,8 +135,8 @@ function projectWrites(router, env) {
         try {
             document = (await agent).applyAgentOperations(current.document, req.body.operations);
         }
-        catch {
-            throw new create_project_types_1.ProjectError(400, 'invalid_project_operations');
+        catch (error) {
+            throw new create_project_types_1.ProjectError(400, 'invalid_project_operations', reason(error));
         }
         const input = (0, create_project_validation_1.projectInput)({ title: document.name, document }, await env.validator);
         const project = await env.store.save(owner, id, expected, input, async () => {

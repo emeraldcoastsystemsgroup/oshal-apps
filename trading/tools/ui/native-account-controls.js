@@ -2,6 +2,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make shared schedule state and its next action visible above the account control cards.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Account-bound strategy selection, explicit current authority, shared schedule status and compact account roster. Selection never activates execution.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Make account strategy controls the Strategies landing page, with persistent section navigation and exact account switching.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | With no brokerage connected the Strategies landing shows the person's paper accounts (what each runs, armed state, last pass) with paths to Reports and Strategy research, instead of only "No connected trading accounts": on a native installation without a broker that panel was a dead end although the paper rail and saved strategies are the product (found on the trial demo, Roger 2026-11-03).
  */
 'use strict';
 const nativeAccountsMatch=(a,b)=>a.accountId===b.accountId&&a.connectionKey===b.connectionKey;
@@ -28,13 +29,13 @@ function nativeAccountRoster(p,r,management,backstops){
 }
 async function loadNativeAccountOverview(token){
  const host=$('nativeAccountOverview');if(!host)return;
- const results=await Promise.allSettled(['/portfolio','/portfolio/research','/portfolio/management','/portfolio/backstops'].map(p=>api(p)));
+ const results=await Promise.allSettled(['/portfolio','/portfolio/research','/portfolio/management','/portfolio/backstops','/paper/books'].map(p=>api(p)));
  if(stale(token)||!host.isConnected)return;
- const [p,r,m,b]=results.map(r=>r.status==='fulfilled'?r.value:null);
+ const [p,r,m,b,paper]=results.map(r=>r.status==='fulfilled'?r.value:null);
  if(!Array.isArray(p?.accounts)){host.innerHTML='<section class="panel"><h2>Strategy controls unavailable</h2><p>Refresh to verify account strategies and watcher status. The Accounts dashboard remains available.</p></section>';return;}
  NATIVE_STRATEGY_ACCOUNTS=p.accounts.filter(a=>a.kind==='live').map(a=>({...a,nativeReadOnly:true,state:Number.isFinite(a.equity)?'ok':'unavailable',positions:a.holdings||[]}));
  if(showFocusedNativeAccount(NATIVE_STRATEGY_ACCOUNTS))return;
- if(!NATIVE_STRATEGY_ACCOUNTS.length){host.innerHTML='<section class="panel"><h2>No connected trading accounts</h2><p>Connect a brokerage account to manage its strategy. Paper accounts remain on the Accounts dashboard.</p></section>';return;}
+ if(!NATIVE_STRATEGY_ACCOUNTS.length){renderNativePaperStrategyHome(host,paper);return;}
  host.innerHTML=nativeAccountRoster(p,r,m,b);
  host.onclick=event=>{
   const link=event.target.closest('a[href]');
@@ -42,6 +43,30 @@ async function loadNativeAccountOverview(token){
   const account=p.accounts.find(a=>a.kind==='live'&&nativeAccountHref(a)===link.getAttribute('href'));
   const model=account&&NATIVE_STRATEGY_ACCOUNTS.find(m=>nativeAccountsMatch(m,account));
   if(model){event.preventDefault();nativeAccountView(model);}
+ };
+}
+/** One roster row for a paper account: label, value, what it runs, armed state and the last pass. */
+function nativePaperStrategyRow(label,account,config,strategy,lastTick){
+ const runs=strategy?esc(strategy.strategyName)+(strategy.lastResult==='rebalanced'?'<span class="native-cell-note">Rebalanced to its targets of '+esc(String(strategy.lastDecisionAsOf||'').slice(0,10))+'</span>':'<span class="native-cell-note">Rebalances at the next regular session</span>'):'Paper autopilot rules';
+ const pass=lastTick?esc(lastTick.outcome)+' · '+esc(String(lastTick.orders))+' order'+(Number(lastTick.orders)===1?'':'s'):'Trades during the regular US session';
+ return '<tr><td>'+esc(label)+'<span class="native-cell-note">Simulated money</span></td><td class="native-value">'+accountValue(account?.equity)+'</td><td>'+runs+'</td><td><span class="native-state '+(config?.armed?'is-active':'')+'">'+(config?.armed?'Active':'Stopped')+'</span></td><td>'+pass+'</td></tr>';
+}
+/** The Strategies landing when no brokerage is connected: the person's paper accounts and where to act on them,
+ * never a bare dead end — the paper rail is the product until a broker account exists. */
+function renderNativePaperStrategyHome(host,paper){
+ const named=(paper?.accounts||[]).filter(a=>!a.archived);
+ if(!paper||(!paper.reference&&!named.length)){host.innerHTML='<section class="panel"><h2>No connected trading accounts</h2><p>Connect a brokerage account to manage its strategy. Paper accounts remain on the Accounts dashboard.</p></section>';return;}
+ const rows=named.map(a=>nativePaperStrategyRow(a.label||a.book_ref,a.account,a.config,a.strategy,a.lastTick))
+  .concat(paper.reference?[nativePaperStrategyRow('Paper (reference book)',paper.reference.account,paper.reference.config,null,null)]:[]);
+ host.innerHTML='<section class="panel native-control-roster"><div class="native-section-head"><div><p class="native-eyebrow">Strategies on paper</p><h2>Your paper accounts</h2></div><span class="sub">Simulated money, real strategies</span></div>'+
+  '<p>No brokerage account is connected, so strategies run on paper: a saved strategy assigned to a paper account rebalances it to the strategy’s targets each market day, and the paper autopilot trades the rest by its own rules.</p>'+
+  '<div class="native-roster-scroll"><table><thead><tr><th>Account</th><th>Value</th><th>Runs</th><th>State</th><th>Last pass</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>'+
+  '<div class="native-form-actions"><button class="btn primary" data-native-paper-go="reports">Manage paper accounts</button><button class="btn ghost" data-native-paper-go="library">Strategy research</button></div>'+
+  '<p class="sub">Live account strategies appear on this page when a brokerage account is connected.</p></section>';
+ host.onclick=event=>{
+  const button=event.target.closest('button[data-native-paper-go]');
+  if(!button||!host.contains(button))return;
+  if(button.dataset.nativePaperGo==='reports')navigate('reports',{sub:'paper'});else navigate('strategies',{sub:'library'});
  };
 }
 function nativeStrategyChoices(a,r,w,window){

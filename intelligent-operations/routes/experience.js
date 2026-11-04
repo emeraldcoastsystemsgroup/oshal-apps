@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sourceDefinition = sourceDefinition;
 exports.inventorySnapshot = inventorySnapshot;
 exports.createOperationsExperienceRoutes = createOperationsExperienceRoutes;
+/** CHANGE LOG: 42 | maintainer@emeraldcoastsystemsgroup.com | POST /investigations with again:true investigates the same sealed evidence again after its ticket failed or was cancelled (same route, same records.write binding). */
+/** CHANGE LOG: 40 | maintainer@emeraldcoastsystemsgroup.com | A refusal that carries installHint (the detection engine down or stale) is answered with it beside the error, so the surface gets the exact install command from the route and never from hardcoded text (engine-container pattern, BUILDING-EXTENSIONS.md section 7). */
 /** CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | Serve the cloud clusters script (ADR0054). */
 // CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Serve the selected-pod console under current application admission.
 /** CHANGE LOG: 38 | maintainer@emeraldcoastsystemsgroup.com | Serve the Ops console script and the glass skin stylesheet. */
@@ -162,7 +164,7 @@ function createOperationsExperienceRoutes(ctx) {
         await fn(req, res);
     }
     catch (error) {
-        res.status(error.status || 503).json({ error: error.status ? error.message : 'Operations storage is unavailable. Retry after reconnecting.' });
+        res.status(error.status || 503).json({ error: error.status ? error.message : 'Operations storage is unavailable. Retry after reconnecting.', ...(error.installHint ? { installHint: error.installHint } : {}) });
     } };
     const read = async (name) => { const rows = await ctx.store.query(name); if (!Array.isArray(rows))
         throw Error('Malformed store response'); return rows; };
@@ -263,7 +265,7 @@ function createOperationsExperienceRoutes(ctx) {
     router.post('/ticket-sync/report', handle(async (req, res) => res.json(await (0, ticket_sync_1.reportSync)(ctx, req.oidc?.user?.sub, req.body))));
     router.post('/ticket-sync/reconcile', handle(async (req, res) => res.json(await (0, ticket_sync_1.reconcileSync)(ctx, req.oidc?.user?.sub, req.body))));
     router.get('/investigations', handle(async (req, res) => res.json(await (0, investigations_1.investigationRecords)(ctx, req.oidc?.user?.sub))));
-    router.post('/investigations', handle(async (req, res) => res.json(await (0, investigations_1.prepareInvestigation)(ctx, req.oidc?.user?.sub, req.body?.workId))));
+    router.post('/investigations', handle(async (req, res) => res.json(await (req.body?.again === true ? investigations_1.investigateAgain : investigations_1.prepareInvestigation)(ctx, req.oidc?.user?.sub, req.body?.workId))));
     router.get('/executions', handle(async (req, res) => res.json(await (0, execution_1.responseRecords)(ctx, req.oidc?.user?.sub))));
     router.post('/executions/plans', handle(async (req, res) => res.json(await (0, execution_1.preparePlan)(ctx, req.oidc?.user?.sub, req.body))));
     router.post('/executions/approve', handle(async (req, res) => res.json(await (0, execution_1.approvePlan)(ctx, req.oidc?.user?.sub, req.body))));

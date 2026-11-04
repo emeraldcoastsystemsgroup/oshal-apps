@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | "What is the weather like today?" from Jarvis answered that no weather source was installed. The compiled home-weather module geocodes on Nominatim, reads the NWS point and its forecast, and answers the periods with the source named; a missing place, a place not found and one outside NWS coverage are answered in words; the manifest declares both hosts as keyless egress, the home-weather tool on GET /api/home/weather, and weather routing words.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Weather phrases are declared: the single keyword claimed "the weather like today in Chicago" only weakly and the assistant kept it.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The description names the weather forecast: Jarvis is told an application does only what its description states.
  *
  * Dependency-free `node --test` suite apart from the store toolchain's js-yaml.
  */
@@ -61,5 +62,6 @@ test('the manifest declares the keyless hosts, the tool on GET /api/home/weather
   assert.equal(t.executor.apiEndpoint, 'GET /api/home/weather?location={input.location}');
   assert.equal(t.requiresApproval, false);
   for (const word of ['weather', 'the weather', 'weather like', 'weather in', 'weather forecast', 'will it rain']) assert.ok(m.bots[0].routingKeywords.includes(word), word);
+  assert.match(m.description, /weather forecast/i, 'Jarvis reads only the description to know what Smart Home does');
   assert.ok(fs.readFileSync(path.join(ROOT, 'routes', 'home-routes.js'), 'utf8').includes("router.get('/weather'"));
 });

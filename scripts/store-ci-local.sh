@@ -7,6 +7,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial. store-ci.yml lost its `pull_request:` trigger because this repository is PRIVATE and every run is billed — 217 runs in the first sixteen days of September at ~18.9 billed minutes each. This is the gate that replaces it: the same checks, in the same order, against the working tree, before you push. It is a thin wrapper on purpose — the runner is scripts/store-ci-local.mjs because it PARSES store-ci.yml rather than restating it, and a YAML walk plus node:test TAP grading belongs in the same language as every other gate in scripts/.
 # 2 | maintainer@emeraldcoastsystemsgroup.com   | Document the --allow-skips opt-out and the pre-push hook that actually runs this. Entry 1 shipped a gate nothing invoked: with store-ci.yml on workflow_dispatch and security.yml already there, the repository had no automatic check of any kind, and every reference to this script outside itself was prose.
 # 3 | maintainer@emeraldcoastsystemsgroup.com   | The gate's toolchain is its own: scripts/toolchain (pinned package.json + package-lock.json, `npm ci --prefix scripts/toolchain`), not an OSHAL_ROOT or sibling ../oshal checkout. The old TypeScript platform checkout is never resolved; inherited OSHAL_* / NODE_PATH variables are ignored, and a check that needs that platform's source reports SKIPPED naming it.
+# 4 | maintainer@emeraldcoastsystemsgroup.com   | LEGACY checks and the live Embodied suites no longer block a push; see store-ci-local.mjs. Any other skip still does.
 # =============================================================================
 #
 # store-ci-local.sh — run every store-ci check locally, as a pre-push habit.
@@ -37,6 +38,8 @@
 # A SKIP IS NOT A PASS
 #   A check that could not run exits NON-ZERO, because a hook and a human both read $?, not the
 #   text above it. Pass --allow-skips to accept them deliberately; they are still printed.
+#   Two kinds never block and are always printed: LEGACY checks, which test the retired TypeScript
+#   platform, and the live Embodied suites, which need a running engine.
 #
 # Usage:  bash scripts/store-ci-local.sh [--allow-skips]
 # Setup:  npm ci --prefix scripts/toolchain

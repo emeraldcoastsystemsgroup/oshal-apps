@@ -11,6 +11,8 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | Pin Intelligent Communication's mail-copy (runsAs: user): the person's own job that keeps their stored Gmail copy current.
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Pin Intelligent Communication's social-publish (runsAs: user): the person's own job that sends their scheduled social posts and stream announcements (1.6.0).
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register Trading's quant-desk person schedule.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | Pin Trading's report-video (runsAs: user, 1.50.0): the person's own job that films their saved OSHAL report after each close, one video per account, through the package's report studio engine.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | Pin Career's two owner-activated service schedules, application updates and nightly matches, released in 1.47.
  */
 
 import test from 'node:test';
@@ -26,6 +28,8 @@ const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 /** The store's shipped service-route schedules and the class each package declares. */
 const DECLARED = [
   ['calendar', 'calendar-meeting-briefs', 'system'],
+  ['career-hunter', 'career-application-updates', 'user'],
+  ['career-hunter', 'career-nightly-matches', 'user'],
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
   ['email-summarizer', 'mail-copy', 'user'],
   ['email-summarizer', 'social-publish', 'user'],
@@ -36,6 +40,7 @@ const DECLARED = [
   ['marketing-engine', 'weekly-campaign-review', 'system'],
   ['sports-edge', 'refresh-pass', 'user'],
   ['trading', 'oshal-daily-report', 'user'],
+  ['trading', 'report-video', 'user'],
   ['trading', 'portfolio-watcher', 'user'],
   ['trading', 'paper-autopilot', 'user'],
   ['trading', 'quant-desk', 'user'],

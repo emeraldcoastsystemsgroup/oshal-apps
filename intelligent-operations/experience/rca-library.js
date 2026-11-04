@@ -1,3 +1,4 @@
+/** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | investigationLabels and loadInvestigationLabels: name Operations tickets by the alert they investigate, for the Overview and Incident work lists. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Browse historical canonical RCA decisions and accepted artifact citations under the current portal session without duplicating reports or inferring recovery. */
 (function(root){
 'use strict';
@@ -68,5 +69,18 @@ function mount({onRefused=()=>{}}={}){
  $('rca-refresh').addEventListener('click',load);$('rca-search').addEventListener('input',render);$('rca-state').addEventListener('change',render);
  return {load,clear};
 }
-const api={catalogue,artifactUrl,mount};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsRcaLibrary=api;
+/** @description Name each Operations ticket by the alert it investigates (kernel tickets created through the package port carry no title): ticket id to "[severity] AlertType · scope · resource", earlier attempts marked.
+ * @param {object[]} items Investigation records from GET /investigations. @returns {Map<string,string>} Labels by ticket id. */
+function investigationLabels(items){
+ const labels=new Map();for(const item of Array.isArray(items)?items:[]){const a=item?.alert;if(!a||typeof a.alertType!=='string')continue;
+  const where=[a.resource?.scope||a.environment,a.resource?.id].filter(v=>typeof v==='string'&&v.trim()).join(' · '),label=(a.severity?'['+a.severity+'] ':'')+a.alertType+(where?' · '+where:'');
+  if(uuid(item.ticketId))labels.set(item.ticketId,label);for(const p of Array.isArray(item.previousAttempts)?item.previousAttempts:[])if(uuid(p?.ticketId)&&!labels.has(p.ticketId))labels.set(p.ticketId,label+' (earlier attempt, '+String(p.endedAs||'ended')+')');}
+ return labels;
+}
+/** @description The labels for the person's newest investigations; a refused or failed read leaves the plain ticket titles and never clears the page.
+ * @returns {Promise<Map<string,string>>} Labels by ticket id, empty when unavailable. */
+async function loadInvestigationLabels(){
+ try{const r=await fetch('/api/intelligent-operations/investigations',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)return new Map();const v=await r.json();return investigationLabels(v?.items);}catch{return new Map();}
+}
+const api={catalogue,artifactUrl,investigationLabels,loadInvestigationLabels,mount};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsRcaLibrary=api;
 })(typeof window==='object'?window:globalThis);

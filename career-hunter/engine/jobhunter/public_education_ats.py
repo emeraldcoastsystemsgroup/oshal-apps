@@ -1,4 +1,6 @@
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Share exact salary token parsing and retain explicit per-course or unknown public-board pay units.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Require affirmative workplace metadata before classifying public college and community listings as fully remote.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -12,6 +14,8 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 from bs4 import BeautifulSoup
 from . import http
 from .source_memory import Feed
+from .work_arrangement import looks_remote
+from .salary_text import parse_salary
 
 MAX_PAGES = 50
 
@@ -21,12 +25,12 @@ def _text(node):
 
 
 def _salary(text):
-    """Retain only explicitly dollar-denominated advertised amounts, including hourly pay."""
-    numbers = [float(value.replace(',', '')) for value in re.findall(r'\$\s*([\d,]+(?:\.\d+)?)', text)]
-    if not numbers:
+    """Retain quoted amounts and their explicit unit, including low per-course pay."""
+    parsed = parse_salary(text)
+    if not parsed:
         return {}
-    period = 'hour' if re.search(r'hour|hourly', text, re.I) else 'month' if re.search(r'month', text, re.I) else 'year' if re.search(r'year|annual', text, re.I) else None
-    return {'salary_min': min(numbers), 'salary_max': max(numbers), 'salary_currency': 'USD', 'salary_period': period, 'salary_raw': text}
+    return {'salary_min': parsed['min'], 'salary_max': parsed['max'], 'salary_currency': parsed['currency'],
+            'salary_period': parsed['period'], 'salary_raw': parsed['raw']}
 
 
 def _read_pages(initial, parse_page, next_page):
@@ -103,7 +107,7 @@ class PageUp:
             location = _text(node.select_one('.job-search-results-location')) or None
             employment = _text(node.select_one('.job-search-results-employment-type'))
             rows.append({'ats_job_id': identifier, 'title': title, 'location': location,
-                         'remote': int(bool(location and re.search(r'\bremote\b', location, re.I))),
+                         'remote': looks_remote(location),
                          'department': _text(node.select_one('.job-search-results-department')) or None,
                          'url': url, 'description': f'Employment type: {employment}' if employment else None,
                          'job_type_hint': employment or None, 'posted_at': None})
@@ -158,7 +162,7 @@ class GovernmentJobs:
             location = _text(meta[0]) if meta else None
             salary = _text(meta[1]) if len(meta) > 1 else ''
             rows.append({'ats_job_id': identifier, 'title': title, 'location': location,
-                         'remote': int(bool(location and re.search(r'\bremote\b', location, re.I))),
+                         'remote': looks_remote(location),
                          'department': link.get('data-department-name') or None,
                          'url': url, 'description': _text(node.select_one('.list-entry')) or None,
                          'job_type_hint': salary or None, 'posted_at': None, **_salary(salary)})

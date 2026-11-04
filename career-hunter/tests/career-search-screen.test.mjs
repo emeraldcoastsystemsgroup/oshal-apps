@@ -1,11 +1,13 @@
 /**
  * CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | State the fixture's explicit currency and unit when asserting quoted salary rendering.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the Search Jobs screen's own code: every control it advertises reaches the request, and nothing résumé-shaped appears on it.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Supply browser timers and abort controllers to exercise immediate filters cancelling pending debounce work.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin three-page navigation and the desktop-only independently scrollable filter rail.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Keep the primary keyword form above saved searches and filters, and exercise Enter/button submission with page reset.
  */
 /**
  * Guards for the Search Jobs screen (`tools/career-search.html`).
@@ -54,7 +56,7 @@ function boot(page = { jobs: [] }) {
     if (!elements.has(id)) elements.set(id, makeElement(id));
     return elements.get(id);
   };
-  for (const id of [...formControls, 'rail', 'list', 'count', 'pager', 'chips', 'clear',
+  for (const id of [...formControls, 'rail', 'keywordSearch', 'list', 'count', 'pager', 'chips', 'clear',
     'adv', 'remote']) el(id);
   // The remote control is three pills writing a hidden input; the double provides them so
   // the screen's own click handler is what gets exercised.
@@ -66,6 +68,7 @@ function boot(page = { jobs: [] }) {
   });
   const requests = [];
   const context = {
+    CareerFeedback:{unique:rows=>rows,configure(){}},
     console, JSON, Math, Number, String, Object, Array, URLSearchParams, setTimeout, clearTimeout, AbortController,
     location: { search: '', pathname: '/search' },
     history: { replaceState() {} },
@@ -109,6 +112,34 @@ test('the screen searches the corpus feed, not the resume-scored board', async (
     `Search Jobs called the scored board:\n${requests.join('\n')}`);
 });
 
+test('the primary keyword search is directly below the heading and outside the filter rail', () => {
+  const form = html.match(/<form id="keywordSearch"[\s\S]*?<\/form>/)?.[0];
+  assert.ok(form);
+  assert.match(form, /role="search"/);
+  assert.match(form, /<label for="q">Search jobs<\/label>/);
+  assert.match(form, /<input id="q"[^>]*type="search"/);
+  assert.match(form, /type="submit"/);
+  assert.match(form, /titles, full descriptions, and employers/);
+  assert.ok(html.indexOf('</header>') < html.indexOf(form));
+  assert.ok(html.indexOf(form) < html.indexOf('<section class="saved-searches"'));
+  assert.ok(html.indexOf(form) < html.indexOf('<form class="rail"'));
+  assert.equal([...html.matchAll(/\bid="q"/g)].length,1);
+});
+
+test('Enter or the Search button runs keywords immediately and resets to the first page', async () => {
+  const {requests,el}=boot({jobs:[{id:1,title:'Example'}],exhausted:false});
+  await settle(); el('next').onclick(); await settle();
+  assert.equal(lastQuery(requests).get('page'),'2');
+  el('q').value='Python architect';
+  const before=requests.length; let prevented=false;
+  for(const submit of el('keywordSearch').listeners.submit) submit({preventDefault(){prevented=true;}});
+  await settle();
+  assert.ok(prevented,'search submits without navigating away');
+  assert.equal(requests.length,before+1);
+  assert.equal(lastQuery(requests).get('q'),'Python architect');
+  assert.equal(lastQuery(requests).get('page'),'1');
+});
+
 test('every control the form shows reaches the request', async () => {
   const { context, requests, el } = boot();
   await settle();
@@ -141,6 +172,7 @@ test('no control exists on the form that the screen does not read', () => {
   const declared = script.match(/const FILTERS = \[([\s\S]*?)\];/);
   assert.ok(declared, 'the screen no longer declares its filter list');
   const read = new Set(declared[1].match(/'([a-z_]+)'/g).map((s) => s.replace(/'/g, '')));
+  read.add('per');    // selected page size is a remembered view choice
   read.add('sort');   // a view choice, declared alongside the filters
   read.add('clear');  // the reset button, not a filter
   for (const control of formControls) {
@@ -193,7 +225,7 @@ test('a job card carries no fit score, no pipeline status and no submit rail', a
   const card = context.jobCard({
     id: 7, title: "Rick's <b>Staff</b> Engineer", company: 'Northwind & Co',
     url: 'https://example.test/7', location: 'Remote', remote: 1,
-    salary_min: 190000, salary_max: 240000, job_type: 'full-time',
+    salary_min: 190000, salary_max: 240000, salary_currency:'USD', salary_period:'year', job_type: 'full-time',
   });
   for (const resumeShaped of
     ['fit', 'P land', 'hi-win', 'ai_fit', 'Generate resume', 'Submit', 'Mark applied']) {
@@ -201,7 +233,7 @@ test('a job card carries no fit score, no pipeline status and no submit rail', a
       `the search card shows "${resumeShaped}" — this screen has no résumé`);
   }
   assert.match(card, /\$190k–\$240k/);
-  assert.match(card, /View &amp; apply/);
+  assert.match(card, /Employer posting/);
   // Escaped, and never interpolated into an inline handler.
   assert.ok(!card.includes("Rick's"), 'an apostrophe reached the markup unescaped');
   assert.ok(!card.includes('<b>Staff</b>'), 'job markup was rendered as markup');
@@ -288,8 +320,8 @@ test('the advanced fields are title-contains and description-contains', () => {
 });
 
 test('target salary includes an explicit unlisted-pay choice and labels estimates', async () => {
-  assert.match(html, /value="140000"/);
-  assert.match(html, /Include jobs without listed pay/);
+  assert.match(html, /id="max_pay"[^>]*type="number"/);
+  assert.match(html, /Include jobs with no pay estimate/);
   const { el, context, requests } = boot();
   await settle();
   el('min_pay').value = '140000';
@@ -302,6 +334,57 @@ test('target salary includes an explicit unlisted-pay choice and labels estimate
   assert.equal(lastQuery(requests).has('include_unknown_pay'), false);
   assert.match(context.jobCard({ id: 1, title: 'IT manager', salary_min: 140000, salary_max: 160000, salary_source: 'ai_estimated' }), /estimate/);
   assert.match(context.jobCard({ id: 2, title: 'IT manager', salary_min: 140000, salary_source: 'heuristic' }), /estimate/);
-  assert.match(context.jobCard({ id: 3, title: 'County position', salary_min: 25.5, salary_max: 30, salary_period: 'hour' }), /\$25\.5–\$30 \/hr/);
-  assert.match(context.jobCard({ id: 4, title: 'College position', salary_min: 5000, salary_period: 'month' }), /\$5,000 \/month/);
+  assert.match(context.jobCard({ id: 3, title: 'County position', salary_min: 25.5, salary_max: 30, salary_currency:'USD', salary_period: 'hour' }), /\$25\.5–\$30 \/hr/);
+  assert.match(context.jobCard({ id: 4, title: 'College position', salary_min: 5000, salary_currency:'USD', salary_period: 'month' }), /\$5,000 \/month/);
+});
+
+test('both pay bounds and the selected unit reach search; reversed bounds retain the results', async () => {
+  const {el,context,requests} = boot(); await settle();
+  el('min_pay').value='25.50'; el('max_pay').value='40'; el('pay_period').value='hour';
+  context.refilter(); await settle();
+  assert.equal(lastQuery(requests).get('min_pay'),'25.50');
+  assert.equal(lastQuery(requests).get('max_pay'),'40');
+  assert.equal(lastQuery(requests).get('pay_period'),'hour');
+  const n=requests.length; el('searchStatus'); el('max_pay').value='20';
+  context.refilter(); await settle();
+  assert.equal(requests.length,n,'invalid bounds must not replace the last successful results');
+  assert.match(el('searchStatus').textContent,/Minimum pay cannot be higher/);
+  assert.match(context.jobCard({id:1,title:'Developer',salary_min:105210,salary_max:171980,salary_source:'bls_estimated',
+    salary_estimate:{source:'BLS OEWS',survey:'May 2025',occupation:'Software Developers',method:'National occupation wage range.'}}),/estimate.*BLS May 2025/s);
+});
+
+
+test('selectable page sizes reach the API, reset paging, and preserve filters', async () => {
+  const {context, requests, el} = boot({jobs:Array.from({length:200},(_,id)=>({id,title:'Role'})),exhausted:false});
+  await settle();
+  el('q').value='engineer';
+  for (const size of [25,50,100,200]) {
+    el('per').value=String(size);
+    await el('per').listeners.change[0](); await settle();
+    assert.equal(lastQuery(requests).get('per'),String(size));
+    assert.equal(lastQuery(requests).get('page'),'1');
+    assert.equal(lastQuery(requests).get('q'),'engineer');
+    await el('next').onclick(); await settle();
+    assert.equal(lastQuery(requests).get('page'),'2');
+  }
+  context.fill({per:'9999'}); await context.search();
+  assert.equal(lastQuery(requests).get('per'),'50');
+});
+
+
+test('a Jarvis search link keeps its requested small page size and offset', async () => {
+  const {context, requests, el} = boot({jobs:Array.from({length:5},(_,id)=>({id,title:'Role'})),exhausted:false});
+  await settle();context.fill({near:'Destin, FL',radius_miles:'50',per:'5'});
+  await context.search();await settle();
+  assert.equal(lastQuery(requests).get('per'),'5');assert.equal(lastQuery(requests).get('near'),'Destin, FL');
+  assert.equal(lastQuery(requests).get('radius_miles'),'50');
+  await el('next').onclick();await settle();
+  assert.equal(lastQuery(requests).get('per'),'5');assert.equal(lastQuery(requests).get('page'),'2');
+});
+
+ test('saved searches live in an optional header popup without a layout row', () => {
+  assert.match(html, /<button[^>]*class="saved-search-toggle"[^>]*popovertarget="savedSearchPopup"[^>]*aria-label="Saved searches"/);
+  assert.match(html, /<section[^>]*id="savedSearchPopup"[^>]*popover role="dialog"/);
+  assert.match(html, /\.saved-searches:not\(:popover-open\)\{display:none\}/);
+  assert.match(html, /\.saved-searches\{position:fixed/);
 });

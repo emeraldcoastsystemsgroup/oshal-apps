@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Rank by offers the forward-judged signals: the quality dip is selected on the real screen, labeled with its forward record, and its note says it is judged by the forward scoreboard alone.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The list is read a page at a time: the page, the group filter, search and sorting across the whole list are driven in the browser, on real companies from a stand-in for the SEC's list.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Roger pressed both buttons, both worked, and all he saw was a flicker: every click must leave a message saying what it did, and Run now with nothing new must not repaint.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the shipped Quant desk screen at desktop and phone widths over the shipped routes: run it, read the list, sort, open a reason, see holdings and both records, turn nightly scoring on. The screen may write only to the desk and its own job.
@@ -78,6 +79,12 @@ test('the Quant desk runs, explains a rank and shows its record on desktop and p
     await page.waitForFunction(() => document.querySelector('[data-qd-rank]') && document.querySelector('[data-qd-rank]').value === 'lowvol' && document.querySelector('[data-quant-table="top"] tbody tr td') && document.querySelector('[data-quant-table="top"] tbody tr td').textContent.trim() === '1');
     const volsBy = await page.locator('[data-quant-table="top"] tbody tr td:nth-child(9)').allInnerTexts();
     assert.deepEqual(volsBy.map(parseFloat), [...volsBy.map(parseFloat)].sort((a, b) => a - b), 'ranking by low volatility puts the calmest first');
+    assert.match(await page.locator('[data-qd-rank] option[value="quality-dip"]').innerText(), /Quality dip \(forward record: /, 'the quality dip is offered with its forward verdict');
+    await page.locator('[data-qd-rank]').selectOption('quality-dip');
+    await page.waitForFunction(() => document.querySelector('[data-qd-rank]') && document.querySelector('[data-qd-rank]').value === 'quality-dip' && document.querySelector('[data-quant-lead]') && /forward scoreboard/.test(document.querySelector('[data-quant-lead]').textContent));
+    assert.match(await page.locator('[data-quant-lead]').innerText(), /25% below its 52-week high[\s\S]*only the forward scoreboard judges it/, 'the dip ranking says what it is and how it is judged');
+    await page.locator('[data-qd-rank]').selectOption('composite');
+    await page.waitForFunction(() => document.querySelector('[data-qd-rank]') && document.querySelector('[data-qd-rank]').value === 'composite' && document.querySelector('[data-quant-table="top"] tbody tr td') && document.querySelector('[data-quant-table="top"] tbody tr td').textContent.trim() === '1');
     assert.match(await page.locator('[data-quant-count]').innerText(), /Showing 1 to 25 of \d+\./);
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByText(/Showing 26 to /).waitFor();

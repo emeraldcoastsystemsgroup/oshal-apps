@@ -1,3 +1,5 @@
+/** CHANGE LOG: 42 | maintainer@emeraldcoastsystemsgroup.com | POST /investigations with again:true investigates the same sealed evidence again after its ticket failed or was cancelled (same route, same records.write binding). */
+/** CHANGE LOG: 40 | maintainer@emeraldcoastsystemsgroup.com | A refusal that carries installHint (the detection engine down or stale) is answered with it beside the error, so the surface gets the exact install command from the route and never from hardcoded text (engine-container pattern, BUILDING-EXTENSIONS.md section 7). */
 /** CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | Serve the cloud clusters script (ADR0054). */
 // CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Serve the selected-pod console under current application admission.
 /** CHANGE LOG: 38 | maintainer@emeraldcoastsystemsgroup.com | Serve the Ops console script and the glass skin stylesheet. */
@@ -47,7 +49,7 @@ import {recordCommand,commandRecords} from './commands';
 import {reservePromotion,reportPromotion,promotionRecords} from './promotion';
 import {preparePlan,approvePlan,reserveExecution,reportExecution,reserveVerification,reportVerification,recordTicketUpdate,responseRecords,artifactContent,executionReceipt} from './execution';
 import {capturePendingEvidence} from './evidence-worker';
-import {prepareInvestigation,investigationRecords} from './investigations';
+import {prepareInvestigation,investigationRecords,investigateAgain} from './investigations';
 import {externalConfig,saveExternalConfig,externalRecords} from './external-evidence';
 import {incidentTrace} from './incident-trace';
 import path from 'node:path';
@@ -129,7 +131,7 @@ export function createOperationsExperienceRoutes(ctx) {
   router.get('/assets/replay-scenarios.js',asset('ui/replay-scenarios.js'));
  router.get('/assets/response-artifacts.js',asset('ui/response-artifacts.js'));
  router.get('/assets/anomaly-detector.js',asset('ui/anomaly-detector.js'));
-  const handle=fn=>async(req,res)=>{try{await fn(req,res);}catch(error){res.status(error.status||503).json({error:error.status?error.message:'Operations storage is unavailable. Retry after reconnecting.'});}};
+  const handle=fn=>async(req,res)=>{try{await fn(req,res);}catch(error){res.status(error.status||503).json({error:error.status?error.message:'Operations storage is unavailable. Retry after reconnecting.',...(error.installHint?{installHint:error.installHint}:{})});}};
   const read=async name=>{const rows=await ctx.store.query(name);if(!Array.isArray(rows))throw Error('Malformed store response');return rows;};
   router.get('/records',handle(async(req,res)=>{
     const [sources,events,inventory]=await Promise.all(['sources','events','inventory'].map(read));
@@ -207,7 +209,7 @@ export function createOperationsExperienceRoutes(ctx) {
   router.post('/ticket-sync/report',handle(async(req,res)=>res.json(await reportSync(ctx,req.oidc?.user?.sub,req.body))));
   router.post('/ticket-sync/reconcile',handle(async(req,res)=>res.json(await reconcileSync(ctx,req.oidc?.user?.sub,req.body))));
   router.get('/investigations',handle(async(req,res)=>res.json(await investigationRecords(ctx,req.oidc?.user?.sub))));
-  router.post('/investigations',handle(async(req,res)=>res.json(await prepareInvestigation(ctx,req.oidc?.user?.sub,req.body?.workId))));
+  router.post('/investigations',handle(async(req,res)=>res.json(await (req.body?.again===true?investigateAgain:prepareInvestigation)(ctx,req.oidc?.user?.sub,req.body?.workId))));
  router.get('/executions',handle(async(req,res)=>res.json(await responseRecords(ctx,req.oidc?.user?.sub))));
  router.post('/executions/plans',handle(async(req,res)=>res.json(await preparePlan(ctx,req.oidc?.user?.sub,req.body))));
  router.post('/executions/approve',handle(async(req,res)=>res.json(await approvePlan(ctx,req.oidc?.user?.sub,req.body))));

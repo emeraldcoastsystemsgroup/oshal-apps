@@ -9,6 +9,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com    | listStored: one page of the person's inbox from the copy, newest first (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the Inbox asked for one page of 30 and never asked for more). A page is a keyset read: rows received at or before the cursor, in time windows that widen (1, 2, 4 … 32 days) and narrow again when a window holds too many rows, sorted here, light columns only (no search text). The next cursor is the last row's instant plus how many rows at that instant were listed, so a tie is neither dropped nor repeated. No ORDER BY or OFFSET (the native kernel copies a table for those).
  * 4   | maintainer@emeraldcoastsystemsgroup.com    | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
  * 5   | maintainer@emeraldcoastsystemsgroup.com    | The demo mailbox answers when My Day names Google, and it has a day of sample events: "Summary unavailable" and an empty calendar were the first thing a demo visitor saw.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com    | Catching up on new mail resumes too (Roger's copy, 2026-11-03: after four days with the job stopped each pass started again at today's mail, re-checked every message the earlier passes had stored and gained 85, 65, then 13 messages, never closing the gap). A pass that runs out of time keeps the stored stretch above the gap (gap_top_at down to gap_low_at, migration 004); the next pass reads only mail newer than that stretch and the part of the gap below it, and when the gap is read the copy joins up to the stretch's top.
  */
 /**
  * @module mail-store
@@ -136,7 +137,7 @@ async function walk(db, sub, reader, q, deadline, p) {
     return true;
 }
 async function readRow(db, sub, provider) {
-    const r = await db.query('SELECT newest_at, oldest_at, backfill_done, stored, pruned_at, last_run_at, last_error FROM oshal_email_sync WHERE sync_key = $1', [`${sub}|${provider}`]);
+    const r = await db.query('SELECT newest_at, oldest_at, backfill_done, stored, pruned_at, last_run_at, last_error, gap_top_at, gap_low_at FROM oshal_email_sync WHERE sync_key = $1', [`${sub}|${provider}`]);
     return r.rows[0] || null;
 }
 /** A stored time in ms: pg hands back a Date (String() would drop its milliseconds), the native bridge a string. */
@@ -144,15 +145,38 @@ const toMs = (v) => (v instanceof Date ? v.getTime() : new Date(String(v)).getTi
 const ms = (v) => (v == null || v === '' ? null : toMs(v));
 const iso = (v) => (v === null ? null : new Date(v).toISOString());
 async function writeRow(db, sub, exists, s) {
-    const values = [`${sub}|google`, sub, iso(s.newest), iso(s.oldest), s.done, s.stored, iso(s.pruned), s.error];
+    const values = [`${sub}|google`, sub, iso(s.newest), iso(s.oldest), s.done, s.stored, iso(s.pruned), s.error, iso(s.gap?.top ?? null), iso(s.gap?.low ?? null)];
     if (exists) {
         await db.query(`UPDATE oshal_email_sync SET newest_at = $3, oldest_at = $4, backfill_done = $5, stored = $6, pruned_at = $7,
-      last_error = $8, last_run_at = now() WHERE sync_key = $1 AND user_sub = $2`, values);
+      last_error = $8, gap_top_at = $9, gap_low_at = $10, last_run_at = now() WHERE sync_key = $1 AND user_sub = $2`, values);
     }
     else {
-        await db.query(`INSERT INTO oshal_email_sync (sync_key, user_sub, provider, newest_at, oldest_at, backfill_done, stored, pruned_at, last_error, last_run_at)
-      VALUES ($1, $2, 'google', $3, $4, $5, $6, $7, $8, now())`, values);
+        await db.query(`INSERT INTO oshal_email_sync (sync_key, user_sub, provider, newest_at, oldest_at, backfill_done, stored, pruned_at, last_error, gap_top_at, gap_low_at, last_run_at)
+      VALUES ($1, $2, 'google', $3, $4, $5, $6, $7, $8, $9, $10, now())`, values);
     }
+}
+/**
+ * Read new mail after the copy's newest message. Without a gap that is one newest-first walk; when it runs out of time
+ * what it read is a stored stretch above the gap. With a gap, mail above the stretch is read first (it moves the
+ * stretch's top up), then only the gap below it (each read lowers the stretch's floor), so no pass walks the stretch again.
+ * @returns Whether the copy is caught up, and the gap that remains.
+ */
+async function catchUp(db, sub, reader, newest, gap, deadline, now, p) {
+    const after = (at) => `after:${Math.floor((at - OVERLAP_MS) / 1000)}`;
+    if (!gap) {
+        if (await walk(db, sub, reader, `${after(newest)} ${NOT_MAIL}`, deadline, p))
+            return { caughtUp: true, gap: null };
+        return { caughtUp: false, gap: p.oldestMs === null ? null : { top: now, low: p.oldestMs } };
+    }
+    const top = { inserted: 0, newestMs: null, oldestMs: null, stopped: false };
+    const above = await walk(db, sub, reader, `${after(gap.top)} ${NOT_MAIL}`, deadline, top);
+    p.inserted += top.inserted;
+    if (!above)
+        return { caughtUp: false, gap };
+    const below = `before:${Math.floor((gap.low + OVERLAP_MS) / 1000)} ${after(newest)} ${NOT_MAIL}`;
+    if (await walk(db, sub, reader, below, deadline, p))
+        return { caughtUp: true, gap: null };
+    return { caughtUp: false, gap: { top: now, low: p.oldestMs === null ? gap.low : Math.min(gap.low, p.oldestMs) } };
 }
 /** Drop stored mail older than the window, at most once a day; returns how many rows went. */
 async function prune(db, sub, now) {
@@ -177,13 +201,15 @@ async function syncGmail(db, sub, reader, deadline, now = Date.now()) {
     // A state written before passes resumed has no newest_at: its stored range ends at its last run.
     let newest = row ? ms(row.newest_at) ?? (oldest === null ? null : ms(row.last_run_at)) : null;
     let pruned = row ? ms(row.pruned_at) : null, removed = 0, caughtUp = newest === null;
+    const top = row ? ms(row.gap_top_at) : null, low = row ? ms(row.gap_low_at) : null;
+    let gap = top !== null && low !== null ? { top, low } : null;
     const p = { inserted: 0, newestMs: null, oldestMs: null, stopped: false };
     const back = { inserted: 0, newestMs: null, oldestMs: null, stopped: false };
     const horizon = Math.floor((now - exports.STORE_DAYS * DAY_MS) / 1000);
     let failure = null;
     try {
         if (newest !== null)
-            caughtUp = await walk(db, sub, reader, `after:${Math.floor((newest - OVERLAP_MS) / 1000)} ${NOT_MAIL}`, deadline, p);
+            ({ caughtUp, gap } = await catchUp(db, sub, reader, newest, gap, deadline, now, p));
         if (caughtUp && !done) {
             const below = oldest === null ? '' : `before:${Math.floor(oldest / 1000) + 1} `;
             done = await walk(db, sub, reader, `${below}after:${horizon} ${NOT_MAIL}`, deadline, back);
@@ -207,7 +233,7 @@ async function syncGmail(db, sub, reader, deadline, now = Date.now()) {
     p.inserted += back.inserted;
     const error = failure ? bounded(failure.message, 300) : null;
     const total = Math.max(0, stored + p.inserted - removed);
-    await writeRow(db, sub, Boolean(row), { newest, oldest, done, stored: total, pruned, error });
+    await writeRow(db, sub, Boolean(row), { newest, oldest, done, stored: total, pruned, error, gap });
     if (failure)
         throw failure;
     const state = { provider: 'google', stored: total, syncedThrough: iso(newest), oldestAt: iso(oldest), complete: done, lastRunAt: new Date().toISOString(), lastError: null };
@@ -420,7 +446,7 @@ async function plantDemoMail(db, sub, messages) {
         track(p, row.receivedMs);
     }
     const existing = await readRow(db, sub, 'google');
-    await writeRow(db, sub, Boolean(existing), { newest: p.newestMs, oldest: p.oldestMs, done: true, stored: messages.length, pruned: Date.now(), error: null });
+    await writeRow(db, sub, Boolean(existing), { newest: p.newestMs, oldest: p.oldestMs, done: true, stored: messages.length, pruned: Date.now(), error: null, gap: null });
     return p.inserted;
 }
 /**

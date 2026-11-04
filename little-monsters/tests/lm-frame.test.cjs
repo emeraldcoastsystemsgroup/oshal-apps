@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | The way back to every other application: top-level, and never in a child-safe kiosk
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Per-caller filtering moved to the server (tool-keys + the profile route); the client renders the served profile unchanged
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The frame now lives in lm-mascot.js (already bound), so the contract is read from there
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Behaviour of the shared page frame: navigation entries come only from the caller's ribbon profile (class tools excluded, teacher-only views hidden from learners), the active tab matches the page path, legacy view names resolve to the package's own URLs, level progress follows the package XP rule, and a hosted page relays navigation to its host instead of navigating itself
@@ -95,4 +96,14 @@ test('a standalone page opens classes itself and never posts to a host', () => {
 test('escaping covers every HTML-significant character', () => {
   assert.equal(frame.esc('<a href="x">&\'</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&#39;&lt;/a&gt;');
   assert.equal(frame.esc(null), '');
+});
+
+test('the frame hides the cockpit menu, so More carries the way back; a child-safe kiosk stays inside the application', () => {
+  const at = search => ({ top: { location: { search } } });
+  const link = frame.allApplicationsLink(at('?app=little-monsters&screen=lm-test-prep'));
+  assert.match(link, /href="\/cockpit\/\?screen=applications"/);
+  assert.match(link, /target="_top"/, 'it leaves the frame, or the cockpit would open inside Little Monsters');
+  for (const kiosk of ['?app=little-monsters&student=1', '?kiosk=1', '?view=student']) assert.equal(frame.allApplicationsLink(at(kiosk)), '', kiosk);
+  const unreadable = { get top() { throw new Error('cross-origin'); } };
+  assert.equal(frame.allApplicationsLink(unreadable), '', 'a host it cannot read gets no link');
 });

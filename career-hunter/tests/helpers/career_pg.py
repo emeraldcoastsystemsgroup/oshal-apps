@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Share one disposable FORCE-RLS PostgreSQL database helper across the Career storage, convergence, reverse-sync and cutover-drill contracts, so every PostgreSQL proof runs as the same LOGIN NOSUPERUSER NOBYPASSRLS owner role the engine uses.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The projector's txid horizon is cluster-wide, so a write transaction in ANY database on the shared server (a sibling contract run by the parallel node --test glob, or anything else) held single-pass assertions below the rows just written. disposable_postgres now serialises the contracts on one server with a session advisory lock on the admin connection, and wait_for_horizon lets a contract wait (bounded, named on timeout) until the horizon covers what it wrote.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Provision the private score fingerprint column for disposable PostgreSQL engine and projector proofs.
 
 """Disposable PostgreSQL for the Career contracts.
 
@@ -56,6 +57,7 @@ BASE_MIGRATIONS = (
     "101-career-apply-claim-lease.sql",
     "102-career-apply-run-binding.sql",
     "103-career-interview-source-identity.sql",
+    "109-career-score-freshness.sql",
 )
 # The reverse-synchronization outbox and its transaction-local capture triggers.
 CUTOVER_MIGRATIONS = BASE_MIGRATIONS + ("106-career-store-change-log.sql",)

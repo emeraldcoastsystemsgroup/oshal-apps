@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Use the pinned test interpreter for the production candidate-selector contract.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -16,7 +17,7 @@ const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const routes = (name) => readFileSync(join(packageRoot, 'routes', name), 'utf8');
 
 test('the scoring candidate query narrows to remote when the preference is set', () => {
-  const result = spawnSync('python', [join(packageRoot, 'tests', 'career-remote-only-contract.py')], {
+  const result = spawnSync(process.env.CAREER_TEST_PYTHON || 'python', [join(packageRoot, 'tests', 'career-remote-only-contract.py')], {
     cwd: packageRoot,
     encoding: 'utf8',
     timeout: 120_000,

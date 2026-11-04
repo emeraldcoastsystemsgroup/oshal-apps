@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 /**
+ * CHANGE LOG ADDITION
+ * 41 | maintainer@emeraldcoastsystemsgroup.com | Preserve non-secret native network mode across the engine environment boundary so public employer reads use the signed kernel broker.
+ * 32 | maintainer@emeraldcoastsystemsgroup.com | Route bounded job-specific interview preparation and practice through the existing original-owner engine lease and model rail.
  * CHANGE LOG
+ * 43 | maintainer@emeraldcoastsystemsgroup.com | Pass exact selected additional experience and its revision to per-job preparation.
+ * 42 | maintainer@emeraldcoastsystemsgroup.com | Expose bounded model-free master section reads and revision-checked small edits through the existing owner engine environment.
+ * 40 | maintainer@emeraldcoastsystemsgroup.com | Support explicit search-to-board and document-to-status transitions, preserving manual submission provenance and owner-only state.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -38,7 +44,10 @@
  * 32 | maintainer@emeraldcoastsystemsgroup.com  | Map `packet-purge-preview` and `packet-purge` to the seven-day, count-checked owner-only generated-queue purge. The engine removes only that user's old generated packets and score/application rows; it never touches the shared corpus or later lifecycle statuses.
  * 32 | maintainer@emeraldcoastsystemsgroup.com  | Keep the Python engine in this wrapper's process group under the runner's adopted lease (1.27.1). The engine was always started detached, so on Linux it led a session and group of its own, and the runner's cancel, deadline and lease-loss fence (process.kill(-wrapperPid)) killed only the wrapper: a cancelled run's engine kept calling the rail and held the inherited pipes, so the run stayed `running` until the engine exited by itself. It now joins the wrapper's group whenever /proc proves the wrapper leads that group (the runner always starts it detached), and the wrapper's own deadline and lease-loss fence kill every other member of that group instead of the engine's group, sparing the wrapper so its lease release and terminal-state write still run. A direct CLI run, or a wrapper that shares its parent's group, keeps the engine in a group of its own as before.
  * 33 | maintainer@emeraldcoastsystemsgroup.com  | Put an inherited PYTHONPATH after the engine directory instead of replacing it. The native kernel's package sandbox names its pinned, read-only Python package runtime there (/python-runtime); replacing it left `python3 -m jobhunter` without tenacity and Jinja2 on the native runtime. The engine directory stays first, so the engine's own modules always win.
- * 34 | maintainer@emeraldcoastsystemsgroup.com  | build-board: keyword matching then scoring as one background run, for the Job Board's Find & score jobs.
+ * 34 | maintainer@emeraldcoastsystemsgroup.com | Spend bounded title passes on the newest eligible postings first.
+ * 35 | maintainer@emeraldcoastsystemsgroup.com | Run recent private resume matching before a scheduled title pass in the same leased child; emit a success verdict only after both complete.
+ * 44 | maintainer@emeraldcoastsystemsgroup.com  | build-board: keyword matching then scoring as one background run, for the Job Board's Find & score jobs.
+ * 45 | maintainer@emeraldcoastsystemsgroup.com | score-titles matches first when CH_BOARD_MATCH is set, over the same window as the match verb, so the Job Board's button is one bounded background run.
  *
  * Verbs (each forwards extra args to the engine):
  *   pull      -> scrape --all  then  match.rescore_recent  (nightly corpus refresh + keyword index)
@@ -92,7 +101,7 @@ const ENGINE_ENV_KEYS = new Set([
   'REQUESTS_CA_BUNDLE', 'DATABASE_URL', 'PLAYWRIGHT_CHROMIUM_PATH', 'CHROMIUM_PATH',
   'JOBHUNTER_STORE', 'JOBHUNTER_APP_DIR', 'JOBHUNTER_UA', 'JOBHUNTER_TIMEOUT',
   'JOBHUNTER_DELAY', 'JOBHUNTER_RETRIES', 'JOBHUNTER_ANTHROPIC_MODEL',
-  'JOBHUNTER_SCORE_MODEL', 'JOBHUNTER_OPENAI_MODEL', 'JOBHUNTER_RESUME_PREFIX',
+  'JOBHUNTER_SCORE_MODEL', 'JOBHUNTER_OPENAI_MODEL', 'JOBHUNTER_RESUME_PREFIX', 'OSHAL_EGRESS',
 ]);
 
 /** Copy only engine runtime/config values; CH_* values are controller-built command inputs. */
@@ -345,11 +354,26 @@ function corpusRuns(verb, rest) {
       ['-m', 'jobhunter', 'score', ...rest],
     ];
     case 'score-titles': return [['-c', 'import os, json\nfrom jobhunter import db, score\n'
-      + 'db.init_db()\n'
-      + 'terms=[t.strip() for t in os.environ.get("CH_TITLES","").split("\\n") if t.strip()]\n'
-      + 'limit=int(os.environ.get("CH_LIMIT","0") or 0) or None\n'
-      + 'done,skipped=(score.score_batch(limit=limit,min_keyword=0,title_any=terms) if terms else (0,0))\n'
-      + 'print(json.dumps({"scored":done,"skipped":skipped,"terms":len(terms)}))']];
+      + 'try:\n'
+      + ' db.init_db()\n'
+      + ' terms=[t.strip() for t in os.environ.get("CH_TITLES","").split("\\n") if t.strip()]\n'
+      + ' limit=int(os.environ.get("CH_LIMIT","0") or 0) or None\n'
+      + ' fresh_days=int(os.environ.get("CH_FRESH_DAYS","7") or 7)\n'
+      + ' remote_only=os.environ.get("CH_REMOTE_ONLY","0")=="1"\n'
+      + ' keyword_matched=0\n'
+      + ' if os.environ.get("CH_NIGHTLY_MATCH")=="1":\n'
+      + '  if not terms or limit!=50: raise ValueError("Invalid nightly matching bounds")\n'
+      + '  from jobhunter import match\n'
+      + '  keyword_matched=match.rescore_recent(14)\n'
+      + ' elif os.environ.get("CH_BOARD_MATCH")=="1":\n'
+      + '  if not terms or limit is None or limit>50: raise ValueError("Invalid board matching bounds")\n'
+      + '  from jobhunter import match\n'
+      + '  keyword_matched=match.rescore_recent(int(os.environ.get("CH_MATCH_DAYS","45")))\n'
+      + ' done,skipped=(score.score_batch(limit=limit,min_keyword=0,title_any=terms,fresh_days=fresh_days,remote_only=remote_only,recent_first=True) if terms else (0,0))\n'
+      + ' print(json.dumps({"result":"complete","scored":done,"skipped":skipped,"terms":len(terms),"keywordMatched":keyword_matched}),flush=True)\n'
+      + 'except Exception as error:\n'
+      + ' print(json.dumps({"result":"failed","errorType":type(error).__name__}),flush=True)\n'
+      + ' raise']];
     case 'discover': return [['-m', 'jobhunter', 'discover', ...(rest.length ? rest : ['--all-missing'])]];
     case 'seturl': return [['-m', 'jobhunter', 'seturl', ...rest]];
     case 'classify': return [['-m', 'jobhunter', 'classify', ...rest]];
@@ -474,7 +498,12 @@ function guideActionsRun() {
 /** Return application-generation and board command mappings. */
 function applicationRuns(verb, rest) {
   switch (verb) {
+    case 'interview-prepare':
+    case 'interview-practice': return [['-c', 'import os,json\nfrom jobhunter.interview_prep import run\n'
+      + 'print(json.dumps(run(int(os.environ.get("CH_JOB","0")),operation="'+(verb==='interview-practice'?'practice':'prepare')+'",request_id=os.environ.get("CH_REQUEST_ID",""),question_id=os.environ.get("CH_QUESTION_ID",""),answer=os.environ.get("CH_ANSWER",""),plan_id=os.environ.get("CH_PLAN_ID",""))))']];
     case 'draft': return [['-m', 'jobhunter', 'apply', ...rest]];
+    case 'prepare-job': return [['-c', 'import os,json\nfrom jobhunter.prepare import prepare_job\n'
+      + 'print(json.dumps(prepare_job(int(os.environ.get("CH_JOB","0")),documents=os.environ.get("CH_DOCUMENTS")!="0",include_oshal=os.environ.get("CH_OSHAL")=="1",request_id=os.environ.get("CH_REQUEST_ID",""),guidance=os.environ.get("CH_GUIDANCE",""),experience_ids=json.loads(os.environ.get("CH_EXPERIENCE_IDS","[]")),experience_revision=os.environ.get("CH_EXPERIENCE_REVISION",""))))']];
     case 'rerender': return [['-c', 'import os, json\nfrom jobhunter import generate\n'
       + 'print(json.dumps({"dir": generate.rerender_packet(int(os.environ.get("CH_JOB","0")))}))']];
     case 'tailor': return [['-c', 'import os, json\nfrom jobhunter import profile, generate\n'
@@ -532,7 +561,16 @@ function resumeRuns(rest) {
       + 'print(json.dumps(profile.base_document(), ensure_ascii=False))']];
   }
   if (sub === 'base-save') return [resumeBaseSaveRun()];
-  throw cliError('resume: base|base-save', 2);
+  if (sub === 'base-section' || sub === 'base-patch') {
+    const method = sub === 'base-section' ? 'read_section' : 'apply_edits';
+    return [['-c', 'import os,json\nfrom jobhunter import master_edit\n'
+      + 'raw=os.environ.get("CH_RESUME_DOC", "")\n'
+      + 'if len(raw.encode("utf-8"))>12288:\n print(json.dumps({"ok":False,"error":"master_patch_too_large"}));raise SystemExit(1)\n'
+      + 'try:\n doc=json.loads(raw)\n result=master_edit.' + method + '(**doc) if isinstance(doc,dict) else {"ok":False,"error":"invalid master request"}\n'
+      + 'except (ValueError,TypeError):\n result={"ok":False,"error":"invalid master request"}\n'
+      + 'print(json.dumps(result,ensure_ascii=False))\nraise SystemExit(0 if result.get("ok") is True else 1)']];
+  }
+  throw cliError('resume: base|base-save|base-section|base-patch', 2);
 }
 
 /** Read the bounded tail of this user's enrichment audit log as JSON, without touching the DB. */

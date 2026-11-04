@@ -8,6 +8,7 @@
  * -----------------------------------------------------------------------------
  * 2026-09-24 21:20:00 | maintainer@emeraldcoastsystemsgroup.com   | Prove the deck-builder guide reaches the editor through the validated action contract and denies anonymous callers.
  * 2026-09-26 06:22:00 | maintainer@emeraldcoastsystemsgroup.com   | Pin protected direct, non-agentic reasoning for the tool-less Guide turn.
+ * 2026-11-03 21:40:00 | maintainer@emeraldcoastsystemsgroup.com   | Image bytes never cross the Guide boundary (2.16.0): a data-URI #image: bullet in the draft state reaches the prompt as "#image: (attached)" beside the design-directive teaching, and a returned #image: bullet without a real https URL is normalized to the same marker, never the bytes.
  */
 
 import { test } from 'node:test';
@@ -153,6 +154,32 @@ test('workspace assets have a closed filename allow-list and private cache polic
   }
 });
 
+
+test('image bytes never enter the Guide prompt; the attached marker and directive teaching do', async () => {
+  calls.length = 0;
+  const res = response();
+  const uri = 'data:image/png;base64,' + 'A'.repeat(600);
+  await guideHandler()({ oidc: { user: { sub: 'owner' } }, body: {
+    message: 'tighten slide 1', kind: 'pptx',
+    slides: [{ title: 'Cover', bullets: [`#image: ${uri}`, '#caption: Team', 'One point'] }],
+  } }, res);
+  const prompt = calls[0][3].text;
+  assert.ok(prompt.includes('#image: (attached)'), 'the state marks the image as attached');
+  assert.ok(!prompt.includes('base64'), 'no image bytes in the prompt');
+  assert.ok(prompt.includes('#caption: Team'), 'short design lines stay visible');
+  assert.match(prompt, /Design directives lead a section body/);
+  assert.match(prompt, /your edits never remove it/);
+});
+
+test('a returned #image: bullet without a real https URL is normalized to the attached marker', async () => {
+  cellProposals = [{ op: 'update_slide', index: 3, bullets: ['#image: data:image/png;base64,AAAA', '#image: https://example.invalid/p.png', 'kept line'] }];
+  try {
+    const res = response();
+    await guideHandler()({ oidc: { user: { sub: 'owner' } }, body: { message: 'use my picture', slides: [] } }, res);
+    const action = res.body.actions.find((a) => a.op === 'update_slide' && a.index === 3);
+    assert.deepEqual(action.bullets, ['#image: (attached)', '#image: https://example.invalid/p.png', 'kept line']);
+  } finally { cellProposals = []; }
+});
 
 test('Guide cell proposals are bounded and cannot insert ambiguous outline delimiters', async () => {
   cellProposals=[{op:'update_cell',index:1,cell:'B2',value:'250'},

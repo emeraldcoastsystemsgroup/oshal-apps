@@ -4,6 +4,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the compiled region-edit routes over real HTTP with the explicitly named fixture provider and a strict non-writing database double: identity, the separately named generate/read/change permissions and every body rule are enforced before any database work or provider call, and the provider report names the fixture provider without generating.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Require numeric costConsentVersion 1 on provider reports and reject malformed explicit maxCostClass values before storage, provider resolution or generation.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The operator-only antigravity-cli rail on the provider report (operator decision 2026-10-02): the operator sees it configured (free); a person the resolver refuses is reported not configured with no provider named, once, with no other provider resolved and no 500; a provider that is not available to the person is reported not configured; codex-cli is still refused.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: the generated-image route refuses a missing permission, a bad body, a paid provider and an unavailable one before any storage or provider work.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -121,4 +122,24 @@ test('the operator-only antigravity-cli rail: configured for the operator, not c
   assert.deepEqual((await cli.api.call('/region-edit-provider')).body,
     { configured: false, provider: 'codex-cli', costClass: 'free', dailyCap: SETTINGS.dailyCap, costConsentVersion: 1, reason: 'region_edit_provider_unavailable' });
   assert.deepEqual([...value.fixture.calls, ...unavailable.fixture.calls, ...cli.fixture.calls], [], 'a report never generates');
+});
+
+test('a picture from a sentence refuses a missing permission, a bad body and an unusable provider before any work', async t => {
+ for (const permission of ['project.generate', 'project.read']) {
+  const denied = await start(t, { denied: [permission] });
+  assert.equal((await denied.api.call('/generated-images', 'POST', { prompt: 'a rocket' })).status, 403, permission); untouched(denied);
+ }
+ const noCreate = await start(t, { denied: ['project.create'] });
+ assert.equal((await noCreate.api.call('/generated-images', 'POST', { prompt: 'a rocket' })).status, 403); assert.deepEqual(noCreate.fixture.calls, []);
+ const bad = await start(t);
+ for (const body of [{}, { prompt: '   ' }, { prompt: 'x'.repeat(1001) }, { prompt: 'a rocket', owner: 'bob' }, { prompt: 'a rocket', id: 'nope' }, { prompt: 'a rocket', title: 7 }]) {
+  assert.equal((await bad.api.call('/generated-images', 'POST', body)).status, 400, JSON.stringify(body));
+ }
+ assert.deepEqual(bad.fixture.calls, []);
+ const paid = await start(t, { provider: { costClass: 'paid' } });
+ const refused = await paid.api.call('/generated-images', 'POST', { prompt: 'a rocket' });
+ assert.equal(refused.status, 409); assert.equal(refused.body.error, 'region_edit_cost_cap_exceeded'); assert.deepEqual(paid.fixture.calls, [], 'only a free provider serves');
+ const off = await start(t, { provider: { costClass: 'free', available: false } });
+ const answered = await off.api.call('/generated-images', 'POST', { prompt: 'a rocket' });
+ assert.equal(answered.status, 503); assert.equal(answered.body.error, 'image_provider_unavailable'); assert.deepEqual(off.fixture.calls, []);
 });

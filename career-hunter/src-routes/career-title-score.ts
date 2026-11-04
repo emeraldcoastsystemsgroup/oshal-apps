@@ -9,6 +9,12 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Complete exported title-profile data, normalization, persistence, cursor, and registrar documentation.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Complete the cron cursor's explicit return contract for generated API documentation.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Accept the owner's recorded issuer from the cron so the title pass's engine run carries a callback grant the kernel's signed rail can admit (1.25.1); a route caller's issuer still comes from the request identity.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Make the manual title pass a kernel-kept background run so the 15-second package request deadline cannot kill scoring; advance the cursor only after a successful child exit.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Limit title scoring to jobs posted in the last seven days (falling back to first-seen only when posted date is absent) and pass the standing remote-only preference to the engine.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Allow a caller to choose a smaller manual batch within the configured scoring cap.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Publish native success cursors with the owner's scored files, without requesting SQL authority from a kept bot run.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Save an owner-private local radius and remote preference without replacing target titles.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Register native nightly matching through the existing owner scoring endpoint and expose its durable count-only receipt.
  */
 /**
  * Career title-based scoring — the per-user "title pass" that AI-scores roles whose
@@ -19,9 +25,9 @@
  * forever. The one-off fix was a manual score_batch(title_any=[...]) run; this module
  * productizes it: a per-user title_terms[] profile (career_score_settings, migration 082),
  * seeded from the user's parsed resume roles on first settings visit, editable on the
- * Career Settings surface, and run DAILY by the career-hunter cron — BOUNDED (--limit via
- * CH_LIMIT) and guarded by a persistent >20h cursor so an api recreate can never re-burn
- * hours of scoring spend.
+ * Career Settings surface, and run DAILY by the career-hunter cron — bounded to recent
+ * postings and CH_LIMIT, then guarded by a persistent >20h cursor so an API recreate can
+ * never re-burn hours of scoring spend.
  *
  * This module also owns the persistent cron-score cursor (last_cron_score_at) that bounds
  * the boot catch-up keyword score the same way (the 2026-07-15 incident: every recreate
@@ -39,7 +45,11 @@ import * as fs from 'fs';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { callerSub, userPaths } from './career-user-store';
-import { runCareerCliAwait } from './career-engine-dispatch';
+import { runCareerCliAsync, runCareerCliAwait } from './career-engine-dispatch';
+import { writeFileAtomicAsync } from './career-file-transaction';
+import { readJobSearchScope, saveJobSearchScope } from './career-search-scope';
+import { CareerLocationError } from './career-geo';
+import { startNightlyMatching, readNightlyMatchReceipt } from './career-nightly-match';
 
 const logger = createChildLogger({ module: 'career-title-score' });
 
@@ -49,6 +59,47 @@ const GUARD_HOURS = 20;
 const MAX_TERMS = 16;
 /** Per-run posting cap for the daily title pass (env-tunable). */
 const TITLE_PASS_LIMIT = Math.max(1, Number(process.env.CAREER_TITLE_PASS_LIMIT) || 150);
+const NATIVE_CURSOR = 'title-pass-success.json';
+
+function nativeOwnerMounted(): boolean {
+  return process.env.OSHAL_EGRESS === 'kernel' && process.env.OSHAL_CAREER_OWNER_MOUNT === '1';
+}
+
+/** A native cursor is published in the same owner generation as its successful scores. */
+function nativeTitlePassAt(userSub: string): string | null {
+  if (!nativeOwnerMounted()) return null;
+  try {
+    const file = path.join(userPaths(userSub).userDir, NATIVE_CURSOR);
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 512) return null;
+    const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const at = Date.parse(record?.lastTitlePassAt);
+    return record?.version === 1 && typeof record.lastTitlePassAt === 'string'
+      && Number.isFinite(at) && at <= Date.now() + 60_000
+      && new Date(at).toISOString() === record.lastTitlePassAt ? record.lastTitlePassAt : null;
+  } catch { return null; }
+}
+
+type TitlePassSummary =
+  | { result: 'complete'; scored: number; skipped: number; terms: number }
+  | { result: 'failed'; errorType: string };
+
+/** Read only the count-only terminal record emitted by the title scorer. */
+function titlePassSummary(stdout?: string): TitlePassSummary | null {
+  for (const line of (stdout || '').split(/\r?\n/).reverse()) {
+    if (!line.startsWith('{')) continue;
+    try {
+      const value = JSON.parse(line);
+      if (value?.result === 'complete' && [value.scored, value.skipped, value.terms].every(Number.isInteger)) {
+        return { result: 'complete', scored: value.scored, skipped: value.skipped, terms: value.terms };
+      }
+      if (value?.result === 'failed' && typeof value.errorType === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value.errorType)) {
+        return { result: 'failed', errorType: value.errorType };
+      }
+    } catch { /* ignore non-summary output */ }
+  }
+  return null;
+}
 
 /** @description A user's stored title-scoring profile or the safe empty default. */
 export interface TitleProfile {
@@ -179,30 +230,36 @@ export function deriveTitleTermsFromResume(userSub: string): string[] {
 /**
  * @description Build the engine invocation for a bounded title pass: the oshal-jobhunter
  * `score-titles` verb, terms newline-joined into CH_TITLES (commas can appear inside a
- * term; newlines cannot survive normalizeTitleTerms), run cap in CH_LIMIT. Pure — exists
- * so tests can pin the exact wire format the Python side parses.
+ * term; newlines cannot survive normalizeTitleTerms), run cap in CH_LIMIT, seven-day posting
+ * window, and the user's remote-only setting. Pure — exists so tests can pin the exact wire
+ * format the Python side parses.
  * @param terms normalized title terms (must be non-empty; the engine refuses an empty list
  * because score_batch with a falsy title_any would score EVERYTHING unbounded)
  * @param limit max postings this run may AI-score
- * @returns CLI args + extra env for runCliAwait
+ * @param remoteOnly the user's standing remote-only matching preference
+ * @returns CLI args + extra env for the Career engine
  */
-export function buildTitlePassInvocation(terms: string[], limit: number): { args: string[]; env: Record<string, string> } {
+export function buildTitlePassInvocation(terms: string[], limit: number, remoteOnly = false): { args: string[]; env: Record<string, string> } {
   return {
     args: ['score-titles'],
     env: {
       CH_TITLES: terms.join('\n'),
       CH_LIMIT: String(Math.max(1, Math.floor(limit))),
+      CH_FRESH_DAYS: '7',
+      CH_REMOTE_ONLY: remoteOnly ? '1' : '0',
     },
   };
 }
 
 /** Map a career_score_settings row (or absence) to a TitleProfile. */
-function toProfile(row?: { title_terms?: string[]; title_terms_source?: string; last_title_pass_at?: Date | string | null; last_cron_score_at?: Date | string | null; remote_only?: boolean }): TitleProfile {
-  if (!row) return { titleTerms: [], source: 'unset', lastTitlePassAt: null, lastCronScoreAt: null, remoteOnly: false };
+function toProfile(row: { title_terms?: string[]; title_terms_source?: string; last_title_pass_at?: Date | string | null; last_cron_score_at?: Date | string | null; remote_only?: boolean } | undefined, userSub: string): TitleProfile {
+  const nativeAt = nativeTitlePassAt(userSub);
+  if (!row) return { titleTerms: [], source: 'unset', lastTitlePassAt: nativeAt, lastCronScoreAt: null, remoteOnly: false };
+  const storedAt = row.last_title_pass_at ? new Date(row.last_title_pass_at).toISOString() : null;
   return {
     titleTerms: Array.isArray(row.title_terms) ? row.title_terms : [],
     source: row.title_terms_source === 'derived' || row.title_terms_source === 'user' ? row.title_terms_source : 'unset',
-    lastTitlePassAt: row.last_title_pass_at ? new Date(row.last_title_pass_at).toISOString() : null,
+    lastTitlePassAt: nativeAt && (!storedAt || Date.parse(nativeAt) > Date.parse(storedAt)) ? nativeAt : storedAt,
     lastCronScoreAt: row.last_cron_score_at ? new Date(row.last_cron_score_at).toISOString() : null,
     remoteOnly: row.remote_only === true,
   };
@@ -239,7 +296,7 @@ export async function readTitleProfile(pool: AppContext['pool'], userSub: string
   const r = await pool.query(
     `SELECT title_terms, title_terms_source, last_title_pass_at, last_cron_score_at, remote_only
        FROM career_score_settings WHERE user_sub=$1`, [userSub]);
-  return toProfile(r.rows[0]);
+  return toProfile(r.rows[0], userSub);
 }
 
 /**
@@ -255,7 +312,7 @@ export async function getOrSeedTitleProfile(pool: AppContext['pool'], userSub: s
   const existing = await pool.query(
     `SELECT title_terms, title_terms_source, last_title_pass_at, last_cron_score_at, remote_only
        FROM career_score_settings WHERE user_sub=$1`, [userSub]);
-  const current = toProfile(existing.rows[0]);
+  const current = toProfile(existing.rows[0], userSub);
   // Seed only when there are no terms AND the user never saved (source='user' with an empty
   // list is a deliberate opt-out). Checking terms — not row existence — matters: markCronScore
   // creates a cursor-only row long before any settings visit, and the old "no row" test let
@@ -343,7 +400,7 @@ export async function runTitlePassForUser(
   if (!profile.titleTerms.length) return { ran: false, reason: 'no-title-profile' };
   if (!opts.force && !dueSince(profile.lastTitlePassAt)) return { ran: false, reason: 'already-ran-today' };
   try {
-    const inv = buildTitlePassInvocation(profile.titleTerms, TITLE_PASS_LIMIT);
+    const inv = buildTitlePassInvocation(profile.titleTerms, TITLE_PASS_LIMIT, profile.remoteOnly);
     const r = await runCareerCliAwait(ctx.pool, userSub, inv.args, inv.env, { slot: 'score', ownerIssuer: opts.ownerIssuer ?? null });
     if (r.limitReason) {
       logger.info({ userSub, limit: r.limitReason }, 'title pass: skipped - score run in flight or box busy');
@@ -354,15 +411,79 @@ export async function runTitlePassForUser(
       return { ran: false, reason: 'engine-failed' };
     }
     const verdict = parseEngineVerdict(r.out);
-    await ctx.pool.query(
-      `INSERT INTO career_score_settings (user_sub, last_title_pass_at) VALUES ($1, NOW())
-       ON CONFLICT (user_sub) DO UPDATE SET last_title_pass_at=NOW(), updated_at=NOW()`, [userSub]);
+    await markTitlePassCursor(ctx.pool, userSub);
     logger.info({ userSub, ...verdict, terms: profile.titleTerms.length, limit: TITLE_PASS_LIMIT }, 'title pass: done');
     return { ran: true, ...verdict };
   } catch (err) {
     logger.error({ err, userSub }, 'title pass: failed');
     return { ran: false, reason: 'error' };
   }
+}
+
+/** Advance the daily cursor only after a title-scoring child exits successfully. */
+async function markTitlePassCursor(pool: AppContext['pool'], userSub: string): Promise<void> {
+  if (nativeOwnerMounted()) {
+    // Bot-run continuations may score and log, but may not issue SQL. Keep this
+    // cursor inside the already-admitted owner stage: a failed publication cannot
+    // advance the cursor ahead of the scores it describes.
+    const file = path.join(userPaths(userSub).userDir, NATIVE_CURSOR);
+    await writeFileAtomicAsync(file, JSON.stringify({ version: 1, lastTitlePassAt: new Date().toISOString() }) + '\n');
+    await fs.promises.chmod(file, 0o600);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO career_score_settings (user_sub, last_title_pass_at) VALUES ($1, NOW())
+     ON CONFLICT (user_sub) DO UPDATE SET last_title_pass_at=NOW(), updated_at=NOW()`, [userSub]);
+}
+
+/**
+ * @description Start a caller-triggered title pass as acknowledged background work. The app
+ * request returns as soon as the native kernel keeps the run's sandbox alive; successful child
+ * completion advances the persistent cursor, while a failed run remains eligible for retry.
+ * @param ctx app context (pool)
+ * @param userSub the authenticated user
+ * @param opts optional verified owner issuer and smaller manual batch limit
+ * @returns start acknowledgement, run id, or a safe start refusal
+ */
+export async function startTitlePassForUser(
+  ctx: AppContext, userSub: string, opts: { ownerIssuer?: string | null; limit?: number } = {},
+): Promise<{ started: boolean; runId?: string; reason?: string }> {
+  const profile = await readTitleProfile(ctx.pool, userSub);
+  if (!profile.titleTerms.length) return { started: false, reason: 'no-title-profile' };
+  const limit = opts.limit ?? TITLE_PASS_LIMIT;
+  if (!Number.isInteger(limit) || limit < 1 || limit > TITLE_PASS_LIMIT) throw new RangeError('Invalid title pass limit');
+  const inv = buildTitlePassInvocation(profile.titleTerms, limit, profile.remoteOnly);
+  let runId: string | undefined;
+  const result = await runCareerCliAsync(ctx.pool, userSub, inv.args, inv.env, {
+    slot: 'score',
+    captureStdout: true,
+    ownerIssuer: opts.ownerIssuer ?? null,
+    onRunStarted: (id) => { runId = id; },
+    onComplete: async (completion) => {
+      const summary = titlePassSummary(completion.stdout);
+      if (!completion.ok || summary?.result !== 'complete') {
+        logger.warn({
+          userSub, runId, code: completion.code, timedOut: completion.timedOut,
+          errorType: summary?.result === 'failed' ? summary.errorType : undefined,
+        }, 'title pass: background run failed; cursor not advanced');
+        return;
+      }
+      try {
+        await markTitlePassCursor(ctx.pool, userSub);
+        logger.info({ userSub, runId, terms: profile.titleTerms.length, limit, scored: summary.scored, skipped: summary.skipped }, 'title pass: background run complete');
+      } catch (err) {
+        logger.error({ err, userSub, runId }, 'title pass: completion cursor update failed');
+      }
+    },
+  });
+  if (result.limitReason) {
+    return { started: false, reason: result.limitReason === 'inflight' ? 'score-in-flight' : 'busy' };
+  }
+  if (!result.started) {
+    logger.error({ userSub, err: result.err?.slice(-400) }, 'title pass: background start failed');
+    return { started: false, reason: 'engine-failed' };
+  }
+  return { started: true, ...(runId ? { runId } : {}) };
 }
 
 /**
@@ -381,7 +502,8 @@ export function registerCareerTitleScoreRoutes(router: Router, ctx: AppContext):
     if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
     try {
       const p = await getOrSeedTitleProfile(pool, userSub);
-      res.json({ ...p, dailyLimit: TITLE_PASS_LIMIT });
+      const { userDir } = userPaths(userSub);
+      res.json({ ...p, dailyLimit: TITLE_PASS_LIMIT, searchScope: readJobSearchScope(userDir), nightlyMatching: readNightlyMatchReceipt(userDir) });
     } catch (err) {
       logger.error({ err, userSub }, 'title profile: state read failed');
       res.status(500).json({ error: 'read failed' });
@@ -405,6 +527,21 @@ export function registerCareerTitleScoreRoutes(router: Router, ctx: AppContext):
   router.post('/settings/title-profile', async (req: Request, res: Response) => {
     const userSub = callerSub(req);
     if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'scope')) {
+      if (Object.prototype.hasOwnProperty.call(req.body, 'terms')) {
+        res.status(400).json({ error: 'Save titles and matching area separately.' }); return;
+      }
+      try {
+        const searchScope = await saveJobSearchScope(userPaths(userSub).userDir, req.body.scope);
+        res.json({ ok: true, searchScope });
+      } catch (err) {
+        logger.error({ err, userSub }, 'title profile: matching area save failed');
+        res.status(err instanceof CareerLocationError ? 400 : 500).json({
+          error: err instanceof CareerLocationError ? err.message : 'Matching area could not be saved.',
+        });
+      }
+      return;
+    }
     try {
       const terms = normalizeTitleTerms(req.body?.terms);
       await saveTitleProfile(pool, userSub, terms);
@@ -419,13 +556,32 @@ export function registerCareerTitleScoreRoutes(router: Router, ctx: AppContext):
   router.post('/title-pass/run-now', async (req: Request, res: Response) => {
     const userSub = callerSub(req);
     if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (req.body?.nightly === true) {
+      try {
+        const profile = await readTitleProfile(pool, userSub);
+        const result = await startNightlyMatching(pool, userSub, profile, () => markTitlePassCursor(pool, userSub));
+        const noop = ['up-to-date', 'daily-cooldown'].includes(result.reason || '');
+        const status = result.started ? 202 : noop ? 200 : result.reason === 'no-title-profile' ? 400
+          : result.reason === 'score-in-flight' ? 409 : result.reason === 'busy' ? 429 : 502;
+        res.status(status).json(result);
+      } catch (err) {
+        logger.error({ err, userSub }, 'nightly matching: start failed');
+        res.status(500).json({ started: false, reason: 'error' });
+      }
+      return;
+    }
+    const limit = req.body?.limit;
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > Math.min(150, TITLE_PASS_LIMIT))) {
+      res.status(400).json({ error: `Choose between 1 and ${Math.min(150, TITLE_PASS_LIMIT)} jobs for this pass.` });
+      return;
+    }
     try {
-      const r = await runTitlePassForUser(ctx, userSub, { force: true });
-      const status = r.ran ? 200
+      const r = await startTitlePassForUser(ctx, userSub, { limit });
+      const status = r.started ? 202
         : r.reason === 'no-title-profile' ? 400
           : r.reason === 'score-in-flight' ? 409
             : r.reason === 'busy' ? 429
-              : 500;
+              : 502;
       res.status(status).json(r);
     } catch (err) {
       logger.error({ err, userSub }, 'title pass: run-now failed');

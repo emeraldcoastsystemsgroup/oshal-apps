@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | form-state: the place fields carry placeholders, not JFK/LHR values; each tab keeps its typed fields across tab switches; every tab keeps the no-Duffel notice; hand-offs read as a sentence, not JSON; a Rides hand-off fills the form.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | not-connected also expects the persona to say hotels and cars need the Duffel rail (sweep 14: it offered demo hotel searches that answered 503).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register search-handoff: with no Duffel rail the searches answer the booking-site links for the trip and never call the refusing provider.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register duffel-egress: on the native kernel flights search Duffel through the kernel's egress (version header, no package credential), test-key offers are labelled and kept out of the price history, no key or a rejected trip answers the link.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -125,6 +126,30 @@ cases:
       - tests/travel-search-handoff.test.js
     expected:
     - Exact links, no items, no provider call; the provider answers when a rail exists.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: duffel-egress
+    name: Duffel flight search through the native kernel's egress
+    purpose: On the native kernel /flights searches Duffel through the fenced egress with the kernel-held key, labels a
+      test key's offers as Duffel test fares and keeps them out of the price history, and answers the booking-site link
+      when no key is configured or Duffel rejects the trip.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/travel-duffel-egress.test.js
+    expected:
+    - Requests to api.duffel.com carry Duffel-Version v2 and no package credential; offers come back cheapest first.
+    - A test key answers source duffel-test with the test-fare note and records nothing; a live key records its fares.
+    - No key or a rejected trip answers the Google Flights link with the reason; hotels and cars stay links.
+    - The concierge prompt tells it to call test fares Duffel test fares.
     prerequisites:
     - runner:node-test
     sideEffects: none

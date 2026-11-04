@@ -11,6 +11,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind the automatic save-before-reading and refresh-on-return document handoff for Concierge and Jarvis.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Bind the Generate an image panel.
  */
 import { $, state, edit, notify, subscribe, handle, api, error, openDocument } from './editor-state.mjs';
 import { render, fitCanvas, paint } from './editor-view.mjs';
@@ -26,6 +27,7 @@ import { parentGroup } from './group-geometry.mjs';
 import { IMAGE_FILTER_LOOKS } from './model.mjs';
 import { resolveSelection, selectionFromLayer } from './region-select.mjs';
 import { bindRegionEditPanel, loadRegionProvider } from './region-edit-panel.mjs';
+import { bindGenerateImagePanel } from './generate-image-panel.mjs';
 
 function addLayer(type) {
   const layer = { id: crypto.randomUUID(), type, name: type === 'text' ? 'Your title' : type === 'rect' ? 'Rectangle' : 'Ellipse',
@@ -133,7 +135,7 @@ function bindEditing() {
 
 async function start() {
   if (matchMedia('(max-width:720px)').matches) $('canvasOptions').open = false;
-  bindEditing(); bindProperties(); bindMasks(); bindAdjustments(); bindProjects(); bindFiles(); bindTemplates(); bindBrand(); bindRegionEditPanel();
+  bindEditing(); bindProperties(); bindMasks(); bindAdjustments(); bindProjects(); bindFiles(); bindTemplates(); bindBrand(); bindRegionEditPanel(); bindGenerateImagePanel();
   const brandReady = loadBrand();
   subscribe(render); bindVectors(); bindInteractions(); subscribe(queueAutosave); render();
   void bindEditorContext().catch(() => console.warn('[Create] Shared screen context is unavailable. Manual editing remains available.'));

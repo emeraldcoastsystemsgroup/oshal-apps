@@ -1,4 +1,8 @@
 # CHANGE LOG
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Include recorded active additional work in private fit context without copying it into the core resume.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Allow complete existing large skills and role-bullet lists in master edits and share a model-free snapshot mapping with bounded editor reads.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Retain source-backed education, certifications and licenses through complete bounded intake and additive enrichment; refuse oversized or unsupported qualification evidence before publishing.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Score against the complete compact recorded profile instead of a 3500-character prefix that discarded later experience, skills, education and certifications; refuse oversized context without silently removing facts.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -10,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import stat
 from datetime import datetime
 from functools import lru_cache
@@ -27,6 +32,9 @@ _AUGMENT_FACT_MAX_CHARS = 16_000
 _AUGMENT_FACT_MAX_BYTES = 16 * 1024
 _AUGMENT_PROMPT_MAX_BYTES = 64 * 1024
 _AUGMENT_PROFILE_TRUNCATION = "\n[CURRENT PROFILE OUTLINE TRUNCATED TO INPUT BUDGET]\n"
+_QUALIFICATION_FIELDS = ('education', 'certifications', 'licenses')
+_QUALIFICATION_MAX_ITEMS = 128
+_QUALIFICATION_MAX_CHARS = 2000
 
 
 def _read_profile_text() -> str:
@@ -121,12 +129,34 @@ def summary(max_chars: int = 3500, include_oshal: bool = False) -> str:
     return text
 
 
+def scoring_context(include_oshal: bool = True) -> str:
+    """Complete private scoring evidence; the compact overview is not a scoring source."""
+    saved = load()
+    if not saved:
+        return 'No career profile found.'
+    document = dict(saved)
+    if include_oshal:
+        from . import experience_bank
+        extra=[e for e in experience_bank.read()['entries'] if not e['archived'] and e['id'] != experience_bank.LEGACY]
+        if extra:
+            document['additional_experience']=extra
+    if not include_oshal:
+        document.pop('oss_portfolio', None)
+    text = json.dumps(document, ensure_ascii=False, separators=(',', ':'))
+    if len(text.encode('utf-8')) > 128 * 1024:
+        raise ValueError('profile_too_large_for_scoring')
+    return text
+
+
 _ENH_SYS = (
     "You maintain a candidate's structured career database. You merge NEW, candidate-confirmed "
     "TRUE facts into it NON-DESTRUCTIVELY and conservatively. Never invent facts beyond what the "
     "candidate states, never remove or weaken existing content, never exaggerate. Prefer adding to "
     "an EXISTING skill group or role rather than creating new ones. Return ONLY a strict JSON patch "
-    "of ADDITIONS.")
+    "of ADDITIONS. For education, certifications and licenses, copy complete source statements "
+    "verbatim in source order, combining adjacent lines when needed. Preserve pursuing, pending, "
+    "expired, inactive and date modifiers; never turn plans or eligibility into a held qualification. "
+    "Do not add or change clearance or other profile fields.")
 
 
 def _low(xs):
@@ -142,6 +172,8 @@ def _augmentation_sections(raw: dict, facts: str) -> tuple[str, str]:
         + "\n".join(f"- {g}: {', '.join(items[:8])}" for g, items in groups.items())
         + "\n\nROLES (index | title @ org):\n"
         + "\n".join(f"{i} | {r.get('title','')} @ {r.get('org','')}" for i, r in enumerate(roles))
+        + "\n\nRECORDED QUALIFICATIONS (preserve existing entries):\n"
+        + json.dumps({key: raw.get(key, []) for key in _QUALIFICATION_FIELDS}, ensure_ascii=False)
     )
     tail = (
         "\n\nNEW CANDIDATE-CONFIRMED FACTS TO MERGE:\n" + facts
@@ -150,6 +182,9 @@ def _augmentation_sections(raw: dict, facts: str) -> tuple[str, str]:
         '  "role_bullets_add": [{"role_index": <int from the list above — the BEST-matching role>, '
         '"bullets": ["achievement bullet, active voice, quantified only if the facts support it"]}],\n'
         '  "metrics_add": ["quantified metric phrase, only if the facts include one"],\n'
+        '  "education_add": ["complete verbatim education statement, source-order lines, with status and dates"],\n'
+        '  "certifications_add": ["complete verbatim certification statement, including status and dates"],\n'
+        '  "licenses_add": ["complete verbatim license statement, including issuer, status and dates"],\n'
         '  "changelog": ["short human-readable line per addition"]\n}\n'
         "Only include additions clearly supported by the facts; do not duplicate existing content."
     )
@@ -220,8 +255,125 @@ def _append_unique(target: list, additions) -> bool:
     return changed
 
 
-def _apply_augmentation(raw: dict, patch: dict) -> bool:
-    """Apply only additive skills, role bullets, and metrics from a validated patch shape."""
+def _evidence_text(value: str) -> str:
+    """Normalize formatting only, preserving all words and qualification status modifiers."""
+    return ' '.join(value.split()).casefold()
+
+
+def _qualification_modifier(line: str) -> bool:
+    """Keep separately wrapped status/date lines attached to the statement they qualify."""
+    if re.match(r'^(?:status|dates?|date awarded|date issued|graduation date|completion date)\s*:', line):
+        return True
+    if re.fullmatch(r'\d{4}(?:[-/]\d{1,2}){0,2}(?:\s*(?:[-–—]|to)\s*(?:\d{4}(?:[-/]\d{1,2}){0,2}|present|current))?', line):
+        return True
+    if re.fullmatch(r'(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{4}', line):
+        return True
+    # A complete following credential is its own statement; a bare status/date fragment
+    # belongs with its neighbor. Ambiguous fragments are refused unless included verbatim.
+    if re.search(r'\b(?:degree|bachelor|master|certification|license|licence|mba|pmp|cissp)\b|\b[mb]\.s\.', line):
+        return False
+    return bool(re.match(r'^(?:expired|inactive|pending|pursuing|in progress|expected|anticipated|suspended|revoked|expires?|expiry|expiration|valid|issued|awarded|completed)\b', line))
+
+
+def _evidence_lines(source: str):
+    """Index complete source lines; matching a credential substring is insufficient evidence."""
+    lines = [re.sub(r'^\s*(?:[-*•]\s+|\d{1,2}[.)]\s+)', '', line).strip()
+             for line in source.splitlines() if line.strip()]
+    lines = [_evidence_text(line) for line in lines if line]
+    text = ' '.join(lines)
+    starts, ends, position = set(), set(), 0
+    for index, line in enumerate(lines):
+        if not index or not _qualification_modifier(lines[index - 1]):
+            starts.add(position)
+        position += len(line)
+        if index == len(lines) - 1 or not _qualification_modifier(lines[index + 1]):
+            ends.add(position)
+        position += 1
+    return text, starts, ends
+
+
+def _supported_statement(statement: str, evidence) -> bool:
+    text, starts, ends = evidence
+    wanted = _evidence_lines(statement)[0]
+    position = text.find(wanted)
+    while position >= 0:
+        if position in starts and position + len(wanted) in ends:
+            return True
+        position = text.find(wanted, position + 1)
+    return False
+
+
+def _contact_header(line: str) -> bool:
+    """Recognize contact evidence before accepting delimited header display fields."""
+    if re.search(r'\b[\w.%+-]+@[\w.-]+\.[a-z]{2,}\b', line, re.I):
+        return True
+    return any(10 <= len(re.sub(r'\D', '', phone)) <= 15
+               for phone in re.findall(r'(?<!\w)\+?\d[\d(). -]{7,}\d(?!\w)', line))
+
+
+def _supported_header_field(key: str, value: str, source: str, name: str, evidence) -> bool:
+    """Support ordinary name/contact headers without splitting qualification status tables."""
+    wanted, candidate_name = _evidence_text(value), _evidence_text(name)
+    lines = [line.strip() for line in source.splitlines() if line.strip()][:8]
+    for line in lines:
+        normalized = _evidence_text(line)
+        if re.fullmatch(r'(?:professional |work |career )?(?:experience|education|certifications|licenses|licences|qualifications|skills|employment history)\s*:?', normalized):
+            break
+        if not _supported_statement(line, evidence):
+            continue  # A wrapped status/date outside this line must also be preserved.
+        if key == 'credential' and candidate_name and normalized.startswith(candidate_name):
+            suffix = normalized[len(candidate_name):].strip()
+            if suffix.startswith(',') and suffix[1:].strip() == wanted:
+                return True  # The complete suffix, including any status/date wording.
+        if key != 'clearance':
+            continue
+        label = r'^(?:security\s+)?clearance\s*:\s*'
+        if '|' not in line:
+            if re.match(label, normalized) and re.sub(label, '', normalized) == wanted:
+                return True
+            continue
+        if not _contact_header(line):
+            continue
+        fields = [_evidence_text(part) for part in line.split('|')]
+        for index, field in enumerate(fields):
+            if re.sub(label, '', field) != wanted:
+                continue
+            others = [part for offset, part in enumerate(fields) if offset != index and not _contact_header(part)]
+            if not any(_qualification_modifier(part) or re.fullmatch(r'\d{1,2}[-/]\d{2,4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4}', part) or re.search(
+                    r'\b(?:active|inactive|pending|expired|interim|eligible|eligibility|status|renewal|expires?|expiration|until)\b', part)
+                       for part in others):
+                return True
+    return False
+
+
+def _qualification_entries(value, label: str, evidence) -> list[str]:
+    """Validate source-order verbatim statements before any profile is changed."""
+    if not isinstance(value, list) or len(value) > _QUALIFICATION_MAX_ITEMS:
+        raise ValueError(f'{label} must be a list of at most {_QUALIFICATION_MAX_ITEMS} source statements')
+    result = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip() or len(item) > _QUALIFICATION_MAX_CHARS:
+            raise ValueError(f'{label} must contain non-empty text statements of at most {_QUALIFICATION_MAX_CHARS} characters')
+        item = item.strip()
+        if not all(_supported_statement(item, source) for source in evidence):
+            raise ValueError(f'{label} must copy complete source lines in their original order, including status and dates')
+        result.append(item)
+    return result
+
+
+def _apply_augmentation(raw: dict, patch: dict, *, credential_sources=()) -> bool:
+    """Apply additive skills, role bullets, metrics and source-backed qualifications."""
+    additions = {}
+    evidence = [_evidence_lines(source) for source in credential_sources]
+    for key in _QUALIFICATION_FIELDS:
+        field = key + '_add'
+        if field in patch:
+            if patch[field] and not evidence:
+                raise ValueError(f'{key} requires the original qualification source statements')
+            additions[key] = _qualification_entries(patch[field], key, evidence)
+            if additions[key] and (not isinstance(raw.get(key, []), list)
+                                  or any(not isinstance(item, str) for item in raw.get(key, []))):
+                raise ValueError(f'existing {key} must be a list of text statements; the profile was not changed')
     changed = False
     skills = raw.setdefault("skills", {})
     for group, items in (patch.get("skills_add") or {}).items():
@@ -235,7 +387,18 @@ def _apply_augmentation(raw: dict, patch: dict) -> bool:
         idx, bullets = role_patch.get("role_index"), (role_patch.get("bullets") or [])
         if isinstance(idx, int) and 0 <= idx < len(roles) and bullets:
             changed = _append_unique(roles[idx].setdefault("deliverables", []), bullets) or changed
-    return _append_unique(raw.setdefault("metrics_bank", []), patch.get("metrics_add")) or changed
+    changed = _append_unique(raw.setdefault("metrics_bank", []), patch.get("metrics_add")) or changed
+    for key, items in additions.items():
+        if not items:
+            continue
+        target = raw.setdefault(key, [])
+        have = {_evidence_text(item) for item in target}
+        for item in items:
+            if _evidence_text(item) not in have:
+                target.append(item)
+                have.add(_evidence_text(item))
+                changed = True
+    return changed
 
 
 def _rotate_profile_backups(directory: Path) -> None:
@@ -292,7 +455,7 @@ def _persist_augmentation(text: str, raw: dict, facts: str, changelog: list) -> 
     load.cache_clear()
 
 
-def augment(facts: str) -> dict:
+def augment(facts: str, *, credential_source: str | None = None) -> dict:
     """Merge candidate-confirmed facts additively, with backup, audit, and atomic replacement."""
     from . import enrich
     supplied_facts = str(facts or "").strip()
@@ -301,12 +464,20 @@ def augment(facts: str) -> dict:
     text = _read_profile_text()
     raw = json.loads(text)
     context, accepted_facts, diagnostics = _bounded_augmentation_context(raw, supplied_facts)
-    patch = enrich.parse_json(enrich.complete(_ENH_SYS, context, max_tokens=1500)) or {}
+    patch = enrich.parse_json(enrich.complete(_ENH_SYS, context, max_tokens=1500))
+    if not isinstance(patch, dict):
+        return {'ok': False, 'error': 'could not parse an additive career update; the profile was not changed'}
     reported = patch.get("changelog") or []
     changelog = list(reported) if isinstance(reported, list) else []
-    if not _apply_augmentation(raw, patch):
-        return _augmentation_result(False, [], diagnostics)
-    _persist_augmentation(text, raw, accepted_facts, changelog)
+    try:
+        if diagnostics['facts_truncated'] and any(patch.get(key + '_add') for key in _QUALIFICATION_FIELDS):
+            raise ValueError('qualification facts exceed the supported input limit; send the complete statements in a smaller update')
+        sources = [accepted_facts] + ([credential_source] if credential_source is not None else [])
+        if not _apply_augmentation(raw, patch, credential_sources=sources):
+            return _augmentation_result(False, [], diagnostics)
+        _persist_augmentation(text, raw, accepted_facts, changelog)
+    except (ValueError, TypeError, AttributeError) as error:
+        return {'ok': False, 'error': str(error), 'diagnostics': diagnostics}
     return _augmentation_result(True, changelog, diagnostics)
 
 
@@ -314,7 +485,13 @@ def augment(facts: str) -> dict:
 _INGEST_SYS = (
     "You convert a candidate's resume into a STRICT, structured career database as JSON. "
     "Use ONLY facts stated in the resume — never invent employers, dates, titles, metrics, "
-    "clearances, or certifications. If the resume does not state something, leave it empty or omit it. "
+    "clearances, education, licenses, or certifications. If the resume does not state something, leave it empty or omit it. "
+    "Copy complete credential, education/certification/license and clearance source statements verbatim in source order, "
+    "combining adjacent lines when needed. Preserve pursuing, pending, expired, inactive and date modifiers. "
+    "Never turn eligibility, plans or study into a held qualification or active clearance. "
+    "For profile.credential you may copy the complete comma suffix after the candidate's name in the resume header; otherwise leave it empty. "
+    "For profile.clearance you may copy one complete pipe-delimited contact-header field only when all status and expiration wording is within that field. "
+    "Never drop separate status/date columns; copy the complete source statement instead or leave the optional display field empty. "
     "Do not exaggerate. Return JSON only, no prose.")
 
 
@@ -348,17 +525,16 @@ def _validate_file_size(file_path: str, limit: int, label: str) -> None:
 
 
 def _bounded_text(parts) -> str:
-    """Join an iterator without retaining more text than the downstream prompt can consume."""
+    """Read complete supported text, refusing overflow rather than discarding later evidence."""
     output = []
     remaining = _EXTRACT_MAX_CHARS
     for value in parts:
         separator = 1 if output else 0
-        if remaining <= separator:
-            break
         text = str(value or "")
-        piece = text[:remaining - separator]
-        output.append(piece)
-        remaining -= separator + len(piece)
+        if separator + len(text) > remaining:
+            raise ValueError(f'document exceeds the supported {_EXTRACT_MAX_CHARS}-character text limit; use a smaller document')
+        output.append(text)
+        remaining -= separator + len(text)
     return "\n".join(output)
 
 
@@ -435,7 +611,39 @@ def _extract_resume_text(file_path: str) -> str:
             raise ValueError("DOCX exceeds the paragraph limit")
         return _bounded_text(paragraph.text for paragraph in document.paragraphs)
     with Path(file_path).open("r", encoding="utf-8", errors="ignore") as stream:
-        return stream.read(_EXTRACT_MAX_CHARS)
+        return _bounded_text([stream.read(_EXTRACT_MAX_CHARS + 1)])
+
+
+def _validate_ingested_profile(data, source: str) -> dict:
+    """Validate all shapes consumed after publishing, plus explicit qualification evidence."""
+    if not isinstance(data, dict) or not (data.get('roles') or data.get('profile')):
+        raise ValueError('could not parse a profile from the resume')
+    for key, default in [('profile', {}), ('roles', []), ('skills', {}), ('metrics_bank', [])]:
+        data.setdefault(key, default)
+    if not isinstance(data['profile'], dict) or any(not isinstance(v, str) for v in data['profile'].values()):
+        raise ValueError('resume profile fields must contain text')
+    if not isinstance(data['roles'], list) or any(not isinstance(role, dict) for role in data['roles']):
+        raise ValueError('resume roles must be a list of objects')
+    for role in data['roles']:
+        if any(role.get(key) is not None and not isinstance(role[key], str) for key in ('title', 'org', 'start', 'end')):
+            raise ValueError('resume role names and dates must contain text')
+        if not isinstance(role.get('deliverables', []), list) or any(not isinstance(item, str) for item in role.get('deliverables', [])):
+            raise ValueError('resume role achievements must be a list of text statements')
+    if not isinstance(data['skills'], dict) or any(not isinstance(group, dict) or not isinstance(group.get('items', []), list)
+                                                or any(not isinstance(item, str) for item in group.get('items', []))
+                                                for group in data['skills'].values()):
+        raise ValueError('resume skills must contain groups of text items')
+    if not isinstance(data['metrics_bank'], list) or any(not isinstance(item, str) for item in data['metrics_bank']):
+        raise ValueError('resume metrics must be a list of text statements')
+    evidence = [_evidence_lines(source)]
+    for key in _QUALIFICATION_FIELDS:
+        data[key] = _qualification_entries(data.get(key, []), key, evidence)
+    for key in ('credential', 'clearance'):
+        value = data['profile'].get(key, '').strip()
+        if value and not (_supported_statement(value, evidence[0]) or _supported_header_field(
+                key, value, source, data['profile'].get('name', ''), evidence[0])):
+            raise ValueError(f'{key} must copy a complete supported source statement or header field, including status and dates; the profile was not changed')
+    return data
 
 
 def build_from_resume(file_path: str) -> dict:
@@ -450,7 +658,8 @@ def build_from_resume(file_path: str) -> dict:
         return {"ok": False, "error": f"could not read resume: {exc}"}
     if len(text) < 40:
         return {"ok": False, "error": "no readable text in the resume"}
-    text = text[:24000]
+    if len(text) > _EXTRACT_MAX_CHARS:
+        return {'ok': False, 'error': f'resume exceeds the supported {_EXTRACT_MAX_CHARS}-character text limit; use a smaller document'}
 
     prompt = (
         "RESUME:\n" + text + "\n\n"
@@ -460,22 +669,16 @@ def build_from_resume(file_path: str) -> dict:
         '  "roles": [{"title":"","org":"","start":"YYYY-MM","end":"YYYY-MM or null","deliverables":["achievement bullet, active voice"]}],\n'
         '  "skills": {"<concise group name>": {"items": ["skill phrase"]}},\n'
         '  "metrics_bank": ["quantified achievement — only if the resume states a number"],\n'
-        '  "certifications": ["certification name"]\n'
+        '  "education": ["complete verbatim school/degree source statement in source order, including status and dates"],\n'
+        '  "certifications": ["complete verbatim certification source statement including status and dates"],\n'
+        '  "licenses": ["complete verbatim license source statement including issuer, status and dates"]\n'
         "}\n"
         "experience_summary = a 2-3 sentence professional summary. Use only facts in the resume."
     )
-    data = enrich.parse_json(enrich.complete(_INGEST_SYS, prompt, max_tokens=4000)) or {}
-    if not isinstance(data, dict) or not (data.get("roles") or data.get("profile")):
-        return {"ok": False, "error": "could not parse a profile from the resume"}
-
-    data.setdefault("profile", {})
-    data.setdefault("roles", [])
-    data.setdefault("skills", {})
-    data.setdefault("metrics_bank", [])
-    data.setdefault("certifications", [])
-
-    config.CAREER_DB.parent.mkdir(parents=True, exist_ok=True)
+    data = enrich.parse_json(enrich.complete(_INGEST_SYS, prompt, max_tokens=4000))
     try:
+        data = _validate_ingested_profile(data, text)
+        config.CAREER_DB.parent.mkdir(parents=True, exist_ok=True)
         _replace_profile(_render_profile(data))
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
@@ -494,12 +697,13 @@ def build_from_resume(file_path: str) -> dict:
 _ABSORB_SYS = (
     "You extract ONLY TRUE, verifiable career facts about the candidate from an uploaded document. "
     "List concrete facts they can stand behind: roles/titles/employers/dates, skills and tools they "
-    "actually used, responsibilities, and quantified achievements STATED in the document. Never invent, "
+    "actually used, responsibilities, education, certifications, licenses and quantified achievements STATED in the document. "
+    "Copy qualification statements verbatim in source order, including pursuing, pending, expired, inactive and date modifiers. Never invent, "
     "never infer beyond what is written, never add aspirational or third-party facts. If the document "
     "has nothing about the candidate's own career, return an empty list. Output a plain bullet list.")
 
 _ARTIFACT_KINDS = {"resume-extra", "linkedin-export", "email", "status-report", "work-sample", "other"}
-_ZIP_RELEVANT = ("position", "profile", "skill", "education", "project", "certification", "experience")
+_ZIP_RELEVANT = ("position", "profile", "skill", "education", "project", "certification", "license", "licence", "experience")
 _ZIP_MAX_MEMBERS = 1_000
 _ZIP_MAX_RELEVANT_MEMBERS = 50
 _ZIP_MAX_ENTRY_BYTES = 2 * 1024 * 1024
@@ -553,15 +757,13 @@ def _extract_artifact_text(file_path: str) -> str:
         return _extract_resume_text(file_path)
     if p.endswith(".zip"):
         import zipfile
-        out = []
         _validate_file_size(file_path, _ARCHIVE_MAX_FILE_BYTES, "zip")
         with zipfile.ZipFile(file_path) as archive:
-            for member in _safe_zip_members(archive):
-                out.append(f"### {member.filename}\n" + _read_bounded_zip_member(archive, member))
-        return "\n\n".join(out)
+            return _bounded_text(f"### {member.filename}\n" + _read_bounded_zip_member(archive, member)
+                                 for member in _safe_zip_members(archive))
     # csv / tsv / html / eml / json / log and anything else — read as text
     with Path(file_path).open("r", encoding="utf-8", errors="ignore") as stream:
-        return stream.read(_EXTRACT_MAX_CHARS)
+        return _bounded_text([stream.read(_EXTRACT_MAX_CHARS + 1)])
 
 
 def absorb(file_path: str, kind: str = "other") -> dict:
@@ -578,15 +780,18 @@ def absorb(file_path: str, kind: str = "other") -> dict:
         return {"ok": False, "error": f"could not read artifact: {exc}"}
     if len(text) < 20:
         return {"ok": False, "error": "no readable text in the artifact"}
-    prompt = (f"DOCUMENT KIND: {kind}\n\nDOCUMENT:\n{text[:24000]}\n\n"
+    if len(text) > _EXTRACT_MAX_CHARS:
+        return {'ok': False, 'error': f'artifact exceeds the supported {_EXTRACT_MAX_CHARS}-character text limit; use a smaller document'}
+    prompt = (f"DOCUMENT KIND: {kind}\n\nDOCUMENT:\n{text}\n\n"
               "List the candidate's TRUE career facts from this document (one per line).")
     facts = (enrich.complete(_ABSORB_SYS, prompt, max_tokens=1200) or "").strip()
     if len(facts) < 10:
         return {"ok": True, "changed": False, "kind": kind, "changelog": [],
                 "note": "no new career facts found"}
-    res = augment(facts)
+    res = augment(facts, credential_source=text)
     return {"ok": res.get("ok") is True, "changed": res.get("changed") is True,
-            "kind": kind, "changelog": res.get("changelog", [])}
+            "kind": kind, "changelog": res.get("changelog", []),
+            **({'error': res['error']} if res.get('error') else {})}
 
 
 # ── Master-resume editor mapping (Resume Studio "master" document) ──
@@ -601,8 +806,8 @@ _MASTER_TEXT_FIELDS = (
 )
 _MASTER_EXTRA_SKILL_GROUP = "Additional Skills"
 _MASTER_MAX_COMPETENCIES = 40
-_MASTER_MAX_SKILLS = 120
-_MASTER_MAX_BULLETS = 24
+_MASTER_MAX_SKILLS = 1024
+_MASTER_MAX_BULLETS = 128
 _MASTER_ITEM_MAX_CHARS = 200
 _MASTER_BULLET_MAX_CHARS = 1000
 # ADR-141 D7: the story review's evidence travels with the document it proves. Bounded for the
@@ -639,7 +844,7 @@ def _master_stories(role: dict) -> list:
     return out
 
 
-def base_document() -> dict:
+def base_document(snapshot: dict | None = None) -> dict:
     """Assemble the Resume Studio editor document for the MASTER resume.
 
     A straight, model-free mapping of career_db.json into the exact shape the studio's
@@ -649,7 +854,7 @@ def base_document() -> dict:
     list in group order, and clearance. Each role also carries the stories the ADR-141 D7
     review recorded against it, each naming the bullet it supports, so the editor can show
     the evidence under the claim. Returns {resume, cover, meta{master: True}}."""
-    d = load()
+    d = load() if snapshot is None else snapshot
     p = d.get("profile", {}) or {}
     experience = [{
         "title": r.get("title", ""),

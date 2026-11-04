@@ -74,6 +74,7 @@ function savedWalStore() {
 function specialistRead() {
   let entry;
   reader.createNativeCareerReadRoutes({
+    pool: {query:async()=>({rows:[{remote_only:false}]})},
     tools: { register() {} },
     specialistContext: { register: (e) => { entry = e; } },
     intent: async () => ({ principal }),

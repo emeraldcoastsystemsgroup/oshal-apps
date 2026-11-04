@@ -1,7 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.prepareInvestigation = prepareInvestigation;
+exports.investigateAgain = investigateAgain;
 exports.investigationRecords = investigationRecords;
+/** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Investigate again: after a ticket failed or was cancelled (on the Spark, three were settled no_live_claimant while the operator worker was down) the person opens a fresh ticket for the same sealed evidence; the earlier attempt stays on the record and the tick never retries. Each listed investigation carries its alert label, since kernel tickets created through the package port have no title. */
 /** CHANGE LOG: owner runbook | maintainer@emeraldcoastsystemsgroup.com | Attach the owner's runbook for the alert type as evidence/runbook.md (covered by the input digest) and tell the workflow it is the person's own guidance, unlike producer text. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Ask the workflow for the named response files (remediate.sh, verify.sh, rollback.md, verify.md) in the fenced file=NAME contract the response stage extracts byte-exact. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Request evidence-cited decision deliverables within the existing isolated native workflow and output ceiling. */
@@ -89,6 +91,10 @@ async function prepareInvestigation(ctx, owner, id) {
             fail(409, 'The earlier ticket creation is pending or uncertain. Reconcile its canonical outcome before retrying; no second ticket was created.');
         return projection(ctx, owner, claim.record, true);
     }
+    return createAndLink(ctx, owner, id, claim.record);
+}
+/** @description One canonical create for a claimed reservation, then its link; an uncertain create or link holds the reservation instead of creating another ticket. */
+async function createAndLink(ctx, owner, id, claimed) {
     let answer;
     try {
         answer = await ctx.ticketService.createTicket({ ticketType: 'intelligent-operations', ownerSub: owner });
@@ -99,7 +105,7 @@ async function prepareInvestigation(ctx, owner, id) {
     const ticketId = answer?.ticketId || answer?.ticket?.id;
     if (!uuid(ticketId))
         fail(503, 'Canonical creation returned no valid ticket identity. The reservation remains held.');
-    const record = { ...claim.record, state: 'queued', ticketId };
+    const record = { ...claimed, state: 'queued', ticketId };
     try {
         await ctx.pool.query('UPDATE operations_investigations SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, id, JSON.stringify(record)]);
     }
@@ -110,16 +116,70 @@ async function prepareInvestigation(ctx, owner, id) {
     }
     return projection(ctx, owner, record, true);
 }
+/** Ticket states that ended without an accepted answer; only these may be investigated again. */
+const ENDED = ['failed', 'cancelled'];
+/** @description The person investigates the same sealed evidence again after its ticket failed or was cancelled (for example when no worker could claim it): a fresh ticket, the earlier attempt kept on the record. The scheduled tick never calls this, so a broken worker cannot make it loop; a concurrent second request opens nothing. */
+async function investigateAgain(ctx, owner, id) {
+    requireOwner(owner);
+    if (!valid(id))
+        fail(400, 'Choose an evidence reservation.');
+    if (typeof ctx.ticketService?.createTicket !== 'function' || typeof ctx.ticketService?.getTicket !== 'function')
+        fail(503, 'Canonical ticket services are unavailable.');
+    const previous = await get(ctx.pool, owner, id);
+    if (!previous)
+        fail(409, 'This evidence has no investigation yet; start it instead.');
+    if (!previous.ticketId)
+        fail(409, 'The earlier ticket creation is pending or uncertain. Reconcile its canonical outcome before retrying; no second ticket was created.');
+    const status = (await ctx.ticketService.getTicket(previous.ticketId))?.status;
+    if (!ENDED.includes(status))
+        fail(409, 'Only an investigation whose ticket failed or was cancelled can run again; this ticket is ' + (status || 'unavailable') + '.');
+    const input = await admittedInput(ctx, owner, id, previous.inputSchema === 'triagenorth-investigation/2');
+    if (input.inputSha256 !== previous.inputSha256)
+        fail(409, 'The immutable investigation input no longer matches.');
+    const at = new Date().toISOString();
+    const claim = await (0, pipeline_1.processingTransaction)(ctx.pool, async (c) => {
+        const current = (await c.query('SELECT record FROM operations_investigations WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, id])).rows[0]?.record;
+        if (!current || current.ticketId !== previous.ticketId)
+            return { created: false, record: current };
+        const earlier = [...(Array.isArray(current.previousAttempts) ? current.previousAttempts : []).slice(-9), { attempt: current.attempt, ticketId: current.ticketId, endedAs: status, at }];
+        const record = { id: current.id, attempt: (0, node_crypto_1.randomUUID)(), deliveryId: current.deliveryId, packetSha256: current.packetSha256, inputSha256: current.inputSha256, inputSchema: current.inputSchema, state: 'creating', createdAt: current.createdAt, executionAuthorized: false, againAt: at, previousAttempts: earlier };
+        await c.query('UPDATE operations_investigations SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, id, JSON.stringify(record)]);
+        return { created: true, record };
+    });
+    if (!claim.created) {
+        if (!claim.record?.ticketId)
+            fail(409, 'Another request is opening this investigation again; refresh before trying again.');
+        return projection(ctx, owner, claim.record, true);
+    }
+    return createAndLink(ctx, owner, id, claim.record);
+}
+/** @description What the investigation is about, for lists that would otherwise show only the kernel's untitled ticket: the alert type, its severity, environment and resource from the admitted delivery. */
+async function alertLabel(pool, owner, deliveryId) {
+    if (typeof deliveryId !== 'string')
+        return null;
+    const event = (await pool.query('SELECT record FROM operations_deliveries WHERE user_sub=$1 AND id=$2', [owner, deliveryId])).rows[0]?.record?.normalized, data = event?.data;
+    if (!data || typeof data.alertType !== 'string')
+        return null;
+    const resource = data.resource && typeof data.resource === 'object' ? { kind: String(data.resource.kind || ''), scope: String(data.resource.scope || ''), id: String(data.resource.id || '') } : null;
+    return { alertType: data.alertType.slice(0, 128), severity: typeof data.severity === 'string' ? data.severity.slice(0, 32) : null, environment: typeof data.environment === 'string' ? data.environment.slice(0, 128) : null, resource };
+}
 /** @description Return a bounded own-scope page and current canonical states; individual unreadable tickets remain explicit, never successful zeros. */
 async function investigationRecords(ctx, owner) {
     requireOwner(owner);
     const records = (await ctx.pool.query('SELECT record FROM operations_investigations WHERE user_sub=$1 ORDER BY created_at DESC, id LIMIT 21', [owner])).rows.map(r => r.record), items = [];
     for (const record of records.slice(0, 20)) {
+        let alert = null;
         try {
-            items.push(await projection(ctx, owner, record));
+            alert = await alertLabel(ctx.pool, owner, record.deliveryId);
         }
         catch {
-            items.push({ ...record, ticket: null, ticketUnavailable: true });
+            alert = null;
+        }
+        try {
+            items.push({ ...await projection(ctx, owner, record), alert });
+        }
+        catch {
+            items.push({ ...record, ticket: null, ticketUnavailable: true, alert });
         }
     }
     return { items, truncated: records.length > 20, limit: 20, executionAuthorized: false };

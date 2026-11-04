@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Contract for the engine half of the Career worker rail, against the production enrich/config/score modules: in multi-user mode every completion is one POST to the rail with the exact trusted-service headers and run token (proxies bypassed), no codex/claude subprocess, Anthropic SDK or OpenAI path is reachable (tripwires), model keys and rail entries are removed from the environment, a rail failure raises CareerWorkerUnavailable through the real scorer instead of being counted as a skipped posting, and every later call refuses without a request.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | The signed rail (1.25.1): every request carries the five grant headers and no service secret, subject or bearer token; the fixture recomputes the HMAC from the grant secret it planted over the exact bytes it received (the canonical string of lib/career-engine-runs.js), two completions never share a nonce, the timestamp is fresh, a malformed grant is rail-not-configured, and the retired 1.24.0 names are removed from the environment on import.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Give rail-only fixtures complete local employer text so source hydration cannot escape the signed completion fixture.
 """Career model-rail contract, exercised against the production engine modules.
 
 The rail is a local HTTP fixture that records each request and answers from a scripted queue.
@@ -116,7 +117,7 @@ def prepare_environment(port: int, workdir: Path) -> None:
 
 
 BATCH_ROWS = [
-    {"id": n, "company_id": 3, "description": "Build systems", "title": "Engineer", "location": "Remote"}
+    {"id": n, "company_id": 3, "description": "Build systems. " * 100, "title": "Engineer", "location": "Remote"}
     for n in (21, 22, 23)
 ]
 AI_FIT_WRITES: list[int] = []
@@ -177,7 +178,7 @@ def check_success(enrich, score) -> None:
     check("rail content type", headers.get("content-type") == enrich.RAIL_CONTENT_TYPE)
     check("completion body", request["body"] == {"system": "SYSTEM", "prompt": "PROMPT", "maxTokens": 700, "jsonMode": True})
     RESPONSES.append((200, {"ok": True, "text": '{"fit_score": 91}'}))
-    row = {"id": 7, "company_id": 3, "description": "Build systems", "title": "Engineer", "location": "Remote"}
+    row = {"id": 7, "company_id": 3, "description": "Build systems. " * 100, "title": "Engineer", "location": "Remote"}
     score.db.connect = fake_company_connection
     result = score._score_one(row, "PROFILE")
     check("the real scorer records a rail answer", result["data"] == {"fit_score": 91})
@@ -188,7 +189,7 @@ def check_success(enrich, score) -> None:
 def check_failure(enrich, score) -> None:
     before = len(REQUESTS)
     RESPONSES.append((503, {"ok": False, "error": "career-worker-unavailable", "detail": "heartbeat-stale"}))
-    row = {"id": 8, "company_id": 3, "description": "Build systems", "title": "Engineer", "location": "Remote"}
+    row = {"id": 8, "company_id": 3, "description": "Build systems. " * 100, "title": "Engineer", "location": "Remote"}
     try:
         score._score_one(row, "PROFILE")
         check("a lost worker ends the scoring run", False)
@@ -236,6 +237,7 @@ def check_misconfiguration(enrich, config) -> None:
     config.RAIL_URL = "http://192.168.50.10:5000/api/career-hunter/engine/complete"
     expect_refusal(enrich, "a non-loopback rail URL is refused", "rail-not-configured")
     config.RAIL_URL = url
+
     config.RAIL_GRANT = ""
     expect_refusal(enrich, "a missing grant is refused", "rail-not-configured")
     config.RAIL_GRANT = "not-a-grant"
@@ -255,6 +257,71 @@ def check_misconfiguration(enrich, config) -> None:
     config.RAIL_URL = url
 
 
+def check_native_identity(enrich, config) -> None:
+    """Scripted native metadata, with no actual kernel/provider invocation."""
+    saved = os.environ.get('OSHAL_EGRESS')
+    os.environ['OSHAL_EGRESS'] = 'kernel'
+    identity = {'version': 1, 'identity': 'a' * 64, 'primary': {'provider': 'primary', 'model': 'model-one'}}
+    try:
+        enrich._RAIL_FAILURE = None
+        RESPONSES.append((200, {'ok': True, 'identity': identity}))
+        resolved = enrich.resolve_scoring_identity()
+        check('native preflight sends only the fixed signed identity operation', REQUESTS[-1]['body'] == {'operation': 'model-identity'})
+        check('native identity cache key describes configured policy', resolved.cache_key == 'career-routing-v1:' + 'a' * 64)
+        try:
+            resolved.expected = 'b' * 64
+            check('resolved scoring identity is immutable', False)
+        except AttributeError:
+            check('resolved scoring identity is immutable', True)
+        good = {'ok': True, 'text': '{"fit_score":82}', 'modelIdentity': 'a' * 64,
+                'provider': 'backup', 'model': 'backup-model', 'fallback': True}
+        RESPONSES.append((200, good))
+        answer = enrich.complete_scoring('SYS', 'PROMPT', max_tokens=1400, model=None, identity=resolved)
+        check('native scoring carries actual fallback attribution per completion', (answer.provider, answer.model, answer.fallback) == ('backup', 'backup-model', True))
+        check('native scoring sends the exact expected guard and output budget', REQUESTS[-1]['body']['expectedModelIdentity'] == resolved.expected and REQUESTS[-1]['body']['maxTokens'] == 1400)
+        RESPONSES.append((200, {**good, 'provider': 'primary', 'model': 'model-one-versioned-2026-10', 'fallback': False}))
+        alias_answer = enrich.complete_scoring('SYS', 'PROMPT', max_tokens=1400, model=None, identity=resolved)
+        check('configured primary alias retains actual versioned response metadata', (alias_answer.provider, alias_answer.model, alias_answer.fallback) == ('primary', 'model-one-versioned-2026-10', False))
+        RESPONSES.append((409, {'ok': False, 'error': 'model-identity-mismatch'}))
+        before = len(REQUESTS)
+        for _ in range(2):
+            try:
+                enrich.complete_scoring('SYS', 'PROMPT', max_tokens=1400, model=None, identity=resolved)
+                check('native guard mismatch ends scoring without a retry', False)
+            except enrich.CareerWorkerUnavailable as error:
+                check('native guard mismatch ends scoring without a retry', (error.reason, error.status) == ('model-identity-mismatch', 409))
+        check('native guard mismatch sends one turn and no fallback request', len(REQUESTS) == before + 1)
+        for field, value in [('modelIdentity', None), ('modelIdentity', 'b' * 64), ('provider', None), ('model', None), ('fallback', None), ('fallback', 0), ('fallback', False)]:
+            enrich._RAIL_FAILURE = None
+            RESPONSES.append((200, {**good, field: value}))
+            try:
+                enrich.complete_scoring('SYS', 'PROMPT', max_tokens=1400, model=None, identity=resolved)
+                check('invalid guarded completion refuses: ' + field + repr(value), False)
+            except enrich.CareerWorkerUnavailable as error:
+                check('invalid guarded completion refuses: ' + field + repr(value), error.reason == 'model-identity-unavailable')
+        for value in (None, {}, {**identity, 'version': True}, {**identity, 'identity': 'A' * 64}, {**identity, 'primary': {'provider': '', 'model': 'm'}}):
+            enrich._RAIL_FAILURE = None
+            RESPONSES.append((200, {'ok': True, 'identity': value}))
+            try:
+                enrich.resolve_scoring_identity()
+                check('unsupported native identity refuses before inference: ' + repr(value), False)
+            except enrich.CareerWorkerUnavailable as error:
+                check('unsupported native identity refuses before inference: ' + repr(value), error.reason == 'model-identity-unavailable')
+        before = len(REQUESTS)
+        try:
+            enrich.resolve_scoring_identity()
+        except enrich.CareerWorkerUnavailable:
+            pass
+        check('identity failure circuit makes no repeated requests', len(REQUESTS) == before)
+        check('identity and guarded completions retain exact body signatures', all(request['headers'].get('x-career-rail-signature') == expected_signature(request) for request in REQUESTS))
+    finally:
+        enrich._RAIL_FAILURE = None
+        if saved is None:
+            os.environ.pop('OSHAL_EGRESS', None)
+        else:
+            os.environ['OSHAL_EGRESS'] = saved
+
+
 def main() -> int:
     install_tripwires()
     server = start_fixture()
@@ -266,6 +333,7 @@ def main() -> int:
         check_failure(enrich, score)
         check_batch(enrich, score)
         check_misconfiguration(enrich, config)
+        check_native_identity(enrich, config)
     server.shutdown()
     check("no codex/claude subprocess, Anthropic SDK or OpenAI path was reached", TRIPPED == [])
     failed = [name for name, ok in CHECKS if not ok]

@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard bounded PDF/DOCX extraction, page and paragraph ceilings, and archive expansion rejection.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Cover compressed input size, member fan-out, aggregate expansion, compression ratio, and encrypted DOCX members.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Reject aggregate decoded PDF streams across individually bounded pages and resources.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Refuse text overflow before inference instead of silently retaining only a document prefix.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,7 +93,10 @@ try:
         result["filter_limit"] = filters.ZLIB_MAX_OUTPUT_LENGTH
     print(json.dumps(result))
 except Exception as error:
-    print(json.dumps({"ok": False, "error": str(error)}))
+    result = {"ok": False, "error": str(error)}
+    if not mode.startswith("docx"):
+        result["filter_limit"] = filters.ZLIB_MAX_OUTPUT_LENGTH
+    print(json.dumps(result))
 `;
 
 after(() => rmSync(fixtureRoot, { recursive: true, force: true }));
@@ -116,9 +120,11 @@ function inspectResume(mode, extension) {
   return JSON.parse(result.stdout.trim());
 }
 
-test('PDF extraction caps retained text and lowers pypdf stream limits', () => {
+test('PDF extraction refuses text overflow and lowers pypdf stream limits', () => {
   const result = inspectResume('pdf-text', 'pdf');
-  assert.deepEqual(result, { ok: true, length: 32000, filter_limit: 8 * 1024 * 1024 });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /32000-character text limit/);
+  assert.equal(result.filter_limit, 8 * 1024 * 1024);
 });
 
 test('PDF extraction rejects excessive pages before extracting text', () => {

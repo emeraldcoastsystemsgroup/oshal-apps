@@ -4,12 +4,15 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise offline place/ZIP resolution and every geographic browse path against real SQLite, proving exact distance before pools/pages, coordinate provenance and index readiness.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Listed pay now needs explicit currency and period (lib/career-pay.js), so the fixture carries them; an unlisted job answers through its occupation benchmark. The description field is an independent filter, not a second keyword. The route double supplies userPaths.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 const require = createRequire(import.meta.url);
@@ -26,9 +29,9 @@ function fixture({ fullText = true, index = true } = {}) {
   if (index) db.exec(indexSql);
   db.exec("INSERT INTO corpus.companies(id,name,hq) VALUES(1,'Orbital Systems','a regional federal hub, FL')");
   const put = db.prepare(`INSERT INTO corpus.postings_corpus
-    (id,company_id,ats_job_id,title,description,location,state,city,lat,lon,active,first_seen_at,salary_min,salary_max,salary_source)
-    VALUES(?,1,?,'Engineer','engineer systems','posted location','FL',?,?,?,1,?,?,?,?)`);
-  const add = (id, { lat = CENTER.lat, lon = CENTER.lon, city = 'a regional federal hub', salaryMin = null, salaryMax = null, salarySource = null } = {}) => put.run(id, `ats-${id}`, city, lat, lon, `2026-01-01T00:00:${String(id % 60).padStart(2, '0')}Z`, salaryMin, salaryMax, salarySource);
+    (id,company_id,ats_job_id,title,description,location,state,city,lat,lon,active,first_seen_at,salary_min,salary_max,salary_source,salary_currency,salary_period)
+    VALUES(?,1,?,'Engineer','engineer systems','posted location','FL',?,?,?,1,?,?,?,?,?,?)`);
+  const add = (id, { lat = CENTER.lat, lon = CENTER.lon, city = 'a regional federal hub', salaryMin = null, salaryMax = null, salarySource = null } = {}) => put.run(id, `ats-${id}`, city, lat, lon, `2026-01-01T00:00:${String(id % 60).padStart(2, '0')}Z`, salaryMin, salaryMax, salarySource, salarySource ? 'USD' : null, salarySource ? 'year' : null);
   if (!fullText) {
     db.exec('DROP TRIGGER corpus.postings_fts_insert; DROP TRIGGER corpus.postings_fts_update; DROP TRIGGER corpus.postings_fts_delete; DROP TABLE corpus.postings_fts');
   }
@@ -75,7 +78,7 @@ test('geographic predicates precede every LIKE title, employer and description c
     const { db, add } = fixture({ fullText: false });
     try {
       add(1); for (let id = 2; id <= browse.ARM_POOL + 25; id++) add(id, { lat: 40, lon: -74 });
-      for (const extra of [{}, { description: term }]) assert.deepEqual(ids(browse.fetchBrowsePage(db, { ...query, q: term, ...extra })), [1]);
+      for (const extra of [{}, { description: 'engineer' }]) assert.deepEqual(ids(browse.fetchBrowsePage(db, { ...query, q: term, ...extra })), [1]);
     } finally { db.close(); }
   }
 });
@@ -103,8 +106,10 @@ test('minimum pay optionally retains genuinely unlisted pay and exposes salary p
   const { db, add } = fixture();
   try {
     add(1, { salaryMin: 140000, salarySource: 'listed' }); add(2); add(3, { salaryMax: 139999, salarySource: 'ai_estimated' }); add(4, { salaryMax: 180000, salarySource: 'ai_estimated' });
-    assert.deepEqual(ids(browse.fetchBrowsePage(db, { ...query, min_pay: '140000' })).sort(), [1, 4]);
-    const broad = browse.fetchBrowsePage(db, { ...query, min_pay: '140000', include_unknown_pay: '1' }); assert.deepEqual(ids(broad).sort(), [1, 2, 4]); assert.equal(broad.jobs.find(job => job.id === 4).salary_source, 'ai_estimated');
+    // Job 2 lists no pay, so its occupation benchmark answers for it; lib/career-pay.js owns that rule and tests/career-pay.test.mjs its unknown-pay cases.
+    const page = browse.fetchBrowsePage(db, { ...query, min_pay: '140000' }); assert.deepEqual(ids(page).sort(), [1, 2, 4]);
+    assert.equal(page.jobs.find(job => job.id === 2).salary_source, 'bls_estimated'); assert.equal(page.jobs.find(job => job.id === 4).salary_source, 'ai_estimated');
+    assert.deepEqual(ids(browse.fetchBrowsePage(db, { ...query, min_pay: '140000', include_unknown_pay: '1' })).sort(), [1, 2, 4]);
   } finally { db.close(); }
 });
 
@@ -150,7 +155,7 @@ test('compiled HTTP handler exposes 400/503 reasons and ordinary browse does not
   const logs = [];
   Module._load = function (request, ...rest) {
     if (request === '@/shared/logger') return { createChildLogger: () => Object.fromEntries(['info', 'warn', 'error'].map(key => [key, (...args) => logs.push(args)])) };
-    if (request === './career-user-store') return { callerSub: req => req.userSub, openCorpusDb: readonly => { if (readonly === false) { writes++; return null; } return storeDb; } };
+    if (request === './career-user-store') return { callerSub: req => req.userSub, userPaths: () => ({ userDir: join(tmpdir(), 'career-geo-owner-with-no-saved-state') }), openCorpusDb: readonly => { if (readonly === false) { writes++; return null; } return storeDb; } };
     return oldLoad.call(this, request, ...rest);
   };
   let routes;

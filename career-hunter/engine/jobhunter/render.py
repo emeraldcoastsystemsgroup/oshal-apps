@@ -1,3 +1,5 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Render PDFs using the native read-only Chromium runtime with private temporary profiles and memory-backed sandbox-compatible flags.
 """HTML -> PDF via the system headless Chromium.
 
 Run as a subprocess so it never collides with Flask's threading / any asyncio loop:
@@ -14,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -46,6 +49,16 @@ def html_to_pdf(html_path: str, pdf_path: str) -> None:
         exe,
         "--headless",
         "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--no-zygote",
+        "--no-first-run",
+        "--renderer-process-limit=1",
+        "--num-raster-threads=1",
+        "--disable-extensions",
+        "--disable-software-rasterizer",
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-crash-reporter",
         "--no-sandbox",                 # container runs as root
         "--hide-scrollbars",
         "--no-pdf-header-footer",       # no default date/URL header+footer
@@ -54,7 +67,9 @@ def html_to_pdf(html_path: str, pdf_path: str) -> None:
         f"--print-to-pdf={out}",
         uri,
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+    with tempfile.TemporaryDirectory(prefix='career-pdf-') as profile:
+        cmd.insert(1, '--user-data-dir=' + profile)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
     if not Path(out).exists() or Path(out).stat().st_size == 0:
         raise RuntimeError(
             f"Chromium PDF render failed (exit {proc.returncode}): "

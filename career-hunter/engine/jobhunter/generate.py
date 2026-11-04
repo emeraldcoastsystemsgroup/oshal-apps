@@ -1,4 +1,9 @@
 # CHANGE LOG
+# 21 | maintainer@emeraldcoastsystemsgroup.com | Ground optional Additional Experience in only selected owner records and preserve that provenance in generated packets.
+# 43 | maintainer@emeraldcoastsystemsgroup.com | Give the cover editor the same bounded employer requirements and full gated profile as packet generation, with explicit employer truncation metadata.
+# 42 | maintainer@emeraldcoastsystemsgroup.com | Reuse owner-private full employer details, include bounded longer requirements in prompts, and retain the exact gated profile and employer source with each packet.
+# 41 | maintainer@emeraldcoastsystemsgroup.com | Compact complete profile JSON without dropping facts so the native 64 KB bot input can admit document generation.
+# 40 | maintainer@emeraldcoastsystemsgroup.com | Support explicit search-to-board and document-to-status transitions, preserving manual submission provenance and owner-only state.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -292,6 +297,24 @@ _OSHAL_PROMPT_SUFFIX = (
     "Do NOT place this work inside \"experience\". Keep it truthful to oss_portfolio."
 )
 
+ADDITIONAL_EXPERIENCE_SYSTEM = (
+    "The candidate explicitly selected the profile's additional_experience entries for THIS application. "
+    "Use only those recorded facts and skills, and only when relevant to the target job. "
+    "A kind=skills entry contributes only recorded skills to the skills section, never a fabricated position, organization or dates. "
+    "Keep other selected work in a DISTINCT resume section titled Additional Experience, in the JSON "
+    "additional_experience array, not in professional experience. Preserve the true organization, "
+    "dates and work type. A personal project, volunteer role or independent product is not employer work. "
+    "Never imply employer ownership, employment, adoption, customers, revenue or metrics without recorded evidence. "
+    "Do not include any unselected optional work, even if remembered from other applications. "
+    "A saved portfolio selected here is explicit opt-in; its historical opt-in note is satisfied. "
+)
+ADDITIONAL_EXPERIENCE_SUFFIX = (
+    '\nSELECTED ADDITIONAL EXPERIENCE: Add resume.additional_experience as an array of '
+    '{"title":"recorded title","org":"true organization or independent project","span":"recorded dates only",'
+    '"bullets":["truthful job-relevant facts from the selected entries"]}. '
+    'Do not invent missing dates, recast projects as employment, or add unselected experience.'
+)
+
 PROMPT = """CANDIDATE PROFILE (the only source of truth — do not invent beyond this):
 {profile}
 
@@ -498,9 +521,11 @@ def _polish_cover(cover, title, company, jd, profile_json, prof=None):
     try:
         prompt = (
             f"ROLE: {title} at {company}\n\n"
-            f"JOB DESCRIPTION:\n{(jd or '(none)')[:5000]}\n\n"
+            f"JOB DESCRIPTION:\n{(jd or '(none)')[:24000]}\n"
+            + ('[Remaining employer description omitted; do not infer its requirements.]\n' if len(jd or '')>24000 else '')
+            + '\n'
             f"CANDIDATE PROFILE (the ONLY facts you may draw on; add nothing beyond this):\n"
-            f"{profile_json[:90000]}\n\n"
+            f"{profile_json}\n\n"
             f"DRAFT COVER (rewrite to the quality bar; keep it strictly truthful):\n"
             f"{json.dumps(cover, indent=1)}\n"
         )
@@ -694,16 +719,17 @@ def build_prompt(prof: dict, company: str, title: str, location: str, descriptio
     @returns The prompt text.
     """
     prompt = PROMPT.format(
-        profile=json.dumps(_prep_profile(prof, include_oshal), indent=1)[:120000],
+        profile=json.dumps(_prep_profile(prof, include_oshal), ensure_ascii=False, separators=(',', ':')),
         company=company, title=title, location=location or "n/a",
-        description=(description or "(no description)")[:6000],
+        description=(description or "(no description)")[:24000]
+            + ('\n[Remaining employer description omitted due to size; do not infer its requirements.]' if len(description or '') > 24000 else ''),
     )
     if include_oshal:
         prompt += _OSHAL_PROMPT_SUFFIX
     return prompt + story_evidence_suffix(prof)
 
 
-def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
+def generate_for(posting_id: int, include_oshal: bool = False, guidance: str = '', additional_experience=None) -> dict:
     """Generate a tailored resume + cover for one job, pulling from the (possibly
     enriched) career DB and tailoring to THIS posting. New experience the candidate
     wants reflected is added to the career DB first via profile.augment() — the
@@ -720,6 +746,8 @@ def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
             raise ValueError(f"no posting id {posting_id}")
         if config.POSTGRES:
             _pg_park(conn)   # see below — without this the connection is killed mid-generation
+        from . import job_context
+        row = job_context.ensure(dict(row))
         company, title = row["company"], row["title"]
         company_doc = _company_doc(company)   # tag-free name for the documents (folder keeps the tag)
         prof = profile.load()
@@ -727,8 +755,16 @@ def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
         # Gate the personal open-source (OSHAL) work on the opt-in flag, then pick the
         # matching system prompt (ban vs allow). OFF mode is byte-identical to before.
         prof_doc = _prep_profile(prof, include_oshal)
-        prof_json = json.dumps(prof_doc, indent=1)[:120000]
+        prof_json = json.dumps(prof_doc, ensure_ascii=False, separators=(',', ':'))
         sys_prompt = build_system(prof, include_oshal)
+        selected = additional_experience or []
+        if selected:
+            prof_doc = _prep_profile(prof, any(e['id'] == 'saved-portfolio' for e in selected))
+            prof_doc.pop('oss_portfolio', None)
+            prof_doc['additional_experience'] = selected
+            prof_json = json.dumps(prof_doc, ensure_ascii=False, separators=(',', ':'))
+            f = _framing(prof_doc)
+            sys_prompt = _sys_pre(f) + ADDITIONAL_EXPERIENCE_SYSTEM + _sys_post(f)
 
         # Send the WHOLE (gated) career DB. The old [:14000] cap silently dropped ~70% of the
         # ~48k-char profile: the full role history, the metrics_bank, AND the anti-inflation
@@ -737,17 +773,29 @@ def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
         # tokens; the generation model holds 200k+.
         prompt = build_prompt(prof, company_doc, title, row["location"] or "",
                               row["description"] or "", include_oshal)
+        if selected:
+            prompt = PROMPT.format(profile=prof_json, company=company_doc, title=title,
+                location=row['location'] or 'n/a', description=(row['description'] or '(no description)')[:24000])
+            prompt += ADDITIONAL_EXPERIENCE_SUFFIX + story_evidence_suffix(prof_doc)
+        if row.get('description_context', {}).get('basis') == 'listing-summary':
+            prompt += '\nSOURCE LIMITATION: The employer provides only a short listing summary here. Tailor to those known facts; do not infer unlisted duties or requirements.\n'
+        if guidance.strip():
+            prompt += '\nTAILORING PREFERENCES (use only existing profile facts; do not invent experience):\n' + guidance.strip()[:4000]
         data = enrich.parse_json(enrich.complete(sys_prompt, prompt, max_tokens=8000))
         if not data or "resume" not in data:
             raise RuntimeError("AI did not return a usable resume/cover.")
         # Verify the story citations BEFORE the dash sanitiser rewrites the text they are matched
         # against, and strip the key so the templates see the shape they already speak.
         stories_cited = collect_story_citations(data, prof)
+        if selected:
+            data['resume'].pop('open_source', None)
+        else:
+            data['resume'].pop('additional_experience', None)
         data = _sanitize(data)   # remove em/en dashes the model slipped in (reviewer "AI tell")
         # Second pass: a senior editor rewrites the COVER to a higher quality bar (specific,
         # JD-mapped, professional) WITHOUT adding facts. Falls back to the draft on any error.
         data["cover"] = _sanitize(_polish_cover(
-            data["cover"], title, company_doc, row["description"], prof_json, prof))
+            data["cover"], title, company_doc, row["description"], prof_json, prof_doc if selected else prof))
 
         # Put the requisition number in the folder name when it's a clean id (referral/
         # manual rows store the real req #) so the packet ties back to the posting at a
@@ -784,7 +832,13 @@ def generate_for(posting_id: int, include_oshal: bool = False) -> dict:
         (outdir / "application.json").write_text(
             json.dumps({"posting_id": posting_id, "req": row["ats_job_id"],
                         "company": company_doc, "title": title, "include_oshal": include_oshal,
+                        "additional_experience": [{"id":e["id"],"title":e["title"]}for e in selected],
                         "url": row["url"], "stories_cited": stories_cited,
+                        "profile_snapshot": prof_doc,
+                        "job_context": {"description": row['description'],
+                            **row.get('description_context', {'basis':'corpus-description'}),
+                            "promptDescriptionChars": min(len(row['description']), 24000),
+                            "promptTruncated": len(row['description']) > 24000},
                         "generated": data}, indent=2), encoding="utf-8")
 
         # NEVER downgrade an already-applied (or later) job back to 'generated' on regen, and NEVER

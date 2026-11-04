@@ -1,5 +1,59 @@
 # Career Hunter — oshal app package
 
+## Job search workflow (1.30.0)
+
+Search Jobs exposes keywords, title, description and company above the results.
+**Add to Job Board** saves and stars a selected opening, then scores that exact job against your
+saved resume. **Promote to submission queue** prepares the tailored resume and cover letter.
+The queue offers document previews, PDFs and customization before an explicit submission action.
+Stars are independent of application status; saved jobs and queue/history views keep explicitly
+chosen postings visible even outside the current match area or after a posting closes.
+
+A desktop submission ticket does not mean an application has been submitted. The worker's
+recorded outcome moves it to Application status. For applications completed outside OSHAL,
+**Mark submitted manually** retains the manual-assertion provenance.
+
+Application status activates the original person's `career-application-updates` schedule, every
+15 minutes. It reads the connected Gmail mailbox through native credential custody and requires
+that mailbox to match the resume's submission email. The monitor starts with the past seven days
+of submitted applications, retains those applications for later updates, and never reads other
+owners' stores, sends mail or submits jobs. Exact employer/title matches can record acknowledgements,
+interviews, offers or rejections. Ambiguous matches remain for review. Email receipts do not upgrade
+manual submission provenance to verified employer acceptance. Connection failures remain visible;
+connect the correct Gmail account with mail-read access in Connections when needed.
+
+Private `job-board-state.json` holds stars/preparation receipts; `application-email-state.json`
+holds bounded message identifiers, subjects, dates, mailbox and update classifications, pagination
+and retry state. Both publish with the owner's native generation. Preparation domain failures publish
+an explicit failed receipt; a completed engine process alone never means documents are ready.
+
+## Native nightly resume matching
+
+The native `career-nightly-matches` owner schedule checks every 30 minutes in America/Chicago.
+Enable or pause it in Career Settings. It runs against the published shared corpus, after the
+installation's separate 18:00 Central pull succeeds. The ingest's private working copy is never read.
+
+One kept owner run keyword-matches the recent 14-day window to the saved resume, then AI-scores
+up to 50 previously unscored target-title jobs posted in the last seven days (first-seen fallback
+for undated jobs). The saved local-radius/remote preference applies to AI selection. Matching and
+scoring share the owner's existing score lease. The job creates no application submissions.
+
+`nightly-match-success.json` is private to the owner and publishes with their scores only after
+the child succeeds. The published corpus version prevents repeating a finished pass; each corpus
+belongs to the most recent 18:00 America/Chicago refresh cycle, with one successful pass per cycle.
+A midday catch-up therefore cannot consume the coming evening's new publication. Failed runs remain eligible
+at a later check. The native job receipt records dispatch; Career Settings separately shows the
+completed keyword/scoring counts. Enabling the schedule does not enable auto-submit or change
+draft generation settings.
+
+## Nightly source review (1.47.6)
+
+Each full pull ends with a bounded review of the sources it could not read. It moves a source only
+when the employer's own page points at a board that returns jobs, reports name-only matches as
+suggestions, leaves an employer that refuses alone, and reads only public addresses. The Companies
+page shows what was repaired, what needs a person, what the pull did and what is still broken. See
+[the nightly source review](SOURCE-REVIEW.md).
+
 ## Fresh job-search cycle (1.29.0)
 
 On the Job Board's **Ready for submission** tab, **Review Ready items older than 7 days** previews
@@ -567,10 +621,13 @@ predicates remain inside the bounded pool. Keep predicates sargable (`p.target_r
 `GET /jobs` answers "which of my scored matches", so it returns nothing for an account with no
 signals database — which is every account before its first upload. `GET /browse` answers "what is
 open at all" straight off the tenant corpus, and the board renders it in a score-free mode where
-Apply becomes the resume-upload step. Its keyword search matches **titles only** and plans through
-the covering `idx_corpus_browse (active, title)`; matching `p.description` there would reintroduce
-the same page-cache problem the scored feed was replanned to remove. Guarded against a real SQLite
-corpus in `tests/career-browse-feed.test.mjs`, including the query plan.
+Apply becomes the resume-upload step. Both screens put a keyword box and Search button directly
+below the heading. Open search matches **titles, descriptions and employers** without a resume;
+advanced title-only and description-only inputs narrow those results independently. The matched
+board searches the signed-in owner's scored jobs by title and description. Both use the corpus's
+FTS index before fetching result rows, so a rare keyword does not scan historical descriptions.
+Legacy corpora without FTS retain the bounded LIKE fallback. Guarded by the real SQLite feed and
+screen-script tests, including description-only matches, original-owner scope and query plans.
 
 **The packet preview serves HTML, not the PDF** (`career-resume-preview`, `?as=html`). Mobile
 browsers do not reliably render a PDF inside an iframe. The generator already writes the HTML
@@ -721,7 +778,169 @@ Container memory, MiB low / high: **64 / 256 (declared)**.
 | application-packet | tailored resume and cover letter | T3 | none | disable | not yet measured | none recorded |
 | resume-studio-guide | resume edit turn | T3 | none | disable | not yet measured | none recorded |
 | job-guide | job guide turn | T3 | none | disable | not yet measured | none recorded |
+| interview-preparation | interview guide or practice feedback | T3 | none | disable | not yet measured | none recorded |
 | linkedin-profile-draft | profile draft turn | T2 | none | disable | not yet measured | none recorded |
 | profile-ingest | resume or artifact ingest | T2 | none | disable | not yet measured | none recorded |
 | story-review | story review answer | T2 | none | template | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+### Interview preparation and practice
+
+Choose **Interview preparation** on a Job Board card. The job-specific guide links
+to exact experience recorded in the candidate profile, suggests varied practice
+questions and identifies gaps to discuss honestly. Answer in your own words to save
+private feedback and an exact quote from that answer. Preparing a fresh guide keeps
+earlier practice available. A changed job/profile or a different guide requires
+fresh preparation before another practice answer is assessed.
+
+Jarvis uses `career_interview_prepare`, `career_interview` and
+`career_interview_practice` through the same original-owner background runs and
+saved receipts as the UI. An acknowledged run is not a finished guide. Practice
+answers do not update the candidate profile or send anything to an employer.
+
+### Search size and location with Jarvis
+
+Open jobs search and Job Board offer 25, 50, 100 or 200 results per page, with Previous/Next navigation. The selected size is remembered with the search filters. A displayed page is not the total number of matching jobs.
+
+Jarvis can call the read-only `career_database` tool with search filters with explicit city/state or ZIP (`near`) and `radiusMiles`, or `useHome: true` to use the acting user's saved Career Matching area. For example: “Find developer opportunities within 50 miles of my home.” Home references that saved city/ZIP center; it does not infer a street address. A temporary search does not change the saved matching preference. Distances are approximate straight-line distances, and postings without coordinates cannot satisfy a radius search. The tool returns public openings, source freshness, pagination facts and an Open jobs search link; it does not score, pull sources or submit applications.
+
+
+### Pay ranges and missing employer pay
+
+Search Jobs and Job Board accept `min_pay`, `max_pay`, and `pay_period` (`year`, `hour`,
+`month`; defaults to annual), in USD. Both bounds are optional. A posting matches when
+its pay interval overlaps the requested interval, inclusively; a single published
+endpoint acts as a point. Other currencies and other pay periods are not compared
+or converted into the selected basis. Invalid or reversed bounds return HTTP 400.
+
+Employer-listed pay is preserved. For missing pay or the old generic heuristic, the
+read path uses a reviewed title-to-occupation mapping and the **25th–75th percentile**
+of BLS OEWS **May 2025 national wages**. The source, survey, occupation, national
+geography, method and low confidence travel in `salary_estimate`, and cards label
+these numbers as estimates with a source link. This is a title-based inference,
+not an employer offer or a local/seniority adjustment. Annual estimates are not
+assigned to part-time jobs, adjunct/per-course roles, interns, or apprentices.
+Foreign/unspecified locations and unmatched titles receive no invented default.
+Unresolved jobs are excluded from a pay-filtered search unless
+`include_unknown_pay=1`; this does not admit a known incompatible currency or unit.
+
+The pinned public extract is `lib/career-pay-benchmarks.json`, with the official
+ZIP URL and its SHA256. Refresh deliberately after reviewing a new BLS release:
+`python3 career-hunter/scripts/update-pay-benchmarks.py --year 2025` from the repo
+root. The script uses only the Python standard library. Estimates require no model
+calls, user-store writes, corpus migration, or external request at search time.
+
+### Selected job details and Jarvis document preparation
+
+Preparing a selected job resolves missing or short feed descriptions through the
+employer connector. The fuller description stays in the original owner's private
+`job-context` store, bound to the listing ID, employer, title, URL and description
+hash. Scoring, documents, job details and interview preparation reuse that context
+even when the shared corpus is read-only. An unavailable description stops
+preparation; a remaining short summary is explicitly identified as limited source
+material. No requirements are inferred from omitted text.
+
+Each new packet's `application.json` retains the gated source profile, employer
+description and prompt truncation metadata. Scoring includes up to 16,000 employer
+characters and document generation up to 24,000. Native private completions accept
+the full profile within a 256 KiB request bound and preserve the engine's requested
+output allowance, up to 8,192 tokens.
+
+Jarvis uses the same native routes to save/star a job, promote it, start a draft,
+read its preparation receipt and inspect its saved documents. A background start
+is not a finished packet. Final employer submission still requires approval of the
+specific packet and uses the enrolled browser worker.
+
+The native Python sandbox has no external network. Selected Workday details use
+the same run's signed callback and the kernel's declared anonymous Workday egress,
+limited to structured job-detail GETs. The bridge never sends the profile, caller
+headers or employer credentials, and refuses redirects, unrelated paths and hosts.
+Other unsupported detail hosts retain their explicit listing-summary limitation.
+
+Private fit scoring uses the complete compact recorded profile, including every
+role, deliverable, skill, education entry and certification. It no longer uses the
+3,500-character overview, which could remove most of those facts before inference.
+Independent work is retained for private scoring and remains separately gated for
+employer documents. A scoring profile above 128 KiB stops with an explicit error;
+it is never silently shortened. Each new score records a fingerprint of the complete
+scoring evidence, considered description, source limitations, scoring contract and
+resolved model. Bounded batch passes reuse matching scores and can refresh legacy
+or changed inputs. They inspect at most ten times the model-call limit per pass,
+with a private scan cursor so unchanged early results cannot hide later changed
+jobs. Existing title, area, age and workflow-state restrictions still apply; a
+score refresh never changes an application's status.
+The native rail currently reports the logical `oshal-career-bot` model identity.
+An operator changing its underlying provider/model must also change the exposed
+identity or bump the scoring contract version to invalidate existing fingerprints.
+
+Resume and career-material intake preserve supported source statements for
+education, certifications and licenses, including pending, expired and date
+modifiers. Additive updates retain existing facts, backups and audit records.
+Supported extracted text is read completely up to 32,000 characters; oversized or
+unsupported evidence is refused before publishing instead of silently dropping
+the document tail. Ordinary name/credential and contact/clearance headers remain
+supported. A failed qualification check leaves the prior profile unchanged.
+
+Career Settings exposes the original owner's matching and application-email
+routines separately. Both offer enable, pause and check controls, including fresh
+review after a package update suspends the saved source. These controls preserve
+the caller's existing schedule identity and authority; email monitoring reads the
+connected submission mailbox and sends no messages or applications.
+
+### Reading and refining job results (1.45.6)
+
+The Job Board fetches one selected-size batch at a time. **Load more** appends
+the next batch while keeping existing cards and expanded documents mounted.
+**Next** and **Previous** replace the page and return to its top. Filters retain
+the previous results while the request runs; a failed refresh offers Retry.
+Stable posting identifiers break ranking ties, and indexed open search can
+continue past the former 2,000-result ceiling.
+
+**Not interested** is available in Search Jobs and the Job Board. Hide only the
+opening, a title phrase such as general manager, the selected company, a
+location, or a keyword in job titles/employer industries such as retail. Rules
+are saved under the original owner and applied before pagination in open search,
+active matches and Jarvis reads. **Hidden preferences** lists the rules and
+lets the owner remove them. Explicit saved/queue/application history remains
+accessible; these preferences do not delete applications or change the corpus.
+Repeated links to the same employer opening are consolidated within loaded
+results after removing tracking parameters; distinct requisition parameters
+remain separate.
+
+### Application flow and Additional experience (1.46.0)
+
+1. Search for a job and star it. Starred active openings come first on the Job
+   Board, across pages, including those still awaiting a score. An explicit save
+   remains visible outside the age and matching-area defaults; other selected
+   filters and hidden preferences still apply. Submitted applications remain in
+   Application status.
+2. **Move to submission queue** only moves and stars the job. It does not start
+   generation or submit anything. The queue opens that newly moved job's
+   preparation panel.
+3. Use the core résumé, enter job-specific guidance, and optionally select
+   **Additional experience**. Then choose **Generate résumé & cover letter**.
+4. Review both documents, customize them in the résumé bank if needed, and
+   choose **Review and submit application** to review the exact packet and
+   approve submission.
+5. Follow application/email updates in **Application status**. Interview
+   preparation appears after the application has been recorded.
+
+Select a job title to read its posting and fit assessment. The old Details
+button and personal + OSHAL button are removed from this flow.
+
+The Additional experience library holds independent products/projects, other
+employment, volunteering and optional skills separately from the core résumé.
+Existing independent portfolio evidence is read only from that same owner's
+profile and appears as a selectable entry; it is never copied from another
+user or added to the core by opening the library. Save facts in the library,
+select their entries per application, or archive/restore an entry. Generation
+checks the selected library revision and preserves entry IDs and titles in
+the packet. Relevant selected work is rendered in **Additional Experience**;
+skills-only entries do not become fabricated jobs. Unselected optional work
+is absent from document prompts. Private fit scoring may consider recorded
+active optional skills/work; that does not opt it into employer documents.
+
+The owner APIs are GET/POST `/experience-bank` and GET `/experience-library`.
+They retain the existing read/change/open permissions. `career_experience_bank`
+provides summary IDs and revision to Jarvis; `career_draft` accepts explicitly
+selected IDs/revision. The legacy portfolio draft tool remains an opt-in alias.

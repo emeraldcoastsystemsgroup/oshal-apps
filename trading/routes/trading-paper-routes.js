@@ -20,6 +20,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the native paper autopilot surface over routes/paper/ (arm, disarm, status, tick, fills, decisions).
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | GET /books also returns the reference book, each book's last tick and when the person's paper schedule last ran a tick, so the concierge can say whether a paper account it started is trading.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | POST /books/:ref/strategy runs a saved portfolio strategy on a paper account (or clears it with no strategyId) and arms it; GET /books names each account's strategy.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | The OSHAL report videos: GET /reports/videos lists the owner's rendered per-account videos, POST /reports/videos/tick drives the report studio engine (the report-video schedule fires it), POST /reports/videos/presenter keeps the silent presenter clip, and GET /reports/videos/:session/:file streams one video from the lasting directory by the caller's own index row.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.51.0: the film routes render inside Trading (paper/report-film.js through the kernel's voice.speak and the package's lasting storage); the routes and their shapes are unchanged.
  *
  * @module trading-paper-routes
  */
@@ -30,6 +32,7 @@ const store = require('./paper/store');
 const books = require('./paper/books');
 const paperStrategy = require('./paper/strategy');
 const reports = require('./paper/report');
+const reportVideo = require('./paper/report-video');
 const { nativeHost } = require('./paper/screen');
 
 /**
@@ -137,6 +140,9 @@ function paperHandlers(ctx, clock = () => new Date()) {
     async reports(req){return {status:200,body:{ok:true,reports:await reports.listReports(deps.pool,callerOf(req))}};},
     async report(req){return {status:200,body:{ok:true,report:await reports.generateReport(ctx,callerOf(req),clock(),{scheduled:header(req,'x-oshal-trigger')==='schedule'})}};},
     async presenter(req){return {status:200,body:await reports.savePreferences(deps.pool,callerOf(req),req.body,clock())};},
+    async videosTick(req){return reportVideo.tickVideos(deps,callerOf(req),req.body||{},clock());},
+    async videos(req){return reportVideo.listVideos(deps,callerOf(req));},
+    async videoPresenter(req){return reportVideo.savePresenterClip(deps,callerOf(req),req.body||{});},
     async orders(req) { return { status: 200, body: { ok: true, orders: await store.listOrders(deps.pool, callerOf(req)) } }; },
     async decisions(req) { return { status: 200, body: { ok: true, decisions: await store.listDecisions(deps.pool, callerOf(req)) } }; },
   };
@@ -193,6 +199,11 @@ function createTradingPaperRoutes(ctx, makeRouter) {
   router.get('/reports',route('reports',h.reports));
   router.post('/reports',route('report',h.report));
   router.post('/presenter',route('presenter',h.presenter));
+  router.get('/reports/videos',route('report-videos',h.videos));
+  router.post('/reports/videos/tick',route('report-videos-tick',h.videosTick));
+  router.post('/reports/videos/presenter',route('report-videos-presenter',h.videoPresenter));
+  // The stream route stays raw so the kernel's lasting-file reply can answer byte ranges.
+  router.get('/reports/videos/:session/:file',reportVideo.streamVideo({pool:ctx&&ctx.pool},callerOf));
   return router;
 }
 

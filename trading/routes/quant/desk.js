@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Raise the engine for the deep-dip price signal and the quality-dip forward signal, so a list already published tonight republishes with both from the stored prices.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Raise the engine so the history test's corrected wording republishes from the stored prices.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | On the first full read ADP, CME, ENB and LH were marked as having no data, yet each read fine a minute later; the last error was the kernel refusing a read when the Schwab connection changed under it. A name that fails now gets a second try once the sweep ends, and the reason for each name still left out is kept.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Reads across thousands of names, and passes shrink to 12 seconds because Trading runs as one process serving one call at a time: a longer pass would hold up the stop watcher and every screen. Each heavy step gets its own pass, so a publish starts with the whole 60-second call ahead of it. Filings refresh the list without re-reading prices.
@@ -20,7 +21,7 @@ const { readSecFinancialSummary } = require('../trading-sec-financial-reader');
 
 const HISTORY_DAYS = 4000;
 /** Raise when results are worked out differently: the night's list is republished from the stored prices. */
-const ENGINE = 5;
+const ENGINE = 6;
 /** Shorter windows to try when one old candle in the long window is unusable. */
 const SHORTER_WINDOWS = Object.freeze([1500, 400]);
 /** Everything else in Trading waits while a pass runs, so reading stops this soon. A read already started may finish. */

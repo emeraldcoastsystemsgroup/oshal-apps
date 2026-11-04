@@ -27,9 +27,11 @@ exports.listStoreUsers = listStoreUsers;
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Ensure route-opened user stores also carry the durable Apply run id and exact claim token.
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | callerSub now resolves the verified trusted-service identity ahead of the OIDC session (eats/spotify tool idiom): the framework tool-executor's api-type tools call these routes with X-Service-Secret + the signed-in user's sub, and the OIDC-only read returned null for exactly those calls — which is why no career tool could ever reach the resume rails. The mount is already service-or-oidc; the kernel helper verifies the secret before trusting the header.
  * 11 | maintainer@emeraldcoastsystemsgroup.com   | Open the tenant-shared corpus on its own so the board stays searchable before a resume exists.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com   | Read checkpointed native owner generations immutably so WAL-mode board, stats and resume reads need no sidecar files on the read-only mount. Keep normal locking when WAL contains pending data or the store is mutable.
  */
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const url_1 = require("url");
 const better_sqlite3_1 = __importDefault(require("better-sqlite3"));
 const logger_1 = require("@/shared/logger");
 const authz_1 = require("@/shared/middleware/authz");
@@ -108,11 +110,29 @@ function openUserDb(userSub, readonly = true) {
     const { corpusDb, userDb, userDir } = userPaths(userSub);
     if (!fs_1.default.existsSync(corpusDb) || !fs_1.default.existsSync(userDb))
         return null;
-    migrateApplicationProvenance(userDb, userDir);
-    const db = new better_sqlite3_1.default(userDb, { readonly });
-    db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
-    tuneDatabase(db);
-    return db;
+    // Reads can be mounted against the published generation read-only. Keep compatibility
+    // migrations on the writable path so opening the board never mutates a read request's store.
+    if (!readonly)
+        migrateApplicationProvenance(userDb, userDir);
+    // Native reads pin an immutable published generation. A checkpointed WAL database still
+    // carries WAL in its header, and a normal readonly open tries to create forbidden -shm.
+    // Never bypass a pending WAL, or disable locking for a mutable/legacy store.
+    const wal = `${userDb}-wal`;
+    const immutable = readonly && process.env.OSHAL_CAREER_OWNER_MOUNT === '1'
+        && !(fs_1.default.existsSync(wal) && fs_1.default.lstatSync(wal).size > 0);
+    const source = immutable ? `${(0, url_1.pathToFileURL)(userDb).href}?immutable=1` : userDb;
+    const db = new better_sqlite3_1.default(source, { readonly });
+    try {
+        db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
+        tuneDatabase(db);
+        if (readonly)
+            db.pragma('query_only=true');
+        return db;
+    }
+    catch (err) {
+        db.close();
+        throw err;
+    }
 }
 /**
  * @description Resolves the tenant-shared corpus database path without naming a user. The corpus

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Travel concierge turn with no Duffel rail, through the COMPILED route module. The Duffel double answers like the native kernel (status not_connected; any search refuses 503 and would fail the call). A turn that carries a search runs none, opens no fare watch even when the model asks for one, and its prompt says fares cannot be searched or watched here, forbids "connect Duffel", and reads VPS as an airport. With a rail the search still runs. Red on the previous route, which searched without asking and offered fare watches it could not keep.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The route module now requires ./travel-handoff (the search links it answers with where there is no Duffel rail); the loader serves it.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The route module now requires ./duffel-egress (Duffel through the native kernel's egress, used only where OSHAL_EGRESS=kernel); the loader serves it.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -53,6 +54,7 @@ function load({ status, reply }) {
       },
     },
     './travel-handoff': require(path.join(__dirname, '..', 'routes', 'travel-handoff.js')),
+    './duffel-egress': require(path.join(__dirname, '..', 'routes', 'duffel-egress.js')),
     '@/app/routes/travel-farewatch': { ensureTravelSchema: async () => {}, routeKeyFor: () => 'flight:VPS-DCA', recordObservations: async () => {}, priceRead: async () => ({ verdict: 'unknown' }) },
   };
   const mod = { exports: {} };

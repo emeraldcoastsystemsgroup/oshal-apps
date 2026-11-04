@@ -71,7 +71,10 @@ to trust it:
 | `FAIL` | red. Do not push | non-zero |
 
 **A skip is not a pass, and the exit code says so.** A hook and a human both read `$?`, not the
-prose above it. If you have decided a skip is acceptable on your box, say so explicitly:
+prose above it. Two kinds never block and are always printed: `LEGACY` checks, which test the retired
+TypeScript platform, and the live Embodied suites, which need a running engine. Those prove nothing on
+this gate. `bash scripts/store-push.sh "<title>" "<body>"` supplies every other prerequisite, pushes,
+and merges. If you have decided another skip is acceptable on your box, say so explicitly:
 
 ```bash
 bash scripts/store-ci-local.sh --allow-skips     # exits 0, still names everything that did not run

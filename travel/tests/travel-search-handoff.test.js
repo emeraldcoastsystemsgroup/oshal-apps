@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | "Find me flights from Seattle to Denver next Friday" from Jarvis answered that nothing could be searched: the native kernel has no Duffel rail and every search refuses 503. Through the compiled routes on that rail: /flights, /hotels and /cars answer the Google Flights, Booking.com and Kayak search links for the exact trip with no items and no prices, and never call the refusing provider; with a Duffel rail the provider still answers.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The route module now requires ./duffel-egress (Duffel through the native kernel's egress, used only where OSHAL_EGRESS=kernel); the loader serves it.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -52,6 +53,7 @@ function load({ status, reply }) {
       },
     },
     './travel-handoff': require(path.join(__dirname, '..', 'routes', 'travel-handoff.js')),
+    './duffel-egress': require(path.join(__dirname, '..', 'routes', 'duffel-egress.js')),
     '@/app/routes/travel-farewatch': { ensureTravelSchema: async () => {}, routeKeyFor: () => 'flight:VPS-DCA', recordObservations: async () => {}, priceRead: async () => ({ verdict: 'unknown' }) },
   };
   const mod = { exports: {} };

@@ -7,6 +7,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Share the owner lock, the optimistic project lock and one revision-append step with region-edit acceptance, so an accepted candidate becomes a revision by exactly the same path a manual save does; unused-upload cleanup also keeps a candidate that is still generating or waiting for review.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep native normalized image bytes, immutable metadata and eligible cleanup on the same admitted SQL client transaction.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Reuse original-client admissions for atomic PSD source, image and project publication.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: count the images a person saved in the last day, for the generation ceiling.
  */
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
@@ -120,6 +121,14 @@ export class CreateProjectStore {
       const count = await client.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM create_projects WHERE owner_issuer=$1 AND owner_sub=$2', [owner.issuer, owner.sub]);
       const result = await client.query<ProjectRow>(`SELECT ${METADATA} FROM create_projects WHERE owner_issuer=$1 AND owner_sub=$2 ORDER BY updated_at DESC,project_id LIMIT 6`, [owner.issuer, owner.sub]);
       return { projects: result.rows.map(metadata), count: count.rows[0].count };
+    });
+  }
+
+  /** Images this person has saved in the last day: the durable count a generation ceiling reads, since a native package process lasts one request. */
+  async assetsToday(owner: ProjectOwner): Promise<number> {
+    return this.transaction(owner, false, async client => {
+      const result = await client.query<{ count: number }>("SELECT COUNT(*)::int AS count FROM create_project_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND created_at>NOW()-INTERVAL '24 hours'", [owner.issuer, owner.sub]);
+      return result.rows[0].count;
     });
   }
 

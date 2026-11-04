@@ -40,8 +40,9 @@ export function fixtureProvider(options = {}) {
   const provider = {
     id: options.id ?? FIXTURE_PROVIDER_ID, costClass: options.costClass ?? 'paid', available: async () => options.available ?? true,
     async generateWithMeta(prompt, anchor) {
-      const size = await sharp(anchor).metadata(); calls.push({ prompt, width: size.width, height: size.height });
+      const size = anchor ? await sharp(anchor).metadata() : {}; calls.push({ prompt, width: size.width, height: size.height });
       if (mode === 'fail') throw new Error('Fixture provider refused this synthetic request');
+      if ((options.startingFor ?? 0) >= calls.length) throw new Error('the image model is starting; try again in about a minute');
       if (mode === 'hold') await new Promise(release => held.push(release));
       return { image: await answer(), costUsd: options.costUsd === undefined ? 0.04 : options.costUsd, model: FIXTURE_MODEL };
     },

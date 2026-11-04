@@ -1,3 +1,4 @@
+// CHANGE LOG: ssh card in app | maintainer@emeraldcoastsystemsgroup.com | The SSH hosts card opens Your SSH connection inside the application (#connections, no top-window target), never the standard masked dialog; the other shortcuts still open native connections in the top window.
 // CHANGE LOG: credentials current | maintainer@emeraldcoastsystemsgroup.com | Credentials cards match what is built: Kubernetes and SSH added, Azure reads, GitHub token guidance, swarm hand-off built.
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Verify actual service-standing UX distinguishes configured transport, original-person scope and provider delivery, clearing private rows on denied or stale reads. */
 'use strict';
@@ -40,7 +41,9 @@ test('credentials shortcuts route to native connections without collecting or tr
   assert.equal(await f.page.locator('#connections').isVisible(),false);
   for(const name of ['Kubernetes','GitHub','Amazon Web Services','Google Cloud','Microsoft Azure','SSH hosts','GitLab','Email']){
    const card=f.page.locator('#credentials article').filter({has:f.page.getByRole('heading',{name,exact:true})});
-   assert.equal(await card.count(),1);assert.equal(await card.locator('a').getAttribute('target'),'_top');
+   assert.equal(await card.count(),1);
+   if(name==='SSH hosts'){assert.equal(await card.locator('a').getAttribute('href'),'#connections','the SSH card opens Your SSH connection inside the application, never the standard masked dialog');assert.equal(await card.locator('a').getAttribute('target'),null);continue;}
+   assert.equal(await card.locator('a').getAttribute('target'),'_top');
    assert.match(await card.locator('a').getAttribute('href'),/^\/utilities(?:\?category=email)?$/);
   }
   const content=await f.page.locator('#credentials').innerText();
@@ -48,6 +51,8 @@ test('credentials shortcuts route to native connections without collecting or tr
   assert.equal(await f.page.locator('#credentials input,#credentials textarea').count(),0);assert.equal(f.sends,0);
   await f.page.setViewportSize({width:390,height:844});assert.equal(await f.page.locator('#credentials').isVisible(),true);
   await f.page.getByRole('link',{name:'Review current integration services'}).click();await f.page.locator('#connections').waitFor({state:'visible'});assert.equal(await f.page.locator('#connections').isVisible(),true);
+  await f.page.getByRole('link',{name:'Credentials & access',exact:true}).click();await f.page.locator('#credentials').waitFor({state:'visible'});
+  await f.page.getByRole('link',{name:'Open Your SSH connection',exact:true}).click();await f.page.locator('#ssh-conn-panel').waitFor({state:'visible'});assert.equal(await f.page.locator('#connections').isVisible(),true);assert.equal(f.sends,0);
  }finally{await f.close();}
 });
 

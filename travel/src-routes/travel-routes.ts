@@ -32,6 +32,7 @@
  * 2026-08-06 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: replace the final credential-bearing Duffel subprocess. Travel operations now call the bounded import-safe provider helper with the current request's explicit token.
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | The concierge knows the installation. The chat turn probes the Duffel `status`; where it answers mode not_connected (no Duffel connector exists on the native kernel) the turn runs no search (a search there refuses 503 and fails the call), opens no fare watch, and the prompt says fares cannot be searched or watched here and never tells the traveller to connect Duffel. Three-letter airport codes are read as IATA codes (VPS was taken for a server). Guard: tests/travel-chat-rail.test.js.
  * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Search handoff with no Duffel rail. "Find me flights from Seattle to Denver next Friday" answered that nothing could be searched: the native kernel has no Duffel provider and refuses every search. Where its status says not_connected (asked once per process), flights, hotels and cars answer the Google Flights, Booking.com and Kayak search links for the exact trip (./travel-handoff) with no items and no prices, and each answer carries the note that no fares are searched here. Guard: tests/travel-search-handoff.test.js.
+ * 2026-11-03 | maintainer@emeraldcoastsystemsgroup.com | Duffel is back on the native kernel. Flight search goes through the kernel's fenced egress (./duffel-egress): the manifest declares api.duffel.com with the kernel-held `duffel` key as the bearer token, so the package never holds it; hotels and cars stay search links. Where no key is configured every search is the search link, as before. A Duffel test-mode key's offers come back as source duffel-test with a note, the concierge must call them test fares, and they are never written to the swarm price history; a failed search answers its link with the reason. Guard: tests/travel-duffel-egress.test.js.
  *
  * @module travel-routes
  */
@@ -48,6 +49,7 @@ import { resolveServerOperationCreds } from '@/app/routes/connector-token-broker
 import { runDuffelProviderOperation } from '@/app/routes/provider-operation-clients';
 import { ensureTravelSchema, routeKeyFor, recordObservations, priceRead } from '@/app/routes/travel-farewatch';
 import * as travelHandoff from './travel-handoff';
+import * as duffelEgress from './duffel-egress';
 
 const logger = createChildLogger({ module: 'travel-routes' });
 
@@ -95,6 +97,7 @@ function resolveViewerSub(req: Request): string {
 
 // ── Duffel provider helper (fixed-operation request token, never model-visible) ─────────
 async function duffelProviderOperation(pool: Pool, sub: string, args: string[]): Promise<any> {
+  if (duffelEgress.isKernelEgress()) return duffelEgressOperation(args);
   const creds = await resolveServerOperationCreds(
     pool as unknown as never,
     sub,
@@ -116,6 +119,39 @@ async function duffelProviderOperation(pool: Pool, sub: string, args: string[]):
  * once: a refused provider operation fails the whole native call even when it is caught.
  */
 let runtimeRail: 'provider' | 'handoff' | null = null;
+
+/** The native kernel's Duffel answer for this process (a key configured or not), asked once; a transient failure is not kept. */
+let egressStatus: Record<string, unknown> | null = null;
+
+/**
+ * @description One Duffel operation on the native kernel: flights through the fenced egress (the kernel adds the
+ * Duffel key), hotels and cars as search links (Duffel sells no cars and Stays is a separate product), and every
+ * operation as search links where no key is configured. A failed search answers its link with the reason in words.
+ * @param args - [operation, ...arguments] as the provider helper takes them.
+ * @returns The status, or {source, items, deepLink, note?}.
+ */
+async function duffelEgressOperation(args: string[]): Promise<any> {
+  const fetchImpl = globalThis.fetch as any;
+  if (!egressStatus || args[0] === 'status') {
+    let st: Record<string, unknown>;
+    try { st = await duffelEgress.status(fetchImpl); egressStatus = st; }
+    catch (err: any) { st = { configured: false, provider: 'duffel', mode: 'unavailable', live: false, note: err.message }; }
+    if (args[0] === 'status') return st;
+    if (!egressStatus) return travelHandoff.run(args);
+  }
+  if (egressStatus.mode === 'not_connected' || args[0] !== 'flights') return travelHandoff.run(args);
+  const [, origin = '', destination = '', departDate = '', ...optional] = args;
+  const returnDate = /^\d{4}-\d{2}-\d{2}$/.test(optional[0] || '') ? optional.shift() : undefined;
+  const q = { origin, destination, departDate, returnDate, pax: Number(optional[0]) || 1, cabin: optional[1] || 'economy' };
+  const deepLink = travelHandoff.flightLink(q);
+  try { return { ...(await duffelEgress.searchFlights(fetchImpl, q)), deepLink }; }
+  catch (err: any) { logger.warn({ code: err.code }, 'duffel search failed'); return { source: 'handoff', items: [], deepLink, note: err.message }; }
+}
+
+/** Fares worth keeping in the swarm's price history: real ones, never Duffel test fares, demo data or empty handoffs. */
+function priceSource(source: string): boolean {
+  return source === 'duffel';
+}
 
 /** What a traveller is told where the installation has no Duffel rail at all. */
 export const TRAVEL_NO_RAIL = 'This installation has no Duffel rail (no Duffel connector exists here), so flights, hotels and cars cannot be searched, priced or watched for fare drops here.';
@@ -142,7 +178,7 @@ interface ChatEnvelope { say: string; show: string[]; watch: string[]; remember:
 
 function buildConciergePrompt(o: {
   message: string; history: Array<{ role: string; content: string }>;
-  candidates: any[]; kind: string; profile: any; notes: string[]; price: any; railNote?: string;
+  candidates: any[]; kind: string; profile: any; notes: string[]; price: any; railNote?: string; fareNote?: string;
 }): string {
   const p = o.profile || {};
   const profileLine = p.onboarded
@@ -163,6 +199,7 @@ function buildConciergePrompt(o: {
     '',
     `CANDIDATES (real/flagged-demo — the ONLY options you may show or watch, by id):\n${cands}`,
     'Three-letter uppercase codes such as VPS, PNS, DCA or JFK are IATA airport codes (VPS is Destin–Fort Walton Beach, Florida); read them as airports, never as anything else.',
+    o.fareNote ? `THESE FARES: ${o.fareNote} Say "Duffel test fare" with every price you quote, and never call one cheap, real or bookable.` : '',
     o.railNote ? `THIS INSTALLATION: ${o.railNote} Do not offer a fare watch or a live price, and never tell the traveller to connect Duffel or add a Duffel token: there is no Duffel connector to add here. Help plan the trip itself (airports, dates, timing, what to book first) and label any timing advice as general.` : '',
     '',
     price,
@@ -246,7 +283,7 @@ export function createTravelRoutes(ctx: AppContext): Router {
     const r = await duffelProviderOperation(pool, sub, args);
     const items = r.items || [];
     const best = items.length ? Math.min(...items.map((i: any) => Number(i.price))) : null;
-    await recordObservations(pool, 'flight', q, items, r.source || 'demo');
+    if (priceSource(r.source)) await recordObservations(pool, 'flight', q, items, r.source);
     const routeKey = routeKeyFor('flight', q);
     const price = await priceRead(pool, 'flight', routeKey, best);
     await pool.query(
@@ -355,6 +392,7 @@ export function createTravelRoutes(ctx: AppContext): Router {
     let price: any = { verdict: 'unknown' };
     const candById = new Map<string, any>();
     const search = req.body?.search;
+    let fareNote = '';
     const railAbsent = await duffelRailAbsent(pool, sub);
     if (!railAbsent && search && kind === 'flight' && search.origin && search.destination && search.departDate) {
       const q = flightQuery(search);
@@ -363,7 +401,8 @@ export function createTravelRoutes(ctx: AppContext): Router {
       args.push(String(q.pax), q.cabin);
       const r = await duffelProviderOperation(pool, sub, args);
       candidates = r.items || [];
-      await recordObservations(pool, 'flight', q, candidates, r.source || 'demo');
+      if (r.source === 'duffel-test') fareNote = duffelEgress.TEST_NOTE;
+      if (priceSource(r.source)) await recordObservations(pool, 'flight', q, candidates, r.source);
       const best = candidates.length ? Math.min(...candidates.map((i: any) => Number(i.price))) : null;
       price = await priceRead(pool, 'flight', routeKeyFor('flight', q), best);
     }
@@ -372,7 +411,7 @@ export function createTravelRoutes(ctx: AppContext): Router {
     const profile = await loadProfile(pool, sub);
     const notes = (await pool.query(`SELECT note FROM travel_feedback WHERE user_sub = $1 ORDER BY created_at DESC LIMIT 25`, [sub])).rows.map((r) => r.note);
 
-    const prompt = buildConciergePrompt({ message, history, candidates, kind, profile, notes, price, railNote: railAbsent ? TRAVEL_NO_RAIL : '' });
+    const prompt = buildConciergePrompt({ message, history, candidates, kind, profile, notes, price, railNote: railAbsent ? TRAVEL_NO_RAIL : '', fareNote });
     let raw = '';
     try {
       const orchestrator = (ctx as any).orchestrator;

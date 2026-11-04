@@ -6,6 +6,8 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Mount region editing on this router with the same guards and the shared project validator; a test may name its fixture provider through options.regionEdits, production always uses the media-generation kernel skill.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Compose bounded PSD review/import and immutable original export without replacing existing project routes.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: a refused agent project or edit batch says why in `detail` (the editor validator's sentence), so Jarvis can correct the call instead of guessing.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: an agent project may carry its first layers, so one approval makes a finished drawing; the batch rules are the edit route's.
  */
 import { Router, json, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import multer from 'multer';
@@ -33,7 +35,11 @@ function personalOnly(req: Request): void {
 function sendError(res: Response, error: unknown): void {
   if (res.headersSent) return;
   const typed = error instanceof ProjectError ? error : null;
-  res.status(typed?.status ?? 503).json({ error: typed?.code ?? 'project_service_unavailable' });
+  res.status(typed?.status ?? 503).json(typed?.detail ? { error: typed.code, detail: typed.detail } : { error: typed?.code ?? 'project_service_unavailable' });
+}
+/** The editor validator's own sentence ("Use a hex color or transparent"), so a concierge can correct its next call; nothing else is repeated. */
+function reason(error: unknown): string | undefined {
+  return error instanceof TypeError ? error.message.slice(0, 200) : undefined;
 }
 
 /** Authorize before decoding request bodies or doing any persistence work. */
@@ -86,8 +92,12 @@ function projectWrites(router: Router, env: RouteEnvironment): void {
     res.json((await agent).editingContract());
   }));
   router.post('/agent-projects', admit(env, 'create'), bodyParser, handler(env, 'create', async (req, res, owner) => {
-    exactFields(req.body, ['title', 'width', 'height', 'background']);
-    let document; try { document = (await agent).blankProject(req.body); } catch { throw new ProjectError(400, 'invalid_project_document'); }
+    exactFields(req.body, ['title', 'width', 'height', 'background', 'operations']);
+    if (Buffer.byteLength(JSON.stringify(req.body)) > 16384) throw new ProjectError(413, 'project_operations_too_large');
+    const { operations, ...blank } = req.body;
+    let document;
+    try { const tools = await agent; document = tools.blankProject(blank); if (operations !== undefined) document = tools.applyAgentOperations(document, operations); }
+    catch (error) { throw new ProjectError(400, 'invalid_project_document', reason(error)); }
     const input = projectInput({ title: req.body.title, document }, await env.validator);
     const project = await env.store.create(owner, input, confirm(env, 'create', owner)); res.status(201).json({ project });
   }));
@@ -100,7 +110,7 @@ function projectWrites(router: Router, env: RouteEnvironment): void {
     const current = await env.store.get(owner, id);
     if (current.revision !== expected) throw new ProjectError(409, 'project_revision_conflict');
     let document; try { document = (await agent).applyAgentOperations(current.document, req.body.operations); }
-    catch { throw new ProjectError(400, 'invalid_project_operations'); }
+    catch (error) { throw new ProjectError(400, 'invalid_project_operations', reason(error)); }
     const input = projectInput({ title: document.name, document }, await env.validator);
     const project = await env.store.save(owner, id, expected, input, async () => {
       await requireProjectAccess(env.ctx, 'read', owner); await requireProjectAccess(env.ctx, 'change', owner);

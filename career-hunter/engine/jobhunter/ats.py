@@ -13,13 +13,21 @@ Normalized posting dict:
     {ats_job_id, title, location, remote, department, url, description, posted_at}
 """
 # CHANGE LOG
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Split a capped Workday search on a facet that agrees with its size before a wider one: a facet that overshoots can still miss jobs, and left Jabil 41 jobs short of whole.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Stop treating Workday's 2,000-job search cap as a whole board: a capped search is split by facet until every job is read, and a board that cannot be proven whole closes nothing. The cap had closed live jobs at Accenture, NVIDIA, Leidos, Booz Allen, Jabil and Tapestry.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Parse complete decimal/grouped salary amounts and explicit currencies while retaining unknown or per-course units without an annual default.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Keep occupational, hybrid and negated remote metadata out of fully remote matches while retaining independent structured workplace evidence.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 import re
+import statistics
+from collections import Counter
 from html import unescape
 
 from . import http
 from .public_education_ats import GovernmentJobs, PageUp
+from .work_arrangement import looks_remote as _looks_remote, remote_location
+from .salary_text import parse_salary as _parse_salary
 
 _TAG = re.compile(r"<[^>]+>")
 
@@ -28,11 +36,6 @@ def _strip_html(s: str | None) -> str | None:
     if not s:
         return s
     return unescape(_TAG.sub(" ", s)).strip()
-
-
-def _looks_remote(*parts) -> int:
-    blob = " ".join(p for p in parts if p).lower()
-    return int("remote" in blob or "work from home" in blob or "anywhere" in blob)
 
 
 def _jsonld_description(html: str | None) -> str | None:
@@ -56,33 +59,6 @@ def _jsonld_description(html: str | None) -> str | None:
                     return _strip_html(cur["description"])
                 stack.extend(cur.values())
     return None
-
-
-_MONEY = re.compile(r"\$?\s*([0-9]{2,3}(?:[,.][0-9]{3})*|[0-9]+(?:\.[0-9]+)?)\s*([kK])?")
-_PERIOD = re.compile(r"\b(year|annual|yr|hour|hr|month|mo)\b", re.I)
-
-
-def _parse_salary(text):
-    """Best-effort parse of a salary string -> dict(min,max,currency,period,raw) or None."""
-    if not text:
-        return None
-    raw = text.strip()
-    nums = []
-    for m in _MONEY.finditer(raw):
-        val = float(m.group(1).replace(",", ""))
-        if m.group(2):  # 'k'
-            val *= 1000
-        if val >= 1000:  # ignore stray small numbers
-            nums.append(val)
-    if not nums:
-        return None
-    pm = _PERIOD.search(raw)
-    period = "year"
-    if pm:
-        p = pm.group(1).lower()
-        period = "hour" if p in ("hour", "hr") else "month" if p in ("month", "mo") else "year"
-    cur = "GBP" if "£" in raw else "EUR" if "€" in raw else "USD"
-    return {"min": min(nums), "max": max(nums), "currency": cur, "period": period, "raw": raw}
 
 
 # ── Greenhouse ───────────────────────────────────────────────────────────────
@@ -173,11 +149,12 @@ class Ashby:
         out = []
         for j in (data or {}).get("jobs", []):
             loc = j.get("location")
+            loc = remote_location(loc, j.get("title"), verified=j.get("isRemote"))
             rec = {
                 "ats_job_id": j.get("id"),
                 "title": j.get("title"),
                 "location": loc,
-                "remote": int(bool(j.get("isRemote"))) or _looks_remote(loc),
+                "remote": _looks_remote(loc, j.get("title"), verified=j.get("isRemote")),
                 "department": j.get("departmentName") or j.get("teamName"),
                 "url": j.get("jobUrl") or j.get("applyUrl"),
                 "description": _strip_html(j.get("descriptionPlain") or j.get("descriptionHtml")),
@@ -219,11 +196,12 @@ class SmartRecruiters:
             for j in data.get("content", []):
                 loc = j.get("location") or {}
                 loc_str = ", ".join(x for x in [loc.get("city"), loc.get("region"), loc.get("country")] if x)
+                loc_str = remote_location(loc_str, j.get("name"), verified=loc.get("remote"))
                 out.append({
                     "ats_job_id": j.get("id"),
                     "title": j.get("name"),
                     "location": loc_str or None,
-                    "remote": int(bool(loc.get("remote"))) or _looks_remote(loc_str),
+                    "remote": _looks_remote(loc_str, j.get("name"), verified=loc.get("remote")),
                     "department": (j.get("department") or {}).get("label"),
                     "url": f"https://jobs.smartrecruiters.com/{token}/{j.get('id')}",
                     "description": None,  # full text needs a per-posting call; skipped for speed
@@ -272,11 +250,12 @@ class Workable:
             loc = j.get("location") or {}
             loc_str = ", ".join(x for x in [loc.get("city"), loc.get("region"), loc.get("country")] if x) \
                 if isinstance(loc, dict) else str(loc)
+            loc_str = remote_location(loc_str, j.get("title"), verified=j.get("remote"))
             out.append({
                 "ats_job_id": j.get("shortcode") or j.get("id"),
                 "title": j.get("title"),
                 "location": loc_str or None,
-                "remote": int(bool(j.get("remote"))) or _looks_remote(loc_str),
+                "remote": _looks_remote(loc_str, j.get("title"), verified=j.get("remote")),
                 "department": j.get("department"),
                 "url": j.get("url") or j.get("application_url")
                        or f"https://apply.workable.com/{token}/j/{j.get('shortcode')}",
@@ -300,6 +279,139 @@ class Workable:
 # Workday is per-tenant. token format = "tenant:dc:site"
 #   e.g. nvidia:wd5:NVIDIAExternalCareerSite   ->
 #        https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs
+#
+# A search answers at most 2,000 jobs and reports `total` as 2000 however many exist, so a search
+# at the cap proves only "at least this many". Facet counts stay exact: splitting the search by a
+# facet reaches the rest, and those counts say how many jobs the board really holds.
+WORKDAY_CAP = 2000
+WORKDAY_MAX_REQUESTS = 4000  # Room for the largest board seen, Accenture's 41,000 jobs at 20 a page.
+WORKDAY_MAX_DEPTH = 5
+WORKDAY_COVERAGE = 0.995     # Jobs open and close during a walk that can take most of an hour.
+
+
+def _workday_facets(facets):
+    """Flatten Workday's nested facet groups into (parameter, [(value id, count)]) pairs."""
+    out = []
+    for facet in facets or []:
+        values = facet.get("values") or []
+        if any("facetParameter" in value for value in values):
+            out.extend(_workday_facets(values))
+        elif facet.get("facetParameter"):
+            out.append((facet["facetParameter"], [(v["id"], v.get("count") or 0) for v in values if v.get("id")]))
+    return out
+
+
+def _workday_size(facets, applied):
+    """How many jobs a search really holds: the count most of its facets agree on, or 0 if it has none.
+
+    One a job can hold several values of (locations) overshoots the size and one a job can lack
+    undershoots it, so the agreeing count is the evidence and no single facet is trusted alone.
+    """
+    sums = [sum(count for _, count in values) for parameter, values in _workday_facets(facets) if parameter not in applied]
+    if not sums:
+        return 0
+    common, agreeing = Counter(sums).most_common(1)[0]
+    return common if agreeing > 1 else statistics.median_low(sums)
+
+
+def _workday_split(facets, applied, size):
+    """The facet that divides a search of `size` jobs: (parameter, value ids), or None.
+
+    A facet that agrees with the size holds every job once. One that overshoots has jobs in several
+    values and can still miss others, so it is the fallback however wide it looks. Among equals the
+    best has every value under the cap in the fewest searches, else the smallest largest value.
+    """
+    def rank(option):
+        _, values, total = option
+        largest = max(count for _, count in values)
+        under = largest < WORKDAY_CAP
+        return (not size <= total <= size * 1.001, not under, len(values) if under else largest, -total)
+
+    options = [(parameter, values, sum(count for _, count in values))
+               for parameter, values in _workday_facets(facets) if parameter not in applied and len(values) > 1]
+    near = [option for option in options if size * 0.99 <= option[2] <= size * 1.05]
+    if not near:
+        return None
+    parameter, values, _ = min(near, key=rank)
+    return parameter, [value for value, count in values if count]
+
+
+class _WorkdayWalk:
+    """One pull of one board: every job once, and the first reason it cannot be proven whole."""
+
+    def __init__(self, cxs, to_row):
+        self.cxs, self.to_row = cxs, to_row
+        self.jobs, self.requests, self.expected, self.reason = {}, 0, 0, None
+
+    def _fail(self, reason):
+        self.reason = self.reason or reason
+
+    def _page(self, applied, offset):
+        if self.requests >= WORKDAY_MAX_REQUESTS:
+            self._fail("page_limit_reached")
+            return None
+        self.requests += 1
+        try:
+            r = http.post(self.cxs, json={"appliedFacets": applied, "limit": 20, "offset": offset, "searchText": ""})
+        except (http.TransientHTTP, http.requests.RequestException):
+            if not self.jobs:
+                raise  # Nothing was read: this stays a failed attempt, as it always was.
+            self._fail("http_refused")
+            return None
+        if not r.ok:
+            self._fail("http_refused")
+            return None
+        return r.json()
+
+    def read(self, applied, depth=0):
+        """Read one search, splitting it while it sits at the cap. False stops the whole walk."""
+        data = self._page(applied, 0)
+        if data is None:
+            return False
+        # Workday only reports `total` on the FIRST page (0 thereafter) — capture it once.
+        total = data.get("total") or 0
+        if total >= WORKDAY_CAP:
+            size = _workday_size(data.get("facets"), applied)
+            self.expected = self.expected or size
+            if size != WORKDAY_CAP:  # Exactly at the cap, the search still shows all of its jobs.
+                split = _workday_split(data.get("facets"), applied, size) if size > WORKDAY_CAP else None
+                if split and depth < WORKDAY_MAX_DEPTH:
+                    parameter, values = split
+                    return all(self.read({**applied, parameter: [value]}, depth + 1) for value in values)
+                self._fail("page_limit_reached")
+        return self._window(data, applied, total)
+
+    def _window(self, data, applied, total):
+        offset, seen = 0, set()
+        while True:
+            jobs = data.get("jobPostings", [])
+            if not jobs:
+                break
+            for job in jobs:
+                row = self.to_row(job)
+                # Repeating inside one search means the list moved under the pages and a job may
+                # have been skipped. Repeating across searches is only a job with two facet values.
+                if row["ats_job_id"] in seen:
+                    self._fail("invalid_feed_rows")
+                seen.add(row["ats_job_id"])
+                self.jobs.setdefault(row["ats_job_id"], row)
+            offset += len(jobs)
+            if total and offset >= total:
+                break
+            data = self._page(applied, offset)
+            if data is None:
+                return False
+        if offset != total:
+            self._fail("pagination_incomplete")
+        return True
+
+    def feed(self):
+        from .source_memory import Feed
+        rows = list(self.jobs.values())
+        complete = bool(rows) and not self.reason and len(rows) >= self.expected * WORKDAY_COVERAGE
+        return Feed(rows, complete=complete, reason=None if complete else self.reason or "pagination_incomplete")
+
+
 class Workday:
     NAME = "workday"
     _URL = re.compile(r"https?://([a-z0-9-]+)\.(wd\d+)\.myworkdayjobs\.com/(?:[a-z-]+/)?([^/?#]+)", re.I)
@@ -313,42 +425,24 @@ class Workday:
     def fetch(cls, token):
         tenant, dc, site = cls._parts(token)
         base = f"https://{tenant}.{dc}.myworkdayjobs.com"
-        cxs = f"{base}/wday/cxs/{tenant}/{site}/jobs"
-        out, offset, total = [], 0, None
-        while True:
-            r = http.post(cxs, json={"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": ""})
-            if not r.ok:
-                from .source_memory import Feed
-                return Feed(out, reason="http_refused")
-            data = r.json()
-            jobs = data.get("jobPostings", [])
-            if not jobs:
-                if total and offset < total:
-                    from .source_memory import Feed
-                    return Feed(out, reason="pagination_incomplete")
-                break
-            for j in jobs:
-                path = j.get("externalPath", "")
-                loc = j.get("locationsText")
-                out.append({
-                    "ats_job_id": path or j.get("bulletFields", [None])[0] or j.get("title"),
-                    "title": j.get("title"),
-                    "location": loc,
-                    "remote": _looks_remote(loc, j.get("title")),
-                    "department": None,
-                    "url": f"{base}/en-US/{site}{path}" if path else base,
-                    "description": None,  # detail needs a per-job cxs call; skipped for speed
-                    "posted_at": j.get("postedOn"),
-                })
-            # Workday only reports `total` on the FIRST page (0 thereafter) — capture it once.
-            if total is None:
-                total = data.get("total") or 0
-            offset += len(jobs)
-            if total and offset >= total:
-                break
-        from .source_memory import Feed
-        complete = isinstance(total, int) and total > 0 and offset == total
-        return Feed(out, complete=complete, reason=None if complete else "pagination_incomplete")
+
+        def to_row(j):
+            path = j.get("externalPath", "")
+            loc = j.get("locationsText")
+            return {
+                "ats_job_id": path or j.get("bulletFields", [None])[0] or j.get("title"),
+                "title": j.get("title"),
+                "location": loc,
+                "remote": _looks_remote(loc, j.get("title")),
+                "department": None,
+                "url": f"{base}/en-US/{site}{path}" if path else base,
+                "description": None,  # detail needs a per-job cxs call; skipped for speed
+                "posted_at": j.get("postedOn"),
+            }
+
+        walk = _WorkdayWalk(f"{base}/wday/cxs/{tenant}/{site}/jobs", to_row)
+        walk.read({})
+        return walk.feed()
 
     @classmethod
     def detect(cls, url):
@@ -685,9 +779,11 @@ class Eightfold:
                         ts = datetime.datetime.utcfromtimestamp(ts / 1000 if ts > 1e11 else ts).date().isoformat()
                     except Exception:
                         ts = None
+                workplace = (j.get("workLocationOption"), j.get("locationFlexibility"))
+                verified = True if any(isinstance(value, str) and value.lower() == 'remote' for value in workplace) else None
+                loc = remote_location(loc, j.get("name"), *workplace, verified=verified)
                 out.append({"ats_job_id": jid, "title": j.get("name"), "location": loc,
-                            "remote": 1 if (j.get("workLocationOption") == "remote" or
-                                            j.get("locationFlexibility") == "remote") else _looks_remote(loc),
+                            "remote": _looks_remote(loc, j.get("name"), *workplace, verified=verified),
                             "department": j.get("department"),
                             "url": f"https://{host}/careers?pid={jid}&domain={domain}",
                             "description": None, "posted_at": ts})

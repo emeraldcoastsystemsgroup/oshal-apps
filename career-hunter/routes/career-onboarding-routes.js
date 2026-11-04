@@ -6,8 +6,9 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted caller-scoped resume indexing and board onboarding state.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Read durable child lifecycle status so an existing profile cannot clear a pending re-upload marker.
- * 4 | maintainer@emeraldcoastsystemsgroup.com   | Resume state says when a background run of the person's is in flight, so the Job Board can watch Find & score jobs to its end.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | Resume state says when a background run of the person's is in flight, so the Job Board can watch Find & score jobs to its end.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-141: resume state carries a one-line `summary` — the detail the Intelligent Career group's setup dashboard shows under "Upload your resume".
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Report an unavailable score count as unknown so a transient database error cannot replace the matched board with unfiltered browsing.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -52,7 +53,7 @@ function countScoredJobs(userSub) {
     }
     catch (err) {
         logger.error({ err, userSub }, 'career scored-job count failed');
-        return 0;
+        return null;
     }
 }
 async function getResumeState(req, res) {

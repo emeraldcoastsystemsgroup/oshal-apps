@@ -7,15 +7,21 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Prove absent auto-draft consent causes zero reads/writes and manual re-marking upgrades unverified provenance without downgrading stronger evidence.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Cover the board's separate Mark applied route so it preserves the first timestamp and cannot replace worker or confirmation-backed provenance.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Require both manual applied routes to write the authoritative Apply V2 manual_mark before their local projections.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | The Mark applied double answers the posting and signal reads the 1.47 status route makes first, and gives it an owner directory for its board state.
  */
 import { after, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import Module from 'node:module';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { deploymentModeStub } from './helpers/deployment-mode-stub.mjs';
 
 const require = createRequire(import.meta.url);
 const originalLoad = Module._load;
+const ownerHome = mkdtempSync(join(tmpdir(), 'career-application-state-'));
+after(() => rmSync(ownerHome, { recursive: true, force: true }));
 let enqueueRows = [];
 let signalWrites = [];
 let engineResult = { ok: true, out: '', err: '' };
@@ -68,6 +74,7 @@ Module._load = function loadWithApplicationStubs(request, ...rest) {
     return {
       callerSub: (req) => req.userSub,
       careerTenant: () => 'default',
+      userPaths: () => ({ userDir: ownerHome }),
       openUserDb: () => userDbOverride || fixtureUserDb(),
     };
   }
@@ -243,9 +250,13 @@ test('successful manual completion synchronizes ticket, signal, and application 
 test('board Mark applied records manual_mark and preserves stronger provenance and the first applied timestamp', async () => {
   let update;
   userDbOverride = {
-    prepare: (sql) => sql.includes('SELECT 1 AS found')
-      ? { get: () => ({ found: 1 }) }
-      : { run: (args) => { update = { sql, args }; return { changes: 1 }; } },
+    prepare: (sql) => sql.includes('SELECT p.id')
+      ? { get: () => ({ id: 42, title: 'Engineer', location: 'Remote', company: 'Acme' }) }
+      : sql.includes('SELECT status,resume_path')
+        ? { get: () => ({ status: 'generated', resume_path: null, cover_path: null }) }
+        : sql.includes('SELECT 1 AS found')
+          ? { get: () => ({ found: 1 }) }
+          : { run: (args) => { if (typeof args === 'object') update = { sql, args }; return { changes: 1 }; } },
     close() {},
   };
   const response = responseRecorder();

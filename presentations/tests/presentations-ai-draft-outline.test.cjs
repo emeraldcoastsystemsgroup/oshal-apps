@@ -12,6 +12,8 @@
  *   in JSON at position 4444". The compiled route asks the bot for 8192 output tokens; an outline cut off after at least half the
  *   requested slides keeps its complete slides and says so in `note`; one cut off earlier, or a reply with no outline, answers 502
  *   with plain words and a code, never a parser message, and saves nothing.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | fillDrafted now calls the page's serializeOfficeSections, so the extracted slice carries the real parser and
+ *   serializer with it (the parser's lone '{' literal defeats a brace walk; its slice ends at the marker the other source tests use).
  */
 'use strict';
 const test = require('node:test');
@@ -113,19 +115,29 @@ test('an outline the person wrote is not echoed back as a draft', async () => {
   assert.equal(res.body.outline, undefined);
 });
 
-/** fillDrafted() cut out of the shipped page and run against two input doubles. */
+/** fillDrafted() cut out of the shipped page — with the parser and serializer it really calls —
+ *  and run against two input doubles. */
 function surfaceFill(initial) {
   const html = fs.readFileSync(path.resolve(__dirname, '..', 'tools', 'presentations.html'), 'utf8');
-  const start = html.indexOf('function fillDrafted(j){');
-  assert.ok(start >= 0, 'the surface defines fillDrafted');
-  let depth = 0, end = -1;
-  for (let i = html.indexOf('{', start); i < html.length; i += 1) {
-    if (html[i] === '{') depth += 1; else if (html[i] === '}' && --depth === 0) { end = i + 1; break; }
-  }
+  const slice = (marker) => {
+    const start = html.indexOf(marker);
+    assert.ok(start >= 0, `the surface defines ${marker}`);
+    let depth = 0, end = -1;
+    for (let i = html.indexOf('{', start); i < html.length; i += 1) {
+      if (html[i] === '{') depth += 1; else if (html[i] === '}' && --depth === 0) { end = i + 1; break; }
+    }
+    return html.slice(start, end);
+  };
   const fields = {};
   for (const id of ['title', 'outline']) fields[id] = { value: initial[id] || '', events: 0, dispatchEvent() { this.events += 1; } };
   const sandbox = { $: (id) => fields[id], Event: class { constructor(type) { this.type = type; } } };
-  vm.runInNewContext(`${html.slice(start, end)}; this.fillDrafted = fillDrafted;`, sandbox);
+  // The parser holds a lone '{' string literal that defeats a brace walk; its slice ends at the
+  // marker the other source tests use, which also carries serializeOfficeSections right after it.
+  const parserStart = html.indexOf('function parseOutline(');
+  const parserEnd = html.indexOf('// ADR-043 item A:', parserStart);
+  assert.ok(parserStart >= 0 && parserEnd > parserStart, 'the surface defines parseOutline + serializeOfficeSections');
+  const source = [html.slice(parserStart, parserEnd), slice('function fillDrafted(j){')].join('\n');
+  vm.runInNewContext(`${source}; this.fillDrafted = fillDrafted;`, sandbox);
   return { fill: sandbox.fillDrafted, fields };
 }
 

@@ -1,0 +1,101 @@
+# Intelligent Operations detection engine -- its OWN compose project (never the core stack's: a
+# core deploy's --remove-orphans would sweep it). Two services: the OpenSearch percolator, reachable
+# only on this project's private network, and the typed JSON-lines engine, which also joins the
+# engines network the kernel's loopback link dials. Nothing publishes a host port.
+# The Kubernetes shape of the same engine is lab/detection.py; keep the pins and bounds aligned.
+#
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR                                  | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1   | maintainer@emeraldcoastsystemsgroup.com | Initial implementation -- the Spark (docker compose) form of
+#     |                                         | lab/detection.py: digest-pinned official images, the engine
+#     |                                         | folder's three files bind-mounted read-only, search reachable
+#     |                                         | only from the engine, bounded memory, no capabilities, no
+#     |                                         | published ports, restart unless-stopped.
+name: oshal-intelligent-operations-engine
+services:
+  search:
+    image: opensearchproject/opensearch:3.3.2@sha256:6836708871685e272ad9042285e1c680790fe4315b047279ad16f761da2f4b70
+    container_name: oshal-intelligent-operations-search
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      node.store.allow_mmap: "false"
+    volumes:
+      - search-data:/usr/share/opensearch/data
+    mem_limit: 1536m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=2s"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    labels:
+      oshal.app: intelligent-operations
+    networks:
+      - private
+  engine:
+    image: python:3.13-slim@sha256:3dd7cc108ec1493442514f5c2a871af6af0ec31d768ff6e378a93340c3b3db5f
+    container_name: oshal-intelligent-operations-engine
+    command: ["python", "-B", "/engine/server.py"]
+    user: "1000:1000"
+    restart: unless-stopped
+    init: true
+    environment:
+      OPERATIONS_ENGINE_BIND: 0.0.0.0
+      OPERATIONS_ENGINE_PORT: "7419"
+      OPERATIONS_SEARCH_URL: http://search:9200
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - type: bind
+        source: ../server.py
+        target: /engine/server.py
+        read_only: true
+      - type: bind
+        source: ../percolation.py
+        target: /engine/percolation.py
+        read_only: true
+      - type: bind
+        source: ../identity.json
+        target: /engine/identity.json
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    depends_on:
+      search:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 7419), 2).close()"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    labels:
+      oshal.app: intelligent-operations
+    networks:
+      private: {}
+      engines:
+        aliases:
+          - intelligent-operations-engine
+networks:
+  private: {}
+  engines:
+    external: true
+    name: ${OSHAL_ENGINE_NETWORK:-oshal-native-engines}
+volumes:
+  search-data: {}

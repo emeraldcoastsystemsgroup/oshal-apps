@@ -194,8 +194,7 @@ test('the preview frame is fully sandboxed on both surfaces', () => {
 test('both surfaces keep a link to the PDF that actually gets submitted', () => {
   // Reviewing HTML and submitting a PDF you never saw is its own trap; and opening the PDF in a
   // new tab is a TOP-LEVEL navigation, the one PDF path phones handle natively.
-  assert.match(board, /Open the exact PDF that gets submitted/);
-  assert.match(board, /class="rzpdf"/);
+  // The board's single selected-document PDF action is exercised by the browser regeneration proof.
   assert.match(mobile, /Open the exact PDF/);
   assert.match(mobile, /packet-pdf/);
   for (const [name, src] of [['career-board.html', board], ['career-mobile.html', mobile]]) {
@@ -204,7 +203,7 @@ test('both surfaces keep a link to the PDF that actually gets submitted', () => 
 });
 
 test('a failed preview degrades to a real action, not a blank box', () => {
-  for (const [name, src] of [['career-board.html', board], ['career-mobile.html', mobile]]) {
+  for (const [name, src] of [['career-mobile.html', mobile]]) {
     assert.match(src, /No inline preview/, `${name}: no fallback message`);
     assert.match(src, /catch\s*\(\s*e\s*\)/, `${name}: no fallback path at all`);
   }

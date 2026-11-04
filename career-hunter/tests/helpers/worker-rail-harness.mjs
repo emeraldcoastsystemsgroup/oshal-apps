@@ -69,6 +69,8 @@ function rawReader({ type, limit }) {
 export function loadRailHarness() {
   const state = {
     calls: [],
+    identityCalls: [],
+    modelIdentity: async () => ({version:1,identity:'a'.repeat(64),primary:{provider:'fixture',model:'fixture-model'}}),
     hasEndpoint: true,
     registration: () => ({ status: 'online', heartbeatAt: new Date().toISOString() }),
     behavior: async (request) => ({ success: true, response: `answer for ${request.userSub}`, model: 'fixture-model', provider: 'fixture' }),
@@ -100,7 +102,8 @@ export function loadRailHarness() {
   try { rail = require('../../routes/career-worker-rail.js'); }
   finally { Module._load = originalLoad; }
   const runs = require('../../lib/career-engine-runs.js');
-  const ctx = { swarm: { runtimeRegistryService: { getAgentRegistration: async (id) => state.registration(id) } } };
+  const ctx = { swarm: { runtimeRegistryService: { getAgentRegistration: async (id) => state.registration(id) } },
+    intent: async (name,input) => {state.identityCalls.push({name,input,owner:requestIdentity.getRequestIdentity()?.sub});return state.modelIdentity();} };
   return { state, runs, rail, ctx, identity: requestIdentity, startServer: (options = {}) => startRailServer(rail, ctx, options) };
 }
 

@@ -22,6 +22,8 @@
  * 2026-10-11 18:00:00 | maintainer@emeraldcoastsystemsgroup.com | A saved topic draft answers with the title and the outline it drafted (title + content per slide), so the studio fills its Title and Outline after "AI draft" instead of leaving both empty with every connected action refusing "select or enter the work first".
  * 2026-10-11 20:00:00 | maintainer@emeraldcoastsystemsgroup.com | The "My decks" record of a saved Office file is awaited before the response: the native kernel refuses a package's SQL once its request has answered, so the fire-and-forget INSERT never ran (live: every deck listed with createdAt null, shown as 'Dec 31', no slide count, and Delete answered rows: 0). A failed record is still logged and never fails the saved file.
  * 2026-10-12 23:30:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: the AI draft failed intermittently with the raw parser text "Unterminated string in JSON at position 4444": the deck-builder's outline stopped at the 2048-token default output budget (usage_out 2048). The draft now asks for 8192 output tokens, reads the outline with outline-json.ts (a cut-off array keeps its complete slides when at least half survived, said in the answer's `note`), and a draft that still fails answers 502 with plain words and a code (outline_cut_off / outline_missing), never a parser message.
+ * 2026-11-03 21:30:00 | maintainer@emeraldcoastsystemsgroup.com | The Guide and the 2.15.0 design row meet: cleanBullet normalizes any #image: bullet that is not a short https URL to "#image: (attached)" on BOTH crossings (the draft state sent to the model and the model's returned slide actions), so image bytes never enter the prompt and a returned marker never lands in the outline; guidePrompt teaches the design directives (#layout:/#image:/#caption:, with the real layout ids) and that an attached image is the person's and survives the model's edits.
+ * 2026-11-03 23:30:00 | maintainer@emeraldcoastsystemsgroup.com | Office defaults to paper (Roger, on the phone demo: "Word excel PowerPoint... update the default background color"): STUDIO_DEFAULT_THEME = 'executive' is what /themes serves as defaultTheme and what a render that names no look (the demo seeds, automatic tool writes) gets — the pinned engine's midnight default is unchanged for its other callers, and an explicit theme or brand kit still wins everywhere.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -142,8 +144,13 @@ async function outlineFromTopic(ctx, sub, topic, slideCount) {
 function lookFrom(body) {
     if (body.brand !== undefined && body.brand !== null)
         return (0, presentation_generation_1.brandTheme)(body.brand);
-    return (0, presentation_generation_1.isThemeId)(body.theme) ? body.theme : presentation_generation_1.DEFAULT_THEME_ID;
+    return (0, presentation_generation_1.isThemeId)(body.theme) ? body.theme : STUDIO_DEFAULT_THEME;
 }
+/** Office products default to paper, not a dark canvas (Roger, 2026-11-03: "Word excel PowerPoint
+ *  come on... update the default background color"): the studio's pre-picked look and an API call
+ *  that names no look render 'executive' (white canvas, charcoal ink). The ENGINE's own
+ *  DEFAULT_THEME_ID stays midnight for its other callers; an explicit theme or brand always wins. */
+const STUDIO_DEFAULT_THEME = 'executive';
 /**
  * @description What a record and a response call a look: its id, which for a brand look is
  * `brand:<base>`, so a file's provenance names the brand look and the layout it was drawn on.
@@ -224,12 +231,22 @@ function previewOutline(sections) {
     }));
 }
 /** Sanitize slides the bot returned (cap counts + lengths so the editor stays sane). */
+/** One bullet line as it may cross the surface boundary in either direction: bounded, and an
+ *  #image: whose value is not a short https URL is normalized to the "(attached)" marker — the
+ *  model never carries image bytes (the surface keeps the person's data URI via mergeDesign). */
+function cleanBullet(b) {
+    const line = String(b);
+    const image = /^#\s*image\s*:\s*(.*)$/is.exec(line.trim());
+    if (image && !/^https?:\/\/\S{1,280}$/i.test(image[1].trim()))
+        return '#image: (attached)';
+    return line.slice(0, 300);
+}
 function cleanSlides(raw) {
     if (!Array.isArray(raw))
         return [];
     return raw.slice(0, 30).map((s) => {
         const o = (s || {});
-        const bullets = Array.isArray(o.bullets) ? o.bullets.slice(0, 12).map((b) => String(b).slice(0, 300)) : [];
+        const bullets = Array.isArray(o.bullets) ? o.bullets.slice(0, 12).map(cleanBullet) : [];
         return { title: String(o.title || '').slice(0, 200), bullets };
     }).filter((s) => s.title || s.bullets.length);
 }
@@ -256,7 +273,7 @@ function cleanActions(raw) {
             if (o.title != null)
                 upd.title = String(o.title).slice(0, 200);
             if (Array.isArray(o.bullets))
-                upd.bullets = o.bullets.slice(0, 12).map((b) => String(b).slice(0, 300));
+                upd.bullets = o.bullets.slice(0, 12).map(cleanBullet);
             out.push(upd);
         }
     }
@@ -287,9 +304,11 @@ function guidePrompt(message, title, slides, history, theme, kind, selection) {
         `Themes: ${themes}`,
         'A "bullet" may be any line of the slide syntax below — that is how a slide becomes a chart, KPI tiles, a quote, or a table.',
         SYNTAX_BRIEF,
+        `Design directives lead a section body: #layout: <id>, #image: <https URL>, #caption: <text>. Layout ids: ${(0, presentation_generation_1.layoutCatalog)().map((l) => l.id).join(', ') || '(theme default)'}.`,
+        'An "#image: (attached)" line is an image file the person added. Its data is not shown to you and your edits never remove it — the editor keeps it automatically. Never output an #image: line yourself unless the person gave an https image URL.',
         'Rules: one idea per bullet; never invent facts/metrics (mark placeholders); keep "reply" brief.',
         `Current deck title: ${title || '(none)'}`,
-        `Current theme: ${theme || presentation_generation_1.DEFAULT_THEME_ID}`,
+        `Current theme: ${theme || STUDIO_DEFAULT_THEME}`,
         `Current outline:\n${state}`,
         history ? `Recent conversation:\n${history}` : '',
         `User: ${message}`,
@@ -345,7 +364,7 @@ function createBotPresentationRoutes(ctx) {
      * the signed-in Studio, so there is nothing to gain from widening it.
      */
     router.get('/themes', (_req, res) => {
-        res.json({ themes: (0, presentation_generation_1.themeCatalog)(), layouts: (0, presentation_generation_1.layoutCatalog)(), defaultTheme: presentation_generation_1.DEFAULT_THEME_ID });
+        res.json({ themes: (0, presentation_generation_1.themeCatalog)(), layouts: (0, presentation_generation_1.layoutCatalog)(), defaultTheme: STUDIO_DEFAULT_THEME });
     });
     /**
      * @description POST /brand-look — the caller's brand look, built by the kernel from the kit the

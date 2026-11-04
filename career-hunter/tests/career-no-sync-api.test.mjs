@@ -47,6 +47,7 @@ let decryptBehavior = async (_pool, _userSub, blob) => {
   if (blob === 'bad-ciphertext') throw new Error('fixture decrypt failed');
   return `plain:${blob}`;
 };
+let nativePort = null;
 
 process.env.ANTHROPIC_API_KEY = 'global-anthropic-must-not-leak';
 process.env.OPENAI_API_KEY = 'global-openai-must-not-leak';
@@ -100,6 +101,7 @@ if (mode === 'delay') {
 `, 'utf8');
 
 Module._load = function loadWithLoggerStub(request, ...rest) {
+  if (request === '@/shared/package-runs') return nativePort;
   if (request === '@/shared/deployment-mode') return deploymentModeStub();
   if (request === '@/shared/logger') {
     return { createChildLogger: () => ({ info() {}, warn() {}, error() {}, debug() {} }) };
@@ -390,6 +392,82 @@ test('async dispatch times out a hung credential query before spawn and releases
   const next = runner.tryAcquireRun('hung-query-user', 'user-store');
   assert.equal(next.status, 'ok');
   runner.releaseRun(next);
+});
+
+test('background title output is captured as a bounded stdout tail and stderr stays closed', async () => {
+  let child;
+  let completion;
+  const start = await runner.runCliAsync('summary-user', ['score-titles'], {}, {
+    slot: 'summary', captureStdout: true, timeoutMs: 5000,
+    onComplete: (value) => { completion = value; },
+    spawnProcess: (_command, _args, options) => {
+      assert.deepEqual(options.stdio, ['ignore', 'pipe', 'ignore']);
+      child = fakeChild(18_051);
+      process.nextTick(() => child.emit('spawn'));
+      return child;
+    },
+  });
+  assert.deepEqual(start, { started: true });
+  child.stdout.write('x'.repeat(9000));
+  child.stdout.write('\n{"result":"complete","scored":3,"skipped":0,"terms":1}\n');
+  child.exitCode = 0;
+  child.emit('close', 0);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(completion.ok, true);
+  assert.ok(completion.stdout.length <= 8192);
+  assert.ok(completion.stdout.endsWith('{"result":"complete","scored":3,"skipped":0,"terms":1}\n'));
+});
+
+test('native completion enters the kept service binding and settles before sandbox publication', async () => {
+  let child;
+  let acceptKeep;
+  let finishObserver;
+  let inNativeRun = false;
+  const events = [];
+  const observerGate = new Promise((resolve) => { finishObserver = resolve; });
+  nativePort = {
+    native: true,
+    keepRunAlive: () => new Promise((resolve) => { acceptKeep = resolve; }),
+    async run(_id, action) {
+      events.push('scope');
+      inNativeRun = true;
+      try { await action(); } finally { inNativeRun = false; }
+    },
+    async runFinished(_id, code) { events.push(`published:${code}`); },
+    async status() { return { runs: [] }; },
+  };
+  try {
+    const start = runner.runCliAsync('native-summary-user', ['score-titles'], {}, {
+      slot: 'native-summary', timeoutMs: 5000,
+      async onComplete(completion) {
+        assert.equal(inNativeRun, true, 'cursor SQL must use the captured native run, not the closed HTTP request');
+        assert.equal(completion.ok, true);
+        events.push('observer');
+        await observerGate;
+        events.push('cursor-saved');
+      },
+      spawnProcess: () => {
+        child = fakeChild(18_052);
+        process.nextTick(() => child.emit('spawn'));
+        return child;
+      },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    child.exitCode = 0;
+    child.emit('close', 0);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(events, [], 'an early child exit waits until the kernel accepts ownership');
+    acceptKeep();
+    assert.deepEqual(await start, { started: true });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(events, ['scope', 'observer']);
+    finishObserver();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(events, ['scope', 'observer', 'cursor-saved', 'published:0']);
+  } finally {
+    finishObserver();
+    nativePort = null;
+  }
 });
 
 test('awaited dispatch times out hung decryption before spawn and releases admission', async () => {

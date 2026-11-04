@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Human and held-agent Publishing requests share original authority, immutable revisions and native render continuations.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The page admits the v= every cockpit frame carries and the audience= an experience adds, so it opens inside the cockpit.
  */
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
@@ -32,7 +33,7 @@ export function createPublishingRoutes(packageCtx,fixtureRuns){
  for(const resource of ['documents','assets'])packageCtx.authorization.registerResource(resource,{authorize:({actor,operation,grant})=>actor.isActive&&!!actor.issuer&&!!actor.sub&&!!actor.principalId&&Array.isArray(actor.tenantIds)&&actor.tenantIds.length===1&&grant.scope==='own'&&!grant.fields&&!operation.tenantId});
  const router=Router(),root=packageCtx.appPackageDir??resolve(import.meta.dirname,'..');
  const run=(permission,work,{body=false,queries=[]}={})=>async(req,res)=>{let ctx;try{query(req,queries);ctx=bindRequest(packageCtx);await access(ctx,permission);if(body)await middleware(body==='upload'?upload:parse,req,res);const result=await work(req,new PublishingStore(ctx),ctx);await access(ctx,permission);res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');if(result?.send)await result.send(res);else{const{httpStatus,...value}=result;if(httpStatus)res.status(httpStatus);res.json(value);}}catch(error){if(ctx)try{await access(ctx,permission);}catch(denial){error=denial;}if(res.headersSent)return;const busy=['55P03','40P01','40001'].includes(error.code),limited=error.code?.startsWith('LIMIT_');res.status(busy?503:limited?413:error.status??503).json({error:busy?'publishing_storage_busy':error instanceof PublishingError?error.code:limited?'publishing_upload_limit':'publishing_service_unavailable',...(error instanceof PublishingError&&error.details?{details:error.details}:{}),...(busy?{retryAfterMs:100}:{})});}};
- router.get('/app',run('view',async(req)=>{if(req.query.document!==undefined)id(req.query.document);return{send:res=>res.type('html').sendFile(resolve(root,'tools/workbench.html'))};},{queries:['document']}));
+ router.get('/app',run('view',async(req)=>{if(req.query.document!==undefined)id(req.query.document);return{send:res=>res.type('html').sendFile(resolve(root,'tools/workbench.html'))};},{queries:['document','v','audience']}));
  for(const file of ['workbench.mjs','workbench.css'])router.get('/ui/'+file,run('view',async(req)=>{if(req.query.v!==undefined&&(typeof req.query.v!=='string'||!/^[A-Za-z0-9._-]{1,128}$/.test(req.query.v)))fail(400,'publishing_asset_version_invalid');return{send:res=>res.type(file.endsWith('.css')?'text/css':'text/javascript').sendFile(resolve(root,'tools',file))};},{queries:['v']}));
  router.get('/permissions',run('view',async(_req,_store,ctx)=>({permissions:await permissions(ctx)})));
  router.get('/editing-contract',run('view',async()=>editingContract()));

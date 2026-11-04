@@ -64,12 +64,13 @@ function redirectClassicBoard(_req: Request, res: Response): void {
  * @returns nothing
  */
 export function registerCareerSurfaceRoutes(router: Router): void {
-  router.get('/', createCareerToolFileHandler('career-board.html'));
-  router.get('', createCareerToolFileHandler('career-board.html'));
-  router.get('/board-native', createCareerToolFileHandler('career-board.html'));
+  const board:RequestHandler=(req,res,next)=>createCareerToolFileHandler(/^[1-9]\d{0,14}$/.test(String(req.query?.application||''))?'career-application.html':'career-job-lists.html')(req,res,next);
+  router.get('/', board);
+  router.get('', board);
+  router.get('/board-native', board);
   // Search Jobs — the corpus, not the caller's scored matches. Deliberately a separate
   // screen from the board: it works with no résumé indexed, and has no fit/pipeline concept.
-  router.get('/search-ui', createCareerToolFileHandler('career-search.html'));
+  router.get('/search-ui',(req,res,next)=>createCareerToolFileHandler(req.query.view==='matches'?'career-job-lists.html':'career-search.html')(req,res,next));
   router.get('/recruiters-ui', createCareerToolFileHandler('career-recruiters.html'));
   router.get('/strengthen-ui', createCareerToolFileHandler('career-strengthen.html'));
   router.get('/insights-ui', createCareerToolFileHandler('career-insights.html'));

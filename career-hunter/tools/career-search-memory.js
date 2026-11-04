@@ -5,7 +5,7 @@
 (function (global) {
   'use strict';
   const FIELDS = ['q', 'remote', 'state', 'near', 'lat', 'lon', 'radius_miles', 'include_unknown_pay',
-    'type', 'days', 'min_pay', 'title', 'description', 'company', 'sort', 'view'];
+    'type', 'days', 'min_pay', 'max_pay', 'pay_period', 'title', 'description', 'company', 'sort', 'per', 'view'];
   function criteria(value) {
     const clean = {};
     if (!value || typeof value !== 'object' || Array.isArray(value)) return clean;

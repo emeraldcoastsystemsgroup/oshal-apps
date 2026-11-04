@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                    | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the 1.27.0 Test Lab application seam through the COMPILED routes, the caller's real SQLite store (seeded through the engine's own connect(), read by the route through the real better-sqlite3 driver) and a disposable PostgreSQL database holding the package's own career_hunter_applications migrations, queried as a LOGIN NOSUPERUSER NOBYPASSRLS role. POST /test-lab/applications plants exactly one marked application (ticket + row, awaiting approval, the deterministic ticket key the queue uses) on an untouched posting and refuses, writing nothing, an anonymous caller, a malformed mark, a missing or inactive posting, a worked posting, a posting with an application or an application ticket, and a caller with no store. DELETE /test-lab/applications/:postingId/:tag removes only the caller's application whose ticket carries that tag: an unmarked queue application, another tag, another user's same-posting application and another user asking all survive; a drafting or applied application answers 409; a failed ticket delete is finished by the retry. The approve round trip runs the real approve handler, runner, launcher and engine on a planted application: the draft reaches the engine's model rail and is refused there (career worker unavailable: rail-not-configured, because the fixture's caller carries no verified issuer, so the runner mints no grant), the handler records error/escalated, and the removal afterwards leaves both stores as they were. Scoped doubles: the Express router and JSON body parser (node:http), the OIDC session (a cookie-to-subject map), the logger, the kernel trusted-service decoder (never trusted), the kernel request identity (tests/helpers/request-identity-stub.mjs), the apply-run ledger and token decryptor (tripwires), and the kernel TicketService (an in-memory double keeping the kernel's create-reuses-the-external-key contract; the real service's deleteTicket and getTicketByExternalId are what the live acceptance crosses).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Planted postings carry a body long enough that approve reaches the model rail without an employer read.
  */
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -106,8 +107,8 @@ async function applicationRows() {
 function seedStores() {
   const corpus = [
     ['INSERT INTO corpus.companies (id, name) VALUES (?, ?)', [COMPANY, 'Fixture Systems']],
-    ...Object.values(P).map((id) => ['INSERT INTO corpus.postings_corpus (id, company_id, ats_job_id, title, url, active, target_role) VALUES (?, ?, ?, ?, ?, ?, 1)',
-      [id, COMPANY, String(id), `Role ${id}`, `https://jobs.example/${id}`, id === P.inactive ? 0 : 1]]),
+    ...Object.values(P).map((id) => ['INSERT INTO corpus.postings_corpus (id, company_id, ats_job_id, title, url, active, target_role, description) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
+      [id, COMPANY, String(id), `Role ${id}`, `https://jobs.example/${id}`, id === P.inactive ? 0 : 1, 'Fixture posting body. '.repeat(60)]]),
   ];
   storeRows(OWNER, [...corpus,
     ['INSERT INTO user_signals (posting_id, status, ai_fit_score) VALUES (?, ?, ?)', [P.queued, 'new', 88]],

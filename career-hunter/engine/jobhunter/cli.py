@@ -12,12 +12,15 @@
     python -m jobhunter stats
     python -m jobhunter classify --url URL                  (pattern-only ATS gate, JSON — no DB)
     python -m jobhunter add-target --url URL [--source TAG] (register one validated URL + scrape, JSON)
+    python -m jobhunter source-review [--max-sources N]     (recheck sources the pull could not read, JSON)
 """
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | End a full pull with the nightly source review, and expose it as its own command.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Expose candidate-facing posted-date freshness for bounded manual score runs while preserving the incremental first-seen window.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 
-from . import source_memory
+from . import source_memory, source_review
 import argparse
 import csv
 import json
@@ -195,9 +198,15 @@ def cmd_discover(a):
     print(f"\n{found} scrapable ATS + {careers} careers-only links = {found + careers}/{total} companies with a jobs URL.")
 
 
+def cmd_source_review(a):
+    """Run the nightly source review now and print its report as one JSON line."""
+    print(json.dumps(source_review.run(max_sources=a.max_sources or source_review.MAX_SOURCES)))
+
+
 def cmd_scrape(a):
     db.init_db()
     dropped0 = db.dropped_fields()
+    pull_started = db.now()
     with db.connect() as conn:
         rows = [dict(r) for r in _companies(conn, company=a.company, source_list=a.list, need_ats=True)]
     if a.limit:
@@ -231,6 +240,8 @@ def cmd_scrape(a):
     tail = f" {total_skipped} skipped (no title)." if total_skipped else ""
     print(f"\nScrape done: {total_new} new, {total_seen} refreshed, {total_closed} closed.{tail} Sources: {confirmed_sources} confirmed, {unconfirmed_sources} unconfirmed.")
     _report_dropped(dropped0)
+    if getattr(a, "all", False) and not a.limit:  # Programmatic callers scrape one company and pass no `all`.
+        source_review.after_pull(pull_started)
 
 
 import re as _re
@@ -597,6 +608,7 @@ def cmd_score(a):
                                           min_keyword=a.min_keyword or 0, workers=a.workers,
                                           days=getattr(a, "days", None),
                                           first_seen_days=getattr(a, "first_seen_days", None),
+                                          fresh_days=getattr(a, "fresh_days", None),
                                           remote_only=bool(getattr(a, "remote_only", False)))
         print(f"AI-scored {done} postings ({skipped} skipped).")
     except RuntimeError as e:
@@ -795,6 +807,9 @@ def build_parser():
     s = sub.add_parser("scrape"); s.add_argument("--company"); s.add_argument("--list"); s.add_argument("--all", action="store_true")
     s.add_argument("--limit", type=int); s.set_defaults(func=cmd_scrape)
 
+    s = sub.add_parser("source-review", help="recheck sources the pull could not read and write the report")
+    s.add_argument("--max-sources", type=int); s.set_defaults(func=cmd_source_review)
+
     s = sub.add_parser("add-url", help="paste any careers URL(s): auto-detect ATS, register, scrape now")
     s.add_argument("--url", action="append", help="careers URL (repeatable)")
     s.add_argument("--file", help="text file of careers URLs, one per line")
@@ -841,6 +856,8 @@ def build_parser():
     s.add_argument("--days", type=int, help="only score postings from the last N days (posted_date; often null — see --first-seen-days)")
     s.add_argument("--first-seen-days", type=int,
                    help="only score jobs FIRST SEEN in the last N days — the reliable new-jobs gate for incremental runs (first_seen_at is always stamped; posted_date is not)")
+    s.add_argument("--fresh-days", type=int,
+                   help="only score jobs posted in the last N days, using first-seen date only when the posting is undated")
     s.add_argument("--workers", type=int, default=8, help="parallel scoring workers")
     s.add_argument("--remote-only", action="store_true",
                    help="only score postings flagged remote (the user's standing remote-only preference)")

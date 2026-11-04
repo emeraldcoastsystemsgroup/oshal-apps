@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recover newer JSON markers across re-upload crash windows instead of exposing a stale succeeded status.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove aborted and stale completion observers cannot overwrite the current resume-ingest generation.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve observed resume lifecycle fields without fabricated active state or empty inventory.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Report failed score reads as unknown rather than a false unscored account.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,6 +24,7 @@ const originalLoad = Module._load;
 const savedStoreRoot = process.env.JOBHUNTER_STORE_ROOT;
 let completionObserver;
 let adoptedLease;
+let failScoreRead = false;
 
 process.env.JOBHUNTER_STORE_ROOT = fixtureRoot;
 
@@ -41,7 +43,7 @@ Module._load = function loadWithStatusStubs(request, ...rest) {
       callerSub: (req) => req.userSub,
       careerTenant: () => 'career-hunter',
       userPaths: (userSub) => ({ userDir: join(fixtureRoot, userSub) }),
-      openUserDb: () => null,
+      openUserDb: () => { if (failScoreRead) throw new Error('unable to open database file'); return null; },
     };
   }
   if (request === './career-engine-dispatch') {
@@ -91,6 +93,16 @@ function responseRecorder() {
     json(body) { this.body = body; return this; },
   };
 }
+
+test('a temporary score database failure is unknown, never a fabricated zero', async () => {
+  const status = captureHandler(onboarding.registerCareerOnboardingRoutes, 'get', '/resume/state');
+  const response = responseRecorder();
+  try {
+    failScoreRead = true;
+    await status({ userSub: 'temporary-score-failure' }, response);
+    assert.equal(response.body.scored, null);
+  } finally { failScoreRead = false; }
+});
 
 test('re-upload lifecycle supersedes an older parsed profile through child failure', async () => {
   const userSub = 'resume-lifecycle-user';

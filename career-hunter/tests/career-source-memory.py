@@ -1,5 +1,6 @@
 """CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise source health, unchanged-body protection, conditional HTTP and complete-feed closure against real temporary SQLite.
+2 | maintainer@emeraldcoastsystemsgroup.com | Prove a Workday board past the 2,000-job search cap is read whole, and that one which cannot be proven whole closes nothing, against the search as measured live.
 """
 import ast
 import json
@@ -7,6 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
+from collections import Counter
 from contextlib import redirect_stdout
 from io import StringIO
 from types import SimpleNamespace
@@ -34,6 +36,42 @@ class Reply:
         if self.status_code == 304:
             raise AssertionError("a 304 body must never be parsed")
         return self.body
+
+
+class WorkdayBoard:
+    """The jobs search as measured live on 2026-11-03: at most 2,000 jobs, `total` capped at 2000
+    and reported only on the first page, facet counts exact for the search they came from."""
+
+    def __init__(self, jobs, facets=(), nested=(), refuse_after=None, unlisted=()):
+        self.jobs, self.facet_names, self.nested = jobs, facets, nested
+        self.refuse_after, self.unlisted, self.requests = refuse_after, set(unlisted), 0
+
+    def counts(self, found, name):
+        values = Counter(value for job in found for value in job.get(name, []))
+        return {'facetParameter': name, 'values': [{'id': value, 'count': count} for value, count in values.items()]}
+
+    def post(self, _url, json=None):
+        self.requests += 1
+        if self.refuse_after is not None and self.requests > self.refuse_after:
+            return Reply(status=403)
+        found = [job for job in self.jobs
+                 if all(set(values) & set(job.get(name, [])) for name, values in json['appliedFacets'].items())]
+        listed = [job for job in found if job['path'] not in self.unlisted]
+        offset, limit = json['offset'], json['limit']
+        page = listed[:ats.WORKDAY_CAP][offset:offset + limit]
+        body = {'total': 0, 'jobPostings': [{'title': 'IT Manager', 'externalPath': job['path']} for job in page]}
+        if offset == 0:
+            body['total'] = min(len(listed), ats.WORKDAY_CAP)
+            body['facets'] = [self.counts(found, name) for name in self.facet_names]
+            if self.nested:
+                body['facets'].append({'facetParameter': 'locationMainGroup',
+                                       'values': [self.counts(found, name) for name in self.nested]})
+        return Reply(body)
+
+
+def board_jobs(count, **fields):
+    """`count` jobs; each field names a function from the job's number to its facet values."""
+    return [{'path': f'/job/{n}', **{name: value(n) for name, value in fields.items()}} for n in range(count)]
 
 
 class SourceMemory(unittest.TestCase):
@@ -180,6 +218,120 @@ class SourceMemory(unittest.TestCase):
         self.ingest([job('old')])
         self.assertEqual(self.ingest(rows)['closed'], 0)
         self.assertIn('old', self.active())
+
+    def walk(self, board):
+        with patch.object(http, 'post', side_effect=board.post):
+            return ats.fetch('workday', 'fixture:wd5:Careers')
+
+    def test_workday_reads_past_the_cap_reopens_wrongly_closed_jobs_and_closes_only_what_is_gone(self):
+        self.ingest([job('gone'), job('/job/7')])
+        self.ingest([job('gone')])  # The cap had closed /job/7 while the employer still listed it.
+        self.assertNotIn('/job/7', self.active())
+        board = WorkdayBoard(board_jobs(2600, family=lambda n: [f'f{n % 3}'], time=lambda n: ['part' if n % 50 == 0 else 'full']),
+                             facets=['family', 'time'])
+        feed = self.walk(board)
+        self.assertEqual(len(feed), 2600)
+        self.assertTrue(feed.complete, feed.reason)
+        self.assertEqual(self.ingest(feed)['closed'], 1)
+        active = self.active()
+        self.assertEqual(len(active), 2600)
+        self.assertIn('/job/7', active)
+        self.assertNotIn('gone', active)
+
+    def test_workday_splits_again_when_one_facet_value_is_over_the_cap(self):
+        # Accenture's shape: one country and one job family each hold far more than the cap.
+        board = WorkdayBoard(board_jobs(5000, family=lambda n: ['big' if n % 5 else 'small'], time=lambda n: ['full']),
+                             facets=['family', 'time'], nested=['country'])
+        for row in board.jobs:
+            row['country'] = ['US' if int(row['path'].split('/')[-1]) % 2 else 'IN']
+        feed = self.walk(board)
+        self.assertEqual(len(feed), 5000)
+        self.assertTrue(feed.complete, feed.reason)
+
+    def test_workday_job_with_two_facet_values_counts_once(self):
+        board = WorkdayBoard(board_jobs(2500, family=lambda n: ['a'], time=lambda n: ['full'],
+                                        country=lambda n: ['US', 'CA'] if n % 100 == 0 else ['US' if n % 2 else 'CA']),
+                             facets=['family', 'time', 'country'])
+        feed = self.walk(board)
+        self.assertEqual(len(feed), 2500)
+        self.assertTrue(feed.complete, feed.reason)
+        self.assertEqual(self.ingest(feed)['skipped'], 0)
+        self.assertEqual(self.state()['status'], 'ok')
+
+    def test_workday_splits_on_the_facet_that_agrees_with_the_size_not_the_widest(self):
+        # Jabil's shape, measured live: state/province totals more than the board, because some jobs
+        # list several states, yet misses every job with no state at all.
+        def region(n):
+            return [] if n % 25 == 0 else ['A', 'B'] if n % 20 == 1 else [f'r{n % 7}']
+        board = WorkdayBoard(board_jobs(2300, family=lambda n: [f'f{n % 9}'], time=lambda n: ['full' if n % 40 else 'part'], region=region),
+                             facets=['region', 'family', 'time'])
+        self.assertGreater(sum(len(region(n)) for n in range(2300)), 2300, 'the region facet must look the widest')
+        feed = self.walk(board)
+        self.assertEqual(len(feed), 2300)
+        self.assertTrue(feed.complete, feed.reason)
+
+    def test_workday_board_at_the_cap_with_nothing_to_split_on_closes_nothing(self):
+        self.ingest([job('old')])
+        feed = self.walk(WorkdayBoard(board_jobs(2600)))
+        self.assertEqual(len(feed), ats.WORKDAY_CAP)
+        self.assertFalse(feed.complete)
+        self.assertEqual(self.ingest(feed)['closed'], 0)
+        self.assertIn('old', self.active())
+        self.assertEqual(self.state()['last_error_code'], 'page_limit_reached')
+
+    def test_workday_refused_page_during_a_walk_keeps_rows_and_closes_nothing(self):
+        self.ingest([job('old')])
+        board = WorkdayBoard(board_jobs(2600, family=lambda n: [f'f{n % 3}'], time=lambda n: ['full']),
+                             facets=['family', 'time'], refuse_after=30)
+        feed = self.walk(board)
+        self.assertTrue(0 < len(feed) < 2600)
+        self.assertFalse(feed.complete)
+        self.assertEqual(feed.reason, 'http_refused')
+        self.assertEqual(board.requests, 31, 'a refusal stops the walk instead of hammering the employer')
+        self.assertEqual(self.ingest(feed)['closed'], 0)
+        self.assertIn('old', self.active())
+
+    def test_workday_network_failure_after_the_first_page_keeps_rows_and_before_it_stays_a_failure(self):
+        first = Reply({'total': 40, 'jobPostings': [{'title': 'IT Manager', 'externalPath': '/job/a'}]})
+        with patch.object(http, 'post', side_effect=[first, http.TransientHTTP('503')]):
+            feed = ats.fetch('workday', 'fixture:wd5:Careers')
+        self.assertEqual(len(feed), 1)
+        self.assertEqual(feed.reason, 'http_refused')
+        with patch.object(http, 'post', side_effect=http.TransientHTTP('503')), self.assertRaises(http.TransientHTTP):
+            ats.fetch('workday', 'fixture:wd5:Careers')
+
+    def test_workday_walk_short_of_the_facet_counts_closes_nothing(self):
+        self.ingest([job('old')])
+        jobs = board_jobs(2600, family=lambda n: [f'f{n % 3}'], time=lambda n: ['full'])
+        feed = self.walk(WorkdayBoard(jobs, facets=['family', 'time'], unlisted=[row['path'] for row in jobs[:100]]))
+        self.assertEqual(len(feed), 2500)
+        self.assertFalse(feed.complete)
+        self.assertEqual(self.ingest(feed)['closed'], 0)
+        self.assertIn('old', self.active())
+
+    def test_workday_walk_stops_at_its_request_budget_and_closes_nothing(self):
+        board = WorkdayBoard(board_jobs(2600, family=lambda n: [f'f{n % 3}'], time=lambda n: ['full']), facets=['family', 'time'])
+        with patch.object(ats, 'WORKDAY_MAX_REQUESTS', 5):
+            feed = self.walk(board)
+        self.assertEqual(board.requests, 5)
+        self.assertFalse(feed.complete)
+        self.assertEqual(feed.reason, 'page_limit_reached')
+
+    def test_workday_repeat_inside_one_search_still_means_the_list_moved(self):
+        pages = [Reply({'total': 3, 'jobPostings': [{'title': 'A', 'externalPath': '/job/a'}, {'title': 'B', 'externalPath': '/job/b'}]}),
+                 Reply({'total': 0, 'jobPostings': [{'title': 'B', 'externalPath': '/job/b'}, {'title': 'C', 'externalPath': '/job/c'}]})]
+        with patch.object(http, 'post', side_effect=pages):
+            feed = ats.fetch('workday', 'fixture:wd5:Careers')
+        self.assertEqual(len(feed), 3)
+        self.assertFalse(feed.complete)
+        self.assertEqual(feed.reason, 'invalid_feed_rows')
+
+    def test_workday_board_under_the_cap_is_one_plain_search(self):
+        board = WorkdayBoard(board_jobs(45, family=lambda n: ['a']), facets=['family'])
+        feed = self.walk(board)
+        self.assertEqual(len(feed), 45)
+        self.assertTrue(feed.complete, feed.reason)
+        self.assertEqual(board.requests, 3)
 
     def test_receipt_retention_is_bounded_per_employer(self):
         for _ in range(25):

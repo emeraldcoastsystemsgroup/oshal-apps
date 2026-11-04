@@ -6,6 +6,8 @@ filter distinguish failed, partial, empty and unfinished attempts. Zero jobs or 
 pull failure. An older published corpus explicitly says history is unavailable; reading the screen never creates
 tables, launches a pull or creates a personal Career database.
 
+What happens to a source that keeps failing is covered in [the nightly source review](SOURCE-REVIEW.md).
+
 ## What is retained
 
 The engine keeps shared `source_identity`, `source_pull_state`, `source_pull_runs`, `source_posting_hashes` and
@@ -33,8 +35,10 @@ When the server supplies no validator, the listing is fetched again and content 
 This is delta processing, not a claim that every provider offers a network delta API. Paginated adapters do not use
 the single-GET cache.
 
-Only a recognized complete, nonempty enumeration with valid, unique records may close absent postings. Workday
-checks its reported total. Reviewed Greenhouse, Lever and Ashby JSON boards, and the reviewed PageUp and GovernmentJobs
+Only a recognized complete, nonempty enumeration with valid, unique records may close absent postings. Workday's
+search answers at most 2,000 jobs and reports `total` as 2000 however many exist, so a search at that cap is split by
+facet until every job is read, and the result must reach the count the facets agree on. A board that cannot reach it
+stays partial and closes nothing. Reviewed Greenhouse, Lever and Ashby JSON boards, and the reviewed PageUp and GovernmentJobs
 adapters, carry explicit completion evidence. Other legacy adapters remain unverified until their pagination is
 reviewed. They can refresh received jobs, but cannot close missing jobs or establish a complete-pull receipt. Failed,
 partial, malformed, repeated and ambiguous empty feeds retain existing jobs. Even an empty response marked complete
@@ -48,7 +52,7 @@ separately; completion of a process is not evidence that every source succeeded.
 
 The native kernel already invokes this package's engine as `python -m jobhunter scrape --all`. Its installation-owned
 writer holds `.corpus-ingest.lock`, updates a writable corpus copy and publishes that copy. The new source tables and
-hashes travel with that corpus. No kernel source change is required.
+hashes travel with that corpus. The source-memory schema itself needs no kernel change.
 
 An ordinary native application request reads the published shared corpus. It must not start a second shared writer.
 `GET /run/refresh` therefore reports `manualRefreshAvailable: false` and `refreshMode: installation-managed` on the
@@ -68,3 +72,45 @@ shared-list access without a personal store, and native refresh capability. It r
 against temporary real SQLite, with recorded HTTP replies only: body-write tripwires, changed nullable fields,
 source changes, conditional 304, no-validator fallback, paginated refusal, bounded receipts and retained 304 counts.
 The engine's Python dependency pins must be available. These tests never pull or mutate the live corpus.
+
+## Native generic careers pages (1.43.0, prepared)
+
+The native Python dependency set intentionally excludes Python Playwright. Generic
+`web` sources now dispatch to the dedicated Node 24/Playwright 1.59.1 reader instead
+of failing on an unavailable Python import. This requires the matching native
+kernel and an operator-staged `OSHAL_CAREER_INGEST_BROWSER_RUNTIME` bundle. The kernel
+mounts only that immutable software bundle read-only; the engine and private corpus
+copy retain their existing namespace boundaries. No applicant worker profile,
+credential file, model provider or signed-in personal browser is involved.
+
+`ops/stage_career_browser_runtime.py` in the kernel stages already installed exact
+Playwright packages and a selected Chromium distribution, records the executable's
+reported version and every file hash, and removes write and set-id bits. Delivery
+must install its manifest guard alongside the existing core, Python, application
+and platform guards. A configured invalid bundle refuses the pull. An absent
+optional bundle leaves structured adapters usable and records
+`browser_runtime_unavailable` for generic sources.
+
+The fresh anonymous context captures job links, delayed JSON search responses and
+embedded JSON/JSON-LD. Pagination follows safe Next/Load more controls beyond two
+pages and stops at 80 pages or a two-minute source deadline. Only anonymous public
+HTTPS GET/HEAD requests and narrowly recognized JSON search POSTs are admitted;
+forms and mutations are refused. Password/challenge pages are observed without
+entering credentials. DNS is screened for private addresses; the ingest still
+uses the installation's existing network namespace policy, not a new network
+proxy or a pinned-address transport.
+
+Supplied job descriptions remain complete within the explicit capture limits;
+missing descriptions remain unknown. Generic enumeration is always unconfirmed,
+even when the final visible page has no Next control, and cannot close missing
+postings. Login, challenge, page/response limits and failures use closed source
+outcomes. A browser that overruns its hard process deadline terminates its process
+group and the ingest namespace; the failed run publishes nothing.
+
+The focused app cohort has 16 passing Node checks, including eight nested Python
+adapter/database checks and nine actual browser checks. The real native sandbox
+cohort has five passing checks, including explicitly enabled Chromium pagination
+and hung-descendant cleanup. The two bundle admission units pass separately. None
+of these tests accesses an employer or a personal Career store. The new Test Lab
+recipe is a component proof; the native namespace proofs run in the kernel delivery
+lane with their explicit runtime/checkout prerequisites.

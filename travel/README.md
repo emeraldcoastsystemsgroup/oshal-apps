@@ -2,8 +2,14 @@
 
 1.2.4 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
-The AI travel concierge (ADR-059). Search real flights via Duffel with YOUR pasted
-access token (the per-user broker), get an honest "good price / typical / high" read
+1.3.0 brings Duffel flight search back on the native kernel. The package declares `api.duffel.com` as egress
+with the `duffel` connector; the kernel adds the installation's Duffel access token
+(`OSHAL_CONNECTOR_SECRET_DUFFEL` in `oshald.env`, read at kernel start) as the bearer token, and the package never
+holds it. With a `duffel_test_` token the offers are Duffel's simulated sandbox fares: the page and the concierge
+call them test fares and they never enter the price history. With no token every search answers the Google Flights
+search link. Proven by `tests/travel-duffel-egress.test.js`.
+
+The AI travel concierge (ADR-059). Search flights via Duffel, get an honest "good price / typical / high" read
 from the swarm's shared price history, watch a route for a fare drop, and book via a
 deep-link handoff — OSHAL never books or takes payment. Hotels and cars are demo +
 deep-link handoffs today. The **travel-concierge** bot reasons over real candidates

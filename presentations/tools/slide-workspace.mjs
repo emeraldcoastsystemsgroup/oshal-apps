@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Edit selected slides through the existing outline model with keyboard thumbnails and local draft history.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | A design row with the controls the renderer really honours (Roger, 2026-11-03, on the demo: "no controls... can't import an image"): a layout picker over the engine's #layout: directive, an image file that lands as the #image: data URI the renderer embeds (downscaled to stay sendable), its #caption:, and Remove. Every change rides the one outline model, so undo/redo and the export payload stay authoritative.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Share the design machinery with the document editor and the AI partner: readImageFile is exported (document mode adds images too), splitDesign separates the directives from a section's prose, and mergeDesign lets helper-proposed section text keep the person's #image:/#caption:/#layout: lines — the helper never sees image bytes, so without the merge an applied proposal silently deleted the person's image.
  */
 function sectionsCopy(sections) {
   if (!Array.isArray(sections)) throw new TypeError('Slide sections must be an array.');
@@ -17,6 +19,57 @@ export function serializeSections(sections) {
   }).join('\n\n');
 }
 function color(value) { return typeof value === 'string' && /^#?[a-f0-9]{6}$/i.test(value) ? '#' + value.replace(/^#/, '') : ''; }
+/** Read one `#name: value` directive from a slide's raw content ('' when absent). */
+export function readDirective(content, name) {
+  for (const raw of String(content || '').split('\n')) {
+    const m = new RegExp('^#\\s*' + name + '\\s*:\\s*(.+)$', 'i').exec(raw.trim());
+    if (m) return m[1].trim();
+  }
+  return '';
+}
+/** Set or (with an empty value) remove one `#name: value` directive; a new one leads the content. */
+export function writeDirective(content, name, value) {
+  const test = new RegExp('^#\\s*' + name + '\\s*:', 'i');
+  const lines = String(content || '').split('\n').filter(line => !test.test(line.trim()));
+  if (value) lines.unshift('#' + name + ': ' + String(value).replace(/[\r\n]/g, ' ').trim());
+  return lines.join('\n').replace(/^\n+|\n+$/g, '');
+}
+/** The design directives the renderers honour, split from a section's prose lines. */
+export function splitDesign(content) {
+  const design = [], body = [];
+  for (const raw of String(content || '').split('\n')) (/^#\s*(layout|image|caption)\s*:/i.test(raw.trim()) ? design : body).push(raw);
+  return {design, body: body.join('\n').replace(/^\n+|\n+$/g, '')};
+}
+/** Helper-proposed replacement lines for a section, keeping the person's design directives.
+ *  The AI partner never sees image bytes (it gets an "#image: (attached)" marker), so an
+ *  #image: line it returns is written only when it is a plain https URL; otherwise the
+ *  existing image survives, as do #caption:/#layout: lines the new text does not itself set. */
+export function mergeDesign(oldContent, lines) {
+  const directiveName = line => (/^#\s*(layout|image|caption)\s*:/i.exec(String(line).trim()) || [])[1]?.toLowerCase();
+  const incoming = (Array.isArray(lines) ? lines : []).map(String).filter(line => {
+    const image = /^#\s*image\s*:\s*(.*)$/i.exec(line.trim());
+    return !image || /^https?:\/\/\S+$/i.test(image[1].trim());
+  });
+  const named = new Set(incoming.map(directiveName).filter(Boolean));
+  const kept = splitDesign(oldContent).design.filter(line => !named.has(directiveName(line)));
+  return [...kept, ...incoming].join('\n').replace(/^\n+|\n+$/g, '');
+}
+/** An image as the renderer's inline form: a sniffable data URI, downscaled to stay sendable. */
+export async function readImageFile(file, doc = globalThis.document) {
+  if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) throw new Error('Use a PNG, JPEG, GIF or WebP image.');
+  if (file.size > 8 * 1024 * 1024) throw new Error('Pick an image under 8 MB.');
+  const view = doc.defaultView;
+  const raw = await new Promise((done, fail) => {const reader = new view.FileReader(); reader.onload = () => done(String(reader.result)); reader.onerror = () => fail(new Error('That image could not be read.')); reader.readAsDataURL(file);});
+  if (raw.length <= 400000) return raw;
+  const image = await new Promise((done, fail) => {const img = new view.Image(); img.onload = () => done(img); img.onerror = () => fail(new Error('That file is not a readable image.')); img.src = raw;});
+  const scale = Math.min(1, 1600 / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
+  const canvas = doc.createElement('canvas');
+  canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale)); canvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+  const scaled = canvas.toDataURL('image/jpeg', 0.85);
+  if (scaled.length > 900000) throw new Error('That image stays too large even scaled down — pick a smaller one.');
+  return scaled;
+}
 function bulletLineIndexes(content) {
   const indexes = [];
   for (const [index, raw] of content.split('\n').entries()) {
@@ -31,8 +84,8 @@ function bulletLineIndexes(content) {
 /** Root owns the authoritative outline and actual Guide/export adapters.
  * This controller never fetches, stores a second graph, generates files or calls AI.
  */
-export function createSlideWorkspace({host, readSections, writeSections, getTheme, renderDraft, onChange = () => {}}) {
-  if (!host?.ownerDocument || [readSections, writeSections, getTheme, renderDraft, onChange].some(fn => typeof fn !== 'function')) throw new TypeError('Complete slide workspace adapters are required.');
+export function createSlideWorkspace({host, readSections, writeSections, getTheme, renderDraft, getLayouts = () => [], onChange = () => {}}) {
+  if (!host?.ownerDocument || [readSections, writeSections, getTheme, renderDraft, getLayouts, onChange].some(fn => typeof fn !== 'function')) throw new TypeError('Complete slide workspace adapters are required.');
   const document = host.ownerDocument;
   let sections = [], selected = -1, signature = '', initialized = false, writing = false, destroyed = false;
   let undo = [], redo = [], themeSignature = '';
@@ -60,7 +113,17 @@ export function createSlideWorkspace({host, readSections, writeSections, getThem
   const titleLabel = element('label', '', 'Slide title'), titleInput = element('input', 'office-slide-title-input'); titleInput.type = 'text'; titleInput.setAttribute('aria-label', 'Slide title'); titleLabel.append(titleInput);
   const contentLabel = element('label', '', 'Slide text'), contentInput = element('textarea', 'office-slide-content-input'); contentInput.setAttribute('aria-label', 'Slide text'); contentInput.rows = 6; contentLabel.append(contentInput);
   const syntaxNote = element('p', 'office-slide-note', 'One line per point. Tables, charts and layout directives stay in this slide.'); textEditor.append(summary, titleLabel, contentLabel, syntaxNote);
-  center.append(heading, draft, textEditor); layout.append(rail, center); root.append(toolbar, layout, status); host.replaceChildren(root);
+  // The design row: only controls the renderer honours — the #layout:, #image: and #caption: directives.
+  const design = element('div', 'office-slide-design'); design.setAttribute('role', 'group'); design.setAttribute('aria-label', 'Slide design');
+  const layoutLabel = element('label', 'office-slide-design-item', 'Layout ');
+  const layoutSelect = element('select', 'office-slide-layout-select'); layoutSelect.setAttribute('aria-label', 'Slide layout'); layoutLabel.append(layoutSelect);
+  const imageButton = element('button', 'office-slide-button', 'Add image'); imageButton.type = 'button';
+  const imageInput = element('input'); imageInput.type = 'file'; imageInput.accept = 'image/png,image/jpeg,image/gif,image/webp'; imageInput.hidden = true; imageInput.setAttribute('aria-label', 'Slide image file');
+  const captionLabel = element('label', 'office-slide-design-item', 'Caption ');
+  const captionInput = element('input', 'office-slide-caption-input'); captionInput.type = 'text'; captionInput.placeholder = 'Shown with the image'; captionInput.setAttribute('aria-label', 'Image caption'); captionLabel.append(captionInput);
+  const imageRemove = element('button', 'office-slide-button', 'Remove image'); imageRemove.type = 'button';
+  design.append(layoutLabel, imageButton, imageInput, captionLabel, imageRemove);
+  center.append(heading, draft, textEditor); layout.append(rail, center); root.append(toolbar, design, layout, status); host.replaceChildren(root);
   const snapshot = () => ({sections: sectionsCopy(sections), selected});
   const selection = () => selected < 0 || !sections[selected] ? null : {kind: 'pptx', index: selected + 1, title: sections[selected].title};
   function adopt(incoming) {
@@ -89,6 +152,24 @@ export function createSlideWorkspace({host, readSections, writeSections, getThem
   button('later', 'Move later', () => mutate('Moved slide later', next => {[next[selected], next[selected + 1]] = [next[selected + 1], next[selected]]; return selected + 1;}));
   button('undo', 'Undo', () => history(true)); button('redo', 'Redo', () => history(false));
   button('text', 'Edit text', () => {textEditor.open = true; contentInput.focus();});
+  /** One slide's directive changed: route it through the same publish/undo path as every edit. */
+  function designEdit(reason, name, value) {
+    if (selected < 0) return;
+    mutate(reason, next => {next[selected].content = writeDirective(next[selected].content, name, value);});
+  }
+  listen(layoutSelect, 'change', () => {try {designEdit(layoutSelect.value ? 'Set the ' + (layoutSelect.selectedOptions[0]?.textContent || layoutSelect.value) + ' layout' : 'Automatic layout', 'layout', layoutSelect.value);} catch (error) {announce(error.message);}});
+  listen(imageButton, 'click', () => imageInput.click());
+  listen(imageInput, 'change', async () => {
+    const file = imageInput.files && imageInput.files[0]; imageInput.value = '';
+    const at = selected; if (!file || at < 0) return;
+    try {
+      const uri = await readImageFile(file, document);
+      if (destroyed || selected !== at || !sections[at]) throw new Error('The selection changed while the image loaded — pick the slide and add it again.');
+      designEdit('Added the image', 'image', uri);
+    } catch (error) {announce(error.message);}
+  });
+  listen(captionInput, 'change', () => {try {designEdit(captionInput.value.trim() ? 'Captioned the image' : 'Removed the caption', 'caption', captionInput.value.trim());} catch (error) {announce(error.message);}});
+  listen(imageRemove, 'click', () => {try {if (selected < 0) return; mutate('Removed the image', next => {next[selected].content = writeDirective(writeDirective(next[selected].content, 'caption', ''), 'image', '');});} catch (error) {announce(error.message);}});
   function edit(field, value) {
     if (selected < 0) return;
     const next = sectionsCopy(sections); next[selected][field] = value;
@@ -130,16 +211,38 @@ export function createSlideWorkspace({host, readSections, writeSections, getThem
       const node = element('button', 'office-slide-thumbnail'); node.type = 'button'; node.dataset.slideIndex = String(index); node.tabIndex = selected === index ? 0 : -1;
       node.setAttribute('aria-current', String(index === selected)); node.setAttribute('aria-label', 'Slide ' + (index + 1) + ': ' + section.title);
       const miniature = element('span', 'office-slide-miniature'); miniature.style.background = color(theme?.colors?.canvas); miniature.style.color = color(theme?.colors?.ink);
-      const title = element('strong', 'office-slide-mini-title', section.title); const lines = element('span', 'office-slide-mini-lines', section.content.split('\n').filter(Boolean).slice(0, 3).join('\n'));
+      const title = element('strong', 'office-slide-mini-title', section.title); const lines = element('span', 'office-slide-mini-lines', section.content.split('\n').filter(line => line.trim() && !/^#(?!#)/.test(line.trim())).slice(0, 3).join('\n'));
       miniature.append(title, lines); node.append(element('span', 'office-slide-number', String(index + 1)), miniature); return node;
     }));
     for (const name of ['duplicate', 'delete', 'text']) buttons[name].disabled = !current;
     buttons.earlier.disabled = selected <= 0; buttons.later.disabled = selected < 0 || selected >= sections.length - 1;
     buttons.undo.disabled = !undo.length; buttons.redo.disabled = !redo.length;
     titleInput.disabled = contentInput.disabled = !current;
+    paintDesign(current, preserveEditing);
     if (!preserveEditing || document.activeElement !== titleInput) titleInput.value = current?.title ?? '';
     if (!preserveEditing || document.activeElement !== contentInput) contentInput.value = current?.content ?? '';
     paintDraft(current, preserveEditing);
+  }
+  /** The design row mirrors the selected slide's directives; the catalog rebuilds only when it changes. */
+  function paintDesign(current, preserveEditing) {
+    let catalog; try {catalog = getLayouts() || [];} catch {catalog = [];}
+    const ids = catalog.map(entry => String(entry.id));
+    if (layoutSelect.dataset.catalog !== ids.join(',')) {
+      layoutSelect.dataset.catalog = ids.join(',');
+      const auto = element('option', '', 'Auto layout'); auto.value = '';
+      layoutSelect.replaceChildren(auto, ...catalog.map(entry => {
+        const option = element('option', '', entry.name || entry.id); option.value = String(entry.id);
+        if (entry.needs) option.title = entry.needs;
+        return option;
+      }));
+    }
+    const chosen = current ? readDirective(current.content, 'layout') : '';
+    layoutSelect.value = ids.includes(chosen) ? chosen : '';
+    const image = current ? readDirective(current.content, 'image') : '';
+    layoutSelect.disabled = imageButton.disabled = captionInput.disabled = !current;
+    imageButton.textContent = image ? 'Replace image' : 'Add image';
+    captionLabel.hidden = imageRemove.hidden = !image;
+    if (!preserveEditing || document.activeElement !== captionInput) captionInput.value = current ? readDirective(current.content, 'caption') : '';
   }
   function paintDraft(current, preserveEditing) {
     if (destroyed || (preserveEditing && draft.contains(document.activeElement))) return;

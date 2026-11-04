@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Declare the three finance stores as a package migration so a native kernel provisions them before the first read; the status route had answered 500 on an unprovisioned scope.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | uses: specialist-context and the finance_facts read tool. Jarvis now hands "how is my finance doing?" to the finance-analyst, which had no data channel and asked the person to provide their data; routes/finance-routes.js registers a reader of the caller's saved finance state (routes/finance-facts.js) under finance_facts. Version unchanged.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: finance-summary (GET /api/finance/summary) gives the analyst the saved aggregate, so a spending question is answered from the person's categorized transactions; it had only finance_facts and said it could not query transactions. Guarded by finance/tests/finance-summary-tool.test.cjs.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: a demo installation's accounts: with the FINANCE_DEMO_DATA setting, POST /demo-data writes a curated sample aggregate (named banks, healthy balances, holdings, spending, dated relative to now; its notes say it is sample data) and Re-analyze writes the real analyst's brief over it. Off by default; a real link and sync always overwrite it (Roger, 2026-11-02: clean up the demo's data and screens).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -68,7 +69,7 @@ description: >-
   Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
   and see everything in one place: net worth, accounts, holdings, and spending, with
   a plain-English brief. Read-only — nothing is traded or moved. No crypto.
-version: 1.2.5
+version: 1.3.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml

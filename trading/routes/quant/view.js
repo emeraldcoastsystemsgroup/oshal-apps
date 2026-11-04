@@ -1,8 +1,10 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The list can also be ranked by a forward signal (quality dip, profitable growth, Congress buying) using the same pick rule the scoreboard grades, and the brief can be asked for any ranking, so the concierge can answer for the dips.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | With thousands of names the screen and the concierge read one page of the list at a time: filter by industry, theme or search, rank by any signal, sort by any column. Reasons are worked out only for the rows being read.
  */
 'use strict';
 const { explain } = require('./rank');
+const { FORWARD_SIGNALS } = require('./scoreboard');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 200;
@@ -12,13 +14,29 @@ const ROW_SORTS = Object.freeze(new Set(['rank', 'score', 'price', 'chg1d']));
 const FACTOR_SORTS = Object.freeze(new Set(['mom12', 'vsMa200', 'fromHigh', 'vol']));
 
 /**
- * @description The list ranked by one signal.
+ * @description The list ranked by one signal. A forward signal ranks with the exact rule its scoreboard picks are
+ * graded by, so the screen never shows a selection the record does not cover; its score is the position percentile.
  * @param {Array<object>} rows - Stored rows.
  * @param {string} by - Signal id.
  * @returns {Array<object>} Rows with that ranking's rank and score, best first.
  */
 function rankedBy(rows, by) {
+  const forward = FORWARD_SIGNALS.find((s) => s.id === by);
+  if (forward) {
+    const picked = forward.picks(rows), span = Math.max(1, picked.length - 1);
+    return picked.map((r, i) => ({ ...r, rank: i + 1, score: Math.round(((picked.length - 1 - i) / span) * 100) }));
+  }
   return rows.filter((r) => r.pct[by] != null).sort((a, b) => b.pct[by] - a.pct[by] || a.symbol.localeCompare(b.symbol)).map((r, i) => ({ ...r, rank: i + 1, score: r.pct[by] }));
+}
+
+/**
+ * @description Whether a requested ranking is one the list can answer.
+ * @param {Array<object>} rows - Stored rows.
+ * @param {string|undefined} by - Requested signal id.
+ * @returns {boolean} True for a scored price signal or a forward signal.
+ */
+function knownRanking(rows, by) {
+  return Boolean(by && (FORWARD_SIGNALS.some((s) => s.id === by) || rows.some((r) => r.pct[by] != null)));
 }
 
 /**
@@ -65,7 +83,7 @@ function holdingsBy(holdings, ranked) {
  * @returns {object} The page, the matching total, the weakest of the selection, and the summary.
  */
 function screenPage(today, rows, query) {
-  const by = query.by && rows.some((r) => r.pct[query.by] != null) ? String(query.by) : today.rankBy;
+  const by = knownRanking(rows, query.by) ? String(query.by) : today.rankBy;
   const ranked = rankedBy(rows, by), matching = filtered(ranked, query);
   const offset = Math.max(0, Number.parseInt(query.offset, 10) || 0), limit = Math.min(MAX_LIMIT, Math.max(1, Number.parseInt(query.limit, 10) || DEFAULT_LIMIT));
   const page = sorted(matching, query.sort, Number(query.dir) < 0 ? -1 : 1).slice(offset, offset + limit);
@@ -78,12 +96,13 @@ function screenPage(today, rows, query) {
  * @param {Array<object>} rows - Stored rows.
  * @param {{group?:string, q?:string}} filter - The selection.
  * @param {{top:number, bottom:number}} size - How many rows.
+ * @param {string} [by] - The ranking to read; the list's own leading signal when omitted.
  * @returns {object} Brief rows, with how many matched.
  */
-function briefPage(today, rows, filter, { top, bottom }) {
+function briefPage(today, rows, filter, { top, bottom }, by = today.rankBy) {
   const brief = (row) => { const r = explain(row); return { rank: r.rank, symbol: r.symbol, name: r.name, group: r.group, themes: r.themes, score: r.score, price: r.price, chg1d: r.chg1d, held: r.held, reasons: r.reasons, cautions: r.cautions }; };
-  const matching = filtered(rankedBy(rows, today.rankBy), filter);
-  return { total: matching.length, top: matching.slice(0, top).map(brief), weakest: matching.slice(-bottom).map(brief) };
+  const matching = filtered(rankedBy(rows, by), filter);
+  return { total: matching.length, top: matching.slice(0, top).map(brief), weakest: bottom > 0 ? matching.slice(-bottom).map(brief) : [] };
 }
 
 /**
@@ -99,4 +118,4 @@ function whyNotListed(symbol, today) {
   return `${symbol} is not on today's list: it may be a fund that serves as a reference point, or outside the pool.`;
 }
 
-module.exports = { DEFAULT_LIMIT, rankedBy, filtered, sorted, screenPage, briefPage, whyNotListed };
+module.exports = { DEFAULT_LIMIT, rankedBy, knownRanking, filtered, sorted, screenPage, briefPage, whyNotListed };

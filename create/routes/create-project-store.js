@@ -132,6 +132,13 @@ class CreateProjectStore {
             return { projects: result.rows.map(metadata), count: count.rows[0].count };
         });
     }
+    /** Images this person has saved in the last day: the durable count a generation ceiling reads, since a native package process lasts one request. */
+    async assetsToday(owner) {
+        return this.transaction(owner, false, async (client) => {
+            const result = await client.query("SELECT COUNT(*)::int AS count FROM create_project_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND created_at>NOW()-INTERVAL '24 hours'", [owner.issuer, owner.sub]);
+            return result.rows[0].count;
+        });
+    }
     async get(owner, id, revision) {
         return this.transaction(owner, false, async (client) => {
             const result = await client.query(`SELECT p.project_id,r.title,r.revision AS current_revision,p.created_at,r.created_at AS updated_at,r.document

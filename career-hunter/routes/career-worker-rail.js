@@ -4,6 +4,9 @@ exports.createCareerRailCallbackVerifier = void 0;
 exports.createCareerWorkerRailRoutes = createCareerWorkerRailRoutes;
 /**
  * CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Read fixed original-owner native scoring identity without inference and forward guarded turns with validated per-completion routing attribution.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Let the same signed original-owner run read anonymous structured employer details through declared kernel egress; keep model accounting and external networking separate.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve the engine output budget through native completions with a validated 8192-token ceiling.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -11,6 +14,7 @@ exports.createCareerWorkerRailRoutes = createCareerWorkerRailRoutes;
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Start the per-call deadline when a call is granted a Career bot slot, not when it starts waiting for one. The wait is bounded separately, by the run's cancellation or exit and by its own ceiling (CAREER_WORKER_RAIL_QUEUE_WAIT_MS; 504 career-worker-queue-timeout, never dispatched), and a call whose run ended while it queued is released without reaching the bot. Before this, a scoring batch queued behind the 2-slot semaphore spent its deadline waiting, so calls granted at the edge of the deadline were still billed on the bot and then abandoned with 504, failing a healthy run.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Put this mount on the kernel's signed-package-callbacks rail (1.25.1). Under ADR-149 enforce the application-authorization layer refused every engine-child request with authorization_identity_required before this handler ran, because a service-secret caller carrying an asserted subject has no verified identity; the 1.24.0 rail passed its own tests and could not complete one call on an enforce box. The manifest's callbackVerifier (createCareerRailCallbackVerifier, career-rail-grants.ts) now runs first and verifies the per-run grant the runner minted; the kernel refreshes the grant owner and requires career.execute before this router runs as that owner. The handler reads the run the verifier admitted and the exact signed body it read, and requires the kernel's request identity to be that run's owner; the service secret, the trusted-subject header and the bearer run token are gone from the contract.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Register the catalog's `career` resource adapter from this factory too: the kernel resolves career.execute for an admitted grant and then asks the adapter, and this mount may be the only one activated (the kernel boundary suite mounts it alone), so the rail must not depend on the studio mount having registered it first.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | On the native kernel (OSHAL_EGRESS=kernel) the engine's completion reaches this route through the sandbox's loopback callback relay, inside the owner's admitted request, and the kernel's bot turn is the only dispatch: it resolves the declared Career bot, refuses when it cannot run, and meters the call to the owner. The legacy dedicated-node and heartbeat preflight has no native counterpart, so it applies only on the legacy controller.
  */
 /**
  * Career worker rail — the engine's only model path in multi-user mode.
@@ -123,7 +127,41 @@ function railInput(value) {
         return null;
     if (doc.jsonMode !== undefined && typeof doc.jsonMode !== 'boolean')
         return null;
-    return { system, prompt: doc.prompt, jsonMode: doc.jsonMode !== false };
+    const maxTokens = doc.maxTokens === undefined ? 2048 : doc.maxTokens;
+    if (typeof maxTokens !== 'number' || !Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 8192)
+        return null;
+    if (doc.expectedModelIdentity !== undefined && (process.env.OSHAL_EGRESS !== 'kernel'
+        || typeof doc.expectedModelIdentity !== 'string' || !/^[a-f0-9]{64}$/.test(doc.expectedModelIdentity)))
+        return null;
+    return { system, prompt: doc.prompt, jsonMode: doc.jsonMode !== false, maxTokens,
+        ...(doc.expectedModelIdentity === undefined ? {} : { expectedModelIdentity: doc.expectedModelIdentity }) };
+}
+/** Configured labels are bounded metadata, never routing selectors supplied by a browser. */
+function modelLabel(value) {
+    return typeof value === 'string' && value.length > 0 && Array.from(value).length <= 256
+        && value === value.trim() && !/[\x00-\x1f\x7f]/.test(value);
+}
+/** One fixed, source-checked kernel read; no model call or model-call accounting. */
+async function scoringIdentity(deps, value) {
+    if (Object.keys(value).some(key => key !== 'operation'))
+        return { status: 400, body: { ok: false, error: 'invalid-model-identity' } };
+    const unavailable = { status: 503, body: { ok: false, error: 'model-identity-unavailable' } };
+    if (process.env.OSHAL_EGRESS !== 'kernel')
+        return unavailable;
+    try {
+        const native = deps.ctx;
+        const answer = native.intent ? await native.intent('career.model_identity', {}) : null;
+        const identity = answer;
+        if (!identity || identity.version !== 1 || typeof identity.identity !== 'string' || !/^[a-f0-9]{64}$/.test(identity.identity)
+            || !modelLabel(identity.primary?.provider) || !modelLabel(identity.primary?.model))
+            return unavailable;
+        // Do not forward arbitrary kernel metadata, source documents or selectors to the child.
+        return { status: 200, body: { ok: true, identity: { version: 1, identity: identity.identity,
+                    primary: { provider: identity.primary.provider, model: identity.primary.model } } } };
+    }
+    catch {
+        return unavailable;
+    }
 }
 /** Compose the one text the Career bot answers, in the order the engine's prompts assume. */
 function railPrompt(input) {
@@ -142,6 +180,8 @@ function workerRequest(run, subject, input) {
         direct: true,
         agenticMode: false,
         userSub: subject,
+        max_output_tokens: input.maxTokens,
+        ...(input.expectedModelIdentity === undefined ? {} : { expectedModelIdentity: input.expectedModelIdentity }),
     };
 }
 /** Require a dedicated Career node and a fresh, online heartbeat before any model-bearing call. */
@@ -201,6 +241,9 @@ function raceAbort(work, signal) {
 /** Map a kernel refusal or transport failure onto the rail's stable failure codes. */
 function failureOf(err) {
     const e = err;
+    if (typeof e?.message === 'string' && /\bcareer-model-identity-mismatch\b/.test(e.message)) {
+        return { status: 409, body: { ok: false, error: 'model-identity-mismatch' } };
+    }
     if (e?.code === 'budget_cap_exceeded' || e?.statusCode === 402) {
         return { status: 402, body: { ok: false, error: 'budget-cap-exceeded' } };
     }
@@ -224,9 +267,18 @@ function notAdmittedOutcome(run, waitTimedOut) {
     return { status: 504, body: { ok: false, error: 'career-worker-queue-timeout' } };
 }
 /** Turn the bot's answer into the rail response the engine parses. */
-function answerOf(result) {
+function answerOf(result, input) {
     if (!result || result.success === false) {
         return { status: 502, body: { ok: false, error: 'career-worker-error' } };
+    }
+    const metadata = result;
+    if (input.expectedModelIdentity !== undefined) {
+        if (metadata.modelIdentity !== input.expectedModelIdentity || !modelLabel(result.provider)
+            || !modelLabel(result.model) || typeof metadata.fallback !== 'boolean') {
+            return { status: 503, body: { ok: false, error: 'model-identity-unavailable' } };
+        }
+        return { status: 200, body: { ok: true, text: String(result.response ?? ''), model: result.model, provider: result.provider,
+                modelIdentity: metadata.modelIdentity, fallback: metadata.fallback } };
     }
     return {
         status: 200,
@@ -266,7 +318,7 @@ async function executeOnWorker(deps, run, subject, input) {
             work.catch((err) => logger.error({ err, runId: run.runId }, 'abandoned career rail call failed'));
             return abandonedOutcome(run, call.timedOut());
         }
-        return answerOf(raced.value);
+        return answerOf(raced.value, input);
     }
     catch (err) {
         logger.error({ err, runId: run.runId }, 'career rail worker call failed');
@@ -292,6 +344,18 @@ async function handleComplete(deps, req, res) {
     if (!run)
         return;
     const body = parseRailJson(req);
+    if (body.ok && body.value && typeof body.value === 'object' && !Array.isArray(body.value)
+        && body.value.operation === 'model-identity') {
+        const outcome = await scoringIdentity(deps, body.value);
+        res.status(outcome.status).json(outcome.body);
+        return;
+    }
+    if (body.ok && body.value && typeof body.value === 'object' && body.value.operation === 'employer-detail-get') {
+        const outcome = await require('../lib/career-employer-detail').employerDetailGet(deps.ctx, body.value);
+        logger.info({ runId: run.runId, status: outcome.status, employerStatus: outcome.body.status ?? null, durationMs: Date.now() - startedAt }, 'career employer detail read');
+        res.status(outcome.status).json(outcome.body);
+        return;
+    }
     const input = body.ok ? railInput(body.value) : null;
     if (!body.ok || !input) {
         const outcome = body.ok ? { status: 400, body: { ok: false, error: 'invalid-completion' } } : body.outcome;

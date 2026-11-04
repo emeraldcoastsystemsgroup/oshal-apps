@@ -9,7 +9,7 @@
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the trips on the radar (saved
      fare watches, what is coming up, which fares dropped, whether prices are live or demo), from the SAME /api/travel
      routes the full page reads, painted by the shared kit in the family grammar. On open it reads only /config (the
-     Duffel status operation, no network call) and /watches. It never runs a flight, hotel or car search: those call
+     Duffel status, asked of Duffel once per kernel process) and /watches. It never runs a flight, hotel or car search: those call
      the provider and record prices and searches on read. No concierge and no write. Trip dates are calendar days
      (AppView.day); checks and saves are timestamps. Any other request runs the full Travel page below unchanged. -->
 <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
@@ -60,6 +60,9 @@
   function prices(cfg) {
     if (!cfg) return { id: 'prices', label: 'Prices', value: '—', hint: 'Could not check' };
     if (cfg.mode === 'not_connected') return { id: 'prices', label: 'Prices', value: 'None here', hint: 'No Duffel connector on this installation', tone: 'warn' };
+    if (cfg.mode === 'test') return { id: 'prices', label: 'Prices', value: 'Test', hint: 'Duffel test fares, not real prices', tone: 'warn' };
+    if (cfg.mode === 'connected') return { id: 'prices', label: 'Prices', value: 'Duffel' };
+    if (cfg.mode === 'unavailable') return { id: 'prices', label: 'Prices', value: '—', hint: 'Duffel is not answering', tone: 'warn' };
     if (cfg.mode !== 'live') return { id: 'prices', label: 'Prices', value: 'Demo', hint: 'No Duffel token', tone: 'warn' };
     return cfg.live ? { id: 'prices', label: 'Prices', value: 'Live' } : { id: 'prices', label: 'Prices', value: 'Test', hint: 'Duffel test token', tone: 'warn' };
   }
@@ -69,15 +72,15 @@
     return {
       kicker: 'Trips',
       title: drops ? (drops === 1 ? 'A watched fare dropped' : drops + ' watched fares dropped') : watching ? 'Watching ' + watching + (watching === 1 ? ' fare' : ' fares') : watches.length ? watches.length + ' saved fare watches' : 'No trips on the radar',
-      lede: (next ? 'Next: ' + place(next) + ' on ' + day + (rel !== day ? ' (' + rel + ')' : '') : watches.length ? 'None of the saved watches has an upcoming date.' : 'Search a trip in Travel and tap Watch to follow its fare here.') + (demo ? ' · demo prices' : ''),
+      lede: (next ? 'Next: ' + place(next) + ' on ' + day + (rel !== day ? ' (' + rel + ')' : '') : watches.length ? 'None of the saved watches has an upcoming date.' : 'Search a trip in Travel and tap Watch to follow its fare here.') + (demo ? ' · ' + demo : ''),
       actions: [{ label: 'Plan a trip', primary: true, onClick: function () { A.open(FULL); } }].concat(connectable ? [{ label: 'Connect live prices', onClick: function () { A.open('/utilities'); } }] : [])
     };
   }
   function model(cfg, watches) {
     var now = today(), byDay = function (a, b) { return tripDay(a) < tripDay(b) ? -1 : tripDay(a) > tripDay(b) ? 1 : 0; };
-    var soon = watches.filter(function (w) { var d = tripDay(w); return d && d >= now; }).sort(byDay), demo = !!cfg && cfg.mode !== 'live';
+    var soon = watches.filter(function (w) { var d = tripDay(w); return d && d >= now; }).sort(byDay), demo = !cfg ? '' : cfg.mode === 'test' ? 'Duffel test fares' : cfg.mode === 'demo' ? 'demo prices' : '';
     var drops = watches.filter(function (w) { return w.status === 'tripped'; }).length, watching = watches.filter(function (w) { return w.status === 'active'; }).length;
-    var m = hero(watches, soon[0], drops, watching, demo, demo && cfg.mode !== 'not_connected');
+    var m = hero(watches, soon[0], drops, watching, demo, !!cfg && cfg.mode === 'demo');
     m.stats = [
       { id: 'watching', label: 'Watching', value: watching },
       { id: 'drops', label: 'Price drops', value: drops, tone: drops ? 'ok' : null },
@@ -88,7 +91,7 @@
       { kind: 'timeline', id: 'upcoming', title: 'Coming up', empty: watches.length ? 'None of the saved watches has an upcoming date.' : NO_WATCHES,
         items: soon.map(function (w) { var s = status(w, now); return { when: A.day(tripDay(w)), title: place(w), text: detail(w) + (s.tone === 'ok' ? ' · ' + s.badge : ''), tone: s.tone }; }) },
       { kind: 'list', id: 'watches', title: 'Fare watches', empty: NO_WATCHES, items: watches.map(function (w) { return row(w, now); }),
-        note: cfg && cfg.mode === 'not_connected' ? 'Fares cannot be searched or re-checked here: this installation has no Duffel rail (no Duffel connector exists here).' : demo ? 'Prices are demo data, not live fares.' : cfg && !cfg.live ? 'Prices come from a Duffel test token.' : null }
+        note: cfg && cfg.mode === 'not_connected' ? 'Fares cannot be searched or re-checked here: this installation has no Duffel rail (no Duffel connector exists here).' : cfg && cfg.mode === 'test' ? 'Prices are Duffel test fares, not real prices.' : demo ? 'Prices are demo data, not live fares.' : null }
     ];
     return m;
   }
@@ -340,11 +343,19 @@ function simpleCard(it){
 
 function render(data){
   LAST.items = data.items||[]; LAST.deepLink = data.deepLink;
-  document.getElementById('demoflag').style.display = (data.source==='demo') ? 'block' : 'none';
-  document.getElementById('mode').textContent = data.source==='demo' ? 'demo' : 'live';
-  document.getElementById('mode').className = 'badge '+(data.source==='demo'?'':'live');
+  const flag = document.getElementById('demoflag');
+  flag.textContent = data.source==='duffel-test' ? (data.note || 'Duffel test fares, not real prices.') : 'Showing demo data, not live prices.';
+  flag.style.display = (data.source==='demo' || data.source==='duffel-test') ? 'block' : 'none';
+  const mode = document.getElementById('mode');
+  mode.textContent = data.source==='duffel-test' ? 'test fares' : data.source==='demo' ? 'demo' : data.source==='handoff' ? 'search link' : 'live';
+  mode.className = 'badge '+(data.source==='duffel'?'live':'');
   priceBand(data.price);
   const res = document.getElementById('results');
+  // A search with no fares (no Duffel key, or Duffel refused the trip) still opens this exact search on the booking site.
+  if(!LAST.items.length && data.source==='handoff' && data.deepLink){
+    res.innerHTML = '<div class="empty" role="status">'+esc(data.note||'')+'<br><a href="'+esc(data.deepLink)+'" target="_blank" rel="noopener">Open this search on '+(KIND==='flight'?'Google Flights':KIND==='hotel'?'Booking.com':'Kayak')+' →</a></div>';
+    return;
+  }
   if(!LAST.items.length){ res.innerHTML = '<div class="empty">No options found — try different dates.</div>'; return; }
   res.innerHTML = LAST.items.map(KIND==='flight'?flightCard:simpleCard).join('');
 }
@@ -444,7 +455,7 @@ if (!window.AppView || !AppView.active()) (async function init(){
   switchTab('flight');
   try {
     const c = await api('/config');
-    document.getElementById('mode').textContent = c.mode==='not_connected' ? 'not connected' : (c.mode||'demo');
+    document.getElementById('mode').textContent = c.mode==='not_connected' ? 'not connected' : c.mode==='test' ? 'test fares' : (c.mode||'demo');
     document.getElementById('mode').className='badge '+(c.connected&&c.live?'live':'');
     if(c.mode==='not_connected'){
       RAIL_MISSING = true;

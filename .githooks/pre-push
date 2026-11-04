@@ -124,11 +124,10 @@ fi
 #   OSHAL_STORE_CI_LOCAL=0        skip it entirely. An emergency valve, not a workflow. Same
 #                                 idiom as OSHAL_ATTRIBUTION_SCAN_TREE above.
 #   OSHAL_STORE_CI_ALLOW_SKIPS=1  accept checks that cannot run on this box (toolchain not installed
-#                                 - `npm ci --prefix scripts/toolchain` -, LEGACY checks that need the
-#                                 old TypeScript platform checkout, no disposable PostgreSQL, no symlink
+#                                 - `npm ci --prefix scripts/toolchain` -, no disposable PostgreSQL, no symlink
 #                                 privilege). They are still printed. Without it, a check that did not
 #                                 run fails the push - which is the point: a skipped security suite is
-#                                 not a green one.
+#                                 not a green one. LEGACY checks and the live Embodied suites never block.
 RUN_STORE_CI=${OSHAL_STORE_CI_LOCAL:-1}
 GATE="$(git rev-parse --show-toplevel)/scripts/store-ci-local.sh"
 if [ "$RUN_STORE_CI" = "1" ]; then

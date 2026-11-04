@@ -1,4 +1,4 @@
-"""Universal careers-page scraper: render ANY company's jobs page in headless Chromium
+"""Universal careers-page scraper: render a company's jobs page in headless Chromium
 and extract the postings — regardless of which platform they use.
 
 It works two ways at once, so it copes with both server-rendered and JS/GraphQL sites:
@@ -9,11 +9,17 @@ It works two ways at once, so it copes with both server-rendered and JS/GraphQL 
 
 Slower than the structured ATS connectors, but it reaches the defended/custom sites
 those can't. Used as the `web` connector: ats_token = the careers URL.
+
+CHANGE LOG
+2 | maintainer@emeraldcoastsystemsgroup.com | Apply conservative workplace classification to browser-source jobs and retain only independent structured remote evidence in normalized locations.
+1 | maintainer@emeraldcoastsystemsgroup.com | Dispatch native reads through the pinned anonymous Node browser and retain complete supplied description text, including single-job boards.
 """
 from __future__ import annotations
+import os
 import re
 from html import unescape
 from urllib.parse import urljoin, urlparse
+from .work_arrangement import looks_remote, remote_location, structured_remote
 
 # href patterns that look like an individual job posting
 _JOB_HREF = re.compile(
@@ -28,7 +34,7 @@ _TITLE_KEYS = ("title", "name", "jobtitle", "job_title", "postingname", "display
                "positionname", "reqtitle", "jobname", "roletitle")
 _LOC_KEYS = ("location", "locations", "city", "joblocation", "primarylocation", "location_name",
              "locationname", "formattedlocation", "standardizedlocations", "cityname", "region")
-_URL_KEYS = ("absoluteurl", "applyurl", "joburl", "canonicalurl", "url", "link", "detailurl",
+_URL_KEYS = ("absoluteurl", "applyurl", "applicationurl", "joburl", "canonicalurl", "url", "link", "detailurl",
              "absolute_url", "jobpostingurl", "externalpath")
 _ID_KEYS = ("id", "jobid", "reqid", "req_id", "atsjobid", "ats_job_id", "jobseqno", "slug",
             "requisitionid", "jobreqid", "positionid", "jobpostingid")
@@ -71,9 +77,9 @@ def _stringify_loc(v):
 _STRONG_ID_KEYS = ("jobid", "reqid", "req_id", "atsjobid", "ats_job_id", "jobseqno",
                    "requisitionid", "jobreqid", "jobpostingid", "positionid")
 # titles that are really language pickers / nav, not jobs
-_NOT_JOB = re.compile(r"^(english|deutsch|fran|espa|portug|italian|chinese|japanese|korean|"
-                      r"dutch|polski|русск|عرب|nederlands|svenska|norsk|dansk|suomi|türk|"
-                      r"\w{2}\s*\([a-z]{2}\)|[a-z]{2}-[a-z]{2})", re.I)
+_NOT_JOB = re.compile(r"^(?:english|deutsch|français|francais|español|espanol|português|portugues|italian|italiano|chinese|japanese|korean|"
+                      r"dutch|polski|русский|عربي|nederlands|svenska|norsk|dansk|suomi|türkçe|"
+                      r"\w{2}\s*\([a-z]{2}\)|[a-z]{2}-[a-z]{2})(?:\s*\([^)]+\))?$", re.I)
 
 
 def _looks_like_job(d):
@@ -90,7 +96,8 @@ def _looks_like_job(d):
     has_job_url = isinstance(url, str) and bool(_JOB_HREF.search(url))
     has_loc = bool(_stringify_loc(_first(d, _LOC_KEYS)))
     has_jobid = _first(d, _STRONG_ID_KEYS) is not None
-    return has_job_url or has_loc or has_jobid
+    schema=d.get('@type')
+    return has_job_url or has_loc or has_jobid or schema=='JobPosting' or isinstance(schema,list) and 'JobPosting' in schema
 
 
 def _map_job(d, base_url):
@@ -100,15 +107,23 @@ def _map_job(d, base_url):
     if isinstance(url, str) and url and not url.startswith("http"):
         url = urljoin(base_url, url)
     loc = _stringify_loc(_first(d, _LOC_KEYS))
+    workplace = [_first(d, (key,)) for key in ('workplacetype', 'joblocationtype')]
+    # A generic `remote` field may already be a scraper's heuristic. Only explicit
+    # source workplace fields can supply the independent evidence retained here.
+    verified = structured_remote(_first(d, ('isremote',)))
+    if verified is not False and any(isinstance(value, str) and value.lower() in ('remote', 'telecommute') for value in workplace):
+        verified = True
+    loc = remote_location(loc, title, *workplace, verified=verified)
     dept = _first(d, _DEPT_KEYS)
     dept = dept.get("name") if isinstance(dept, dict) else dept
+    description=_first(d,('description','jobdescription','job_description','descriptionhtml','jobdescriptionhtml'))
     return {
         "ats_job_id": str(jid) if jid is not None else (url or title),
         "title": title, "location": loc,
-        "remote": int("remote" in ((title or "") + " " + (loc or "")).lower()),
+        "remote": looks_remote(title, loc, *workplace, verified=verified),
         "department": _clean(dept) if isinstance(dept, str) else None,
         "url": url if isinstance(url, str) else base_url,
-        "description": None, "posted_at": _first(d, _DATE_KEYS),
+        "description": _clean(description) if isinstance(description,str) else None, "posted_at": _first(d, _DATE_KEYS),
     }
 
 
@@ -119,13 +134,18 @@ def _jobs_from_json(obj, base_url, out, depth=0):
         return
     if isinstance(obj, list):
         joblike = [x for x in obj if _looks_like_job(x)]
-        if len(joblike) >= 2:                       # an actual results array
+        single = len(joblike)==1 and (_first(joblike[0],_STRONG_ID_KEYS) is not None
+            or isinstance(_first(joblike[0],_URL_KEYS),str) and _JOB_HREF.search(_first(joblike[0],_URL_KEYS)))
+        if len(joblike) >= 2 or single:              # one explicit job is valid on a small employer's board
             for j in joblike:
                 out.append(_map_job(j, base_url))
         for x in obj:                                # still recurse for nested arrays
             if isinstance(x, (list, dict)):
                 _jobs_from_json(x, base_url, out, depth + 1)
     elif isinstance(obj, dict):
+        schema=obj.get('@type')
+        if (schema=='JobPosting' or isinstance(schema,list) and 'JobPosting' in schema) and _looks_like_job(obj):
+            out.append(_map_job(obj,base_url))
         for v in obj.values():
             if isinstance(v, (list, dict)):
                 _jobs_from_json(v, base_url, out, depth + 1)
@@ -160,7 +180,7 @@ def _extract_dom(html: str, base_url: str):
                 loc = _clean(lt.get_text(" ", strip=True))[:80]
         out.append({
             "ats_job_id": re.sub(r"https?://[^/]+", "", url)[:200] or url,
-            "title": title, "location": loc, "remote": int("remote" in (title + (loc or "")).lower()),
+            "title": title, "location": loc, "remote": looks_remote(title, loc),
             "department": None, "url": url, "description": None, "posted_at": None,
         })
     return out
@@ -192,6 +212,13 @@ _MORE_SELECTORS = [
 
 
 def scrape_careers(url: str, max_pages: int = 80) -> list[dict]:
+    if os.environ.get('JOBHUNTER_BROWSER_NATIVE') is not None:
+        from . import native_browser
+        return native_browser.scrape(url,max_pages)
+    return _scrape_legacy(url,max_pages)
+
+
+def _scrape_legacy(url: str, max_pages: int = 80) -> list[dict]:
     """Render the careers URL, capture both the rendered DOM and every JSON payload the
     page fetches, then merge job postings found in either. A general pagination engine
     drives Next / load-more / infinite-scroll to the end so the FULL list is collected,

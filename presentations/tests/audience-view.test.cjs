@@ -6,6 +6,8 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The classroom audience beside company. Its model is asserted as behaviour (the head block runs against a stub kit and the fixture's reads): the five class starters in order from the studio's own catalog, the learner's work newest first with store files that have no date last, outside links as new-tab items and anything else refused, only /list and /starters read, and the named states (no catalog, nothing saved, signed out, unreadable). The full studio's other start paths are asserted off under a view: the brand-kit read (run against an active kit), the starters and brand boot, the surface-bridge attach and the hand-off / connected-actions module.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | The family audience beside company and classroom. The stub-kit runner now takes the audience, and the family model is asserted as behaviour: only /list is read (no starters, no home summary, no brand kit), the household's documents newest first with undated store files last, plain kind words instead of the classroom's, "Saved <when>" and an Open badge on exactly the items that open (same-origin or https, in a new tab; javascript: and protocol-relative links refused), one action that opens the full studio in this frame, and the named states (nothing saved, signed out, refused, unreadable through the reused error mapping).
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | The full-studio boot line it asserts gained 2.14.0's resumeLatest (land on the latest saved work), so the assertion follows the shipped line.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | The bootstrap-order needle matches the tag by src, not its exact byte string: 2.17.0's documented data-theme-default attribute rides the same tag.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -28,7 +30,8 @@ const start = html.indexOf('<script src="/shared/ui/js/app-view.js"></script>');
 const block = (() => { const s = html.indexOf('<script>', start); const e = html.indexOf('</script>', s); return html.slice(s + 8, e); })();
 
 test('the shared kit is loaded right after the theme bootstrap, stylesheet first', () => {
-  const bootstrap = html.indexOf('<script src="/shared/ui/js/surface-theme.js"></script>');
+  // The bootstrap tag may carry documented attributes (data-theme-default since 2.17.0).
+  const bootstrap = html.indexOf('<script src="/shared/ui/js/surface-theme.js"');
   assert.ok(bootstrap >= 0, 'theme bootstrap present');
   const css = html.indexOf('<link rel="stylesheet" href="/shared/ui/css/app-view.css" />');
   assert.ok(css > bootstrap && start > css, 'app-view.css then app-view.js follow the bootstrap');
@@ -187,7 +190,7 @@ test('under an audience view the brand kit is never read; the full studio still 
 test('under an audience view the starters boot, the relay and the connected actions stay off', () => {
   const gate = /if \(!window\.AppView \|\| !AppView\.active\(\)\) \{\n  renderKinds\(\);[^\n]*\n[\s\S]*?\n\}\n/.exec(html);
   assert.ok(gate, 'the full studio start is one gated block');
-  assert.match(gate[0], /Promise\.all\(\[themesReady, loadStarters\(\)\]\)\.then\(applyDeepLink\);/);
+  assert.match(gate[0], /Promise\.all\(\[themesReady, loadStarters\(\)\]\)\.then\(applyDeepLink\)\.then\(resumeLatest\);/);
   assert.match(gate[0], /Promise\.all\(\[themesReady, brandReady\]\)\.then\(applyBrand\);/);
   assert.equal([...html.matchAll(/loadStarters\(\)(?!\s*\{)/g)].length, 1, 'the starters are loaded only from the gated block');
   const modules = [...html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)].map((m) => m[1]);

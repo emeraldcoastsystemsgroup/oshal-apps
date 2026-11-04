@@ -1,0 +1,5 @@
+[
+  {"name":"dateline","lat":0,"lon":179.8,"points":[[0,-179.8],[0,177],[0,179.8]],"eligible":[0,2]},
+  {"name":"polar","lat":89.9,"lon":20,"points":[[89.9,-160],[88,20],[89.9,20]],"eligible":[0,2]},
+  {"name":"radius","lat":0,"lon":0,"points":[[1.0131,0],[1.0133,0],[0,0]],"eligible":[0,2]}
+]

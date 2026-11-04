@@ -7,6 +7,15 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Document that bulk auto-submit opt-in authorizes employer-site final submission without a per-job click.
   2 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   3 | maintainer@emeraldcoastsystemsgroup.com | Expose source configuration, refresh health and private LinkedIn saved-job imports separately from profile enrichment.
+  4 | maintainer@emeraldcoastsystemsgroup.com | Accept pasted saved-job CSV and let a manual scoring pass use a small bounded batch.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Expose owner-specific local-or-remote matching without a distance penalty for fully remote work.
+  6 | maintainer@emeraldcoastsystemsgroup.com | Show the owner-private nightly matching completion receipt and native job controls.
+  7 | maintainer@emeraldcoastsystemsgroup.com | Restore and check the owner's existing application-email routine alongside nightly matching, with clear update-review states.
+  8 | maintainer@emeraldcoastsystemsgroup.com | Refresh activation controls after a refused check so a newly suspended routine can be reviewed without reloading the page.
+  9 | maintainer@emeraldcoastsystemsgroup.com | Poll accepted manual scoring through the owner's actual run status and distinguish completion from an unavailable or unconfirmed result.
+  10 | maintainer@emeraldcoastsystemsgroup.com | Offer Stop scoring only for the exact acknowledged run when native cancellation is available; keep stopping and final publication separate from completion.
+  11 | maintainer@emeraldcoastsystemsgroup.com | Resume the tab's acknowledged score task after reload; current owner-scoped status remains authoritative over cached ids and limits.
+  12 | maintainer@emeraldcoastsystemsgroup.com | Show actual per-job preparation and exact-packet submission on managed installations; leave unsupported legacy digest and bulk toggles inactive without changing saved consent.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="settings"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Settings</title>
@@ -16,6 +25,9 @@
 <style>
 #linkedinJobsList a,#communitySourceList a{overflow-wrap:anywhere}
 #linkedinJobsList{max-height:420px;overflow:auto}
+#linkedinJobsCsv{box-sizing:border-box;width:100%;min-height:110px;resize:vertical}
+#cancelScore[hidden]{display:none!important}
+.card[hidden],#nativeWorkflow[hidden]{display:none!important}
 @media (max-width: 640px) {
   .row { flex-direction: column; align-items: flex-start; }
   input[type=text], input[type=password] { min-width: 0; width: 100%; font-size: 16px; }
@@ -52,6 +64,9 @@
       <input id="linkedinJobsFile" type="file" accept=".csv,text/csv" />
       <button type="button" class="btn primary" id="linkedinJobsImport">Import saved jobs</button>
     </div>
+    <label for="linkedinJobsCsv" class="hint">Or paste saved-job CSV</label>
+    <textarea id="linkedinJobsCsv" placeholder="Job Title,Company Name,Job URL" aria-describedby="linkedinJobsPasteHint"></textarea>
+    <p class="hint" id="linkedinJobsPasteHint">Use a CSV file or paste its contents. Include the job title, company name and LinkedIn job URL.</p>
     <p class="hint" id="linkedinJobsStatus" role="status">Loading your imported leads…</p>
     <div id="linkedinJobsList"></div>
   </div>
@@ -84,15 +99,26 @@
 
   <div class="card">
     <h2>Refresh</h2>
-    <p class="hint">Pull the latest jobs into the shared corpus and keyword-index them, then AI-score your fresh in-lane roles. Review Sources &amp; pull health for individual employer outcomes.</p>
+    <p class="hint">The shared pull refreshes job listings and their keyword index. Score fresh now checks openings from the last seven days against your saved target titles and matching area, including teaching and support roles. Review Sources &amp; pull health for individual employer outcomes.</p>
     <div class="row">
       <button class="btn" id="runPull">Pull jobs now</button>
+      <label class="hint" style="margin:0">Jobs per score pass <input id="scoreLimit" type="number" min="1" max="50" step="1" value="50" style="width:5em"></label>
       <button class="btn" id="runScore">Score fresh now</button>
-      <span id="runOut" class="hint" style="margin:0"></span>
+      <button class="btn" id="cancelScore" type="button" hidden>Stop scoring</button>
+      <span id="runOut" class="hint" style="margin:0" role="status" aria-live="polite"></span>
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="operationAvailability">
+    <h2>Job preparation &amp; submission</h2>
+    <p class="hint" id="operationModeStatus" role="status">Checking available automation controls…</p>
+    <div id="nativeWorkflow" hidden>
+      <p class="hint">Nightly matching refreshes your fits. On your Job Board, choose a job and <b>Customize documents</b> to generate its résumé and cover letter. <b>Review and submit</b> approves that job's exact packet for your connected browser worker. Application email updates monitor your recorded applications.</p>
+      <a class="btn" href="/api/career-hunter/board-native">Open Job Board</a>
+    </div>
+  </div>
+
+  <div class="card" id="legacyDigest" hidden>
     <h2>Daily digest</h2>
     <p class="hint">Once a day, OSHAL checks for new high-fit matches and sends them to you over <b>your own connected channel</b> — email from your Gmail, or a text from your Twilio. On by default; nothing is sent on days with no new matches, and never more than once a day.</p>
     <div class="row">
@@ -108,7 +134,7 @@
     <div id="digestOut" class="hint" style="white-space:pre-wrap"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="legacyAutomation" hidden>
     <h2>Automation</h2>
     <p class="hint"><b>Off unless you turn it on.</b> With automation off, OSHAL never generates
     application drafts or queues submissions on its own — the nightly run leaves your queue
@@ -161,16 +187,49 @@
 
   <div class="card">
     <h2>Target titles</h2>
-    <p class="hint">On top of the keyword prefilter, OSHAL runs a daily <b>title pass</b> that AI-scores roles whose titles match <b>your</b> target list — so your best-fit roles surface even when the keyword score misses them. Seeded from your uploaded resume; edit any time (comma-separated). Each run is capped, and it runs at most once a day.</p>
+    <p class="hint">On top of the keyword prefilter, OSHAL runs a daily <b>title pass</b> that AI-scores roles whose titles match <b>your</b> target list — so your best-fit roles surface even when the keyword score misses them. It considers jobs posted in the last 7 days (or first seen this week when the feed has no posted date). Seeded from your uploaded resume; edit any time (comma-separated). Each run is capped, and it runs at most once a day.</p>
     <div class="row">
       <span id="titleState" class="pill-no">Checking…</span>
     </div>
     <div class="row">
       <input type="text" id="titleTerms" placeholder="e.g. SAP Architect, Basis Administrator, Platform Engineer">
       <button class="btn primary" id="titleSave">Save titles</button>
+      <label class="hint" for="titleLimit">Jobs this pass</label>
+      <input type="number" id="titleLimit" min="1" max="150" step="1" value="25" style="width:80px">
       <button class="btn" id="titleRun">Run title pass now</button>
     </div>
     <div id="titleOut" class="hint" style="white-space:pre-wrap"></div>
+    <h3>Matching area</h3>
+    <p class="hint">Local and hybrid jobs must be within this radius. Include remote jobs to consider them independently of office distance; matching still checks location eligibility. Distances use city coordinates, not driving routes.</p>
+    <div class="row">
+      <label for="scopeNear">Local work near</label>
+      <input type="text" id="scopeNear" placeholder="City, ST or ZIP">
+      <label for="scopeRadius">Radius (miles)</label>
+      <input type="number" id="scopeRadius" min="1" max="250" value="70" style="width:80px">
+      <label><input type="checkbox" id="scopeRemote" checked> Include remote jobs</label>
+      <button class="btn primary" id="scopeSave">Save matching area</button>
+    </div>
+    <div id="scopeOut" class="hint" role="status"></div>
+    <h3>Nightly resume matches</h3>
+    <p class="hint">After each evening's job refresh, this job matches recent openings to your resume, then scores up to 50 new or changed jobs using your titles and matching area. It checks for published results every 30 minutes and runs once per evening refresh cycle. Enable, pause or run it below.</p>
+    <div id="nightlyMatchOut" class="hint" role="status"></div>
+    <div id="nightlyJobState" class="hint" role="status">Checking scheduled job…</div>
+    <div class="row">
+      <button class="btn primary" id="nightlyEnable">Enable nightly matching</button>
+      <button class="btn" id="nightlyRun">Run nightly matching now</button>
+      <button class="btn" id="nightlyPause">Pause nightly matching</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Application email updates</h2>
+    <p class="hint">Check your connected submission mailbox every 15 minutes for acknowledgements, interviews, offers and rejections that match an application on your board. This reads email; it sends no messages or job applications. Enable it again here if an application update pauses the routine for review.</p>
+    <div id="mailJobState" class="hint" role="status">Checking email monitor…</div>
+    <div class="row">
+      <button class="btn primary" id="mailEnable">Enable email monitoring</button>
+      <button class="btn" id="mailRun">Check application email now</button>
+      <button class="btn" id="mailPause">Pause email monitoring</button>
+    </div>
   </div>
 
   <div class="card">
@@ -188,6 +247,23 @@
 
 <script>
 const API='/api/career-hunter', $=(s)=>document.querySelector(s);
+let careerOperationMode='unknown';
+for(const id of ['legacyDigest','legacyAutomation'])for(const control of $('#'+id).querySelectorAll('input,button'))control.disabled=true;
+function setCareerOperationMode(managed){
+  const previous=careerOperationMode;
+  careerOperationMode=managed===true?'per-job':managed===false?'legacy':'unknown';
+  const legacy=careerOperationMode==='legacy';
+  for(const id of ['legacyDigest','legacyAutomation']){
+    $('#'+id).hidden=!legacy;
+    for(const control of $('#'+id).querySelectorAll('input,button'))control.disabled=!legacy;
+  }
+  $('#operationAvailability').hidden=legacy;
+  $('#nativeWorkflow').hidden=careerOperationMode!=='per-job';
+  $('#operationModeStatus').textContent=careerOperationMode==='per-job'
+    ? 'Matching and email monitoring have their own Enable and Pause controls below. Document preparation starts from a selected job.'
+    : 'Automation availability could not be checked. You can still prepare and review individual jobs on your Job Board.';
+  if(legacy&&previous!=='legacy'){void refreshDigest();void refreshAutomation();}
+}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json().catch(()=>({}));}
 
@@ -215,11 +291,106 @@ async function refreshState(){
 }
 $('#firecrawlSave').onclick = async()=>{ const k=$('#firecrawlKey').value.trim(); if(!k){toast('Paste a key');return;} const r=await jpost(API+'/settings/firecrawl',{key:k}); $('#firecrawlKey').value=''; toast(r.ok?'Firecrawl key saved':'Failed'); refreshState(); };
 $('#firecrawlClear').onclick = async()=>{ await fetch(API+'/settings/key/firecrawl',{method:'DELETE'}); toast('Removed'); refreshState(); };
-async function run(verb,label){ const o=$('#runOut'); o.innerHTML='<span class="spin"></span> '+label+'…'; const r=await jpost(API+'/run/'+verb,{}); o.textContent = r.ok?'Done.':'Failed: '+((r.err||'').slice(-120)); toast(r.ok?label+' complete':label+' failed'); }
+/* score-run:start */
+let activeScoreRunId=null;
+const SCORE_ACK_KEY='career.score-ack.v1';
+function rememberScoreRun(runId,limit){try{sessionStorage.setItem(SCORE_ACK_KEY,JSON.stringify({runId,limit}));}catch{}}
+function clearScoreRun(){try{sessionStorage.removeItem(SCORE_ACK_KEY);}catch{}}
+function savedScoreRun(){
+  try{
+    const raw=sessionStorage.getItem(SCORE_ACK_KEY);
+    if(!raw||raw.length>256)return null;
+    const value=JSON.parse(raw);
+    return value&&typeof value.runId==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.runId)
+      &&Number.isSafeInteger(value.limit)&&value.limit>=1&&value.limit<=50?value:null;
+  }catch{return null;}
+}
+function scoreRunState(data,runId,limit=50){
+  if(!data||!Array.isArray(data.runs))return{phase:'unavailable',done:false,text:'Could not check scoring progress. The accepted run may still be running.'};
+  const r=data.runs.find(r=>r.runId===runId);
+  if(!r)return{phase:'unconfirmed',done:false,text:'Scoring is no longer listed as active. Checking for its saved completion…'};
+  if(r.state==='succeeded'&&[r.scored,r.skipped,r.limit].every(Number.isSafeInteger)&&r.limit>=1&&r.limit<=50&&r.scored>=0&&r.skipped>=0&&r.scored+r.skipped<=r.limit)
+    return{phase:'succeeded',done:true,text:'Scoring complete: '+r.scored+' job'+(r.scored===1?'':'s')+' updated, '+r.skipped+' skipped. Refresh Job Board to see the current matches.'};
+  if(r.state==='running')return{phase:'running',done:false,text:'Scoring is running. This pass considers up to '+limit+' job'+(limit===1?'':'s')+' posted within 7 days, using the indexing date only for undated postings, and your saved area and remote preference.'};
+  if(r.state==='cancelling')return{phase:'cancelling',done:false,text:'Stopping scoring. Waiting for confirmation…'};
+  if(r.state==='finishing')return{phase:'finishing',done:false,text:'Scoring is saving its result. Waiting for the saved completion…'};
+  if(r.state==='cancelled')return{phase:'cancelled',done:true,text:'Scoring was cancelled.'};
+  if(r.state==='failed')return{phase:'failed',done:true,text:'Scoring did not complete. You can try again.'};
+  return{phase:'unconfirmed',done:false,text:'Scoring completion could not be confirmed.'};
+}
+async function followScoreRun(runId,o,limit){
+  let missing=0,unavailable=0;
+  for(let attempt=0;attempt<900;attempt++){
+    const data=await fetch(API+'/runs',{credentials:'same-origin'}).then(r=>r.ok?r.json():null).catch(()=>null);
+    const state=scoreRunState(data,runId,limit);
+    const active=Array.isArray(data?.runs)?data.runs.find(r=>r.runId===runId):null,stop=$('#cancelScore');
+    if(stop){stop.hidden=!(state.phase==='running'&&active?.canCancel===true);stop.disabled=state.phase==='cancelling';}
+    o.textContent=state.text;
+    if(state.done)return state.phase;
+    missing=state.phase==='unconfirmed'?missing+1:0;
+    unavailable=state.phase==='unavailable'?unavailable+1:0;
+    if(missing>=3){o.textContent='Scoring is no longer active; its completion could not be confirmed. Check Job Board before trying again.';return'unconfirmed';}
+    if(unavailable>=3)return'unavailable';
+    await new Promise(resolve=>setTimeout(resolve,2000));
+  }
+  o.textContent='Scoring progress could not be confirmed. The run may still be finishing; check Job Board.';
+  return'unconfirmed';
+}
+async function requestScoreStop(runId,o,button){
+  button.disabled=true;
+  try{
+    const r=await jpost(API+'/_runtime/runs/'+encodeURIComponent(runId)+'/cancel',{});
+    if(r.runId===runId&&r.state==='cancelled'&&r.cancelled===true){o.textContent='Scoring was cancelled.';return;}
+    if(r.runId===runId&&r.state==='cancelling'&&r.cancellationRequested===true){o.textContent='Stop requested. Waiting for scoring to stop…';return;}
+    o.textContent=r.state==='finishing'?'Scoring is already saving its result. Waiting for completion…':'Could not confirm the stop request. Check the current run before trying again.';
+    button.disabled=false;
+  }catch{o.textContent='Could not confirm the stop request. Scoring may still be running.';button.disabled=false;}
+}
+async function run(verb,label){
+  const o=$('#runOut'),button=$(verb==='score'?'#runScore':'#runPull');
+  if(button)button.disabled=true;
+  o.innerHTML='<span class="spin"></span> '+label+'…';
+  try{
+    const input=verb==='score'?$('#scoreLimit'):null;
+    const limit=input&&input.value!==undefined?Number(input.value):50;
+    if(verb==='score'&&(!Number.isSafeInteger(limit)||limit<1||limit>50)){o.textContent='Choose a whole number from 1 to 50 jobs per pass.';return;}
+    const r=await jpost(API+'/run/'+verb,verb==='score'?{limit}:{});
+    if(verb==='score'&&r.started){
+      toast('Score started');
+      const acceptedLimit=Number.isSafeInteger(r.limit)&&r.limit>=1&&r.limit<=50?r.limit:limit;
+      o.textContent='Score accepted: up to '+acceptedLimit+' job'+(acceptedLimit===1?'':'s')+' posted within 7 days, or indexed within 7 days when undated. Waiting for progress…';
+      if(!r.runId){o.textContent='Score accepted; progress is unavailable. Check Job Board later.';return;}
+      activeScoreRunId=r.runId;
+      rememberScoreRun(r.runId,acceptedLimit);
+      const state=await followScoreRun(r.runId,o,acceptedLimit);
+      if(state!=='unavailable')clearScoreRun();
+      if(state==='succeeded')toast('Score complete');
+      else if(state==='failed'||state==='cancelled')toast('Score '+state);
+      return;
+    }
+    o.textContent=r.ok?'Done.':'Failed: '+String(r.error||r.err||'Run could not start').slice(-120);
+    toast(r.ok?label+' complete':label+' failed');
+  }catch{ o.textContent='Could not confirm the request. Check progress or Job Board before trying again.'; }
+  finally{if(button)button.disabled=false;if(verb==='score'){activeScoreRunId=null;const stop=$('#cancelScore');if(stop)stop.hidden=true;}}
+}
+async function restoreScoreRun(){
+  const saved=savedScoreRun();if(!saved)return;
+  $('#scoreLimit').value=String(saved.limit);
+  const button=$('#runScore'),o=$('#runOut');button.disabled=true;activeScoreRunId=saved.runId;
+  o.textContent='Checking your previous scoring task…';
+  try{
+    const state=await followScoreRun(saved.runId,o,saved.limit);
+    if(state!=='unavailable')clearScoreRun();
+  }finally{activeScoreRunId=null;button.disabled=false;const stop=$('#cancelScore');if(stop)stop.hidden=true;}
+}
+/* score-run:end */
+$('#cancelScore').onclick=()=>{if(activeScoreRunId)void requestScoreStop(activeScoreRunId,$('#runOut'),$('#cancelScore'));};
 $('#runPull').onclick=()=>run('pull','Pull');
 $('#runScore').onclick=()=>run('score','Score');
+void restoreScoreRun();
 
 async function refreshDigest(){
+  if(careerOperationMode!=='legacy')return;
   const s = await fetch(API+'/digest/state').then(r=>r.json()).catch(()=>({}));
   $('#digestEnabled').checked = s.enabled !== false;
   if (s.phone) $('#digestPhone').value = s.phone;
@@ -229,10 +400,12 @@ async function refreshDigest(){
   $('#digestTextState').textContent = s.textReady?(s.phone?'● Text ready (your Twilio)':'○ Text: add your phone below'):'○ Text: connect Twilio in Utilities';
 }
 $('#digestSave').onclick = async()=>{
+  if(careerOperationMode!=='legacy')return;
   const r = await jpost(API+'/settings/digest',{enabled:$('#digestEnabled').checked, phone:$('#digestPhone').value.trim()});
   toast(r.ok?'Digest settings saved':(r.error||'Failed')); refreshDigest();
 };
 $('#digestPreview').onclick = async()=>{
+  if(careerOperationMode!=='legacy')return;
   const o=$('#digestOut'); o.innerHTML='<span class="spin"></span> Checking…';
   const p = await fetch(API+'/digest/preview').then(r=>r.json()).catch(()=>({hits:[]}));
   o.textContent = (p.hits&&p.hits.length)
@@ -255,7 +428,7 @@ async function saveRemoteOnly(){
   $('#remoteOut').textContent = 'Saving…';
   const r = await jpost(API+'/settings/remote-only', { remoteOnly });
   $('#remoteOut').textContent = r && r.ok
-    ? (remoteOnly ? 'Saved. New matches will be remote only.' : 'Saved. Matching every in-lane role again.')
+    ? (remoteOnly ? 'Saved. New matches will be remote only.' : 'Saved. Remote-only restriction removed; your matching area still applies.')
     : ((r && r.error) || 'Failed');
   refreshRemoteOnly();
 }
@@ -268,19 +441,88 @@ async function refreshTitles(){
   $('#titleState').textContent = terms.length
     ? (s.source==='derived' ? '● '+terms.length+' target titles (from your resume — edit below)' : '● '+terms.length+' target titles saved')
     : '○ No target titles yet — add some below, or upload a resume first';
+  const scope = s.searchScope;
+  const nightly = s.nightlyMatching;
+  $('#nightlyMatchOut').textContent = nightly
+    ? 'Last completed '+new Date(nightly.completedAt).toLocaleString()+': '+nightly.keywordMatched+' keyword matches updated, '+nightly.scored+' AI-scored, '+nightly.skipped+' skipped.'
+    : 'No completed nightly matching pass recorded yet. Check My Jobs for activation and run status.';
+  if (scope) {
+    if (document.activeElement !== $('#scopeNear')) $('#scopeNear').value = scope.near;
+    if (document.activeElement !== $('#scopeRadius')) $('#scopeRadius').value = scope.radiusMiles;
+    $('#scopeRemote').checked = scope.includeRemote;
+  }
+  $('#scopeOut').textContent = s.error ? 'Could not read matching area.' : scope
+    ? 'Saved: local work within '+scope.radiusMiles+' miles of '+scope.near+(scope.includeRemote?' plus remote jobs.':'.')
+    : 'No matching area saved yet.';
 }
+$('#scopeSave').onclick = async()=>{
+  $('#scopeOut').textContent = 'Saving…';
+  const r = await jpost(API+'/settings/title-profile',{scope:{near:$('#scopeNear').value,radiusMiles:Number($('#scopeRadius').value),includeRemote:$('#scopeRemote').checked}});
+  if (r.ok) { toast('Matching area saved'); await refreshTitles(); }
+  else $('#scopeOut').textContent = r.error || 'Matching area could not be saved.';
+};
+async function readCareerJob(name){
+  const r=await fetch('/api/v1/agent/schedules'); const data=await r.json();
+  if(!r.ok) throw new Error(data.message||data.error||'Scheduled job status is unavailable.');
+  const job=(data.schedules||[]).find(j=>j.app==='career-hunter'&&j.name===name);
+  if(!job?.id) throw new Error('This Career routine is not registered on this installation.');
+  return job;
+}
+async function readNightlyJob(){ return readCareerJob('career-nightly-matches'); }
+async function refreshCareerJob(name,prefix){
+  try{
+    const j=await readCareerJob(name);
+    const state=j.status==='active'?'Enabled':j.status==='suspended'?'Paused for review. Enable it again to continue.':j.status==='not-activated'?'Not enabled for your account.':'Paused';
+    $(prefix+'JobState').textContent=state+(j.nextRunAt?' · Next check '+new Date(j.nextRunAt).toLocaleString():'');
+    $(prefix+'Enable').disabled=j.status==='active';
+    $(prefix+'Pause').disabled=j.status!=='active';
+    $(prefix+'Run').disabled=j.status!=='active';
+  }catch(e){
+    $(prefix+'JobState').textContent=e.message;
+    for(const suffix of ['Enable','Pause','Run']) $(prefix+suffix).disabled=true;
+  }
+}
+async function refreshNightlyJob(){ return refreshCareerJob('career-nightly-matches','#nightly'); }
+async function refreshMailJob(){ return refreshCareerJob('career-application-updates','#mail'); }
+async function changeCareerJob(name,prefix,action){
+  if(!['activate','deactivate','trigger'].includes(action)) return;
+  $(prefix+'JobState').textContent='Updating scheduled job…';
+  try{
+    const job=await readCareerJob(name);
+    const r=await fetch('/api/v1/agent/schedules/'+encodeURIComponent(job.id)+'/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(action==='activate'?{class:'person'}:{})});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.message||data.error||'The scheduled job request failed.');
+    toast(action==='trigger'?'Check requested':action==='activate'?'Routine enabled':'Routine paused');
+    await refreshCareerJob(name,prefix);
+    if(name==='career-nightly-matches') await refreshTitles();
+  }catch(e){
+    await refreshCareerJob(name,prefix);
+    const state=$(prefix+'JobState');
+    if(!state.textContent.includes(e.message)) state.textContent+=' · '+e.message;
+  }
+}
+async function changeNightlyJob(action){ return changeCareerJob('career-nightly-matches','#nightly',action); }
+async function changeMailJob(action){ return changeCareerJob('career-application-updates','#mail',action); }
+$('#nightlyEnable').onclick=()=>changeNightlyJob('activate');
+$('#nightlyPause').onclick=()=>changeNightlyJob('deactivate');
+$('#nightlyRun').onclick=()=>changeNightlyJob('trigger');
+$('#mailEnable').onclick=()=>changeMailJob('activate');
+$('#mailPause').onclick=()=>changeMailJob('deactivate');
+$('#mailRun').onclick=()=>changeMailJob('trigger');
 $('#remoteSave').onclick = saveRemoteOnly;
 $('#titleSave').onclick = async()=>{
   const r = await jpost(API+'/settings/title-profile',{terms:$('#titleTerms').value});
   toast(r.ok?'Target titles saved':(r.error||'Failed')); refreshTitles();
 };
 $('#titleRun').onclick = async()=>{
+  const limit=Number($('#titleLimit').value);
+  if (!Number.isInteger(limit) || limit<1 || limit>150) return toast('Choose between 1 and 150 jobs for this pass.');
   const o=$('#titleOut'); o.innerHTML='<span class="spin"></span> Scoring title-matching roles…';
-  const r = await jpost(API+'/title-pass/run-now',{});
-  o.textContent = r.ran
-    ? ('Done — AI-scored '+(r.scored??0)+' title-matching roles ('+(r.skipped??0)+' skipped).')
-    : ('Not run: '+(r.reason||r.error||'failed')+(r.reason==='no-title-profile'?' — save some target titles first.':''));
-  toast(r.ran?'Title pass complete':'Title pass not run');
+  const r = await jpost(API+'/title-pass/run-now',{limit});
+  o.textContent = r.started
+    ? 'Scoring started for jobs posted in the last 7 days (or first seen this week when the feed has no posted date), up to '+limit+'. Check Job Board for new matches shortly.'
+    : ('Not started: '+(r.reason||r.error||'failed')+(r.reason==='no-title-profile'?' — save some target titles first.':''));
+  toast(r.started?'Title pass started':'Title pass not started');
 };
 // Add career materials — upload artifacts, absorb into the profile, then show what was learned.
 $('#artUpload').onclick = async()=>{
@@ -302,6 +544,7 @@ $('#artUpload').onclick = async()=>{
   }catch(e){ o.textContent='Upload failed: '+e.message; toast('Upload failed'); }
 };
 async function refreshAutomation(){
+  if(careerOperationMode!=='legacy')return;
   const s = await fetch(API+'/automation/state').then(r=>r.json()).catch(()=>({}));
   $('#autoGenerate').checked = s.autoGenerate === true;
   $('#autoSubmit').checked = s.autoSubmit === true;
@@ -312,6 +555,7 @@ async function refreshAutomation(){
     : '○ Automation OFF — nothing runs without you';
 }
 $('#autoSave').onclick = async()=>{
+  if(careerOperationMode!=='legacy')return;
   const r = await jpost(API+'/settings/automation',{autoGenerate:$('#autoGenerate').checked===true, autoSubmit:$('#autoSubmit').checked===true});
   toast(r.ok?'Automation settings saved':(r.error||'Failed')); refreshAutomation();
 };
@@ -343,10 +587,10 @@ $('#targetAdd').onclick = async()=>{
   refreshTargets(); setTimeout(refreshTargets, 8000); setTimeout(refreshTargets, 30000);
 };
 refreshState();
-refreshDigest();
 refreshRemoteOnly();
 refreshTitles();
-refreshAutomation();
+refreshNightlyJob();
+refreshMailJob();
 refreshTargets();
 </script>
 <script src="/api/career-hunter/static/career-settings-support.js"></script>

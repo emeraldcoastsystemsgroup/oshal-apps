@@ -10,9 +10,12 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Index the corpus for the pre-resume title browse so its keyword search is covered rather than scanning descriptions.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | INSIGHTS_INDEX_SQL: idx_corpus_insights covers every column Career Insights reads from the lane (company, posted date, state, maximum pay). Without it Insights read each posting row past its inline description: 44.3 s on a cold page cache over a copy of the live corpus, past the native kernel's 10 s package deadline. It is kept out of CORPUS_SCHEMA because the native kernel binds the corpus read-only into every request sandbox, where a CREATE of a missing index would fail the whole schema step; _ensure_insights_index creates it on a writable corpus (the nightly ingest's private copy) and leaves a read-only one as it is.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Persist the geographic covering index on writable ingest copies; read-only older corpora keep ordinary browse available while radius search reports its missing index.
-# 9 | maintainer@emeraldcoastsystemsgroup.com | A person's database closes out of WAL: published and mounted read-only, a WAL file with no side files cannot be opened, which broke the Job Board after the first match for anyone new (found 2026-10-31 on the dev environment).
-# 10 | maintainer@emeraldcoastsystemsgroup.com | enrich_corpus: a scoring pass on a shared read-only corpus skips the corpus facts and keeps the person's scores; the refusal used to fail the run and discard them all.
-# 11 | maintainer@emeraldcoastsystemsgroup.com | A person's database leaves WAL once, as the process ends, not per connection: scoring workers switching the mode against each other failed with "database is locked", ending the run and discarding every score.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Let private scoring save fits when the published shared corpus is mounted read-only; objective enrichment stays with a writable corpus.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Persist owner-private scoring input fingerprints atomically with fits without changing the public postings views.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Preserve hydrated pay when a listing supplies only non-salary benefits prose, while retaining explicit unknown fields in actual monetary quotes.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | A person's database closes out of WAL: published and mounted read-only, a WAL file with no side files cannot be opened, which broke the Job Board after the first match for anyone new (found 2026-10-31 on the dev environment).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | enrich_corpus: a scoring pass on a shared read-only corpus skips the corpus facts and keeps the person's scores; the refusal used to fail the run and discard them all.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | A person's database leaves WAL once, as the process ends, not per connection: scoring workers switching the mode against each other failed with "database is locked", ending the run and discarding every score.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -37,12 +40,14 @@ from __future__ import annotations
 import atexit
 import sys
 import json
+import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
 from contextlib import contextmanager
 
 from . import config
+from .salary_text import has_salary_quote
 
 
 def now() -> str:
@@ -382,6 +387,16 @@ def corpus_table() -> str:
     return "corpus.postings_corpus" if config.MULTIUSER else "postings"
 
 
+def corpus_writable() -> bool:
+    """Whether this process may enrich shared job data while saving private signals.
+
+    Native owner sandboxes bind the published corpus read-only, while the ingest's private
+    copy and standalone stores remain writable. W_OK observes both file permissions and a
+    read-only mount, unlike checking the file's mode bits alone.
+    """
+    return config.POSTGRES or not config.MULTIUSER or os.access(config.CORPUS_DB, os.W_OK)
+
+
 def companies_table() -> str:
     """Physical employer registry. `companies` resolves through the ATTACH in sqlite mode
     and through the compat VIEW in postgres mode, so WRITES must name the base table."""
@@ -405,7 +420,7 @@ def read_postings_table() -> str:
 # Per-user signal columns — the only fields that differ user-to-user for the same job.
 _USER_SIGNAL_COLS = (
     "fit_score", "ai_fit_score", "ai_fit_rationale", "ai_fit_matched", "ai_fit_gaps",
-    "ai_scored_at", "ai_model", "status", "resume_path", "cover_path", "generated_at",
+    "ai_scored_at", "ai_model", "ai_input_fingerprint", "status", "resume_path", "cover_path", "generated_at",
     "promoted_at", "applied_at", "interview_at", "offer_at", "closed_at", "outcome",
     "outreach_sent_at", "notes", "apply_active", "confirmation_path",
     "application_source", "application_task_id", "apply_claimed_at",
@@ -419,7 +434,7 @@ _USER_SIGNAL_COLS = (
 # the only place that has to know.
 _PG_SCORE_COLS = frozenset({
     "fit_score", "target_role", "ai_fit_score", "ai_fit_rationale",
-    "ai_fit_matched", "ai_fit_gaps", "ai_model", "ai_scored_at",
+    "ai_fit_matched", "ai_fit_gaps", "ai_model", "ai_scored_at", "ai_input_fingerprint",
 })
 _PG_APP_COLS = frozenset({
     "status", "resume_path", "cover_path", "promoted_at", "generated_at",
@@ -600,6 +615,7 @@ CREATE TABLE IF NOT EXISTS postings (
     ai_fit_gaps     TEXT,          -- json array of gaps/risks
     ai_scored_at    TEXT,
     ai_model        TEXT,
+    ai_input_fingerprint TEXT,
     -- application lifecycle
     status        TEXT DEFAULT 'new',  -- new | promoted | generated | applied | dismissed
     resume_path   TEXT,
@@ -825,7 +841,7 @@ CREATE TABLE IF NOT EXISTS user_signals (
     posting_id    INTEGER PRIMARY KEY,
     fit_score     INTEGER,
     ai_fit_score  INTEGER, ai_fit_rationale TEXT, ai_fit_matched TEXT, ai_fit_gaps TEXT,
-    ai_scored_at  TEXT, ai_model TEXT,
+    ai_scored_at  TEXT, ai_model TEXT, ai_input_fingerprint TEXT,
     status        TEXT DEFAULT 'new',
     resume_path   TEXT, cover_path TEXT,
     generated_at  TEXT, promoted_at TEXT, applied_at TEXT, interview_at TEXT,
@@ -896,6 +912,7 @@ _multiuser_inited: set = set()
 # user_signals columns added after v1; ALTERed onto an existing per-user DB (CREATE IF NOT EXISTS
 # skips a table that already exists, so new columns need an explicit ADD COLUMN).
 _USER_ADDED_COLUMNS = {
+    "ai_input_fingerprint": "TEXT",
     "apply_active": "INTEGER DEFAULT 1",
     "apply_claimed_at": "INTEGER",
     "apply_run_id": "TEXT",
@@ -1002,7 +1019,7 @@ _POSTING_ADDED_COLUMNS = {
     "salary_min": "REAL", "salary_max": "REAL", "salary_currency": "TEXT",
     "salary_period": "TEXT", "salary_raw": "TEXT", "salary_source": "TEXT",
     "ai_fit_score": "INTEGER", "ai_fit_rationale": "TEXT", "ai_fit_matched": "TEXT",
-    "ai_fit_gaps": "TEXT", "ai_scored_at": "TEXT", "ai_model": "TEXT",
+    "ai_fit_gaps": "TEXT", "ai_scored_at": "TEXT", "ai_model": "TEXT", "ai_input_fingerprint": "TEXT",
     "status": "TEXT", "resume_path": "TEXT", "cover_path": "TEXT",
     "generated_at": "TEXT", "promoted_at": "TEXT", "applied_at": "TEXT",
     "interview_at": "TEXT", "offer_at": "TEXT", "closed_at": "TEXT", "outcome": "TEXT",
@@ -1156,7 +1173,7 @@ def upsert_posting(conn, company_id: int, p: dict) -> str:
     overwrites an existing salary unless the feed provides one.
     """
     ts = now()
-    has_salary = p.get("salary_min") is not None or p.get("salary_max") is not None or p.get("salary_raw")
+    has_salary = p.get("salary_min") is not None or p.get("salary_max") is not None or has_salary_quote(p.get("salary_raw"))
     sal = (p.get("salary_min"), p.get("salary_max"), p.get("salary_currency"),
            p.get("salary_period"), p.get("salary_raw"), "listed" if has_salary else None)
     existing = conn.execute(
@@ -1178,10 +1195,13 @@ def upsert_posting(conn, company_id: int, p: dict) -> str:
              p.get("url"), p.get("description"), posted_at_val, ts, existing["id"]),
         )
         if has_salary:
+            # Omitted fields may have independent detail evidence. Only explicit
+            # keys can replace it; a supplied null intentionally records unknown.
+            supplied = [(key, p[key]) for key in ('salary_min', 'salary_max', 'salary_currency', 'salary_period', 'salary_raw') if key in p]
+            assignments = ', '.join(key + '=?' for key, _ in supplied)
             conn.execute(
-                f"""UPDATE {ct} SET salary_min=?, salary_max=?, salary_currency=?,
-                   salary_period=?, salary_raw=?, salary_source=? WHERE id=?""",
-                (*sal, existing["id"]),
+                f"UPDATE {ct} SET {assignments}, salary_source='listed' WHERE id=?",
+                (*[value for _, value in supplied], existing["id"]),
             )
         return "seen"
     from . import dates, geo, jobtype, lane
@@ -1289,11 +1309,32 @@ def backfill_geo(conn, limit=None, batch=2000) -> int:
     return n
 
 
-def save_ai_fit(conn, posting_id, score, rationale, matched, gaps, model):
+def score_fingerprints(conn, posting_ids):
+    """Read private freshness metadata without extending either public postings view."""
+    result = {}
+    ids = list(posting_ids)
+    for offset in range(0, len(ids), 500):
+        batch = ids[offset:offset + 500]
+        placeholders = ','.join('?' for _ in batch)
+        if config.POSTGRES:
+            sql = ("SELECT posting_id, ai_input_fingerprint FROM career_user_job_scores "
+                   f"WHERE user_sub=? AND posting_id IN ({placeholders})")
+            params = [require_sub(), *batch]
+        else:
+            table = 'user_signals' if config.MULTIUSER else 'postings'
+            key = 'posting_id' if config.MULTIUSER else 'id'
+            sql = f"SELECT {key} AS posting_id, ai_input_fingerprint FROM {table} WHERE {key} IN ({placeholders})"
+            params = batch
+        result.update((row['posting_id'], row['ai_input_fingerprint'])
+                      for row in conn.execute(sql, params).fetchall())
+    return result
+
+
+def save_ai_fit(conn, posting_id, score, rationale, matched, gaps, model, fingerprint=None):
     # Per-user signal -> user_signals (MULTIUSER) or inline postings (legacy).
     user_set(conn, posting_id, ai_fit_score=score, ai_fit_rationale=rationale,
              ai_fit_matched=json.dumps(matched or []), ai_fit_gaps=json.dumps(gaps or []),
-             ai_model=model, ai_scored_at=now())
+             ai_model=model, ai_scored_at=now(), ai_input_fingerprint=fingerprint)
 
 
 def enrich_corpus(conn, sql, params=()) -> bool:
@@ -1314,6 +1355,8 @@ def enrich_corpus(conn, sql, params=()) -> bool:
 def save_salary_estimate(conn, posting_id, smin, smax, currency="USD", period="year"):
     """Only fills AI estimate when there's no listed salary already. Salary is OBJECTIVE
     (about the job, same for all users) so it lives on the shared corpus row."""
+    if not corpus_writable():
+        return False
     row = conn.execute(
         f"SELECT salary_source FROM {read_postings_table()} WHERE id=?", (posting_id,)).fetchone()
     if row and row["salary_source"] == "listed":

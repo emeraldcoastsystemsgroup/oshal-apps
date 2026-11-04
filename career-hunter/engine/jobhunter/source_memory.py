@@ -1,6 +1,8 @@
 """Retained source attempts and content deltas for the shared jobs corpus.
 
 CHANGE LOG
+2 | maintainer@emeraldcoastsystemsgroup.com | Retain closed native browser failure codes while preserving prior active postings on unconfirmed or failed reads.
+3 | maintainer@emeraldcoastsystemsgroup.com | Respect explicitly unknown normalized fields in real employer pay quotes when comparing hash-less legacy rows, while preserving omitted enrichment.
 1 | maintainer@emeraldcoastsystemsgroup.com | Remember per-employer pull health and posting hashes; only a verified complete nonempty feed may close missing jobs.
 """
 from __future__ import annotations
@@ -11,6 +13,7 @@ import uuid
 from datetime import datetime, timezone
 
 from . import config, db
+from .salary_text import has_salary_quote
 
 
 class Feed(list):
@@ -128,9 +131,10 @@ def fetch(company_id, ats_type, token):
     try:
         with http.conditional(url, headers) as checked:
             rows = ats.fetch(ats_type, token)
-    except Exception:
+    except Exception as error:
+        from .native_browser import BrowserReadUnavailable
         with db.connect() as conn:
-            finish(conn, company_id, attempt, started, "failed", "fetch_failed")
+            finish(conn, company_id, attempt, started, "failed", error.code if isinstance(error,BrowserReadUnavailable) else "fetch_failed")
         raise
     feed = rows if isinstance(rows, Feed) else Feed(rows)
     feed.attempt_id, feed.started_at = attempt, started
@@ -190,8 +194,9 @@ def ingest(conn, company_id, rows):
         seen.add(job_id)
         digest = payload_hash(posting)
         previous = current.get(job_id)
+        quoted_salary = job_id not in hashes and has_salary_quote(posting.get('salary_raw'))
         baseline_fields = [key for key in FIELDS if key != "description" and key in posting
-                           and (not key.startswith("salary_") or posting.get(key) is not None)]
+                           and (not key.startswith("salary_") or posting.get(key) is not None or quoted_salary)]
         baseline_same = previous is not None and all(previous.get(key) == posting.get(key) for key in baseline_fields)
         if baseline_same and hashes.get(job_id) != digest and posting.get("description") is not None:
             baseline_same = conn.execute(f"SELECT description FROM {db.corpus_table()} WHERE id=?", (previous["id"],)).fetchone()["description"] == posting["description"]

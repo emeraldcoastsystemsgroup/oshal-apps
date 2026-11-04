@@ -1,5 +1,7 @@
 /**
  * CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Read the latest nightly source review on read-only SQLite through the existing administrator list; an absent or unreadable report never hides the companies.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep the read-only refresh fixture current with the lazily dispatched manual-score dependency; starting a native writer remains forbidden.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise source-history projection on read-only SQLite and the existing administrator list without a personal Career database.
  */
 import {test} from 'node:test';
@@ -9,7 +11,7 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
 const require = createRequire(import.meta.url);
-const {sourceHealthByCompany} = require('../lib/career-source-health');
+const {sourceHealthByCompany, latestSourceReview} = require('../lib/career-source-health');
 
 function corpus() {
   const db = new DatabaseSync(':memory:');
@@ -49,6 +51,23 @@ test('retained failure state and counts are read without writes', () => {
   } finally {db.close();}
 });
 
+test('the newest source review is read without writes, and a bad one is marked instead of breaking the list', () => {
+  const db = corpus();
+  try {
+    assert.equal(latestSourceReview(db), null, 'an older snapshot has no review table');
+    db.exec(`CREATE TABLE corpus.source_review_runs(run_id TEXT PRIMARY KEY,started_at TEXT,finished_at TEXT,report TEXT);`);
+    assert.equal(latestSourceReview(db), null, 'no report yet');
+    db.exec(`INSERT INTO corpus.source_review_runs VALUES('old','a','2026-11-01T00:00:00+00:00','{"version":1,"seconds":1}'),
+      ('new','a','2026-11-02T00:00:00+00:00','{"version":1,"seconds":2}');
+      PRAGMA query_only=ON;`);
+    assert.equal(latestSourceReview(db).seconds, 2);
+    db.exec(`PRAGMA query_only=OFF; UPDATE corpus.source_review_runs SET report='{not json' WHERE run_id='new'; PRAGMA query_only=ON;`);
+    assert.deepEqual(latestSourceReview(db), {unreadable: true});
+    db.exec(`PRAGMA query_only=OFF; DROP TABLE corpus.source_review_runs; CREATE TABLE corpus.source_review_runs(run_id TEXT);`);
+    assert.deepEqual(latestSourceReview(db), {unreadable: true}, 'a table of the wrong shape never fails the company list');
+  } finally {db.close();}
+});
+
 test('an administrator without a personal Career store can inspect the shared Companies corpus', () => {
   const db = corpus();
   const old = process.env.CAREER_HUNTER_ADMIN_SUBS;
@@ -66,7 +85,7 @@ test('an administrator without a personal Career store can inspect the shared Co
       './career-engine-dispatch': {runCareerCliAwait: () => {throw new Error('read must not launch engine');}},
       './career-engine-response': {},
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
-      '../lib/career-source-health': {sourceHealthByCompany},
+      '../lib/career-source-health': {sourceHealthByCompany, latestSourceReview},
     };
     new Function('require','module','exports',source)((id) => {
       assert.ok(id in leaves, `inspected dependency ${id}`); return leaves[id];
@@ -80,6 +99,7 @@ test('an administrator without a personal Career store can inspect the shared Co
     assert.equal(answer.companies[0].name, 'Local College');
     assert.equal(answer.companies[0].active_jobs, 1);
     assert.equal(answer.companies[0].pull_health.status, 'unavailable');
+    assert.equal(answer.sourceReview, null, 'before the first review the list answers exactly as it did');
   } finally {
     if (old === undefined) delete process.env.CAREER_HUNTER_ADMIN_SUBS; else process.env.CAREER_HUNTER_ADMIN_SUBS = old;
     db.close();
@@ -143,6 +163,7 @@ test('native refresh reports installation management and refuses a detached writ
       './career-company-routes': {isCareerAdmin:()=>true},
       './career-user-store': {callerSub:()=> 'fixture',listStoreUsers:()=>[],openUserDb:()=>null},
       '../lib/career-engine-runs': {},
+      '../lib/career-manual-score': {},
       './career-hunter-cron': {isEveningChainRunning:()=>false,lastEveningCompletedAt:()=>null,runEveningScrapeIndex:noWriter},
     };
     new Function('require','module','exports',readFileSync(new URL('../routes/career-run-routes.js',import.meta.url),'utf8'))(

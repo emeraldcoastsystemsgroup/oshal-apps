@@ -1,3 +1,4 @@
+/* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | An evidence card whose ticket failed or was cancelled offers Investigate again (a new ticket for the same sealed evidence, started like the first); cards name their alert and count earlier attempts. */
 /* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Say on each evidence card what an automatic start did: started by the tick, refused with its reason, in progress, or unknown. */
 /* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Also state the overall number of tickets with a healthy outcome so a recovery outside the loaded cohort is not read as zero. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Count verified infrastructure recovery from the response stage's healthy outcomes for cohort tickets instead of a fixed 'not connected' label. */
@@ -35,16 +36,18 @@ function mount({request,onRefused}){
   const refresh=text('button','Refresh workflow progress');refresh.type='button';refresh.addEventListener('click',()=>load(current));container.append(refresh);
   const cohortIds=new Set(model.deliveryIds),reservations=(records.evidenceWork||[]).filter(w=>w.capture&&cohortIds.has(w.deliveryId)).slice(0,20),work=text('details','','operator-evidence-work');work.open=evidenceExpanded;work.append(text('summary','Evidence work · '+reservations.length+' reservations'));work.addEventListener('toggle',()=>{if(work.isConnected)evidenceExpanded=work.open;});container.append(work);
   for(const reservation of reservations){
-   const linked=links.items.find(r=>r.id===reservation.id),card=text('article','','card'),button=text('button',linked?.ticketId?'Open or resume investigation':'Start AI investigation');button.type='button';card.dataset.workId=reservation.id;card.append(text('h4','Evidence '+reservation.id.slice(0,12)),text('p',linked?.ticket?('Workflow: '+linked.ticket.status):linked?.ticketId?'Workflow unavailable':linked?'Ticket creation pending or uncertain':'Ready to pin a preprocessed packet. No raw-stream or cluster authority.'));
+   const linked=links.items.find(r=>r.id===reservation.id),card=text('article','','card'),button=text('button',linked?.ticketId?'Open or resume investigation':'Start AI investigation');button.type='button';card.dataset.workId=reservation.id;const about=root.OperationsRcaLibrary?.investigationLabels?.([linked]).get(linked?.ticketId);card.append(text('h4',about||'Evidence '+reservation.id.slice(0,12)),text('p',linked?.ticket?('Workflow: '+linked.ticket.status):linked?.ticketId?'Workflow unavailable':linked?'Ticket creation pending or uncertain':'Ready to pin a preprocessed packet. No raw-stream or cluster authority.'));
    const auto={started:linked?.trigger==='scheduled-tick'?'Started automatically by the processing tick.':null,'start-refused':'The automatic start was refused, so nothing started: '+(linked?.error||'no reason given')+'. Start it yourself if it should run.','start-uncertain':'The automatic start outcome is unknown: open the ticket and confirm it did not start before starting it again.',starting:'An automatic start is in progress.'}[linked?.state];if(auto)card.append(text('p',auto,linked.state==='started'?'muted':'warning'));
    button.addEventListener('click',()=>start(reservation.id,button));card.append(button);
+   const earlier=Array.isArray(linked?.previousAttempts)?linked.previousAttempts:[];if(earlier.length)card.append(text('p','Earlier attempts: '+earlier.length+'; the last one '+String(earlier[earlier.length-1].endedAs||'ended')+'.','muted'));
+   if(['failed','cancelled'].includes(linked?.ticket?.status)){card.append(text('p','This investigation '+(linked.ticket.status==='failed'?'failed':'was cancelled')+' without a report. Investigating again opens a new ticket for the same sealed evidence; the earlier one stays in the history.','warning'));const again=text('button','Investigate again');again.type='button';again.addEventListener('click',()=>start(reservation.id,again,true));card.append(again);}
    if(linked?.ticketId){const a=text('a','Open canonical ticket');a.href='/cockpit/?app=intelligent-operations&ticket='+encodeURIComponent(linked.ticketId);a.target='_top';card.append(a);}
    work.append(card);
   }
  }
- async function start(id,button){
+ async function start(id,button,again=false){
   const run=generation;button.disabled=true;
-  try{const prepared=await request('/investigations',{workId:id});if(run!==generation)return;
+  try{const prepared=await request('/investigations',again?{workId:id,again:true}:{workId:id});if(run!==generation)return;
    if(!prepared.ticketId||!prepared.ticket||!prepared.startInput)throw Error('The canonical ticket or its sealed input is unavailable.');
    if(prepared.ticket.status==='queued')await canonical('/tickets/'+encodeURIComponent(prepared.ticketId)+'/start',prepared.startInput);
    if(run===generation)await load(current);

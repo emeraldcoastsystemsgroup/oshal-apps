@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Roger: legitimate companies that just took a 25% hit seem like a buy, and nothing surfaced them. The deep-dip signal ranks the furthest falls from the 52-week high so the history test can say whether buying them ever worked; the published literature on the 52-week high finds the opposite, and the verdict, not the hypothesis, leads the list.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A wider pool brings thinly traded names whose wild swings would crowd the top of every list. A stock now has to trade at least $5 million a day to be ranked, today and in every month of the history test, judged only on what was known then. Dollar volume is used because a stock split changes price and share count together and leaves it alone. Monthly rows drop the columns no signal reads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Ties break by symbol, so a result never depends on the order records were read in.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Quant desk's price factors: fixed published definitions, never fitted, computed only from closes up to the day they are dated. A history row's forward return starts at the session after the signal, so no test can trade on a price it could not have seen.
@@ -30,6 +31,7 @@ const PRICE_SIGNALS = Object.freeze([
   { id: 'high52', name: 'Near the 52-week high', what: 'Closest to the highest close of the past year', source: 'George & Hwang, 2004', score: (f) => f.fromHigh },
   { id: 'lowvol', name: 'Low volatility', what: 'Smallest daily price swings over the past three months', source: 'Ang, Hodrick, Xing & Zhang, 2006', score: (f) => (f.vol == null ? null : -f.vol) },
   { id: 'reversal', name: '1-month reversal', what: 'Biggest losers of the past month', source: 'Jegadeesh, 1990', score: (f) => (f.rev1 == null ? null : -f.rev1) },
+  { id: 'dip', name: 'Deep dip', what: 'Furthest below the highest close of the past year', source: 'George & Hwang, 2004, reversed: the dip-buying hypothesis', score: (f) => (f.fromHigh == null ? null : -f.fromHigh) },
 ]);
 
 /** The factors the composite blends. */

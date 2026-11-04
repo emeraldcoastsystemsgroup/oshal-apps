@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Share the exact bounded owner profile reader with approved native submission preparation.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -128,7 +129,7 @@ async function readOptionalProfile(userDir: string, filename: string): Promise<R
 }
 
 /** Load both canonical sources without allowing either file to escape the caller's store. */
-async function loadAutofillProfile(userSub: string): Promise<Record<string, string>> {
+export async function loadAutofillProfile(userSub: string): Promise<Record<string, string>> {
   const { userDir } = userPaths(userSub);
   const [careerDb, applyProfile] = await Promise.all([
     readOptionalProfile(userDir, 'career_db.json'),

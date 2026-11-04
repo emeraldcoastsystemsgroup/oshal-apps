@@ -88,6 +88,8 @@ The rule workbench at source7ed15232 was installed through native trust/preview/
 
 In **Data pipeline → Flow**, the existing cohort funnel shows unique evaluated events, rule matches, deduplication survivors and recorded correlation groups. Below it, **From evidence to an accepted report** links those same delivery IDs to pinned packets and canonical workflows. Expand **Evidence work** and click **Start AI investigation** on a capture reservation. The application pins a bounded preprocessed packet; the native workflow receives only that fixed file and its digest. It cannot inspect raw telemetry or the cluster. Refresh workflow progress to read actual completed native outputs and inference receipts. Open the canonical ticket for its workflow, shared workspace and report approval.
 
+Each evidence card is named by its alert, for example `[critical] SiteDown · gsquared-staging · <resource>`, and the Overview and Incident work lists use the same names. When a card's ticket **failed** or was **cancelled** without a report (for example because no worker could claim it), the card says so and offers **Investigate again**: a new ticket for the same sealed evidence, started like the first. The earlier attempt stays in the record ("Earlier attempts: 1; the last one failed."). Nothing retries on its own; the processing schedule never opens a second ticket.
+
 ### Ticket files and local downloads
 
 From **Incident work**, open the canonical ticket, then choose **Work Artifacts**. The core ticket workspace presents completed workflow outputs in an expandable folder tree, with search by file, folder, bot or phase, refresh, original producing-work provenance, individual Download links and **Save to My files**. The browser saves each Download to the operator's configured Downloads folder or asks for a location according to its own settings. Save to My files explicitly copies an accepted artifact of at most 10 MiB into the signed-in person's core Files; open **My files** to see that copy under Saved ticket files. Merely opening My files does not copy ticket files. Intelligent Operations declares that core Files screen in its application navigation, while the ticket's Work Artifacts tab is available on the canonical ticket without a second application file store.
@@ -312,11 +314,21 @@ The result is recorded as an AWS-signed read with your account and the region.
 ## Run a command on a host with your own SSH key
 
 Your administrator selects the hosts in `OSHAL_SSH_SERVICE`, each with a literal address, a
-port and the host key's pinned SHA-256 fingerprint. In Connections, save your own SSH connection
-as JSON with your `username` and your OpenSSH ed25519 `privateKey`. In Command helper, choose
-"On a host (your SSH key)", then Load selected hosts and pick one. Ask for what you need, for
-example "how much disk is free". Review the proposed command, then choose Run on the host. It
-runs once, as you; the result and the exit code are recorded with the host.
+port and the host key's pinned SHA-256 fingerprint. In Operations' Connections page, under
+**Your SSH connection**, type the username the hosts know you by (for example `root`), choose
+your OpenSSH ed25519 key file (no passphrase; `ssh-keygen -t ed25519 -N ""` makes one), and
+press **Save SSH connection**. The key is checked in your browser first: a passphrase, an RSA
+key or something that is not a key is named before anything is sent. The card then shows the
+hosts your administrator selected; **Check login on this host** runs one confirmed `uptime`
+there and records it, so a key the host does not accept is found here, not mid-incident.
+**Disconnect** revokes the saved connection: the record stays listed as revoked and the key stays in
+your sealed credential vault until you save a new one, which replaces it. The kernel keeps one SSH
+connection per person, named `primary`. The Credentials & access page's SSH hosts card opens this card.
+
+In Cloud & SSH commands, choose "On a host (your SSH key)", press Load selected hosts and pick
+one. Ask for what you need, for example "how much disk is free". Review the proposed command,
+then choose Run on the host. It runs once, as you; the result and the exit code are recorded
+with the host. Without a saved connection the page says so and points at Connections.
 
 ## Ask Jarvis about Operations
 

@@ -39,6 +39,8 @@ after(async () => {
 /** Reset the fixture bot to a healthy, answering node. */
 function healthyWorker() {
   state.calls.length = 0;
+  state.identityCalls.length = 0;
+  state.modelIdentity = async () => ({version:1,identity:'a'.repeat(64),primary:{provider:'p',model:'m'}});
   state.hasEndpoint = true;
   state.registration = () => ({ status: 'online', heartbeatAt: new Date().toISOString() });
   state.behavior = async (request) => ({ success: true, response: `answer for ${request.userSub}`, model: 'm', provider: 'p' });
@@ -174,9 +176,38 @@ test('an admitted completion runs once on the Career bot, direct and non-agentic
   assert.equal(request.taskId, `career-engine-${run.runId}`);
   assert.equal(request.direct, true);
   assert.equal(request.agenticMode, false);
+  assert.equal(request.max_output_tokens, 700, 'preserve the engine request output budget');
   assert.equal(request.text, 'You score jobs.\n\nScore this posting.\n\nRespond with ONLY a single JSON object, no prose, no code fence.');
   assert.equal(runs.engineRunSnapshot(run.runId).railCalls, 1);
   assert.deepEqual(runs.settleEngineRun(run.runId, { code: 0 }).state, 'succeeded');
+});
+
+test('invalid output allowances are refused before a model call', async()=>{
+  healthyWorker();const run=newRun('user-a');
+  for(const maxTokens of [0,-1,8193,'8000']){
+    const answer=await postCompletion(server.url,{...auth(run),body:{system:'Coach.',prompt:'Read this.',maxTokens,jsonMode:true}});
+    assert.equal(answer.status,400);
+  }
+  assert.equal(state.calls.length,0);runs.settleEngineRun(run.runId,{code:0});
+});
+
+test('signed employer detail reads use only anonymous structured Workday GETs and never model inference',async()=>{
+  const calls=[],run=newRun('user-a'),before=state.calls.length;
+  harness.ctx.http={fetch:async(url,options)=>{calls.push({url,options});return new Response('{"jobPostingInfo":{"jobDescription":"Real employer fixture"}}',{headers:{'content-type':'application/json'}});}};
+  const url='https://fixture.wd5.myworkdayjobs.com/wday/cxs/fixture/Careers/job/Local/Engineer_REQ-1';
+  try{
+    const good=await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url}});
+    assert.equal(good.status,200);assert.equal(good.body.status,200);assert.match(good.body.body,/Real employer fixture/);
+    assert.deepEqual(calls,[{url,options:{method:'GET',redirect:'manual',headers:{Accept:'application/json'}}}]);
+    for(const bad of ['http://127.0.0.1/private','https://gmail.googleapis.com/messages','https://fixture.wd5.myworkdayjobs.com/account','https://fixture.wd5.myworkdayjobs.com.evil.test/wday/cxs/fixture/Careers/job/Local/a',url+'?profile=private',url.replace('fixture/Careers','foreign/Careers')]){
+      assert.equal((await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url:bad}})).status,400,bad);
+    }
+    assert.equal((await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url,headers:{Authorization:'foreign'}}})).status,400);
+    assert.equal(calls.length,1);assert.equal(state.calls.length,before,'a detail read spends no model tokens');
+    runs.settleEngineRun(run.runId,{code:0});
+    assert.equal((await postCompletion(server.url,{...auth(run),body:{operation:'employer-detail-get',url}})).status,401);
+    assert.equal(calls.length,1,'a revoked run cannot fetch employer data');
+  }finally{delete harness.ctx.http;}
 });
 
 test('no dedicated node, a missing, offline or stale heartbeat, or a heartbeat read failure answers 503 and fails the run', async () => {
@@ -482,4 +513,72 @@ test('the manifest mounts the compiled rail on the signed callback rail, and the
     const code = readFileSync(join(packageRoot, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     assert.doesNotMatch(code, /SWARM_SERVICE_SECRET|serviceSecret/, `${file} never reads or mints the fleet service secret for an engine child`);
   }
+});
+
+test('native identity is a signed fixed-owner empty-selector read with no model accounting',async()=>{
+  healthyWorker();const saved=process.env.OSHAL_EGRESS;process.env.OSHAL_EGRESS='kernel';
+  try{
+    const run=newRun('user-a'),request={operation:'model-identity'};
+    assert.equal((await postCompletion(server.url,{body:request})).status,401);
+    assert.equal((await postCompletion(server.url,{...auth(run,'foreign'),body:request})).status,401);
+    for(const patch of [{agentId:'foreign'},{provider:'p'},{model:'m'},{prompt:'score'},{selector:''}])assert.equal((await postCompletion(server.url,{...auth(run),body:{...request,...patch}})).status,400);
+    const answer=await postCompletion(server.url,{...auth(run),body:request});
+    assert.deepEqual(answer,{status:200,body:{ok:true,identity:{version:1,identity:'a'.repeat(64),primary:{provider:'p',model:'m'}}}});
+    assert.deepEqual(state.identityCalls,[{name:'career.model_identity',input:{},owner:'user-a'}]);
+    assert.equal(state.calls.length,0);assert.equal(runs.engineRunSnapshot(run.runId).railCalls,0);
+    runs.settleEngineRun(run.runId,{code:0});assert.equal((await postCompletion(server.url,{...auth(run),body:request})).status,401);
+  }finally{if(saved===undefined)delete process.env.OSHAL_EGRESS;else process.env.OSHAL_EGRESS=saved;}
+});
+
+test('unsupported or malformed native identity remains unavailable without inference',async()=>{
+  healthyWorker();const saved=process.env.OSHAL_EGRESS;process.env.OSHAL_EGRESS='kernel';
+  try{
+    const run=newRun('user-a');
+    for(const value of [null,{},[],{version:true,identity:'a'.repeat(64),primary:{provider:'p',model:'m'}},{version:1,identity:'A'.repeat(64),primary:{provider:'p',model:'m'}},{version:1,identity:'a'.repeat(64),primary:{provider:'p',model:''}}]){
+      state.modelIdentity=async()=>value;const answer=await postCompletion(server.url,{...auth(run),body:{operation:'model-identity'}});
+      assert.deepEqual(answer,{status:503,body:{ok:false,error:'model-identity-unavailable'}});
+    }
+    state.modelIdentity=async()=>{throw Error('old kernel');};assert.equal((await postCompletion(server.url,{...auth(run),body:{operation:'model-identity'}})).body.error,'model-identity-unavailable');
+    assert.equal(state.calls.length,0);assert.equal(runs.engineRunSnapshot(run.runId).railCalls,0);runs.settleEngineRun(run.runId,{code:0});
+  }finally{if(saved===undefined)delete process.env.OSHAL_EGRESS;else process.env.OSHAL_EGRESS=saved;}
+});
+
+test('guarded native turns preserve expected identity and actual fallback attribution',async()=>{
+  healthyWorker();const saved=process.env.OSHAL_EGRESS;process.env.OSHAL_EGRESS='kernel';
+  try{
+    const run=newRun('user-a'),expectedModelIdentity='a'.repeat(64),body={prompt:'Score.',expectedModelIdentity};
+    for(const value of [null,true,{},'A'.repeat(64),'a'.repeat(63)])assert.equal((await postCompletion(server.url,{...auth(run),body:{...body,expectedModelIdentity:value}})).status,400);
+    state.behavior=async()=>({response:'answer',model:'fallback-model',provider:'fallback-provider',modelIdentity:expectedModelIdentity,fallback:true});
+    const answer=await postCompletion(server.url,{...auth(run),body});
+    assert.deepEqual(answer,{status:200,body:{ok:true,text:'answer',model:'fallback-model',provider:'fallback-provider',modelIdentity:expectedModelIdentity,fallback:true}});
+    assert.equal(state.calls[0].request.expectedModelIdentity,expectedModelIdentity);assert.equal(state.calls[0].request.userSub,'user-a');
+    state.behavior=async()=>({response:'alias answer',model:'m-versioned-2026-10',provider:'p',modelIdentity:expectedModelIdentity,fallback:false});
+    const alias=await postCompletion(server.url,{...auth(run),body});
+    assert.deepEqual(alias,{status:200,body:{ok:true,text:'alias answer',model:'m-versioned-2026-10',provider:'p',modelIdentity:expectedModelIdentity,fallback:false}});
+    runs.settleEngineRun(run.runId,{code:0});
+  }finally{if(saved===undefined)delete process.env.OSHAL_EGRESS;else process.env.OSHAL_EGRESS=saved;}
+});
+
+test('ignored guards or missing actual native metadata cannot release a scoring answer',async()=>{
+  healthyWorker();const saved=process.env.OSHAL_EGRESS;process.env.OSHAL_EGRESS='kernel';
+  try{
+    const run=newRun('user-a'),expectedModelIdentity='a'.repeat(64),body={prompt:'Score.',expectedModelIdentity};
+    const good={response:'answer',provider:'p',model:'m',modelIdentity:expectedModelIdentity,fallback:false};
+    for(const patch of [{modelIdentity:undefined},{modelIdentity:'b'.repeat(64)},{provider:null},{model:null},{fallback:undefined},{fallback:0}]){
+      state.behavior=async()=>({...good,...patch});const answer=await postCompletion(server.url,{...auth(run),body});
+      assert.deepEqual(answer,{status:503,body:{ok:false,error:'model-identity-unavailable'}});
+    }
+    runs.settleEngineRun(run.runId,{code:1});
+  }finally{if(saved===undefined)delete process.env.OSHAL_EGRESS;else process.env.OSHAL_EGRESS=saved;}
+});
+
+test('native guard mismatch remains a 409 refusal with one dispatch and no retry',async()=>{
+  healthyWorker();const saved=process.env.OSHAL_EGRESS;process.env.OSHAL_EGRESS='kernel';
+  try{
+    const run=newRun('user-a');state.behavior=async()=>{throw Error('Host refused: career-model-identity-mismatch');};
+    const answer=await postCompletion(server.url,{...auth(run),body:{prompt:'Score.',expectedModelIdentity:'a'.repeat(64)}});
+    assert.deepEqual(answer,{status:409,body:{ok:false,error:'model-identity-mismatch'}});
+    assert.equal(state.calls.length,1);assert.equal(runs.engineRunSnapshot(run.runId).railCalls,1);
+    runs.settleEngineRun(run.runId,{code:1});
+  }finally{if(saved===undefined)delete process.env.OSHAL_EGRESS;else process.env.OSHAL_EGRESS=saved;}
 });

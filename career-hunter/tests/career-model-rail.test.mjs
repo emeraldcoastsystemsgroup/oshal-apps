@@ -172,3 +172,28 @@ test('enrich.py stays the only engine module that can reach a model provider', (
     && complete.indexOf('if _rail_mode():') < complete.indexOf('_have_codex()'),
   'multi-user mode must take the rail before any provider branch');
 });
+
+test('native production scoring preflight and guarded metadata cross the signed rail as the original owner',async()=>{
+  const saved=process.env.OSHAL_EGRESS;process.env.OSHAL_EGRESS='kernel';
+  harness.state.calls.length=0;harness.state.identityCalls.length=0;
+  harness.state.modelIdentity=async()=>({version:1,identity:'a'.repeat(64),primary:{provider:'fixture-primary',model:'primary-model'}});
+  harness.state.behavior=async request=>({response:'{"fit_score":82}',provider:'fixture-backup',model:'backup-model',fallback:true,modelIdentity:request.expectedModelIdentity});
+  const run=harness.runs.registerEngineRun('native-e2e','score',{ownerIssuer:'https://issuer.oshal.example.com'});
+  const env=baseEnv({JOBHUNTER_MULTIUSER:'1',OSHAL_EGRESS:'kernel',OSHAL_USER_SUB:'native-e2e',...harness.runs.railChildEnv(run.runId,run.token,{port:String(server.port)})});
+  const program=tripwired('from jobhunter import enrich\nidentity=enrich.resolve_scoring_identity()\nanswer=enrich.complete_scoring("SYS", "PROMPT", max_tokens=1400, model=None, identity=identity)\nprint(json.dumps({"key":identity.cache_key,"provider":answer.provider,"model":answer.model,"fallback":answer.fallback,"text":answer.text,"tripped":contract.TRIPPED}))');
+  try{
+    const result=await runPython(['-c',program,CONTRACT],env);
+    assert.equal(result.code,0,result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout.trim()),{key:'career-routing-v1:'+'a'.repeat(64),provider:'fixture-backup',model:'backup-model',fallback:true,text:'{"fit_score":82}',tripped:[]});
+    assert.deepEqual(harness.state.identityCalls,[{name:'career.model_identity',input:{},owner:'native-e2e'}]);
+    assert.equal(harness.state.calls.length,1);assert.equal(harness.state.calls[0].request.expectedModelIdentity,'a'.repeat(64));
+    assert.equal(harness.runs.engineRunSnapshot(run.runId).railCalls,1);
+    harness.state.modelIdentity=async()=>{throw Error('older kernel');};
+    const refused=await runPython(['-c',program,CONTRACT],env);
+    assert.notEqual(refused.code,0);assert.match(refused.stderr,/model-identity-unavailable/);
+    assert.equal(harness.state.calls.length,1,'an older kernel cannot cause a repeated model attempt');
+  }finally{
+    harness.runs.settleEngineRun(run.runId,{code:0});
+    if(saved===undefined)delete process.env.OSHAL_EGRESS;else process.env.OSHAL_EGRESS=saved;
+  }
+});

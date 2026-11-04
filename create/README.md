@@ -616,6 +616,7 @@ Container memory, MiB low / high: **32 / 512 (declared)**.
 |---|---|---|---|---|---|---|
 | create-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
 | region-regenerate | region regeneration | T0 | hosted | disable | not yet measured | none recorded |
+| generate-image | generated picture | T0 | hosted | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
 
 ## Image masks (1.10.0, source delivery)
@@ -778,3 +779,36 @@ operations and a disposable PostgreSQL role with row security. It covers repeate
 turns, editable gray adjustment and text layers, failed saves, undo and concurrent drafts.
 Run it with the declared browser/runtime prerequisites; Test Lab recipe `document-handoff`.
 Source verification is separate from installed acceptance, which is pending for this release.
+
+## Colours in words — 1.15.3
+
+A concierge writes colours the way a person says them. Jarvis's Create New Project call sent
+`background: "white"`, the editor model accepts only a hex colour or `transparent`, and the route
+answered only `invalid_project_document`, so every project Jarvis started was refused (seen on the
+trial, 2026-11-03). Now a plain colour name under a colour field (`background`, `fill`, `stroke`,
+gradient-stop `color`) becomes its hex at the agent boundary (`tools/editor/agent-tools.mjs`), so
+saved documents keep the editor's own format; any other value is still refused, and a refused agent
+project or edit batch answers `{error, detail}` with the validator's sentence so the concierge can
+correct its next call. The tool's `background` field describes what it takes. Guards:
+`tests/editor/agent-tools.test.mjs` and `tests/project-api.test.mjs`.
+
+## Drawing through a concierge — 1.15.4
+
+Batches the local model drew were refused only after the person approved them (a one-node window, a
+flame at y=1.1, a layer type "shape"), when the model could no longer correct them. The apply tool's schema
+now states layer types and path bounds, so the kernel refuses such a batch before it holds a card and the
+concierge corrects its call in the same reply. The contract carries a worked drawing and a drawing
+convention, and the persona composes a requested picture from layers instead of asking for assets.
+
+## A picture from a sentence — 1.16.0
+
+`POST /generated-images` (`project.generate`) makes a picture with the kernel's image generator and saves it as a
+new top image layer: of a new project, or of the project named by `id`. The same route serves the concierge's
+`create-generate-image` tool, held on an approval card, and the **Generate an image** panel in the editor. On the
+native kernel a package process ends when its request answers and a call has 60 seconds, so the work finishes inside
+the request; a generator still waking answers in its own words and the person tries again. Only a free provider
+serves. `CREATE_IMAGE_DAILY_CAP` (default 25) limits it, counted from the images the person saved in the last day,
+uploads included. The picture is 1024 by 1024: the bridge passes a prompt and no size.
+
+
+The generator sleeps when idle, so the route asks again inside the request's 55 seconds and the person approves once. `create-new-project` also takes `operations`, so one card makes a finished drawing. Create's bot now claims picture and drawing requests, so Jarvis hands them over instead of answering alone.

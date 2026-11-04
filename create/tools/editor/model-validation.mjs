@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: export the layer field lists for the agent boundary.
  */
 
 /** @description Shared resource ceilings for browser edits and reference-only persistence.
@@ -27,8 +28,8 @@ export const IMAGE_FILTERS = Object.freeze({
   blur: Object.freeze({ min: 0, max: 64, neutral: 0, unit: 'px' }),
 });
 const TYPES = new Set(['image', 'text', 'rect', 'ellipse', 'freehand', 'adjustment', 'group', 'path']);
-const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'opacity', 'visible', 'locked'];
-const FIELDS = { path: ['contours', 'fill', 'stroke', 'strokeWidth', 'fillRule', 'cap', 'join', 'dash', 'gradient', 'clip', 'sourceIds'], group: ['children', 'baseWidth', 'baseHeight'], adjustment: ['scope', 'targetId', 'exposure', 'black', 'white', 'gamma', 'saturation', 'curve'], image: ['mask', 'assetId', 'brightness', 'contrast', 'crop', ...Object.keys(IMAGE_FILTERS)], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'],
+export const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'opacity', 'visible', 'locked'];
+export const FIELDS = { path: ['contours', 'fill', 'stroke', 'strokeWidth', 'fillRule', 'cap', 'join', 'dash', 'gradient', 'clip', 'sourceIds'], group: ['children', 'baseWidth', 'baseHeight'], adjustment: ['scope', 'targetId', 'exposure', 'black', 'white', 'gamma', 'saturation', 'curve'], image: ['mask', 'assetId', 'brightness', 'contrast', 'crop', ...Object.keys(IMAGE_FILTERS)], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'],
   rect: ['fill', 'stroke', 'strokeWidth'], ellipse: ['fill', 'stroke', 'strokeWidth'], freehand: ['points', 'stroke', 'strokeWidth'] };
 
 /** @description Reject invalid input with a stable, user-readable boundary error.

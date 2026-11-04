@@ -1,4 +1,12 @@
 # CHANGE LOG
+# 25 | maintainer@emeraldcoastsystemsgroup.com | git-explorer expects a late provider-switch load to leave a newer refusal on screen.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | investigation-handoff and operator-workspace expect Investigate again, alert labels and the incident card among more than 1,000 other tickets.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | Register the Your SSH connection guard (tests/ssh-connection.test.cjs): the browser-side key check, the exact credential, and the shipped Connections page against a kernel-shaped fake.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | Register the native migration grammar guard (btree-only indexes, no CONCURRENTLY, no WITH): migration 031's GIN expression index refused the whole declared set on the native kernel (2026-11-03).
+# 21 | maintainer@emeraldcoastsystemsgroup.com | The engine container contract bullet no longer calls Check detection service the only control that reports the engine state; publishing, previewing and evaluating report the same (third review, 2026-11-03).
+# 20 | maintainer@emeraldcoastsystemsgroup.com | Prerequisite keys take the dependency: form the native test runtime advertises (oshal-kernel crates/host-process/test-runtime/runner.cjs offers only runner:node-test, runner:vitest, fixture:core-checkout, dependency:express, dependency:js-yaml, dependency:playwright and browser:chromium; any other key answers pending prerequisites_unavailable, so a case naming one never runs). All 17 toolchain: keys are renamed, the store norm of the trading and kalshi catalogs - toolchain:js-yaml and toolchain:express to dependency:js-yaml and dependency:express (1 case), toolchain:playwright to dependency:playwright (8 cases) and toolchain:playwright-chromium to dependency:playwright plus browser:chromium (8 cases). The engine container contract's bullets follow the installer's proven link restart, the route's busy hello and the closing step naming the real control.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | The engine container contract also covers the route's install-hint refusal and the installer's link-unit restart (store gate check-engine-container-pattern.mjs).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Register the Spark engine container contract (compose shape and installer, no Docker).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register the owner runbook guard.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register the Alertmanager producer adapter guard.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register the transactional intake guard, the one test file the catalog did not list.
@@ -55,7 +63,7 @@ cases:
     expected:
       - The committed files equal the stored plan artifacts byte for byte, plus a manifest.
       - A second promotion of the same plan and destination creates no second branch.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role; no provider is contacted. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
@@ -68,7 +76,7 @@ cases:
     expected:
       - Node properties stay within 24 scalar values and never fabricate absent facts.
       - Selecting a node shows its capacity, pressure and placed pods; the pod link selects that pod.
-    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright]
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright]
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 60000, maxMemoryMb: 512 }
@@ -81,9 +89,22 @@ cases:
     expected:
       - Records say where the command ran and that the application executed nothing.
       - Exactly one confirmed native exec per reviewed in-pod command.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: ssh-connection
+    name: Your SSH connection on Connections
+    purpose: "Verify that the key check reads only the OpenSSH envelope (an unencrypted ed25519 key passes; a passphrase, an RSA key, a PEM key or junk is named before anything is sent), that the credential is exactly {\"username\",\"privateKey\"}, and that the shipped Connections page saves a chosen key file through the kernel's connect route, lists the selected hosts under one confirmation, runs one confirmed uptime as a login check recorded as an ssh-connection command run in real SQL, disconnects, clears on refusal, and that Cloud & SSH commands names a missing connection instead of clearing the page."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/ssh-connection.test.cjs] }
+    expected:
+      - A key with a passphrase or of another type never reaches the kernel.
+      - Exactly one confirmed ssh-exec per login check, recorded with the host.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role; the keys are made by ssh-keygen in a temporary folder. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never
   - id: live-cluster
@@ -94,7 +115,7 @@ cases:
     expected:
       - A complete live scan never retires collector-only assets or routes.
       - Exactly three confirmed reads per refresh; none after a refusal.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
@@ -120,7 +141,7 @@ cases:
     expected:
       - Exactly one confirmed delivery per plan and peer.
       - A received delegation starts one investigation and never an action.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
@@ -133,7 +154,7 @@ cases:
     expected:
       - The same parameters render the same bytes, and Git receives exactly those bytes.
       - Nothing is applied by the application.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
@@ -157,9 +178,10 @@ cases:
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/git-explorer.test.cjs] }
     expected:
+      - A provider switch's load that finishes late leaves a newer refusal on screen.
       - The explorer only reads from GitHub.
       - A cluster's linked repository becomes the promotion target.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
@@ -203,7 +225,7 @@ cases:
       - Twelve concurrent callers reserve exactly one dispatch per approval; a lost commit acknowledgement never authorizes a second one.
       - Verification is healthy only with a passing command, matching pod identity and a resolved admitted signal for the same resource; firing deliveries do not count.
       - The browser makes no native action while planning or approving, dispatches the exact reserved argv once with a fresh confirmation, and clears private plan state on refusal.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role; no cluster or provider is contacted. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
@@ -274,7 +296,7 @@ cases:
       - Forbidden, unavailable and malformed responses clear prior rows and never show invented zeroes.
       - The local source and mapping preview makes no event or credential request and works at phone width.
       - Separate synthetic prototype checks data decisions, topology, connection probes, sync conflicts/reconciliation, viewer refusal, changed-revision invalidation and bundle hashes.
-    prerequisites: [runner:node-test, browser:chromium, toolchain:playwright]
+    prerequisites: [runner:node-test, browser:chromium, dependency:playwright]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Close the browser and all loopback fixture server connections in finally. }
     limits: { timeoutMs: 60000, maxMemoryMb: 768 }
@@ -289,6 +311,36 @@ cases:
       - A foreign API, changed cluster incarnation and excessive load fail before mutations.
       - Native experience deployment retains sandbox policies and persistent volumes; missing readiness remains unknown.
     prerequisites: [runner:node-test, runtime:python3]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: engine-container-contract
+    name: Spark detection engine container contract
+    purpose: Parse engine/container/compose.yaml and engine/install-engine.sh without Docker and refuse a published port, a search service on the engines network, an unpinned image, a writable or privileged engine, a mount beyond the three engine files, or an installer that writes a host file; drive the compiled detection-engine route with a fake kernel relay so a down or stale engine is refused with the install command (the engine-container pattern the store gate checks).
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/engine-container.test.cjs] }
+    expected:
+      - No service publishes a port; search sits on the private network only and the engine joins the external engines network.
+      - Both images are digest-pinned and the search pin equals the Kubernetes lab installer's pin.
+      - The engine is read-only, drops every capability, runs as 1000:1000 and mounts exactly server.py, percolation.py and identity.json read-only.
+      - The installer is executable, parses, self-tests the hello against identity.json, restarts an existing oshal-native-operations-link user unit after the recreate and proves it within 5 s (systemctl --user is-active and a TCP connect to the loopback port parsed from the unit) before saying so, printing the unit's last 20 journal lines and exiting 1 otherwise; without the unit it prints the link-unit and OSHAL_PACKAGE_ENGINES steps without applying them.
+      - routes/detection-engine.js exports INSTALL_HINT naming install-engine.sh; an unreachable engine or an identity-digest mismatch is a 503 carrying installHint and the command in its message, a kernel deadline or a hello carrying error (the engine's own busy signal, relayed with a null reply) carries none, a matching hello completes with the engine build, and the mounted router answers that shape over HTTP.
+      - The installer's closing step names the Operations navigation entry Data pipeline and its button Check detection service (GET /pipeline/health), the on-demand check that reports the engine state with the install hint (publishing, previewing and evaluating report the same), exactly as experience/index.html spells them.
+    prerequisites: [runner:node-test, dependency:js-yaml, dependency:express]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
+    installation: never
+  - id: migrations-native-grammar
+    name: Migrations fit the native kernel's grammar
+    purpose: Hold every declared migrations/*.sql to the index grammar the native kernel accepts (crates/packages/src/sql_constraints/ddl.rs index_contract), so one refused statement cannot leave a scope unprovisioned.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/migrations-native-grammar.test.cjs] }
+    expected:
+      - Every CREATE INDEX is btree (no USING gin, gist, hash or brin), never CONCURRENTLY and never WITH (...).
+      - Migration 031's cohort index is the btree on (user_sub, created_at DESC); no GIN expression index remains.
+    prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
@@ -318,7 +370,7 @@ cases:
       - Unaffected shared hubs do not merge incidents; stale or unavailable dependencies produce a visible fallback.
       - Saved correlation binds exact deliveries, scans and policy without dispatching work.
       - Kubernetes UIDs, owner chains, runtime container IDs and endpoint conditions survive translation without pod secrets.
-    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright, service:disposable-postgres]
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres]
     sideEffects: disposable database and loopback fixture server
     isolation: { mode: disposable, cleanup: Drop fixture databases and roles and close all browsers and server connections in finally. }
     limits: { timeoutMs: 60000, maxMemoryMb: 768 }
@@ -333,7 +385,7 @@ cases:
       - One hundred distinct occurrences across independent pools reserve one job; replay and uncertain acknowledgement do not inflate it.
       - Owner isolation, explicit window boundaries, late state, rollback and publication conflicts remain visible.
       - The browser can publish a source policy and inspect durable filtering and reduction results.
-    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright, service:disposable-postgres, service:disposable-opensearch]
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres, service:disposable-opensearch]
     sideEffects: disposable databases, rule indexes, local engine process and loopback HTTP server
     isolation: { mode: disposable, cleanup: Delete only test-owned rule indexes and databases; close browser, engine and server in finally. }
     limits: { timeoutMs: 120000, maxMemoryMb: 768 }
@@ -391,7 +443,7 @@ cases:
     expected:
       - One hundred occurrences yield forty matches, four symptoms, two dependency groups and four pinned context packets.
       - Desktop and phone views render real results and clear private data on access withdrawal.
-    prerequisites: [runner:node-test, service:postgresql, service:opensearch, browser:chromium, toolchain:playwright]
+    prerequisites: [runner:node-test, service:postgresql, service:opensearch, browser:chromium, dependency:playwright]
     sideEffects: temporary-data
     isolation: { mode: disposable, cleanup: Close browser, fixture server and engine; drop fixture database/role and owned rule indexes in finally. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
@@ -407,7 +459,7 @@ cases:
       - A trial saves one immutable candidate and leaves activation, symptoms and evidence work unchanged.
       - Explicit activation checks the loaded source revision; stale publication cannot overwrite another change.
       - Browser editing, saved-generation drafts, phone layout and access-withdrawal clearing use shipped assets.
-    prerequisites: [runner:node-test, runtime:python3, browser:chromium, toolchain:playwright, service:disposable-postgres, service:disposable-opensearch]
+    prerequisites: [runner:node-test, runtime:python3, browser:chromium, dependency:playwright, service:disposable-postgres, service:disposable-opensearch]
     sideEffects: disposable databases, saved candidate indexes, engine process and loopback server
     isolation: { mode: disposable, cleanup: Drop only test-owned SQL databases and query indexes; close browser, server and engine. }
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
@@ -437,6 +489,8 @@ cases:
       - Concurrent calls create one canonical ticket per evidence reservation.
       - Unknown creation results stay held and lost link acknowledgements reconcile without duplicate effects.
       - Only owned preprocessed files and exact digests enter workflow dispatch.
+      - Only a failed or cancelled ticket can be investigated again; one new ticket per request wave, the same sealed bytes, earlier attempts kept, another person opens nothing.
+      - Listed investigations carry their alert label; the evidence card offers Investigate again only after a failed or cancelled ticket.
       - Completed AI outputs require canonical receipts; accepted reports do not establish infrastructure recovery.
     prerequisites: [runner:node-test, service:postgresql]
     sideEffects: disposable
@@ -564,8 +618,9 @@ cases:
       - Monitoring, event selection, rule editing and worker configuration have distinct keyboard-accessible panels.
       - Source and event selectors retain exact identities and unsafe source text cannot execute.
       - Desktop and phone views fit the viewport; stale ticket responses cannot restore withdrawn data.
+      - With more than 1,000 tickets of other applications the incident card still lists the Operations tickets, and both incident lists name them by their alert.
       - Browsing and navigation issue no mutation request.
-    prerequisites: [runner:node-test, browser:chromium, toolchain:playwright]
+    prerequisites: [runner:node-test, browser:chromium, dependency:playwright]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Close the local fixture server and browser. }
     limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
@@ -580,7 +635,7 @@ cases:
       - Only immutable IDs link records; an unrelated ticket's data never appears.
       - Missing or paged records do not invent an alert, action or recovery.
       - The browser renders downloadable artifacts, preserves provenance and clears private data.
-    prerequisites: [runner:node-test, browser:chromium, toolchain:playwright]
+    prerequisites: [runner:node-test, browser:chromium, dependency:playwright]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Close the browser. }
     limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
@@ -606,7 +661,7 @@ cases:
     expected:
       - Exactly one processing item per delivery, whatever the retry order.
       - Quarantined input is kept and never processed.
-    prerequisites: [runner:node-test, service:postgres-disposable-35689, toolchain:playwright-chromium]
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
     limits: { timeoutMs: 180000, maxMemoryMb: 512 }

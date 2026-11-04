@@ -129,6 +129,8 @@ cases:
     expected:
       - Anonymous guide requests stop before bot execution.
       - Valid deck-builder replies expose only whitelisted editor operations with bounded fields.
+      - Image bytes never cross the Guide boundary — a data-URI #image: bullet reaches the prompt and any returned action
+        as the "#image: (attached)" marker, and the prompt teaches the design directives.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -176,6 +178,8 @@ cases:
       - The shipped page accepts a Guide turn and applies only the bounded title/outline actions to the visible editor.
       - The real Generate control sends the edited outline and renders the owner-scoped local receipt returned by the same-origin endpoint.
       - The disposable fixture rejects external traffic and proves no email or delete action crosses the path.
+      - A chat turn over a draft with an attached image sends the marker, not the bytes, and an applied update_slide
+        proposal keeps the person's #image:/#caption: lines in the outline.
     prerequisites:
       - runner:playwright
       - browser:chromium
@@ -211,6 +215,34 @@ cases:
       cleanup: Restore module seams; retain no artifact, provider call, mailbox action or installed record.
     limits:
       timeoutMs: 30000
+      maxMemoryMb: 512
+    installation: never
+  - id: image-render
+    name: An authored image lands in the real .pptx and .docx
+    purpose: >-
+      The design row's "Add image" writes an inline #image: data URI; this proves the kernel's own deck engine
+      (renderPptx + the content sniffer) embeds those exact bytes as archive media — the control is never draft-only —
+      and that non-image bytes are dropped, not embedded.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/presentations-image-render.core.spec.mjs
+    expected:
+      - The authored image's exact bytes are in ppt/media beyond any theme decor, and every outline slide is a real slide.
+      - A data URI whose payload is not image bytes is dropped by the sniffer and the deck still renders.
+      - The same #image: data URI through renderDocx lands the authored bytes in word/media and the directive line never
+        leaks into the document text.
+    prerequisites:
+      - runner:node-test
+      - harness:oshal-core-root
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-memory render only; no browser, network, storage or provider use.
+    limits:
+      timeoutMs: 60000
       maxMemoryMb: 512
     installation: never
   - id: brand-look
@@ -404,6 +436,10 @@ cases:
       - Editing selected slides and cells preserves other sections and structured source.
       - AI suggestions require review and cannot overwrite a newer human draft.
       - The AI partner remains visible on desktop and phone.
+      - The design row writes only renderer-honoured directives — a picked layout as `#layout:`, an image file as the
+        inline `#image:` data URI drawn on the canvas with its `#caption:` — and removal or undo restores the outline exactly.
+      - splitDesign separates design directives from prose and mergeDesign keeps the person's design through helper
+        edits (a returned "(attached)" placeholder is never written; a person-given https image URL is).
     prerequisites:
       - runner:node-test
       - browser:chromium
@@ -434,4 +470,34 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: resume-latest
+    name: The studio lands on the latest saved work
+    purpose: With nothing asked of the studio and nothing typed, the shipped page reopens the newest My-files record
+      (title, outline, format) instead of an empty editor; ?kind= narrows to that format and an empty list leaves the
+      studio untouched (Roger, 2026-11-02, on the demo).
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/presentations-resume-latest.test.mjs
+    expected:
+      - The saved deck's title and outline fill the editor; an xlsx studio never resumes a pptx; an empty list changes nothing.
+      - The landing paints no phantom empty "making" bar, the AI-partner box takes the rail's width with Dictate and
+        Send under it, and the slide design row is on the canvas (Roger, 2026-11-03, on the demo).
+      - Document mode shows its own design row (Replace/Remove image, no caption knob — the .docx exporter does not
+        render captions), the section textarea holds prose only, and prose edits keep the design directives.
+      - On a 412x915 phone the header is static and compact (never a sticky translucent wall over the content), nothing
+        scrolls sideways, the command rows are one-line ribbons, and a standalone open with nothing saved wears the
+        app's declared light-blue paper look.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+      - harness:oshal-core-root
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

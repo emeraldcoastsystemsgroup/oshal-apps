@@ -527,6 +527,7 @@ every engine package to it.
 | `motion-studio` | Pinned native compositor and Node bridge | locked native rendering, embedded fonts and owned raster sources | `motion-studio-engine:7414` |
 | `pdf-workbench` | Hash-pinned pypdf, Poppler and Tesseract | bounded PDF derivative, page preview and explicit OCR workers | `pdf-workbench-engine:7415` |
 | `publishing-studio` | Hash-pinned Typst, pypdf and Poppler | native font shaping/linked-page flow and exact-PDF preview in a private bounded worker | `publishing-studio-engine:7419` |
+| `intelligent-operations` | Digest-pinned OpenSearch 3.3.2 percolator + the typed detection engine (`engine/server.py`) | a JVM search engine with its own data volume, reachable only from the engine on a private network; official images, nothing built | `intelligent-operations-engine:7419` |
 
 Read any one of them as a worked example; they agree. The port numbers need not be unique across
 packages — nothing is published to the host, and each container has its own network namespace.

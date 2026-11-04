@@ -3,6 +3,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual Leaflet job pins, entered and explicit GPS centers, account-scoped remembered searches, and phone geometry over disposable synthetic HTTP.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Use ordinary pointer and keyboard activation on centered/off-center waypoints with a radius, and prove direct posting links stay safe.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Prove results precede delayed map assets, list view defers downloads, and superseded searches abort while prior results remain visible.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | The page opens on the list and saved searches sit in a popover: open Map + list and the panel before using them.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -60,8 +61,15 @@ async function open(t, options = {}) {
   const url = `${fixture.origin}/api/career-hunter/search-ui`;
   await page.goto(url + (options.query || ''), { waitUntil: 'domcontentloaded' });
   await page.locator('#list .job').first().waitFor();
+  // The page opens on the list since 1.47; Map + list is the person's choice.
+  if (!options.query?.includes('view=list')) await page.locator('#mapView').click();
   if (!options.noMapWait && !options.query?.includes('view=list')) await page.locator('#jobMap path[role="button"]').first().waitFor();
   return { page, fixture, account, external, errors, url };
+}
+
+/** Saved searches live in a popover since the toolbar toggle was added. */
+async function savedPanel(page) {
+  await page.evaluate(() => { const panel = document.getElementById('savedSearchPopup'); if (!panel.matches(':popover-open')) panel.showPopover(); });
 }
 
 /** Observe actual browse parameters before the action can send its request. */
@@ -234,6 +242,7 @@ test('named and last successful searches reopen for the same account and remain 
   const value = await open(t), { page, account, url } = value;
   await browseAfter(page, { q: 'platform' }, () => page.locator('#q').fill('platform'));
   await browseAfter(page, { q: 'platform', near: 'Chicago, IL', radius_miles: '25' }, () => page.locator('#near').fill('Chicago, IL'));
+  await savedPanel(page);
   await page.locator('#savedSearchName').fill('Local platform roles'); await page.locator('#saveSearch').click();
   assert.match(await page.locator('#savedSearchStatus').innerText(), /Search saved/);
   const savedId = await page.locator('#savedSearchList option').nth(1).getAttribute('value');
@@ -241,6 +250,7 @@ test('named and last successful searches reopen for the same account and remain 
   await page.goto(url);
   await page.waitForFunction(() => document.querySelector('#q').value === 'manager');
   assert.equal(await page.locator('#near').inputValue(), 'Chicago, IL');
+  await savedPanel(page);
   await page.locator('#savedSearchList').selectOption(savedId);
   await browseAfter(page, { q: 'platform' }, () => page.locator('#loadSearch').click());
   account.principal = 'bob'; await page.goto(url); await page.locator('#list .job').first().waitFor();
@@ -248,6 +258,7 @@ test('named and last successful searches reopen for the same account and remain 
   assert.equal(await page.locator('#savedSearchList option').count(), 1);
   account.principal = 'alice'; await page.goto(url); await page.locator('#list .job').first().waitFor();
   assert.equal(await page.locator('#q').inputValue(), 'platform');
+  await savedPanel(page);
   await page.locator('#savedSearchList').selectOption(savedId); await page.locator('#deleteSearch').click();
   assert.match(await page.locator('#savedSearchStatus').innerText(), /Saved search removed/);
   await page.goto(url); await page.locator('#list .job').first().waitFor();
@@ -263,6 +274,7 @@ test('failed or superseded searches cannot replace the last successful criteria 
   assert.equal(failed.status(), 503);
   await page.locator('#searchStatus').filter({ hasText: 'Could not update results' }).waitFor();
   assert.equal(await page.locator('#list .job').count(), 3, 'failed updates retain explicitly labeled prior results');
+  await savedPanel(page);
   await page.locator('#savedSearchName').fill('Must not save failed results'); await page.locator('#saveSearch').click();
   assert.match(await page.locator('#savedSearchStatus').innerText(), /Wait for a successful search/);
   const key = 'career-search:v1:fixture-tenant:alice';

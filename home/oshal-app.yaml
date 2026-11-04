@@ -7,6 +7,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: home-bot declares routing words (smart home, lights, thermostat, smartthings, turn on/off, ...). It declared none, so a request had to name the application to reach it. Guarded by scripts/tool-apps-routing-words.test.mjs.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.2.7: weather. Asked "what is the weather like today?", Jarvis said no weather source was installed and a forecast question went to Animatronics. home-weather (GET /api/home/weather) reads the National Weather Service forecast (Nominatim + api.weather.gov, keyless egress), and home-bot declares weather routing words. Guarded by home/tests/home-weather.test.js.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.2.8: weather phrases (the weather, weather like, weather in, weather today, weather forecast, will it rain). The single keyword "weather" is a weak claim, so "What is the weather like today in Chicago?" stayed with the assistant, which said no weather source was installed. Guarded by home/tests/home-weather.test.js.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.2.9: the description names the weather forecast. Jarvis is told an application does only what its description states, so asked "Check the weather in Chicago and also tell me the top economy news" it wrote that no installed application gives weather, above Smart Home's own forecast. Guarded by home/tests/home-weather.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -48,8 +49,10 @@ description: >-
   Control your smart home by chat. Connect a hub at /utilities (SmartThings or
   Google Nest); the home-bot reads your real devices + scenes via your connector
   token and turns "turn off the living room lights" into the right commands.
-  Destructive actions (locks, garage, thermostat) are confirmed first.
-version: 1.2.8
+  Destructive actions (locks, garage, thermostat) are confirmed first. It also
+  gives the weather forecast for any US city, address or ZIP code from the
+  National Weather Service (weather.gov): today, tonight and the coming days.
+version: 1.2.9
 testing:
   version: 1
   catalog: tests/test-lab.yaml

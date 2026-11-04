@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Resolve guarded native scoring identity before cache selection and carry actual completion attribution per result while preserving legacy completion callers.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -24,6 +25,7 @@ import secrets
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from . import config, db
@@ -127,22 +129,89 @@ def _rail_post(body: bytes) -> tuple[int, dict]:
         return 0, {"error": "career-worker-unavailable"}
 
 
-def _complete_rail(system, prompt, max_tokens, json_mode) -> str:
+@dataclass(frozen=True)
+class ScoringIdentity:
+    cache_key: str
+    model: str
+    provider: str | None = None
+    expected: str | None = None
+
+
+@dataclass(frozen=True)
+class ScoringAnswer:
+    text: str | None
+    model: str
+    provider: str | None = None
+    fallback: bool = False
+
+
+def _model_label(value):
+    return (isinstance(value, str) and 0 < len(value) <= 256 and value == value.strip()
+            and not any(ord(char) < 32 or ord(char) == 127 for char in value))
+
+
+def resolve_scoring_identity(model=None) -> ScoringIdentity:
+    """One configured routing-policy read per native score pass; never invokes inference.
+
+    Configured identifiers do not claim immutable upstream weights. Legacy engines keep
+    their existing model labels and make no identity request.
+    """
+    if not (_rail_mode() and os.environ.get('OSHAL_EGRESS') == 'kernel'):
+        label = model_name(model)
+        return ScoringIdentity(label, label)
+    if _RAIL_FAILURE is not None:
+        raise CareerWorkerUnavailable(_RAIL_FAILURE.reason, _RAIL_FAILURE.status)
+    if not _rail_configured():
+        _rail_trip('model-identity-unavailable', None)
+    status, payload = _rail_post(json.dumps({'operation': 'model-identity'}).encode('utf-8'))
+    value = payload.get('identity')
+    primary = value.get('primary') if isinstance(value, dict) else None
+    if (status != 200 or payload.get('ok') is not True or not isinstance(value, dict)
+            or type(value.get('version')) is not int or value['version'] != 1
+            or not isinstance(value.get('identity'), str) or not re.fullmatch(r'[0-9a-f]{64}', value['identity'])
+            or not isinstance(primary, dict) or not _model_label(primary.get('provider'))
+            or not _model_label(primary.get('model'))):
+        _rail_trip('model-identity-unavailable', status or None)
+    return ScoringIdentity('career-routing-v1:' + value['identity'], primary['model'],
+                           primary['provider'], value['identity'])
+
+
+def _rail_completion(system, prompt, max_tokens, json_mode, identity=None):
     """One completion on the dedicated Career bot through the package's worker rail."""
     if _RAIL_FAILURE is not None:
         raise CareerWorkerUnavailable(_RAIL_FAILURE.reason, _RAIL_FAILURE.status)
     if not _rail_configured():
         _rail_trip("rail-not-configured", None)
-    body = json.dumps({
+    document = {
         "system": system or "", "prompt": prompt or "",
         "maxTokens": int(max_tokens or 900), "jsonMode": bool(json_mode),
-    }).encode("utf-8")
+    }
+    if identity is not None:
+        document['expectedModelIdentity'] = identity.expected
+    body = json.dumps(document).encode('utf-8')
     status, payload = _rail_post(body)
     if status == 200 and payload.get("ok") is True and isinstance(payload.get("text"), str):
-        return payload["text"]
+        if identity is not None and (payload.get('modelIdentity') != identity.expected
+                or not _model_label(payload.get('provider')) or not _model_label(payload.get('model'))
+                or type(payload.get('fallback')) is not bool
+                or not payload['fallback'] and payload['provider'] != identity.provider):
+            _rail_trip('model-identity-unavailable', status)
+        return payload
     error = payload.get("error")
     _rail_trip(error if isinstance(error, str) and error else f"http-{status}", status or None)
     return ""  # unreachable: _rail_trip always raises
+
+
+def _complete_rail(system, prompt, max_tokens, json_mode) -> str:
+    return _rail_completion(system, prompt, max_tokens, json_mode)['text']
+
+
+def complete_scoring(system, prompt, *, max_tokens, model, identity: ScoringIdentity) -> ScoringAnswer:
+    """Keep attribution local to this completion; concurrent workers share no last-model state."""
+    if identity.expected is None:
+        return ScoringAnswer(complete(system, prompt, max_tokens=max_tokens, model=model), identity.model)
+    payload = _rail_completion(system, prompt, max_tokens, True, identity)
+    return ScoringAnswer(payload['text'], payload['model'], payload['provider'], payload['fallback'])
 
 SYSTEM = (
     "You assess employers for a job seeker. Be balanced and honest. "

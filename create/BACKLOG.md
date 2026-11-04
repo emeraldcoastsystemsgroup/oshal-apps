@@ -366,3 +366,7 @@ native fixture uses deterministic model choice and does not certify live capacit
 Other PSD blends/text/effects/masks/smart objects, ZIP/PSB/high-bitdepth, PSD export,
 AI/IDML/external timeline interchange and exhaustive product parity remain open.
 See [PSD profile](specs/functional-gaps/psd-format-matrix.md) for honest outcomes.
+
+## Tool parity with the industry applications (Roger, 2026-11-03)
+
+The gaps for every Create application, with done-when criteria, are in [docs/tool-parity/](docs/tool-parity/README.md). Start with Create's own entries in [docs/tool-parity/create.md](docs/tool-parity/create.md).

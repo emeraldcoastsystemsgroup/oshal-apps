@@ -133,6 +133,7 @@ a { color: var(--lm-accent); }
 .lm-more-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 210px; display: grid; gap: 2px; padding: 8px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); box-shadow: var(--lm-shadow); z-index: 70; }
 .lm-more-menu a { display: block; padding: 10px 12px; border-radius: 10px; color: var(--lm-ink); text-decoration: none; font-weight: 600; font-size: 14px; }
 .lm-more-menu a:hover { background: var(--lm-accent-wash); }
+.lm-more-menu a.lm-all-applications { margin-bottom: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--lm-line, rgba(127, 127, 127, .3)); border-radius: 10px 10px 0 0; }
 .lm-more-menu a[aria-current="page"] { background: var(--lm-accent-soft); color: var(--lm-accent); }
 @media (max-width: 720px) {
   .lm-topbar { flex-wrap: wrap; gap: 8px 12px; }

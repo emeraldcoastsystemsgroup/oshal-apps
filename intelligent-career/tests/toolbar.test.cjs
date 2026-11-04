@@ -4,7 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Keep the actual Career toolbar's delegated navigation complete and its references owned by real member surfaces.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep the Career front door on a real member search surface and exclude the generic global ticket workbench.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Read canonical required membership and keep Career configuration and sources conspicuous without changing the group's declarative contract.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Pin the released group version, 1.1.6.
  */
 'use strict';
 const { test } = require('node:test');
@@ -39,7 +41,7 @@ test('every shipped toolbar reference resolves once to its declared member rathe
 
 test('Career configuration and sources are a visible borrowed navigation band', () => {
   assert.equal(group.kind, 'group');
-  assert.equal(group.version, '1.1.2');
+  assert.equal(group.version, '1.1.6');
   assert.deepEqual([...members.keys()], ['career-hunter', 'portrait-studio', 'social', 'print-ingest']);
   for (const surface of ['career-settings', 'career-companies']) {
     const item = group.toolbar.find(item => item.app === 'career-hunter' && item.surface === surface);
@@ -48,4 +50,14 @@ test('Career configuration and sources are a visible borrowed navigation band', 
   }
   assert.equal(group.setup.length, 7);
   assert.equal(group.experience, undefined, 'the group keeps its no-code contract; Career Hunter owns the authenticated experience');
+});
+
+ test('Career opens on Search Jobs and excludes the global Tickets workbench', () => {
+  assert.equal(group.ribbon.defaultView, 'career-hunter--career-search');
+  assert.ok(group.ribbon.hideFrameworkItems.includes('tickets'));
+  assert.equal(group.toolbar[0].surface, 'career-search');
+  for (const surface of ['career-application-status','career-submission-activity']) assert.ok(group.toolbar.some(item => item.surface===surface));
+  const search = members.get('career-hunter').ui.static.find(item => item.toolName === group.ribbon.defaultView.split('--')[1]);
+  assert.equal(search?.iframeUrl, '/api/career-hunter/search-ui');
+  assert.ok(group.toolbar.some(item => item.app === 'career-hunter' && item.surface === group.ribbon.defaultView.split('--')[1]));
 });

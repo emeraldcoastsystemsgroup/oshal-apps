@@ -1,0 +1,86 @@
+<!doctype html>
+<!-- CHANGE LOG
+1 | maintainer@emeraldcoastsystemsgroup.com | Add an accessible job-specific preparation and practice workspace with exact experience references, private saved feedback and honest background progress.
+-->
+<html lang="en" data-theme="midnight" data-career-surface="interview"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interview preparation · Intelligent Career</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<style>
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:1160px;margin:auto;padding:28px 24px 60px}header{display:flex;align-items:start;justify-content:space-between;gap:20px}h1{margin:12px 0 8px}h2{font-size:18px;margin:0 0 12px}h3{font-size:16px;line-height:1.5}p,li{line-height:1.65}a{color:var(--accent,#7165e8)}.hint{color:var(--muted,#8993a5);font-size:13px}.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:22px 0}.btn,button,textarea{font:inherit}.btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 14px;border:1px solid var(--line,#39404f);border-radius:10px;background:transparent;color:inherit;text-decoration:none;cursor:pointer}.go{background:var(--accent,#635bd7);color:#fff;border-color:transparent}button:disabled{opacity:.55;cursor:wait}button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid var(--accent,#7165e8);outline-offset:3px}.panel{padding:22px;border:1px solid var(--line,#39404f);border-radius:14px;margin:16px 0}.layout{display:grid;grid-template-columns:minmax(230px,1fr) minmax(0,2fr);gap:20px}.question{display:block;width:100%;text-align:left;margin:8px 0;padding:12px;border:1px solid var(--line,#39404f);border-radius:10px;background:transparent;color:inherit;line-height:1.5;cursor:pointer}.question[aria-pressed=true]{border-color:var(--accent,#7165e8);box-shadow:inset 3px 0 var(--accent,#7165e8)}.question small{display:block;color:var(--muted,#8993a5)}textarea{width:100%;min-height:180px;resize:vertical;border:1px solid var(--line,#39404f);border-radius:10px;padding:12px;background:transparent;color:inherit;line-height:1.6}blockquote{margin:12px 0;padding:8px 14px;border-left:3px solid var(--accent,#7165e8);white-space:pre-wrap}.evidence{padding:12px;margin:10px 0;border:1px solid var(--line,#39404f);border-radius:10px}.evidence p{white-space:pre-wrap;font-size:14px}.feedback{padding-top:18px;margin-top:18px;border-top:1px solid var(--line,#39404f)}#status{min-height:24px}#error{color:var(--danger,#e67d7d)}[hidden]{display:none!important}summary{cursor:pointer;padding:8px 0}.recorded{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted,#8993a5)}@media(max-width:720px){.wrap{padding:18px 14px 40px}header{display:block}.layout{grid-template-columns:1fr}.panel{padding:16px}.toolbar .btn{flex:1}textarea{font-size:16px}}
+</style></head><body><main class="wrap">
+<header><div><a href="/api/career-hunter/board-native">← Job Board</a><h1>Interview preparation</h1><p id="job" class="hint">Loading the selected job…</p></div><a class="btn" id="employer" hidden target="_blank" rel="noopener">Employer posting ↗</a></header>
+<p class="hint">Prepare with your recorded experience, then practice in your own words. These are suggested questions for this role.</p>
+<div class="toolbar"><button class="btn go" id="prepare" disabled>Prepare for this interview</button><button class="btn" id="refresh">Refresh</button><span id="saved" class="hint"></span></div>
+<div id="status" role="status" aria-live="polite"></div><p id="error" role="alert"></p>
+<div id="empty" class="panel" hidden>Build a preparation guide for this job using your saved resume and experience. You can then practice answers and keep the feedback here.</div>
+<section id="content" hidden><div class="panel"><h2>What to focus on</h2><p id="focus"></p></div>
+<div class="layout"><aside class="panel" aria-label="Practice questions"><h2>Practice questions</h2><div id="questions"></div></aside>
+<section class="panel" aria-label="Answer practice"><span id="category" class="recorded"></span><h2 id="question"></h2><p id="why" class="hint"></p>
+<details><summary>Plan your answer</summary><ul id="approach"></ul></details>
+<details><summary>Experience you can draw on</summary><div id="evidence"></div></details>
+<label for="answer"><h3>Your practice answer</h3></label><textarea id="answer" maxlength="8000" placeholder="Describe the situation, your role, what you did, and the actual result. Be clear about what you have not done."></textarea>
+<div class="toolbar"><button id="practice" class="btn go">Get feedback and save practice</button><span class="hint">Private to your Career account</span></div><div id="feedback"></div>
+</section></div><div class="layout"><section class="panel"><h2>Ask the employer</h2><ul id="askEmployer"></ul></section><section class="panel"><h2>Preparation checklist</h2><ul id="checklist"></ul></section></div><details class="panel" id="history" hidden><summary>Practice from earlier guides</summary><div id="historyItems"></div></details></section>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id),id=Number(new URLSearchParams(location.search).get('postingId'));
+const endpoint='/api/career-hunter/interview/'+id,drafts=new Map();let data=null,selected=null,pending=null,timer=null,reading=false,idleReads=0;
+const errors={resume_required:'Upload your resume before preparing for this interview.',preparation_stale:'Your experience or this job changed. Prepare a fresh guide before practicing.',prepare_first:'Prepare the interview guide first.',question_not_found:'Choose a question from this guide.',practice_limit_reached:'This job has reached 40 saved practice answers. Your existing answers and feedback remain available.',interview_generation_failed:'The interview coach could not finish. Your previous preparation and practice are retained. Retry when the Career worker is available.'};
+function text(tag,value,parent,cls){const node=document.createElement(tag);node.textContent=value;if(cls)node.className=cls;parent.append(node);return node;}
+function list(node,items){node.replaceChildren();for(const value of items||[])text('li',value,node);}
+function controls(){const busy=!!pending||!!data?.processing;$('prepare').disabled=busy||!data;$('practice').disabled=busy||!selected||data?.stale;$('refresh').disabled=reading;}
+function showFeedback(){
+  const out=$('feedback');out.replaceChildren();
+  const attempts=(data?.record?.practice||[]).filter(item=>item.questionId===selected?.id&&item.planId===data.record.planId).slice().reverse();
+  for(const [index,item]of attempts.entries()){
+    const box=text('div','',out,'feedback'),f=item.feedback;text('h3',index===0?'Latest saved feedback':'Earlier practice',box);text('p',new Date(item.at).toLocaleString(),box,'hint');
+    const details=text('details','',box);text('summary','Your saved answer',details);text('blockquote',item.answer,details);
+    text('p',f.summary,box);text('blockquote',f.answerQuote,box);text('b','What worked',box);list(text('ul','',box),f.strengths);text('b','Try next',box);list(text('ul','',box),f.improvements);text('p','Follow-up: '+f.followUp,box);
+  }
+}
+function choose(question){
+  if(selected)drafts.set(selected.id,$('answer').value);selected=question;
+  for(const button of $('questions').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.id===question.id));
+  $('category').textContent=question.category;$('question').textContent=question.question;$('why').textContent=question.why;list($('approach'),question.approach);
+  const evidence=$('evidence');evidence.replaceChildren();const facts=data.record.plan.evidence.filter(item=>question.evidenceIds.includes(item.id));
+  if(!facts.length)text('p','No direct recorded example is linked. Discuss transferable experience honestly and identify what you still need to learn.',evidence,'hint');
+  for(const item of facts){const box=text('div','',evidence,'evidence');text('b',item.role.title+' · '+item.role.org,box);text('div',[item.role.start,item.role.end||'present'].filter(Boolean).join(' – '),box,'hint');text('p',item.text,box);}
+  $('answer').value=drafts.get(question.id)||'';showFeedback();controls();
+}
+function render(previousPlan){
+  $('job').textContent=data.job.title+' · '+data.job.company;const record=data.record,plan=record?.plan;
+  $('empty').hidden=!!plan;$('content').hidden=!plan;$('prepare').textContent=plan?'Prepare a fresh guide':'Prepare for this interview';
+  if(!plan){controls();return;}
+  $('saved').textContent='Prepared '+new Date(record.preparedAt).toLocaleString();$('focus').textContent=plan.focus;
+  const url=new URL(record.job.url,location.origin);if(url.protocol==='https:'){$('employer').href=url.href;$('employer').hidden=false;}
+  list($('askEmployer'),plan.askEmployer);list($('checklist'),plan.checklist);
+  const history=(record.practice||[]).filter(item=>item.planId!==record.planId);$('history').hidden=!history.length;$('historyItems').replaceChildren();
+  for(const item of history.slice().reverse()){const box=text('details','',$('historyItems'));text('summary',item.question||'Earlier practice',box);text('p',new Date(item.at).toLocaleString(),box,'hint');text('blockquote',item.answer,box);text('p',item.feedback.summary,box);list(text('ul','',box),item.feedback.improvements);}
+  if(previousPlan!==record.planId){drafts.clear();selected=null;}
+  $('questions').replaceChildren();for(const [index,q]of plan.questions.entries()){const b=text('button',(index+1)+'. '+q.question,$('questions'),'question');b.type='button';b.dataset.id=q.id;b.setAttribute('aria-pressed','false');text('small',q.category,b);b.onclick=()=>choose(q);}
+  choose(plan.questions.find(q=>q.id===selected?.id)||plan.questions[0]);
+  if(data.stale)$('error').textContent=errors.preparation_stale;controls();
+}
+async function load(){
+  if(reading)return;reading=true;controls();
+  try{const response=await fetch(endpoint),result=await response.json();if(!response.ok)throw Error(result.error||'Could not load preparation.');
+    const previousPlan=data?.record?.planId;data=result;render(previousPlan);
+    if(pending&&data.record?.operation?.requestId===pending){const op=data.record.operation;pending=null;idleReads=0;$('status').textContent=op.ok?(op.kind==='practice'?'Practice and feedback saved.':'Your preparation guide is ready.'):'The coach could not finish this request.';if(!op.ok)$('error').textContent=errors[op.error]||'Could not finish preparation. Please retry.';}
+    else if(pending&&!data.processing&&++idleReads>=3){pending=null;$('status').textContent='The task ended without a saved result. Your previous preparation is retained. Please retry.';}
+    if(pending||data.processing){clearTimeout(timer);timer=setTimeout(load,2500);}
+  }catch(error){$('error').textContent=error.message;if(pending){clearTimeout(timer);timer=setTimeout(load,4000);}}
+  finally{reading=false;controls();}
+}
+async function start(kind){
+  $('error').textContent='';const requestId=crypto.randomUUID();pending=requestId;idleReads=0;controls();$('status').textContent=kind==='prepare'?'Preparing questions and experience references…':'Reviewing your answer…';
+  try{const body={requestId};if(kind==='practice'){body.questionId=selected.id;body.answer=$('answer').value;body.planId=data.record.planId;if(!body.answer.trim())throw Error('Enter your practice answer first.');}
+    const response=await fetch(endpoint+'/'+kind,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),result=await response.json();if(!response.ok)throw Error(result.error||'Could not start the coach.');
+    clearTimeout(timer);timer=setTimeout(load,1500);
+  }catch(error){pending=null;$('status').textContent='';$('error').textContent=error.message;controls();}
+}
+$('prepare').onclick=()=>start('prepare');$('practice').onclick=()=>start('practice');$('refresh').onclick=load;
+if(Number.isSafeInteger(id)&&id>0)load();else{$('job').textContent='Choose a job from your Job Board.';$('error').textContent='Open Interview preparation on the job you want to practice for.';}
+</script></body></html>

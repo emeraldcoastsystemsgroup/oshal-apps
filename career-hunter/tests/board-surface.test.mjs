@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 40 | maintainer@emeraldcoastsystemsgroup.com | Support explicit search-to-board and document-to-status transitions, preserving manual submission provenance and owner-only state.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -15,6 +16,9 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Guard the one-click node installer: offered only when no computer is connected, announced before it downloads, and never a swarm-wide join code.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Keep the parallel feed-before-status invariant when status uses the bounded board read helper.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Preserve status persistence and reload assertions around the generated-queue preview reset.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Label undated recent roles by first-seen date on the board.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Keep lifecycle precedence while permitting an unknown score count to retain the matched board.
+ * 41 | maintainer@emeraldcoastsystemsgroup.com | Follow the 1.47 board: filters remembered per stage through selectBoardStatus, manual submission under Already applied elsewhere, and Connect submission browser in place of the installer download (retired by 314f2b67), now guarded as absent.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,6 +78,13 @@ test('the filter set is written to localStorage on every change', () => {
   assert.match(body, /f\.status\s*=\s*activeStatus/); // the pipeline tab
 });
 
+test('recent undated board cards show when they were first indexed', () => {
+  assert.match(html, /Posted \/ indexed/);
+  assert.match(html, /function postingDateMeta\(j\)/);
+  assert.match(html, /first seen \$\{esc\(firstSeen\)\}/);
+  assert.match(html, /\$\{postingDateMeta\(j\)\}/);
+});
+
 test('filters are restored before the first request goes out', () => {
   const restore = body.indexOf('restoreFilters();');
   const boot = body.indexOf('checkOnboarding(true);');
@@ -83,17 +94,18 @@ test('filters are restored before the first request goes out', () => {
 
 test('an explicit URL filter wins over the remembered one', () => {
   // A bookmarked or shared link has to render what it says, not this browser's last view.
-  assert.match(body, /fromUrl\s*\?\s*url\s*:\s*saved/);
+  assert.match(body, /fromUrl\s*\?\s*url\s*:\s*readFilterMemory\(status\)/);
 });
 
 test('changing any filter re-queries AND re-remembers', () => {
   // refilter() is the pairing; a listener wired straight to loadJobs would query without saving.
-  assert.match(body, /const refilter\s*=\s*\(\)\s*=>\s*\{\s*rememberFilters\(\);\s*loadJobs\(\);\s*\}/);
-  assert.match(body, /\['sort','min_score','min_pay','days'\]\.forEach\(k=>\$\(k\)\.addEventListener\('change',refilter\)\)/);
+  assert.match(body, /const refilter\s*=\s*\(\)\s*=>\s*\{\s*boardPage=1;\s*rememberFilters\(\);\s*loadJobs\(\);\s*\}/);
+  assert.match(body, /\['sort','min_score','min_pay','max_pay','pay_period','days','per'\]\.forEach\(k=>\$\(k\)\.addEventListener\('change',refilter\)\)/);
   assert.match(body, /\$\('remote'\)\.addEventListener\('change',refilter\)/);
   assert.match(body, /qt=setTimeout\(refilter,300\)/);
   // The pipeline tabs are a filter too.
-  assert.match(body, /activeStatus=b\.dataset\.k;\s*clearGeneratedPurgePreview\(\);\s*updatePurgeVisibility\(\);\s*rememberFilters\(\);\s*loadStats\(\);\s*loadJobs\(\)/);
+  assert.match(body, /b\.onclick=\(\)=>selectBoardStatus\(b\.dataset\.k\)/);
+  assert.match(body, /async function selectBoardStatus\(next\)\{\s*rememberFilters\(\);applyFilters\(\{\.\.\.readFilterMemory\(next\),status:next\}\);boardPage=1;[\s\S]*?clearGeneratedPurgePreview\(\);updatePurgeVisibility\(\);rememberFilters\(\);loadStats\(\);await loadJobs\(\)/);
 });
 
 test('a remembered filter is escapable — the operator can see and clear it', () => {
@@ -113,7 +125,7 @@ test('the feed request is issued in parallel with the onboarding gate', () => {
 
 test('the current resume ingest lifecycle takes precedence over stale profile readiness', () => {
   const indexing = body.indexOf('if(st && st.indexing)');
-  const ready = body.indexOf('if(st && st.hasResume && st.scored>0)');
+  const ready = body.indexOf('if(st && st.hasResume && (st.scored==null || st.scored>0 || feedRendered))');
   assert.ok(indexing > -1 && ready > indexing, 'pending ingest must be checked before old profile data');
   assert.match(body, /st\.ingest\.state==='failed'/);
   assert.match(body, /renderIngestFailure\(st\.ingest\.error\)/);
@@ -190,7 +202,7 @@ test('each production renderer escapes every provenance summary field', () => {
 });
 
 test('completed lanes use neutral labels and wire the provenance renderer', () => {
-  assert.match(surfaces['career-board.html'], /applied:'Applications recorded'/);
+  assert.match(surfaces['career-board.html'], /applied:'Submission records'/);
   assert.match(surfaces['career-board.html'], /value="applied">Application records/);
   assert.match(surfaces['career-approvals.html'], /applicationProofHtml\(a\.application_proof\|\|a\)/);
   assert.match(surfaces['career-approvals.html'], /jobs\?status=applied/);
@@ -201,11 +213,11 @@ test('completed lanes use neutral labels and wire the provenance renderer', () =
 });
 
 test('manual controls say they are manual and login challenges stay with the operator', () => {
-  assert.match(surfaces['career-board.html'], />Mark applied manually<\/button>/);
+  assert.match(surfaces['career-board.html'], /<summary>Already applied elsewhere\?<\/summary><button[^>]*>Record submitted application<\/button>/);
   assert.match(surfaces['career-approvals.html'], />Mark applied manually<\/button>/);
   assert.match(surfaces['career-mobile.html'], />I applied it manually ✓<\/button>/);
   assert.doesNotMatch(surfaces['career-board.html'], /worker can read|read the one-time verification codes/i);
-  assert.match(surfaces['career-board.html'], /email\/SMS codes, and CAPTCHAs pause the run in <b>Needs you<\/b>/);
+  assert.match(surfaces['career-board.html'], /Employer questions come back to you\. An uncertain final outcome is held for review and is never automatically retried\./);
 });
 
 test('mobile startup cannot enqueue drafts and apply status comes from the durable owner queue', () => {
@@ -324,70 +336,21 @@ test('the lead swipe card is the one that has to be opaque, and it still looks l
   assert.match(surfaces['career-mobile.html'], /el\.innerHTML=\(next\?cardHTML\(next,false\):''\)\+cardHTML\(top,true\)/);
 });
 
-// ── One-click worker-node install ────────────────────────────────────────────
+// ── Connecting a submission browser ──────────────────────────────────────────
 
-test('the board offers a node installer exactly where it reports no node', () => {
-  // The node picker is the one place on this surface that already knows whether a computer
-  // is connected, so it is the place the fix belongs. Offering it when a node IS connected
-  // would be handing out credentials nobody asked for.
-  assert.match(html, /id="installNode"/, 'the install affordance is gone');
-  assert.match(html, /href="\/api\/join\/node-installer"/, 'it no longer points at the installer');
-  assert.match(html, /id="installNode"[^>]*hidden/, 'it must start hidden until we know');
-  assert.match(body, /install\.hidden = workers\.length > 0/,
-    'the installer is not tied to whether a computer is connected');
+test('the board offers to connect a browser exactly where the chosen computer cannot take the work', () => {
+  // The node picker is the one place on this surface that knows whether a computer can take the
+  // work, so the offer lives here and stands down when the chosen one is available.
+  assert.match(html, /<button[^>]*id="workerConnect"[^>]*onclick="CareerSubmit\.connectWorker\(\)"/);
+  assert.match(body, /\$\('workerConnect'\)\.hidden=Boolean\(chosen\?\.available\)/);
 });
 
-test('the installer downloads in place rather than through a popup', () => {
-  // The defect this exists for: the link was target="_blank". This surface runs inside the
-  // cockpit's SANDBOXED iframe, and a sandbox without allow-downloads discards the download
-  // silently — the popup opened, showed a blank tab, saved nothing, and logged nothing. The
-  // server had already rendered the script and recorded it as issued, so both sides looked
-  // healthy. Core now grants allow-downloads; this asserts the surface stopped depending on
-  // a popup at all, which is what makes the download work regardless of the sandbox.
-  assert.match(html, /id="installNode"[^>]*download="install-oshal-node\.cmd"/,
-    'the anchor must carry download=, or the browser navigates instead of saving');
-  const anchor = html.match(/<a[^>]*id="installNode"[\s\S]*?>/)[0];
-  assert.ok(!/target="_blank"/.test(anchor),
-    'target="_blank" makes this a popup download, the exact shape a sandbox discards');
-});
-
-test('the download ships with the one thing needed to actually run it', () => {
-  // Windows refuses a downloaded .ps1 twice — the execution policy rejects unsigned scripts,
-  // and the file carries an internet tag. Both refusals are silent on a double-click, so a
-  // user who gets the file still gets nowhere. The instruction has to travel WITH the
-  // download; a runbook is not where someone looks while staring at a file that did nothing.
-  assert.match(html, /id="installHow"[^>]*hidden/,
-    'the run instructions must exist and start hidden until a file is handed over');
-  assert.match(html, /install-oshal-node\.cmd/,
-    'instructions must name the real downloaded filename, not a placeholder');
-  assert.match(body, /how\.hidden=false/,
-    'the instructions must be revealed when the download is confirmed');
-  // Revealing them up-front would be noise for the majority who never click.
-  assert.ok(!/id="installHow"(?![^>]*hidden)/.test(html),
-    'instructions must not be visible before the download exists');
-});
-
-test('the download is a .cmd, because Windows refuses a downloaded .ps1', () => {
-  // A downloaded .ps1 is rejected as "not digitally signed" under the DEFAULT RemoteSigned
-  // policy, and right-click "Run with PowerShell" passes no bypass — so the only people who
-  // could run it were the ones who already knew to change their execution policy. A .cmd is
-  // outside execution policy entirely. Core emits the batch header; this asserts the surface
-  // asks for the matching filename, or the browser saves it under a name that will not run.
-  assert.match(html, /id="installNode"[^>]*download="install-oshal-node\.cmd"/,
-    'the download attribute must name a .cmd');
-  assert.ok(!/download="install-oshal-node\.ps1"/.test(html),
-    'a .ps1 filename puts the file back behind the execution policy');
-});
-
-test('the download says what is in the file before it exists', () => {
-  // Same rule as the offline autofill bookmarklet: a file carrying a credential is
-  // announced BEFORE it lands in Downloads, not documented somewhere afterwards.
-  assert.match(body, /window\.confirm\(/);
-  assert.match(body, /contains a credential for THIS computer only/);
-  assert.match(body, /revoke it any time/i);
-  // Cancelling must not still download — the anchor's default has to be prevented.
-  assert.match(body, /if\(!ok\)\{ e\.preventDefault\(\); return; \}/);
-  assert.match(body, /if\(!name\)\{ e\.preventDefault\(\); return; \}/);
+test('the board hands out no installer file carrying a credential', () => {
+  // 314f2b67 replaced the downloaded installer with the dedicated browser worker's connection flow.
+  // A file with a per-device credential must not come back on this surface by accident.
+  assert.doesNotMatch(html, /id="installNode"|id="installHow"/);
+  assert.doesNotMatch(html, /href="\/api\/join\/node-installer/);
+  assert.doesNotMatch(html, /download="install-oshal-node/);
 });
 
 test('the board never mints or shows a swarm-wide join code', () => {

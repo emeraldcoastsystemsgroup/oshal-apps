@@ -22,9 +22,11 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Mirror the explicit Presentations Chromium prerequisite and require the real Career engine pins and python alias rather than grading --version as provisioned dependencies.
  * 17 | maintainer@emeraldcoastsystemsgroup.com | The gate owns its toolchain. Every capability used to resolve out of OSHAL_ROOT / OSHAL_CORE_DIR or a sibling ../oshal checkout, so on the operator's box each push borrowed TypeScript, Vitest, Playwright, Express, Multer, pg and better-sqlite3 from the old TypeScript platform (oshal/src), which nothing may depend on. They now come from scripts/toolchain only (package.json + package-lock.json pinning the versions that checkout resolved; install with `npm ci --prefix scripts/toolchain`, or name another node_modules root with STORE_CI_TOOLCHAIN). The sibling auto-detection is gone and the inherited OSHAL_ROOT / OSHAL_FRAMEWORK / OSHAL_CORE_DIR / OSHAL_CORE_ROOT / KALSHI_BROWSER_DEPS / CAREER_LOADER_NODE_PATH / NODE_PATH are dropped from every child, so no suite can reach that checkout through the environment either. Checks that need the platform's SOURCE rather than its node_modules (its catalog, scope and dependency loaders, the trading specs' @/ tree, the Presentations renderer, the fantasy-leagues skill) report SKIPPED with the legacy dependency named; the three framework-job steps that read only node_modules run on the toolchain.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's store-bots job: a `check` policy entry for scripts/check-store-bots.mjs and a `provision` entry for its `npm ci --prefix scripts/toolchain`, whose STORE_TOOLCHAIN_YAML capability is the gate toolchain's own js-yaml (reported SKIPPED with the install command when absent, never green).
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | A hung suite can no longer hold a push. The checks themselves take about four minutes, but with OSHAL_TEST_SEARCH unset four Operations suites open their database pool, fail to start the engine and never close the pool, so `node --test` waited without limit: 15,214 s and 8,377 s on two pushes, ended only when the fixture database went away, and a plain spawn timeout would have left the per-file runners behind as orphans holding fixture connections. A step whose workflow env names a service address (OSHAL_TEST_POSTGRES, OSHAL_TEST_SEARCH) now FAILS in seconds, before its suite starts, when that variable is unset here or nothing answers at the address, naming the value store-ci uses. Every check runs as the leader of its own process group with a deadline (STORE_CI_CHECK_DEADLINE_SECONDS, default 900): past it, or after the command exits, the whole group is stopped, and an interrupted gate passes the stop on.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | A check that can never run here again stops blocking a push (Roger, 2026-11-03, "1 yes"): LEGACY steps test the retired TypeScript platform this gate no longer resolves and the Embodied live suites need a running engine, so every push had to pass --allow-skips, and that flag also accepted a real missing prerequisite. They are still printed on every run and still say they did not run. Any other skip, such as Career's Python, still exits non-zero.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +40,23 @@ const ROOT = process.env.STORE_CI_LOCAL_ROOT
   : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW = join(ROOT, '.github', 'workflows', 'store-ci.yml');
 const ALLOW_SKIPS = process.argv.includes('--allow-skips');
+
+// A suite that leaves a handle open (a database pool, a server, a timer) never exits, and
+// `node --test` waits on it without limit. Past this many seconds a check is hung, not slow: it is
+// stopped with every process it started and graded FAIL.
+const DEADLINE_SECONDS = Number(process.env.STORE_CI_CHECK_DEADLINE_SECONDS) > 0
+  ? Number(process.env.STORE_CI_CHECK_DEADLINE_SECONDS)
+  : 900;
+
+// Step env keys whose workflow value is the address of a service container store-ci starts beside
+// the job. Locally the operator supplies the same address; the suites refuse any other.
+const SERVICE_ENV = ['OSHAL_TEST_POSTGRES', 'OSHAL_TEST_SEARCH'];
+const DEFAULT_PORTS = { 'postgresql:': 5432, 'postgres:': 5432, 'http:': 80, 'https:': 443 };
+const TCP_PROBE = "const s=require('node:net').connect({host:process.argv[1],port:Number(process.argv[2])});"
+  + "s.setTimeout(3000,()=>process.exit(1));s.on('connect',()=>process.exit(0));s.on('error',()=>process.exit(1));";
+
+// The check running now, so an interrupted gate takes its whole process group down with it.
+let running = null;
 
 // The gate's own pinned dev toolchain. Resolved against ROOT (not this file) so the guard spec's
 // fixture store, which has none, still proves the missing-prerequisite path. STORE_CI_TOOLCHAIN is
@@ -96,10 +115,10 @@ function itemEnd(lines, start, indent) {
  * @param {number} start Index of the step's `- ` line.
  * @param {number} end Index one past the step's last line.
  * @param {number} indent Column of the step's dash.
- * @returns {{name:string,uses:string,run:string,workingDirectory:string,env:string[],nodeVersion:string}} The step.
+ * @returns {{name:string,uses:string,run:string,workingDirectory:string,env:string[],envValues:Record<string,string>,nodeVersion:string}} The step.
  */
 function parseStep(lines, start, end, indent) {
-  const step = { name: '', uses: '', run: '', workingDirectory: '', env: [], nodeVersion: '' };
+  const step = { name: '', uses: '', run: '', workingDirectory: '', env: [], envValues: {}, nodeVersion: '' };
   for (let cursor = start; cursor < end; cursor += 1) {
     const text = lines[cursor].replace(/^(\s*)-\s+/, (_m, pad) => `${pad}  `);
     const pair = /^(\s*)([A-Za-z-]+):\s*(.*?)\s*$/.exec(text);
@@ -114,9 +133,10 @@ function parseStep(lines, start, end, indent) {
       step.run = /^[>|][+-]?$/.test(value) ? blockScalar(lines, cursor, pad.length, value) : value;
     } else if (key === 'env' && value === '') {
       for (let scan = cursor + 1; scan < end; scan += 1) {
-        const inner = /^(\s*)([A-Za-z_][A-Za-z0-9_]*):\s*\S/.exec(lines[scan]);
+        const inner = /^(\s*)([A-Za-z_][A-Za-z0-9_]*):\s*(\S.*?)\s*$/.exec(lines[scan]);
         if (!inner || inner[1].length <= pad.length) break;
         step.env.push(inner[2]);
+        step.envValues[inner[2]] = inner[3].replace(/^(['"])(.*)\1$/, '$2');
       }
     }
   }
@@ -244,6 +264,23 @@ const LEGACY_REASONS = [
 ];
 
 /**
+ * @description Skip reasons that no prerequisite on this machine can supply: the retired TypeScript
+ *   platform's own tests, and the live Embodied suites that need a running physics engine. These are
+ *   reported on every run and never block a push. Everything else that did not run still blocks.
+ */
+const NOT_REQUIRED = [/^LEGACY:/, /^EMBODIED_(PYTHON|ENGINE_ADDR) not set/];
+
+/**
+ * @description Whether everything this result did not run is on the not-required list.
+ * @param {{reasons?:string[]}} result A check's outcome.
+ * @returns {boolean} True when no required check went unrun.
+ */
+function onlyNotRequired(result) {
+  const reasons = result.reasons ?? [];
+  return reasons.length > 0 && reasons.every((reason) => NOT_REQUIRED.some((shape) => shape.test(reason)));
+}
+
+/**
  * @description The SKIPPED reason for a step that needs the legacy TypeScript platform's source.
  * @param {object} step A parsed workflow step.
  * @returns {string} The reason, naming the legacy dependency.
@@ -365,11 +402,110 @@ function tapSummary(output) {
 }
 
 /**
+ * @description Find the host and port a service variable names, in URL or libpq keyword form.
+ * @param {string} value The variable's value.
+ * @returns {{host:string,port:number}|null} The address, or null when it names none.
+ */
+function serviceAddress(value) {
+  if (URL.canParse(value)) {
+    const url = new URL(value);
+    const port = Number(url.port) || DEFAULT_PORTS[url.protocol];
+    return url.hostname && port ? { host: url.hostname.replace(/^\[|\]$/g, ''), port } : null;
+  }
+  const host = /(?:^|\s)host=(\S+)/.exec(value)?.[1];
+  const port = Number(/(?:^|\s)port=(\d+)/.exec(value)?.[1]);
+  return host && port ? { host, port } : null;
+}
+
+/**
+ * @description Refuse a check before it starts when a service address its workflow step names is
+ *   not supplied here or nothing answers at it. Such a suite does not fail on its own: it opens
+ *   what it can, waits on what it cannot, and holds the push until the deadline.
+ * @param {Array<{key:string,value:string}>} services The service addresses the step declares.
+ * @returns {string} Why the check cannot run, or '' when every address answers.
+ */
+function serviceGap(services) {
+  for (const { key, value } of services) {
+    const local = process.env[key];
+    if (!local) {
+      return `${key} is unset. store-ci gives this step ${key}=${value}, a disposable service it starts `
+        + 'beside the job: start the local one and export the same value.';
+    }
+    const address = serviceAddress(local);
+    if (!address) return `${key} names no host and port`;
+    const probe = spawnSync(process.execPath, ['-e', TCP_PROBE, address.host, String(address.port)], { timeout: 5000 });
+    if (probe.status !== 0) {
+      return `nothing answers at ${address.host}:${address.port}, the disposable service ${key} names: start it.`;
+    }
+  }
+  return '';
+}
+
+/**
+ * @description Stop a check and every process it started. On POSIX the check leads its own process
+ *   group, so a per-file test runner it spawned cannot outlive it and keep a fixture connection open.
+ * @param {import('node:child_process').ChildProcess} child The check's process.
+ * @returns {void}
+ */
+function stopCheck(child) {
+  if (!child.pid) return;
+  if (process.platform === 'win32') { child.kill('SIGKILL'); return; }
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (error) {
+    if (error.code !== 'ESRCH') throw error;
+  }
+}
+
+/**
+ * @description Run one check's command to completion or to the deadline, whichever comes first.
+ * @param {object} check The planned check.
+ * @param {string[]} args The argv after `node`, when the command is a node command.
+ * @param {object} options Spawn options (cwd, env).
+ * @returns {Promise<{status:number|null,output:string,error:Error|null,timedOut:boolean}>} What happened.
+ */
+function runProcess(check, args, options) {
+  const spawnOptions = { ...options, detached: process.platform !== 'win32' };
+  // `npm` is a .cmd shim on Windows, which Node refuses to spawn directly; the command is a
+  // fixed, policy-matched literal, so handing that one to the shell introduces no injection.
+  const child = args
+    ? spawn(process.execPath, args, spawnOptions)
+    : spawn(check.command, { ...spawnOptions, shell: true });
+  running = child;
+  const stdout = [];
+  const stderr = [];
+  child.stdout.on('data', (bytes) => stdout.push(bytes));
+  child.stderr.on('data', (bytes) => stderr.push(bytes));
+  return new Promise((settle) => {
+    let timedOut = false;
+    let status = null;
+    let failure = null;
+    const timer = setTimeout(() => { timedOut = true; stopCheck(child); }, DEADLINE_SECONDS * 1000);
+    child.on('error', (error) => {
+      failure = error;
+      if (child.pid) return;
+      clearTimeout(timer);
+      running = null;
+      settle({ status: null, output: '', error, timedOut: false });
+    });
+    // Whatever the command left running once it exits is a leak: stopping the group also releases
+    // the output pipes a stray grandchild would otherwise hold open.
+    child.on('exit', (code) => { status = code; stopCheck(child); });
+    child.on('close', () => {
+      clearTimeout(timer);
+      running = null;
+      const output = `${Buffer.concat(stdout).toString('utf8')}${Buffer.concat(stderr).toString('utf8')}`;
+      settle({ status, output, error: failure, timedOut });
+    });
+  });
+}
+
+/**
  * @description Execute one mirrored check and grade it the way store-ci would.
  * @param {object} check The planned check.
- * @returns {{status:string,detail:string,seconds:number}} The graded outcome.
+ * @returns {Promise<{status:string,detail:string,seconds:number}>} The graded outcome.
  */
-function runCheck(check) {
+async function runCheck(check) {
   const isTap = /^node\s+--test\s+/.test(check.command);
   const argv = tokenize(check.command);
   const useNode = argv[0] === 'node';
@@ -389,19 +525,14 @@ function runCheck(check) {
     'GIT_SHALLOW_FILE', 'GIT_CEILING_DIRECTORIES',
   ]) delete cleanEnv[key];
   for (const key of LEGACY_ENV) delete cleanEnv[key];
-  const options = {
-    cwd: join(ROOT, check.workingDirectory || '.'),
-    env: { ...cleanEnv, ...check.env },
-    encoding: 'utf8',
-    maxBuffer: 256 * 1024 * 1024,
-  };
-  // `npm` is a .cmd shim on Windows, which Node refuses to spawn directly; the command is a
-  // fixed, policy-matched literal, so handing that one to the shell introduces no injection.
-  const result = useNode
-    ? spawnSync(process.execPath, args, options)
-    : spawnSync(check.command, { ...options, shell: true });
+  const options = { cwd: join(ROOT, check.workingDirectory || '.'), env: { ...cleanEnv, ...check.env } };
+  const result = await runProcess(check, useNode ? args : null, options);
   const seconds = (Date.now() - started) / 1000;
-  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  const { output } = result;
+  if (result.timedOut) {
+    return { status: 'FAIL', detail: `no verdict after ${DEADLINE_SECONDS}s: stopped with every process it started. `
+      + 'A suite that leaves a database pool, server or timer open never exits; check the services its step names.', seconds, output };
+  }
   if (result.error) return { status: 'FAIL', detail: result.error.message, seconds, output };
   const tap = isTap ? tapSummary(output) : null;
   if (isTap && !tap) {
@@ -414,7 +545,7 @@ function runCheck(check) {
     return { status: 'FAIL', detail: tap ? `${tap.fail} failing of ${tap.pass + tap.fail}` : `exit ${result.status}`, seconds, output };
   }
   if (tap?.skipped) {
-    return { status: 'PARTIAL', detail: `${tap.pass} passed, ${tap.skipped} SKIPPED: ${tap.reasons.join(' | ')}`, seconds, output };
+    return { status: 'PARTIAL', detail: `${tap.pass} passed, ${tap.skipped} SKIPPED: ${tap.reasons.join(' | ')}`, reasons: tap.reasons, seconds, output };
   }
   return { status: 'PASS', detail: tap ? `${tap.pass} tests` : 'ok', seconds, output };
 }
@@ -477,6 +608,8 @@ function plan(jobs, capabilities) {
         workingDirectory: step.workingDirectory,
         needs: job.needs,
         env,
+        services: SERVICE_ENV.filter((key) => step.env.includes(key))
+          .map((key) => ({ key, value: step.envValues[key] })),
         skipReason,
       });
     }
@@ -485,7 +618,7 @@ function plan(jobs, capabilities) {
 }
 
 /** @description Run every mirrored store-ci check against the working tree and report one verdict. */
-function main() {
+async function main() {
   const jobs = parseJobs(readFileSync(WORKFLOW, 'utf8'));
   const declared = jobs.flatMap((job) => job.steps.map((s) => s.nodeVersion).filter(Boolean));
   const highest = Math.max(...declared.map(Number));
@@ -524,15 +657,18 @@ function main() {
     const where = check.workingDirectory ? `${check.workingDirectory}/` : '';
     const title = `${check.job} · ${where}${check.label}`.slice(0, 96);
     let outcome;
+    const gap = blockedBy || check.skipReason ? '' : serviceGap(check.services);
     if (blockedBy) {
       outcome = { status: 'BLOCKED', detail: `store-ci gate '${blockedBy}' failed; this job would not have run`, seconds: 0 };
     } else if (check.skipReason) {
-      outcome = { status: 'SKIPPED', detail: check.skipReason, seconds: 0 };
+      outcome = { status: 'SKIPPED', detail: check.skipReason, reasons: [check.skipReason], seconds: 0 };
+    } else if (gap) {
+      outcome = { status: 'FAIL', detail: gap, seconds: 0 };
     } else {
       // Live feedback only on a terminal; piped into a log the carriage return would leave the
       // half-written progress line sitting beside the verdict it was meant to be overwritten by.
       if (process.stdout.isTTY) process.stdout.write(`${`  ..    ${title}`.padEnd(118)}\r`);
-      outcome = runCheck(check);
+      outcome = await runCheck(check);
     }
     if (outcome.status === 'FAIL') failedJobs.add(check.job);
     results.push({ ...check, ...outcome, title });
@@ -571,25 +707,38 @@ function main() {
   // A skip is not a pass. The exit code is what a hook and a human reading `$?` act on, so a check
   // that did not run has to be visible THERE and not only in the text above it. `--allow-skips`
   // is the deliberate opt-out for a workstation that cannot supply a prerequisite.
-  const unrun = skipped.length + partial.length;
-  if (unrun && !ALLOW_SKIPS) {
-    console.log(`\nstore-ci-local INCOMPLETE — ${skipped.length} check(s) did not run and `
-      + `${partial.length} ran with skipped cases. They are named above.`);
+  const unrun = [...skipped, ...partial].filter((r) => !onlyNotRequired(r));
+  if (unrun.length && !ALLOW_SKIPS) {
+    console.log(`\nstore-ci-local INCOMPLETE — ${unrun.length} required check(s) did not run or ran with skipped cases:`);
+    for (const r of unrun) console.log(`  ${r.title}`);
     console.log('Supply the prerequisite, or re-run with --allow-skips to accept them deliberately.');
     process.exitCode = 1;
     return;
   }
-  if (unrun) {
+  if (unrun.length) {
     console.log('\nstore-ci-local PASSED with --allow-skips. The skips above did NOT run; '
       + 'nothing here proves them.');
+    return;
+  }
+  const notRun = skipped.length + partial.length;
+  if (notRun) {
+    console.log(`\nstore-ci-local PASSED. ${notRun} check(s) above did not fully run because they test the retired `
+      + 'platform or need a running engine; nothing here proves those.');
     return;
   }
   console.log('\nstore-ci-local PASSED.');
 }
 
-try {
-  main();
-} catch (error) {
+// A check leads its own process group, so the terminal's Ctrl-C reaches only this runner: pass the
+// stop on, or the check would carry on as an orphan holding its fixture connections.
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => {
+    if (running) stopCheck(running);
+    process.exit(128 + ({ SIGHUP: 1, SIGINT: 2, SIGTERM: 15 })[signal]);
+  });
+}
+
+main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
-}
+});

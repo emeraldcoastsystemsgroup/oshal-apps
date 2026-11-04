@@ -223,7 +223,7 @@ test('Create and Video editing agents bind actual bounded API tools, immutable m
   const persona=yaml.load(fs.readFileSync(path.join(ROOT,pkg,bot.persona),'utf8'));
   assert.equal(persona.agent_id,bot.agentId);assert.match(persona.perspective,/```tool_call/);assert.match(persona.perspective,/baseRevision/);
   const module=await import(pathToFileURL(path.join(ROOT,pkg,'tools/editor/agent-tools.mjs')).href);
-  const tools=manifest.tools.filter(tool=>tool.executor?.executorType==='api');assert.equal(tools.length,pkg==='create'?9:12);
+  const tools=manifest.tools.filter(tool=>tool.executor?.executorType==='api');assert.equal(tools.length,pkg==='create'?10:12);
   const edit=tools.find(tool=>tool.name===pkg+'-apply-edits');assert.deepEqual(edit.inputSchema.properties.operations.items,module.operationSchema);
   assert.equal(edit.inputSchema.additionalProperties,false);assert.deepEqual(edit.inputSchema.required,['id','baseRevision','operations']);
   const catalog=yaml.load(fs.readFileSync(path.join(ROOT,pkg,'authorization.yaml'),'utf8'));

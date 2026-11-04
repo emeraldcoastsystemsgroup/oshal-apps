@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Inbox's stored-copy controls (Roger, 2026-10-29: the concierge should search a stored copy of the mail): "Search all your mail" searches the person's stored Gmail copy over 180 days (or Gmail directly, 30 days, before there is one); the line under it says how many messages the copy holds, how far back and how fresh, and "Keep a copy" turns on the person's own mail-copy job (every 10 minutes) and stores the first part at once; "Update now" runs one pass. Loaded beside the page's own script, which keeps its listing and reader.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A copy that stopped updating is said so (Roger, 2026-10-30: his mail-copy job had been suspended by an update of the application ten hours earlier and the line still read "updates every 10 minutes"): when the job is suspended, or the copy is stale while the job reads active, the line says when it stopped and why, and "Turn it back on" re-arms the job (deactivate when it still reads active, then activate), runs one pass and reloads the list from the copy. After a search the list's end note is cleared.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The copy turns itself on (Roger, 2026-11-03: "it better be automated when someone installs the application"): a person whose Gmail is connected no longer has to press Keep a copy, and a job an update stopped restarts when they open the Inbox, so Turn it back on is gone. A person's own decision stands: a job they paused, or a copy whose job they removed, stays off until they press Keep it up to date.
  */
 (function () {
   'use strict';
@@ -33,14 +34,14 @@
   function describe(status, job) {
     var s = status.store, active = job && job.status === 'active', suspended = job && job.status === 'suspended';
     var stopped = Boolean(s && s.stored && (suspended || (active && status.fresh === false)));
+    var stay = !active && s && s.stored;
     var copy = s && s.stored
       ? 'Searchable copy: ' + s.stored.toLocaleString() + ' messages back to ' + day(s.oldestAt) + (s.complete ? '' : ' (still filling)')
-        + (stopped ? ' · stopped updating ' + ago(s.lastRunAt) + (suspended ? ' (an update of this application paused its job)' : '') : ' · updated ' + ago(s.lastRunAt))
+        + (stopped ? ' · stopped updating ' + ago(s.lastRunAt) : ' · updated ' + ago(s.lastRunAt))
       : 'Search reads Gmail directly (the last 30 days).';
     var why = s && s.lastError ? ' · last update failed: ' + esc(s.lastError) : '';
     var keep = active && !stopped ? ' · updates every 10 minutes' : '';
-    var buttons = (stopped ? '<button type="button" class="refresh" data-store="rearm">Turn it back on</button>'
-      : active ? '' : '<button type="button" class="refresh" data-store="keep">' + (s && s.stored ? 'Keep it up to date' : 'Keep a copy') + '</button>')
+    var buttons = (stay ? '<button type="button" class="refresh" data-store="keep">Keep it up to date</button>' : '')
       + (s && s.stored ? '<button type="button" class="refresh" data-store="now">Update now</button>' : '');
     line.innerHTML = '<span>' + esc(copy) + why + esc(keep) + '</span>' + buttons;
     line.hidden = false;
@@ -50,27 +51,48 @@
     try {
       var both = await Promise.all([json('/api/email/sync/status'), scheduleRow()]);
       describe(both[0], both[1]);
+      if (!tried && startsItself(both[0], both[1])) await start(both[1]);
     } catch (err) {
       line.hidden = true;
     }
   }
 
-  var SAYING = { keep: 'Turning on your mail copy and storing the newest mail…', rearm: 'Turning your mail copy back on and storing the newest mail…', now: 'Storing new mail…' };
-  /** Bind the job to the person again: an activation that still reads active is withdrawn first (its plan is stale), then activated. */
-  async function rearm(job) {
-    var url = '/api/v1/agent/schedules/' + encodeURIComponent(job.id);
-    if (job.status === 'active') await json(url + '/deactivate', { method: 'POST', body: '{}' }).catch(function () { /* already withdrawn */ });
-    await json(url + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
+  var tried = false;
+  /** Off because nobody ever turned it on, or because an update stopped it; never when the person stopped it. */
+  function startsItself(status, job) {
+    if (!job || job.status === 'active') return false;
+    if (job.status === 'suspended') return job.reason !== 'owner_paused';
+    return !(status.store && status.store.stored);
   }
+  /** Turn the job on and store the first mail, once per page, only for a connected Gmail. */
+  async function start(job) {
+    tried = true;
+    try {
+      var box = await json('/api/email/messages?surface=1&max=1');
+      if (box.connected === false || box.provider !== 'google') return;
+      line.querySelector('span').textContent = SAYING.keep;
+      await json('/api/v1/agent/schedules/' + encodeURIComponent(job.id) + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
+      await json('/api/email/sync', { method: 'POST', body: '{}' });
+    } catch (err) {
+      line.querySelector('span').textContent = 'Could not turn on your mail copy: ' + err.message;
+      var again = document.createElement('button');
+      again.type = 'button'; again.className = 'refresh'; again.setAttribute('data-store', 'keep'); again.textContent = 'Try again';
+      line.appendChild(again);
+      return;
+    }
+    await refresh();
+    if (window.load) window.load();
+  }
+
+  var SAYING = { keep: 'Turning on your mail copy and storing the newest mail…', now: 'Storing new mail…' };
   async function act(kind, button) {
     button.disabled = true;
     line.querySelector('span').textContent = SAYING[kind] || SAYING.now;
     try {
-      if (kind === 'keep' || kind === 'rearm') {
+      if (kind === 'keep') {
         var job = await scheduleRow();
         if (!job) throw new Error('The mail-copy job is not available on this installation.');
-        if (kind === 'rearm') await rearm(job);
-        else if (job.status !== 'active') await json('/api/v1/agent/schedules/' + encodeURIComponent(job.id) + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
+        if (job.status !== 'active') await json('/api/v1/agent/schedules/' + encodeURIComponent(job.id) + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
       }
       await json('/api/email/sync', { method: 'POST', body: '{}' });
     } catch (err) {
@@ -79,7 +101,6 @@
       return;
     }
     await refresh();
-    if (kind === 'rearm' && window.load) window.load();
   }
 
   function render(found, words) {

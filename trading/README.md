@@ -1,3 +1,7 @@
+1.51.2: the daily report, the Quant desk and the Futures study start by themselves when a person uses Trading, with no money to spend. Paused or removed jobs stay off. The moving-stop watcher, which can place real orders, still waits for the person.
+
+1.49.0: the Quant desk surfaces the beaten-down names. A new **deep dip** price signal ranks the furthest falls from the 52-week high and takes its place in the history test, so ten years of prices say whether buying the biggest fallers ever worked (the published research on the 52-week high found the opposite; the verdict, not the hypothesis, decides). A new **quality dip** ranking answers "a legitimate company just took a 25% hit": at least 25% below its 52-week high, yet profitable with growing revenue in its latest annual SEC filing, deepest fall first. Its filing inputs are only known today, so like Profitable growth it is judged by the forward scoreboard alone. Both join **Rank by** on the Quant desk, the concierge's list answer carries tonight's quality-dip candidates, and every pick is graded against SPY at 5, 21 and 63 sessions. Still research only: a candidate list, never a buy instruction.
+
 1.48.3: the Quant desk's industry names fit what they hold, and JPMorgan keeps its industry.
 
 1.48.2: the Quant desk's history test says plainly that missing failed companies flatter every signal, whether or not the list beat SPY.
@@ -64,6 +68,19 @@ Studio clip supplies reusable presenter footage, played silently alongside curre
 results and narration. No account data is uploaded for voice generation or published
 to an external site.
 The older Daily Trade Recap video pipeline remains a separate application.
+
+1.50.0 added **report films**, and since 1.51.0 they are made entirely inside Trading: the
+`report-video` schedule (weekdays every five minutes from 5:20 to 5:55 p.m. Central, after
+the daily report saves) films **one video per connected account** per pass — the day's
+fills, the positions, the strategy and the desk close as themed slides drawn by the
+installation's ffmpeg, narrated through the kernel's `voice.speak` (the installation's own
+voice settings) as `am_michael`, with the owner's silent presenter clip in the corner — into
+the package's lasting storage (`lastingStorage: true`). Nothing is installed on the host: an
+installation that has Trading has the films. The Reports tab lists and plays them with byte
+ranges; migration 014 keeps the owner-scoped index, and the stream route serves a file only
+to the caller whose index row names it. `ops/measure/report_film_sandbox.py` films a synthetic report through a throwaway kernel (a given binary, a disposable database, the real sandbox and voice service, a real browser press) without acting as anyone. No broker call in the render path, no external
+upload, no model spend. Validation: `node --test tests/native-report-video.test.js` (Test
+Lab case `report-films`).
 
 Signal-justified stock trading (ADR-052) — carved out of OSHAL core 2026-07-20
 (ADR-085 Wave 3, "skill with a surface"). **Install by directory name:**

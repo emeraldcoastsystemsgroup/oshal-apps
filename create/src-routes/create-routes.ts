@@ -78,7 +78,7 @@ export function createCreateRoutes(ctx: CreateRouteContext): Router {
     'editor-files.mjs', 'editor-interactions.mjs', 'model.mjs', 'model-validation.mjs',
     'history.mjs', 'renderer.mjs', 'image-assets.mjs', 'hit-test.mjs', 'editor.css',
     'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'editor-handoff.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css',
-    'region-select.mjs', 'region-edit-panel.mjs', 'group-geometry.mjs', 'vector-geometry.mjs', 'polygon-clipping.mjs', 'vector-worker.mjs', 'vector-editor.mjs', 'vector-svg.mjs',
+    'region-select.mjs', 'region-edit-panel.mjs', 'generate-image-panel.mjs', 'group-geometry.mjs', 'vector-geometry.mjs', 'polygon-clipping.mjs', 'vector-worker.mjs', 'vector-editor.mjs', 'vector-svg.mjs',
     'editor-psd.mjs', 'psd-reader.mjs', 'psd-worker.mjs'];
   for (const file of modules) {
     const type = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';

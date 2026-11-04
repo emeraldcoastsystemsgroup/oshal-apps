@@ -15,6 +15,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const page = readFileSync(fileURLToPath(new URL('../tools/career-submissions.html', import.meta.url)), 'utf8');
+const submit = readFileSync(fileURLToPath(new URL('../tools/career-submit.js', import.meta.url)), 'utf8');
 
 /** The page's own native queue mapping, evaluated as shipped. */
 function nativeQueue() {
@@ -26,10 +27,20 @@ function nativeQueue() {
 }
 
 test('the screen fetches only routes the native kernel serves', () => {
-  const fetched = [...page.matchAll(/fetch\((['`])([^'`]+)/g)].map((m) => m[2]);
+  const fetched = [...(page+'\n'+submit).matchAll(/fetch\((['`])([^'`]+)/g)].map((m) => m[2]);
   assert.ok(fetched.includes('/api/career-hunter/applications'), 'reads the application records');
   assert.ok(fetched.some((u) => u.startsWith('/api/apply-operator/workers')), 'reads the worker answer');
   for (const url of fetched) assert.doesNotMatch(url, /\/api\/apply-operator\/(queue|story|shot)/, `${url} is not served natively`);
+});
+
+test('an actual native submission replaces the old draft row and exposes its precise outcome',()=>{
+  const {queueFromNative}=nativeQueue();
+  const native={id:'s1',postingId:1,title:'Engineer',company:'Fixture',status:'unknown',reason:'Check the employer outcome.',updatedAt:'2026-10-27T10:00:00Z'};
+  const q=queueFromNative([{ticket_id:'old',posting_id:1,status:'drafted'}],{available:true,workers:[{}]},[native]);
+  assert.equal(q.items.length,1);assert.equal(q.items[0].submissionId,'s1');assert.equal(q.items[0].lane,'needs_you');
+  assert.match(q.items[0].executionDetail,/employer outcome/);
+  const completed=queueFromNative([],{available:true,workers:[{}]},[{...native,status:'submitted',confirmationFile:'receipt.png'}]);
+  assert.equal(completed.items[0].lane,'applied');assert.equal(completed.items[0].application_source,'worker-reported');
 });
 
 test('each record status lands in its lane with what it is waiting on', () => {
@@ -59,4 +70,17 @@ test('the worker banner says plainly when the dispatcher is not connected', () =
   assert.equal(off.lastSeenAt, new Date(1791340922958).toISOString());
   assert.equal(workerFromNative({ available: true, workers: [{ clientId: 'c' }] }).connected, true);
   assert.match(workerFromNative(null).detail, /No desktop worker answered/);
+});
+
+test('interrupted approved requests expose recovery only while queued, unstarted and unexpired',()=>{
+  const {queueFromNative}=nativeQueue();
+  const base={id:'s1',postingId:1,status:'queued',authorizationExpiresAt:new Date(Date.now()+3600000).toISOString()};
+  const row=patch=>queueFromNative([],null,[{...base,...patch}]).items[0];
+  assert.equal(row({}).canResume,true);assert.match(row({}).executionDetail,/finish queueing/);
+  assert.match(row({nativeTicketId:'t1'}).executionDetail,/finish starting/);
+  assert.equal(row({nativeTicketId:'t1',nativeWorkId:'w1'}).canResume,false);
+  assert.equal(row({authorizationExpiresAt:'2000-01-01T00:00:00Z'}).canResume,false);
+  assert.match(row({authorizationExpiresAt:'invalid'}).executionDetail,/expired/);
+  for(const status of ['unknown','submitted','cancelled','failed','needs_you','submitting','reviewing','claimed'])
+    assert.equal(row({status}).canResume,false,status);
 });

@@ -4,10 +4,12 @@ exports.PROJECT_ASSET_PREFIX = exports.PROJECT_LIMITS = exports.ProjectError = v
 class ProjectError extends Error {
     status;
     code;
-    constructor(status, code) {
+    detail;
+    constructor(status, code, detail) {
         super(code);
         this.status = status;
         this.code = code;
+        this.detail = detail;
     }
 }
 exports.ProjectError = ProjectError;

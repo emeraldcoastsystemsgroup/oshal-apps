@@ -20,7 +20,7 @@ export const screens = {
   mobile: 'career-mobile.html', submissions: 'career-submissions.html',
   'recruiters-ui': 'career-recruiters.html', 'insights-ui': 'career-insights.html',
   'strengthen-ui': 'career-strengthen.html', 'resume-studio': 'career-resume-studio.html',
-  'profile-studio': 'career-profile-studio.html', approvals: 'career-approvals.html',
+  'profile-studio': 'career-profile-studio.html', approvals: 'career-approvals.html', 'experience-library':'career-experience-bank.html',
   'companies-admin': 'career-companies.html', settings: 'career-settings.html',
 };
 
@@ -31,6 +31,7 @@ function readBody(path) {
     pay_min: 120000, pay_max: 160000, has_resume: true, status: 'generated' }], total: 1 };
   if (path.endsWith('/home-plan')) return { apps: [] };
   if (path.endsWith('/home-summary')) return { metrics: [{ label: 'Sample records', value: '1' }], items: [] };
+  if(path.endsWith('/experience-bank'))return {version:1,revision:'fixture-experience-revision',entries:[]};
   if (path.endsWith('/resume/state')) return { hasResume: true, scored: 1 };
   if (path.endsWith('/resume/doc')) return { resume: { name: 'Sample Candidate', headline: 'Example specialist', summary: 'Synthetic resume preview.' } };
   if (path.endsWith('/plan')) return { plan: { state: 'draft', headline: 'Sample headline', about: 'Synthetic draft', skills: [] } };
@@ -71,7 +72,7 @@ export async function startFixture(options = {}) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return res.status(405).json({ error: 'fixture_read_only' });
     next();
   });
-  for (const [route, file] of Object.entries(screens)) app.get(`/api/career-hunter/${route}`, (_req, res) => res.sendFile(resolve(packageRoot, 'tools', file)));
+  for (const [route, file] of Object.entries(screens)) app.get(`/api/career-hunter/${route}`, (req, res) => res.sendFile(resolve(packageRoot, 'tools', options.journey&&route==='board-native'?(req.query.application?'career-application.html':'career-job-lists.html'):options.journey&&route==='search-ui'&&req.query.view==='matches'?'career-job-lists.html':file)));
   app.get('/fixture/:screen', (req, res) => screens[req.params.screen] ? res.type('html').send(parentHtml(req.params.screen)) : res.sendStatus(404));
   app.use('/api/career-hunter/static', express.static(resolve(packageRoot, 'tools')));
   app.use('/shared/ui/css', express.static(resolve(coreRoot, 'src/shared/ui/css')));

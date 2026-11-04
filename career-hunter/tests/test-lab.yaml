@@ -1,4 +1,15 @@
 # CHANGE LOG
+# 35 | maintainer@emeraldcoastsystemsgroup.com | Register the nightly source review: evidence-only repairs, respected refusals, the public-only guard, budgets and the Companies page report.
+# 34 | maintainer@emeraldcoastsystemsgroup.com | Name the refused Resume Studio save, and the route's reason shown in the editor log, in the document handoff proof.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | Cover fixed native model-policy reads, guarded completions, actual attribution and zero-model cache reuse without widening selectors or budgets.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | Cover expired employer revalidation, unchanged-detail no-model reuse, bounded cache recovery and explicit complete-source metadata across Python and Node.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | Register safe native corpus observations, unknown-state behavior and separation of current pulls from earlier publication counts.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Exercise score cancellation and final-publication states through actual narrow Settings controls with isolated synthetic browser responses.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Register bounded master editing and native manual scoring with exact owner/run receipts on disposable fixtures.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | Register complete qualification intake, realistic header handling and immutable source-evidence refusals.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Register bounded private score freshness, no-model reuse and retryable traversal checks.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Register exact private employer-context retention through real scoring and document generation against an immutable shared corpus.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Register native submission dispatch, exact retained evidence and lost-acknowledgement recovery checks.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -30,8 +41,119 @@
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: Resume Studio and Profile Studio save unsaved edits before an assistant reads, carry the record id and revision, show the assistant's saved change on refresh and keep a draft the person is still editing.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | 1.29.4: register career-published-db-portable.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | 1.29.5: run status expects Find & score jobs as one bounded background run; native read expects a saved resume with nothing matched to read as saved.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | Make career-published-db-portable's purpose a block scalar with its own text: the plain scalar made the whole catalog invalid YAML. catalog-parses guards the file.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | native-manual-score covers the Job Board's Find & score button.
 version: 1
 cases:
+  - id: native-source-browser
+    name: Anonymous native source browser
+    purpose: Exercise the shipped browser reader against a disposable loopback employer and validate its Python adapter and database publication semantics.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/career-source-browser-proof.mjs
+        - tests/career-native-source-browser.test.mjs
+    expected:
+      - Pagination reads beyond page two and asynchronous search JSON and embedded single-job JSON-LD retain employer evidence.
+      - Each source has a fresh anonymous context; applicant form submissions and mutations remain blocked.
+      - The adapter admits only bounded closed metadata, excludes applicant credentials and preserves exact supplied descriptions.
+      - Missing runtimes, failed reads and partial enumeration retain old active postings and expose closed source outcomes.
+      - A hard helper deadline kills its process group and aborts the ingest namespace without publication.
+    prerequisites: [runner:node-test, fixture:store-toolchain, fixture:python-engine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the loopback server and browsers; remove temporary SQLite databases. Native namespace proofs run separately in the kernel delivery lane."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 1024}
+    installation: never
+  - id: native-corpus-observations
+    name: Native pull state and previous publication
+    purpose: Verify the compiled refresh route and displayed operational facts with synthetic native observations, without reading a real corpus or starting work.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-native-refresh-health.test.mjs]
+    expected:
+      - Normal Career readers receive only safe scheduler fields without a corpus scan or operator API requirement.
+      - A running pull stays separate from the last successful publication and its source counts.
+      - Missing, failed, disabled and older-kernel observations remain truthful; unknown counts are never zero.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Release synthetic route contexts; no installation or provider is contacted."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: score-run-control-browser
+    name: Score and stop controls on a narrow screen
+    purpose: Verify the actual Settings page's score/stop events, exact run selection, stopping versus completion and 390-pixel layout using synthetic native responses only.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/career-score-control-proof.mjs]
+    expected:
+      - Stop requests carry only the acknowledged run id and do not report cancellation before the stopped receipt.
+      - Final publication follows its saved score result, and kernels without cancellation keep Stop hidden.
+      - Reload resumes the exact acknowledged task without another start; stale tab ids cannot select a different active run.
+      - The narrow page has no horizontal overflow or uncaught script errors.
+    prerequisites: [runner:playwright, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close browser contexts and loopback servers; no installation or provider is contacted."}
+    limits: {timeoutMs: 60000, maxMemoryMb: 512}
+    installation: never
+  - id: bounded-master-edit
+    name: Bounded master reads and exact edits
+    purpose: Verify complete large-profile paging and all-or-none revision-checked edits without changing an installed profile.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-master-sections.test.mjs, tests/career-master-section-routes.test.mjs]
+    expected:
+      - Every recorded item remains reachable under bounded responses and explicit continuation offsets.
+      - Conflicts, wrong text, unsupported credentials and invalid edits preserve the original master.
+      - Successful edits preserve anchors, qualifications and group metadata with exact backup and audit.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic master profiles, backups and audit files."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: native-manual-score
+    name: Native score acknowledgement, stopping and result receipts
+    purpose: Verify owner-bound kept starts, strict candidate limits, distinct stopping states and durable count-only success receipts without models or real engine children.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-manual-score-native.test.mjs]
+    expected:
+      - A start is acknowledged only after native retention and honors saved location and remote selectors.
+      - Only an exact successful result publishes bounded counts to that owner's private generation.
+      - Kernel status outages, missing receipts and unavailable cancellation never become fabricated completion.
+      - Stop acknowledgements stay pending until an exact stopped receipt, and final publication remains distinct.
+      - The Job Board's Find & score button starts this bounded pass in the background with matching first, and refuses without saved titles.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic owner count receipts and temporary CLI fixtures."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: catalog-parses
+    name: The Test Lab catalog is readable and registers real suites
+    purpose: >-
+      Parse this catalog with the YAML loader the store's checks use and check every registered node suite exists.
+      One malformed case makes the kernel refuse the whole catalog, so no Career case lists or runs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-test-lab-catalog.test.mjs]
+    expected:
+      - The catalog parses, its case ids are unique and every registered node suite file exists.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "No fixtures are created."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
   - id: package-readiness
     name: Installed package readiness
     purpose: Verify the existing service-authenticated package metadata marker without user or provider data.
@@ -444,6 +566,7 @@ cases:
       - The Companies page the ribbon opens (GET /companies-admin) is bound to career.administer like its list and seturl data routes; the classic-board wildcard is bound at four depths and unbound one deeper.
       - Unsigned, service-secret, browser, tampered, replayed, foreign-owner, wrong-method, settled-run and issuer-less requests are refused before any bot call.
       - An admitted completion reaches the Career bot exactly once, direct and non-agentic, attributed to the run owner.
+      - A signed fixed native identity read starts no inference; guarded completions require matching policy and actual attribution, and mismatched guards return 409 without retry.
       - A missing node or missing/stale heartbeat answers 503 career-worker-unavailable and the run ends failed, never running.
       - The package semaphore bounds concurrency, the deadline answers 504 and an owner's cancel answers 409 and revokes the token.
       - The per-call deadline starts when a call holds a slot, so eight concurrent calls at concurrency 2 with a bot faster than the deadline all answer 200.
@@ -485,6 +608,7 @@ cases:
       - Every completion carries the five grant headers with a fresh nonce and a signature the fixture verifies; no service secret, subject or bearer token header is sent.
       - A rail failure raises CareerWorkerUnavailable through the real scorer and every later call refuses without a request.
       - The standalone single-user engine keeps its legacy provider detection.
+      - Native scoring carries immutable configured-policy identity and per-completion provider/model/fallback metadata; missing identity cannot overwrite earlier scores.
     prerequisites:
       - runner:node
       - runner:python
@@ -713,11 +837,10 @@ cases:
     installation: never
   - id: career-published-db-portable
     name: A person database opens read-only after the engine closes it
-    purpose: Prove a first match leaves a file the read-only reader can open.
-      The native kernel's package sandbox names its pinned, read-only Python package runtime on PYTHONPATH. Run the
-      REAL bin/oshal-jobhunter.js with a stand-in engine (JOBHUNTER_PYTHON) that records the PYTHONPATH it was started
-      with, and the COMPILED runner's child environment builder. Scoped doubles: the kernel logger and the user-store
-      path leaf. The real sandbox and the real engine are the kernel's package-sandbox test and its bridge run.
+    purpose: >-
+      Prove a first match leaves a file the read-only reader can open. Run the real engine database module over a
+      disposable data directory: the file leaves WAL when the process ends, opens from a read-only directory, and
+      scoring workers sharing it never lock each other out.
     level: integration
     runner:
       kind: node-test
@@ -938,6 +1061,7 @@ cases:
       - An unsaved resume edit and unsaved profile fields, including a typed skill, are saved before the assistant reads.
       - The context carries the record id and revision; the change saved through the same routes shows after refresh.
       - The next manual edit reaches the next handoff; unsaved edits and the composer text survive a refresh.
+      - A refused Resume Studio save shows the route's own reason in the editor log and stores nothing.
       - AI draft reads the saved plan with the on-screen edit; the bot turn is a named transport double.
     prerequisites: [runner:node, browser:chromium, harness:oshal-core-root, harness:career-python-contracts, fixture:postgres-35689, core:shared-theme-assets]
     sideEffects: fixture-write
@@ -1115,7 +1239,8 @@ cases:
       - Entered centers and radius reach browse; GPS runs only on request and denial leaves manual search usable.
       - Real map points and radius have correct settled geometry, and phone layouts remain inside the viewport.
       - Named searches restore and remain isolated between accounts in the same browser.
-      - Configuration distinguishes refresh errors, imported private leads and external-only community sources.
+      - Configuration distinguishes current native pulls, prior publication/source evidence, imported private leads and external-only community sources.
+      - Managed and unknown installations keep legacy digest/bulk toggles inactive without reading or changing saved consent; managed preparation uses selected-job review.
     prerequisites:
       - runner:playwright
       - browser:chromium
@@ -1182,6 +1307,34 @@ cases:
       timeoutMs: 120000
       maxMemoryMb: 512
     installation: never
+  - id: source-review
+    name: Nightly review of sources the pull could not read
+    purpose: Exercise the source review on real temporary SQLite with the real connectors over recorded employer replies, its public-only guard against a real local server, and its report on the shipped Companies page in Chromium.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-source-review.test.mjs
+        - tests/browser/career-source-review-page-proof.mjs
+    expected:
+      - A source moves only on evidence from the employer's own page, in one transaction, and its jobs arrive that night.
+      - Name matches and several live boards are suggestions; a held board, an empty board and a source a person chose are left alone.
+      - An employer that refuses is left alone for 30 days with no other request; a private address or redirect hop is refused before connecting.
+      - The review stays inside its source and time budgets, one crash costs one source, and a failed review never stops the pull from publishing.
+      - The Companies page shows the report with employer text inert, and a missing or unreadable report never hides the table.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores and stop the local fixture servers; no live employer reads.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024
+    installation: never
   - id: local-community-sources
     name: Public college and county feeds
     purpose: Parse reviewed public PageUp and GovernmentJobs listings and ingest them through production corpus writes on real SQLite.
@@ -1229,4 +1382,214 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+
+  - id: submission-intent-queue
+    name: Original-owner application submission intents
+    purpose: Exercise actual durable owner files, exact packet binding, duplicate prevention, claims, cancellation and uncertain-outcome recovery.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-submission-queue.test.mjs]
+    expected:
+      - Only a specifically approved job and exact packet can enter the queue.
+      - A worker cannot steal another claim, expose its token in public records, or record submission without confirmation.
+      - Expired or uncertain work never automatically repeats a final submission.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary owner directories and queue files.
+    limits:
+      timeoutMs: 15000
+      maxMemoryMb: 128
+    installation: never
+  - id: semantic-submission-browser
+    name: Semantic submission worker on disposable employer forms
+    purpose: Fill real browser forms from approved synthetic facts, upload exact PDF bytes, submit to a loopback fixture and retain real receipt screenshots. This is worker-component acceptance, not native dispatcher or real employer acceptance.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/career-submission-browser-proof.mjs]
+    expected:
+      - Approved contact and eligibility answers reach only the selected application form, with both PDF uploads retained.
+      - Unknown questions, changed packets, different recipients and missing final authorization stop before submission.
+      - A final click with an uncertain response is not retried or reported as successful.
+      - Two evidence captures suffice for the common fixture, and delayed steps use page-state waits.
+    prerequisites: [runner:playwright, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close browser contexts and loopback servers and remove all temporary documents. No real applicant or employer is used.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 1024
+    installation: never
+  - id: native-submission-dispatch
+    name: Exact native submission dispatch and evidence recovery
+    purpose: Exercise published approval, private immutable packets, owner ticket binding, lost start acknowledgement recovery and exact accepted confirmation checks.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-submission-native.test.mjs]
+    expected:
+      - Approval and its frozen packet are published before any external worker is started.
+      - Retrying a lost start response reuses the same ticket and exact input.
+      - Application status changes only after the retained original-intent result and confirmation bytes match.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary owner intent files and synthetic confirmation bytes; no employer or live applicant is used.
+    limits:
+      timeoutMs: 15000
+      maxMemoryMb: 128
+    installation: never
+  - id: browser-worker-connection
+    name: Explicit original-owner browser worker connection
+    purpose: Exercise the actual setup dialog and native join/binding requests with synthetic credentials and a disposable browser.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/career-browser-setup-proof.mjs]
+    expected:
+      - Opening or cancelling setup creates no worker credential.
+      - The explicit action uses the original native owner and only the Career browser bot.
+      - The private configuration is downloaded without sending an employer application.
+    prerequisites: [runner:playwright, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close browser and loopback server and remove temporary synthetic credential downloads.
+    limits: {timeoutMs: 30000, maxMemoryMb: 512}
+    installation: never
+  - id: interview-private-evidence
+    name: Interview evidence and saved practice
+    purpose: Verify exact experience references, stale-plan and answer-quote checks, retry identity and private practice retention with real SQLite stores.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-interview.test.mjs]
+    expected:
+      - Unknown evidence and fabricated answer quotes fail without replacing a valid guide.
+      - Changed experience or a different guide refuses stale practice.
+      - New guides preserve saved practice and never change the profile or shared corpus.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: Remove temporary owner stores and synthetic interview records.}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: interview-workspace
+    name: Job-specific interview workspace
+    purpose: Use the actual interview page in Chromium with disposable job, experience and feedback responses.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/career-interview-proof.mjs]
+    expected:
+      - Background preparation and practice receipts drive truthful UI completion.
+      - Recorded experience and saved feedback are visible and remain plain text.
+      - Stale guides stop practice and the narrow viewport has no horizontal overflow.
+    prerequisites: [runner:playwright, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: Close Chromium and the loopback fixture; no live account or employer is used.}
+    limits: {timeoutMs: 30000, maxMemoryMb: 512}
+    installation: never
+  - id: browser-worker-process
+    name: Pinned browser worker startup
+    purpose: Launch the real browser entry point and verify native heartbeat authentication before its claim loop starts.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/career-browser-process-proof.mjs]
+    expected:
+      - The heartbeat body carries the device credential required by the native heartbeat route.
+      - Work claims retain header-only device authentication and start after the heartbeat.
+      - The real Chromium process closes cleanly without logging the credential.
+    prerequisites: [runner:playwright, browser:chromium, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Stop the child browser worker, close its loopback server and remove synthetic credential and profile files.
+    limits: {timeoutMs: 30000, maxMemoryMb: 512}
+    installation: never
+  - id: profile-qualification-intake
+    name: Complete source-backed qualification intake
+    purpose: Preserve education, certifications and licenses from resumes and additive materials without inventing credentials or dropping text tails.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-profile-intake.test.mjs]
+    expected:
+      - Complete supported text and source-order qualification statements reach the profile and scoring.
+      - Pending, expired and date modifiers survive ordinary multi-line and header layouts.
+      - Oversized, invented or unsupported evidence leaves the prior profile unchanged; additive updates retain backups and audit records.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic resumes, career materials, profiles, backups and audit files."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: score-evidence-freshness
+    name: Changed evidence refreshes private scores within budget
+    purpose: Reuse unchanged fits and revisit changed or legacy evidence through bounded owner-private traversal without employer or model network calls.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-score-freshness.test.mjs]
+    expected:
+      - Profile, considered job text, source limitation, contract and configured native routing identity changes invalidate old fits within the existing budget.
+      - Unchanged inputs use no inference or employer requests, and skipped completions remain retryable.
+      - Expired detail revalidates within the selected slot limit; an unchanged successful GET uses no model call, including short employer text.
+      - One immutable native policy read precedes cache selection; unavailable identity preserves prior fits and changed primary/provider policy refreshes once.
+      - Bounded cursors reach later candidates while preserving owner isolation, application states and the shared corpus.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic owner stores, cursors and corpus files."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: selected-job-context
+    name: Full employer detail in private job preparation
+    purpose: Verify one selected job retains structured employer detail across scoring, generation and Node reads without modifying the shared corpus or profile.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-job-context.test.mjs]
+    expected:
+      - Full recorded profile evidence and employer requirements reach scoring, generation and cover editing from a short listing.
+      - Changed listings, corrupt detail, symlinks and another owner never reuse cached context.
+      - Expiry, complete listing bindings and Unicode/source-size metadata agree in Python and Node; shorter authoritative descriptions replace older details.
+      - Oversized sources refuse before inference, failed replacements retain prior evidence and expired derived records can release the bounded cache quota.
+      - Generated packets retain their source profile and employer description; missing details stop before inference.
+    prerequisites: [runner:node-test, runner:python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove synthetic owner stores, corpus and rendered fixture documents."}
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: browser-worker-installer
+    name: Bare-metal worker device preflight
+    purpose: Verify original device ownership and exact bot binding through a bounded loopback profile response without creating a service.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/career-browser-installer.test.mjs]
+    expected:
+      - Owner and bot changes or redirects are refused before installation.
+      - Credentials are private on disk and never enter diagnostic output.
+    prerequisites: [runner:node-test, runner:python, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback server and remove temporary synthetic configuration files; no systemd service is created.
+    limits: {timeoutMs: 30000, maxMemoryMb: 128}
     installation: never

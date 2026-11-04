@@ -1,0 +1,800 @@
+{
+  "rules": [
+    {
+      "soc": "15-1212",
+      "patterns": [
+        "%cyber%security%",
+        "%information security%",
+        "%security analyst%",
+        "%security engineer%"
+      ]
+    },
+    {
+      "soc": "11-3021",
+      "patterns": [
+        "%engineering manager%software%",
+        "%software engineering manager%",
+        "%it manager%",
+        "%information technology manager%",
+        "%chief technology%",
+        "%chief information%",
+        "%cto%",
+        "%cio%"
+      ]
+    },
+    {
+      "soc": "11-9041",
+      "patterns": [
+        "%engineering manager%",
+        "%director%engineering%"
+      ]
+    },
+    {
+      "soc": "15-1241",
+      "patterns": [
+        "%cloud architect%",
+        "%solutions architect%",
+        "%solution architect%",
+        "%network architect%",
+        "%enterprise architect%",
+        "%systems architect%",
+        "%system architect%",
+        "%software architect%",
+        "%technical architect%"
+      ]
+    },
+    {
+      "soc": "15-1252",
+      "patterns": [
+        "%software%engineer%",
+        "%software%developer%",
+        "%application%developer%",
+        "%full%stack%",
+        "%front%end%developer%",
+        "%back%end%developer%",
+        "%web developer%",
+        "%devops%",
+        "%site reliability%",
+        "%platform engineer%",
+        "%embedded%engineer%",
+        "%firmware%engineer%",
+        "developer%",
+        "% developer",
+        "% developer %",
+        "%driver%engineer%"
+      ],
+      "excludes": [
+        "%business develop%",
+        "%real estate%",
+        "%property%",
+        "%sales%"
+      ]
+    },
+    {
+      "soc": "15-2051",
+      "patterns": [
+        "%data scien%",
+        "%machine learning%engineer%",
+        "%ai engineer%"
+      ]
+    },
+    {
+      "soc": "15-1244",
+      "patterns": [
+        "%system%administrator%",
+        "%network%administrator%",
+        "%network engineer%",
+        "%systems engineer%"
+      ]
+    },
+    {
+      "soc": "15-1232",
+      "patterns": [
+        "%help%desk%",
+        "%desktop support%",
+        "%it support%",
+        "%technical support%"
+      ]
+    },
+    {
+      "soc": "15-1211",
+      "patterns": [
+        "%systems analyst%",
+        "%system analyst%",
+        "%business analyst%"
+      ]
+    },
+    {
+      "soc": "15-1243",
+      "patterns": [
+        "%database architect%",
+        "%data engineer%"
+      ]
+    },
+    {
+      "soc": "15-1242",
+      "patterns": [
+        "%database administrator%"
+      ]
+    },
+    {
+      "soc": "25-1021",
+      "patterns": [
+        "%professor%computer%",
+        "%computer%professor%",
+        "%lecturer%computer%",
+        "%computer%lecturer%",
+        "%instructor%computer%",
+        "%computer%instructor%"
+      ]
+    },
+    {
+      "soc": "25-1000",
+      "patterns": [
+        "%professor%",
+        "%lecturer%",
+        "%faculty%"
+      ]
+    },
+    {
+      "soc": "25-9031",
+      "patterns": [
+        "%instructional design%",
+        "%instructional coordinator%",
+        "%curriculum%developer%"
+      ]
+    },
+    {
+      "soc": "25-2031",
+      "patterns": [
+        "%teacher%"
+      ]
+    },
+    {
+      "soc": "25-1194",
+      "patterns": [
+        "%vocational%instructor%",
+        "%technical%instructor%"
+      ]
+    },
+    {
+      "soc": "13-1151",
+      "patterns": [
+        "%training%instructor%",
+        "%training specialist%",
+        "%trainer%"
+      ]
+    },
+    {
+      "soc": "11-9033",
+      "patterns": [
+        "%dean%",
+        "%provost%",
+        "%university%director%"
+      ]
+    },
+    {
+      "soc": "49-9021",
+      "patterns": [
+        "%hvac%",
+        "%heating%air conditioning%",
+        "%refrigeration%technician%"
+      ]
+    },
+    {
+      "soc": "49-9071",
+      "patterns": [
+        "%maintenance%technician%",
+        "%maintenance%specialist%",
+        "%maintenance%worker%"
+      ]
+    },
+    {
+      "soc": "47-2111",
+      "patterns": [
+        "%electrician%"
+      ]
+    },
+    {
+      "soc": "53-3032",
+      "patterns": [
+        "%truck driver%",
+        "%cdl%driver%"
+      ],
+      "excludes": [
+        "%engineer%",
+        "%developer%",
+        "%software%",
+        "%firmware%"
+      ]
+    },
+    {
+      "soc": "53-3033",
+      "patterns": [
+        "%delivery driver%",
+        "%courier%driver%"
+      ],
+      "excludes": [
+        "%engineer%",
+        "%developer%",
+        "%software%",
+        "%firmware%"
+      ]
+    },
+    {
+      "soc": "53-3053",
+      "patterns": [
+        "%shuttle%driver%",
+        "%bus driver%"
+      ],
+      "excludes": [
+        "%engineer%",
+        "%developer%",
+        "%software%",
+        "%firmware%"
+      ]
+    },
+    {
+      "soc": "53-3054",
+      "patterns": [
+        "%driver%"
+      ],
+      "excludes": [
+        "%engineer%",
+        "%developer%",
+        "%software%",
+        "%firmware%"
+      ]
+    },
+    {
+      "soc": "29-1141",
+      "patterns": [
+        "%registered nurse%",
+        "% rn %"
+      ]
+    },
+    {
+      "soc": "13-2011",
+      "patterns": [
+        "%accountant%",
+        "%auditor%"
+      ]
+    },
+    {
+      "soc": "13-1082",
+      "patterns": [
+        "%project manager%",
+        "%program manager%"
+      ]
+    },
+    {
+      "soc": "13-1111",
+      "patterns": [
+        "%management analyst%",
+        "%management consultant%"
+      ]
+    },
+    {
+      "soc": "13-1199",
+      "patterns": [
+        "%program specialist%",
+        "%program coordinator%",
+        "%business operations%"
+      ]
+    },
+    {
+      "soc": "43-6014",
+      "patterns": [
+        "%administrative assistant%",
+        "%executive assistant%"
+      ]
+    },
+    {
+      "soc": "43-4051",
+      "patterns": [
+        "%customer service%",
+        "%customer support%"
+      ]
+    },
+    {
+      "soc": "43-9061",
+      "patterns": [
+        "%office clerk%",
+        "%coordinator%"
+      ]
+    },
+    {
+      "soc": "17-1011",
+      "patterns": [
+        "%architect%"
+      ]
+    },
+    {
+      "soc": "17-2199",
+      "patterns": [
+        "%engineer%"
+      ]
+    },
+    {
+      "soc": "11-1011",
+      "patterns": [
+        "%chief executive%",
+        "% ceo %"
+      ]
+    },
+    {
+      "soc": "11-1021",
+      "patterns": [
+        "%general manager%",
+        "%operations manager%"
+      ]
+    },
+    {
+      "soc": "41-2031",
+      "patterns": [
+        "%retail%sales%",
+        "%sales associate%"
+      ]
+    },
+    {
+      "soc": "35-2014",
+      "patterns": [
+        "%cook%"
+      ]
+    },
+    {
+      "soc": "37-2011",
+      "patterns": [
+        "%custodian%",
+        "%janitor%"
+      ]
+    }
+  ],
+  "survey": "May 2025",
+  "source": "BLS OEWS",
+  "sourceUrl": "https://www.bls.gov/oes/tables.htm",
+  "downloadUrl": "https://www.bls.gov/oes/special-requests/oesm25nat.zip",
+  "archiveSha256": "b5855a37f3e03e779f6fbf173d3bbc94aeeff33426aef32fa95ce6d025bab1af",
+  "occupations": {
+    "15-1212": {
+      "name": "Information Security Analysts",
+      "year": [
+        97810.0,
+        163500.0
+      ],
+      "hour": [
+        47.03,
+        78.61
+      ]
+    },
+    "11-3021": {
+      "name": "Computer and Information Systems Managers",
+      "year": [
+        138060.0,
+        220730.0
+      ],
+      "hour": [
+        66.38,
+        106.12
+      ]
+    },
+    "11-9041": {
+      "name": "Architectural and Engineering Managers",
+      "year": [
+        139360.0,
+        212500.0
+      ],
+      "hour": [
+        67.0,
+        102.16
+      ]
+    },
+    "15-1241": {
+      "name": "Computer Network Architects",
+      "year": [
+        104620.0,
+        168200.0
+      ],
+      "hour": [
+        50.3,
+        80.86
+      ]
+    },
+    "15-1252": {
+      "name": "Software Developers",
+      "year": [
+        105210.0,
+        171980.0
+      ],
+      "hour": [
+        50.58,
+        82.68
+      ]
+    },
+    "15-2051": {
+      "name": "Data Scientists",
+      "year": [
+        85660.0,
+        158880.0
+      ],
+      "hour": [
+        41.18,
+        76.39
+      ]
+    },
+    "15-1244": {
+      "name": "Network and Computer Systems Administrators",
+      "year": [
+        78010.0,
+        126640.0
+      ],
+      "hour": [
+        37.51,
+        60.89
+      ]
+    },
+    "15-1232": {
+      "name": "Computer User Support Specialists",
+      "year": [
+        49000.0,
+        79040.0
+      ],
+      "hour": [
+        23.56,
+        38.0
+      ]
+    },
+    "15-1211": {
+      "name": "Computer Systems Analysts",
+      "year": [
+        82860.0,
+        134110.0
+      ],
+      "hour": [
+        39.84,
+        64.48
+      ]
+    },
+    "15-1243": {
+      "name": "Database Architects",
+      "year": [
+        109370.0,
+        169290.0
+      ],
+      "hour": [
+        52.58,
+        81.39
+      ]
+    },
+    "15-1242": {
+      "name": "Database Administrators",
+      "year": [
+        79610.0,
+        135460.0
+      ],
+      "hour": [
+        38.28,
+        65.13
+      ]
+    },
+    "25-1021": {
+      "name": "Computer Science Teachers, Postsecondary",
+      "year": [
+        66600.0,
+        131320.0
+      ],
+      "hour": [
+        null,
+        null
+      ]
+    },
+    "25-1000": {
+      "name": "Postsecondary Teachers",
+      "year": [
+        62500.0,
+        125700.0
+      ],
+      "hour": [
+        null,
+        null
+      ]
+    },
+    "25-9031": {
+      "name": "Instructional Coordinators",
+      "year": [
+        60780.0,
+        98820.0
+      ],
+      "hour": [
+        29.22,
+        47.51
+      ]
+    },
+    "25-2031": {
+      "name": "Secondary School Teachers, Except Special and Career/Technical Education",
+      "year": [
+        59980.0,
+        92570.0
+      ],
+      "hour": [
+        null,
+        null
+      ]
+    },
+    "25-1194": {
+      "name": "Career/Technical Education Teachers, Postsecondary",
+      "year": [
+        50320.0,
+        82360.0
+      ],
+      "hour": [
+        24.19,
+        39.6
+      ]
+    },
+    "13-1151": {
+      "name": "Training and Development Specialists",
+      "year": [
+        50110.0,
+        95050.0
+      ],
+      "hour": [
+        24.09,
+        45.7
+      ]
+    },
+    "11-9033": {
+      "name": "Education Administrators, Postsecondary",
+      "year": [
+        80870.0,
+        144370.0
+      ],
+      "hour": [
+        38.88,
+        69.41
+      ]
+    },
+    "49-9021": {
+      "name": "Heating, Air Conditioning, and Refrigeration Mechanics and Installers",
+      "year": [
+        48360.0,
+        77060.0
+      ],
+      "hour": [
+        23.25,
+        37.05
+      ]
+    },
+    "49-9071": {
+      "name": "Maintenance and Repair Workers, General",
+      "year": [
+        40840.0,
+        62620.0
+      ],
+      "hour": [
+        19.64,
+        30.1
+      ]
+    },
+    "47-2111": {
+      "name": "Electricians",
+      "year": [
+        49430.0,
+        83940.0
+      ],
+      "hour": [
+        23.76,
+        40.36
+      ]
+    },
+    "53-3032": {
+      "name": "Heavy and Tractor-Trailer Truck Drivers",
+      "year": [
+        47960.0,
+        69120.0
+      ],
+      "hour": [
+        23.06,
+        33.23
+      ]
+    },
+    "53-3033": {
+      "name": "Light Truck Drivers",
+      "year": [
+        37270.0,
+        52310.0
+      ],
+      "hour": [
+        17.92,
+        25.15
+      ]
+    },
+    "53-3053": {
+      "name": "Shuttle Drivers and Chauffeurs",
+      "year": [
+        32710.0,
+        45700.0
+      ],
+      "hour": [
+        15.73,
+        21.97
+      ]
+    },
+    "53-3054": {
+      "name": "Taxi Drivers",
+      "year": [
+        37790.0,
+        60960.0
+      ],
+      "hour": [
+        18.17,
+        29.31
+      ]
+    },
+    "29-1141": {
+      "name": "Registered Nurses",
+      "year": [
+        80330.0,
+        112350.0
+      ],
+      "hour": [
+        38.62,
+        54.02
+      ]
+    },
+    "13-2011": {
+      "name": "Accountants and Auditors",
+      "year": [
+        67020.0,
+        109810.0
+      ],
+      "hour": [
+        32.22,
+        52.8
+      ]
+    },
+    "13-1082": {
+      "name": "Project Management Specialists",
+      "year": [
+        78440.0,
+        133100.0
+      ],
+      "hour": [
+        37.71,
+        63.99
+      ]
+    },
+    "13-1111": {
+      "name": "Management Analysts",
+      "year": [
+        77950.0,
+        133370.0
+      ],
+      "hour": [
+        37.48,
+        64.12
+      ]
+    },
+    "13-1199": {
+      "name": "Business Operations Specialists, All Other",
+      "year": [
+        62640.0,
+        114010.0
+      ],
+      "hour": [
+        30.12,
+        54.81
+      ]
+    },
+    "43-6014": {
+      "name": "Secretaries and Administrative Assistants, Except Legal, Medical, and Executive",
+      "year": [
+        38830.0,
+        58000.0
+      ],
+      "hour": [
+        18.67,
+        27.89
+      ]
+    },
+    "43-4051": {
+      "name": "Customer Service Representatives",
+      "year": [
+        36870.0,
+        51780.0
+      ],
+      "hour": [
+        17.72,
+        24.89
+      ]
+    },
+    "43-9061": {
+      "name": "Office Clerks, General",
+      "year": [
+        36350.0,
+        54300.0
+      ],
+      "hour": [
+        17.48,
+        26.11
+      ]
+    },
+    "17-1011": {
+      "name": "Architects, Except Landscape and Naval",
+      "year": [
+        77960.0,
+        126550.0
+      ],
+      "hour": [
+        37.48,
+        60.84
+      ]
+    },
+    "17-2199": {
+      "name": "Engineers, All Other",
+      "year": [
+        90970.0,
+        158090.0
+      ],
+      "hour": [
+        43.73,
+        76.01
+      ]
+    },
+    "11-1011": {
+      "name": "Chief Executives",
+      "year": [
+        129540.0,
+        356200.0
+      ],
+      "hour": [
+        62.28,
+        171.25
+      ]
+    },
+    "11-1021": {
+      "name": "General and Operations Managers",
+      "year": [
+        72320.0,
+        167280.0
+      ],
+      "hour": [
+        34.77,
+        80.42
+      ]
+    },
+    "41-2031": {
+      "name": "Retail Salespersons",
+      "year": [
+        29900.0,
+        38670.0
+      ],
+      "hour": [
+        14.38,
+        18.59
+      ]
+    },
+    "35-2014": {
+      "name": "Cooks, Restaurant",
+      "year": [
+        34010.0,
+        44620.0
+      ],
+      "hour": [
+        16.35,
+        21.45
+      ]
+    },
+    "37-2011": {
+      "name": "Janitors and Cleaners, Except Maids and Housekeeping Cleaners",
+      "year": [
+        32240.0,
+        44060.0
+      ],
+      "hour": [
+        15.5,
+        21.18
+      ]
+    }
+  }
+}

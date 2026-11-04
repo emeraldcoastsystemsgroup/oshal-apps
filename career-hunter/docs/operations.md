@@ -1,7 +1,79 @@
-# Career Hunter — operations guide (batch processes, from the admin's chair)
+# Career Hunter — operations guide
 
-This is the as-built description of everything Career Hunter does on its own, when it does it, for
-whom, how to tell whether it ran, and what to do when it did not. Times are **America/Chicago**
+## Native bare-metal installations
+
+The native installation uses the daemon's shared-corpus scheduler and each
+person's separately authorized matching and mailbox schedules. The legacy API
+container cron described later in this guide does not operate these jobs.
+
+The shared pull runs at the installation's configured cadence
+(`OSHAL_CAREER_INGEST_CRON`, with `OSHAL_CAREER_INGEST_TIMEZONE`). It updates a
+private corpus copy and publishes that copy atomically after success. A failed or
+unfinished pull leaves the last published corpus available. Restarting the daemon
+interrupts its running pull; check its actual state before a maintenance restart.
+
+Career Settings and Jarvis's `career_refresh_status` read
+`GET /api/career-hunter/run/refresh`. On a kernel with the safe observation port,
+this requires normal Career read access and returns the following facts without
+scanning posting descriptions or exposing the operator's jobs API:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `running`, `idle`, `failed`, `disabled` or `unavailable` for this scheduler |
+| `running` | Actual current scheduler state; `null` means unknown |
+| `lastStartedAt` / `lastFinishedAt` | Current-process run observations, with durable terminal history used after restart where available |
+| `lastPublishedAt` / `lastCompletedAt` | Most recent successful publication and its finished receipt, possibly from an earlier run |
+| `lastPublication.counts` | Recorded new, refreshed and closed counts for that publication; missing evidence stays `null` |
+| `lastPublication.sources` | Confirmed and unconfirmed sources for that publication; successful publication does not mean every source succeeded |
+| `nextRunAt` | Next configured scheduler instant, when available |
+
+Compare the current start with the successful completion before describing a
+pull as finished. Prior publication counts are not partial progress for a running
+pull. Native `corpusFreshAt` remains `null`: publication time is not the maximum
+row last-seen timestamp. On an older kernel, observations stay unavailable; the
+operator-only jobs view may still supply its own timer. Native manual shared
+refresh is installation-managed and the application does not start another pull.
+
+Matching and application-email monitoring are original-owner jobs. Their
+enabled state, cadence and last HTTP outcome are visible in Career Settings;
+the operator jobs screen has broader installation observations. A source update
+can require these existing jobs to be reviewed again. Re-enable only their
+unchanged authorized scope and cadence. Matching is separate from corpus
+publication and does not establish that the current shared pull finished.
+
+Personal score runs acknowledge a retained background task and publish bounded
+count receipts after success. Native Stop remains pending until the process has
+ended and its unpublished files and authority have retired. See
+[Native engine run control](../NATIVE-RUN-CONTROL.md). Stopping a score run does
+not stop the shared ingest or withdraw an application.
+
+With the matching native model-identity port, scoring reads the dedicated Career
+bot's configured primary, eligible ordered fallbacks and effective persona before
+comparing cached fits. A matching policy and unchanged evidence use no model
+completion. A guarded completion must still match that configuration before spend;
+the saved fit records the actual selected provider, reported model and fallback
+flag. A fallback fit remains reusable under the same allowed policy. The policy
+digest does not identify immutable upstream model weights.
+
+An older kernel or unavailable identity retains previous fits and reports that
+scoring configuration is unavailable. Activate the matching kernel before this
+application version. The probe follows the actual package-bot inference path,
+which currently uses the native service's startup defaults; a later global chat
+model change does not automatically replace that dedicated bot's configuration.
+The native meter's existing different-model refusal still applies to upstream
+responses, including changed aliases. Parser compatibility does not override it.
+
+Automatic submission uses the dedicated private browser worker described in
+[Native submission worker](../NATIVE-SUBMISSION.md). It requires approval of the
+specific job and frozen packet; unknown outcomes require reconciliation before
+any new submission. The mailbox schedule reconciles accepted native results
+before checking employer email.
+
+## Legacy API-container deployment reference
+
+The remaining sections document the older API-container scheduler and its store
+layout. These Docker commands and trusted-service headers do not describe native
+bare-metal operation. Times below are **America/Chicago**
 (the cron reads a Chicago clock; on this deployment 18:00 CT is 23:00Z).
 
 ## 1. What runs, and when

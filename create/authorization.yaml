@@ -4,6 +4,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Add project.generate (execute), the separately named permission for region regeneration because it spends provider money: a new generator role (view, read, generate) and the admin role carry it, the existing roles keep their exact meaning, and the six region-edit routes are bound. Accepting a candidate is a project.change like any save.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the Create concierge and its route tools. The catalog bound only HTTP routes, so every turn to create-editor (992feff6) was refused 'operation has no explicit permission binding' before the model ran (live 2026-10-12, POST /api/swarm/bots/992feff6-.../ask 403). The bot needs project.view and project.read (it inspects owned projects; every edit still goes through its own bound route and approval card); each create-* tool carries exactly the permissions of the HTTP route it calls. Owners can now delete their own projects: project.delete (own scope only, rows stay issuer-and-subject scoped) joins the creator and editor roles, so a workspace member no longer needs the admin role to remove what they made.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Bind reviewed bounded PSD inspection, approved import and separately guarded immutable original export.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: bind the generated-image route and its concierge tool to project.generate, the same named permission as region regeneration.
 version: 1
 resources:
   projects:
@@ -84,6 +85,7 @@ bindings:
     - { id: editing-contract, method: GET, path: '/editing-contract', allOf: [project.view] }
     - { id: agent-project, method: POST, path: '/agent-projects', allOf: [project.view, project.create] }
     - { id: apply-operations, method: POST, path: '/projects/:id/operations', allOf: [project.view, project.read, project.change] }
+    - { id: generated-image, method: POST, path: /generated-images, allOf: [project.view, project.read, project.generate] }
     - { id: home, method: GET, path: /home, allOf: [project.view] }
     - { id: new, method: GET, path: /new, allOf: [project.view] }
     - { id: theme, method: GET, path: /theme/:asset, allOf: [project.view] }
@@ -130,3 +132,4 @@ bindings:
     - { id: create-new-project, allOf: [project.view, project.create] }
     - { id: create-apply-edits, allOf: [project.view, project.read, project.change] }
     - { id: create-export-document, allOf: [project.view, project.read, project.export] }
+    - { id: create-generate-image, allOf: [project.view, project.read, project.generate] }

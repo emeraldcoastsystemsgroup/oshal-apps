@@ -1,9 +1,23 @@
 # CHANGE LOG
+# 16 | maintainer@emeraldcoastsystemsgroup.com | One job whose details cannot be read is skipped instead of ending the pass. An employer refusing one page had discarded every score and keyword match of the resume match, every run, since 2026-10-29.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy workplace metadata before remote-only selection without changing saved title, date or scoring budgets.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Fingerprint trusted native routing identity before cache selection and record each guarded completion's actual provider/model without sharing mutable worker metadata.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | Revalidate expired or changed owner employer context within the existing pass budget and reuse unchanged exact scoring evidence without another model call.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Refresh changed or legacy private fits within existing model budgets, using exact evidence fingerprints and a bounded owner scan cursor.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | Keep valid private fits when optional salary output is malformed, retry invalid core explanations, and disclose short employer source text to the scorer.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Use complete compact profile evidence for every selected and nightly fit call instead of the truncated overview.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Give the structured fit response 1400 output tokens now that the native rail preserves its actual output allowance.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Reuse private employer details and hydrate short listings; preserve requirements beyond the former 6000-character prompt cutoff.
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Career worker rail: a CareerWorkerUnavailable from the model chokepoint ends the scoring run instead of being counted as one more skipped posting, so a lost Career worker fails the run visibly and the nightly scoring cursor does not advance.
-# 2 | maintainer@emeraldcoastsystemsgroup.com | Facts learned about a posting go through db.enrich_corpus, so a shared read-only corpus does not fail the pass.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bound title scoring by posted date (first-seen fallback), use the exact in-lane predicate, and push result limits into SQLite as well as Postgres.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve private fit writes when native sandboxes mount shared descriptions and salary data read-only.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Respect explicit target titles outside the shared technology lane and assess advertised work without assuming a promotion-only hunt.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Apply the owner's local-or-remote scope before model selection and include the work arrangement in fit assessment.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Materialize the recent SQLite date ranges before applying role and geography filters, preserving the bounded result while avoiding an active-corpus scan.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Facts learned about a posting go through db.enrich_corpus, so a shared read-only corpus does not fail the pass.
 
 """The matching algorithm: for every relevant posting, fetch the FULL job description,
 then have the LLM score it against the user's actual resume — fit 0-100, why it fits, what
@@ -12,10 +26,9 @@ set quickly, not a keyword skim.
 
 STORAGE (JOBHUNTER_STORE — see config.STORE)
 
-  'sqlite'   (DEFAULT) — every statement below is the one that was always here, character
-             for character. `postings` is db.py's per-connection TEMP view, `companies`
-             resolves through the ATTACH (or is the inline table), and both freshness
-             windows keep their date('now',…) / datetime('now',…) forms. The nightly
+  'sqlite'   (DEFAULT) — `postings` is db.py's per-connection TEMP view, `companies`
+             resolves through the ATTACH (or is the inline table), and its date('now',…)
+             / datetime('now',…) predicates use the local corpus indexes. The nightly
              scorer runs on this path; nothing inside a `config.POSTGRES` branch is
              reachable unless JOBHUNTER_STORE=postgres is set explicitly.
   'postgres' — `postings` is the compatibility VIEW from migration 097 over
@@ -47,14 +60,20 @@ And `days` is a trap that is bolted shut in postgres mode: see score_batch().
 """
 from __future__ import annotations
 import concurrent.futures as cf
+import json
 import math
 
-from . import db, detail, enrich, profile, config
+from . import db, detail, enrich, profile, config, search_scope, score_freshness, job_context
+
+SCORING_MAX_TOKENS = 1400
+SCORING_CONTRACT_VERSION = 1
 
 SYSTEM = (
-    "You are a senior technical recruiter matching ONE candidate to ONE job for a major, "
-    "career-defining move. Be rigorous and honest: reward genuine overlap in skills, domain, "
-    "seniority, and clearance; penalize missing must-haves; never inflate. Return strict JSON only."
+    "You are a recruiter matching ONE candidate to ONE advertised job. Be rigorous and honest: "
+    "assess evidence that the candidate can perform the work and meets the required skills, "
+    "domain knowledge, education, licenses, and clearance. Penalize missing must-haves; never inflate. "
+    "Do not assume the candidate wants only promotions, management, or higher pay. Additional "
+    "experience is not itself a missing qualification for a junior or hands-on role. Return strict JSON only."
 )
 
 PROMPT = """CANDIDATE PROFILE:
@@ -64,13 +83,15 @@ JOB:
 Company: {company}
 Title: {title}
 Location: {location}
+Work arrangement: {work_arrangement}
 Description:
 {description}
+Source basis: {source_basis}
 
 Return STRICT JSON only:
 {{
   "fit_score": <int 0-100, how well THIS candidate fits THIS specific job>,
-  "rationale": "2-3 sentences: why it fits or doesn't, at his level",
+  "rationale": "2-3 sentences: fit based on the candidate's evidence and this job's requirements",
   "matched": ["specific candidate strengths that map to this job's needs"],
   "gaps": ["this job's requirements he lacks or under-evidences"],
   "salary_estimate": {{"min": <int>, "max": <int>, "currency": "USD", "period": "year", "confidence": "low|medium|high"}}
@@ -102,10 +123,10 @@ def _pg_days_ago(days: int) -> str:
     return f"to_char((now() AT TIME ZONE 'UTC')::date - {int(days)}, 'YYYY-MM-DD')"
 
 
-def _freshness_where(days, first_seen_days, allow_posted_date_window: bool) -> str:
-    """The two time windows, in the active dialect. Returns SQL to append to a WHERE.
+def _freshness_where(days, first_seen_days, fresh_days, allow_posted_date_window: bool) -> str:
+    """Freshness windows, in the active dialect. Returns SQL to append to a WHERE.
 
-    Neither window binds a parameter in either backend — the day count is interpolated
+    These windows do not bind parameters in either backend — the day count is interpolated
     after int() — so db.q() is never involved and the params list keeps its original
     ordering (title_any, then company_any)."""
     sql = ""
@@ -155,6 +176,18 @@ def _freshness_where(days, first_seen_days, allow_posted_date_window: bool) -> s
                     " || 'T00:00:00+00:00'")
         else:
             sql += f" AND first_seen_at >= datetime('now','-{int(first_seen_days)} days')"
+    if fresh_days:  # posted within N days; when ATS omits posted_date, fall back to when we saw it.
+        if config.POSTGRES:
+            cutoff = _pg_days_ago(fresh_days)
+            sql += (
+                f" AND (posted_date >= {cutoff} OR (posted_date IS NULL AND first_seen_at >= "
+                f"({cutoff} || 'T00:00:00+00:00')))"
+            )
+        else:
+            sql += (
+                f" AND (posted_date >= date('now','-{int(fresh_days)} days')"
+                f" OR (posted_date IS NULL AND first_seen_at >= datetime('now','-{int(fresh_days)} days')))"
+            )
     return sql
 
 
@@ -185,8 +218,8 @@ def _selector_where(title_any, company_any) -> tuple[str, list]:
 
 
 def _order_by(recent_first: bool) -> str:
-    """Row ordering. Both forms end in the unique `id`, so the sort is a total order —
-    which is what lets the postgres path push the caller's LIMIT into SQL below."""
+    """Row ordering. Both forms end in the unique `id`, making the order total so SQL
+    LIMIT returns the same rows as the former Python slice in either backend."""
     if not recent_first:
         return "COALESCE(fit_score,0) DESC, id"
     # SQLite sorts NULLs last under DESC; Postgres sorts them FIRST. posted_date is NULL
@@ -229,17 +262,42 @@ def _pg_money(v, field: str):
 # Scoring
 # ═════════════════════════════════════════════════════════════════════════════
 
-def _ensure_detail(row, company):
-    """Make sure we have a description; fetch it (universally) if missing. Returns
-    (description, fetched_dict_or_None)."""
-    if row["description"]:
-        return row["description"], None
-    d = detail.fetch(company["ats_type"], company["ats_token"], row["ats_job_id"], row["url"])
-    return (d.get("description") or "(no description available)"), (d or None)
+def _scoring_inputs(row, prof_summary, company, *, fetch_detail=False, model_identity=None):
+    """Use the same exact evidence for freshness checks and actual inference.
+
+    Checking a saved score uses only the listing and owner cache, never an employer request.
+    Retrieval timestamps are deliberately excluded; source basis and omitted-text warnings are
+    evidence. A stale candidate may fetch fuller details before its final fingerprint is saved.
+    """
+    resolved, fetched = (job_context.hydrate(row, company) if fetch_detail else
+                         (job_context.apply(row), None))
+    desc = resolved.get('description') or '(no description available)'
+    desc = desc.strip() or '(no description available)'
+    basis = ('employer-detail' if fetched else
+             (resolved.get('description_context') or {}).get('basis'))
+    if len(desc) < 1000 or basis == 'listing-summary':
+        basis = 'employer-detail-short' if basis == 'employer-detail' else 'listing-summary'
+    elif basis in (None, 'listing', 'corpus-description', 'employer-detail'):
+        # These names describe where the same full text was stored or retrieved. Keeping
+        # them equivalent avoids a second inference after fetched text enters the corpus.
+        basis = 'job-description'
+    prompt = PROMPT.format(profile=prof_summary, company=company['name'], title=row['title'],
+                           location=row.get('location') or 'n/a', description=desc[:16000]
+                               + ('\n[Remaining employer text omitted; do not infer its requirements.]' if len(desc)>16000 else ''),
+                           source_basis=basis,
+                           work_arrangement='Feed marks remote (unverified; check attendance and location eligibility)' if row.get('remote') else 'On-site or hybrid')
+    if len(desc) < 1000 or basis == 'listing-summary':
+        prompt += '\nSOURCE LIMITATION: The employer text is short or a listing summary. Assess only its explicit requirements and state where job details are insufficient; do not invent missing requirements.\n'
+    model = (model_identity or enrich.resolve_scoring_identity(config.ANTHROPIC_SCORE_MODEL)).cache_key
+    fingerprint = score_freshness.fingerprint({
+        'contract': SCORING_CONTRACT_VERSION, 'model': model, 'system': SYSTEM, 'prompt': prompt,
+    })
+    return prompt, fingerprint, fetched, model
 
 
-def _score_one(row, prof_summary):
+def _score_one(row, prof_summary, *, prior_fingerprint=None, model_identity=None):
     """Worker: fetch detail + AI-score one job. Returns a dict to commit (or None)."""
+    model_identity = model_identity or enrich.resolve_scoring_identity(config.ANTHROPIC_SCORE_MODEL)
     with db.connect() as conn:
         # db.companies_table() is the string "companies" in sqlite (unchanged) and the base
         # career_companies in postgres. These three columns are objective employer data, so
@@ -247,21 +305,46 @@ def _score_one(row, prof_summary):
         company = conn.execute(
             f"SELECT name, ats_type, ats_token FROM {db.companies_table()} WHERE id=?",
             (row["company_id"],)).fetchone()
-    desc, fetched = _ensure_detail(row, company)
-    prompt = PROMPT.format(profile=prof_summary, company=company["name"], title=row["title"],
-                           location=row["location"] or "n/a", description=desc[:6000])
     try:
-        data = enrich.parse_json(enrich.complete(SYSTEM, prompt, max_tokens=700,
-                                                 model=config.ANTHROPIC_SCORE_MODEL))
-    except enrich.CareerWorkerUnavailable:
-        # The Career worker could not score: end the run so it fails visibly and the scoring
-        # cursor does not advance. Swallowing it would record the posting as merely unscored.
-        raise
-    except Exception:
-        data = None
-    if not data or "fit_score" not in data:
-        return {"id": row["id"], "fetched": fetched, "data": None, "company": company["name"], "title": row["title"]}
-    return {"id": row["id"], "fetched": fetched, "data": data, "company": company["name"], "title": row["title"]}
+        prompt, fingerprint, fetched, model = _scoring_inputs(row, prof_summary, company, fetch_detail=True,
+                                                            model_identity=model_identity)
+    except ValueError as error:
+        # An employer refusing a page, or one unreadable saved copy, costs this job this pass.
+        # Raising here would end ex.map, and with it every other job's score. Any prior score stays.
+        return {"id": row["id"], "fetched": None, "data": None, "refused": str(error),
+                "company": company["name"], "title": row["title"], "model": model_identity.cache_key}
+    if prior_fingerprint and fingerprint == prior_fingerprint:
+        # Revalidation updates the cache's retrieval time, not the semantic score input.
+        # A successful unchanged GET consumes no model call and is not a failed score.
+        return {"id": row["id"], "fetched": fetched, "data": None, "unchanged": True,
+                "context_cached": bool(fetched),
+                "company": company["name"], "title": row["title"],
+                "fingerprint": fingerprint, "model": model}
+    data = None
+    for attempt, allowance in enumerate((SCORING_MAX_TOKENS, 2048)):
+        try:
+            answer = enrich.complete_scoring(SYSTEM, prompt + (
+                '\nReturn one complete compact JSON object in the exact requested shape. No prose or tool calls.' if attempt else ''),
+                max_tokens=allowance, model=config.ANTHROPIC_SCORE_MODEL, identity=model_identity)
+            candidate = enrich.parse_json(answer.text)
+        except enrich.CareerWorkerUnavailable:
+            # A lost worker ends the run; retries never leave the accounted rail.
+            raise
+        except Exception:
+            break
+        fit = candidate.get('fit_score') if isinstance(candidate, dict) else None
+        explanation_ok = isinstance(candidate, dict) and (candidate.get('rationale') is None or isinstance(candidate['rationale'], str)) and all(
+            candidate.get(key) is None or isinstance(candidate[key], list) and all(isinstance(item, str) for item in candidate[key])
+            for key in ('matched', 'gaps'))
+        if isinstance(fit, (int, float)) and not isinstance(fit, bool) and 0 <= fit <= 100 and explanation_ok:
+            data = candidate
+            # The fingerprint names the configured policy. Attribution names the route
+            # that actually answered, including an allowed fallback, without a schema change.
+            model = (json.dumps({'provider': answer.provider, 'model': answer.model, 'fallback': answer.fallback},
+                                ensure_ascii=False, separators=(',', ':')) if answer.provider else answer.model)
+            break
+    return {"id": row["id"], "fetched": fetched, "context_cached": bool(fetched), "data": data, "company": company["name"],
+            "title": row["title"], "fingerprint": fingerprint, "model": model}
 
 
 def _commit_one(res, model) -> bool:
@@ -274,7 +357,7 @@ def _commit_one(res, model) -> bool:
     same values, in the same order as the closure did."""
     with db.connect() as conn:
         f = res.get("fetched")
-        if f and f.get("description"):
+        if f and f.get("description") and db.corpus_writable():
             ct = db.corpus_table()   # description/salary/posted are objective -> shared corpus
             db.enrich_corpus(conn, f"UPDATE {ct} SET description=? WHERE id=?", (f["description"], res["id"]))
             if f.get("salary_min"):
@@ -298,13 +381,25 @@ def _commit_one(res, model) -> bool:
                                  if config.POSTGRES else f["posted_at"])
                 db.enrich_corpus(conn, f"UPDATE {ct} SET posted_at=COALESCE(posted_at,?), posted_date=COALESCE(posted_date,?) WHERE id=?",
                              (posted_at_val, dates.normalize(f["posted_at"]), res["id"]))
+            # A writable legacy corpus now contains this same evidence. Bind the private
+            # cache to the updated objective listing so the next pass does not refetch it.
+            if res.get('context_cached'):
+                current = conn.execute('SELECT * FROM postings WHERE id=?', (res['id'],)).fetchone()
+                job_context.remember(dict(current), f)
         data = res.get("data")
         if not data:
             return False
         db.save_ai_fit(conn, res["id"], int(data["fit_score"]), data.get("rationale"),
-                       data.get("matched"), data.get("gaps"), model)
-        est = data.get("salary_estimate") or {}
+                       data.get("matched"), data.get("gaps"), res.get('model') or model,
+                       res.get('fingerprint'))
+        est = data.get("salary_estimate")
+        if not isinstance(est, dict):
+            est = {}
         smin, smax = est.get("min"), est.get("max")
+        if not all(isinstance(value, (int,float)) and not isinstance(value,bool) and math.isfinite(value) and value>0 for value in (smin,smax)) or smin>smax:
+            smin = smax = None
+        if not isinstance(est.get('currency','USD'),str) or not isinstance(est.get('period','year'),str):
+            smin = smax = None
         if config.POSTGRES:
             smin = _pg_money(smin, "salary_estimate.min") if smin else smin
             smax = _pg_money(smax, "salary_estimate.max") if smax else smax
@@ -315,13 +410,15 @@ def _commit_one(res, model) -> bool:
 
 
 def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=None, company_any=None,
-                days=None, recent_first=False, first_seen_days=None, *,
+                days=None, recent_first=False, first_seen_days=None, *, fresh_days=None,
                 allow_posted_date_window=False, remote_only=False) -> tuple[int, int]:
     """AI-score the in-lane backlog. Returns (scored, skipped).
 
     Two freshness windows, and they are NOT interchangeable:
       first_seen_days — when WE first saw the job. NOT NULL on every row, stamped at
                         ingest. This is the incremental gate to use.
+      fresh_days      — the posting date, falling back to first_seen_at only when the
+                        feed omits it. Use for a candidate-facing "posted recently" window.
       days            — the employer's posted_date. NULL for ~26% of the corpus; a ten-day
                         window matched 32 rows out of 1.21M. Both parameters are preserved
                         because the SQLite CLI still exposes `--days` and behaves as it
@@ -332,58 +429,122 @@ def score_batch(limit=None, rescore=False, min_keyword=0, workers=8, title_any=N
                         not. It is ignored in sqlite mode."""
     if not enrich.provider():
         raise RuntimeError("No AI auth found. Log into Claude Code, or set ANTHROPIC_API_KEY.")
-    model = enrich.model_name(config.ANTHROPIC_SCORE_MODEL)
+    model_identity = enrich.resolve_scoring_identity(config.ANTHROPIC_SCORE_MODEL)
+    model = model_identity.cache_key
     # Scoring is private (never shown to an employer), so it credits the user's full
     # ability — including his independent open-source / agentic R&D (OSHAL). This is
     # what lets applied-research / emerging-tech / agentic roles score on his real
     # depth. Resume/cover generation gates OSHAL separately (opt-in, default off).
-    prof_summary = profile.summary(include_oshal=True)
-    # Only ever AI-score in-lane roles (technology / senior-professional). Retail/labor/
-    # clinical noise (cashier, driver, package handler, nurse) is excluded up front so we
-    # never spend AI budget on roles the user would never take.
+    prof_summary = profile.scoring_context(include_oshal=True)
+    scope = search_scope.load(config.CAREER_DB.parent)
+    if scope:
+        prof_summary += search_scope.summary(scope)
+    # Generic passes use the shared technology/professional lane. Explicit user titles
+    # are their own selection: adjunct/instructor roles must not be rejected just because
+    # the shared classifier does not label them technology work. Empty terms cannot
+    # remove the generic lane gate.
+    title_any = [str(term).strip() for term in (title_any or []) if str(term).strip()]
     #
-    # `active = 1` and `COALESCE(target_role,0) = 1` are valid in BOTH dialects: the 097
-    # view casts those BOOLEANs back to int (`boolean = integer` is a hard error in
-    # Postgres, and ::int preserves NULL, so "no score row yet" still COALESCEs to 0).
-    # `ai_fit_score IS NULL` means "no signal row OR an unscored one" in both backends,
-    # because both `postings` shapes LEFT JOIN the per-user side.
-    where = "active = 1 AND COALESCE(target_role,0) = 1"
-    if not rescore:
-        where += " AND ai_fit_score IS NULL"
+    # `active = 1` and `target_role = 1` are valid in BOTH dialects: the 097 view casts
+    # those BOOLEANs back to int (`boolean = integer` is a hard error in Postgres). Exact
+    # equality also lets SQLite use idx_corpus_lane_seen; NULL target_role remains excluded.
+    # Existing scores remain candidates: their exact private evidence may have changed.
+    # Freshness is checked below after the same title/area/date gates and before inference.
+    where = "active = 1 AND target_role = 1"
+    if title_any:
+        where = "active = 1"
+    if scope:
+        where += ' AND ' + search_scope.predicate(scope, config.POSTGRES)
     if remote_only:
         # The user's standing preference (career_score_settings.remote_only). Gating HERE and not
         # only at display is deliberate: an on-site role a remote-only candidate would never take
-        # should not cost a scoring inference in the first place. `remote` is 0/1 in SQLite and a
-        # real BOOLEAN in Postgres, so COALESCE(remote,0)=1 reads correctly on both.
-        where += " AND COALESCE(remote,0) = 1"
+        # should not cost a scoring inference in the first place. `remote` is 0/1 in both
+        # compatibility views. Contradictory legacy flags are not evidence.
+        where += " AND " + search_scope.fully_remote_predicate()
     if min_keyword:
         where += f" AND COALESCE(fit_score,0) >= {int(min_keyword)}"
-    where += _freshness_where(days, first_seen_days, allow_posted_date_window)
+    where += _freshness_where(days, first_seen_days, fresh_days, allow_posted_date_window)
     selector_sql, params = _selector_where(title_any, company_any)
     where += selector_sql
-    sql = f"SELECT * FROM postings WHERE {where} ORDER BY {_order_by(recent_first)}"
-    if config.POSTGRES and limit:
-        # Push the caller's cap into SQL. `rows[:limit]` below already produced exactly
-        # this set — the ORDER BY ends in the unique `id`, so the sort is a total order
-        # and the first N rows are the same N rows either way — but in sqlite that slice
-        # discards rows already read from a local file, while here it would drag every
-        # matching row (107,004 for the unscored in-lane backlog, `description` and all)
-        # across a socket to throw nearly all of it away. The Python slice stays exactly
-        # as it was so the sqlite path is untouched and this is belt-and-braces.
-        sql += f" LIMIT {int(limit)}"
+    prefix, source = '', 'postings'
+    if fresh_days and not config.POSTGRES:
+        # The OR between remote and local geometry otherwise makes SQLite choose the
+        # active/geo index and read millions of rows before the date gate. Materialize
+        # the disjoint posted/undated ranges first, using the existing date indexes.
+        n = int(fresh_days)
+        prefix = ("WITH seen_candidates AS MATERIALIZED ("
+                  "SELECT id AS fresh_id, posted_date FROM postings "
+                  f"WHERE first_seen_at >= datetime('now','-{n} days')), "
+                  "fresh_candidates AS MATERIALIZED ("
+                  f"SELECT id AS fresh_id FROM postings WHERE posted_date >= date('now','-{n} days') "
+                  "UNION ALL SELECT fresh_id FROM seen_candidates WHERE posted_date IS NULL) ")
+        source = 'fresh_candidates CROSS JOIN postings ON postings.id = fresh_candidates.fresh_id'
+    sql = f"{prefix}SELECT postings.* FROM {source} WHERE {where} ORDER BY {_order_by(recent_first)}"
+    budget = int(limit) if limit is not None and int(limit) > 0 else None
+    # No more than ten candidate inspections per allowed model call. The cursor rotates
+    # through unchanged candidates, so they cannot permanently hide later stale inputs.
+    inspection_limit = budget * 10 if budget else None
+    cursor_key = score_freshness.fingerprint({
+        'owner': config.USER_SUB, 'store': config.STORE,
+        'sql': sql, 'params': params, 'profile': prof_summary,
+        'model': model, 'contract': SCORING_CONTRACT_VERSION, 'system': SYSTEM,
+        'prompt': PROMPT, 'rescore': rescore,
+    })
+    positions, offset = score_freshness.read_cursor(cursor_key) if budget else ({}, 0)
+    if inspection_limit:
+        sql += f" LIMIT {inspection_limit + 1} OFFSET {offset}"
     with db.connect() as conn:
         rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
-    if limit:
-        rows = rows[:limit]
-    total = len(rows)
-    scored = skipped = 0
+        fingerprints = db.score_fingerprints(conn, [r['id'] for r in rows if r.get('ai_fit_score') is not None]) if not rescore else {}
+        companies = {}
+        company_ids = sorted({r['company_id'] for r in rows if fingerprints.get(r['id'])})
+        for start in range(0, len(company_ids), 500):
+            ids = company_ids[start:start + 500]
+            found = conn.execute(f"SELECT id,name FROM {db.companies_table()} WHERE id IN ({','.join('?' for _ in ids)})", ids)
+            companies.update((r['id'], r) for r in found.fetchall())
+    more = inspection_limit is not None and len(rows) > inspection_limit
+    if inspection_limit:
+        rows = rows[:inspection_limit]
+    selected = []
+    inspected = 0
+    for row in rows:
+        inspected += 1
+        stale = rescore or row.get('ai_fit_score') is None or not fingerprints.get(row['id'])
+        if not stale:
+            try:
+                _, fingerprint, _, _ = _scoring_inputs(row, prof_summary, companies[row['company_id']],
+                                                      model_identity=model_identity)
+                stale = job_context.needs_refresh(row) or fingerprint != fingerprints[row['id']]
+            except ValueError:
+                stale = True  # An unreadable saved copy: _score_one reports it against this job alone.
+        if stale:
+            selected.append(row)
+            if budget and len(selected) >= budget:
+                break
+    total = len(selected)
+    scored = skipped = refused = 0
 
     with cf.ThreadPoolExecutor(max_workers=workers) as ex:
-        for i, res in enumerate(ex.map(lambda r: _score_one(r, prof_summary), rows), 1):
-            if _commit_one(res, model):
+        for i, res in enumerate(ex.map(lambda r: _score_one(r, prof_summary,
+                prior_fingerprint=None if rescore else fingerprints.get(r['id']),
+                model_identity=model_identity), selected), 1):
+            committed = _commit_one(res, model)
+            if res.get('unchanged'):
+                pass
+            elif committed:
                 scored += 1
             else:
                 skipped += 1
+                refused += bool(res.get('refused'))
             if i % 25 == 0 or i == total:
                 print(f"   {i}/{total}  ({scored} scored)", flush=True)
+    if refused:
+        print(f"   {refused} skipped: employer details unavailable", flush=True)
+    if budget and skipped == refused:
+        # Invalid/retryable outputs must remain reachable on the next attempt. Successful
+        # earlier rows are already fingerprinted, so retaining this position costs no
+        # repeat inference for them. A refusing employer can last for weeks, so it does not
+        # hold the position: its job comes round again when the cursor wraps.
+        next_offset = offset + inspected if more or inspected < len(rows) else 0
+        score_freshness.write_cursor(positions, cursor_key, next_offset)
     return scored, skipped

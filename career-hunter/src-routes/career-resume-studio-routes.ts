@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | Carry selected additional experience metadata into document review and regeneration choices.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -14,6 +15,8 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Track the engine's corrected 96 KiB master-document ceiling. The document reaches the engine as an environment string across execve, which Linux caps at 128 KiB, so the previous 256 KiB pair described a limit neither side could enforce.
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | THE EDITOR TALKS BACK. Operator, 2026-08-13: "the concierge will take the commands but doesn't talk to me or respond — I just tell it what to do and it does it. OK but not great." The prompt was the cause: it asked for "one short conversational sentence" and the model complied exactly, making a command executor out of something that should be a conversation. `reply` is now the half that carries the work (what changed and WHY, the tradeoff, the replaced words quoted), a clarifying question with actions:[] is an explicitly valid turn, and a question/opinion/review answers without editing. Also fixed the matching bug: a model reply with no JSON had its words DISCARDED and replaced with "Updated." — throwing away the answer and claiming an edit that never happened; the prose is now kept as the reply.
  * 11 | maintainer@emeraldcoastsystemsgroup.com  | GET /resume/doc?id=<posting> also returns the packet's verified story citations as meta.storiesCited (1.26.0), read from application.json's stories_cited, which generate_for writes and nothing served until now. The story review's live acceptance reads it to prove a generated packet cited a story; the document the studio edits is unchanged.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Read the saved candidate name from the packet snapshot so the editor preview identifies the actual resume without fetching a different current profile.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Add bounded original-owner master reads and revision-checked small edits without round-tripping the whole profile or weakening the existing save whitelist.
  */
 
 /**
@@ -134,15 +137,18 @@ async function readDoc(dir: string): Promise<ResumeDocument> {
     resume?: Record<string, unknown>;
     cover?: Record<string, unknown>;
   };
+  const snapshot = data.profile_snapshot as { profile?: { name?: unknown } } | undefined;
   return {
     resume: generated.resume || {},
     cover: generated.cover || {},
     meta: {
+      name: typeof snapshot?.profile?.name === 'string' ? snapshot.profile.name : undefined,
       postingId: data.posting_id,
       company: data.company,
       title: data.title,
       url: data.url,
       include_oshal: data.include_oshal,
+      additionalExperience: data.additional_experience,
       storiesCited: Array.isArray(data.stories_cited) ? data.stories_cited : [],
     },
   };
@@ -397,6 +403,59 @@ async function getMasterDocument(ctx: AppContext, userSub: string, res: Response
   res.json(parsed);
 }
 
+/** Run a bounded, model-free master request through the same owner-scoped engine. */
+async function masterRequest(ctx: AppContext, userSub: string, verb: string, input: Record<string, unknown>, res: Response): Promise<void> {
+  const payload = JSON.stringify(input);
+  if (Buffer.byteLength(payload, 'utf8') > 12 * 1024) {
+    res.status(413).json({ ok: false, error: 'Save a smaller group of master edits.' }); return;
+  }
+  try {
+    const result = await runCareerCliAwait(ctx.pool, userSub, ['resume', verb], { CH_RESUME_DOC: payload });
+    if (result.limitReason) {
+      rejectEngineStart(res, { started: false, limitReason: result.limitReason }, 'master resume'); return;
+    }
+    const parsed = parseEngineJson(result.out);
+    if (!parsed) { res.status(502).json({ ok: false, error: 'The master resume request did not finish.' }); return; }
+    if (parsed.ok === true && !result.ok) { res.status(502).json({ ok: false, error: 'The master resume change was not confirmed. Read the section again.' }); return; }
+    if (parsed.ok !== true) {
+      res.status(parsed.error === 'master_changed' ? 409 : parsed.error === 'master_patch_too_large' ? 413 : 422)
+        .json({ ok: false, error: String(parsed.message || parsed.error || 'The master resume request was refused.').slice(0, 500) }); return;
+    }
+    res.json(parsed);
+  } catch (error) {
+    logger.error({ userSub }, 'bounded master request failed');
+    res.status(500).json({ ok: false, error: 'The master resume request failed.' });
+  }
+}
+
+/** Read one explicit page from a single immutable profile revision. */
+async function getMasterSection(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const sub = callerSub(req);
+  if (!sub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const field = String(req.query.field || 'overview');
+  const integer = (value: unknown): number | null => {
+    const text = String(value ?? '0');
+    return /^(0|[1-9]\d{0,6})$/.test(text) && Number(text) <= 1_000_000 ? Number(text) : null;
+  };
+  const index = integer(req.query.index), offset = integer(req.query.offset);
+  if (!['overview', 'headline', 'summary', 'clearance', 'competencies', 'skills', 'experience', 'education', 'certifications', 'licenses'].includes(field) || index === null || index > 9999 || offset === null) {
+    res.status(400).json({ ok: false, error: 'Choose a valid master section and page.' }); return;
+  }
+  await masterRequest(ctx, sub, 'base-section', { field, index, offset, limit: 20 }, res);
+}
+
+/** Small approved edits carry their exact read revision and original text. */
+async function patchMaster(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  const sub = callerSub(req);
+  if (!sub) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['revision', 'edits'].includes(key))
+    || typeof body.revision !== 'string' || !/^[a-f0-9]{64}$/.test(body.revision) || !Array.isArray(body.edits) || body.edits.length < 1 || body.edits.length > 20) {
+    res.status(400).json({ ok: false, error: 'Read the current master section and provide its exact edits.' }); return;
+  }
+  await masterRequest(ctx, sub, 'base-patch', { revision: body.revision, edits: body.edits }, res);
+}
+
 async function getResumeDocument(ctx: AppContext, req: Request, res: Response): Promise<void> {
   const userSub = callerSub(req);
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
@@ -408,7 +467,7 @@ async function getResumeDocument(ctx: AppContext, req: Request, res: Response): 
   if (!Number.isFinite(postingId)) { res.status(400).json({ error: 'id required' }); return; }
   const dir = await packetDir(userSub, postingId);
   if (!dir) {
-    res.status(404).json({ error: 'no generated packet â€” generate one first' });
+    res.status(404).json({ error: 'no generated packet — generate one first' });
     return;
   }
   try { res.json(await readDoc(dir)); }
@@ -522,6 +581,7 @@ async function saveResume(ctx: AppContext, req: Request, res: Response): Promise
     return;
   }
   const dir = await packetDir(userSub, postingId);
+  try{const db=openUserDb(userSub);let record;try{record=db?.prepare('SELECT status FROM user_signals WHERE posting_id=?').get(postingId)||{};}finally{db?.close();}require('../lib/career-application-draft').mutable(userPaths(userSub).userDir,postingId,record);}catch(error){res.status((error as {status?:number}).status||503).json({error:(error as Error).message});return;}
   if (!dir) { res.status(404).json({ error: 'no generated packet' }); return; }
   const lease = tryAcquireRun(userSub, 'user-store');
   if (rejectEngineClaim(res, lease, 'resume rerender')) return;
@@ -557,6 +617,8 @@ async function saveResume(ctx: AppContext, req: Request, res: Response): Promise
  */
 export function registerCareerResumeStudio(router: Router, ctx: AppContext): void {
   router.get('/resume/doc', (req, res) => getResumeDocument(ctx, req, res));
+  router.get('/resume/master-section', (req, res) => getMasterSection(ctx, req, res));
+  router.post('/resume/master-edit', (req, res) => patchMaster(ctx, req, res));
   router.post('/resume/guide', (req, res) => guideResume(ctx, req, res));
   router.post('/resume/save', (req, res) => saveResume(ctx, req, res));
 }

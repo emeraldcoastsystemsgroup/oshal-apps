@@ -34,6 +34,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Re-analyze generates and saves the brief on POST /brief/refresh; GET /brief only reads the saved one (404 no_saved_brief when there is none, and ?refresh=1 no longer runs the analyst). On the native kernel a GET is a read admission, so the old GET ?refresh=1 ran the analyst and then had its UPDATE refused ("SQL mutation requires original writer admission"). The brief and the advisory review get exact totals computed here (cash and deposits, investment accounts, credit and loans owed, total assets, net worth, holdings value): the review had stated $120,660.84 "liquid" for accounts summing $62,589. A missing payment rail says Sending money is not available here and names Connections and Payments, not an environment variable.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The analyst is told never to name VERIFIED TOTALS or a field name in the brief: the live brief said "sourced directly from VERIFIED TOTALS".
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: a saved brief misstated a balance ('Plaid Student Loan: $6,526.20' for $65,262), invented totals and printed its own working ('Correction on Liabilities visibility ... hidden or aggregated'). Re-analyze now composes the brief through finance-brief.ts: the figures section is written in code from the stored accounts and computeFinanceTotals, the analyst writes only commentary quoting listed amounts, a commentary that states any other amount or narrates its working is asked once to rewrite, and a sentence still carrying one is left out with a visible note. The advisory review is unchanged.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | A demo installation's accounts: with the FINANCE_DEMO_DATA setting, POST /demo-data writes a curated sample aggregate for the caller (named banks, healthy balances, holdings, spending; dated relative to now; its notes say it is sample data), and Re-analyze writes the real analyst's brief over it. Off by default; a real link and sync always overwrite it (Roger, 2026-11-02: clean up the demo's data and screens — the Plaid sandbox aggregate led with a negative net worth and every account named Plaid).
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: the not-configured Link refusal named the operator's settings to a person ('Set PLAID_CLIENT_ID and PLAID_SECRET ...'); it now says bank linking is not set up on this installation yet, and Demo connect outside Sandbox says this installation does not use the Plaid test bank (was 'only available when PLAID_ENV=sandbox').
  *
  * @module finance-routes
@@ -51,7 +52,7 @@ import { resolveUserLlmConnection } from '@/app/routes/free-tier-rotation';
 import { confirmationRequiredPayload, hasExplicitWriteConfirmation } from '@/shared/security/explicit-write-confirmation';
 import {
   createLinkToken, exchangePublicToken, createSandboxItem, fetchFinanceAggregate,
-  plaidConfigured, plaidEnv, removeItem, type FinanceAggregate, type PlaidError,
+  plaidConfigured, plaidEnv, removeItem, type FinanceAccount, type FinanceAggregate, type FinanceHolding, type PlaidError,
 } from './finance-plaid';
 import { decryptSessionValue, encryptSessionValue } from './session-crypto';
 import { FINANCE_FACTS_TOOL, FINANCE_FACT_KEYS, readFinanceFacts } from './finance-facts';
@@ -336,6 +337,55 @@ async function writeBrief(ctx: AppContext, sub: string, agg: FinanceAggregate): 
   return commentary ? composeBrief(figures, commentary, allowed) : '';
 }
 
+/** A demo installation's sample household: named banks, healthy balances, dated relative to now. */
+function sampleAggregate(): FinanceAggregate {
+  const day = (back: number) => new Date(Date.now() - back * 86400000).toISOString().slice(0, 10);
+  const month = (back: number) => new Date(Date.now() - back * 30 * 86400000).toISOString().slice(0, 7);
+  const accounts: FinanceAccount[] = [
+    { name: 'Everyday Checking', type: 'depository', subtype: 'checking', mask: '4821', balance: 4820.44, currency: 'USD', institution: 'Harbor Bank' },
+    { name: 'Rainy-day Savings', type: 'depository', subtype: 'savings', mask: '7730', balance: 18400.00, currency: 'USD', institution: 'Harbor Bank' },
+    { name: 'Money Market', type: 'depository', subtype: 'money market', mask: '2214', balance: 12500.00, currency: 'USD', institution: 'Coastal Credit Union' },
+    { name: 'Brokerage', type: 'investment', subtype: 'brokerage', mask: '9043', balance: 77180.00, currency: 'USD', institution: 'Blue Sky Brokerage' },
+    { name: 'Retirement 401(k)', type: 'investment', subtype: '401k', mask: '5512', balance: 46700.00, currency: 'USD', institution: 'Blue Sky Brokerage' },
+    { name: 'Travel Rewards Card', type: 'credit', subtype: 'credit card', mask: '0082', balance: 1240.317, currency: 'USD', institution: 'Harbor Bank' },
+    { name: 'Auto Loan', type: 'loan', subtype: 'auto', mask: '6619', balance: 9800.00, currency: 'USD', institution: 'Coastal Credit Union' },
+  ];
+  const holdings: FinanceHolding[] = [
+    { name: 'Total Stock Market Index', ticker: 'VTI', type: 'etf', quantity: 180, value: 48960.00, costBasis: 41200, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
+    { name: 'Apple Inc', ticker: 'AAPL', type: 'equity', quantity: 60, value: 15780.00, costBasis: 11900, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
+    { name: 'US Bond Index', ticker: 'BND', type: 'etf', quantity: 120, value: 8920.00, costBasis: 9100, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
+    { name: 'Money market sweep', ticker: null, type: 'cash', quantity: 1, value: 3520.00, costBasis: 3520, institution: 'Blue Sky Brokerage', accountName: 'Brokerage' },
+  ];
+  const assets = accounts.filter((a) => a.type !== 'credit' && a.type !== 'loan').reduce((s, a) => s + a.balance, 0);
+  const liabilities = accounts.filter((a) => a.type === 'credit' || a.type === 'loan').reduce((s, a) => s + a.balance, 0);
+  return {
+    generatedAt: new Date().toISOString(), sourceEnvironment: 'sample', currency: 'USD',
+    netWorth: { assets: Math.round(assets * 100) / 100, liabilities: Math.round(liabilities * 100) / 100, net: Math.round((assets - liabilities) * 100) / 100 },
+    accounts: accounts.map((a) => ({ ...a, balance: Math.round(a.balance * 100) / 100 })), holdings,
+    topSpending: [
+      { category: 'Groceries', total: 612.40, count: 14 }, { category: 'Dining out', total: 284.15, count: 9 },
+      { category: 'Utilities', total: 231.60, count: 4 }, { category: 'Gas', total: 148.90, count: 6 },
+      { category: 'Streaming', total: 41.97, count: 3 },
+    ],
+    spendByMonth: [
+      { month: month(2), spend: 3180.22, income: 6400.00 }, { month: month(1), spend: 3324.75, income: 6400.00 },
+      { month: month(0), spend: 1319.02, income: 3200.00 },
+    ],
+    recentTransactions: [
+      { date: day(1), name: 'Harbor Market', amount: 84.31, category: 'Groceries' },
+      { date: day(2), name: 'City Utilities', amount: 112.40, category: 'Utilities' },
+      { date: day(3), name: 'Corner Trattoria', amount: 52.80, category: 'Dining out' },
+      { date: day(5), name: 'Paycheck — Emerald Systems', amount: -3200.00, category: 'Income' },
+      { date: day(6), name: 'Shell Station', amount: 38.55, category: 'Gas' },
+      { date: day(8), name: 'Streaming Plus', amount: 13.99, category: 'Streaming' },
+      { date: day(9), name: 'Harbor Market', amount: 96.12, category: 'Groceries' },
+      { date: day(11), name: 'Auto loan payment', amount: 285.00, category: 'Loan payment' },
+    ],
+    transactionWindowDays: TXN_WINDOW_DAYS,
+    notes: ['Sample data for this demo installation. Link a real account to replace it.'],
+  } as FinanceAggregate;
+}
+
 /** The aggregate of no readable connection: nothing invented, the notes say why. */
 function emptyAggregate(windowDays: number): FinanceAggregate {
   return { generatedAt: new Date().toISOString(), sourceEnvironment: plaidEnv(), currency: 'USD',
@@ -472,6 +522,26 @@ export function createFinanceRoutes(ctx: AppContext): Router {
       res.json({ ok: true, institution: item.institution });
     } catch (err) {
       logger.error({ err }, 'finance sandbox link failed');
+      res.status(502).json({ error: (err as Error).message });
+    }
+  });
+
+  /** POST /demo-data — write the sample aggregate for the caller; 404 unless the installation set FINANCE_DEMO_DATA. */
+  router.post('/demo-data', async (req: Request, res: Response) => {
+    const sub = callerSub(req);
+    if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    if (process.env.FINANCE_DEMO_DATA !== '1') { res.status(404).json({ error: 'not_found' }); return; }
+    try {
+      await ensureFinanceSchema(ctx.pool);
+      const agg = sampleAggregate();
+      await ctx.pool.query(
+        `INSERT INTO oshal_finance_data (user_sub, aggregate, brief, synced_at, brief_at)
+           VALUES ($1, $2, NULL, now(), NULL)
+         ON CONFLICT (user_sub) DO UPDATE SET aggregate = EXCLUDED.aggregate, brief = NULL, synced_at = now(), brief_at = NULL`,
+        [sub, JSON.stringify(agg)]);
+      res.json({ ok: true, netWorth: agg.netWorth, accounts: agg.accounts.length, holdings: agg.holdings.length });
+    } catch (err) {
+      logger.error({ err }, 'finance demo data failed');
       res.status(502).json({ error: (err as Error).message });
     }
   });

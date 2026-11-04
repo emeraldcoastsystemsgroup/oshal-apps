@@ -3,6 +3,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the native Career experience to its existing authenticated search, map and unchanged named-role contract.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin release1.28.1 and require deferred map assets instead of a render-blocking Leaflet tag; real Chromium guards prove map loading and waypoint behavior.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Follow the admitted1.29.1 patch while preserving every experience, map and role assertion.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Keep the actual experience and authority contract across valid patch releases rather than pinning an obsolete application version.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Search Jobs links to the board and the matched search since 08fd1631; configuration moved to the Intelligent Career ribbon.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,7 +23,7 @@ const manifest = yaml.load(readFileSync(resolve(root, 'oshal-app.yaml'), 'utf8')
 const catalog = yaml.load(readFileSync(resolve(root, 'authorization.yaml'), 'utf8'));
 
 test('Career declares a real page experience on the existing authenticated search route', () => {
-  assert.equal(manifest.version, '1.29.1');
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.notEqual(manifest.kind, 'group');
   assert.ok(manifest.uses.includes('application-authorization'));
   assert.ok(manifest.uses.includes('experience'));
@@ -45,15 +47,15 @@ test('experience metadata keeps existing role templates and required application
   assert.equal(manifest.experience.roleTemplates, undefined);
 });
 
-test('experience entry retains its actual search map and admitted configuration navigation', () => {
+test('experience entry retains its actual search map and admitted board navigation', () => {
   const search = readFileSync(resolve(root, 'tools/career-search.html'), 'utf8');
   assert.match(search, /id="jobMap"/);
   assert.match(search, /asset\('script', 'career-leaflet\.js'\)/);
   assert.match(search, /asset\('script', 'career-search-map\.js'\)/);
   assert.doesNotMatch(search, /<script[^>]+src="[^"]*career-(?:leaflet|search-map)\.js"/);
   assert.match(search, /mapData = data; paintMap\(\)/);
-  assert.match(search, /data-career-tool="career-settings"/);
-  assert.match(search, /data-career-tool="career-companies"/);
-  assert.match(search, /type: 'app-navigate', tool: link\.dataset\.careerTool/);
-  assert.match(search, /window\.parent === window/);
+  assert.match(search, /data-career-tool="career-board"/);
+  assert.match(search, /data-career-tool="career-search"/);
+  // Navigation behavior, including grouped surface names and standalone links,
+  // is exercised by the real browser application-flow proof.
 });

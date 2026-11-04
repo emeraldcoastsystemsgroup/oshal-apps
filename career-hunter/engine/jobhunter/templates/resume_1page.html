@@ -75,6 +75,18 @@
     </div>
     {% endfor %}
     {% endif %}
+  {% if r.additional_experience %}
+    <h2>Additional Experience</h2>
+    {% for e in r.additional_experience %}
+    <div class="role">
+      <div class="role-h">
+        <div><span class="rt">{{ e.title }}</span>{% if e.org %}<span class="ro">, {{ e.org }}</span>{% endif %}</div>
+        <div class="rs">{{ e.span }}</div>
+      </div>
+      <ul>{% for b in e.bullets[:2] %}<li>{{ b | boldmetrics }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+    {% endif %}
     {% if earlier %}
     <div class="earlier"><b>Earlier career:</b>
       {% for e in earlier %}{{ e.title }} ({{ e.org }}{% if e.span %}, {{ e.span }}{% endif %}){% if not loop.last %} · {% endif %}{% endfor %}

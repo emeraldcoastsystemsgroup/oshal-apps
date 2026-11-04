@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | A scoring pass on a shared read-only corpus keeps the person's scores: SQLite's real refusal on a read-only attach, not a double.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Name the real corpus file, so db.corpus_writable() and the connection judge the same file.
 """Enrichment of a read-only corpus is skipped and any other failure still raises (``jobhunter.db``)."""
 from __future__ import annotations
 
@@ -51,6 +52,7 @@ def main() -> int:
     db.corpus_table = lambda: "corpus.postings_corpus"
     with tempfile.TemporaryDirectory() as folder:
         path = corpus_file(folder)
+        db.config.CORPUS_DB = path
         conn = opened(path, "ro")
         check("a read-only corpus refuses the salary estimate without raising",
               db.save_salary_estimate(conn, 7, 100000, 140000) is False)

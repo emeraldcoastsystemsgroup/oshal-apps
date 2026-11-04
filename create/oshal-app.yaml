@@ -55,6 +55,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.15.2: automatic document handoff saves before concierge reading and refreshes the existing project on return.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.15.3: Jarvis's new-project calls sent background "white" and every one was refused as invalid_project_document. Colour names become hex at the agent boundary, the background field says what it takes, and a refused agent call says why in `detail`. No route, permission, migration or catalog change.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4: the apply tool's schema states layer types and path bounds, so a bad drawing is refused before its card is held and the concierge corrects it; a worked drawing in the contract; the persona draws instead of asking for assets. No route, permission, migration or catalog change.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: a picture from a sentence, both ways (Roger: every Create tool has a screen control and a concierge tool): POST /generated-images, the create-generate-image tool on a held card and the Generate an image panel in the editor, behind project.generate. Catalog change: new route and tool bindings.
 name: create
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -72,14 +75,19 @@ rating:
       tier: T0
       generation: hosted
       degrade: disable
+    - id: generate-image
+      unit: generated picture
+      tier: T0
+      generation: hosted
+      degrade: disable
 displayName: Create
 description: >-
   One studio for everything you make: decks, documents and workbooks from AI
   Office, portraits, short videos, story episodes, LoRA characters, 3D scans and
   brand intro clips —
   a single home page that shows what you were working on and one tap to pick up
-  where you left off, in every studio you already have.
-version: 1.15.2
+  where you left off, in every studio you already have. Generate a picture from a sentence, or draw one in editable layers.
+version: 1.16.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -387,7 +395,7 @@ bots:
       - create-revision-editing
     selectorDescriptor: >-
       Select for owned Create image/vector projects: masks, adjustments, layers, groups, paths and layout
-      edits. Do not select for unimplemented RAW, motion, PDF or audio workstations.
+      edits, and for a picture or drawing made from a sentence. Do not select for unimplemented RAW, motion, PDF or audio workstations.
     routingKeywords:
       - in create
       - image editing
@@ -397,6 +405,19 @@ bots:
       - create editor
       - editing contract
       - psd
+      - picture
+      - illustration
+      - cartoon
+      - draw
+      - drawing
+      - picture of
+      - image of
+      - draw me
+      - make a picture
+      - make me a picture
+      - make an image
+      - generate a picture
+      - generate an image
 
 # Route-backed tools run as the original caller; edits use the existing approval cards.
 tools:
@@ -544,7 +565,9 @@ tools:
     displayName: Create New Project
     type: api
     category: creative
-    description: Create an empty owned editable project.
+    description: >-
+      Create an owned editable project. To draw something new, include the layers as operations, using the
+      operation shapes and the drawing convention of create-apply-edits, so one approval makes the finished drawing.
     executor:
       executorType: api
       apiEndpoint: POST /api/create/agent-projects
@@ -568,11 +591,106 @@ tools:
         background:
           type: string
           maxLength: 32
+          description: A hex color such as #ffffff, a plain color name such as white, or transparent (the default).
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - type
+            properties:
+              type:
+                type: string
+                enum:
+                  - add
+                  - update
+                  - remove
+                  - reorder
+                  - duplicate
+                  - group
+                  - ungroup
+                  - arrange
+                  - project
+                  - boolean
+                  - mask
+                  - clearMask
+              id:
+                type: string
+                maxLength: 100
+              ids:
+                type: array
+                minItems: 2
+                maxItems: 200
+                items:
+                  type: string
+                  maxLength: 100
+              layer:
+                type: object
+                required: [id, type]
+                properties:
+                  id: { type: string, minLength: 1, maxLength: 100 }
+                  type:
+                    type: string
+                    enum: [image, text, rect, ellipse, freehand, adjustment, group, path]
+                  contours:
+                    type: array
+                    minItems: 1
+                    maxItems: 128
+                    items:
+                      type: object
+                      required: [nodes]
+                      properties:
+                        closed: { type: boolean }
+                        nodes:
+                          type: array
+                          minItems: 2
+                          maxItems: 2000
+                          items:
+                            type: object
+                            required: [x, y]
+                            properties:
+                              x: { type: number, minimum: 0, maximum: 1 }
+                              y: { type: number, minimum: 0, maximum: 1 }
+              patch:
+                type: object
+              images:
+                type: object
+              mask:
+                type: object
+              index:
+                type: integer
+                minimum: 0
+                maximum: 200
+              newId:
+                type: string
+                maxLength: 100
+              offset:
+                type: number
+                minimum: -32768
+                maximum: 32768
+              mode:
+                type: string
+                enum:
+                  - left
+                  - center
+                  - right
+                  - top
+                  - middle
+                  - bottom
+                  - distribute-x
+                  - distribute-y
+                  - union
+                  - difference
+                  - intersection
+                  - xor
       required:
         - title
       additionalProperties: false
     usageInstructions: >-
-      Create only when requested. Returns an owned saved project. Video starts with empty video1/audio1
+      Create only when requested. Returns an owned saved project, with its first layers when operations are given. Video starts with empty video1/audio1
       tracks; Create starts with an empty canvas.
     routingTags:
       - creative
@@ -592,7 +710,7 @@ tools:
       its actual current revision and layer identities. Hold the exact edit card for approval;
       do not claim that the edit ran before the approved result.
       CURRENT_EDITING_CONTRACT_JSON
-      {"editor":"create","version":1,"sourceVersion":"1.15.2","maxOperations":16,"maxInputBytes":16384,"operations":{"add":["layer","index","images"],"update":["id","patch"],"remove":["id"],"reorder":["id","index"],"duplicate":["id","newId","offset"],"group":["ids","id"],"ungroup":["id"],"arrange":["ids","mode"],"project":["patch"],"boolean":["ids","mode"],"mask":["id","mask"],"clearMask":["id"]},"operationSchema":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"type":"string","enum":["add","update","remove","reorder","duplicate","group","ungroup","arrange","project","boolean","mask","clearMask"]},"id":{"type":"string","maxLength":100},"ids":{"type":"array","minItems":2,"maxItems":200,"items":{"type":"string","maxLength":100}},"layer":{"type":"object"},"patch":{"type":"object"},"images":{"type":"object"},"mask":{"type":"object"},"index":{"type":"integer","minimum":0,"maximum":200},"newId":{"type":"string","maxLength":100},"offset":{"type":"number","minimum":-32768,"maximum":32768},"mode":{"type":"string","enum":["left","center","right","top","middle","bottom","distribute-x","distribute-y","union","difference","intersection","xor"]}}},"conventions":{"coordinates":"Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.","opacity":"0..1","masks":"Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.","adjustments":"Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.","vectors":"Add/update path contours [{closed,nodes:[{x,y,in:{x,y},out:{x,y}}]}], fill, stroke, strokeWidth, dash, cap, join, gradient {from,to,stops:[{offset,color}]}, clip polygon.","assets":"Only original-owner canonical uploaded image references. No URL fetching, filesystem paths, code, provider calls or inline data.","saves":"Read project id/revision first. One batch = one immutable revision; invalid batch saves nothing. A stale revision is a conflict. The editor automatically saves its current draft before the concierge reads it and refreshes the same project on return. A concurrent browser draft is preserved with a conflict message.","locks":"Locked layers/ancestors are refused. Explicit unlocking is an edit, never silently unlock.","duplicate":"Duplicate supports nested groups. Supply newId for the copied root; descendants receive deterministic newId-prefix:base36-index IDs (prefix at most96 characters), in existing layer order. Read the returned document for IDs. Child coordinates, masks, isolated opacity and owned image references stay unchanged; clipped targets inside the copy are remapped. Only the copied root receives offset. Locked descendants, ID collisions or existing resource ceilings refuse the whole operation.","booleans":"One boolean per batch; at most256 total operand nodes. Larger paths use the browser worker. Two visible unlocked root paths, closed unclipped contours. 0.1 pixel flattening; originals hidden and retained. Mixed-winding nonzero contours refused.","exports":"Document export is editable JSON only. PNG/JPEG and bounded SVG export remain editor controls; agents must not claim a raster render."},"examples":[{"type":"add","layer":{"id":"heading","type":"text","text":"Hello","x":40,"y":40,"w":300,"h":80}},{"type":"update","id":"heading","patch":{"text":"Updated heading","opacity":0.8}},{"type":"add","layer":{"id":"exposure","type":"adjustment","scope":"stack","exposure":0.5}},{"type":"mask","id":"photo-layer","mask":{"points":[{"x":0,"y":0},{"x":100,"y":0},{"x":100,"y":100}],"feather":4}},{"type":"group","ids":["heading","photo-layer"],"id":"composition"},{"type":"boolean","ids":["path-a","path-b"],"mode":"union"}],"psd":{"profileVersion":1,"inspectTool":"create-inspect-psd","importTool":"create-import-psd","sourceTool":"create-psd-source","maxBytes":4194304,"dimensions":2048,"pixelLayers":32,"groupDepth":4,"supported":"RGB8 PSDv1 raw/RLE pixel layers, normal isolated groups, opacity and placement. Preserve immutable original; inspect losses and explicit mode before held import.","unsupported":"Other blends/pass-through, masks, text/effects/smart objects/adjustments refuse editable conversion. Flattened opaque merged cache only by explicit choice; no PSD export/full fidelity."},"unsupported":["Motion/compositing","RAW development","Page publishing","Audio workstation","PDF workbench","PSD export/full fidelity"]}
+      {"editor":"create","version":1,"sourceVersion":"1.16.0","maxOperations":16,"maxInputBytes":16384,"operations":{"add":["layer","index","images"],"update":["id","patch"],"remove":["id"],"reorder":["id","index"],"duplicate":["id","newId","offset"],"group":["ids","id"],"ungroup":["id"],"arrange":["ids","mode"],"project":["patch"],"boolean":["ids","mode"],"mask":["id","mask"],"clearMask":["id"]},"operationSchema":{"type":"object","additionalProperties":false,"required":["type"],"properties":{"type":{"type":"string","enum":["add","update","remove","reorder","duplicate","group","ungroup","arrange","project","boolean","mask","clearMask"]},"id":{"type":"string","maxLength":100},"ids":{"type":"array","minItems":2,"maxItems":200,"items":{"type":"string","maxLength":100}},"layer":{"type":"object","required":["id","type"],"properties":{"id":{"type":"string","minLength":1,"maxLength":100},"type":{"type":"string","enum":["image","text","rect","ellipse","freehand","adjustment","group","path"]},"contours":{"type":"array","minItems":1,"maxItems":128,"items":{"type":"object","required":["nodes"],"properties":{"closed":{"type":"boolean"},"nodes":{"type":"array","minItems":2,"maxItems":2000,"items":{"type":"object","required":["x","y"],"properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1}}}}}}}}},"patch":{"type":"object"},"images":{"type":"object"},"mask":{"type":"object"},"index":{"type":"integer","minimum":0,"maximum":200},"newId":{"type":"string","maxLength":100},"offset":{"type":"number","minimum":-32768,"maximum":32768},"mode":{"type":"string","enum":["left","center","right","top","middle","bottom","distribute-x","distribute-y","union","difference","intersection","xor"]}}},"conventions":{"drawing":"Compose a requested picture yourself from rect, ellipse, text and path layers; no asset is needed. A rect, ellipse or text layer has id, type, x, y, w, h in canvas pixels. A path layer also has contours; each contour has at least 2 nodes, each node x and y between 0 and 1 of the layer box. Layer type is exactly one of image, text, rect, ellipse, freehand, adjustment, group, path.","coordinates":"Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.","opacity":"0..1","masks":"Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.","adjustments":"Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.","vectors":"Add/update path contours [{closed,nodes:[{x,y,in:{x,y},out:{x,y}}]}], fill, stroke, strokeWidth, dash, cap, join, gradient {from,to,stops:[{offset,color}]}, clip polygon.","assets":"Only original-owner canonical uploaded image references. No URL fetching, filesystem paths, code, provider calls or inline data.","saves":"Read project id/revision first. One batch = one immutable revision; invalid batch saves nothing. A stale revision is a conflict. The editor automatically saves its current draft before the concierge reads it and refreshes the same project on return. A concurrent browser draft is preserved with a conflict message.","locks":"Locked layers/ancestors are refused. Explicit unlocking is an edit, never silently unlock.","duplicate":"Duplicate supports nested groups. Supply newId for the copied root; descendants receive deterministic newId-prefix:base36-index IDs (prefix at most96 characters), in existing layer order. Read the returned document for IDs. Child coordinates, masks, isolated opacity and owned image references stay unchanged; clipped targets inside the copy are remapped. Only the copied root receives offset. Locked descendants, ID collisions or existing resource ceilings refuse the whole operation.","booleans":"One boolean per batch; at most256 total operand nodes. Larger paths use the browser worker. Two visible unlocked root paths, closed unclipped contours. 0.1 pixel flattening; originals hidden and retained. Mixed-winding nonzero contours refused.","exports":"Document export is editable JSON only. PNG/JPEG and bounded SVG export remain editor controls; agents must not claim a raster render."},"examples":[{"type":"add","layer":{"id":"heading","type":"text","text":"Hello","x":40,"y":40,"w":300,"h":80}},{"type":"update","id":"heading","patch":{"text":"Updated heading","opacity":0.8}},{"type":"add","layer":{"id":"exposure","type":"adjustment","scope":"stack","exposure":0.5}},{"type":"mask","id":"photo-layer","mask":{"points":[{"x":0,"y":0},{"x":100,"y":0},{"x":100,"y":100}],"feather":4}},{"type":"group","ids":["heading","photo-layer"],"id":"composition"},{"type":"boolean","ids":["path-a","path-b"],"mode":"union"},{"type":"add","layer":{"id":"hull","type":"rect","name":"Hull","x":340,"y":200,"w":120,"h":400,"fill":"#e63946","stroke":"#1b2a4a","strokeWidth":6}},{"type":"add","layer":{"id":"window","type":"ellipse","name":"Window","x":370,"y":280,"w":60,"h":60,"fill":"#87ceeb","stroke":"#1b2a4a","strokeWidth":4}},{"type":"add","layer":{"id":"flame","type":"path","name":"Flame","x":350,"y":600,"w":100,"h":140,"fill":"#ff8c00","contours":[{"closed":true,"nodes":[{"x":0,"y":0},{"x":1,"y":0},{"x":0.5,"y":1}]}]}}],"psd":{"profileVersion":1,"inspectTool":"create-inspect-psd","importTool":"create-import-psd","sourceTool":"create-psd-source","maxBytes":4194304,"dimensions":2048,"pixelLayers":32,"groupDepth":4,"supported":"RGB8 PSDv1 raw/RLE pixel layers, normal isolated groups, opacity and placement. Preserve immutable original; inspect losses and explicit mode before held import.","unsupported":"Other blends/pass-through, masks, text/effects/smart objects/adjustments refuse editable conversion. Flattened opaque merged cache only by explicit choice; no PSD export/full fidelity."},"unsupported":["Motion/compositing","RAW development","Page publishing","Audio workstation","PDF workbench","PSD export/full fidelity"]}
       END_CURRENT_EDITING_CONTRACT_JSON
     executor:
       executorType: api
@@ -647,6 +765,31 @@ tools:
                   maxLength: 100
               layer:
                 type: object
+                required: [id, type]
+                properties:
+                  id: { type: string, minLength: 1, maxLength: 100 }
+                  type:
+                    type: string
+                    enum: [image, text, rect, ellipse, freehand, adjustment, group, path]
+                  contours:
+                    type: array
+                    minItems: 1
+                    maxItems: 128
+                    items:
+                      type: object
+                      required: [nodes]
+                      properties:
+                        closed: { type: boolean }
+                        nodes:
+                          type: array
+                          minItems: 2
+                          maxItems: 2000
+                          items:
+                            type: object
+                            required: [x, y]
+                            properties:
+                              x: { type: number, minimum: 0, maximum: 1 }
+                              y: { type: number, minimum: 0, maximum: 1 }
               patch:
                 type: object
               images:
@@ -693,6 +836,50 @@ tools:
     routingTags:
       - creative
       - editing
+    skills:
+      - creative-editing
+    tags:
+      - route-backed
+  - name: create-generate-image
+    displayName: Generate Image
+    type: api
+    category: creative
+    description: >-
+      Generate a new picture from a sentence with this installation's image generator and save it as an image layer.
+      Use it when the person asks for a picture, image, illustration, photo, artwork or poster art of something.
+      With no id it makes a new project; with id it adds the picture to that project.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/create/generated-images
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: What the picture shows, its style and its mood, in one or two sentences.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: The new project's name. Leave it out when adding to a project with id.
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - prompt
+      additionalProperties: false
+    usageInstructions: >-
+      Write the prompt yourself from what the person asked. The first picture after a quiet period can answer that the
+      generator is starting; say so and ask them to try again in a minute. Use create-apply-edits instead when they ask
+      for shapes, layers to edit or a drawing built from parts.
+    routingTags:
+      - creative
+      - image-generation
     skills:
       - creative-editing
     tags:

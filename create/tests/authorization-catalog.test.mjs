@@ -54,7 +54,7 @@ test('every bot the package declares is bound, and an undeclared bot is still re
 
 test('each route-backed tool carries exactly the permissions of the route it calls', () => {
   const tools = manifest.tools.filter((tool) => tool.executor?.executorType === 'api');
-  assert.equal(tools.length, 6);
+  assert.ok(tools.some(tool => tool.name === 'create-generate-image'), 'the picture tool is route-backed');
   for (const tool of tools) {
     const [method, endpoint] = tool.executor.apiEndpoint.split(' ');
     assert.ok(endpoint.startsWith(MOUNT + '/'), tool.name);

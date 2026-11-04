@@ -1,0 +1,3 @@
+/** Optional work remains separate from the core across actual packet generation. */
+import test from 'node:test';import assert from 'node:assert/strict';import {spawnSync}from 'node:child_process';import {fileURLToPath}from 'node:url';
+test('selected additional experience is truthful, optional, rendered and revision checked',()=>{const run=spawnSync(process.env.CAREER_PYTHON||'python3',[fileURLToPath(new URL('./career-additional-experience-contract.py',import.meta.url))],{encoding:'utf8',timeout:20000});assert.equal(run.status,0,run.stderr+run.stdout);assert.deepEqual(JSON.parse(run.stdout),{checks:8,failed:[]});});

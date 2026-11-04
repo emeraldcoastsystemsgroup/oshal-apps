@@ -23,22 +23,43 @@
 @media(max-width:760px){.split{display:flex;flex-direction:column;overflow:visible}.pane.left,.pane.right{width:100%;max-height:none;position:static}.pane.left{border-right:0}.office-page{padding:22px;min-height:420px}.office-page textarea{min-height:320px}#paneGuide{min-height:300px}.office-workspace{min-height:320px}}
 
 .office-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.office-format-label{display:flex;align-items:center;gap:6px;margin:0}.office-format-label select{width:auto;padding:7px 9px}
-@media(max-width:760px){.top{flex-wrap:wrap}.office-top-actions{width:100%}.office-format-label{font-size:12px}}
 #paneGuide{flex:none!important;min-height:0!important}
 #paneDecks{flex:none;margin-top:20px;padding-top:12px;border-top:1px solid var(--line)}
-#chatIn{min-height:44px;max-height:120px}
+#chatIn{min-height:64px;max-height:180px}
 
-/* Authoring stays in view while the slide rail scrolls independently. */
-.office-file-actions{margin-top:0;margin-bottom:12px;position:sticky;top:0;z-index:3;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px}
+/* Document mode: the embedded image preview under its design row. */
+.office-page .office-slide-design{margin:8px 0 0}
+.office-page .pvImg{margin:10px 0 0}
+.office-page .pvImg img{max-width:100%;max-height:240px;border-radius:8px;display:block}
+.office-page .pvImg figcaption{font-size:12px;opacity:.75;margin-top:4px}
+
+/* Authoring stays in view while the slide rail scrolls independently. A sticky bar must be
+   OPAQUE: the theme's --panel is translucent glass, so content scrolling beneath showed through
+   the bar as doubled text (Roger, 2026-11-03, on the phone demo). The gradient paints the panel
+   tint over an opaque base. */
+.office-file-actions{margin-top:0;margin-bottom:12px;position:sticky;top:0;z-index:3;padding:8px;background-color:var(--bg);background-image:linear-gradient(var(--panel),var(--panel));border:1px solid var(--line);border-radius:9px}
 #slideWorkspace{height:clamp(350px,calc(100dvh - 380px),740px);min-height:0}
 #officePartnerClose{display:none}
+/* ── Phone (Roger, 2026-11-03, on the demo): the header was a sticky translucent block taller
+   than the screen, so the page scrolled UNDER it unreadably. Word-style instead: a compact
+   title bar that scrolls away, command rows as one-line ribbons that scroll sideways, and the
+   document itself first. ── */
 @media(max-width:760px){
-  .top{position:sticky;top:0;z-index:5;background:var(--panel);padding:12px}
-  .office-file-actions{position:static;gap:6px;padding:6px}
-  .office-file-actions .btn{padding:8px 10px;font-size:12px}
+  .top{position:static;display:block;background:var(--bg);padding:10px 12px 6px}
+  .top h1{font-size:17px;margin:0}
+  .top .sub{display:none}
+  .split{height:auto}
+  .office-top-actions{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;margin-top:8px;padding-bottom:4px;gap:6px}
+  .office-top-actions .btn{flex:0 0 auto;white-space:nowrap;padding:9px 12px;font-size:13px;width:auto}
+  .office-format-label{flex:0 0 auto;white-space:nowrap;font-size:12px}
+  .office-file-actions{position:static;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;padding:6px}
+  .office-file-actions .btn,.office-file-actions .destchip{flex:0 0 auto;white-space:nowrap;padding:9px 11px;font-size:12.5px;width:auto}
+  /* .office-workspace raises specificity over slide-workspace.css, which loads after this file. */
+  .office-workspace .office-slide-toolbar,.office-workspace .office-slide-design{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .office-workspace .office-slide-button,.office-workspace .office-slide-design-item{flex:0 0 auto;white-space:nowrap}
   #slideWorkspace{height:auto;min-height:320px}
   .pane.right{display:none}
-  .office-chat-open .pane.right{display:flex;position:fixed;inset:0;z-index:20;max-height:100dvh;width:100%;padding:14px;background:var(--panel);overflow:auto;box-sizing:border-box}
+  .office-chat-open .pane.right{display:flex;position:fixed;inset:0;z-index:20;max-height:100dvh;width:100%;padding:14px;background-color:var(--bg);background-image:linear-gradient(var(--panel),var(--panel));overflow:auto;box-sizing:border-box}
   .office-chat-open{overflow:hidden}
   #officePartnerClose{display:block;align-self:flex-start;margin-bottom:12px}
   #chat{flex:1;max-height:45dvh}

@@ -8,6 +8,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Walk the real AI Office DOM through Guide actions and a same-origin owner-scoped receipt without providers or outward delivery.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve the same explicit framework fixture as the renderer contracts on every supported host.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | The AI partner and the 2.15.0 design row coexist: a chat turn sends the attached-image marker instead of the data URI, and an applied update_slide proposal keeps the person's #image:/#caption: lines in the outline (before, the applied proposal silently deleted the image).
  */
 
 import { createServer } from 'node:http';
@@ -67,7 +68,7 @@ async function serveStatic(res, file, contentType) {
   }
 }
 
-async function fixture() {
+async function fixture(guideReply = GUIDE_REPLY) {
   const html = path.join(packageRoot, 'tools', 'presentations.html');
   const core = path.join(frameworkRoot, 'src', 'shared', 'ui');
   const receipts = [];
@@ -85,7 +86,7 @@ async function fixture() {
     if (req.method === 'GET' && url.pathname === '/api/create/brand-kit') return json(res, 404, { error: 'not_available' });
     if (req.method === 'POST' && url.pathname === '/api/presentations/sections/guide') {
       const body = await readBody(req); guideBodies.push(body);
-      return json(res, 200, GUIDE_REPLY);
+      return json(res, 200, guideReply);
     }
     if (req.method === 'POST' && url.pathname === '/api/presentations/sections/pptx') {
       const body = await readBody(req);
@@ -151,6 +152,49 @@ test('Guide drives the shipped AI Office page into a visible owner-scoped receip
     assert.equal(app.emailCalls, 0);
     assert.equal(app.deleteCalls, 0);
     assert.deepEqual(external, []);
+  } finally {
+    await context.close();
+    await browser.close();
+    await serverClose(app.server);
+  }
+});
+
+test('an applied Guide proposal keeps the attached image, whose bytes never leave the page', async () => {
+  const uri = 'data:image/png;base64,' + 'A'.repeat(600);
+  const app = await fixture({
+    reply: 'Tightened the wording.',
+    actions: [{ op: 'update_slide', index: 1, bullets: ['Tighter point', 'Second point'] }],
+  });
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  await context.route('**/*', (route) => (new URL(route.request().url()).origin !== app.origin ? route.abort('blockedbyclient') : route.continue()));
+  const page = await context.newPage();
+  page.setDefaultTimeout(20_000);
+  try {
+    await page.goto(`${app.origin}/api/presentations/sections/ui`, { waitUntil: 'domcontentloaded' });
+    await page.locator('#wzReopen').click();
+    await page.locator('#wzTalk').click();
+    await page.waitForFunction(() => Boolean(window.officeDesign), null, { timeout: 15_000 });
+    await page.evaluate((imageUri) => {
+      const outline = document.getElementById('outline');
+      outline.value = `Cover\n#image: ${imageUri}\n#caption: Team\nOne point`;
+      outline.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('title').value = 'Image deck';
+    }, uri);
+    await page.locator('#chatIn').fill('Tighten slide 1');
+    await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith('/api/presentations/sections/guide') && response.status() === 200),
+      page.locator('#chatSend').click(),
+    ]);
+    const sent = app.guideBodies[0].slides[0].bullets;
+    assert.ok(sent.includes('#image: (attached)'), 'the chat sends the marker, not the bytes');
+    assert.ok(!JSON.stringify(app.guideBodies[0]).includes('base64,AAA'), 'image bytes never leave the page in a chat turn');
+    await page.getByRole('button', { name: 'Apply changes', exact: true }).click();
+    await page.waitForFunction(() => document.getElementById('outline')?.value.includes('Tighter point'));
+    const outline = await page.locator('#outline').inputValue();
+    assert.ok(outline.includes(`#image: ${uri}`), 'the applied proposal keeps the attached image');
+    assert.ok(outline.includes('#caption: Team'), 'the applied proposal keeps the caption');
+    assert.ok(!outline.includes('One point'), 'the proposed wording replaced the prose');
   } finally {
     await context.close();
     await browser.close();

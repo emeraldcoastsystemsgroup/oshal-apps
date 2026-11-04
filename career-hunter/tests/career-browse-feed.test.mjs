@@ -1,9 +1,11 @@
 /**
  * CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | State the fixture's annual USD units explicitly so pay-filter assertions do not depend on the retired missing-unit defaults.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the corpus-only browse feed against a real SQLite corpus built from the engine's own schema.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Require title/description keywords from the main box, preserve independent advanced filters on employer matches, and exercise the legacy fallback.
  */
 /**
  * Regression guards for the pre-resume BROWSE feed.
@@ -56,8 +58,8 @@ function seed(rows) {
   const posting = db.prepare(
     `INSERT INTO corpus.postings_corpus
        (id,company_id,ats_job_id,title,description,location,url,posted_date,first_seen_at,
-        state,remote,job_type,target_role,salary_min,salary_max,active)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        state,remote,job_type,target_role,salary_min,salary_max,salary_currency,salary_period,active)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   );
   for (const r of rows) {
     company.run(r.companyId, r.company, r.industry ?? 'Software');
@@ -66,6 +68,8 @@ function seed(rows) {
       r.url ?? `https://example.test/${r.id}`, r.postedDate ?? '2026-08-01',
       r.firstSeen ?? '2026-08-01T00:00:00Z', r.state ?? 'FL', r.remote ?? 0,
       r.jobType ?? 'full-time', r.targetRole ?? 1, r.salaryMin ?? null, r.salaryMax ?? null,
+      r.salaryMin != null || r.salaryMax != null ? 'USD' : null,
+      r.salaryMin != null || r.salaryMax != null ? 'year' : null,
       r.active ?? 1,
     );
   }
@@ -127,13 +131,17 @@ test('the default order is newest first, off first_seen_at', () => {
   ]);
 });
 
-test('the simple search box matches TITLES, not description text', () => {
+test('the primary keyword box matches titles and description-only words through FTS', () => {
   const page = browse.fetchBrowsePage(db, { q: 'platform' });
-  assert.deepEqual(titles(page).sort(), ['Platform Intern', 'Staff Platform Engineer']);
-  // Office Manager's DESCRIPTION says "platform engineering". The simple box must not
-  // reach it -- that is what the advanced description field is for, below.
-  assert.ok(!titles(page).includes('Office Manager'));
+  assert.deepEqual(titles(page).sort(), ['Office Manager', 'Platform Intern', 'Staff Platform Engineer']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(db, {q:'engineering'})), ['Office Manager']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(db, {q:'office engineering'})), ['Office Manager'],
+    'the keyword words may occur across the title and description');
   assert.equal(page.fullText, true, 'the fixture corpus carries FTS, so it should be used');
+  assert.equal(page.deep, true);
+  const sql = capturedFullTextSql({q:'engineering'});
+  assert.match(sql, /postings_fts MATCH/);
+  assert.doesNotMatch(sql, /p\.description LIKE/,'indexed keyword search must not scan description rows');
 });
 
 test('a browse with no search term reports that it ranked nothing within a pool', () => {
@@ -179,11 +187,11 @@ test('no score column and no description ever reaches the payload', () => {
   assert.ok(row.title && row.company && row.url, 'browse card still needs what it renders');
 });
 
-test('page geometry is clamped, and a deep page is refused rather than scanned', () => {
+test('page size is bounded but indexed searches can continue past the former depth ceiling', () => {
   const big = browse.fetchBrowsePage(db, { per: '5000' });
   assert.equal(big.per, browse.MAX_PER);
   const deep = browse.fetchBrowsePage(db, { per: '100', page: '999' });
-  assert.equal(deep.capped, true);
+  assert.equal(deep.capped, false);
   assert.equal(deep.jobs.length, 0);
   assert.equal(browse.browsePageGeometry({ per: '0' }).per, 60, 'a meaningless size falls back');
   assert.equal(browse.browsePageGeometry({ per: '-5' }).per, 1, 'a negative size can never reach LIMIT');
@@ -262,15 +270,15 @@ ${plan.join(String.fromCharCode(10))}`);
 ${plan.join(String.fromCharCode(10))}`);
 });
 
-test('the browse statement never names user_signals, and never description by default', () => {
-  for (const query of [{}, { q: 'engineer' }, { sort: 'salary', remote: '1' }]) {
+test('open browsing never needs user_signals, and description scanning requires keyword input on legacy corpora', () => {
+  for (const query of [{}, { sort: 'salary', remote: '1' }]) {
     const sql = capturedSql(query);
     assert.ok(!/description/i.test(sql), `browse statement selected description: ${sql}`);
     assert.ok(!/user_signals/i.test(sql), `browse statement joined signals: ${sql}`);
   }
-  // The full-text arm is opt-in and only appears when the caller asked for it. It is the
-  // one unindexed scan in this module, so it must never arrive by accident.
-  // The LIKE fallback's description arm appears only when a description was asked for.
+  const keywords = capturedSql({q:'engineer'});
+  assert.match(keywords, /description LIKE/);
+  assert.doesNotMatch(keywords, /user_signals/);
   const deep = capturedSql({ q: 'engineer', description: 'clearance' });
   assert.match(deep, /description LIKE/);
   assert.ok(!/user_signals/i.test(deep));
@@ -335,7 +343,25 @@ test('the advanced fields search title and description independently', () => {
   assert.deepEqual(
     titles(browse.fetchBrowsePage(db, { title: 'office', description: 'nonexistent' })), []);
   assert.equal(browse.fetchBrowsePage(db, { description: 'platform' }).deep, true);
-  assert.equal(browse.fetchBrowsePage(db, { q: 'platform' }).deep, false);
+  assert.equal(browse.fetchBrowsePage(db, { q: 'platform' }).deep, true);
+});
+
+test('employer keyword matches still respect independent title and description constraints', () => {
+  assert.deepEqual(titles(browse.fetchBrowsePage(db, {q:'Contoso',title:'office',description:'platform'})), ['Office Manager']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(db, {q:'Contoso',title:'platform'})), ['Platform Intern']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(db, {q:'Northwind',description:'platform'})), []);
+});
+
+test('legacy corpora retain title, description and combined keyword filtering without FTS', () => {
+  const legacy = {prepare(sql) {
+    if (sql.includes("type='table'") && sql.includes('sqlite_master')) return {get:()=>undefined};
+    return db.prepare(sql);
+  }};
+  assert.deepEqual(titles(browse.fetchBrowsePage(legacy, {q:'platform'})).sort(), ['Office Manager','Platform Intern','Staff Platform Engineer']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(legacy, {description:'platform'})), ['Office Manager']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(legacy, {title:'platform'})).sort(), ['Platform Intern','Staff Platform Engineer']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(legacy, {q:'Contoso',title:'office',description:'platform'})), ['Office Manager']);
+  assert.deepEqual(titles(browse.fetchBrowsePage(legacy, {q:'Northwind',description:'platform'})), []);
 });
 
 test('every search arm is bound to the same term, so no arm can be fed the wrong value', () => {
@@ -464,4 +490,13 @@ test('the employer half of the simple box is a UNION, never an OR beside the mat
   // A search with no employer half must not carry the union at all.
   assert.ok(!/UNION/.test(capturedFullTextSql({ title: 'engineer' })),
     'an advanced title search still pays for the employer arm');
+});
+
+test('indexed browsing continues past 2000 postings with stable date ties',()=>{
+  db.exec('BEGIN');try{
+    const insert=db.prepare("INSERT INTO corpus.postings_corpus(id,company_id,ats_job_id,title,description,active,first_seen_at) VALUES(?,10,?,'Continuation fixture','Continuation fixture',1,'2026-01-01')");
+    for(let i=10000;i<13000;i++)insert.run(i,'continuation-'+i);
+    const all=[];for(let page=1;page<=15;page++){const result=browse.fetchBrowsePage(db,{q:'continuation',per:'200',page:String(page)});assert.equal(result.capped,false);assert.equal(result.jobs.length,200);all.push(...result.jobs.map(r=>r.id));}
+    assert.equal(new Set(all).size,3000);assert.equal(browse.fetchBrowsePage(db,{q:'continuation',per:'200',page:'16'}).exhausted,true);
+  }finally{db.exec('ROLLBACK');}
 });
