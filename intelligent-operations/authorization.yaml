@@ -1,3 +1,4 @@
+# CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Admit the Your computers page script through existing own app.open reads for GET and HEAD.
 # CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Cloud clusters script: GET and HEAD under app.open.
 # CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Ops console script and glass skin stylesheet: GET and HEAD under app.open.
 # CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Admit server-side external ticket reconciliation under the existing records.write grant; the handler performs a pinned native read and records only bounded observed state.
@@ -66,6 +67,14 @@ bindings:
     - {id: ops-response-plans, allOf: [app.open]}
     - {id: ops-anomalies, allOf: [app.open]}
   http:
+    - id: computers-asset-get
+      method: GET
+      path: /assets/computers.js
+      allOf: [app.open]
+    - id: computers-asset-head
+      method: HEAD
+      path: /assets/computers.js
+      allOf: [app.open]
     - id: operator-workspace-get
       method: GET
       path: /assets/operator-workspace.js

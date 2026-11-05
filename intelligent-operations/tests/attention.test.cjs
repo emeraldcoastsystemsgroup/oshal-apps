@@ -1,3 +1,4 @@
+/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | A refused start older than three days no longer counts as waiting: the card keeps its reason and nothing can be done about old evidence (third review, 2026-11-04). */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Guard the Jarvis systems, response-plan and anomaly summaries: own records only, degraded assets named with scope, discovery state stated, nothing claimed as run. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Jarvis attention summary and tools: counts come from the caller's own saved records in real SQL (another person sees nothing), the summary sentence names only what waits on the person, and every declared tool is read-only, bound under app.open and backed by a route the package serves. */
 'use strict';
@@ -9,7 +10,7 @@ test('the attention summary counts only the caller\'s own records and names only
   await ins('operations_action_plans','p1',{id:'p1'});await ins('operations_action_plans','p2',{id:'p2'});
   await ins('operations_action_approvals','a2',{id:'a2',planId:'p2',expiresAt:new Date(Date.now()+600000).toISOString()});
   await ins('operations_action_executions','e1',{id:'e1',planId:'p1',state:'completed',recovery:{outcome:'regressed'}});
-  await ins('operations_investigations','i1',{id:'i1',state:'started',trigger:'scheduled-tick'});await ins('operations_investigations','i2',{id:'i2',state:'start-refused',error:'refused: x'});
+  await ins('operations_investigations','i1',{id:'i1',state:'started',trigger:'scheduled-tick'});await ins('operations_investigations','i2',{id:'i2',state:'start-refused',error:'refused: x'});await ins('operations_investigations','i3',{id:'i3',state:'start-refused',error:'refused: old',createdAt:new Date(Date.now()-4*86400000).toISOString()});
   await ins('operations_delegations','d1',{id:'d1',direction:'outbound',state:'delivered'});await ins('operations_delegations','d2',{id:'d2',direction:'inbound',ticketId:randomUUID()});
   await f.inspect.query("INSERT INTO operations_anomaly_state(user_sub,id,record) VALUES('alice','baseline:x',$1)",[JSON.stringify({state:{firing:true}})]);
   const s=await attentionSummary(f.caller('alice'),'alice'),by=Object.fromEntries(s.items.map(i=>[i.label,i.count]));

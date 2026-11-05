@@ -64,7 +64,7 @@ function futuresUnavailable() {
 /* Native kernel: the person's own futures-research schedule lives in the kernel (GET /api/v1/agent/schedules);
    Save / enable and Resume activate it, Pause and Stop deactivate it, as the paper autopilot's button does. */
 let FUT_KERNEL = null;
-const FUT_ACTIVATION = { class: 'person', configuration: { runBudgetMicros: 1000000, dailyBudgetMicros: 2000000, timeoutMs: 300000 } };
+const FUT_ACTIVATION = { class: 'person', configuration: { timeoutMs: 300000 } };
 async function futuresKernel(path, opts) {
   const r = await fetch(path, Object.assign({ credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json', 'Content-Type': 'application/json' } }, opts || {}));
   const j = await r.json().catch(() => ({}));

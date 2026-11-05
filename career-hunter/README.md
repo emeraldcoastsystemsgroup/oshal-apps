@@ -54,6 +54,10 @@ suggestions, leaves an employer that refuses alone, and reads only public addres
 page shows what was repaired, what needs a person, what the pull did and what is still broken. See
 [the nightly source review](SOURCE-REVIEW.md).
 
+A pull a restart stops continues from the last employer it finished. See
+[a stopped pull continues](SOURCE-MEMORY.md#a-stopped-pull-continues). Resolve and Accept on the Companies page take effect at
+the next pull, and the page shows what happened. See [changing a source](SOURCE-MEMORY.md#changing-a-source).
+
 ## Fresh job-search cycle (1.29.0)
 
 On the Job Board's **Ready for submission** tab, **Review Ready items older than 7 days** previews

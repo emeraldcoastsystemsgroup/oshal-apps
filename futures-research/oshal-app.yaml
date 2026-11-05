@@ -1,5 +1,6 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Separate opt-in Futures reasoning from equity decisions; execution is bound to durable owner-scoped study evidence.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Release exact-citation, outcome-aware reasoning without changing tools or automatic enrollment.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 name: futures-research
 suite: ai-finance
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -14,7 +15,7 @@ rating:
       degrade: disable
 displayName: Futures Research
 description: Tool-less scheduled review of owner-scoped Futures studies; proposals require explicit adoption in the Trading console.
-version: 1.1.0
+version: 1.1.1
 status: active
 scope: public
 uses: [bound-workflow-results, app-dependencies, test-catalog]
@@ -66,4 +67,4 @@ routes:
     auth: service
     requiresContext: true
     requiresAi: false
-theme: midnight
+theme: light-blue

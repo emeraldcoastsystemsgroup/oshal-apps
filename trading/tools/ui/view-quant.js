@@ -3,7 +3,9 @@
  * Research only: nothing on this screen can place an order. Sort headers and the Why disclosures keep every number readable at phone width.
  *
  * CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Show the published signal's actual historical evidence and exact saved account execution cadence; suppress target lists from earlier reviews.
  * -----------------------------------------------------------------------------
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Build and restore an unarmed daily Quant strategy review with account-specific candidates, holding exceptions and explicit evidence still required before live use.
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Rank by the forward-judged signals too: the new quality dip (25%+ below the 52-week high, profitable, growing), profitable growth and Congress buying join the Rank by choices with their forward verdicts, so the dip candidates Roger asked for are one selection away.
@@ -17,7 +19,7 @@
 
 let QD = { today: null, board: null, status: null, job: null, message: null, rankBy: null, group: '', search: '', offset: 0, sort: { key: 'rank', dir: 1 }, running: false, keeperRefused: null };
 const QD_SCHEDULE = { app: 'intelligent-trades', name: 'quant-desk' };
-const QD_ACTIVATION = { class: 'person', configuration: { runBudgetMicros: 1000000, dailyBudgetMicros: 10000000, timeoutMs: 60000 } };
+const QD_ACTIVATION = { class: 'person', configuration: { timeoutMs: 60000 } };
 const QD_VERDICT_CLASS = { 'Holds up': 'pos', 'Promising': 'pos', 'Fails': 'neg' };
 const QD_PAGE_ROWS = 25;
 /** A pause between Run now's passes, because everything else in Trading waits while one runs. */
@@ -241,7 +243,22 @@ function qdControls() {
 /** @description Paint the desk from the loaded records. @param {HTMLElement} host - Tab body. @returns {void} */
 function qdPaint(host) {
   const t = QD.today, ready = t && t.ready;
-  host.innerHTML = qdControls() + (ready ? qdMarket(t.market) + '<div data-quant-holdings-slot>' + qdHoldings(t) + '</div><div class="panel" data-quant-top><h2>The list</h2>' + '<div data-quant-rank>' + qdRankControl() + '</div>' + qdFilterControls(t) + '<div data-quant-list>' + qdListBody(t) + '</div></div>' + qdGroups(t) : '') + qdHistory(QD.board && QD.board.history) + qdForward(QD.board && QD.board.forward);
+  host.innerHTML = qdControls() + qdStrategyReview(QD.strategyReview) + (ready ? qdMarket(t.market) + '<div data-quant-holdings-slot>' + qdHoldings(t) + '</div><div class="panel" data-quant-top><h2>The list</h2>' + '<div data-quant-rank>' + qdRankControl() + '</div>' + qdFilterControls(t) + '<div data-quant-list>' + qdListBody(t) + '</div></div>' + qdGroups(t) : '') + qdHistory(QD.board && QD.board.history) + qdForward(QD.board && QD.board.forward);
+}
+
+/** The proposed strategy has no activation control: its stored snapshot is a review, never an account assignment. */
+function qdStrategyReview(review){
+ const button='<button class="btn" data-qd="strategy-review">'+(review?'Refresh daily strategy review':'Build daily Quant strategy review')+'</button>';
+ if(!review)return'<section class="panel"><h2>Daily Quant strategy · review</h2><p>Turn the dated Quant signals into an account-specific proposal with daily reassessment, position limits and explicit exits. Building the review leaves every live strategy unchanged.</p>'+button+'</section>';
+ if(review.rules?.id!=='daily-quant-review-v3')return'<section class="panel"><h2>Daily Quant strategy · review</h2><p>Refresh this older review to use the published signal and its matching historical evidence. Its previous stock targets are not current.</p>'+button+'</section>';
+ const list=items=>'<ul>'+items.map(text=>'<li>'+esc(text)+'</li>').join('')+'</ul>';
+ const execution=a=>{const x=a.configuredExecution;if(!x||x.available!==true)return'<p>Saved live configuration is unavailable; daily stock execution is not verified.</p>';return'<p>Saved live mode: <strong>'+esc(x.mode||'Not configured')+'</strong>. '+esc(x.mismatch||'Daily stock Quant execution is '+(x.dailyStockQuantConnected?'reported by the saved signal; current authority is not verified.':'not connected.'))+(x.lastObservedAt?' Last observed '+esc(qdWhen(x.lastObservedAt))+'; status '+esc(x.lastObservedStatus||'Unknown')+'.':'')+'</p>';};
+ const accounts=review.accounts.map(a=>a.eligible!==true?'<details class="native-evidence"><summary>Schwab '+esc(a.account)+' · separate strategy required</summary><p>'+esc(a.eligible===false?(a.eligibilityReason||'Confirm this account’s registration before reviewing stock targets.'):'Refresh this older review to bind the account type and saved registration.')+'</p><p>No stock allocation or holding transition is proposed for this account. Retirement accounts use their separate cash-funded strategy and validation.</p></details>':a.proposalAvailable!==true?'<details class="native-evidence"><summary>Schwab '+esc(a.account)+' · proposal unavailable</summary><p>The signal evidence is incomplete or failed. No stock allocation, cash allocation or holding transition is proposed.</p></details>':'<details class="native-evidence"><summary>Schwab '+esc(a.account)+' · '+esc(a.proposedGrossPct)+'% proposed stock exposure</summary><p>Measured account value '+money(a.equity)+' · cash '+money(a.cash)+'. '+esc(a.residualCashPct)+'% remains unallocated by this proposal. Share counts use the completed-session reference close; they are not order tickets.</p><div style="overflow:auto"><table><thead><tr><th>Candidate</th><th>Rank</th><th>Industry</th><th>Target</th><th>Reference shares</th></tr></thead><tbody>'+a.targets.map(r=>'<tr><td>'+esc(r.symbol)+'</td><td>'+esc(r.rank)+'</td><td>'+esc(r.industry)+'</td><td>'+esc(r.weightPct)+'%</td><td>'+esc(r.referenceShares??'Unknown')+'</td></tr>').join('')+'</tbody></table></div><h3>Current holdings</h3>'+list(a.holdings.map(h=>h.symbol+': '+h.disposition+(h.reasons.length?' — '+h.reasons.join('; '):'')))+'</details>').join('');
+ return'<section class="panel" data-quant-strategy-review><h2>Daily Quant rotation · unarmed proposal</h2><p>Signal session '+esc(review.session||'Unavailable')+' · built '+esc(qdWhen(review.generatedAt))+'. No account assignment, mandate or order was created.</p>'+button+
+ (review.blockers.length?'<div class="err"><strong>Review data incomplete</strong>'+list(review.blockers)+'</div>':'')+
+ '<p>'+esc(review.candidateCount)+' names pass the proposed entry rules. At most '+esc(review.rules.maxPositions)+' positions, '+esc(review.rules.maxPositionPct)+'% per stock and '+esc(review.rules.maxIndustryPct)+'% per industry. Gross stock exposure is capped at '+esc(review.rules.maxGrossPct)+'%, or '+esc(review.rules.defensiveGrossPct)+'% when the proposed market filter is defensive.</p>'+list(review.operatingRules)+
+ '<p>Published ranking: <strong>'+esc(review.signalEvidence?.name||review.rules.rankBy||'Unavailable')+'</strong>; monthly history comparison: <strong>'+esc(review.signalEvidence?.verdict||'Unavailable')+'</strong>. This does not validate the new daily strategy.</p>'+review.accounts.map(a=>'<div><strong>Schwab '+esc(a.account)+'</strong>'+execution(a)+'</div>').join('')+accounts+
+ '<h3>Validation required before live use</h3>'+list(review.validation.reasons)+list(review.validation.required)+'<p class="sub">Saved review '+esc(review.reviewId)+'. This proposal cannot activate live trading.</p></section>';
 }
 
 /** @description Read the list for what is selected and repaint only its rows, so the search box keeps its place. @param {HTMLElement} host - Tab body. @returns {Promise<void>} */
@@ -257,9 +274,9 @@ async function qdLoadList(host) {
 
 /** @description Read the desk's records and paint them. @param {HTMLElement} host - Tab body. @returns {Promise<void>} */
 async function qdLoad(host) {
-  const [status, today, board, job] = await Promise.all([api('/quant/status'), api(qdTodayPath()), api('/quant/scoreboard'), paperScheduleRow(QD_SCHEDULE).catch(() => null)]);
+  const [status, today, board, job, savedReview] = await Promise.all([api('/quant/status'), api(qdTodayPath()), api('/quant/scoreboard'), paperScheduleRow(QD_SCHEDULE).catch(() => null), api('/quant/strategy-review').catch(()=>null)]);
   if ($('tabbody') !== host) return;
-  QD = { ...QD, status, today, board, job };
+  QD = { ...QD, status, today, board, job, strategyReview:savedReview?.review||QD.strategyReview||null };
   qdPaint(host);
 }
 
@@ -292,6 +309,10 @@ async function loadQuantDesk() {
     if (!act) return;
     try {
       if (act.dataset.qd === 'run') { await qdRun(host); return; }
+      if (act.dataset.qd === 'strategy-review') {
+        act.disabled=true;QD.strategyReview=await api('/quant/strategy-review',jbody('POST',{}));
+        if($('tabbody')===host)qdPaint(host);return;
+      }
       act.disabled = true;
       await qdSetEnabled(act.dataset.qd === 'on');
       await qdLoad(host);

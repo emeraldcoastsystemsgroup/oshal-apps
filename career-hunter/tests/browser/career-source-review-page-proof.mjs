@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shipped Companies page in Chromium with the nightly source review: employer text stays inert, a missing or unreadable report never hides the table, and the card fits a phone.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Where a change waits for the next pull: Resolve and Accept save it and say so, what the pull did shows in words with employer text inert, and an older answer still loads.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,13 +27,23 @@ const report = {
   stuck: [{company: 'Stuck Feed', ats: 'phenom', jobs: 8000}],
   stillBroken: [{company: 'Dead Feed', ats: 'web', code: 'browser_navigation_failed', pulls: 9}],
 };
-let answer, server, origin, browser;
+let answer, server, origin, browser, refuse = null;
+const posted = [];
 
 before(async () => {
   server = http.createServer((req, res) => {
     if (req.url === '/api/career-hunter/companies-admin/list') {
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify(answer));
+      return;
+    }
+    if (req.url.startsWith('/api/career-hunter/companies-admin/seturl')) {
+      const query = new URL(req.url, 'http://fixture').searchParams;
+      posted.push({companyId: query.get('companyId'), url: query.get('url'), board: query.get('board')});
+      res.setHeader('content-type', 'application/json');
+      res.statusCode = refuse ? refuse.status : 202;
+      res.end(JSON.stringify(refuse ? refuse.body : {ok: true, queued: true, message: 'Saved. The next nightly pull applies this and reads its jobs.',
+        request: {id: 'new', companyId: Number(query.get('companyId')), target: query.get('url') || query.get('board'), state: 'waiting', detail: {}}}));
       return;
     }
     if (req.url.startsWith('/shared/')) { res.statusCode = 204; res.end(); return; }
@@ -49,8 +60,8 @@ after(async () => {
   await new Promise(done => server.close(done));
 });
 
-async function open(sourceReview, viewport = {width: 1280, height: 800}) {
-  answer = {companies, sourceHealth: {available: true}, sourceReview};
+async function open(sourceReview, viewport = {width: 1280, height: 800}, sourceChangeMode = undefined, sourceChanges = []) {
+  answer = {companies, sourceHealth: {available: true}, sourceReview, sourceChangeMode, sourceChanges};
   const page = await browser.newPage({viewport});
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -93,6 +104,103 @@ test('an unreadable or partial report says so and the companies still load', asy
     assert.deepEqual(errors, []);
     await page.close();
   }
+});
+
+test('resolve saves the change and the row says it is waiting', async () => {
+  const {page, errors} = await open(null, undefined, 'next-pull');
+  assert.ok((await page.locator('#companiesIntro').innerText()).includes('next nightly pull'));
+  await page.locator('#rows input').fill('https://boards.greenhouse.io/localcollege');
+  await page.locator('#rows button', {hasText: 'Resolve'}).click();
+  await page.waitForSelector('#rows .change');
+  assert.equal(await page.locator('#rows .change').innerText(), 'Waiting for the next nightly pull.');
+  assert.ok((await page.locator('#rows .msg').innerText()).includes('Saved.'));
+  assert.deepEqual(posted.at(-1), {companyId: '1', url: 'https://boards.greenhouse.io/localcollege', board: null});
+  assert.ok((await page.locator('#sourceChanges').innerText()).includes('Local College'));
+  assert.equal(await page.locator('#rows button', {hasText: 'Resolve'}).isDisabled(), false, 'a second thought can be saved too');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('a suggestion is accepted with one press, naming the board', async () => {
+  const suggested = {...report, review: {...report.review, suggested: [{id: 1, company: hostile, options: ['lever:one', 'ashby:two'], jobs: 5, reason: 'several boards'}]}};
+  const {page, errors} = await open(suggested, undefined, 'next-pull');
+  await page.locator('#sourceReview summary', {hasText: 'Suggested'}).click();
+  assert.equal(await page.locator('button.accept').count(), 2);
+  await page.locator('button.accept', {hasText: 'ashby:two'}).click();
+  await page.waitForFunction(() => document.querySelector('#sourceReview').innerText.includes('Saved. Waiting'));
+  assert.deepEqual(posted.at(-1), {companyId: '1', url: null, board: 'ashby:two'});
+  assert.equal(await page.locator('button.accept').count(), 0, 'one answer per employer');
+  assert.equal(await page.evaluate(() => window.__injected), undefined);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('a refused change says why and can be tried again', async () => {
+  const suggested = {...report, review: {...report.review, suggested: [{id: 1, company: 'Maybe Co', options: ['lever:one'], reason: 'several boards'}]}};
+  const {page} = await open(suggested, undefined, 'next-pull');
+  refuse = {status: 400, body: {ok: false, error: 'A company and a job board link are required.'}};
+  await page.locator('#sourceReview summary', {hasText: 'Suggested'}).click();
+  await page.locator('button.accept').click();
+  await page.waitForFunction(() => document.querySelector('#sourceReview').innerText.includes('job board link are required'));
+  assert.equal(await page.locator('button.accept').isDisabled(), false);
+  refuse = null;
+  await page.close();
+});
+
+test('what the pull did shows in words on the row and in the list, with employer text inert', async () => {
+  const changes = [
+    {id: 'a', companyId: 1, target: 'greenhouse:new', state: 'applied', detail: {board: 'greenhouse:new', jobs: 1252, new: 40}},
+    {id: 'b', companyId: 1, target: 'lever:x', state: 'duplicate', detail: {board: 'lever:x', owner: hostile}},
+    {id: 'c', companyId: 77, target: 'https://x.example/', state: 'saved_no_jobs', detail: {}},
+    {id: 'd', companyId: 1, target: 'lever:y', state: 'interrupted', detail: {}},
+    {id: 'e', companyId: 1, target: hostile, state: 'something-new', detail: {}},
+    null,
+  ];
+  const {page, errors} = await open(null, undefined, 'next-pull', changes);
+  assert.equal(await page.locator('#rows .change').innerText(), 'Applied: now reading greenhouse:new, 1,252 jobs, 40 new, 0 closed.');
+  const list = await page.locator('#sourceChanges').innerText();
+  for (const expected of ['Local College', 'already uses lever:x', 'Company 77', 'no jobs could be read', 'stopped 3 times', 'could not read it'])
+    assert.ok(list.includes(expected), expected);
+  assert.ok(list.includes('<img src=x'), 'an employer name shows as text');
+  assert.equal(await page.locator('#sourceChanges img').count(), 0);
+  assert.equal(await page.evaluate(() => window.__injected), undefined);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('an applied change can be undone with one press, and says how many jobs it closed', async () => {
+  const changes = [{id: 'a', companyId: 1, target: 'greenhouse:new', state: 'applied', detail: {board: 'greenhouse:new', jobs: 9, new: 2, closed: 953, from: 'greenhouse:old'}},
+    {id: 'b', companyId: 1, target: 'lever:older', state: 'applied', detail: {board: 'lever:older', jobs: 1, new: 0, closed: 0, from: 'lever:oldest'}},
+    {id: 'c', companyId: 77, target: 'lever:first', state: 'applied', detail: {board: 'lever:first', jobs: 1, new: 1, closed: 0, from: 'none:'}}];
+  const {page, errors} = await open(null, undefined, 'next-pull', changes);
+  assert.ok((await page.locator('#sourceChanges').innerText()).includes('953 closed'));
+  assert.equal(await page.locator('button.undo').count(), 1, 'only the newest for an employer, and only with something to go back to');
+  await page.locator('button.undo').click();
+  await page.waitForFunction(() => document.querySelector('#rows .change').innerText.startsWith('Waiting'));
+  assert.deepEqual(posted.at(-1), {companyId: '1', url: null, board: 'greenhouse:old'});
+  assert.equal(await page.locator('button.undo').count(), 0, 'the undo itself now waits');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('an installation that changes sources at once keeps resolving at once and offers no Accept', async () => {
+  const suggested = {...report, review: {...report.review, suggested: [{id: 1, company: 'Maybe Co', options: ['lever:one'], reason: 'several boards'}]}};
+  const {page, errors} = await open(suggested, undefined, 'now');
+  await page.locator('#sourceReview summary', {hasText: 'Suggested'}).click();
+  assert.equal(await page.locator('button.accept').count(), 0);
+  assert.ok((await page.locator('#sourceReview').innerText()).includes('press Resolve'));
+  assert.equal(await page.locator('#sourceChanges').isVisible(), false);
+  assert.ok((await page.locator('#companiesIntro').innerText()).includes('scrape now'));
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('an answer with no change fields, from an older build, still loads', async () => {
+  const {page, errors} = await open(report, undefined, undefined, undefined);
+  assert.equal(await page.locator('#rows button', {hasText: 'Resolve'}).count(), 1);
+  assert.equal(await page.locator('#sourceChanges').isVisible(), false);
+  assert.deepEqual(errors, []);
+  await page.close();
 });
 
 test('the card fits a phone', async () => {

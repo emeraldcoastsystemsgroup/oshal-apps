@@ -1,4 +1,8 @@
+# CHANGE LOG: 44 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0: saved selected-stock daily Quant model, shared price factors for replay and runtime, bounded extended history, desktop/phone persistence; matching native daily mandate release required.
 # CHANGE LOG
+# 42 | maintainer@emeraldcoastsystemsgroup.com | 1.52.0: database-persisted daily ETF models separate taxable margin from cash retirement accounts. Share completed-session signals across replay and execution, require exact-capital full/held-out/stressed validation, reject monthly authority and retain fractional remnants. Failed validation remains blocked; account metadata retains saved assignments and cannot replace an active strategy. No automatic account assignment or activation.
+# 43 | maintainer@emeraldcoastsystemsgroup.com | 1.52.1: bind the stock Quant proposal to the explicitly published signal and matching evidence instead of the failed composite fallback. Refuse failed rankings, hide older target lists, and show each exact account's saved execution cadence without claiming daily stock execution.
+# 41 | maintainer@emeraldcoastsystemsgroup.com | 1.51.6: an unarmed daily Quant strategy review with exact-account comparisons, dated evidence and explicit validation gaps. Show actual account execution and fills. Reconciled protective sales no longer freeze every remaining allocation; stopped-symbol purchases remain deferred. Kernel 54f836e4 keeps activated database settings across releases.
 # 40 | maintainer@emeraldcoastsystemsgroup.com | 1.51.3: from the demo line, for every installation: with no brokerage connected the Strategies landing lists the person's paper accounts (what each runs, armed state, last pass) with paths to Reports and Strategy research, instead of the dead-end "No connected trading accounts" panel, and the landing's live-account line reads as state, not an instruction. UI only; no route, schedule or authorization change.
 # 38 | maintainer@emeraldcoastsystemsgroup.com | 1.51.1: pressing Film in a real browser showed nothing: the panel redrew after every pass and replaced its status line. The line now survives, counts the accounts down and says why nothing was filmed. A press after the session rolls at 11 pm Central films the newest saved report, and a report with no connected accounts says so.
 # 39 | maintainer@emeraldcoastsystemsgroup.com | 1.51.2: the daily report, Quant desk and Futures study declare startsItself: none places an order or spends money, and each answers 200 for a person who has set nothing up. The watcher (real orders), paper autopilot (409 until armed) and report film stay a person's decision. Guarded by tests/native-jobs-start-themselves.test.js.
@@ -42,6 +46,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | migrations/004-native-futures-research.sql: the native Futures study's saved settings and run ledger (FUT-01).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | trading_status and trading_positions read their routes (GET /api/trading/status, /positions) instead of a cli script the native kernel never runs, and trading_account reads GET /api/trading/account for cash and buying power: asked what the paper book holds and its cash, the concierge answered with equity only and never named the holding or the cash.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | migrations/003-native-predictions.sql: the Algorithms scan recorded into oshal_trading_predictions, which the native kernel never provisioned, so every scanned symbol failed and the scan showed an empty table.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — trading ("Intelligent Trades", ADR-052)
 #
@@ -90,6 +95,7 @@
 # surface guards that carved with their subjects.
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.51.5: Trading's Turn on buttons name no spending figure. A job's cap is what is saved on its row on the Jobs screen (Roger, 2026-11-04).
 
 name: intelligent-trades
 suite: ai-finance   # ADR-097: primary catalog shelf (tools keep their own category:)
@@ -133,7 +139,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.51.3
+version: 1.53.0
 lastingStorage: true
 status: active
 
@@ -216,7 +222,7 @@ egress:
     credential: { connector: finnhub, header: x-finnhub-token }
 
 # Dark, focused trading skin.
-theme: midnight
+theme: light-blue
 
 ticketType: trading-decision
 

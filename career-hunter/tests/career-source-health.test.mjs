@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Resolve on the native kernel: saved for the next pull with no engine started, read back as waiting and then as what the pull did.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Read the latest nightly source review on read-only SQLite through the existing administrator list; an absent or unreadable report never hides the companies.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep the read-only refresh fixture current with the lazily dispatched manual-score dependency; starting a native writer remains forbidden.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise source-history projection on read-only SQLite and the existing administrator list without a personal Career database.
@@ -7,11 +8,14 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
-import {readFileSync} from 'node:fs';
+import {mkdtempSync, readdirSync, readFileSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {createRequire} from 'node:module';
 import {spawnSync} from 'node:child_process';
 const require = createRequire(import.meta.url);
 const {sourceHealthByCompany, latestSourceReview} = require('../lib/career-source-health');
+const sourceRequests = require('../lib/career-source-requests');
 
 function corpus() {
   const db = new DatabaseSync(':memory:');
@@ -80,12 +84,13 @@ test('an administrator without a personal Career store can inspect the shared Co
     const leaves = {
       '@/shared/logger': {createChildLogger: () => ({info(){},warn(){},error(){}})},
       '@/shared/middleware/authz': {isOperator: () => false},
-      './career-user-store': {callerSub: req => req.sub, openCorpusDb: () => ({prepare: sql => db.prepare(sql),close(){}}),
+      './career-user-store': {callerSub: req => req.sub, userPaths: () => ({userDir: '/nonexistent-owner'}), openCorpusDb: () => ({prepare: sql => db.prepare(sql),close(){}}),
         openUserDb: () => {throw new Error('a shared list must not open a personal store');}},
       './career-engine-dispatch': {runCareerCliAwait: () => {throw new Error('read must not launch engine');}},
       './career-engine-response': {},
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
       '../lib/career-source-health': {sourceHealthByCompany, latestSourceReview},
+      '../lib/career-source-requests': sourceRequests,
     };
     new Function('require','module','exports',source)((id) => {
       assert.ok(id in leaves, `inspected dependency ${id}`); return leaves[id];
@@ -106,6 +111,119 @@ test('an administrator without a personal Career store can inspect the shared Co
   }
 });
 
+test('on the native kernel Resolve saves the change for the next pull and starts no engine', async () => {
+  const db = corpus();
+  const owner = mkdtempSync(join(tmpdir(), 'career-source-change-'));
+  const old = {admins: process.env.CAREER_HUNTER_ADMIN_SUBS, egress: process.env.OSHAL_EGRESS};
+  process.env.CAREER_HUNTER_ADMIN_SUBS = 'fixture-admin';
+  try {
+    const source = readFileSync(new URL('../routes/career-company-routes.js', import.meta.url), 'utf8');
+    const routes = new Map();
+    const module = {exports: {}};
+    let engineRuns = 0;
+    const leaves = {
+      '@/shared/logger': {createChildLogger: () => ({info(){},warn(){},error(){}})},
+      '@/shared/middleware/authz': {isOperator: () => false},
+      './career-user-store': {callerSub: req => req.sub, userPaths: () => ({userDir: owner}),
+        openCorpusDb: () => ({prepare: sql => db.prepare(sql),close(){}}), openUserDb: () => { throw new Error('not used'); }},
+      './career-engine-dispatch': {runCareerCliAwait: async () => { engineRuns++; return {ok: true, out: '{}'}; }},
+      './career-engine-response': {},
+      './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
+      '../lib/career-source-health': {sourceHealthByCompany, latestSourceReview},
+      '../lib/career-source-requests': sourceRequests,
+    };
+    new Function('require','module','exports',source)((id) => leaves[id], module, module.exports);
+    const keep = (url,...handlers) => routes.set(url,handlers);
+    module.exports.registerCareerCompanyRoutes({get: keep, post: keep}, {});
+    const call = async (url, query = {}) => {
+      const out = {status: 200};
+      const res = {status(code){ out.status = code; return res; }, json(value){ out.body = value; }};
+      const req = {sub: 'fixture-admin', query};
+      const handlers = routes.get(url);
+      await new Promise(done => handlers[0](req, res, () => { handlers[1](req, res); setImmediate(done); }));
+      return out;
+    };
+    const company = db.prepare('SELECT id FROM corpus.companies LIMIT 1').get().id;
+    const link = 'https://boards.greenhouse.io/fixture';
+
+    process.env.OSHAL_EGRESS = 'kernel';
+    assert.equal((await call('/companies-admin/list')).body.sourceChangeMode, 'next-pull');
+    assert.deepEqual((await call('/companies-admin/list')).body.sourceChanges, []);
+    const saved = await call('/companies-admin/seturl', {companyId: String(company), url: link});
+    assert.equal(saved.status, 202);
+    assert.equal(saved.body.queued, true);
+    assert.equal(engineRuns, 0, 'it never starts an engine that cannot write');
+    const handed = readdirSync(join(owner, '.source-request-outbox'));
+    assert.equal(handed.length, 1, 'left for the kernel to take');
+    const entry = JSON.parse(readFileSync(join(owner, '.source-request-outbox', handed[0]), 'utf8'));
+    assert.deepEqual(entry, {id: saved.body.request.id, companyId: company, target: link}, 'the person is not the package\'s to name');
+
+    const waiting = (await call('/companies-admin/list')).body.sourceChanges;
+    assert.equal(waiting.length, 1);
+    assert.equal(waiting[0].state, 'waiting');
+    assert.equal(waiting[0].target, link);
+
+    const board = await call('/companies-admin/seturl', {companyId: String(company), board: 'greenhouse:fixture'});
+    assert.equal(board.status, 202, 'a board the review named needs no link');
+
+    for (const bad of [{companyId: String(company)}, {url: link}, {companyId: 'x', url: link}, {companyId: '0', url: link},
+      {companyId: String(company), url: 'file:///etc/passwd'}, {companyId: String(company), url: 'javascript:alert(1)'},
+      {companyId: String(company), url: 'two words'}, {companyId: String(company), board: 'web:<script>'}, {companyId: String(company), url: `https://x.example/${'a'.repeat(2100)}`},
+      {companyId: String(company), url: 'https://x.example/\nsecond'}]) {
+      assert.equal((await call('/companies-admin/seturl', bad)).status, 400, JSON.stringify(bad).slice(0, 80));
+    }
+    assert.equal((await call('/companies-admin/seturl', {companyId: '999999', url: link})).status, 404);
+    assert.equal(readdirSync(join(owner, '.source-request-outbox')).length, 2, 'a refusal leaves nothing behind');
+
+    delete process.env.OSHAL_EGRESS;
+    assert.equal((await call('/companies-admin/list')).body.sourceChangeMode, 'now');
+    assert.equal((await call('/companies-admin/seturl', {companyId: String(company), url: link})).status, 200);
+    assert.equal(engineRuns, 1, 'an installation with a writable corpus still resolves at once');
+  } finally {
+    for (const [name, value] of [['CAREER_HUNTER_ADMIN_SUBS', old.admins], ['OSHAL_EGRESS', old.egress]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+    db.close();
+    rmSync(owner, {recursive: true, force: true});
+  }
+});
+
+test('what the pulls did is read without writes, and what no pull has reached still shows as waiting', () => {
+  const db = corpus();
+  const owner = mkdtempSync(join(tmpdir(), 'career-source-change-'));
+  try {
+    const sent = sourceRequests.saveChange(owner, 1, 'https://boards.greenhouse.io/waiting');
+    const done = sourceRequests.saveChange(owner, 1, 'greenhouse:done');
+    assert.deepEqual(sourceRequests.sourceChanges(db, owner).map(change => change.state).sort(), ['waiting', 'waiting'], 'before any pull');
+    db.exec(`CREATE TABLE corpus.source_requests (id TEXT PRIMARY KEY, company_id INTEGER, target TEXT, requested_by TEXT, requested_at INTEGER,
+      finished_at TEXT, attempts INTEGER, outcome TEXT, detail TEXT)`);
+    db.prepare(`INSERT INTO corpus.source_requests VALUES (?,1,'greenhouse:done','someone',1,'2026-11-05T00:00:00Z',1,'applied',?)`)
+      .run(done.id, JSON.stringify({board: 'greenhouse:done', jobs: 3, new: 1}));
+    db.prepare(`INSERT INTO corpus.source_requests VALUES ('other-admin',1,'lever:x','someone',1,'2026-11-05T00:00:01Z',1,'no_jobs','not json')`).run();
+    db.exec('PRAGMA query_only=ON');
+    const changes = sourceRequests.sourceChanges(db, owner);
+    assert.equal(changes.find(change => change.id === sent.id).state, 'waiting');
+    assert.equal(changes.find(change => change.id === done.id).state, 'applied', 'the corpus outranks the caller\'s record');
+    assert.equal(changes.find(change => change.id === done.id).detail.jobs, 3);
+    assert.equal(changes.find(change => change.id === 'other-admin').state, 'no_jobs', 'another administrator\'s change shows, and a damaged detail costs only the detail');
+    assert.equal(changes.filter(change => change.id === done.id).length, 1, 'never listed twice');
+    assert.deepEqual(sourceRequests.sourceChanges(db, join(owner, 'nobody')).map(change => change.id).sort(), [done.id, 'other-admin'].sort(), 'a person with no store');
+  } finally {
+    db.close();
+    rmSync(owner, {recursive: true, force: true});
+  }
+});
+
+test('only so many of a person\'s sent changes are kept', () => {
+  const owner = mkdtempSync(join(tmpdir(), 'career-source-change-'));
+  try {
+    for (let n = 0; n < 53; n++) sourceRequests.saveChange(owner, 1, `greenhouse:board${n}`);
+    assert.equal(readdirSync(join(owner, 'source-requests-sent')).length, 50);
+  } finally {
+    rmSync(owner, {recursive: true, force: true});
+  }
+});
+
 test('only a verified operator or configured administrator passes the existing Companies gate', () => {
   const old = process.env.CAREER_HUNTER_ADMIN_SUBS;
   delete process.env.CAREER_HUNTER_ADMIN_SUBS;
@@ -120,6 +238,7 @@ test('only a verified operator or configured administrator passes the existing C
       './career-engine-dispatch': {}, './career-engine-response': {},
       './career-surface-routes': {createCareerToolFileHandler: () => () => {}},
       '../lib/career-source-health': {sourceHealthByCompany},
+      '../lib/career-source-requests': sourceRequests,
     };
     new Function('require','module','exports',readFileSync(new URL('../routes/career-company-routes.js',import.meta.url),'utf8'))(
       id => {assert.ok(id in leaves);return leaves[id];},module,module.exports);

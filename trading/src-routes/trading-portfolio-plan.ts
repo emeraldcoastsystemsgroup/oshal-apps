@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Size daily absolute weights once, retain fractional residuals and apply the daily no-trade band.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Optional internal buy-price sizing reserve keeps whole-share execution within its limit-price cap without changing reported trade prices.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Include the defensive fund and full calendar-month warmup in version2 rotation research and planning.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Calculate concrete, non-executing rebalance previews from measured holdings, completed-session targets and timestamped trade quotes. Separate planning exceptions from broker capacity and never authorize orders or borrowing.
@@ -82,10 +83,10 @@ export function buildRebalancePlan(input:PlanInput) {
  const preservedValue=preserved.reduce((sum,p)=>sum+p.qty*price(p.symbol),0),allocationBase=Math.max(0,markedEquity-preservedValue),rate=config.transactionCostBps/10000;
  const compute=(feeGuess:number)=>required.map(symbol=>{
   const p=held.get(symbol),qty=p?.qty??0,px=price(symbol),preserve=input.scope==='preserve-other-holdings'&&!configured.has(symbol);
-  const targetValue=preserve?qty*px:Math.max(0,allocationBase-feeGuess)*config.grossExposurePct/100*(weights.get(symbol)??0)/100;
+  const targetValue=preserve?qty*px:Math.max(0,allocationBase-feeGuess)*(config.modelVersion===3?1:config.grossExposurePct/100)*(weights.get(symbol)??0)/100;
   const rawDelta=(targetValue/px-qty)/(targetValue>qty*px?1+buyPriceBufferBps/10000:1);
   const delta=preserve?0:config.fractionalShares?units(rawDelta):Math.max(-Math.floor(qty),Math.floor(rawDelta));
-  const proposedQty=Math.max(-qty,delta),after=qty+proposedQty,notional=Math.abs(proposedQty*px),fee=notional*rate;
+  const proposedQty=config.modelVersion===3&&targetValue>0&&Math.abs(delta*px)<markedEquity*(config.minTradeEquityPct??1)/100?0:Math.max(-qty,delta),after=qty+proposedQty,notional=Math.abs(proposedQty*px),fee=notional*rate;
   return {symbol,currentQty:qty,changeQty:proposedQty,afterQty:after,referencePrice:px,tradeAt:quotes.get(symbol)!.tradeAt,
    action:preserve?'preserve':proposedQty>0?'buy':proposedQty<0?'sell':'hold',targetWeightPct:weights.get(symbol)??0,
    outsideStrategy:!configured.has(symbol),unmanaged:p?.unmanaged??false,notionalUsd:notional,modeledCostUsd:fee,
@@ -126,7 +127,7 @@ export function buildRebalancePlan(input:PlanInput) {
    else if(equityAfter<maintenance)block('current_maintenance_not_met','Post-cost equity is below the current reported maintenance requirement. A planning exception cannot override this.');
   }
  }
- if(input.scope==='whole-account')for(const r of rows)if(r.outsideStrategy&&r.afterQty>1e-6)block('fractional_residual_requires_review','Whole-share sizing leaves a fractional holding outside the strategy. Review its closure separately.',r.symbol);
+ if(input.scope==='whole-account'&&!config.preserveFractionalRemainders)for(const r of rows)if(r.outsideStrategy&&r.afterQty>1e-6)block('fractional_residual_requires_review','Whole-share sizing leaves a fractional holding outside the strategy. Review its closure separately.',r.symbol);
  if(actions.some(r=>Math.abs(r.changeQty)>1e9||r.afterQty>1e9))block('preview_quantity_limit','A proposed quantity exceeds the supported preview bounds.');
  const exceptions:Array<{code:string;symbol?:string;actual:number;limit:number;unit:string}>=[];
  for(const r of actions){if(money(r.notionalUsd+r.modeledCostUsd)>PLANNING_CAPS.maxOrderUsd)exceptions.push({code:'order_dollars',symbol:r.symbol,actual:money(r.notionalUsd+r.modeledCostUsd),limit:PLANNING_CAPS.maxOrderUsd,unit:'USD'});if(Math.abs(r.changeQty)>PLANNING_CAPS.maxOrderShares)exceptions.push({code:'order_shares',symbol:r.symbol,actual:Math.abs(r.changeQty),limit:PLANNING_CAPS.maxOrderShares,unit:'shares'});}

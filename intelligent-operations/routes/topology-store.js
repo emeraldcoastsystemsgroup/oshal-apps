@@ -10,7 +10,7 @@ const intake_1 = require("./intake");
 const topology_model_1 = require("./topology-model");
 const ownerRequired = owner => { if (!(0, topology_model_1.clean)(owner))
     (0, topology_model_1.fail)(401, 'A verified OSHAL caller is required.'); };
-const conflict = e => ['40001', '40P01', '23505'].includes(e.code) || /scoped collection revision changed/.test(e.message);
+const conflict = e => ['40001', '40P01', '23505'].includes(e.code) || /scoped collection revision/.test(e.message);
 async function transaction(pool, run) { for (let i = 0; i < 8; i++) {
     const c = await pool.connect();
     try {

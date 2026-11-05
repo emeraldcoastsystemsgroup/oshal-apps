@@ -1,3 +1,7 @@
+/** CHANGE LOG: 46 | maintainer@emeraldcoastsystemsgroup.com | Serve experience/computers.js, the Your computers card on Connections (kernel ADR-206). */
+/** CHANGE LOG: 45 | maintainer@emeraldcoastsystemsgroup.com | The processing tick moved to processing-tick.ts, with the alarm steps first and what it tells the phone taken from the decisions on record (a third review, 2026-11-04). Its engine calls are held to 25 s so the tick answers inside the kernel's 60 s. */
+/** CHANGE LOG: 44 | maintainer@emeraldcoastsystemsgroup.com | What an independent review proved about the message on the phone and the tick (2026-11-03). Warnings stayed on the phone at any hour though the rules say a warning is only recorded: only critical alerts are told now, as they fire, fire again or clear, by name. A tick where the only news is an investigation starting sends nothing. A delivery with an admission that failed answers 503 so Alertmanager sends it again instead of waiting four hours. A watch failure counts in the tick's failures. GET /telemetry says when the silence watch last ran. */
+/** CHANGE LOG: 43 | maintainer@emeraldcoastsystemsgroup.com | Monitored installations: GET /telemetry carries them, POST /ingest/mapping can stop watching a retired one (both existing bindings, so no catalog change and no suspended assignments), the processing tick runs the silence watch first so InstallationSilent is evaluated in that same tick, and the attention message names the alert and the installation instead of a count. */
 /** CHANGE LOG: 42 | maintainer@emeraldcoastsystemsgroup.com | POST /investigations with again:true investigates the same sealed evidence again after its ticket failed or was cancelled (same route, same records.write binding). */
 /** CHANGE LOG: 40 | maintainer@emeraldcoastsystemsgroup.com | A refusal that carries installHint (the detection engine down or stale) is answered with it beside the error, so the surface gets the exact install command from the route and never from hardcoded text (engine-container pattern, BUILDING-EXTENSIONS.md section 7). */
 /** CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | Serve the cloud clusters script (ADR0054). */
@@ -36,10 +40,10 @@
 import fs from 'node:fs';
 import {saveSyncLink,syncRecords,reserveSync,reportSync,reconcileSync} from './ticket-sync';
 import {detectorConfig,saveDetectorConfig,runDetection,anomalyRecords} from './anomaly-engine';
-import {correlateAdmitted} from './correlation-tick';
-import {autoInvestigate} from './auto-investigate';
-import {discoveryConfig,saveDiscoveryConfig,runDiscovery} from './discovery';
-import {ingestMapping,saveIngestMapping,ingestAlertmanager} from './ingest';
+import {discoveryConfig,saveDiscoveryConfig} from './discovery';
+import {ingestMapping,saveIngestMapping,ingestAlertmanager,stopWatching} from './ingest';
+import {processingTick,ENGINE_MS} from './processing-tick';
+import {installationRecords,watchStatus} from './installations';
 import {runbooks,saveRunbook,removeRunbook} from './runbooks';
 import {outboundDelegation,reportOutbound,acceptDelegation,delegationRecords} from './delegations';
 import {saveProvisioning,provisioningRecords} from './provisioning';
@@ -48,7 +52,6 @@ import {saveRepoLink,removeRepoLink,repoLinks} from './repo-links';
 import {recordCommand,commandRecords} from './commands';
 import {reservePromotion,reportPromotion,promotionRecords} from './promotion';
 import {preparePlan,approvePlan,reserveExecution,reportExecution,reserveVerification,reportVerification,recordTicketUpdate,responseRecords,artifactContent,executionReceipt} from './execution';
-import {capturePendingEvidence} from './evidence-worker';
 import {prepareInvestigation,investigationRecords,investigateAgain} from './investigations';
 import {externalConfig,saveExternalConfig,externalRecords} from './external-evidence';
 import {incidentTrace} from './incident-trace';
@@ -57,7 +60,7 @@ import { createHash } from 'node:crypto';
 import { Router, json } from 'express';
 import {admit, intakeRecords} from './intake';
 import {saveScan, readGraph, correlateDeliveries} from './topology-store';
-import {saveProcessingConfig,processingRecords,processPending,retryProcessing} from './processing-worker';
+import {saveProcessingConfig,processingRecords,retryProcessing} from './processing-worker';
 import {detectionEngine} from './detection-engine';
 import {publishPolicy, previewPolicy, evaluateDelivery, pipelineRecords} from './pipeline';
 import {configureStream,ingestTelemetry,streamRecords,telemetryWindow,pinTelemetryEvidence} from './telemetry-store';
@@ -102,14 +105,6 @@ export function inventorySnapshot(input) {
   return {...body,id:digest(body)};
 }
 
-/** @description Ask the kernel notification rail to tell the signed-in person about this tick's attention items. The rail chooses the channel from the person's preferences and may skip silently (mute, quiet hours, no address), so the result is a request, never proof of delivery. */
-async function notifyAttention(ctx,counts){
- if(typeof ctx.notify!=='function')return {requested:false,reason:'notification port unavailable'};
- if(!counts.admitted&&!counts.candidates&&!counts.failed&&!counts.investigations)return {requested:false,reason:'nothing needs attention'};
- const message='Operations attention: '+[counts.admitted?counts.admitted+' admitted symptom(s)':'',counts.candidates?counts.candidates+' anomaly candidate(s)':'',counts.captured?counts.captured+' evidence packet(s) captured':'',counts.investigations?counts.investigations+' investigation(s) started':'',counts.failed?counts.failed+' processing failure(s)':''].filter(Boolean).join(', ')+'. Open Data pipeline to review; nothing was executed.';
- try{const sent=await ctx.notify('operations-attention',message);return {requested:true,topic:'operations-attention',accepted:sent?.sent===true,deliveryProof:'none; the kernel rail may skip by preference'};}
- catch(error){return {requested:true,topic:'operations-attention',accepted:false,error:String(error.message||error).slice(0,200)};}
-}
 /** Routes run inside the native package sandbox; no process, network, credential or alternate identity runtime. */
 export function createOperationsExperienceRoutes(ctx) {
   if (!ctx.authorization || !ctx.store || !ctx.pool || !ctx.appPackageDir) throw Error('Native Operations context required');
@@ -126,7 +121,7 @@ export function createOperationsExperienceRoutes(ctx) {
   };
   router.get('/app',asset('experience/index.html'));
   router.get('/evaluation',asset('deploy/evidence/recorded-bgl.json'));
-  for(const file of ['cloud-inventory.js','console.js','skin.css','runbooks.js','git-explorer.js','provisioning.js','swarms.js','live-cluster.js','git-promotion.js','command-helper.js','anomaly-controls.js','response.js','operator-workspace.js','incident-trace.js','external-evidence.js','pod-console.js','rca-library.js','resource-tree.js','ticket-sync.js','experience.js','experience.css','explorer.js','graph-space.js','lifecycle.js','processing-controls.js','telemetry-controls.js','policy-workbench.js'])router.get('/assets/'+file,asset('experience/'+file));
+  for(const file of ['computers.js','cloud-inventory.js','console.js','skin.css','runbooks.js','git-explorer.js','provisioning.js','swarms.js','live-cluster.js','git-promotion.js','command-helper.js','anomaly-controls.js','response.js','operator-workspace.js','incident-trace.js','external-evidence.js','pod-console.js','rca-library.js','resource-tree.js','ticket-sync.js','experience.js','experience.css','explorer.js','graph-space.js','lifecycle.js','processing-controls.js','telemetry-controls.js','policy-workbench.js'])router.get('/assets/'+file,asset('experience/'+file));
   router.get('/assets/operations.css',asset('ui/operations.css'));
   router.get('/assets/replay-scenarios.js',asset('ui/replay-scenarios.js'));
  router.get('/assets/response-artifacts.js',asset('ui/response-artifacts.js'));
@@ -166,15 +161,18 @@ export function createOperationsExperienceRoutes(ctx) {
   router.post('/runbooks',handle(async(req,res)=>res.json(await saveRunbook(ctx.pool,req.oidc?.user?.sub,req.body))));
   router.post('/runbooks/remove',handle(async(req,res)=>res.json(await removeRunbook(ctx.pool,req.oidc?.user?.sub,req.body))));
   router.get('/ingest/mapping/:sourceId',handle(async(req,res)=>res.json(await ingestMapping(ctx.pool,req.oidc?.user?.sub,req.params.sourceId)||{mapped:false})));
-  router.post('/ingest/mapping',handle(async(req,res)=>res.json(await saveIngestMapping(ctx.pool,req.oidc?.user?.sub,req.body,await read('sources')))));
-  router.post('/ingest/alertmanager/:sourceId',handle(async(req,res)=>res.status(202).json(await ingestAlertmanager(ctx.pool,req.oidc?.user?.sub,await read('sources'),req.params.sourceId,req.body))));
+  // Stopping the watch on a retired installation rides this route's existing write binding: a new route would change the catalog and suspend every assignment.
+  router.post('/ingest/mapping',handle(async(req,res)=>res.json(req.body?.stopWatching===true?await stopWatching(ctx.pool,req.oidc?.user?.sub,await read('sources'),req.body?.sourceId):await saveIngestMapping(ctx.pool,req.oidc?.user?.sub,req.body,await read('sources')))));
+  router.post('/ingest/alertmanager/:sourceId',handle(async(req,res)=>{const delivered=await ingestAlertmanager(ctx.pool,req.oidc?.user?.sub,await read('sources'),req.params.sourceId,req.body);res.status(delivered.results.some(r=>r.status>=500)?503:202).json(delivered);}));
   router.get('/topology/discovery',handle(async(req,res)=>res.json(await discoveryConfig(ctx.pool,req.oidc?.user?.sub))));
   router.post('/topology/discovery',handle(async(req,res)=>res.json(await saveDiscoveryConfig(ctx.pool,req.oidc?.user?.sub,req.body,(await read('sources')).map(s=>s.id)))));
   router.post('/topology/correlate',handle(async(req,res)=>res.json(await correlateDeliveries(ctx.pool,req.oidc?.user?.sub,req.body))));
   const engine=detectionEngine(ctx);
+  const tickEngine=detectionEngine(ctx,ENGINE_MS);
   router.get('/replays',handle(async(req,res)=>res.json({runs:(await read('replays')).sort((a,b)=>b.completedAt.localeCompare(a.completedAt)).slice(0,10),limit:10})));
   router.post('/replays',handle(async(req,res)=>res.json(await completeReplay(ctx,req.oidc?.user?.sub,req.body))));
-  router.get('/telemetry',handle(async(req,res)=>res.json(await streamRecords(ctx.pool,req.oidc?.user?.sub))));
+  // Monitored installations read here beside the banks they feed: this GET already has a binding, and a new route would change the catalog.
+  router.get('/telemetry',handle(async(req,res)=>{const [streams,sources]=await Promise.all([streamRecords(ctx.pool,req.oidc?.user?.sub),read('sources')]);let installations=null,watch=null;try{installations=await installationRecords(ctx.pool,req.oidc?.user?.sub,sources,Number(req.query?.days)||1);watch=await watchStatus(ctx.pool,req.oidc?.user?.sub);}catch{}res.json({...streams,installations,watch});}));
   router.post('/telemetry/configure',handle(async(req,res)=>{
     const source=(await read('sources')).find(s=>s.id===req.body?.sourceId);if(!source)fail('Choose one of your saved source revisions.',404);
     res.json(await configureStream(ctx.pool,req.oidc?.user?.sub,source,req.body.config,req.body.expectedRevision));
@@ -196,7 +194,7 @@ export function createOperationsExperienceRoutes(ctx) {
   router.get('/incidents/:ticketId/trace',handle(async(req,res)=>res.json(await incidentTrace(ctx,req.oidc?.user?.sub,req.params.ticketId))));
   router.get('/pipeline/processing',handle(async(req,res)=>res.json(await processingRecords(ctx.pool,req.oidc?.user?.sub))));
   router.post('/pipeline/processing-config',handle(async(req,res)=>res.json(await saveProcessingConfig(ctx.pool,req.oidc?.user?.sub,req.body,(await read('sources')).map(s=>s.id)))));
-  router.post('/pipeline/process',handle(async(req,res)=>{const discovery=await runDiscovery(ctx,req.oidc?.user?.sub,await read('sources'));const anomaly=await runDetection(ctx.pool,req.oidc?.user?.sub,await read('sources'));const result=await processPending(ctx.pool,engine,req.oidc?.user?.sub);const refreshed=(result.results||[]).some(r=>['admitted','escalated'].includes(r.outcome))&&discovery.enabled?await runDiscovery(ctx,req.oidc?.user?.sub,await read('sources'),Date.now,true):null;const evidence=await capturePendingEvidence(ctx.pool,req.oidc?.user?.sub),failed=result.failed+evidence.failed+(anomaly.failed||0);const correlation=await correlateAdmitted(ctx.pool,req.oidc?.user?.sub,result.results);const investigation=await autoInvestigate(ctx,req.oidc?.user?.sub);const notification=await notifyAttention(ctx,{investigations:investigation.started||0,admitted:(result.results||[]).filter(r=>['admitted','escalated'].includes(r.outcome)).length,candidates:anomaly.candidates||0,captured:evidence.captured||0,failed});res.status(failed?503:200).json({...result,evidence,anomaly,correlation,investigation,notification,discovery,refreshed,...(failed?{error:failed+' processing, capture or detection attempts need attention; refresh processing status.'}:{})});}));
+  router.post('/pipeline/process',handle(async(req,res)=>{const tick=await processingTick(ctx,tickEngine,req.oidc?.user?.sub,read);res.status(tick.failed?503:200).json(tick.body);}));
  router.get('/commands',handle(async(req,res)=>res.json(await commandRecords(ctx.pool,req.oidc?.user?.sub))));
  router.post('/commands/runs',handle(async(req,res)=>res.status(201).json(await recordCommand(ctx.pool,req.oidc?.user?.sub,req.body))));
  router.get('/anomaly',handle(async(req,res)=>res.json(await anomalyRecords(ctx.pool,req.oidc?.user?.sub))));

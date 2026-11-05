@@ -101,9 +101,21 @@ These are bounded manual evaluations, not continuous ingestion or automated heal
 See [ADR0013](docs/event-to-action/adr/0013-inspectable-processing-and-graph.md).
 
 Background evaluation is opt-in per saved source revision with a published policy.
-Use Data pipeline → Background processing to save the source selection and activate
-its native personal schedule. Disabling processing fences in-flight decision commits;
-failed work receives bounded retries and an explicit recovery action. See
+The personal minute schedule starts on first use by a person who holds Operations
+write permission, under that person’s own authority. Use Data pipeline → Background
+processing to enable evaluation and save the source selection. A paused or removed
+native schedule stays stopped across later reads and releases; resume it explicitly
+in Jobs when wanted. No administrator credential or another owner’s authority is copied. Disabling processing fences in-flight decision commits;
+failed work receives bounded retries and an explicit recovery action.
+
+Starting this job enables no source evaluation, discovery, evidence capture, correlation
+or investigation by itself. Empty default settings produce no work or messages. An
+independently configured installation watch remains separate from the evaluation
+checkbox: its pending notices can still be delivered while evaluation is disabled.
+Pause or remove the native job in Jobs to stop all future ticks. A later application
+read or release respects that stop. The first-use job uses the native default limits
+(1 microdollar per run, 1,000 per day, 60-second timeout), not another owner's limits.
+See
 [ADR0014](docs/event-to-action/adr/0014-native-background-processing.md). Source tests and local native scheduled-run/pause/resume acceptance pass.
 See implementation status for the exact source and runtime evidence.
 

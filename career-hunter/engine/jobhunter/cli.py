@@ -3,7 +3,7 @@
     python -m jobhunter init
     python -m jobhunter seed --list dow30|sp500|nasdaq100|best|curated|all
     python -m jobhunter discover [--all-missing | --company NAME] [--limit N]
-    python -m jobhunter scrape   [--all | --company NAME | --list dow30] [--limit N]
+    python -m jobhunter scrape   [--all [--fresh] | --company NAME | --list dow30] [--limit N]
     python -m jobhunter enrich   [--missing | --refresh] [--limit N]
     python -m jobhunter set-manual --company NAME [--score N] [--about ..] [--positives "a;b"] [--negatives "a;b"] [--note ..]
     python -m jobhunter import-manual --csv FILE
@@ -15,16 +15,19 @@
     python -m jobhunter source-review [--max-sources N]     (recheck sources the pull could not read, JSON)
 """
 # CHANGE LOG
+# 5 | maintainer@emeraldcoastsystemsgroup.com | A full pull first applies the source changes administrators saved on the Companies page, so a moved source is read that night.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | A full pull continues from the last employer it finished when a restart stopped it. An employer's jobs and the note that it is finished commit together.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | End a full pull with the nightly source review, and expose it as its own command.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Expose candidate-facing posted-date freshness for bounded manual score runs while preserving the incremental first-seen window.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Retain per-source pull health and guarded content deltas across existing ingestion paths.
 from __future__ import annotations
 
-from . import source_memory, source_review
+from . import pull_checkpoint, source_memory, source_requests, source_review
 import argparse
 import csv
 import json
 import sys
+from collections import Counter
 
 from . import ats, config, db, discover, enrich, match, resolve, seeds, stories
 
@@ -203,45 +206,64 @@ def cmd_source_review(a):
     print(json.dumps(source_review.run(max_sources=a.max_sources or source_review.MAX_SOURCES)))
 
 
+def _unread_source(r, pull):
+    """A source that gave no jobs is still finished for this pull: a stopped pull does not try it again."""
+    if pull:
+        with db.connect() as conn:
+            pull.settle(conn, r["id"], unconfirmed=1)
+    return {"unconfirmed": 1}
+
+
+def _scrape_source(r, pull):
+    """Read one employer and return what it adds to the totals. One short transaction per company so long runs
+    don't lock the DB against the bot/dashboard, and so a killed pull loses at most the company it was reading."""
+    try:
+        postings = source_memory.fetch(r["id"], r["ats_type"], r["ats_token"])
+    except Exception as e:
+        print(f"!! {r['name']} ({r['ats_type']}): {e}", flush=True)
+        return _unread_source(r, pull)
+    if not postings and not getattr(postings, "not_modified", False):
+        # An empty fetch is almost always a transient error / rate-limit, NOT "all jobs
+        # closed". Never wipe a company's existing jobs on an empty result.
+        print(f"   {r['name']:<28}    0 live  (skipped — empty fetch, kept existing)", flush=True)
+        return _unread_source(r, pull)
+    with db.connect() as conn:
+        counts = source_memory.ingest(conn, r["id"], postings)
+        added = {"new": counts["new"], "seen": counts["changed"] + counts["unchanged"], "closed": counts["closed"],
+                 "skipped": counts["skipped"], "confirmed": int(counts["complete"]), "unconfirmed": int(not counts["complete"])}
+        if pull:
+            pull.settle(conn, r["id"], **added)
+    skip_note = f", {counts['skipped']} skipped" if counts["skipped"] else ""
+    outcome = "complete" if counts["complete"] else "partial; existing jobs kept"
+    print(f"   {r['name']:<28} {len(postings):>4} received (+{counts['new']} new, {counts['changed']} changed, {counts['unchanged']} unchanged, {counts['closed']} closed{skip_note}; {outcome})", flush=True)
+    return added
+
+
 def cmd_scrape(a):
     db.init_db()
     dropped0 = db.dropped_fields()
-    pull_started = db.now()
+    # Programmatic callers scrape one company and pass no `all`.
+    full = getattr(a, "all", False) and not (a.limit or a.company or a.list)
+    pull = pull_checkpoint.begin(fresh=getattr(a, "fresh", False)) if full else None
+    pull_started = pull.started_at if pull else db.now()
+    if pull:
+        source_requests.apply_waiting(pull)
     with db.connect() as conn:
         rows = [dict(r) for r in _companies(conn, company=a.company, source_list=a.list, need_ats=True)]
     if a.limit:
         rows = rows[:a.limit]
-    total_new = total_seen = total_closed = total_skipped = 0
-    confirmed_sources = unconfirmed_sources = 0
-    # One short transaction per company so long runs don't lock the DB against the bot/dashboard.
+    totals = pull.totals if pull else Counter()
     for r in rows:
-        try:
-            postings = source_memory.fetch(r["id"], r["ats_type"], r["ats_token"])
-        except Exception as e:
-            print(f"!! {r['name']} ({r['ats_type']}): {e}", flush=True)
-            unconfirmed_sources += 1
-            continue
-        if not postings and not getattr(postings, "not_modified", False):
-            # An empty fetch is almost always a transient error / rate-limit, NOT "all jobs
-            # closed". Never wipe a company's existing jobs on an empty result.
-            print(f"   {r['name']:<28}    0 live  (skipped — empty fetch, kept existing)", flush=True)
-            unconfirmed_sources += 1
-            continue
-        seen_ids, new, seen, skipped = set(), 0, 0, 0
-        with db.connect() as conn:
-            counts = source_memory.ingest(conn, r["id"], postings)
-            new, seen, skipped, closed = counts["new"], counts["changed"] + counts["unchanged"], counts["skipped"], counts["closed"]
-        confirmed_sources += int(counts["complete"])
-        unconfirmed_sources += int(not counts["complete"])
-        total_new += new; total_seen += seen; total_closed += closed; total_skipped += skipped
-        skip_note = f", {skipped} skipped" if skipped else ""
-        outcome = "complete" if counts["complete"] else "partial; existing jobs kept"
-        print(f"   {r['name']:<28} {len(postings):>4} received (+{new} new, {counts['changed']} changed, {counts['unchanged']} unchanged, {closed} closed{skip_note}; {outcome})", flush=True)
-    tail = f" {total_skipped} skipped (no title)." if total_skipped else ""
-    print(f"\nScrape done: {total_new} new, {total_seen} refreshed, {total_closed} closed.{tail} Sources: {confirmed_sources} confirmed, {unconfirmed_sources} unconfirmed.")
+        if not pull or pull.claim(r):
+            totals.update(_scrape_source(r, pull))
+    tail = f" {totals['skipped']} skipped (no title)." if totals["skipped"] else ""
+    continued = f" Continued after {pull.resumes} interruption{'s' if pull.resumes > 1 else ''}." if pull and pull.resumes else ""
+    print(f"\nScrape done: {totals['new']} new, {totals['seen']} refreshed, {totals['closed']} closed.{tail} Sources: {totals['confirmed']} confirmed, {totals['unconfirmed']} unconfirmed.{continued}")
     _report_dropped(dropped0)
-    if getattr(a, "all", False) and not a.limit:  # Programmatic callers scrape one company and pass no `all`.
+    if full:
         source_review.after_pull(pull_started)
+    if pull:
+        pull.finish()
 
 
 import re as _re
@@ -805,7 +827,9 @@ def build_parser():
     s.set_defaults(func=cmd_discover)
 
     s = sub.add_parser("scrape"); s.add_argument("--company"); s.add_argument("--list"); s.add_argument("--all", action="store_true")
-    s.add_argument("--limit", type=int); s.set_defaults(func=cmd_scrape)
+    s.add_argument("--limit", type=int)
+    s.add_argument("--fresh", action="store_true", help="with --all: read every source, even if a stopped pull could continue")
+    s.set_defaults(func=cmd_scrape)
 
     s = sub.add_parser("source-review", help="recheck sources the pull could not read and write the report")
     s.add_argument("--max-sources", type=int); s.set_defaults(func=cmd_source_review)

@@ -60,6 +60,82 @@ native host; `POST /run/refresh` refuses with a clear 409 before acknowledging a
 ingest uses the new behavior after the package is installed. The legacy application-managed refresh path remains
 subject to its existing administrator checks.
 
+### A stopped pull continues
+
+A full pull takes about 5 hours and a kernel release stops it, which happened three times on the night of 2026-11-03. A
+stopped pull now continues from the last employer it finished. The most a restart costs is the employer being read,
+which is up to about 49 minutes for Accenture, the largest.
+
+- **The kernel keeps the private copy and goes on by itself.** A stopped kernel, a signal to the engine or the run's 8 hour
+  ceiling leaves the copy in place, and the next run mounts that same copy. After a restart that is about a minute later. If
+  the kernel stayed up (the memory watchdog killed the engine, or the ceiling passed), it continues after 5 minutes, and the
+  wait doubles each time it stops again, up to about 5 hours, so something that fails at once is not retried every few seconds.
+- **The engine records its place in that copy.** `pull_checkpoint.py` keeps `pull_checkpoint` and
+  `pull_checkpoint_sources` in the corpus. An employer's jobs and the note that it is finished commit in one transaction,
+  so a kill leaves both or neither. A kill mid-write rolls back and that employer is read again.
+- **No flag passes between them.** A copy taken from a published corpus holds a finished pull, so the engine starts a new
+  one. An old engine on a new kernel reads everything; a new engine on an old kernel never finds a stopped pull.
+
+| It starts over when | Why |
+|---|---|
+| The engine itself exits with a failure | The copy is not trusted further. A signal, or a child killed by one, is an interruption and keeps it |
+| The shared corpus changed since the copy | Publishing the copy would undo a maintenance edit or a restored corpus |
+| The copy was cut short | The kernel marks a copy only once it is complete, in a file the engine cannot write |
+| The stopped pull began 20 or more hours ago | Tonight's pull should read tonight's jobs. It reads everything again on the same copy, so nothing already read is lost |
+
+An employer the pull was reading each time it stopped is tried 3 times, a count that survives the 20 hour limit. After that
+the pull skips it, keeps its existing jobs and shows it as failed with `pull_interrupted`, so one employer cannot hold back
+the rest. The skip adds nothing to its count of failures: restarts may simply have landed on it, and the source review treats
+repeated failures as a reason to look for a new board. It is read normally the next night.
+
+A failed or empty source counts as finished for that pull and is not tried again. The final `Scrape done:` line counts
+every process and ends `Continued after N interruptions.`. The source review reports on the pull from its first start.
+A stop during the review runs the review again, reading only what it had not recorded. `--limit`, `--company` and `--list`
+keep no checkpoint and leave a stopped pull alone. Neither does PostgreSQL mode, which has no private copy. Run by hand on a
+standalone install, `scrape --all` continues in the same way and says so; `scrape --all --fresh` reads every source instead.
+
+### Changing a source
+
+**Resolve** on the Companies page, and **Accept** on a suggestion in the source review, change where an employer's jobs come
+from. On the native kernel a request mounts the shared corpus read-only, so the change takes effect at the next nightly pull.
+The page says so, shows each change as waiting, and then shows what the pull did.
+
+1. The route checks the input, leaves the change in `.source-request-outbox` in the caller's own store, keeps the caller's
+   record in `source-requests-sent`, and answers 202. It starts no engine.
+2. When the call succeeds, the kernel moves the change to `source-requests/` beside the corpus, only if the admission it
+   verified holds `career.administer`. Otherwise the change is discarded. Who asked and when are stamped by the kernel, not
+   taken from the package. The outbox is never published with the person's store. No request sandbox can reach the queue.
+3. A pull is handed the 25 oldest changes waiting, in `JOBHUNTER_SOURCE_REQUESTS`, and applies them before it lists its sources,
+   so a moved source is read that night and not read twice. `source_requests.py` records each outcome in the corpus table
+   `source_requests`, the newest 200.
+4. Only a publish removes those changes from the queue. A stopped pull keeps what it was handed, and a failed pull leaves the
+   queue for the next one. A change handed over twice is applied once.
+
+| What the page says | Outcome | What happened |
+|---|---|---|
+| Waiting for the next nightly pull | `waiting` | No pull has reached it. The caller sees this; another administrator sees it once a pull has |
+| Applied | `applied` | The source moved and its jobs are in, with how many closed. It is marked `manual`, so the source review leaves a person's choice alone |
+| The link was saved, but no jobs could be read | `saved_no_jobs` | The link is kept on the employer and the source did not change |
+| That board returned no jobs | `no_jobs` | Nothing changed |
+| Another employer already uses that board | `duplicate` | Nothing changed, in any letter case |
+| Not a job board link | `bad_target` | Nothing changed |
+| Leads to a private address | `unsafe` | Refused before anything reads it |
+| Took more than 5 minutes | `timeout` | Nothing changed, and the next change still runs |
+| The pull stopped 3 times while applying it | `interrupted` | Each try rolled back, so nothing changed. Press Resolve again |
+
+The pull reads a change with the same public-addresses-only guard and 5 minute hard stop as the source review, because an
+ordinary link can redirect anywhere and the pull runs on the host's network. A link, or a token that is one, is refused before
+anything reads it unless every address it resolves to is public. A page read directly stays partial and closes nothing, as it
+always has, and uses the browser only under its read policy. That policy does not see an HTTP redirect; see
+[BACKLOG.md](BACKLOG.md).
+
+A move onto a board whose feed is proven whole closes the employer's jobs that board does not list, and the page says how many.
+**Undo** on the newest applied change saves a change back to the previous board. If that board no longer answers, the jobs stay
+closed and the page says the board returned no jobs.
+
+An installation that runs no pull (no `OSHAL_CAREER_INGEST_CRON`, as on a demo or SaaS kernel) refuses the change and says so,
+because nothing would apply it. An installation with a writable corpus still resolves at once, with no queue and no **Accept**.
+
 The existing Companies routes still require their authorization-catalog permission. Their inner gate accepts the
 kernel-verified operator helper or the deployment's explicit Career administrator list; request fields and header
 claims do not confer operator status. The shared administrator list does not require an uploaded resume or personal
@@ -72,6 +148,18 @@ shared-list access without a personal store, and native refresh capability. It r
 against temporary real SQLite, with recorded HTTP replies only: body-write tripwires, changed nullable fields,
 source changes, conditional 304, no-validator fallback, paginated refusal, bounded receipts and retained 304 counts.
 The engine's Python dependency pins must be available. These tests never pull or mutate the live corpus.
+
+`tests/career-pull-checkpoint.test.mjs` runs `tests/career-pull-checkpoint.py`: a real process is really killed with
+SIGKILL while reading, while writing and during the review, over real temporary SQLite, and the next process reads only
+what the first did not finish. The kernel's half is proven in `crates/host-process/src/career_ingest_tests.rs` in the real
+sandbox, and in `crates/oshald/tests/career_corpus_ingest.rs`, which kills the real binary mid-pull.
+
+`tests/career-source-requests.test.mjs` runs `tests/career-source-requests.py`: a real full pull applies a change on real
+temporary SQLite with recorded employer replies, and a real process is really killed while writing. The route's half is in
+`tests/career-source-health.test.mjs` and the page's in `tests/browser/career-source-review-page-proof.mjs`. In the kernel,
+`crates/host-process/tests/career_source_request_handover.rs` proves the hand-over in the real sandbox, and
+`crates/oshald/tests/career_source_requests.rs` proves it through the real door with this package's real catalog and named
+roles: a member is refused and queues nothing, an administrator's change is stamped by the kernel, and the corpus is untouched.
 
 ## Native generic careers pages (1.43.0, prepared)
 

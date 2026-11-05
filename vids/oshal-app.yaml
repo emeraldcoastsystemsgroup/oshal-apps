@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: declare vids-operator as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: vids-operator gets route-backed tools the native kernel offers: vids-jobs (GET /api/vids/jobs), vids-generate-clip (POST /api/vids/jobs) and vids-brand-graphic (POST /api/vids/brand), both generating tools held for the person's approval. Its only tool was the CLI vids_generate, which the native kernel never offers, so "generate a video" shaped a prompt and stopped. Guarded by vids/tests/vids-api-tools.test.cjs.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.7: a daily trade recap asked for in a conversation becomes one anchor clip (vids-generate-clip, held for approval) from the figures already in the conversation. Guarded by vids/tests/vids-api-tools.test.cjs.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — vids ("Vids Studio")
@@ -64,13 +65,13 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.5.7
+version: 1.5.8
 testing:
   version: 1
   catalog: tests/test-lab.yaml
 status: active
 
-theme: midnight
+theme: light-blue
 
 source:
   type: git-subdir

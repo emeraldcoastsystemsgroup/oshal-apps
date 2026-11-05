@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.3: declare brand-graphics as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.5: the review page paints with the portal theme tokens instead of its own fixed dark palette (page, panels, fields, buttons, accent ink), so it follows every portal theme; found when Today's calendar tile stayed dark on a light theme.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — brand-graphics (carved out of core 2026-07-17, ADR-085 Wave 1)
 #
@@ -38,13 +39,13 @@ description: >-
   electric-"oshal" intro look — deep navy, glowing electric-blue energy, the
   lowercase wordmark traced in light — on the operator's signed-in Chrome, and
   returns the project URL.
-version: 1.1.5
+version: 1.1.6
 testing:
   version: 1
   catalog: tests/test-lab.yaml
 status: inactive
 
-theme: midnight
+theme: light-blue
 
 source:
   type: git-subdir

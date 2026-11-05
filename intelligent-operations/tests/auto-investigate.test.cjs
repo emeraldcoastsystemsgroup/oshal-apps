@@ -1,3 +1,4 @@
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Guard that a sealed packet over the input ceiling frees its slot: two of them used to hold both of a tick's starts for good, with nothing on record. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Guard the refused-versus-uncertain distinction. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Assert the concurrency invariant (each tick at most two, no capture started twice) instead of a timing-dependent total. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard automatic investigation dispatch: only with the opt-in and evidence capture, at most two per tick, one start per captured evidence across concurrent ticks, sealed packet input to the kernel start port, an uncertain start held and never retried, and an explicit unavailable state when the kernel has no start port. */
@@ -40,5 +41,16 @@ test('a kernel refusal is recorded as a definite no-start with its reason, apart
   const r=await autoInvestigate(ctx,x.owner);assert.equal(r.refused,1);assert.equal(r.uncertain,0);
   const item=(await investigationRecords(ctx,x.owner)).items[0];assert.equal(item.state,'start-refused');assert.match(item.error,/Writer admission/);
   await autoInvestigate(ctx,x.owner);assert.equal(calls,1,'a refused start is held for the operator, not retried every tick');
+ }finally{await f.close();}
+});
+test('a sealed packet over the input ceiling is recorded as refused and frees its slot, so later evidence still starts',async()=>{
+ const f=await fixture();try{const x=await setup(f,3),p=port(),ctx={pool:x.pool,ticketService:p};
+  await x.config({autoInvestigate:true});assert.equal((await capturePendingEvidence(x.pool,x.owner)).captured,3);
+  const rows=(await x.pool.query('SELECT w.id FROM operations_evidence_work w WHERE w.user_sub=$1 ORDER BY w.created_at,w.id',[x.owner])).rows.map(r=>r.id);
+  for(const id of rows.slice(0,2)){const held=(await x.pool.query('SELECT record FROM operations_telemetry_packets WHERE user_sub=$1 AND id=$2',[x.owner,id])).rows[0].record;await x.pool.query('UPDATE operations_telemetry_packets SET record=$3 WHERE user_sub=$1 AND id=$2',[x.owner,id,JSON.stringify({...held,observations:Array.from({length:200},(_,i)=>({id:'o'+i,message:'x'.repeat(480)}))})]);}
+  const first=await autoInvestigate(ctx,x.owner);assert.deepEqual(first.results.map(r=>r.state),['start-refused','start-refused'],'a packet that can never start says so');assert.match(first.results[0].error,/exceeds 64 KiB/);assert.equal(p.starts.length,0);
+  const second=await autoInvestigate(ctx,x.owner);assert.equal(second.started,1,'the slots are free: the third starts');assert.equal(p.starts.length,1);
+  const listed=(await investigationRecords(ctx,x.owner)).items;assert.equal(listed.filter(i=>i.state==='start-refused').length,2,'and the refusal is on record for attention to count');assert.match(listed.find(i=>i.state==='start-refused').error,/exceeds 64 KiB/);
+  assert.equal((await autoInvestigate(ctx,x.owner)).results.length,0,'nothing keeps retrying them');
  }finally{await f.close();}
 });

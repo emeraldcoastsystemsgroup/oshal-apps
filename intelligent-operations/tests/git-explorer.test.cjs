@@ -103,6 +103,8 @@ test('a GitLab connection browses projects the same way: merge requests, pipelin
   app.use((req,_res,next)=>{req.oidc={user:{sub:'alice'}};next();});app.use('/api/intelligent-operations',(req,res,next)=>{if(req.path==='/topology')return res.json({assets:[],relationships:[],asOf:'2026-10-23T00:00:00.000Z',collections:[],revision:'r',scanIds:[],limits:{scans:200,assets:2000,relationships:5000}});if(req.path==='/repo-links'&&linksGate)return void linksGate.then(()=>next());next();},loadExperience().createOperationsExperienceRoutes({pool,appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}}));
   server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));browser=await chromium.launch({headless:true,args:['--disable-gpu']});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#git');await page.getByText('Load your repositories to browse them',{exact:false}).waitFor();
+  // The page's own first refresh can still be on its way on a busy machine, and it reloads this screen: the person acts after it has settled.
+  await page.waitForLoadState('networkidle');
   // The provider switch's load is held at its last read, so the person acts while it is still running, as on a busy machine.
   linksGate=new Promise(r=>{releaseLinks=r;});const linksDone=page.waitForResponse(r=>r.url().endsWith('/repo-links'));
   await page.locator('#git-provider').selectOption('gitlab');await page.waitForFunction(()=>document.getElementById('git-account').value==='work');assert.equal(await page.locator('#git-token-save').innerText(),'Replace my GitLab token');

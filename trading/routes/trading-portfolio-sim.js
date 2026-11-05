@@ -4,6 +4,7 @@ exports.normalizePortfolioStrategy = normalizePortfolioStrategy;
 exports.simulatePortfolio = simulatePortfolio;
 exports.portfolioNextTargets = portfolioNextTargets;
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Share version3 daily normalization, decisions and validation replay while preserving legacy models.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Validate monthly signal history through its actual decision cutoff while retaining latest assessment dates and complete required prior history.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add fixed calendar-month defensive research without changing version1 models; retain decision dates and fallback coverage.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Freeze next-session targets using the same allocation/trend/momentum rules over complete completed-session history.
@@ -24,6 +25,7 @@ function numberIn(value, low, high, name, integer = false) {
 function normalizePortfolioStrategy(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))
         return fail('strategy_invalid', 'A strategy configuration is required.');
+    if (raw.modelVersion === 3) return require('./strategy/policies').normalizePolicy(raw);
     const c = raw;
     const keys = ['modelVersion', 'kind', 'assets', 'lookbackSessions', 'rebalanceSessions', 'topN', 'grossExposurePct',
         'transactionCostBps', 'marginAprPct', 'maintenancePct', 'fractionalShares'];
@@ -168,6 +170,7 @@ function metrics(curve, startingCapital) {
 }
 /** Research only: a stored result is never an instruction to a broker or an account arming action. */
 function simulatePortfolio(raw, input) {
+    if (require('./strategy/policies').isDaily(raw)) {const v=require('./strategy/replay').validateReplay(raw,input);return {...v.result,validation:v.validation};}
     const s = normalizePortfolioStrategy(raw), data = prepare(s, input);
     const book = { cash: input.startingCapital, qty: new Map(), fees: 0, interest: 0, trades: 0 };
     const benchmark = { cash: input.startingCapital, qty: new Map(), fees: 0, interest: 0, trades: 0 };
@@ -218,6 +221,7 @@ function simulatePortfolio(raw, input) {
  * @returns Targets and the precise completed signal date; missing warmup/session data refuses.
  */
 function portfolioNextTargets(raw, series, latest) {
+    if(require('./strategy/policies').isDaily(raw))return require('./strategy/signals').signal(raw,series,latest);
     const config = normalizePortfolioStrategy(raw), symbols = [...new Set([...(0, trading_portfolio_rotation_1.portfolioStrategySymbols)(config), 'SPY'])];
     const maps = new Map(symbols.map(symbol => [symbol, priceMap(series[symbol], symbol)]));
     const earliest = [...maps.get('SPY').keys()].sort()[0];

@@ -24,7 +24,7 @@
  */
 
 /* The Jobs screen's own activation configuration (crates/api/src/jobs.js "Activate for me"). */
-const PAPER_ACTIVATION = { class: 'person', configuration: { runBudgetMicros: 1000000, dailyBudgetMicros: 10000000, timeoutMs: 60000 } };
+const PAPER_ACTIVATION = { class: 'person', configuration: { timeoutMs: 60000 } };
 
 /**
  * @description One request to the kernel's schedule API, same origin with the person's session.
@@ -236,7 +236,7 @@ async function paperScheduleKeep() {
 
 /** The watcher job, activated with the configuration every Strategies control uses. */
 const WATCHER_SCHEDULE = { app: 'intelligent-trades', name: 'portfolio-watcher' };
-const WATCHER_ACTIVATION = { class: 'person', configuration: { runBudgetMicros: 1000000, dailyBudgetMicros: 10000000, timeoutMs: 120000 } };
+const WATCHER_ACTIVATION = { class: 'person', configuration: { timeoutMs: 120000 } };
 const WATCHER_KEEPER = { busy: false, refused: null };
 
 /**

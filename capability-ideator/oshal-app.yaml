@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 name: capability-ideator
 suite: ai-engineering
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -16,7 +17,7 @@ displayName: Capability Ideator
 description: >-
   Discover sourced tools and integration opportunities for business processes, grounded in installed applications and
   explicit connection requirements.
-version: 1.1.6
+version: 1.1.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -27,7 +28,7 @@ source:
   url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
   path: capability-ideator
   ref: main
-theme: midnight
+theme: light-blue
 dependencies:
   required:
     apps: []

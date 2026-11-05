@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Turning a job on names no spending figure; its cap is set on the Jobs screen.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Resolve the registered member-qualified Career screen in an application group before sending stage or queue navigation.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Explain the submitted-packet regeneration refusal separately from an unsuccessful draft generation.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Queue promotion without automatically generating documents; expose explicit generation as the next step.
@@ -61,7 +62,7 @@
     const data=await response.json(),schedule=(data.schedules||[]).find(s=>s.app==='career-hunter'&&s.name==='career-application-updates');
     if(!schedule?.id)throw Error(schedule?.reason||'Application email schedule unavailable.');
     let active=schedule.status==='active';
-    if(!active||check){await post('/api/v1/agent/schedules/'+schedule.id+'/activate',{class:'person',configuration:{runBudgetMicros:1000000,dailyBudgetMicros:10000000,timeoutMs:60000}});active=true;}
+    if(!active||check){await post('/api/v1/agent/schedules/'+schedule.id+'/activate',{class:'person',configuration:{timeoutMs:60000}});active=true;}
     if(check)await post('/api/v1/agent/schedules/'+schedule.id+'/trigger',{});
     const read=await fetch('/api/career-hunter/jobs/updates');
     if(!read.ok)throw Error('Could not read application email status (HTTP '+read.status+').');

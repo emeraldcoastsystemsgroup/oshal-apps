@@ -10,7 +10,9 @@ that copy when the process exits cleanly. The review runs at the end of that com
 publishes with the pull, and it needs no schedule, host service or kernel change.
 
 If the review fails, the error is written to the run's output and the pull still publishes. A partial pull (`--limit`,
-`--company`, `--list`) does not start one. A process that cannot write the corpus skips it, as does PostgreSQL mode.
+`--company`, `--list`) does not start one. A process that cannot write the corpus skips it, as does PostgreSQL mode. A
+restart during the review runs it again, reading only what it had not recorded; see
+[a stopped pull continues](SOURCE-MEMORY.md#a-stopped-pull-continues).
 
 To run it by hand against a corpus you can write: `python -m jobhunter source-review [--max-sources N]`. It prints the
 report as one JSON line.
@@ -42,8 +44,8 @@ It moves a source only when all of these hold:
 6. No other employer already holds that board, in any letter case.
 
 The move and the new jobs land in one transaction, so a failure leaves the old source exactly as it was. Any job that
-comes back in a feed is reopened by the normal pull. To undo a repair, paste the right URL into the employer's row on the
-Companies page and press **Resolve**. The report keeps the previous board.
+comes back in a feed is reopened by the normal pull. The report keeps the previous board. To undo a repair, paste the right
+link into the employer's row on the Companies page and press **Resolve**, and the next pull moves it back.
 
 ## What it only suggests
 
@@ -55,7 +57,8 @@ These are reported and not applied:
 - A board of any other type. These are named without being read, so no job count is shown.
 - A live board whose feed cannot be proven whole, or whose name does not look like the employer's.
 
-To accept a suggestion, paste that employer's job board URL into its row on the Companies page and press **Resolve**.
+To accept a suggestion, press **Accept** beside the board you want on the report's list. The next pull moves the employer to
+it and reads its jobs. See [changing a source](SOURCE-MEMORY.md#changing-a-source).
 
 ## Limits
 

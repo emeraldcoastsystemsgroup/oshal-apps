@@ -9,6 +9,8 @@ exports.processPending = processPending;
 exports.retryProcessing = retryProcessing;
 exports.processingRecords = processingRecords;
 /** CHANGE LOG: automatic investigation | maintainer@emeraldcoastsystemsgroup.com | Hold the explicit opt-in for starting investigations automatically from captured evidence; it requires evidence capture. */
+/** CHANGE LOG: engine outage 2 | maintainer@emeraldcoastsystemsgroup.com | An outage now clears the attempt count instead of leaving it one short, because a single interrupted attempt afterwards reached attention with the engine healthy. After three failures in a row an outage stops adding an attempt row each retry, since the row count is what slows this package on the native kernel (fifth review, 2026-11-04). */
+/** CHANGE LOG: engine outage | maintainer@emeraldcoastsystemsgroup.com | An engine or store that does not answer is not a bad record (fourth review, 2026-11-04). It no longer spends the retry budget, so a critical alert delivered during a long outage still reaches a decision when the engine returns, within 5 minutes, instead of waiting for a person to press Retry. */
 /** CHANGE LOG: automatic correlation | maintainer@emeraldcoastsystemsgroup.com | Hold the explicit opt-in and bounded versioned dependency policy for automatic post-reduction correlation on the scheduled tick. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Offer explicit scheduled retained-evidence capture and preserve its retry stage. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Drain admitted deliveries under native scheduled caller authority with durable leases, bounded retries and fencing. */
@@ -69,9 +71,9 @@ async function claimProcessing(pool, owner, clock = Date.now) {
             return null;
         const previous = row.record.processing || {}, attempts = (previous.attempts || 0) + 1;
         const exhausted = attempts > config.maxAttempts, token = (0, node_crypto_1.randomUUID)(), leaseUntil = new Date(Date.parse(now) + 120000).toISOString();
-        const processing = { attempts: exhausted ? previous.attempts : attempts, status: exhausted ? 'attention' : 'running', token: exhausted ? null : token, leaseUntil: exhausted ? null : leaseUntil, startedAt: now, configurationRevision: config.revision, ...(exhausted ? { lastError: 'Retry limit reached after an interrupted attempt.' } : {}) };
+        const processing = { ...(previous.outages ? { outages: previous.outages } : {}), attempts: exhausted ? previous.attempts : attempts, status: exhausted ? 'attention' : 'running', token: exhausted ? null : token, leaseUntil: exhausted ? null : leaseUntil, startedAt: now, configurationRevision: config.revision, ...(exhausted ? { lastError: 'Retry limit reached after an interrupted attempt.' } : {}) };
         await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, ready_at=$4, record=$5 WHERE user_sub=$1 AND id=$2', [owner, row.id, exhausted ? 'attention' : 'evaluating', leaseUntil, JSON.stringify({ ...row.record, processing })]);
-        return exhausted ? { exhausted: true, id: row.id } : { id: row.id, token, config, leaseUntil };
+        return exhausted ? { exhausted: true, id: row.id } : { id: row.id, token, config, leaseUntil, outages: previous.outages || 0 };
     });
 }
 async function processingFence(c, owner, lease, work, now) {
@@ -90,18 +92,18 @@ async function failedProcessing(pool, owner, lease, error, clock) {
         const now = stamp(clock), held = row.record.processing;
         if (Date.parse(held.leaseUntil) <= Date.parse(now))
             return false;
-        const permanent = [400, 404].includes(error.status), attention = permanent || held.attempts >= lease.config.maxAttempts;
-        const retryAt = new Date(Date.parse(now) + Math.min(3600, lease.config.retrySeconds * 2 ** (held.attempts - 1)) * 1000).toISOString();
-        const processing = { ...held, token: null, leaseUntil: null, status: attention ? 'attention' : 'retry', lastError: error.status ? String(error.message).slice(0, 240) : 'Detection storage or engine is unavailable.', failedAt: now, retryAt };
+        const permanent = [400, 404].includes(error.status), unavailable = !error.status || error.status >= 500, attention = permanent || (!unavailable && held.attempts >= lease.config.maxAttempts);
+        const retryAt = new Date(Date.parse(now) + (unavailable ? Math.min(300, lease.config.retrySeconds * 2 ** (held.outages || 0)) : Math.min(3600, lease.config.retrySeconds * 2 ** (held.attempts - 1))) * 1000).toISOString();
+        const processing = { ...held, ...(unavailable ? { attempts: 0, outages: (held.outages || 0) + 1 } : {}), token: null, leaseUntil: null, status: attention ? 'attention' : 'retry', lastError: error.status ? String(error.message).slice(0, 240) : 'Detection storage or engine is unavailable.', failedAt: now, retryAt };
         await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, ready_at=$4, record=$5 WHERE user_sub=$1 AND id=$2', [owner, lease.id, processing.status, retryAt, JSON.stringify({ ...row.record, processing })]);
         return true;
     });
 }
-async function processPending(pool, engine, owner, clock = Date.now) {
+async function processPending(pool, engine, owner, clock = Date.now, until = Infinity) {
     const config = await processingConfig(pool, owner), results = [], started = Date.now();
     if (!config.enabled)
         return { enabled: false, evaluated: 0, failed: 0, results };
-    for (let i = 0; i < config.batchSize && Date.now() - started < 45000; i++) {
+    for (let i = 0; i < config.batchSize && Date.now() - started < 45000 && Date.now() < until; i++) {
         const lease = await claimProcessing(pool, owner, clock);
         if (!lease)
             break;
@@ -110,7 +112,7 @@ async function processPending(pool, engine, owner, clock = Date.now) {
             continue;
         }
         try {
-            const decision = await (0, pipeline_1.evaluateDelivery)(pool, engine, owner, lease.id, () => stamp(clock), (c, work, now) => processingFence(c, owner, lease, work, now));
+            const decision = await (0, pipeline_1.evaluateDelivery)(pool, engine, owner, lease.id, () => stamp(clock), (c, work, now) => processingFence(c, owner, lease, work, now), lease.outages >= 3);
             results.push({ deliveryId: lease.id, decisionId: decision.id, outcome: decision.reduction.outcome });
         }
         catch (error) {

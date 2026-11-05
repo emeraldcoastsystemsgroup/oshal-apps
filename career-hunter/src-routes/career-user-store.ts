@@ -15,6 +15,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com   | callerSub now resolves the verified trusted-service identity ahead of the OIDC session (eats/spotify tool idiom): the framework tool-executor's api-type tools call these routes with X-Service-Secret + the signed-in user's sub, and the OIDC-only read returned null for exactly those calls — which is why no career tool could ever reach the resume rails. The mount is already service-or-oidc; the kernel helper verifies the secret before trusting the header.
  * 11 | maintainer@emeraldcoastsystemsgroup.com   | Open the tenant-shared corpus on its own so the board stays searchable before a resume exists.
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | Read checkpointed native owner generations immutably so WAL-mode board, stats and resume reads need no sidecar files on the read-only mount. Keep normal locking when WAL contains pending data or the store is mutable.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com   | A store last written before a column existed reads that column as empty. A read cannot add it, and the board answered 500 until its owner's next write.
  */
 import fs from 'fs';
 import path from 'path';
@@ -102,6 +103,18 @@ export function userPaths(userSub: string) {
   };
 }
 
+/** Columns a read selects that a store last written by an older version may not have yet. */
+const COLUMNS_ADDED_SINCE_FIRST_STORE = ['ai_input_fingerprint'];
+
+/** A published store keeps its shape until its owner's next write, so a read sees these as empty. */
+function shadowColumnsOlderStoreLacks(db: any): void {
+  const present = new Set((db.pragma('main.table_info(user_signals)') || []).map((column: { name: string }) => column.name));
+  const missing = COLUMNS_ADDED_SINCE_FIRST_STORE.filter(column => !present.has(column));
+  if (!present.size || !missing.length) return;
+  const added = missing.map(column => `NULL AS ${column}`).join(', ');
+  db.exec(`CREATE TEMP VIEW user_signals AS SELECT *, ${added} FROM main.user_signals`);
+}
+
 /**
  * @description Opens a caller's signals database with the shared corpus attached. The tuned cache
  * avoids repeatedly reading the multi-gigabyte corpus indexes while preserving per-request handles
@@ -127,7 +140,10 @@ export function openUserDb(userSub: string, readonly = true): any {
   try {
     db.exec(`ATTACH DATABASE '${corpusDb.replace(/'/g, "''")}' AS corpus`);
     tuneDatabase(db);
-    if (readonly) db.pragma('query_only=true');
+    if (readonly) {
+      shadowColumnsOlderStoreLacks(db);
+      db.pragma('query_only=true');
+    }
     return db;
   } catch (err) {
     db.close();

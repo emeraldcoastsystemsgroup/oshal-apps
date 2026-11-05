@@ -1,4 +1,6 @@
 /* CHANGE LOG
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Identify daily account models beside their measured whole-share, cash-funded authority.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Show the exact account's execution outcome and confirmed broker fills beside its saved authority; authorization alone does not mean a strategy is trading.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Activating live trading also starts the watcher job it depends on.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Resolve separate account detail bookmarks without changing strategy bookmarks or exact-account binding.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Remove the previous activation card before refreshing its review and make failed checks visibly actionable.
@@ -56,13 +58,31 @@ async function loadNativeAccountManagement(model,token){
  host.onclick=event=>{const button=event.target.closest('[data-native-management]');if(button&&host.contains(button))nativeAccountManagementAction(button,host,{account,model,token,policy,backstops,watch,management,research});};
 }
 function nativeAccountMetric(label,value){return'<div class="kpi"><div class="l">'+esc(label)+'</div><div class="n">'+esc(value)+'</div></div>';}
+/** Account-bound retained broker evidence; never infer a fill from an approval or a submitted ticket. */
+function nativeExecutionEvidence(account,watch){
+ const retained=watch?.lastReceipt,same=retained&&retained.accountId===account.accountId&&retained.connectionKey===account.connectionKey;
+ const receipt=same?retained:null,automation=receipt?.automation;
+ const labels={'protective-exit-awaiting-next-cycle':'Allocation paused after a protective sale','cycle-completed':'Allocation completed for this signal','cycle-completed-with-exceptions':'Allocation completed with exceptions','waiting-for-broker-order':'Waiting for a broker order','uncertain-order-review-required':'Order outcome needs reconciliation','holdings-changed-review-required':'Holdings need reconciliation','market-closed':'Waiting for the regular market session','mandate-inactive':'Strategy approval is inactive','order-submitted':'Order submitted; fill not yet confirmed'};
+ const status=watch?.lastError?'Last strategy check failed':automation?.status||receipt?.status;
+ const outcome=watch?.lastError||labels[status]||(status?status.replace(/-/g,' '):'No strategy execution receipt is available');
+ const orders=same&&Array.isArray(receipt.brokerOrders)?receipt.brokerOrders:null;
+ const reasons=[...(automation?.blockers||[]),...(automation?.deferred||[]).flatMap(d=>d.blockers||[])].filter(b=>typeof b.message==='string').map(b=>b.message);
+ const fills=(orders||[]).flatMap(order=>(order.executions||[]).filter(e=>Number.isFinite(e.quantity)&&e.quantity>0&&Number.isFinite(e.price)&&e.price>0).map(e=>({order,e}))).sort((a,b)=>Date.parse(b.e.time)-Date.parse(a.e.time)).slice(0,20);
+ const rows=fills.map(({order,e})=>'<tr><td>'+esc(e.time?new Date(e.time).toLocaleString():'Time unavailable')+'</td><td>'+esc(order.legs?.map(l=>l.instruction+' '+l.symbol).join(', ')||'Instrument unavailable')+'</td><td>'+esc(e.quantity)+'</td><td>'+accountValue(e.price)+'</td><td>'+esc(order.orderId||'Unavailable')+'</td></tr>').join('');
+ return '<section class="native-execution-evidence" aria-label="Account execution"><h3>Execution · '+esc(account.label)+'</h3><p><strong>'+esc(outcome)+'</strong></p>'+
+ (same&&automation?.message?'<p>'+esc(automation.message)+'</p>':'')+
+ (reasons.length?'<ul>'+[...new Set(reasons)].map(message=>'<li>'+esc(message)+'</li>').join('')+'</ul>':'')+
+ '<p class="sub">'+(same?'Broker orders last read '+esc(new Date(receipt.observedAt).toLocaleString())+'.':'No matching account broker receipt is available.')+' Saved authorization and a running watcher do not establish that an order was filled. Quant desk and research feed results do not change this account’s assigned strategy.</p>'+
+ (rows?'<details class="native-evidence"><summary>Confirmed broker executions · '+esc(account.label)+'</summary><p class="sub">Most recent 20 executions in the retained broker read; partial fills may occupy separate rows.</p><div style="overflow:auto"><table><thead><tr><th>Time</th><th>Trade</th><th>Shares</th><th>Fill price</th><th>Broker order</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>':'<p>'+esc(orders?'No confirmed executions were returned in this account’s last broker read.':'Broker executions are unavailable.')+'</p>')+'</section>';
+}
 function nativeStrategyPanel(a,strategy,study,watch,research,management,schedule,saved,reviewReadAvailable=true,researchWindow){
  const status=!management?'Unavailable':watch?.lastError?'Check failed':watch?.enabled?'Monitor enabled':'Monitor off';
  return'<section class="panel native-management-panel"><div class="native-section-head"><div><p class="native-eyebrow">'+esc(a.label)+'</p><h2>Trading strategy</h2></div><span class="native-state '+(watch?.authority?.active?'is-active':'')+'">Live trading: '+esc(management?nativeAuthorityLabel(watch,a):'Unavailable')+'</span></div>'+
  nativeStrategyChoices(a,research,watch,researchWindow)+
- '<p class="sub">'+(strategy?.config?.modelVersion===2?'Monthly allocation · ':'')+'Cash-funded whole shares. No new borrowing.</p>'+
+ '<p class="sub">'+(strategy?.config?.modelVersion===3?'Daily allocation · ':strategy?.config?.modelVersion===2?'Monthly allocation · ':'')+'Cash-funded whole shares. No new borrowing.</p>'+
  nativeAccountAllocationControls(a,watch,management,saved,reviewReadAvailable)+
  '<p class="native-last-check">'+esc(status)+' · Last check '+esc(watch?.lastRunAt?new Date(watch.lastRunAt).toLocaleString():'Never')+'</p>'+(watch?.lastError?'<p class="err">'+esc(watch.lastError)+'</p>':'')+
+ nativeExecutionEvidence(a,watch)+
  (study?'<details class="native-evidence"><summary>Assigned completed backtest</summary><p>'+esc(study.window?.firstSession||study.startDate)+' to '+esc(study.window?.lastSession||study.endDate)+' · '+esc(study.window?.sessions||'Unknown')+' sessions</p><div class="kpis">'+nativeAccountMetric('Price return',accountPercent(study.metrics?.totalReturnPct))+nativeAccountMetric('SPY',accountPercent(study.metrics?.benchmarkReturnPct))+nativeAccountMetric('Maximum drawdown',accountPercent(study.metrics?.maxDrawdownPct))+nativeAccountMetric('Modeled costs',accountValue(study.costs?.tradingUsd))+'</div><p class="sub">Price-only history excludes distributions and taxes. '+(strategy?.universeEvidence?'This current Congress basket is not a historical filing-following backtest. ':'')+'Later results and real fills can differ.</p></details>':'<p class="err">No completed account study is available.</p>')+
  '<div class="native-form-actions"><button class="btn ghost" data-native-management="strategies">Open strategy research</button><button class="btn ghost" data-native-management="refresh">Refresh this account</button></div></section>';
 }

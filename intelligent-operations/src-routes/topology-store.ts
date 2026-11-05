@@ -4,7 +4,7 @@
 import {hash} from './intake';
 import {scanDefinition,reconstruct,correlate,clean,instant,fail} from './topology-model';
 const ownerRequired=owner=>{if(!clean(owner))fail(401,'A verified OSHAL caller is required.');};
-const conflict=e=>['40001','40P01','23505'].includes(e.code)||/scoped collection revision changed/.test(e.message);
+const conflict=e=>['40001','40P01','23505'].includes(e.code)||/scoped collection revision/.test(e.message);
 async function transaction(pool,run){for(let i=0;i<8;i++){const c=await pool.connect();try{await c.query('BEGIN');const result=await run(c);await c.query('COMMIT');return result;}catch(e){await c.query('ROLLBACK').catch(()=>{});if(!conflict(e)||i===7)throw e;}finally{await c.release();}}}
 export async function saveScan(pool,owner,source,input){
  ownerRequired(owner);const scan=scanDefinition(input,source);

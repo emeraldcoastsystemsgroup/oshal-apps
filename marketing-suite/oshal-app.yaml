@@ -42,10 +42,10 @@ description: >-
   your social presence and the signals you follow, and the graphics, decks and
   clips a launch needs — with a setup page that shows what is armed and what
   still needs you.
-version: 1.1.1
+version: 1.1.2
 status: active
 scope: public
-theme: midnight
+theme: light-blue
 # marketing-engine is a required member, so its campaign director owns the group right rail.
 chatBot: campaign-director
 

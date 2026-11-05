@@ -3,6 +3,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Run private recent resume matching and bounded title scoring once per published corpus, with a durable owner receipt and daily cooldown.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bound successful passes to the corpus's 18:00 Chicago refresh cycle, so midday catch-up never consumes the coming evening's publication.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A failed pass logs the engine's error type: six days of failures had said only "code 1".
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | A receipt names the match that wrote it, so a match that reaches more jobs runs once without waiting for the next publication.
  */
 import fs from 'fs';
 import path from 'path';
@@ -15,6 +16,8 @@ import { createChildLogger } from '@/shared/logger';
 const logger = createChildLogger({ module: 'career-nightly-match' });
 export const NIGHTLY_MATCH_LIMIT = 50;
 export const NIGHTLY_MATCH_FILE = 'nightly-match-success.json';
+/** Raise this when people should not wait for the next publication: a receipt from an older match runs once more. */
+export const NIGHTLY_MATCH_CONTRACT = 2;
 
 /** The evening refresh cycle a published corpus belongs to, independent of when its owner catches up. */
 export function nightlyPublicationCycle(millis: number): string {
@@ -27,6 +30,7 @@ export function nightlyPublicationCycle(millis: number): string {
 
 export interface NightlyMatchReceipt {
   version: 1;
+  matchContract?: number;
   corpusVersion: string;
   completedAt: string;
   keywordMatched: number;
@@ -61,8 +65,9 @@ export function nightlyMatchDecision(userDir: string, corpusDb: string) {
   }
   const corpusVersion = `${Math.trunc(stat.mtimeMs)}:${stat.size}`;
   const receipt = readNightlyMatchReceipt(userDir);
-  const reason = receipt?.corpusVersion === corpusVersion ? 'up-to-date'
-    : receipt && nightlyPublicationCycle(Number(receipt.corpusVersion.split(':')[0])) === nightlyPublicationCycle(stat.mtimeMs)
+  const reason = receipt?.matchContract !== NIGHTLY_MATCH_CONTRACT ? null
+    : receipt.corpusVersion === corpusVersion ? 'up-to-date'
+    : nightlyPublicationCycle(Number(receipt.corpusVersion.split(':')[0])) === nightlyPublicationCycle(stat.mtimeMs)
       ? 'daily-cooldown' : null;
   return { corpusVersion, receipt, reason };
 }
@@ -120,7 +125,7 @@ export async function startNightlyMatching(
           errorType: nightlyMatchFailure(completion.stdout) }, 'nightly matching failed; receipt not advanced');
         return;
       }
-      const receipt: NightlyMatchReceipt = { version: 1, corpusVersion: decision.corpusVersion,
+      const receipt: NightlyMatchReceipt = { version: 1, matchContract: NIGHTLY_MATCH_CONTRACT, corpusVersion: decision.corpusVersion,
         completedAt: new Date().toISOString(), limit: NIGHTLY_MATCH_LIMIT, ...verdict };
       // Both cursors and private scores publish together. A failed completion or owner
       // publication cannot consume the next nightly attempt.

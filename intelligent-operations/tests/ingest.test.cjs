@@ -1,3 +1,4 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | One event id per occurrence: the same alert firing again later is a new delivery and reaches processing (every later outage of an alert used to be refused as a conflict), and a repeat whose text moved is a retry. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Alertmanager producer adapter: alerts map to the Operations envelope with a stable id per fingerprint and status; a mapped source admits each alert through real SQL intake (validated, deduplicated on repeat notifications, quarantined without a resource id); an unmapped source, another person's source, an oversized delivery and a malformed body admit nothing. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
@@ -28,5 +29,23 @@ test('a mapped source admits each alert through intake; unmapped, foreign, overs
   await assert.rejects(ingestAlertmanager(pool,'alice',sources,source.id,{alerts:'x'}),e=>e.status===400);
   await assert.rejects(ingestAlertmanager(f.caller('bob'),'bob',[],source.id,{alerts:[alert('firing')]}),e=>e.status===404,'another person names a source they do not own');
   assert.equal(await ingestMapping(f.caller('bob'),'bob',source.id),null);
+ }finally{await f.close();}
+});
+
+test('the same alert firing again later is a new delivery; a repeat whose text moved is the same one',async()=>{
+ const f=await fixture();
+ try{const pool=f.caller('alice'),source=loadExperience().sourceDefinition({name:'Lab Alertmanager',environment:'operations-lab',source:'urn:operations:source:lab-alertmanager'}),sources=[source];
+  await saveIngestMapping(pool,'alice',{sourceId:source.id,resourceKind:'kubernetes-pod',idLabel:'pod_uid',scope:'cluster-uid'},sources);
+  const outage=(startsAt,description)=>({...alert('firing'),startsAt,annotations:{summary:'A pod is down',description}});
+  const first=await ingestAlertmanager(pool,'alice',sources,source.id,{alerts:[outage('2026-10-23T08:00:00Z','81% used')]});assert.equal(first.results[0].status,201);assert.equal(first.admitted,1);
+  const moved=await ingestAlertmanager(pool,'alice',sources,source.id,{alerts:[outage('2026-10-23T08:00:00Z','83% used')]});
+  assert.equal(moved.results[0].status,200,'the repeat is not refused');assert.equal(moved.results[0].retry,true);assert.equal(moved.admitted,0);
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM operations_delivery_attempts WHERE user_sub=$1 AND outcome='conflict'",['alice'])).rows[0].n,0,'no conflict is recorded');
+  await ingestAlertmanager(pool,'alice',sources,source.id,{alerts:[alert('resolved')]});
+  const again=await ingestAlertmanager(pool,'alice',sources,source.id,{alerts:[outage('2026-10-24T02:30:00Z','81% used')]});
+  assert.equal(again.results[0].status,201,'the second outage of the same alert is admitted');assert.equal(again.admitted,1);
+  const pending=(await pool.query('SELECT id FROM operations_processing WHERE user_sub=$1',['alice'])).rows.length;assert.equal(pending,3,'and it waits for processing like the first');
+  const ids=(await pool.query('SELECT event_id FROM operations_deliveries WHERE user_sub=$1',['alice'])).rows.map(r=>r.event_id).sort();
+  assert.deepEqual(ids,['f9e8d7c6-firing-20261023080000','f9e8d7c6-firing-20261024023000','f9e8d7c6-resolved-20261023080500'].sort().map(x=>x.replace('f9e8d7c6',ids[0].split('-')[0])));
  }finally{await f.close();}
 });

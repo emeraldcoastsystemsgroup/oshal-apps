@@ -301,8 +301,15 @@ def ensure_table(conn) -> None:
     never try."""
     if config.POSTGRES:
         return
+    # A read of a published store cannot add this table, and an older store may not have it:
+    # a private empty one means "not scanned yet", which is what that store has to say.
+    scope = ""
+    if db.store_read_only():
+        if conn.execute("SELECT 1 FROM main.sqlite_master WHERE name='gap_themes'").fetchone():
+            return
+        scope = "TEMP "
     conn.execute(
-        """CREATE TABLE IF NOT EXISTS gap_themes (
+        f"""CREATE {scope}TABLE IF NOT EXISTS gap_themes (
                key         TEXT PRIMARY KEY,
                n_jobs      INTEGER DEFAULT 0,   -- distinct target jobs raising this theme
                avg_fit     INTEGER DEFAULT 0,   -- avg ai_fit_score of those jobs

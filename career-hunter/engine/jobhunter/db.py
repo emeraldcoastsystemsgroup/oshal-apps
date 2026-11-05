@@ -16,6 +16,7 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | A person's database closes out of WAL: published and mounted read-only, a WAL file with no side files cannot be opened, which broke the Job Board after the first match for anyone new (found 2026-10-31 on the dev environment).
 # 13 | maintainer@emeraldcoastsystemsgroup.com | enrich_corpus: a scoring pass on a shared read-only corpus skips the corpus facts and keeps the person's scores; the refusal used to fail the run and discard them all.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | A person's database leaves WAL once, as the process ends, not per connection: scoring workers switching the mode against each other failed with "database is locked", ending the run and discarding every score.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | A person's store mounted read-only opens for a read whatever its journal mode and whatever shape its owner's last write left: leaving WAL made every engine read on that mount fail on PRAGMA journal_mode, and an older store failed on its schema.
 
 """Storage layer. Two backends, selected by JOBHUNTER_STORE (see config.STORE).
 
@@ -322,11 +323,13 @@ def connect():
         # view (main shadows the attached corpus table `postings_corpus`).
         config.USER_DB.parent.mkdir(parents=True, exist_ok=True)
         config.CORPUS_DB.parent.mkdir(parents=True, exist_ok=True)
-        _portable_at_exit(config.USER_DB)
-        conn = sqlite3.connect(config.USER_DB, timeout=120)
+        read_only = store_read_only()
+        conn = _open_read_only_store() if read_only else sqlite3.connect(config.USER_DB, timeout=120)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA busy_timeout = 120000")
-        conn.execute("PRAGMA journal_mode = WAL")
+        if not read_only:
+            _portable_at_exit(config.USER_DB)
+            conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA foreign_keys = OFF")  # FKs aren't enforced across an ATTACH boundary
         conn.execute("ATTACH DATABASE ? AS corpus", (str(config.CORPUS_DB),))
         _ensure_multiuser(conn)
@@ -347,6 +350,21 @@ def connect():
         conn.commit()
     finally:
         conn.close()
+
+
+def store_read_only() -> bool:
+    """This person's store exists and this process may not write it: the kernel publishes it and
+    mounts it read-only for a read. W_OK sees both file modes and a read-only mount."""
+    return config.USER_DB.exists() and not os.access(config.USER_DB, os.W_OK)
+
+
+def _open_read_only_store():
+    """A read of a published store. A file still marked WAL with nothing pending cannot create its
+    -shm here, so it opens immutable, as the board's own reader does. A pending WAL is never bypassed."""
+    wal = config.USER_DB.with_name(config.USER_DB.name + "-wal")
+    if wal.exists() and wal.stat().st_size > 0:
+        return sqlite3.connect(config.USER_DB, timeout=120)
+    return sqlite3.connect(f"{config.USER_DB.resolve().as_uri()}?immutable=1", uri=True, timeout=120)
 
 
 _portable_paths: set = set()
@@ -946,8 +964,9 @@ def _ensure_multiuser(conn) -> None:
         conn.executescript(CORPUS_SCHEMA)
         _ensure_insights_index(conn)
         _ensure_geo_index(conn)
-        conn.executescript(USER_SCHEMA)
-        _ensure_user_columns(conn)   # backfill new columns onto pre-existing user DBs
+        if not store_read_only():  # a read cannot change the store; its owner's next write does
+            conn.executescript(USER_SCHEMA)
+            _ensure_user_columns(conn)   # backfill new columns onto pre-existing user DBs
         _ensure_planner_stats(conn)
         _multiuser_inited.add(key)
     conn.executescript(_POSTINGS_VIEW_SQL)

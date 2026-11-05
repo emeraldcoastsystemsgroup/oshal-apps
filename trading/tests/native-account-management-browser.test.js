@@ -140,7 +140,9 @@ test('whole-account strategy is reviewed and personally activated on the account
 
   shell.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Activate live trading',exact:true}).click();assert.equal(h.mandate().status,'draft');
   shell.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Activate live trading',exact:true}).click();await page.getByText('Live trading: Active',{exact:true}).waitFor();assert.equal(h.count(),0,'approval alone submits no order');
-  await h.req('/profiles',{accountId:'a',connectionKey:'owned-login',label:'Synthetic account',registration:'taxable',strategyId:null});
+  const cleared=await h.req('/profiles',{accountId:'a',connectionKey:'owned-login',label:'Synthetic account',registration:'taxable',strategyId:null});assert.equal(cleared.error,'active_strategy_assignment_locked');
+  // Keep the warning for legacy/out-of-band inconsistent data; the public profile route now prevents it.
+  const profile=[...h.records.values()].find(r=>r.kind==='profile'&&r.user_sub==='owner-a');const prior=JSON.parse(profile.payload);profile.payload=JSON.stringify({...prior,strategyId:null});
   await page.getByRole('button',{name:'Refresh this account',exact:true}).click();await page.getByText('Live trading: Active · different strategy',{exact:true}).waitFor();
   assert.match(await page.locator('[data-native-account-strategy]').locator('..').innerText(),/Strategy for Synthetic account/);assert.match(await page.locator('.native-strategy-picker').innerText(),/Authorized strategy: Monthly model.*differs from the assigned strategy/);
   await h.req('/profiles',{accountId:'a',connectionKey:'owned-login',label:'Synthetic account',registration:'taxable',strategyId:h.strategyId});

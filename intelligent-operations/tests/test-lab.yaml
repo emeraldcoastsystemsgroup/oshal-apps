@@ -1,4 +1,7 @@
 # CHANGE LOG
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Register default/disabled first-use tick safety against real SQL; existing silence-watch opt-in remains separate.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Register the Your computers guard (tests/computers.test.cjs, kernel ADR-206).
+# 26 | maintainer@emeraldcoastsystemsgroup.com | Register the monitored installations guard (tests/installations.test.cjs); ingest expects one event per occurrence of an alert.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | git-explorer expects a late provider-switch load to leave a newer refusal on screen.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | investigation-handoff and operator-workspace expect Investigate again, alert labels and the incident card among more than 1,000 other tickets.
 # 23 | maintainer@emeraldcoastsystemsgroup.com | Register the Your SSH connection guard (tests/ssh-connection.test.cjs): the browser-side key check, the exact credential, and the shipped Connections page against a kernel-shaped fake.
@@ -29,6 +32,19 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register retained telemetry and actual host/cloud replay acceptance.
 version: 1
 cases:
+  - id: first-use-processing
+    name: First-use tick with default or disabled evaluation
+    purpose: Verify that first-use scheduling enables no evaluation, capture, discovery, investigation or notification for an empty default owner, or for explicitly disabled evaluation with eligible admitted data and no independently configured watch.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/first-use-processing.test.cjs] }
+    expected:
+      - Repeated default ticks make no engine, connector, ticket or notification call.
+      - Disabled evaluation leaves pending admitted data undecided and creates no work or message.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role and delete its rules index. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
   - id: one-time-communication-guard
     name: One-time authorized notification acceptance
     purpose: Verify durable pre-send reservations, lost-ack holds and muted test topics using filesystem state and an explicit native API fixture.
@@ -92,6 +108,42 @@ cases:
     prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: monitored-installations
+    name: Monitored installations and the silence alarm
+    purpose: "Verify that a heartbeat is proof of life and never an event, that its readings reach the card, the 15-minute history, the telemetry banks and the topology, that an installation that goes quiet raises InstallationSilent exactly once through the real percolator and tick and clears on its next report, that a gap in the schedule itself blames nobody, that what is firing follows the alerts, that the attention message names the alert and the installation, and that the shipped Systems and Overview pages say all of it in words, keep the frame on a failed read, clear on refusal and fit a phone."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/installations.test.cjs, tests/installations-alarm.test.cjs, tests/installations-screen.test.cjs] }
+    expected:
+      - The event ledger holds no heartbeat.
+      - A second silence is its own occurrence; one silence is raised once.
+      - A failed admit never loses an alarm or its resolve; the next tick settles what is owed.
+      - A warning stays off the phone; a critical is told as it fires, fires again and clears; a flap opens no second packet.
+      - A phone message is owed until the rail takes it and names the latest word per alert; nothing after the watch can hold up an alarm; a failing tick tells the phone once.
+      - What the report lists decides whether an alert cleared, including when no resolve ever comes; a blip that becomes an outage gets its evidence after the window.
+      - Only the tick's own decisions reach the phone; an engine outage names a critical once and spends no retries; each failing step is its own news.
+      - A tick starts nothing new past its time, so the kernel never ends it; Jarvis says when the silence watch has stopped.
+      - Jarvis names what is silent and what critical is firing.
+      - A full evidence window seals in a few KB and any window stays under the investigation input ceiling.
+      - A bank that refuses readings never makes a live installation look dead.
+      - Nothing stays on screen after access is withdrawn.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role and delete the rules index. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 512 }
+    installation: never
+  - id: your-computers
+    name: Your computers on Connections
+    purpose: "Verify that the person's own OSHAL Node computers show on the Connections page with whether Jarvis can use each (kernel ADR-206), that only a usable one offers Work on it and that it goes to the kernel's own page for that computer in the top window, that a refusal clears the rows and names the way back, and that the card asks the kernel for nothing but the list."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/computers.test.cjs] }
+    expected:
+      - Only a connected computer with control on offers Work on it.
+      - A 401 or 403 leaves no row on screen.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The fixture server and browser are closed by the test. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never
   - id: ssh-connection
@@ -668,7 +720,7 @@ cases:
     installation: never
   - id: alertmanager-producer
     name: Alertmanager deliveries through the producer door
-    purpose: "Verify that each Alertmanager alert becomes the Operations envelope with a stable id per fingerprint and status, and that a mapped source admits each alert through real SQL intake (validated, deduplicated on repeat notifications, quarantined without a resource id) while an unmapped source, another person's source, an oversized delivery and a malformed body admit nothing."
+    purpose: "Verify that each Alertmanager alert becomes the Operations envelope with a stable id per occurrence (the same alert firing again later is a new delivery, a repeat whose text moved is the same one), and that a mapped source admits each alert through real SQL intake (validated, deduplicated on repeat notifications, quarantined without a resource id) while an unmapped source, another person's source, an oversized delivery and a malformed body admit nothing."
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/ingest.test.cjs] }
     expected:

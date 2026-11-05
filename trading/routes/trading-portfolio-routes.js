@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose daily research presets and validation while enforcing account class before historical studies.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Retain owner-bound account observations and register the separate read-only account detail surface.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The research read names each account's assigned strategy, so the concierge can compare a new strategy with the one an account runs.
  */
@@ -95,13 +96,15 @@ function registerTradingPortfolioRoutes(router, ctx, options = {}) {
                 { ...row, status: at.getTime() >= Date.parse(row.expiresAt) ? 'expired' : row.status };
         });
         const accounts = profiles.map(p => ({ accountId: p.accountId, connectionKey: p.connectionKey, label: p.label, strategyId: p.strategyId ?? null }));
-        return { strategies, runs: runs.slice(0, 100).map(({ history, result, ...row }) => ({ ...row, metrics: result?.metrics, window: result?.window, costs: result?.costs, maintenanceTriggered: result?.maintenanceTriggered })), reviews, accounts, liveExecutionAvailable: false };
+        return { strategyPresets:require('./strategy/policies').PRESETS,strategies, runs: runs.slice(0, 100).map(({ history, result, ...row }) => ({ ...row, metrics: result?.metrics, window: result?.window, costs: result?.costs, maintenanceTriggered: result?.maintenanceTriggered, validation: result?.validation })), reviews, accounts, liveExecutionAvailable: false };
     });
     route('post', '/portfolio/profiles', async (req, owner, at) => {
         const b = req.body || {}, current = await selected(ctx, owner, b, at), reg = (0, trading_portfolio_model_1.registration)(b.registration);
-        if (b.strategyId)
-            await (0, trading_portfolio_store_1.getRecord)(ctx, owner, 'strategy', b.strategyId);
-        const profile = { accountId: current.account.accountId, connectionKey: current.account.connectionKey, registration: reg, label: label(b.label, 'Account label'), strategyId: b.strategyId || null };
+        const strategyId=Object.hasOwn(b,'strategyId')?(b.strategyId||null):(current.profile?.strategyId||null);
+        const active=(await (0, trading_portfolio_store_1.listRecords)(ctx,owner,'watch')).find(w=>(0, trading_portfolio_model_1.accountKey)(w)===(0, trading_portfolio_model_1.accountKey)(current.account)&&w.automatedTrading);
+        if(active&&strategyId!==active.strategyId)throw new trading_portfolio_model_1.PortfolioError(409,'active_strategy_assignment_locked','Stop this account’s active automatic strategy before changing its assignment. Backtests can review another saved strategy without assigning it.');
+        if(strategyId){const strategy=await (0, trading_portfolio_store_1.getRecord)(ctx,owner,'strategy',strategyId);if(strategy.config?.modelVersion===3)require('./strategy/policies').assertAccount((0, trading_portfolio_sim_1.normalizePortfolioStrategy)(strategy.config),current.account,reg);}
+        const profile = { accountId: current.account.accountId, connectionKey: current.account.connectionKey, registration: reg, label: label(b.label, 'Account label'), strategyId };
         return { profile: await (0, trading_portfolio_store_1.saveRecord)(ctx, owner, 'profile', profile, selector(b)), strategyAppliedToBroker: false };
     });
     route('post', '/portfolio/outside', async (req, owner, at) => {
@@ -136,6 +139,7 @@ function registerTradingPortfolioRoutes(router, ctx, options = {}) {
         return { outside: record, brokerVerified: false, preservedReviewSettings: Boolean(existingProfile) };
     });
     route('delete', '/portfolio/outside/:id', async (req, owner) => { await (0, trading_portfolio_store_1.removeRecord)(ctx, owner, 'outside', req.params.id); return { removed: true }; });
+ route('get','/portfolio/strategy-presets',async()=>({presets:require('./strategy/policies').PRESETS,requiresAccountBacktest:true,ordersSubmitted:0}));
     route('post', '/portfolio/strategies', async (req, owner, at) => {
         const b = req.body || {}, config = (0, trading_portfolio_sim_1.normalizePortfolioStrategy)(b.config);
         if (b.parentId)
@@ -149,6 +153,7 @@ function registerTradingPortfolioRoutes(router, ctx, options = {}) {
             throw new trading_portfolio_model_1.PortfolioError(409, 'backtest_running', 'A portfolio backtest is already running for your account.');
         const b = req.body || {}, s = await selected(ctx, owner, b, at), strategy = await (0, trading_portfolio_store_1.getRecord)(ctx, owner, 'strategy', b.strategyId);
         const config = (0, trading_portfolio_sim_1.normalizePortfolioStrategy)(strategy.config), capital = (0, trading_portfolio_model_1.measured)(s.account.equity);
+  if(config.modelVersion===3)require('./strategy/policies').assertAccount(config,s.account,s.profile?.registration);
         if (capital === null || capital < 100)
             throw new trading_portfolio_model_1.PortfolioError(422, 'capital_unavailable', 'At least $100 of measured account equity is required for this scenario.');
         if (config.grossExposurePct > 100 && !s.constraints.leverageSimulationAllowed)

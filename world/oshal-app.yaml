@@ -12,6 +12,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5: keep active native collector settings and exact failed run receipts visible; use bounded seven-day manual pulls while retaining stored observations.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: native original-owner collector configuration and explicit Congress/insider pulls with retained partial/failure receipts.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: declare world-analyst as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — world ("World Intelligence", ADR-061)
@@ -71,7 +72,7 @@ description: >-
   and reliability against the other sources, with the counts and dates behind it),
   entity co-mention graph, and historical series. Ask the analyst "what's the press
   saying about X" and get a structured, bias-contextualized read, not a misleading average.
-version: 1.4.5
+version: 1.4.6
 
 testing:
   version: 1
@@ -110,7 +111,7 @@ dependencies:
     tools: []
     connectors: []
 
-theme: midnight
+theme: light-blue
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SCHEDULES — the always-on framework intelligence loop. The loader registers this

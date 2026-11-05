@@ -26,10 +26,10 @@ description: >-
   One front door for sport: manage your own fantasy football team, and follow a team's next game
   with an odds maker that is graded on closing-line value before it may stake anything. Each
   destination remains owned by its member app.
-version: 1.0.0
+version: 1.0.1
 status: active
 scope: public
-theme: midnight
+theme: light-blue
 # Both members hand their right rail to the stable framework concierge; the group borrows it.
 chatBot: general-bot
 

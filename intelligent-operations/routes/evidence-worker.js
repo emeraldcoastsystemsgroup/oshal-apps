@@ -47,14 +47,14 @@ async function recordFailure(pool, owner, id, config, error, clock) {
 }
 /** @description Preserve reduced evidence before its raw banks rotate, without model or infrastructure authority.
  * @param pool Caller-scoped database. @param owner Verified original user. @param clock Testable receipt clock. @returns Actual bounded capture outcomes. */
-async function capturePendingEvidence(pool, owner, clock = Date.now) {
+async function capturePendingEvidence(pool, owner, clock = Date.now, until = Infinity) {
     const config = await (0, processing_worker_1.processingConfig)(pool, owner), results = [], started = Date.now();
     if (!config.enabled || !config.captureEvidence)
         return { enabled: false, captured: 0, notRequested: 0, failed: 0, results };
     const slots = config.sourceIds.map((_, i) => '$' + (i + 3)).join(',');
     const candidates = (await pool.query("SELECT id FROM operations_processing WHERE user_sub=$1 AND state IN ('evidence-pending','evidence-retry') AND ready_at <= $2 AND record->>'sourceId' IN (" + slots + ") ORDER BY ready_at, created_at, id LIMIT 10", [owner, stamp(clock), ...config.sourceIds])).rows;
     for (const candidate of candidates.slice(0, config.batchSize)) {
-        if (Date.now() - started >= 45000)
+        if (Date.now() - started >= 45000 || Date.now() >= until)
             break;
         try {
             const result = await capture(pool, owner, candidate.id, config, clock);

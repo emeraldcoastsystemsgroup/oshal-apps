@@ -1,3 +1,4 @@
+/** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | admit takes sameOccurrence for a producer that repeats one event with text that moves: Alertmanager's DiskHigh repeat carries a new percentage under the same occurrence, and that is a retry, not a conflict. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Admit source deliveries, attempts and pending processing atomically under the native caller. */
 // @ts-nocheck
 import {createHash, randomUUID} from 'node:crypto';
@@ -12,10 +13,10 @@ export function canonical(value) {
 export const hash = value => createHash('sha256').update(canonical(value)).digest('hex');
 const fail = (status,message) => {throw Object.assign(Error(message),{status});};
 const identified = value => typeof value==='string' && value.length>0 && value.length<=256 && value.trim()===value && !/[\x00-\x1f\x7f]/.test(value);
-const conflict = e => ['40001','40P01','23505'].includes(e.code) || /scoped collection revision changed/.test(e.message);
+const conflict = e => ['40001','40P01','23505'].includes(e.code) || /scoped collection revision/.test(e.message);
 
 /** The caller is supplied by OSHAL, never by a payload. Commit precedes every acknowledgement. */
-export async function admit(pool, owner, source, raw) {
+export async function admit(pool, owner, source, raw, options={}) {
   if (!identified(owner)) fail(401,'A verified OSHAL caller is required.');
   if (!raw || typeof raw!=='object' || Array.isArray(raw)) fail(400,'One alert object is required.');
   if (Buffer.byteLength(JSON.stringify(raw))>65536) fail(413,'Record exceeds 64 KiB.');
@@ -23,12 +24,14 @@ export async function admit(pool, owner, source, raw) {
   const reasons=result.ok ? [] : [...result.errors];
   if (result.ok && result.normalized.data.environment!==source.environment) reasons.push({path:'data.environment',message:'Event environment does not match its registered source.'});
   const valid=result.ok && reasons.length===0, payloadHash=hash(raw);
+  // A service label separates alerts of one type on one host: a second container failing during the first is its own symptom, page and resolve (independent review, 2026-11-03). The mapping keeps no labels, so it is read from the raw event; every other source's identity is unchanged.
+  const service=typeof raw.data?.labels?.service==='string'&&raw.data.labels.service?raw.data.labels.service.slice(0,128):null;
   // Source authority comes from the registered revision, including when the payload forges its source.
   const eventId=identified(raw.id)?raw.id:null;
   const id=hash(['delivery-v1',source.source,eventId===null?['unidentified',payloadHash]:['event',eventId]]);
   const attemptId=randomUUID(), receivedAt=new Date().toISOString();
   const proposed={id,sourceId:source.id,source:source,receivedAt,raw,payloadHash,
-    normalized:valid?result.normalized:null,identity:valid?{delivery:result.deliveryIdentity,symptom:result.symptomIdentity}:null,
+    normalized:valid?result.normalized:null,identity:valid?{delivery:result.deliveryIdentity,symptom:service?[...result.symptomIdentity,service]:result.symptomIdentity}:null,
     decision:valid?'validated':'quarantined',reasons:valid?['Committed to the processing queue.']:reasons};
   for(let retry=0;retry<8;retry++) {
     const client=await pool.connect();
@@ -36,7 +39,8 @@ export async function admit(pool, owner, source, raw) {
       await client.query('BEGIN');
       const rows=(await client.query('SELECT payload_hash, record FROM operations_deliveries WHERE user_sub=$1 AND id=$2 FOR UPDATE',[owner,id])).rows;
       const previous=rows[0];
-      const outcome=previous?(previous.payload_hash===payloadHash?'retry':'conflict'):proposed.decision;
+      // An Alertmanager repeat is the same occurrence even when its text moved (DiskHigh's percentage); the original stays.
+      const outcome=previous?(previous.payload_hash===payloadHash||options.sameOccurrence===true?'retry':'conflict'):proposed.decision;
       const attempt={id:attemptId,deliveryId:id,sourceId:source.id,payloadHash,receivedAt,outcome,
         ...(outcome==='conflict'?{raw}:{}),
         reasons:outcome==='conflict'?['This source reused an event ID with different content. The original delivery is unchanged.']:proposed.reasons};

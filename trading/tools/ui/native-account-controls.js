@@ -100,7 +100,7 @@ async function nativeAccountControlAction(action,host,context){
    if(action==='schedule-deactivate'){
     if(!confirm('Deactivate the shared watcher schedule for ALL accounts? Automatic strategy checks and watcher exits will stop. Existing broker orders remain.'))return;
     await paperKernel('/api/v1/agent/schedules/'+encodeURIComponent(row.id)+'/deactivate',{method:'POST',body:'{}'});
-   }else if(row.status!=='active')await paperKernel('/api/v1/agent/schedules/'+encodeURIComponent(row.id)+'/activate',{method:'POST',body:JSON.stringify({class:'person',configuration:{runBudgetMicros:1000000,dailyBudgetMicros:10000000,timeoutMs:120000}})});
+   }else if(row.status!=='active')await paperKernel('/api/v1/agent/schedules/'+encodeURIComponent(row.id)+'/activate',{method:'POST',body:JSON.stringify({class:'person',configuration:{timeoutMs:120000}})});
    if(current())await loadNativeAccountManagement(model,token);return;
   }
   const strategyId=select.value;if(!research?.strategies?.some(s=>s.id===strategyId))throw Error('Choose a saved strategy.');

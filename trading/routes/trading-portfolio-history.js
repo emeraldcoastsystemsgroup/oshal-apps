@@ -16,16 +16,14 @@ async function portfolioHistory(ctx, connection, strategy, start, end, now = new
     const intent = host.intent;
     const symbols = [...new Set([...(0, trading_portfolio_rotation_1.portfolioStrategySymbols)(strategy), 'SPY'])], series = {};
     const earliestNeeded = Date.parse(start) - Math.ceil((0, trading_portfolio_rotation_1.portfolioWarmupSessions)(strategy) * 1.6 + 20) * 86400000;
-    const ends = [nowMs];
-    if (earliestNeeded < nowMs - 380 * 86400000)
-        ends.push(nowMs - 350 * 86400000);
+    const ends = [nowMs], historyDays = Math.max(400, Math.ceil((nowMs - earliestNeeded) / 86400000));
     const deadline = Date.now() + 90000;
     const readSymbol = async (symbol) => {
         const rows = new Map();
         for (const endMs of ends) {
             if (Date.now() > deadline)
                 throw new trading_portfolio_model_1.PortfolioError(504, 'history_timeout', 'Historical reads exceeded their time budget. Narrow the asset universe and retry.');
-            const answer = await intent('trading.bars', { symbol, timeframe: '1Day', connection, end: Math.floor(endMs) });
+            const answer = await intent('trading.bars', { symbol, timeframe: '1Day', connection, end: Math.floor(endMs), historyDays });
             if (answer.symbol !== symbol || answer.source !== 'schwab' || !Array.isArray(answer.bars) || answer.bars.length > 10000)
                 throw new trading_portfolio_model_1.PortfolioError(502, 'history_invalid', `${symbol} history did not provide the expected source and symbol.`);
             for (const bar of answer.bars) {

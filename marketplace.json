@@ -9,8 +9,8 @@
       "suite": "ai-productivity",
       "displayName": "Calling Assistant",
       "description": "Configurable phone tasks with a reusable tool, operator bot, workflow, audio tests and call reports.",
-      "version": "0.1.10",
-      "theme": "midnight",
+      "version": "0.1.11",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -47,8 +47,8 @@
       "suite": "ai-engineering",
       "displayName": "Hello OSHAL",
       "description": "The minimal working example — one route, one ribbon tile. Copy it to start a new extension.",
-      "version": "1.2.3",
-      "theme": "midnight",
+      "version": "1.2.4",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -123,8 +123,8 @@
       "suite": "ai-creative",
       "displayName": "Brand Graphics",
       "description": "On-brand OSHAL motion graphics — a short brief becomes the validated electric-\"oshal\" intro look via Google Vids on the operator's signed-in Chrome.",
-      "version": "1.1.5",
-      "theme": "midnight",
+      "version": "1.1.6",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [
           "vids"
@@ -490,7 +490,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose optional additional experience, generate and review its resume and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace.",
-      "version": "1.47.6",
+      "version": "1.47.11",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -627,8 +627,8 @@
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
       "description": "Create portraits from camera or uploaded photos with presets and backdrops. Imported roles separately control viewing, reading, creating, editing, deleting and exporting your portraits. Group scenes and passport or print exports remain available within assigned permissions. See the package authorization guide for connected-email and legacy-image availability.",
-      "version": "1.15.5",
-      "theme": "midnight",
+      "version": "1.15.6",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1340,8 +1340,8 @@
       "suite": "ai-creative",
       "displayName": "Vids Studio",
       "description": "Turn an idea into generated video - the Veo specialist drives Google Vids by clicking, in a remote operator's logged-in Chrome: describe the shot, it generates the clip and places it on the timeline. Job + multi-scene Extend-story dispatch to the registered desktop worker, with the job-queue surface behind the cockpit tile. The shared vids-operator desktop worker (the ADR-080 story engine lives in its content.* tools), its registry entries, the remote-client mesh, and the oshal-vids CLI stay framework-resident; this package is the surface over them.",
-      "version": "1.5.7",
-      "theme": "midnight",
+      "version": "1.5.8",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1430,8 +1430,8 @@
       "suite": "ai-finance",
       "displayName": "Kalshi Prediction Markets",
       "description": "Browse Kalshi's open event contracts with a verdict on every one, and ask the quant why a bet is bad or good. Find mispriced event contracts on Kalshi (ADR-094). Every open market is evaluated like a poker hand - calibrated true probability (from Kalshi's own settled-market tape, no history means no edge) versus price plus fees - and playable hands are ranked with quarter-Kelly stakes and explicit risk flags. Portfolio + order placement ride the per-user connector, confirm-gated and demo-exchange-first (KALSHI_LIVE_ENABLED gates live money; every order and refusal audited). The prediction-markets engine, the kalshi connector + broker key, the calibration/forward-test CLIs, and the default tile stay framework-resident; this package is the surface + confirm-gated order routes over them. The scan runs in the BACKGROUND on a cadence configured in the manifest (default hourly) and, once you switch Tell Jarvis on in Settings, posts new playable hands to your Jarvis feed; the surface serves the last snapshot instantly instead of waiting on a feed walk, and the cadence/alert thresholds are editable from the app's Settings tab.",
-      "version": "1.7.3",
-      "theme": "midnight",
+      "version": "1.7.4",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1468,8 +1468,8 @@
       "suite": "ai-finance",
       "displayName": "Futures Research",
       "description": "Opt-in, tool-less queued review of owner-scoped Futures studies. Proposals require explicit adoption in the Trading console; no order execution.",
-      "version": "1.1.0",
-      "theme": "midnight",
+      "version": "1.1.1",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1502,8 +1502,8 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.51.3",
-      "theme": "midnight",
+      "version": "1.53.0",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1543,8 +1543,8 @@
       "suite": "ai-knowledge",
       "displayName": "World Intelligence",
       "description": "Shared world intelligence (ADR-061 Layer B) - multi-source news feeds classified into a bias-aware sentiment graph read through oshal's own observed outlet ratings (each source's lean and reliability against the other sources, with the counts and dates behind it), entity co-mention graph, and historical series. Ask the analyst what the press is saying about X and get a structured, bias-contextualized read, not a misleading average. The Layer-B engine (src/features/world-data), the deterministic world-schedule dispatcher, scripts/oshal-world.js, the world-analyst registry entry, and the default tile stay framework-resident; this package is the /api/world surface (fail-closed header-authenticated writes, open reads), the world-analyst manifest, the seven world_* tools, and the refresh/pulse schedules.",
-      "version": "1.4.5",
-      "theme": "midnight",
+      "version": "1.4.6",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1686,8 +1686,8 @@
       "suite": "ai-engineering",
       "displayName": "AI Bake-Off",
       "description": "Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar.",
-      "version": "1.1.6",
-      "theme": "midnight",
+      "version": "1.1.7",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2037,8 +2037,8 @@
       "suite": "ai-productivity",
       "displayName": "Marketing Engine",
       "description": "Takes a built oshal product to traffic, users, and revenue: campaign board with stage-gated intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic metrics scorecard, experiment registry, budget proposals a human approves, and weekly review tickets worked by inline concierge bots only after human approval.",
-      "version": "0.5.5",
-      "theme": "midnight",
+      "version": "0.5.6",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2091,8 +2091,8 @@
       "suite": "ai-productivity",
       "displayName": "Marketing",
       "description": "One front door for taking a product to market: the campaign board with its consent gates and weekly scorecard, the compose desk and scheduled calendar, your social presence and the signals you follow, and the graphics, decks and clips a launch needs — with a setup page that shows what is armed and what still needs you. An ADR-141 application GROUP: no code of its own, six member apps bound by one toolbar of borrowed surfaces.",
-      "version": "1.1.1",
-      "theme": "midnight",
+      "version": "1.1.2",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [
           "marketing-engine",
@@ -2324,8 +2324,8 @@
       "suite": "ai-finance",
       "displayName": "Sports Edge",
       "description": "Follow a team and really know its next game. The odds maker builds a line from the ground up - Elo and schedule-adjusted power ratings from the season tape, a two-sided offence-versus-defence unit matchup, both injury reports weighted by each player's real share of team production, plus rest and travel - and measures it against the book's moneyline and spread. Every call is registered before kickoff and graded on closing-line value, so the model has to beat the market before it is allowed to stake anything. No order path. Fantasy leagues moved to their own app, Fantasy Football, grouped with this one as Intelligent Sports.",
-      "version": "0.11.4",
-      "theme": "midnight",
+      "version": "0.11.5",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2360,8 +2360,8 @@
       "suite": "ai-home",
       "displayName": "Calendar Preparation",
       "description": "Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.",
-      "version": "1.1.6",
-      "theme": "midnight",
+      "version": "1.1.7",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2398,8 +2398,8 @@
       "suite": "ai-engineering",
       "displayName": "Capability Ideator",
       "description": "Discover sourced tools and integration opportunities for business processes, grounded in installed applications and explicit connection requirements.",
-      "version": "1.1.6",
-      "theme": "midnight",
+      "version": "1.1.7",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2714,8 +2714,8 @@
       "suite": "ai-engineering",
       "displayName": "Developer Workspace Index",
       "description": "Build a bounded, dev-console-only index of the local OSHAL documentation and ask Jarvis for cited developer references.",
-      "version": "0.2.3",
-      "theme": "midnight",
+      "version": "0.2.4",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2748,8 +2748,8 @@
       "suite": "ai-productivity",
       "displayName": "Fantasy Football",
       "description": "Manage the fantasy football team you actually have. It reads your own ESPN league with your own connection, scores ESPN's raw projections with your league's own scoring rules (ESPN publishes stats, not points, and this package holds no stat table), and sets the lineup with the best chance of beating the team you play this week - which starts the volatile player when you are an underdog and the steady one when you are favoured, always beside what the safest lineup would have won. It prices every roster move over the rest of the season: a waiver board with a bid and a drop on every row, trades both managers gain from, and a one-week streaming lane. A league typed in by hand works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no other user, operator included, can see them. Every lineup is recorded before kickoff and graded against what was actually started. It advises; you act.",
-      "version": "0.2.2",
-      "theme": "midnight",
+      "version": "0.2.3",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2786,8 +2786,8 @@
       "suite": "ai-productivity",
       "displayName": "Intelligent Sports",
       "description": "One front door for sport: manage your own fantasy football team, and follow a team's next game with an odds maker that is graded on closing-line value before it may stake anything. Each destination remains owned by its member app.",
-      "version": "1.0.0",
-      "theme": "midnight",
+      "version": "1.0.1",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [
           "fantasy-football",
@@ -3525,9 +3525,9 @@
       "name": "intelligent-operations",
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
-      "description": "Review incident tickets and check alert source formats in the Operations workspace. The existing RCA workflow investigates the ticket and attached evidence; automatic monitoring, discovery and infrastructure execution are not enabled.",
-      "version": "1.1.5",
-      "theme": "midnight",
+      "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
+      "version": "1.2.2",
+      "theme": "light-blue",
       "dependencies": {
         "apps": [],
         "tools": [],

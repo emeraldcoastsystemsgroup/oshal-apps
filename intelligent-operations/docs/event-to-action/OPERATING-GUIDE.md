@@ -461,3 +461,57 @@ estimate, with $0 recorded spend. This is a budget assumption, not billed cost.
 The sealed packet, original report and reviewer response all reach the revise phase.
 These are reviewable diagnostic/verification proposals; no infrastructure action
 ran and standalone executable script files have not been materialized.
+
+## Monitored installations
+
+An alert only speaks when something is wrong, so a quiet screen cannot tell a healthy server from a dead one. A server whose monitoring
+layer carries the heartbeat rule (`InstallationHeartbeat`, an alert that always fires) reports here every minute through its Alertmanager,
+the same producer token and route as its alerts, with its readings in the alert's annotations.
+
+**Systems, Monitored installations** shows each one: Reporting, Late (over 3 minutes) or Silent (10 minutes), when it was last heard and how
+many reports arrived, every check with its reading (the public site, the kernel, Postgres, containers, disk, memory, processor, backup,
+off-site copy, updates, and its own monitoring: whether its Prometheus can still read each thing it watches), what is firing with a button to
+its event, and charts over the last 24 hours, 7 or 14 days, also as a table. A card with a blind core check does not say healthy. It
+refreshes every 30 seconds while the page is open. **Overview** has the same in one line and an "Installations reporting" tile; a source on
+**Sources** says when it was last heard. The server and its containers are in the resource tree below, and alerts naming the installation attach
+to it. The readings also land in the source's telemetry banks, so an investigation's evidence packet carries the 15 minutes before an alert.
+
+When the reports stop for 10 minutes the processing tick raises `InstallationSilent` (critical), which the source's policy must name, and
+tells you on the attention rail; the next report resolves it and tells you it came back. If storing the alarm or its resolve fails, the
+tick retries it until it is on record, and you are told regardless. If this Operations' own schedule stopped for more than 5 minutes, it waits
+a further 10 before calling anyone silent: it was not listening. Systems says when that schedule last ran and warns when it is overdue, and so
+does Jarvis: heartbeats do not depend on that schedule, so a server can be reporting while no alarm could be raised for it.
+**Stop watching this installation** appears on a Silent or never-reported card for a server you retired, and removes its history, readings and
+host. A server still reporting or late is refused: stop its monitoring first.
+
+**Cleared means Prometheus no longer lists it.** When a server's Prometheus dies or restarts, its Alertmanager times out what it was firing and
+delivers it as resolved about 4 minutes later, whatever the site is doing; and when Alertmanager itself restarts, a real all-clear can be lost for
+good, because it keeps alerts only in memory. So each report carries what Prometheus has firing or pending and how long it has been up. A resolve is
+believed only from a Prometheus that has been up 2 minutes, is seen moving, reads every exporter and no longer lists the alert; otherwise no message goes
+out and the alert stays on the card. A blank list, as after a restart or with Prometheus's disk full, holds. Operations also clears, with the phone told, any alert that has stayed off the list for 3 minutes, even if no resolve ever
+came. While that is being confirmed the card says it was reported cleared and it does not count as a critical alert firing. A report without the
+list, from an older rule file, falls back on 20 minutes after reports resume.
+
+**What reaches your phone.** A critical alert as it fires, by name and service; the same alert firing again inside the policy's window, which is
+recorded and told but opens no second packet or ticket until the window has passed; and the same alert clearing, unless another alert of that type is still on the card.
+A message is owed until the rail takes it, so a failed send, a store failure or a tick that was cut short does not lose it; the next tick tells it, with the latest word per
+alert, what is firing first, within what the shortest rail accepts. Only the processing tick's own decisions are told: a replay or Evaluate pressed by hand pages nobody. A
+warning stays on the card and in Data pipeline. A second container failing during the first is its own symptom, message and all-clear. A step of the tick that keeps failing
+is told once, by name, and again only after 15 quiet minutes. While the detection engine does not answer, a critical on the queue is named once as not evaluated yet, and
+it spends no retries: when the engine returns it reaches its decision within 5 minutes, with its evidence, and the phone hears nothing twice. A rail that keeps refusing is
+listed under attention. The rail may skip a message by your preferences (quiet hours, mute); a skip counts as told. Jarvis answers from the same facts: "what needs my attention"
+names any installation that stopped reporting and any critical alert firing, and asking whether a server is monitored gives its standing.
+
+**The limit of this design.** Operations runs on one machine, and it is what raises the silence alarm and sends the messages. While that
+machine is down, nothing raises any alarm and no message goes out from anywhere; when it returns it waits 10 minutes before calling a server silent.
+
+The heartbeat is never an event: it is not in the event list and the percolator never sees it. A repeat of a firing alert is the same
+occurrence even when its text moved; the same alert firing again after the window is a new occurrence, with its own symptom and investigation.
+An alert that fired again inside the window and is still firing when the window ends gets the same, once: a blip followed by a real outage has
+its evidence. An evidence packet seals metrics as one series per reading, so a full 15-minute window costs a few KB, and any packet is bounded in
+bytes: the oldest go first and `truncated` says so. A start that can never run (a packet sealed over the 64 KiB input ceiling, an input that no
+longer matches after a runbook edit) is recorded as a refused start, so it holds no slot, says why on its card and shows under attention for three days.
+
+**The tick answers in time.** The kernel ends a package call at 60 seconds, and ten calls ended that way in one UTC day stop the schedule until
+midnight UTC. The silence watch, its notices and what the phone is owed run first. After 25 seconds a tick starts nothing new, including the next
+cluster read or telemetry source, each engine call is held to 25 seconds, and what did not fit waits for the next tick.

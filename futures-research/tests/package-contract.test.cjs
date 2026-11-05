@@ -57,7 +57,7 @@ async function request(packageRoot) {
 }
 
 test('compiled readiness returns installed identity and fails closed for invalid or missing metadata', async () => {
-  assert.deepEqual(await request(root), { status: 200, body: { status: 'ready', package: 'futures-research', version: '1.1.0', manifest: 'verified' } });
+  assert.deepEqual(await request(root), { status: 200, body: { status: 'ready', package: 'futures-research', version: '1.1.1', manifest: 'verified' } });
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'futures-package-readiness-'));
   try {
     for (const content of ['', 'name: invalid name\nversion: 1.0.0', 'x'.repeat(131073)]) {

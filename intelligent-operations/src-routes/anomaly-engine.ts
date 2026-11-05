@@ -1,3 +1,4 @@
+/** CHANGE LOG: detection deadline | maintainer@emeraldcoastsystemsgroup.com | Detection stops at the tick's deadline, between sources and between readings (fourth review, 2026-11-04). A tick the kernel ended mid-detection left candidates admitted behind an uncommitted cursor, and the next pass re-emitted them with a new evaluatedAt, which admit called a conflict, so that source failed every tick for good. A re-emitted candidate is now the same occurrence. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Express the compound cursor without a row-value comparison: the native package SQL interpreter refuses Tuple expressions (installed lab run 2026-10-22), and the OR form is equivalent. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Anomaly service on the retained telemetry banks: a persisted per-resource/metric baseline with a compound cursor, scoring before learning, explicit cold/ready/stale/failed readiness, and candidates admitted through the normal alert intake under a dedicated source revision so they flow into percolation and reduction like any source alert. */
 // @ts-nocheck
@@ -43,7 +44,7 @@ function candidate(config,source,delivery,point,result,status,now){
    detector,metric:{name:point.name,unit:point.unit||null,value:point.value,observedAt:point.observedAt,telemetrySourceId:point.sourceId,observationId:delivery},window:result.window,baseline:result.baseline,score:result.score,confidence:result.confidence,readiness:result.readiness,evaluatedAt:now,localDetection:true}};
 }
 /** @description One bounded detection pass per telemetry source: lock the cursor, score new metric samples in (observed_at,id) order, admit candidates through intake (idempotent by candidate id), then advance the cursor only after every admit of the batch succeeded. */
-async function detectSource(pool,owner,config,sources,sourceId,clock){
+async function detectSource(pool,owner,config,sources,sourceId,clock,until=Infinity){
  const candidateSource=sources.find(s=>s.id===config.candidateSourceId);if(!candidateSource)fail(409,'The candidate source revision is unavailable.');
  const started=Date.now(),summary={sourceId,processed:0,candidates:0,resolved:0,late:0,cold:0,stale:0,invalid:0,skippedMetrics:0,baselinesTouched:0};
  return processingTransaction(pool,async c=>{
@@ -51,7 +52,7 @@ async function detectSource(pool,owner,config,sources,sourceId,clock){
   const current=await detectorConfig(pool,owner,c);if(!current.enabled||current.revision!==config.revision||!current.telemetrySourceIds.includes(sourceId))fail(409,'Detection was disabled or reconfigured.');
   const rows=await observations(c,owner,sourceId,cursor),baselines=new Map();let last=null;
   for(const r of rows){
-   if(Date.now()-started>BUDGET_MS)break;
+   if(Date.now()-started>BUDGET_MS||Date.now()>=until)break;
    const point=r.record;last={observedAt:new Date(r.observed_at).toISOString(),id:r.id};summary.processed++;
    if(config.metricNames.length&&!config.metricNames.includes(point.name)){summary.skippedMetrics++;continue;}
    const id=baselineId(sourceId,point.resource,point.name);
@@ -59,7 +60,7 @@ async function detectSource(pool,owner,config,sources,sourceId,clock){
    const b=baselines.get(id),result=Detector.observe(config.parameters,b.state,{observedAt:point.observedAt,value:point.value},clock());
    b.readiness=result.readiness;b.samples=b.state.samples;b.lastObservedAt=point.observedAt;b.lastScore=result.score;b.lastBaseline=result.baseline;b.unit=point.unit||null;
    if(result.readiness==='late')summary.late++;else if(result.readiness==='cold')summary.cold++;else if(result.readiness==='stale')summary.stale++;else if(result.readiness==='invalid')summary.invalid++;
-   if(result.emit){const event=candidate(config,candidateSource,r.id,{...point,sourceId},result,result.emit,new Date(clock()).toISOString());const admitted=await admit(pool,owner,candidateSource,event);if(admitted.status>=400)fail(503,'Candidate admission refused: '+(admitted.attempt?.reasons?.[0]||admitted.status));if(result.emit==='firing')summary.candidates++;else summary.resolved++;b.lastCandidate={deliveryId:admitted.record.id,status:result.emit,at:point.observedAt};}
+   if(result.emit){const event=candidate(config,candidateSource,r.id,{...point,sourceId},result,result.emit,new Date(clock()).toISOString());const admitted=await admit(pool,owner,candidateSource,event,{sameOccurrence:true});if(admitted.status>=400)fail(503,'Candidate admission refused: '+(admitted.attempt?.reasons?.[0]||admitted.status));if(result.emit==='firing')summary.candidates++;else summary.resolved++;b.lastCandidate={deliveryId:admitted.record.id,status:result.emit,at:point.observedAt};}
   }
   for(const b of baselines.values()){await put(c,owner,b.id,b);summary.baselinesTouched++;}
   const next={...cursor,...(last||{}),runs:(cursor.runs||0)+1,lastRunAt:new Date(clock()).toISOString(),lastSummary:summary,lastError:null};await put(c,owner,cursorId,next);
@@ -69,9 +70,9 @@ async function detectSource(pool,owner,config,sources,sourceId,clock){
 async function count(c,owner){return (await c.query("SELECT count(*)::int AS n FROM operations_anomaly_state WHERE user_sub=$1 AND id LIKE 'baseline:%'",[owner])).rows[0].n;}
 async function recordFailure(pool,owner,sourceId,error,clock){try{await processingTransaction(pool,async c=>{const id='cursor:'+sourceId,cursor=(await row(c,owner,id))||{observedAt:'1970-01-01T00:00:00Z',id:'',runs:0};await put(c,owner,id,{...cursor,lastError:{at:new Date(clock()).toISOString(),message:error.status?String(error.message).slice(0,240):'Telemetry or intake storage is unavailable.'},failures:(cursor.failures||0)+1});});}catch{/* the next tick reports the same failure */}}
 /** @description Run detection for every enabled telemetry source; a failed source keeps its cursor and records the failure, so nothing is skipped silently. */
-export async function runDetection(pool,owner,sources,clock=Date.now){
+export async function runDetection(pool,owner,sources,clock=Date.now,until=Infinity){
  const config=await detectorConfig(pool,owner),results=[];if(!config.enabled)return {enabled:false,results};
- for(const sourceId of config.telemetrySourceIds){try{results.push(await detectSource(pool,owner,config,sources,sourceId,clock));}catch(error){await recordFailure(pool,owner,sourceId,error,clock);results.push({sourceId,error:error.status?String(error.message).slice(0,240):'Telemetry or intake storage is unavailable.'});if(error.status===409)break;}}
+ for(const sourceId of config.telemetrySourceIds){if(Date.now()>=until)break;try{results.push(await detectSource(pool,owner,config,sources,sourceId,clock,until));}catch(error){await recordFailure(pool,owner,sourceId,error,clock);results.push({sourceId,error:error.status?String(error.message).slice(0,240):'Telemetry or intake storage is unavailable.'});if(error.status===409)break;}}
  return {enabled:true,candidates:results.reduce((n,r)=>n+(r.candidates||0),0),resolved:results.reduce((n,r)=>n+(r.resolved||0),0),failed:results.filter(r=>r.error).length,results};
 }
 /** @description Configuration, per-source cursors and a bounded readiness page of baselines; unknown or failed states remain explicit. */

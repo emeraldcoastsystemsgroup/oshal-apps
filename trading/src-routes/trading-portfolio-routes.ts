@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Expose daily research presets and validation while enforcing account class before historical studies.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | The research read names each account's assigned strategy, so the concierge can compare a new strategy with the one an account runs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Record measured owner-bound account values and expose separate read-only account details.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Retain server-read congressional purchase provenance with immutable monthly candidate baskets; selected-universe studies never claim historical Congress performance.
@@ -74,12 +75,15 @@ export function registerTradingPortfolioRoutes(router:Router,ctx:AppContext,opti
     {...row,status:at.getTime()>=Date.parse(row.expiresAt)?'expired':row.status};
   });
   const accounts=profiles.map(p=>({accountId:p.accountId,connectionKey:p.connectionKey,label:p.label,strategyId:p.strategyId??null}));
-  return {strategies,runs:runs.slice(0,100).map(({history,result,...row})=>({...row,metrics:result?.metrics,window:result?.window,costs:result?.costs,maintenanceTriggered:result?.maintenanceTriggered})),reviews,accounts,liveExecutionAvailable:false};
+  return {strategyPresets:require('./strategy/policies').PRESETS,strategies,runs:runs.slice(0,100).map(({history,result,...row})=>({...row,metrics:result?.metrics,window:result?.window,costs:result?.costs,maintenanceTriggered:result?.maintenanceTriggered,validation:result?.validation})),reviews,accounts,liveExecutionAvailable:false};
  });
  route('post','/portfolio/profiles',async(req,owner,at)=>{
   const b=req.body||{},current=await selected(ctx,owner,b,at),reg=registration(b.registration);
-  if(b.strategyId)await getRecord(ctx,owner,'strategy',b.strategyId);
-  const profile={accountId:current.account.accountId,connectionKey:current.account.connectionKey,registration:reg,label:label(b.label,'Account label'),strategyId:b.strategyId||null};
+  const strategyId=Object.hasOwn(b,'strategyId')?(b.strategyId||null):(current.profile?.strategyId||null);
+  const active=(await listRecords(ctx,owner,'watch')).find(w=>accountKey(w)===accountKey(current.account)&&w.automatedTrading);
+  if(active&&strategyId!==active.strategyId)throw new PortfolioError(409,'active_strategy_assignment_locked','Stop this account’s active automatic strategy before changing its assignment. Backtests can review another saved strategy without assigning it.');
+  if(strategyId){const strategy=await getRecord(ctx,owner,'strategy',strategyId);if(strategy.config?.modelVersion===3)require('./strategy/policies').assertAccount(normalizePortfolioStrategy(strategy.config),current.account,reg);}
+  const profile={accountId:current.account.accountId,connectionKey:current.account.connectionKey,registration:reg,label:label(b.label,'Account label'),strategyId};
   return {profile:await saveRecord(ctx,owner,'profile',profile,selector(b)),strategyAppliedToBroker:false};
  });
  route('post','/portfolio/outside',async(req,owner,at)=>{
@@ -102,6 +106,7 @@ export function registerTradingPortfolioRoutes(router:Router,ctx:AppContext,opti
   return {outside:record,brokerVerified:false,preservedReviewSettings:Boolean(existingProfile)};
  });
  route('delete','/portfolio/outside/:id',async(req,owner)=>{await removeRecord(ctx,owner,'outside',req.params.id);return{removed:true};});
+ route('get','/portfolio/strategy-presets',async()=>({presets:require('./strategy/policies').PRESETS,requiresAccountBacktest:true,ordersSubmitted:0}));
  route('post','/portfolio/strategies',async(req,owner,at)=>{
   const b=req.body||{},config=normalizePortfolioStrategy(b.config);
   if(b.parentId)await getRecord(ctx,owner,'strategy',b.parentId);
@@ -113,6 +118,7 @@ export function registerTradingPortfolioRoutes(router:Router,ctx:AppContext,opti
   if(running.has(owner))throw new PortfolioError(409,'backtest_running','A portfolio backtest is already running for your account.');
   const b=req.body||{},s=await selected(ctx,owner,b,at),strategy=await getRecord(ctx,owner,'strategy',b.strategyId);
   const config=normalizePortfolioStrategy(strategy.config),capital=measured(s.account.equity);
+  if(config.modelVersion===3)require('./strategy/policies').assertAccount(config,s.account,s.profile?.registration);
   if(capital===null||capital<100)throw new PortfolioError(422,'capital_unavailable','At least $100 of measured account equity is required for this scenario.');
   if(config.grossExposurePct>100&&!s.constraints.leverageSimulationAllowed)throw new PortfolioError(422,'retirement_or_cash_leverage_refused','Borrowing scenarios require a confirmed taxable margin account.');
   const connection=s.account.kind==='outside'?s.native.accounts[0]?.connectionKey:String(s.account.connectionKey);

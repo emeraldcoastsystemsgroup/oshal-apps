@@ -6,6 +6,7 @@ exports.streamRecords = streamRecords;
 exports.telemetryWindow = telemetryWindow;
 exports.pinTelemetryEvidence = pinTelemetryEvidence;
 exports.pinEvidenceInTransaction = pinEvidenceInTransaction;
+/** CHANGE LOG: sealed series | maintainer@emeraldcoastsystemsgroup.com | What an independent review proved once a heartbeat fed this bank every minute (2026-11-03): each metric row sealed about 480 bytes, so a normal packet filled about 89% of the 64 KiB investigation input, a few repeated reports made it unstartable for good, and the capture transaction carried every stored packet. A packet now seals metrics as one series per reading, with what every row repeated left out (the packet names the resource and the source already), and it is bounded in bytes: the oldest go first and truncated says so. A batch reads its duplicates once per bank instead of three statements per observation, because each statement is a kernel log line. */
 /** CHANGE LOG: inventory evidence | maintainer@emeraldcoastsystemsgroup.com | A pinned packet carries the alert's own summary, description and labels (untrusted, bounded) and the resource's recorded inventory facts with the node it runs on, so an investigation can name the pod, namespace and node even without retained telemetry (R17). */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Share the atomic packet pin with the original-user scheduled evidence consumer. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Rotate three caller-scoped telemetry banks transactionally, backpressure before early overwrite, and pin bounded evidence outside the ring.
@@ -45,21 +46,18 @@ async function ingestTelemetry(pool, owner, source, format, payload, clock = () 
         const state = (await c.query('SELECT record FROM operations_streams WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, source.id])).rows[0]?.record;
         if (!state)
             fail(409, 'Configure this named telemetry source before sending observations.');
-        const input = (0, telemetry_model_1.normalizeTelemetry)(source, state.config, format, payload), receivedAt = clock(), now = Date.parse(receivedAt), ids = [], rotations = [];
+        const input = (0, telemetry_model_1.normalizeTelemetry)(source, state.config, format, payload), receivedAt = clock(), now = Date.parse(receivedAt), ids = [], rotations = [], seen = new Map();
         let duplicates = 0;
         if (!Number.isFinite(now) || state.banks.some(b => b.newest && Date.parse(b.newest) > now))
             fail(409, 'Ingestion clock moved backwards; retry when it catches up.');
+        if (input.length)
+            for (const table of tables)
+                for (const row of (await c.query('SELECT record FROM ' + table + ' WHERE user_sub=$1 AND id IN (' + input.map((_, i) => '$' + (i + 2)).join(',') + ')', [owner, ...input.map(r => r.id)])).rows)
+                    if (!seen.has(row.record.id))
+                        seen.set(row.record.id, row.record.payloadHash);
         for (const raw of input) {
-            let old = null;
-            for (const table of tables) {
-                const row = (await c.query('SELECT record FROM ' + table + ' WHERE user_sub=$1 AND id=$2', [owner, raw.id])).rows[0];
-                if (row) {
-                    old = row.record;
-                    break;
-                }
-            }
-            if (old) {
-                if (old.payloadHash !== raw.payloadHash)
+            if (seen.has(raw.id)) {
+                if (seen.get(raw.id) !== raw.payloadHash)
                     fail(409, 'This telemetry ID already has different content.');
                 duplicates++;
                 ids.push(raw.id);
@@ -95,6 +93,7 @@ async function ingestTelemetry(pool, owner, source, format, payload, clock = () 
             bank.count++;
             bank.newest = receivedAt;
             ids.push(record.id);
+            seen.set(record.id, record.payloadHash);
         }
         await c.query('UPDATE operations_streams SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, source.id, JSON.stringify(state)]);
         return { accepted: input.length - duplicates, duplicates, ids, rotations, activeBank: state.active, receivedAt, minimumRetentionSeconds: state.config.retentionSeconds };
@@ -122,6 +121,39 @@ async function windowRead(pool, owner, sourceId, resource, at) {
     }
     const matching = rows.filter(r => r.resource.kind === resource.kind && r.resource.scope === resource.scope && r.resource.id === resource.id).sort((a, b) => a.observedAt.localeCompare(b.observedAt) || a.id.localeCompare(b.id));
     return { sourceId, resource, since, until, observations: matching.slice(0, 200), matched: matching.length, truncated: matching.length > 200, coverage: 'available-observations-only', limits: { observations: 200 } };
+}
+/** The investigation input refuses over 64 KiB (investigations.ts); this leaves room for the alert around the packet. */
+const MAX_PACKET_BYTES = 60 * 1024;
+/** Metrics as one series per reading: observations of one resource from one source repeat everything but the time and the value. */
+function sealedObservations(rows) {
+    const logs = [], series = new Map();
+    for (const r of rows) {
+        if (r.signal !== 'metric') {
+            logs.push({ id: r.id, sourceId: r.sourceId, payloadHash: r.payloadHash, observedAt: r.observedAt, receivedAt: r.receivedAt, resource: r.resource, signal: r.signal, message: safeText(r.body), severityNumber: r.severityNumber ?? null });
+            continue;
+        }
+        const key = r.name + '\u0000' + r.unit, entry = series.get(key) || { signal: 'metric', name: r.name, unit: r.unit, points: [] };
+        series.set(key, entry);
+        entry.points.push([r.observedAt, r.value]);
+    }
+    return [...logs, ...series.values()];
+}
+/** The newest that fit: the oldest log lines go first, then the oldest points. Never leaves an empty packet that had something to seal, unless one line alone exceeds the room. @returns Whether anything was dropped. */
+function boundObservations(observations, room) {
+    let dropped = false;
+    while (observations.length && Buffer.byteLength(JSON.stringify(observations)) > room) {
+        dropped = true;
+        const metric = observations.filter(o => o.points);
+        if (observations[0].points) {
+            const longest = metric.reduce((a, b) => b.points.length > a.points.length ? b : a);
+            longest.points.shift();
+            if (!longest.points.length)
+                observations.splice(observations.indexOf(longest), 1);
+        }
+        else
+            observations.shift();
+    }
+    return dropped;
 }
 const safeText = value => value.replace(/(?:bearer\s+)[A-Za-z0-9._~+\/-]+/gi, 'Bearer [redacted]').replace(/((?:password|secret|token|api[_-]?key)\s*[=:]\s*)[^\s,;]+/gi, '$1[redacted]').slice(0, 512);
 async function pinTelemetryEvidence(pool, owner, workId) {
@@ -173,8 +205,11 @@ async function pinEvidenceInTransaction(c, owner, workId) {
     // Sharing a user does not establish a common environment; this first profile uses the alert's own source revision.
     const stream = (await c.query('SELECT record FROM operations_streams WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, delivery.sourceId])).rows[0]?.record, resource = delivery.normalized.data.resource;
     const windows = stream ? [await windowRead(c, owner, stream.id, resource, delivery.normalized.time)] : [];
-    const observations = windows.flatMap(w => w.observations).map(r => ({ id: r.id, sourceId: r.sourceId, payloadHash: r.payloadHash, observedAt: r.observedAt, receivedAt: r.receivedAt, resource: r.resource, signal: r.signal, ...(r.signal === 'metric' ? { name: r.name, value: r.value, unit: r.unit } : { message: safeText(r.body), severityNumber: r.severityNumber ?? null }) }));
+    const observations = sealedObservations(windows.flatMap(w => w.observations));
     const body = { id: workId, deliveryId: delivery.id, reservationId: workId, resource, alertAt: delivery.normalized.time, alert: alertText(delivery), inventory: await inventoryFacts(c, owner, resource), observations, coverage: observations.length ? 'available-observations-only' : 'no-retained-context', truncated: windows.some(w => w.truncated), executionAuthorized: false, rawStreamAccess: false, retention: 'durable-until-explicit-evidence-deletion', createdAt: new Date().toISOString() };
+    if (boundObservations(observations, MAX_PACKET_BYTES - Buffer.byteLength(JSON.stringify({ ...body, observations: [] }))))
+        body.truncated = true;
+    body.coverage = observations.length ? 'available-observations-only' : 'no-retained-context';
     const record = { ...body, sha256: (0, intake_1.hash)(body) };
     await c.query('INSERT INTO operations_telemetry_packets(user_sub,id,record) VALUES($1,$2,$3)', [owner, workId, JSON.stringify(record)]);
     return record;

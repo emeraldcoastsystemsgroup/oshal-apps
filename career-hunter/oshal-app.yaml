@@ -96,6 +96,11 @@
 # 92 | maintainer@emeraldcoastsystemsgroup.com | 1.47.4: Jobs stay and the resume match finishes. One employer refusing a page no longer ends the scoring pass and discards its results. Saved employer details no longer expire after a day, so the job page keeps them and unchanged jobs are not read again. Workday's 2,000-job search cap no longer closes the jobs past it: a capped board is read whole by facet, and one that cannot be proven whole closes nothing.
 # 93 | maintainer@emeraldcoastsystemsgroup.com | 1.47.5: A capped Workday search splits on a facet that agrees with its size before a wider one, which could miss jobs and left a board short of whole.
 # 94 | maintainer@emeraldcoastsystemsgroup.com | 1.47.6: Nightly source review. Each full pull ends with a bounded review of the sources it could not read: a source moves only on evidence from the employer's own page, a name match is a suggestion, an employer that refuses is left alone, and only public addresses are read. The Companies page shows the report. No route, permission, schedule or migration changes.
+# 95 | maintainer@emeraldcoastsystemsgroup.com | 1.47.7: The nightly match reaches every open job: one first seen inside the window whatever date the employer gave it, and one never matched at all. A receipt names the match that wrote it, so this match runs once without waiting for the next publication.
+# 96 | maintainer@emeraldcoastsystemsgroup.com | 1.47.8: Turning on the nightly jobs names no spending figure. A job's cap is what is saved on its row on the Jobs screen (Roger, 2026-11-04).
+# 97 | maintainer@emeraldcoastsystemsgroup.com | 1.47.9: A person's store mounted read-only opens for a read whatever its journal mode and whatever shape its owner's last write left: leaving WAL made every engine read there fail, and an older store answered the board with a 500.
+# 98 | maintainer@emeraldcoastsystemsgroup.com | 1.47.10: A jobs pull a restart stops continues from the last employer it finished, with the kernel keeping its copy. Resolve is honest on the native kernel, where a request cannot write the corpus: the page no longer offers it and the route refuses.
+# 99 | maintainer@emeraldcoastsystemsgroup.com | 1.47.11: Resolve and Accept work on the native kernel. A change is saved, the kernel hands it to the next pull only for an administrator, the pull applies it on its private copy, and the Companies page shows what happened, with one-press Undo. Needs the kernel carrying career_source_requests.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -195,7 +200,7 @@ description: >-
   additional experience, generate and review its resume and cover letter, then approve submission.
   Prepare for interviews after submitting.
   Track recorded applications and matching email updates in your private workspace.
-version: 1.47.6
+version: 1.47.11
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent

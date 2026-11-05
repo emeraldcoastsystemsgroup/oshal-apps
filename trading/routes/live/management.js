@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Admit validated daily margin and retirement models and retain their completed-session risk state in owner-bound watches.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Treat native capital-coverage refusal as an actionable review conflict instead of a service outage.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Account-bound monthly strategy monitoring and exact native order tickets. Monitoring prepares evidence; only a separate interactive exact-ticket submission reaches the broker.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Check enrolled position backstops independently before strategy reads, retain partial failures, and name the broker operation that failed.
@@ -36,7 +37,8 @@ async function boundStudy(ctx,owner,body,at,deps){
  if(!selected.profile?.strategyId||selected.profile.strategyId!==run.strategyId)refuse('strategy_assignment_changed','The account review strategy must match this completed study.');
  const strategy=await getRecord(ctx,owner,'strategy',run.strategyId),config=normalizePortfolioStrategy(strategy.config);
  if(fingerprint(config)!==fingerprint(normalizePortfolioStrategy(run.strategy.config)))refuse('strategy_study_mismatch','The saved strategy differs from its backtest.');
- if(!['monthly-trend','quarterly-rotation'].includes(config.kind)||config.modelVersion!==2||config.fractionalShares||config.grossExposurePct!==100)refuse('live_model_unsupported','This monitor supports the backtested whole-share, cash-funded monthly models only.');
+ if(config.modelVersion===3)require('../strategy/authority').assertValidated(run,config,selected.account,selected.profile?.registration);
+ else if(!['monthly-trend','quarterly-rotation'].includes(config.kind)||config.modelVersion!==2||config.fractionalShares||config.grossExposurePct!==100)refuse('live_model_unsupported','This monitor supports the backtested whole-share, cash-funded monthly models only.');
  return {run,selected,config,strategy};
 }
 async function tickOne(ctx,owner,watch,at,deps){
@@ -47,7 +49,7 @@ async function tickOne(ctx,owner,watch,at,deps){
  if(!signal||signal.signalAsOf!==latest||signal.evidenceThrough!==evidenceThrough||signal.strategyFingerprint!==fingerprint(config)){
   const start=new Date(Date.parse(latest+'T00:00:00Z')-110*86400000).toISOString().slice(0,10);
   const historical=await portfolioHistory(ctx,connection,config,start,evidenceThrough,at);
-  const targets=portfolioNextTargets(config,historical.series,latest);
+  const targets=config.modelVersion===3?require('../strategy/signals').signal(config,historical.series,latest,{holdings:selected.account.positions,riskState:watch.signal?.riskState||{}}):portfolioNextTargets(config,historical.series,latest);
   signal={...targets,evidenceThrough,strategyFingerprint:fingerprint(config),historyFingerprint:fingerprint(historical),readAt:at.toISOString()};
  }
  const symbols=planSymbols(selected.account,config);

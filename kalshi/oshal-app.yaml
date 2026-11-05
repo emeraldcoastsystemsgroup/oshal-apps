@@ -89,7 +89,7 @@ description: >-
   playable hands are ranked with Kelly-sized stakes and explicit risk flags. Portfolio view and
   order placement ride the per-user connector, confirm-gated and demo-exchange-first
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
-version: 1.7.3
+version: 1.7.4
 status: active
 # This package owns deterministic surfaces and routes; its own quant owns the right rail (ADR-083 inline concierge).
 chatBot: kalshi-quant
@@ -153,7 +153,7 @@ dependencies:
 egress:
   - host: api.elections.kalshi.com
 
-theme: midnight
+theme: light-blue
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SETTINGS — the ALWAYS-ON SCAN's configuration, and the single source of truth for its

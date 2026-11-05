@@ -1,3 +1,5 @@
+/* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.2.2 and constrain first-use scheduling to the existing personal recorded-alerts route. */
+/* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.6: Monitored installations. */
 /* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.5: Investigate again and alert-named incident lists. */
 /* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.4: Your SSH connection on Connections. */
 /* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.2: the Spark detection engine compose project and installer (engine/container, engine/install-engine.sh). */
@@ -87,7 +89,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.1.5');
+  assert.equal(manifest.version, '1.2.2');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);
@@ -195,4 +197,13 @@ test('every Operations bot has an explicit own-scope read binding for native Jar
  assert.deepEqual(auth.resources.application.scopes,['own']);
  assert.equal(auth.permissions['app.open'].effect,'read');
  assert.deepEqual(auth.roles.reader.grants,[{permission:'app.open',scope:'own'}]);
+});
+
+
+test('first use offers only the personal recorded-alerts route, with its existing writer permission',()=>{
+ const jobs=manifest.schedules.filter(job=>job.startsItself);assert.equal(jobs.length,1);
+ const job=jobs[0];assert.equal(job.id,'operations-process-recorded-alerts');assert.equal(job.runsAs,'user');assert.equal(job.target,'service-route');assert.equal(job.route,'/api/intelligent-operations/pipeline/process');assert.equal(job.method,'POST');assert.deepEqual(job.body,{});assert.equal(job.bot,undefined);assert.equal(job.startsWhenConnected,undefined);
+ const auth=yaml.load(fs.readFileSync(path.join(root,'authorization.yaml'),'utf8'));
+ const binding=auth.bindings.http.find(x=>x.method==='POST'&&x.path==='/pipeline/process');assert.deepEqual(binding.allOf,['records.write']);
+ assert.ok(auth.roles.operator.grants.some(g=>g.permission==='records.write'));assert.ok(!auth.roles.reader.grants.some(g=>g.permission==='records.write'));
 });

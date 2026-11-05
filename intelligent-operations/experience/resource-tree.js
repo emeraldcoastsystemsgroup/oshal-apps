@@ -1,3 +1,5 @@
+/** CHANGE LOG: installations label | maintainer@emeraldcoastsystemsgroup.com | "monitored installation" names only a scope whose host a heartbeat filed (properties.monitoredBy); any other import, such as a Scenario lab host, keeps its provider, because every imported host wore that label with no card behind it. */
+/** CHANGE LOG: installations | maintainer@emeraldcoastsystemsgroup.com | A monitored installation's host shows its host name and public address, and its group reads "monitored installation" instead of the provider code "import". */
 /** CHANGE LOG: node explorer | maintainer@emeraldcoastsystemsgroup.com | Show node capacity/allocatable, pressure conditions, versions, roles, taints, addresses and the pods scheduled on the node, with a jump that expands the tree to the exact pod. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve observed system labels when the selected filters exclude the cluster row. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Dispose selected pod diagnostics when selection or authorization changes. */
@@ -25,7 +27,7 @@ function forest(model){
  for(const node of nodes.values()){
   const parent=nodes.get(parents.get(node.id));if(parent){parent.children.push(node);continue;}
   const a=node.asset,scope=JSON.stringify([a.provider,a.scope]);let group=groups.get(scope);
-  if(!group){group={id:'scope:'+scope,label:((model.systems||[]).find(s=>s.provider===a.provider&&s.scope===a.scope)?.name||clusters.find(c=>c.provider===a.provider&&c.scope===a.scope)?.name||a.scope)+' · '+a.provider,group:true,children:[],namespaces:new Map()};groups.set(scope,group);roots.push(group);}
+  if(!group){group={id:'scope:'+scope,label:((model.systems||[]).find(s=>s.provider===a.provider&&s.scope===a.scope)?.name||clusters.find(c=>c.provider===a.provider&&c.scope===a.scope)?.name||a.scope)+' · '+((model.systems||[]).find(s=>s.provider===a.provider&&s.scope===a.scope)?.monitored||model.rows.some(r=>r.provider===a.provider&&r.scope===a.scope&&r.properties?.monitoredBy)?'monitored installation':a.provider),group:true,children:[],namespaces:new Map()};groups.set(scope,group);roots.push(group);}
   const namespace=typeof a.properties?.namespace==='string'&&a.properties.namespace;
   if(namespace){let ns=group.namespaces.get(namespace);if(!ns){ns={id:group.id+':ns:'+namespace,label:namespace,group:true,children:[]};group.namespaces.set(namespace,ns);group.children.push(ns);}ns.children.push(node);}
   else group.children.push(node);
@@ -41,7 +43,7 @@ function detail(target,a,actions={}){
  target.replaceChildren();target.append(text('p',a.kind.toUpperCase(),'eyebrow'),text('h2',a.name));
  const state=text('span',status(a)+' at capture','resource-status '+status(a));target.append(state);
  const facts=text('dl','','resource-facts'),p=a.properties||{};
- const values=[['Observed',a.observedAt],['Provider',a.provider],['Scope',a.scope],['Native identity',a.nativeId],['Namespace',p.namespace],['Phase',p.phase],['Ready',p.readyStatus],['Status reason',p.reason||p.waitingReason],['Image',p.image],['Restart count',p.restarts],['Last termination',p.lastTerminationReason],['Exit code',p.exitCode],['Node',p.nodeName]];
+ const values=[['Observed',a.observedAt],['Provider',a.provider],['Host name',p.hostName],['Public address',p.publicAddress],['Scope',a.scope],['Native identity',a.nativeId],['Namespace',p.namespace],['Phase',p.phase],['Ready',p.readyStatus],['Status reason',p.reason||p.waitingReason],['Image',p.image],['Restart count',p.restarts],['Last termination',p.lastTerminationReason],['Exit code',p.exitCode],['Node',p.nodeName]];
  for(const [key,value] of values)if(value!==undefined&&value!==null&&value!=='')facts.append(text('dt',key),text('dd',String(value)));target.append(facts);
  if(a.kind==='node')nodeFacts(target,a,actions);
  target.append(text('p','These are saved observations. Refreshing this view rereads records; it does not run a cluster command.','observation-note'));

@@ -358,7 +358,7 @@ def _previous_counts(conn):
 
 def _report(conn, results, waiting, started, since, seconds):
     outcomes = Counter(result["outcome"] for _, result in results)
-    entry = lambda row, result: {"company": row["name"], **{k: v for k, v in result.items() if k != "outcome"}}
+    entry = lambda row, result: {"company": row["name"], "id": row["id"], **{k: v for k, v in result.items() if k != "outcome"}}
     pick = lambda name: [entry(row, result) for row, result in results if result["outcome"] == name][:LIST_LIMIT]
     return {"version": 1, "startedAt": started, "finishedAt": _now(), "seconds": seconds,
             "sources": _source_counts(conn), "previousSources": _previous_counts(conn), "delta": _delta(conn, since),

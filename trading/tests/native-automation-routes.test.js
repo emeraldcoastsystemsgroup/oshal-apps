@@ -112,11 +112,28 @@ test('whole-account review refuses unsupported native releases and blocks activa
  const review=await h.req('/live/mandate',{watchId:h.watch.id,capitalCents:90000});assert.equal(review.review.activationReady,false);assert.ok(review.review.proposalError);
  assert.equal((await h.activate()).error,'live_transition_unverified');assert.equal(h.mandate().status,'draft');assert.equal(h.count(),0);
 });
-test('a protective fill aborts the remaining monthly cycle instead of buying the stopped asset back',async t=>{
+test('a protective fill credits the planned sale and remaining account allocations continue without overselling',async t=>{
  const h=await fixture(t,{whole:true,positions:[{symbol:'ABC',qty:1200,marketValue:120000}],cash:0,equity:120000,capitalCents:9000000,balanceFacts:{buyingPower:240000}});await h.activate();await h.req('/watch/tick',{});h.fill();
  h.tickets.push({ticketId:'protective-exit',status:'submitted',allocationMandateId:'mandate-1',protectionMandateId:'protection',orderId:'999',terms:{symbol:'ABC',side:'sell',quantity:100,orderType:'TRAILING_STOP'},brokerStatus:{status:'FILLED',quantity:100,filledQuantity:100,remainingQuantity:0,legs:[]}});
  h.accounts[0].positions[0].qty-=100;h.accounts[0].positions[0].marketValue-=10000;h.accounts[0].cash+=9000;h.accounts[0].equity-=1000;
- const tick=await h.req('/watch/tick',{});assert.equal(tick.receipts[0].status,'protective-exit-awaiting-next-cycle');assert.equal(tick.ordersSubmitted,0);assert.equal(h.count(),1);
+ const tick=await h.req('/watch/tick',{});assert.equal(tick.receipts[0].status,'order-submitted');assert.equal(tick.ordersSubmitted,1);assert.equal(h.count(),2);h.fill();
+ for(let i=0;i<20;i++){const next=await h.req('/watch/tick',{});assert.notEqual(next.receipts[0].status,'failed',JSON.stringify(next));if(next.ordersSubmitted)h.fill();if(next.receipts[0].status==='cycle-completed')break;}
+ const reductions=h.tickets.filter(t=>t.mandateId==='mandate-1'&&t.terms.symbol==='ABC'&&t.terms.side==='sell');
+ assert.equal(reductions.reduce((n,t)=>n+t.brokerStatus.filledQuantity,0),1100,'the protective 100 shares are not sold a second time');
+ assert.equal(h.accounts[0].positions.some(p=>p.symbol==='ABC'),false);
+ const count=h.count();await h.req('/watch/tick',{});assert.equal(h.count(),count,'a later pass cannot replay completed chunks');
+});
+test('only buying the stopped instrument is deferred; other pending buys continue',async t=>{
+ const h=await fixture(t),original=h.ctx.intent;
+ // A flat cash-fund series and rising candidate series make three independent target buys.
+ h.ctx.intent=async(name,input)=>{const result=await original(name,input);return name==='trading.bars'&&input.symbol==='BIL'?{...result,bars:result.bars.map(b=>({...b,c:100}))}:result;};
+ await h.activate();await h.req('/watch/tick',{});h.fill();
+ const buy=h.tickets[0],position=h.accounts[0].positions.find(p=>p.symbol===buy.terms.symbol),qty=position.qty;
+ h.tickets.push({ticketId:'protective-exit',status:'submitted',allocationMandateId:'mandate-1',protectionMandateId:'protection',orderId:'999',terms:{symbol:buy.terms.symbol,side:'sell',quantity:qty,orderType:'TRAILING_STOP'},brokerStatus:{status:'FILLED',quantity:qty,filledQuantity:qty,remainingQuantity:0,legs:[]}});
+ h.accounts[0].cash+=position.marketValue;h.accounts[0].positions=h.accounts[0].positions.filter(p=>p!==position);
+ const tick=await h.req('/watch/tick',{});assert.equal(tick.ordersSubmitted,1,JSON.stringify(tick));
+ assert.notEqual(h.tickets.at(-1).terms.symbol,buy.terms.symbol,'no immediate buy-back of the stopped instrument');
+ assert.ok(tick.receipts[0].automation.deferred.some(d=>d.symbol===buy.terms.symbol&&d.blockers[0].code==='protective_exit_requires_new_signal'));
 });
 test('renewed native approvals use separate cycle namespaces and never replay old allocation chunks',async t=>{
  const h=await fixture(t);await h.activate();

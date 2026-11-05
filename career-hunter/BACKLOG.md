@@ -17,10 +17,11 @@
 - **Close what is really gone on partly verified sources.** Their jobs never close, so listings that have gone stay open.
   Done when: each connector can prove a whole feed, or a job not seen for a stated time closes, and the report shows how
   many open jobs are affected.
-- **A kernel release costs the whole pull.** A restart ends the running pull and it starts again from nothing, which
-  happened three times on the night of 2026-11-03. With Accenture and Target read whole a pull takes about 5 hours, so a busy
-  deploy night can publish late or not at all. Done when: a restart loses at most the source being read, or a release waits
-  for a running pull.
+- **Stop the page reader following a redirect to a private address.** The pull's browser screens each request's address, but
+  Playwright 1.59.1 does not call a route handler for a redirected request. Measured 2026-11-04: a 302 to `127.0.0.1` was
+  followed and loaded, with the handler seeing only the first address. Every `web` source the pull reads has this exposure, on
+  the host's network. Done when: a test with a real browser shows a redirect to a private address loads nothing into a result,
+  through the shipped reader.
 - **Find employers not yet in the corpus.** The review only rechecks employers already listed. Done when: new employers
   come from a stated, reviewed list, each passing the same evidence rules, and the report shows how many were added.
 - **Check existing sources against their employer.** Older discovery accepted name matches, and at least one source (Crown

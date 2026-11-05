@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Save an owner-scoped daily Quant strategy proposal for review without any live execution, assignment or approval.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The brief carries tonight's quality-dip candidates and can be asked for any ranking (by=quality-dip and the other forward signals included), naming the forward verdict where no history test exists, so the concierge answers a dip question from the one tool it already has.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The list is read a page at a time, filtered by industry, theme or search and ranked by any signal, and a name left off the list says why. The status read no longer loads the whole list.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The brief list names the signal it is ranked by and that signal's verdict, and the brief scoreboard carries the test without the biggest winners.
@@ -132,6 +133,14 @@ function quantHandlers(ctx, overrides = {}) {
       return { status: 200, body: { ok: true, enabled, schedule: QUANT_SCHEDULE } };
     },
     async run(sub) { return { status: 200, body: { ok: true, ...await desk.runPass(deps(), sub) } }; },
+    async strategyReview(sub,req) {
+      if(Object.keys(req.body||{}).length)return{status:400,body:{error:'invalid_review_input',message:'The review reads your admitted accounts and stored Quant snapshot; it accepts no caller-supplied account, owner or order.'}};
+      return{status:200,body:await require('./strategy-review').createReview(ctx,sub,new Date(deps().time()))};
+    },
+    async savedStrategyReview(sub) {
+      const index=await store.getRecord(pool(),sub,'strategy-review-index','current');
+      return{status:200,body:{review:index?await store.getRecord(pool(),sub,'strategy-review',index.reviewId):null}};
+    },
     async tick(sub) {
       if ((await settingsOf(sub)).enabled !== true) return { status: 200, body: { ok: true, status: 'off' } };
       return { status: 200, body: { ok: true, ...await desk.runPass(deps(), sub) } };
@@ -177,6 +186,8 @@ function createTradingQuantRoutes(ctx, makeRouter, overrides) {
   router.get('/scoreboard', route('scoreboard', h.scoreboard));
   router.post('/settings', route('settings', h.settings));
   router.post('/run', route('run', h.run));
+  router.post('/strategy-review', route('strategy-review', h.strategyReview));
+  router.get('/strategy-review', route('saved-strategy-review', h.savedStrategyReview));
   router.post('/tick', route('tick', h.tick));
   return router;
 }

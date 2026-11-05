@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Share version3 daily normalization, decisions and validation replay while preserving legacy models.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Validate monthly signal history through its actual decision cutoff while retaining latest assessment dates and complete required prior history.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Add fixed calendar-month defensive research without changing version1 models; retain decision dates and fallback coverage.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Freeze next-session targets using the same allocation/trend/momentum rules over complete completed-session history.
@@ -9,8 +10,8 @@ import { sessionDates } from './trading-portfolio-calendar';
 import {validateMonthlyRotation,portfolioStrategySymbols,portfolioWarmupSessions,monthlyRotationTargets,portfolioSignalHistoryEnd} from './trading-portfolio-rotation';
 
 export interface PortfolioStrategy {
-  modelVersion: 1 | 2;
-  kind: 'allocation' | 'trend' | 'momentum' | 'monthly-trend' | 'quarterly-rotation';
+  modelVersion: 1 | 2 | 3;
+  kind: 'allocation' | 'trend' | 'momentum' | 'monthly-trend' | 'quarterly-rotation' | 'quant-margin-daily' | 'retirement-defensive-daily';
   assets: Array<{symbol: string; weightPct: number}>;
   lookbackSessions: number;
   rebalanceSessions: number;
@@ -20,6 +21,9 @@ export interface PortfolioStrategy {
   marginAprPct: number | null;
   maintenancePct: number | null;
   fractionalShares: boolean;
+  accountClass?: string;
+  minTradeEquityPct?: number;
+  preserveFractionalRemainders?: boolean;
 }
 export interface DailyPrice { date: string; close: number }
 export interface SimulationInput {
@@ -39,6 +43,7 @@ function numberIn(value: unknown, low: number, high: number, name: string, integ
 /** Each supported field has an explicit model meaning; unknown knobs cannot silently disappear. */
 export function normalizePortfolioStrategy(raw: unknown): PortfolioStrategy {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fail('strategy_invalid', 'A strategy configuration is required.');
+  if ((raw as Record<string,unknown>).modelVersion === 3) return require('./strategy/policies').normalizePolicy(raw);
   const c = raw as Record<string, unknown>;
   const keys = ['modelVersion','kind','assets','lookbackSessions','rebalanceSessions','topN','grossExposurePct',
     'transactionCostBps','marginAprPct','maintenancePct','fractionalShares'];
@@ -171,6 +176,7 @@ function metrics(curve: Array<{date:string;equity:number}>, startingCapital: num
 
 /** Research only: a stored result is never an instruction to a broker or an account arming action. */
 export function simulatePortfolio(raw: unknown, input: SimulationInput) {
+  if (require('./strategy/policies').isDaily(raw)) {const v=require('./strategy/replay').validateReplay(raw,input);return {...v.result,validation:v.validation};}
   const s=normalizePortfolioStrategy(raw),data=prepare(s,input);
   const book:Book={cash:input.startingCapital,qty:new Map(),fees:0,interest:0,trades:0};
   const benchmark:Book={cash:input.startingCapital,qty:new Map(),fees:0,interest:0,trades:0};
@@ -218,6 +224,7 @@ export function simulatePortfolio(raw: unknown, input: SimulationInput) {
  * @returns Targets and the precise completed signal date; missing warmup/session data refuses.
  */
 export function portfolioNextTargets(raw:unknown,series:Record<string,DailyPrice[]>,latest:string) {
+    if(require('./strategy/policies').isDaily(raw))return require('./strategy/signals').signal(raw,series,latest);
  const config=normalizePortfolioStrategy(raw),symbols=[...new Set([...portfolioStrategySymbols(config),'SPY'])];
  const maps=new Map(symbols.map(symbol=>[symbol,priceMap(series[symbol],symbol)]));
  const earliest=[...maps.get('SPY')!.keys()].sort()[0];

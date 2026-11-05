@@ -466,6 +466,8 @@ cases:
         - tests/career-resume-multipart.test.mjs
         - tests/career-run-status.test.mjs
         - tests/career-readonly-corpus.test.mjs
+        - tests/career-match-reach.test.mjs
+        - tests/career-read-only-store.test.mjs
         - tests/career-targets.test.mjs
         - tests/migration-index-names.test.mjs
         - tests/session-crypto.test.mjs
@@ -1305,6 +1307,62 @@ cases:
       cleanup: Remove temporary SQLite stores and restore scoped module and environment doubles; no live source pulls.
     limits:
       timeoutMs: 120000
+      maxMemoryMb: 512
+    installation: never
+  - id: source-requests
+    name: A source change saved on the Companies page is applied by the next pull
+    purpose: Save a change through the real route, apply it in a real full pull on real temporary SQLite with the real page guard and time limit, kill a real process while it writes, and drive the shipped Companies page in Chromium. The kernel's half, handing a change over only for an admission holding the permission, is proven in its own real sandbox tests.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-source-requests.test.mjs
+        - tests/career-source-health.test.mjs
+        - tests/browser/career-source-review-page-proof.mjs
+    expected:
+      - Resolve saves the change, starts no engine, and the row says it is waiting; a suggestion is accepted with one press.
+      - The next pull moves the source and reads its jobs that night, and a change handed over twice is applied once.
+      - A board another employer holds, an empty board, a private address and anything that is not a board or a link change nothing and say why.
+      - A slow or crashing change costs that change and no more; a kill while writing rolls back and is retried, and after 3 tries the person is told.
+      - A source a person chose is held from the source review, and what the pull did shows on the page with employer text inert.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores and stop the local fixture server; no employer is read and the killed processes are this test's own children.
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 1024
+    installation: never
+  - id: pull-checkpoint
+    name: A stopped jobs pull continues from the last employer it finished
+    purpose: Kill a real process with SIGKILL while it reads, writes and reviews during a pull over real temporary SQLite, then run the next process on the same copy. The kernel's half, keeping the copy across a restart, is proven in its own real sandbox tests.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-pull-checkpoint.test.mjs
+    expected:
+      - The next process reads only the employers the stopped one did not finish, and the final totals count both.
+      - A kill while writing rolls that employer back with its note, and it is read again.
+      - A finished pull, or one stopped 20 hours ago or more, is followed by a new pull that reads every employer.
+      - An employer the pull stopped on 3 times is skipped and recorded as failed, and the rest still publish.
+      - A partial pull neither continues nor disturbs a stopped full pull.
+    prerequisites:
+      - runner:node-test
+      - runner:python
+      - harness:career-python-contracts
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove temporary SQLite stores; the killed processes are this test's own children and no employer is read.
+    limits:
+      timeoutMs: 240000
       maxMemoryMb: 512
     installation: never
   - id: source-review

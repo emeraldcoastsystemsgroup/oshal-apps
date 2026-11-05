@@ -615,7 +615,7 @@ test('the desk stops plainly without Schwab or SPY, and the nightly job respects
 test('the router refuses a caller with no admitted identity and a header never names one', async () => {
   const routes = [], router = { get: (p, fn) => routes.push(['GET', p, fn]), post: (p, fn) => routes.push(['POST', p, fn]) };
   createTradingQuantRoutes({ pool: null, intent: null }, () => router);
-  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /status', 'GET /today', 'GET /symbol/:symbol', 'GET /scoreboard', 'POST /settings', 'POST /run', 'POST /tick']);
+  assert.deepEqual(routes.map(([m, p]) => `${m} ${p}`), ['GET /status', 'GET /today', 'GET /symbol/:symbol', 'GET /scoreboard', 'POST /settings', 'POST /run', 'POST /strategy-review', 'GET /strategy-review', 'POST /tick']);
   const res = { code: 0, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
   await routes.find(([, p]) => p === '/run')[2]({ headers: { 'x-oshal-user-sub': 'alice' }, body: {} }, res);
   assert.deepEqual([res.code, res.body.error], [401, 'not_authenticated']);

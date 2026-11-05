@@ -3,6 +3,7 @@
 # SEQ | AUTHOR                                    | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Give SQLite and PostgreSQL the same first-seen fallback so deterministic nightly indexing cannot omit undated ATS rows.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The nightly match reaches every open job: one first seen inside the window whatever date the employer gave it, and one never matched at all. Selecting on the employer's date alone left 79,342 open jobs unmatched, 15,293 of them new in one pull.
 
 """Score each posting against the user's career_db.json.
 
@@ -107,6 +108,11 @@ def _recent_where(days: int) -> tuple[str, tuple]:
     cannot corrupt an existing score. Keying on first_seen_at ALONE was rejected for the
     opposite reason — it silently drops the 2,755 rows above.
 
+    WHY first_seen_at IS ALSO ITS OWN REASON. An employer's date says nothing about when we
+    could first read the job. A feed that had been cut short gave up 15,284 jobs posted 15 to
+    60 days earlier in one pull (Target, Accenture, 2026-11-04), and a date test skipped every
+    one, so they were new to the person and invisible to the board.
+
     Applying that rule in both modes is load-bearing: changing JOBHUNTER_STORE must not
     change which fresh postings enter the nightly keyword index.
 
@@ -117,14 +123,28 @@ def _recent_where(days: int) -> tuple[str, tuple]:
     noise beside the per-row Python scoring that follows."""
     if config.POSTGRES:
         return (
-            "COALESCE(posted_date, (first_seen_at AT TIME ZONE 'UTC')::date) "
-            ">= ((now() AT TIME ZONE 'UTC')::date - ?::int)",
-            (int(days),),
+            "(COALESCE(posted_date, (first_seen_at AT TIME ZONE 'UTC')::date) "
+            ">= ((now() AT TIME ZONE 'UTC')::date - ?::int) "
+            "OR (first_seen_at AT TIME ZONE 'UTC')::date >= ((now() AT TIME ZONE 'UTC')::date - ?::int))",
+            (int(days), int(days)),
         )
+    window = f"-{int(days)} days"
     return (
-        "COALESCE(posted_date, date(first_seen_at)) >= date('now', ?)",
-        (f"-{int(days)} days",),
+        "(COALESCE(posted_date, date(first_seen_at)) >= date('now', ?) "
+        "OR date(first_seen_at) >= date('now', ?))",
+        (window, window),
     )
+
+
+def _never_matched_where() -> str:
+    """This person has no keyword fit for the posting yet.
+
+    The window alone loses a job for good when it passes through unmatched, because the
+    nightly pass failed that week. RLS scopes the Postgres score table to the acting person."""
+    if config.POSTGRES:
+        return ("NOT EXISTS (SELECT 1 FROM career_user_job_scores matched "
+                "WHERE matched.posting_id = career_postings.id AND matched.fit_score IS NOT NULL)")
+    return "fit_score IS NULL"
 
 
 # Distinct portal name per scan; two nested scans on one connection would otherwise
@@ -191,7 +211,8 @@ def rescore_all() -> int:
 
 
 def rescore_recent(days: int = 10) -> int:
-    """Keyword-score only postings posted within the last N days — the fresh drop.
+    """Keyword-score the fresh drop: postings dated or first seen within the last N days, plus
+    any open posting this person has never been matched against.
     Bounded so the daily scrape can rank new jobs without re-scoring the whole DB
     (rescore_all sweeps 500K+ rows). Without this, freshly scraped jobs sit at
     fit_score 0, stay invisible on the board, and get skipped by the AI scorer's
@@ -204,7 +225,7 @@ def rescore_recent(days: int = 10) -> int:
     with db.connect() as conn:
         where, params = _recent_where(days)
         sql = (f"SELECT id, title, description FROM {db.read_postings_table()} "
-               f"WHERE {_active_true()} AND {where}")
+               f"WHERE {_active_true()} AND ({where} OR {_never_matched_where()})")
         for r in _iter_postings(conn, sql, params):
             s = score_text(r["title"], r["description"], terms)
             db.user_set(conn, r["id"], fit_score=s)   # keyword fit is per-user

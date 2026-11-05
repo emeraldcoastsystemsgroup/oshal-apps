@@ -98,7 +98,7 @@ description: >-
   travel — then compares that line to the book's moneyline and spread. Every call is registered
   before kickoff and graded on closing-line value, so the model has to beat the market before it is
   allowed to stake anything. Fantasy leagues moved to their own app, Fantasy Football.
-version: 0.11.4
+version: 0.11.5
 status: active
 # Sports Edge packages no agent; the stable framework concierge owns its right rail.
 chatBot: general-bot
@@ -167,7 +167,7 @@ schedules:
     description: Capture the book's lines, grade finished calls and rebuild previews for the teams you follow.
     offer: Keep my followed teams' previews, lines and graded calls fresh every three hours.
 
-theme: midnight
+theme: light-blue
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SETTINGS — read from THIS FILE at activation as the shipped defaults; a deployment row and a

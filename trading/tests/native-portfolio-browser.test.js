@@ -1,4 +1,6 @@
+/** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Save and reload an explicitly selected stock universe through desktop and phone forms. */
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Save both daily account-class presets through actual desktop and phone forms without financial side effects.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Exercise both monthly presets on desktop and phone; fixed fields and saved research do not assign or arm an account.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Show broker facts and distinct cash labels on desktop/phone without treating withdrawal capacity as settled cash.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Include the shipped planning companion script in the native portfolio component host.
@@ -59,6 +61,14 @@ test('portfolio workflow works on desktop and phone with exact receipts and no r
    assert.equal(await f.locator('[name=kind]').inputValue(),kind);assert.equal(await f.locator('[name=rebalanceSessions]').isDisabled(),true);assert.equal(await f.locator('[name=grossExposurePct]').isDisabled(),true);
    const saved=page.waitForResponse(r=>r.url().endsWith('/portfolio/strategies')&&r.request().method()==='POST');await f.getByRole('button').click();const response=await saved;assert.equal(response.status(),200);const payload=response.request().postDataJSON();assert.equal(payload.config.modelVersion,2);assert.equal(payload.config.topN,top);assert.equal(payload.config.assets.length,count);assert.equal(payload.config.grossExposurePct,100);
    await page.getByText(/Saved\. No broker/).waitFor();
+  }
+  for(const [kind,group] of [['quant-margin-daily','taxable-margin'],['retirement-defensive-daily','retirement-cash']]){const f=page.locator('form[data-portfolio="strategy"]');await f.locator('[name=kind]').selectOption(kind);await f.locator('[name=name]').fill('Browser '+kind);assert.equal(await f.locator('[name=assets]').getAttribute('readonly'),'');assert.equal(await f.locator('[name=transactionCostBps]').isDisabled(),true);const saved=page.waitForResponse(r=>r.url().endsWith('/portfolio/strategies')&&r.request().method()==='POST');await f.getByRole('button').click();const response=await saved;assert.equal(response.status(),200);const config=(await response.json()).strategy.config;assert.equal(config.modelVersion,3);assert.equal(config.accountClass,group);assert.equal(config.borrowing,false);assert.equal(config.preserveFractionalRemainders,true);await page.getByText(/Saved\. No broker/).waitFor();}
+  {
+   const f=page.locator('form[data-portfolio="strategy"]');await f.locator('[name=kind]').selectOption('quant-stock-daily');await f.locator('[name=name]').fill('Browser stocks '+width);
+   assert.equal(await f.locator('[name=assets]').getAttribute('readonly'),null);await f.locator('[name=assets]').fill('CCC:50\nAAA:50');
+   const saved=page.waitForResponse(r=>r.url().endsWith('/portfolio/strategies')&&r.request().method()==='POST');await f.getByRole('button').click();const response=await saved;assert.equal(response.status(),200);
+   const c=(await response.json()).strategy.config;assert.equal(c.kind,'quant-stock-daily');assert.equal(c.accountClass,'taxable-margin');assert.equal(c.rankBy,'momentum');assert.deepEqual(c.assets,[{symbol:'AAA',weightPct:50},{symbol:'CCC',weightPct:50}]);await page.getByText(/Saved\. No broker/).waitFor();
+   await page.getByRole('button',{name:'Refresh evidence',exact:true}).click();await page.locator('form[data-portfolio="backtest"] [name=strategyId] option').filter({hasText:'Browser stocks '+width}).waitFor({state:'attached'});
   }
   assert.equal(fixture.accounts[0].strategyId,undefined,'presets do not change the broker account');
   assert.equal(await page.getByRole('button',{name:/Place order|Start trading|Borrow now/i}).count(),0);

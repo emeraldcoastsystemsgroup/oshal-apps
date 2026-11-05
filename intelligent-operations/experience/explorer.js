@@ -1,3 +1,4 @@
+/* CHANGE LOG: installations label | maintainer@emeraldcoastsystemsgroup.com | Each system says whether a heartbeat filed its host, from every asset before any filter, so the tree's group label does not change when a filter hides the host. */
 /* CHANGE LOG: local times | maintainer@emeraldcoastsystemsgroup.com | Graph and observation times in the viewer's local time. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Allow the bounded resource tree to inspect the complete returned graph while keeping the legacy card limit. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Explain bounded real pipeline cohorts and explore recorded graph nodes without inventing totals or correlation. */
@@ -66,7 +67,7 @@ function systemInventory(data,records=[],filter={}){
   if(!a||!['id','provider','scope','kind','nativeId','name','observedAt'].every(k=>typeof a[k]==='string'&&a[k])||byId.has(a.id))throw Error('A system identity is unavailable or repeated.');
   if(!Number.isFinite(Date.parse(a.observedAt))||Date.parse(a.observedAt)>Date.parse(data.asOf))throw Error('A system observation time is unavailable or beyond the selected graph time.');
   byId.set(a.id,a);const k=key(a);if(!groups.has(k))groups.set(k,{id:k,provider:a.provider,scope:a.scope,name:a.scope,count:0});
-  const group=groups.get(k);group.count++;if(a.kind==='cluster')group.name=a.name;
+  const group=groups.get(k);group.count++;if(a.kind==='cluster')group.name=a.name;if(a.properties?.monitoredBy)group.monitored=true;
   const native=JSON.stringify([a.provider,a.scope,a.nativeId]);if(!index.has(native))index.set(native,[]);index.get(native).push(a);
  }
  const providers={'kubernetes-pod':'kubernetes',container:'kubernetes',workload:'kubernetes','aws-resource':'aws','azure-resource':'azure','gcp-resource':'gcp',host:'import'};

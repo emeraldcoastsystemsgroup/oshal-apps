@@ -4,15 +4,19 @@ exports.policyDefinition = policyDefinition;
 exports.publishPolicy = publishPolicy;
 exports.previewPolicy = previewPolicy;
 exports.evaluateDelivery = evaluateDelivery;
+exports.promoteRefired = promoteRefired;
 exports.pipelineRecords = pipelineRecords;
 exports.processingTransaction = tx;
+/** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved (2026-11-04). The worker's decisions say so, because only they may reach the phone: a replay or an Evaluate pressed after a policy edit paged critical alerts that were not happening. A re-fire that also escalated has its evidence already, so it does not wait for another. A promotion is written to the occurrence too, so a later re-evaluation does not undo it. The kernel's conflict wording changed, so the retry now matches both. */
+/** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | A third review proved a real outage that began with a blip never got evidence or a ticket, however long it lasted: its re-fire inside the window was only recorded, and nothing fired again to open the new occurrence (2026-11-04). A re-fire is now remembered, and promoteRefired gives it its own evidence once the window has passed if it is still firing. A flap that clears first costs nothing. */
+/** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Two holes an independent review proved (2026-11-03). A resolve evaluated before its firing (the percolator was down at the raise) now writes the symptom, so the older firing evaluates as late instead of opening a symptom on a recovered resource. A re-fire inside the policy window of the last admission is 'refired': recorded and told, with no new packet or ticket, so a flapping alert stops opening one of each per flap; after the window it is a new occurrence. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Seal stored-query policies before activation and atomically record filtering, scoped suppression and pre-evidence work reservations. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Trial sealed policy candidates against owned deliveries without changing source bindings, counters or evidence work. */
 // @ts-nocheck
 const node_crypto_1 = require("node:crypto");
 const intake_1 = require("./intake");
 const topology_model_1 = require("./topology-model");
-const conflict = e => ['40001', '40P01', '23505'].includes(e.code) || /scoped collection revision changed/.test(e.message);
+const conflict = e => ['40001', '40P01', '23505'].includes(e.code) || /scoped collection revision/.test(e.message);
 async function tx(pool, run) { for (let i = 0; i < 8; i++) {
     const c = await pool.connect();
     try {
@@ -95,7 +99,7 @@ async function previewPolicy(pool, engine, owner, source, input, deliveryIds) {
     return { policyId: policy.id, sourceId: source.id, savedCandidate: true, activationChanged: false, decisionsCommitted: false, evidenceReserved: false, complete: true, results, summary: { observations: results.length, matched: results.filter(r => r.outcome === 'matched').length, filtered: results.filter(r => r.outcome === 'unmatched').length } };
 }
 async function failureAttempt(pool, owner, id, error) { const record = { id: (0, node_crypto_1.randomUUID)(), deliveryId: id, outcome: 'evaluation-failed', reason: error.status ? error.message : 'Detection storage or engine is unavailable.', at: new Date().toISOString() }; await pool.query('INSERT INTO operations_processing_attempts(user_sub,id,record,created_at) VALUES($1,$2,$3,$4)', [owner, record.id, JSON.stringify(record), record.at]); }
-async function evaluateDelivery(pool, engine, owner, id, clock = () => new Date().toISOString(), fence = null) {
+async function evaluateDelivery(pool, engine, owner, id, clock = () => new Date().toISOString(), fence = null, quiet = false) {
     requireOwner(owner);
     if (!idValid(id))
         (0, topology_model_1.fail)(400, 'Select a recorded delivery.');
@@ -132,7 +136,7 @@ async function evaluateDelivery(pool, engine, owner, id, clock = () => new Date(
             if (active?.revision !== binding.revision)
                 (0, topology_model_1.fail)(409, 'Policy changed during evaluation; retry with its current revision.');
             const reduction = await reduce(c, owner, record, policy, result.matches, now);
-            const decision = { id: decisionId, deliveryId: id, sourceId: record.sourceId, policyId: policy.id, bindingRevision: binding.revision, at: now, backend: result.backend, engineBuild: result.engineBuild, matches: result.matches, outcome: result.matches.length ? 'matched' : 'unmatched', reduction, previousDecisionId: work.record.filterDecisionId || null };
+            const decision = { id: decisionId, deliveryId: id, sourceId: record.sourceId, policyId: policy.id, bindingRevision: binding.revision, at: now, backend: result.backend, engineBuild: result.engineBuild, matches: result.matches, outcome: result.matches.length ? 'matched' : 'unmatched', reduction, previousDecisionId: work.record.filterDecisionId || null, ...(fence ? { byWorker: true } : {}) };
             await c.query('INSERT INTO operations_filter_decisions(user_sub,id,delivery_id,record,created_at) VALUES($1,$2,$3,$4,$5)', [owner, decisionId, id, JSON.stringify(decision), now]);
             const state = reduction.workId ? 'evidence-pending' : 'processed';
             await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, record=$4, ready_at=$5 WHERE user_sub=$1 AND id=$2', [owner, id, state, JSON.stringify({ ...work.record, filterDecisionId: decisionId, reduction, ...(work.record.processing ? { processing: { ...work.record.processing, status: 'completed', token: null, leaseUntil: null, completedAt: now } } : {}) }), now]);
@@ -140,7 +144,7 @@ async function evaluateDelivery(pool, engine, owner, id, clock = () => new Date(
         });
     }
     catch (error) {
-        if (![400, 401, 404].includes(error.status))
+        if (!quiet && ![400, 401, 404].includes(error.status))
             await failureAttempt(pool, owner, id, error);
         throw error;
     }
@@ -156,28 +160,76 @@ async function reduce(c, owner, delivery, policy, matches, now) {
         await c.query('INSERT INTO operations_symptom_occurrences(user_sub,id,record) VALUES($1,$2,$3)', [owner, occurrenceId, JSON.stringify(result)]);
     return result;
 }
+const REFIRED = 'refired-watch', MAX_REFIRED = 64;
+/** One small row instead of a scan of every symptom each minute. */
+async function refiredList(c, owner) { return (await c.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, REFIRED])).rows[0]?.record || null; }
+async function saveRefired(c, owner, exists, items) { if (exists)
+    await c.query('UPDATE operations_processing_config SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, REFIRED, JSON.stringify({ items })]);
+else
+    await c.query('INSERT INTO operations_processing_config(user_sub,id,revision,record) VALUES($1,$2,1,$3)', [owner, REFIRED, JSON.stringify({ items })]); }
+async function rememberRefire(c, owner, symptomKey, dueAt) { const held = await refiredList(c, owner); await saveRefired(c, owner, Boolean(held), [...(held?.items || []).filter(i => i.symptomKey !== symptomKey), { symptomKey, dueAt }].slice(-MAX_REFIRED)); }
+/** @description A re-fire inside the window only recorded and told, so a flap costs nothing; if the alert is still firing once the window has passed it was the start of a real outage, and it gets the evidence and the investigation a new occurrence would, once. The decision is corrected in place, so every reader sees it admitted, and nothing is told again: the phone already heard it fire again. @param pool Owner-scoped SQL. @param owner The caller. @param clock Milliseconds now. @returns How many were promoted, as results the tick can correlate. */
+async function promoteRefired(pool, owner, clock = Date.now) {
+    requireOwner(owner);
+    const nowMs = clock(), now = new Date(nowMs).toISOString(), results = [];
+    const list = (await pool.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2', [owner, REFIRED])).rows[0]?.record;
+    for (const item of (list?.items || []).filter(i => Date.parse(i.dueAt) <= nowMs)) {
+        const promoted = await tx(pool, async (c) => {
+            const held = await refiredList(c, owner);
+            await saveRefired(c, owner, Boolean(held), (held?.items || []).filter(i => i.symptomKey !== item.symptomKey));
+            const symptom = (await c.query('SELECT record FROM operations_symptoms WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, item.symptomKey])).rows[0]?.record, r = symptom?.refired;
+            if (symptom?.status !== 'firing' || !r)
+                return null;
+            const work = (await c.query('SELECT record FROM operations_processing WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, r.deliveryId])).rows[0]?.record, decision = (await c.query('SELECT record FROM operations_filter_decisions WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, r.decisionId])).rows[0]?.record;
+            if (!work || !decision)
+                return null;
+            const episode = (0, intake_1.hash)([item.symptomKey, r.deliveryId]), workId = (0, intake_1.hash)(['evidence-v1', item.symptomKey, episode, 1]), { refired, ...kept } = symptom;
+            const reduction = { ...decision.reduction, outcome: 'admitted', promotedFrom: 'refired', promotedAt: now, episode, revision: 1, workId, capture: r.capture };
+            await c.query('UPDATE operations_symptoms SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, item.symptomKey, JSON.stringify({ ...kept, admittedAt: now, episode, revision: 1, episodeCount: 1, maxSeverity: symptom.severity, expiresAt: new Date(nowMs + r.windowSeconds * 1000).toISOString() })]);
+            await c.query('INSERT INTO operations_evidence_work(user_sub,id,state,record,created_at) VALUES($1,$2,$3,$4,$5)', [owner, workId, 'pending', JSON.stringify({ id: workId, symptomKey: item.symptomKey, episode, revision: 1, deliveryId: r.deliveryId, policyId: r.policyId, ruleIds: r.ruleIds, capture: r.capture, state: 'pending', createdAt: now, executionAuthorized: false }), now]);
+            await c.query('UPDATE operations_filter_decisions SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, r.decisionId, JSON.stringify({ ...decision, reduction })]);
+            await c.query('UPDATE operations_symptom_occurrences SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, (0, intake_1.hash)([item.symptomKey, r.deliveryId]), JSON.stringify({ outcome: 'admitted', symptomKey: item.symptomKey, episode, revision: 1, count: symptom.count, workId, capture: r.capture })]);
+            await c.query('UPDATE operations_processing SET state=$3, revision=revision+1, ready_at=$4, record=$5 WHERE user_sub=$1 AND id=$2', [owner, r.deliveryId, 'evidence-pending', now, JSON.stringify({ ...work, reduction })]);
+            return { deliveryId: r.deliveryId, decisionId: r.decisionId, outcome: 'admitted', promoted: true };
+        });
+        if (promoted)
+            results.push(promoted);
+    }
+    return { promoted: results.length, results };
+}
 async function reduceNew(c, owner, delivery, policy, matches, now) {
     const event = delivery.normalized, key = (0, intake_1.hash)(['symptom-v1', policy.name, delivery.identity.symptom]);
     const previous = (await c.query('SELECT record FROM operations_symptoms WHERE user_sub=$1 AND id=$2 FOR UPDATE', [owner, key])).rows[0]?.record;
     const eventTime = new Date(event.time).toISOString(), oldTime = previous?.eventTime;
     if (!matches.length && event.data.status !== 'resolved')
         return { outcome: 'filtered', symptomKey: key };
-    if (event.data.status === 'resolved' && !previous)
+    if (event.data.status === 'resolved' && !previous) {
+        if (matches.length)
+            await c.query('INSERT INTO operations_symptoms(user_sub,id,record) VALUES($1,$2,$3)', [owner, key, JSON.stringify({ id: key, identity: delivery.identity.symptom, policyName: policy.name, policyId: policy.id, episode: null, revision: 0, count: 1, episodeCount: 0, firstSeen: now, lastSeen: now, eventTime, status: 'resolved', severity: event.data.severity, maxSeverity: event.data.severity, expiresAt: now })]);
         return { outcome: 'orphan-resolution', symptomKey: key };
+    }
     const late = oldTime && eventTime < oldTime, ambiguous = oldTime === eventTime && previous.status !== event.data.status;
     const expired = !previous || Date.parse(now) >= Date.parse(previous.expiresAt), reopened = previous?.status === 'resolved';
-    const fresh = event.data.status === 'firing' && !late && !ambiguous && (expired || reopened);
+    const flap = event.data.status === 'firing' && !late && !ambiguous && reopened && !expired && Date.parse(now) - Date.parse(previous.admittedAt) < policy.window.seconds * 1000;
+    const fresh = event.data.status === 'firing' && !late && !ambiguous && (expired || (reopened && !flap));
     const escalation = !fresh && previous && event.data.status === 'firing' && !late && !ambiguous && (severity[event.data.severity] > severity[previous.maxSeverity || previous.severity]);
     const admitted = Boolean(fresh || escalation), episode = fresh ? (0, intake_1.hash)([key, delivery.id]) : previous?.episode;
-    const row = { ...previous, id: key, identity: delivery.identity.symptom, policyName: policy.name, policyId: policy.id, episode, revision: fresh ? 1 : (previous?.revision || 0) + (escalation ? 1 : 0), count: (previous?.count || 0) + 1, firstSeen: previous?.firstSeen || now, lastSeen: now, eventTime: late || ambiguous ? oldTime : eventTime, status: late || ambiguous ? previous.status : event.data.status, severity: late || ambiguous ? previous.severity : event.data.severity };
+    const row = { ...previous, id: key, identity: delivery.identity.symptom, policyName: policy.name, policyId: policy.id, admittedAt: admitted ? now : previous?.admittedAt || null, episode, revision: fresh ? 1 : (previous?.revision || 0) + (escalation ? 1 : 0), count: (previous?.count || 0) + 1, firstSeen: previous?.firstSeen || now, lastSeen: now, eventTime: late || ambiguous ? oldTime : eventTime, status: late || ambiguous ? previous.status : event.data.status, severity: late || ambiguous ? previous.severity : event.data.severity };
     row.episodeCount = fresh ? 1 : (previous?.episodeCount || 0) + 1;
     row.maxSeverity = late || ambiguous ? (previous.maxSeverity || previous.severity) : fresh ? event.data.severity : (severity[event.data.severity] > severity[previous?.maxSeverity || previous?.severity] ? event.data.severity : (previous?.maxSeverity || previous?.severity));
     row.expiresAt = fresh || (!late && !ambiguous && policy.window.mode === 'sliding') ? new Date(Date.parse(now) + policy.window.seconds * 1000).toISOString() : previous.expiresAt;
+    // A re-fire waits for the window to pass (promoteRefired); anything newer that clears it or opens its own evidence ends the wait.
+    if (flap && !admitted)
+        row.refired = { deliveryId: delivery.id, decisionId: (0, intake_1.hash)(['filter-v1', delivery.id, policy.id]), policyId: policy.id, ruleIds: matches, capture: policy.rules.some(r => matches.includes(r.id) && r.capture), windowSeconds: policy.window.seconds };
+    else if (admitted || (event.data.status === 'resolved' && !late && !ambiguous))
+        delete row.refired;
     if (previous)
         await c.query('UPDATE operations_symptoms SET record=$3 WHERE user_sub=$1 AND id=$2', [owner, key, JSON.stringify(row)]);
     else
         await c.query('INSERT INTO operations_symptoms(user_sub,id,record) VALUES($1,$2,$3)', [owner, key, JSON.stringify(row)]);
-    const outcome = late ? 'late-occurrence' : ambiguous ? 'ambiguous-state-time' : event.data.status === 'resolved' ? 'source-resolved' : fresh ? 'admitted' : escalation ? 'escalated' : 'suppressed';
+    const outcome = late ? 'late-occurrence' : ambiguous ? 'ambiguous-state-time' : event.data.status === 'resolved' ? 'source-resolved' : fresh ? 'admitted' : escalation ? 'escalated' : flap ? 'refired' : 'suppressed';
+    if (flap && !admitted)
+        await rememberRefire(c, owner, key, new Date(Date.parse(previous.admittedAt) + policy.window.seconds * 1000).toISOString());
     if (!admitted)
         return { outcome, symptomKey: key, episode, revision: row.revision, count: row.count };
     const workId = (0, intake_1.hash)(['evidence-v1', key, episode, row.revision]), capture = policy.rules.some(r => matches.includes(r.id) && r.capture);

@@ -1,3 +1,17 @@
+1.53.0: Saved daily stock execution and historical replay through the native trading tool protocol. Native daily mandate support is required for activation; an older monthly-only service cannot approve or execute this model. No account is migrated or armed by installation.
+
+Daily stock model: `quant-stock-daily` persists an explicitly selected equity universe (up to the native tool’s twenty-symbol bound) and a named Quant price signal. The application saves, backtests, assigns, monitors and submits through its existing native tool routes. Runtime and replay share the Quant desk factor definitions. The default signal is momentum; the model is price-based and does not back-project today’s fundamentals, news or industry classifications. Retirement uses its separate cash-funded model. Synthetic broker route acceptance demonstrates the workflow; it is not real-money performance evidence.
+
+1.52.1: The stock Quant proposal uses the actual published price signal and its matching historical comparison. A failed or missing signal cannot fall back to the composite and propose replacements. Each account shows its saved execution mode, observation and monthly-versus-daily mismatch; this is not a verification of live authority. Older proposal target lists require refresh. Daily stock execution is provided by the separately saved model described above and requires the matching native daily release.
+
+1.52.0: Separate database-backed daily ETF models for taxable margin and cash retirement accounts. Their exact account and capital require a passing costed, second-half and stressed backtest before a daily native mandate can be reviewed. Failed validation remains blocked. Existing monthly approvals are retained; fractional residuals remain valued. The separate Quant stock-quality proposal remains unvalidated and unarmed.
+
+1.51.6: Research → Quant desk can build and restore a daily Quant strategy proposal for review. It uses the owner’s completed-session ranking and measured accounts, states selection and concentration rules, proposes daily reassessment and next-session re-entry, and records the exact snapshot in the database. It creates no account assignment, mandate, schedule or order. The existing signal history verdict stays visible; this exact daily strategy has no completed backtest or forward paper record and cannot activate live trading.
+
+Account strategy pages now name the account’s actual execution state and show confirmed broker executions with timestamps and order IDs. A reconciled protective sale counts toward an outstanding allocation reduction, and independent remaining actions can continue; a stopped instrument is not immediately repurchased from the same old signal.
+
+Kernel f10e9db9 and later keep active strategy and protection configuration effective across package releases. Draft activation reviews still require their reviewed source; saved account/model, expiry, cash, capital, turnover and order limits remain enforced. Deploy that kernel before this release changes the live order modules.
+
 1.51.2: the daily report, the Quant desk and the Futures study start by themselves when a person uses Trading, with no money to spend. Paused or removed jobs stay off. The moving-stop watcher, which can place real orders, still waits for the person.
 
 1.49.0: the Quant desk surfaces the beaten-down names. A new **deep dip** price signal ranks the furthest falls from the 52-week high and takes its place in the history test, so ten years of prices say whether buying the biggest fallers ever worked (the published research on the 52-week high found the opposite; the verdict, not the hypothesis, decides). A new **quality dip** ranking answers "a legitimate company just took a 25% hit": at least 25% below its 52-week high, yet profitable with growing revenue in its latest annual SEC filing, deepest fall first. Its filing inputs are only known today, so like Profitable growth it is judged by the forward scoreboard alone. Both join **Rank by** on the Quant desk, the concierge's list answer carries tonight's quality-dip candidates, and every pick is graded against SPY at 5, 21 and 63 sessions. Still research only: a candidate list, never a buy instruction.
@@ -1451,3 +1465,59 @@ https://github.com/Finnhub-Stock-API/finnhub-go/blob/master/api/openapi.yaml.
 Whole-account transition reviews list eligibility for every action. Explicit stale-quote, timestamp, fractional and reserved-protection exceptions stay with the affected holding; unverified quote sources, unknown orders, authority failures and buy-funding checks remain blocking. Larger reviewed dollar sales run first, one broker request at a time after reconciliation. Deferred positions remain pending and visible; a cycle is not reported complete while they remain.
 
 Account management restores the original owner’s latest exact strategy and broker-stop reviews across reloads and cockpit tabs, including the reviewed capital cap and management scope. Expired or unavailable drafts stay visible with activation disabled and an explicit refresh action. Execution controls use the shared theme tokens and appear before research. A page read never prepares a new mandate, activates authority or submits an order.
+
+### Daily account strategies (model version 3)
+
+The two daily ETF models use separate account rules. `quant-margin-daily` admits only a
+confirmed taxable margin account, ranks a fixed six-ETF universe with price momentum
+and volatility, and caps gross exposure at 75%. `retirement-defensive-daily` admits a
+confirmed retirement registration with a broker CASH account, uses fixed defensive
+allocation limits, caps gross exposure at 80%, and waits for settled sale proceeds.
+Neither model permits borrowing or shorts. These are separate from the Quant desk's
+stock-quality proposal, which remains review-only without point-in-time validation.
+That stock proposal requires this owner’s saved taxable registration plus broker
+MARGIN. Retirement and unclassified accounts receive no stock targets or implied
+all-cash transition; older snapshots must be refreshed before targets are shown.
+
+Configurations are saved as owner-isolated strategy records. Account profiles retain
+the assigned strategy; watches, signal risk state, native approvals and reconciled
+execution cycles are persisted independently. Deployment defaults do not assign an
+account or replace an existing configuration. Account metadata updates that omit a
+strategy preserve the saved assignment, and an active assignment cannot be silently
+cleared or replaced through a profile update. Changing a version's fixed universe,
+algorithm, cadence or account class requires a new model version and new evidence.
+
+Both models reassess each completed exchange session. Closing-price hard/trailing
+exits and momentum/trend exclusions can remove a holding; an exited instrument may
+qualify again on a later completed session. A protective fill recorded before cycle creation also blocks an old-signal
+repurchase. Broker execution or close times determine the exit session; refresh
+timestamps do not extend the wait, and an undated fill defers only that symbol.
+There is no monthly re-entry lock. Native
+intraday protection has separate authority and is not simulated by a close-only replay.
+Whole-share orders retain fractional residuals and include their value in exposure.
+A stale quote for an unrelated residual does not authorize dropping its value or block
+independently eligible actions.
+
+The shipped daily decision function serves replay and scheduled execution. Replays
+use next-session close execution proxies, 25bps per side including modeled slippage,
+zero cash yield, price-return benchmarks, a chronological second-half diagnostic,
+and a doubled-cost replay. Live limit fills and intraday protection can differ. A
+live daily strategy must have 252 evaluated sessions, 126 second-half sessions,
+positive net full/second-half returns at ordinary and doubled costs, Sharpe at least
+0.5, and drawdown no greater than 15% for margin or 10% for retirement. The exact
+approved capital is replayed again before review and execution. A new daily approval
+review requires a study ending at the latest completed exchange session; existing
+approvals do not acquire a deployment-triggered revalidation requirement. A completed simulation
+with failed validation cannot start a live watch or activate a mandate.
+
+Daily terms require the matching native account-class/cadence support. A monthly
+native approval cannot substitute, and every order requires the immediately preceding
+verified exchange session. An older native release refuses daily activation explicitly.
+An interactive, exact account review remains the activation path; saving a preset or
+running a backtest submits no broker order. Existing monthly strategies remain supported.
+
+`tests/native-daily-strategies.test.js` exercises the actual HTTP routes with named
+synthetic SQL and native-broker fixtures, including wrong-account/retirement refusal,
+failed evidence, exact capital, acknowledged fills, durable cycles, source compatibility
+and fractional residuals. The full native suite additionally needs an explicitly
+disposable `OSHAL_TEST_POSTGRES` fixture. No test targets a live brokerage account.

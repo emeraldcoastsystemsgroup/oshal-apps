@@ -1,4 +1,6 @@
 /** CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Defer old-signal repurchases even when protective fills precede cycle creation; use broker event times rather than mutable observation times.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Credit reconciled protective sales toward pending allocation sales without treating a protective fill as a purchase or repeating already filled allocation chunks.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Explicitly scoped holding exceptions do not block independent actions; whole-account sales prioritize larger reviewed notionals.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep current assessment freshness distinct from the monthly historical cutoff used to derive targets.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve measured net equity/debt during whole-account planning, separate buy funding from long-share sales, and reconcile bounded chunks against retained fills.
@@ -55,15 +57,31 @@ function holdingsDrift(record,tickets,account,mandateId,cycle,approval){
  return [...new Set([...expected.keys(),...actual.keys()])].filter(s=>Math.abs((expected.get(s)||0)-(actual.get(s)||0))>0.000001);
 }
 function protectiveExits(record,tickets,mandateId){return tickets.filter(t=>t.allocationMandateId===mandateId&&filledQuantity(t)>(record.fillBaselines?.[t.ticketId]??0));}
-function actionProgress(action,tickets){
+/** A sale preceding cycle creation is already in its baseline, but still forbids old-signal re-entry.
+ * Broker execution/close times are immutable event evidence. A refreshed observation time is not a fill date. */
+function protectiveSignalStops(tickets,mandateId,signalDate){
+ const stopped=new Set();
+ for(const t of tickets){
+  const filled=t.brokerStatus?.filledQuantity;if(t.allocationMandateId!==mandateId||t.terms?.side!=='sell'||!Number.isFinite(filled)||filled<=0)continue;
+  const executions=t.brokerStatus.executions||[],valid=executions.filter(e=>Number.isFinite(e.quantity)&&e.quantity>0&&Number.isFinite(Date.parse(e.time))),covered=valid.reduce((n,e)=>n+e.quantity,0);
+  let at=covered>=filled-1e-6&&valid.length?Math.max(...valid.map(e=>Date.parse(e.time))):NaN;
+  if(!Number.isFinite(at)&&t.brokerStatus.status==='FILLED')at=Date.parse(t.brokerStatus.closeTime);
+  // Native DAY exits cannot carry into a later session. A GTC submission date is not its fill date.
+  if(!Number.isFinite(at)&&t.terms.duration==='DAY'&&Number.isFinite(t.attemptedAtMs)&&t.attemptedAtMs>0)at=t.attemptedAtMs;
+  if(!Number.isFinite(at)||new Date(at).toISOString().slice(0,10)>signalDate)stopped.add(canonicalPlanSymbol(t.terms.symbol));
+ }
+ return stopped;
+}
+function actionProgress(action,tickets,protectiveSold=0){
  let filled=0;const prepared=[];
  for(const t of tickets.filter(t=>t.terms.symbol===action.symbol&&t.terms.side===action.action)){
   if(t.status==='prepared'){prepared.push(t);continue;}
   if(t.status!=='submitted'||t.brokerStatus?.status!=='FILLED'||filledQuantity(t)!==t.terms.quantity)return{status:['REJECTED','CANCELED','CANCELLED','EXPIRED','REPLACED'].includes(t.brokerStatus?.status)||t.status==='rejected'?'unfilled-order-review-required':'waiting-for-broker-order',ticket:t};
   filled+=filledQuantity(t);
  }
- const remaining=Math.abs(action.changeQty)-filled;
- if(remaining<0||prepared.length>1)fail('Retained allocation chunks exceed the reviewed action.');
+ const goal=Math.abs(action.changeQty);
+ if(filled>goal||prepared.length>1||!Number.isSafeInteger(protectiveSold)||protectiveSold<0)fail('Retained allocation chunks exceed the reviewed action.');
+ const remaining=Math.max(0,goal-filled-(action.action==='sell'?protectiveSold:0));
  if(!remaining)return{status:'filled'};
  return{status:'prepare',remaining,filled,prior:prepared[0]};
 }
@@ -74,4 +92,4 @@ function nextChunk(progress,limitCents){
  if(prior&&(prior.terms.quantity>remaining||prior.terms.quantity>max))return{status:'prepared-chunk-review-required',ticket:prior};
  return{status:'prepare',quantity:prior?.terms.quantity??Math.min(remaining,max),filled,prior};
 }
-module.exports={wholeAccount,actionBlockers,positionScopedBlocker,orderedActions,allocationPlan,cycleTickets,fillBaselines,holdingsDrift,protectiveExits,actionProgress,nextChunk};
+module.exports={wholeAccount,actionBlockers,positionScopedBlocker,orderedActions,allocationPlan,cycleTickets,fillBaselines,holdingsDrift,protectiveExits,protectiveSignalStops,actionProgress,nextChunk};

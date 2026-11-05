@@ -1,3 +1,4 @@
+/** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Require bounded extended history within the native end-date contract for full stock factor warmup and evaluation. */
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Independent NYSE session and read contracts: holidays/early closes, incomplete sessions, caller-only selectors, bounded concurrency and conflicting price overlap. Synthetic history only.
  */
@@ -19,13 +20,12 @@ test('historical reads carry only caller-owned connection/data selectors and exc
  let active=0,max=0;const calls=[];
  const ctx={intent:async(name,input)=>{calls.push({name,input});active++;max=Math.max(max,active);await Promise.resolve();active--;return{symbol:input.symbol,source:'schwab',bars:[{t:Date.parse('2026-10-23T05:00:00Z')/1000,c:100},{t:Date.parse('2026-10-26T05:00:00Z')/1000,c:200}]};}};
  const history=await portfolioHistory(ctx,'own-login',config,'2025-10-24','2026-10-23',now);
- assert.equal(calls.length,4);assert.ok(max<=2);assert.equal(history.series.ABC.length,1);assert.equal(history.lastCompletedSession,'2026-10-23');
- for(const {name,input}of calls){assert.equal(name,'trading.bars');assert.equal(input.connection,'own-login');assert.deepEqual(Object.keys(input).sort(),['connection','end','symbol','timeframe']);}
+ assert.equal(calls.length,2);assert.ok(calls.every(c=>c.input.end===now.getTime()&&c.input.historyDays>=790&&c.input.historyDays<=800));assert.ok(max<=2);assert.equal(history.series.ABC.length,1);assert.equal(history.lastCompletedSession,'2026-10-23');
+ for(const {name,input}of calls){assert.equal(name,'trading.bars');assert.equal(input.connection,'own-login');assert.deepEqual(Object.keys(input).sort(),['connection','end','historyDays','symbol','timeframe']);}
  await assert.rejects(()=>portfolioHistory(ctx,'own-login',config,'2026-01-01','2026-10-26',now),e=>e.code==='window_invalid');
 });
 test('conflicting overlap and wrong symbol/source fail instead of manufacturing a stable history',async()=>{
- let call=0;
- await assert.rejects(()=>portfolioHistory({intent:async(_n,input)=>({symbol:input.symbol,source:'schwab',bars:[{t:Date.parse('2026-10-23T05:00:00Z')/1000,c:100+(call++)}]})},'own-login',config,'2025-10-24','2026-10-23',now),e=>e.code==='history_changed');
+ await assert.rejects(()=>portfolioHistory({intent:async(_n,input)=>({symbol:input.symbol,source:'schwab',bars:[{t:Date.parse('2026-10-23T05:00:00Z')/1000,c:100},{t:Date.parse('2026-10-23T05:00:00Z')/1000,c:101}]})},'own-login',config,'2025-10-24','2026-10-23',now),e=>e.code==='history_changed');
  await assert.rejects(()=>portfolioHistory({intent:async()=>({symbol:'WRONG',source:'schwab',bars:[]})},'own-login',config,'2026-01-02','2026-10-23',now),e=>e.code==='history_invalid');
 });
 

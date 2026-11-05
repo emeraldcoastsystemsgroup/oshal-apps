@@ -1693,3 +1693,42 @@ cases:
     isolation: { mode: disposable, cleanup: None. }
     limits: { timeoutMs: 30000 }
     installation: never
+
+
+  - id: quant-strategy-review
+    name: Daily Quant strategy proposals stay unarmed and survive reloads
+    purpose: Review dated daily selection and exact-account holding comparisons without assigning or activating a trading strategy.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-quant-strategy-review.test.js, tests/native-execution-evidence.test.js] }
+    expected:
+      - Stale, missing, duplicated or future evidence cannot propose account transitions.
+      - Price trend, current momentum, quality evidence, industry caps and rank hysteresis apply before proposing stock exposure.
+      - The review uses only an owner-admitted account read, persists its snapshot and restores through a new handler; another owner cannot read it.
+      - Existing history-test failures and the absence of daily-strategy validation stay visible; no mandate, assignment, schedule or order is created.
+      - Stock Quant proposals require owner-saved taxable registration and broker MARGIN; retirement, foreign classifications and older unclassified snapshots cannot receive stock targets.
+      - Each account shows its actual execution disposition and confirmed broker executions, with partial fills separate from mere submissions.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Discard the isolated in-memory records. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: daily-account-strategies
+    name: Persisted daily margin and retirement strategies require their exact passing validation
+    purpose: Separate account classes and prove daily decision, settlement, validation and durable execution behavior with named synthetic SQL and native brokerage fixtures.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-daily-strategies.test.js] }
+    expected:
+      - Margin policies cannot run on retirement or cash accounts, and retirement policies cannot use margin funding.
+      - Prior-session signals exclude future prices; stopped instruments can qualify on a later session.
+      - Failed, tampered, foreign or differently funded backtests cannot authorize a live daily mandate.
+      - Monthly native terms cannot silently authorize daily execution.
+      - Persisted daily cycles wait for actual fills and never replay an acknowledged order.
+      - Fractional residuals remain valued without blocking independent whole-share actions.
+      - Protective fills predating a cycle cannot trigger old-signal repurchases, and observation refreshes cannot extend the re-entry wait.
+      - Account metadata updates preserve saved assignments and refuse silent replacement of active automation.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Discard named synthetic SQL and broker records. }
+    limits: { timeoutMs: 30000 }
+    installation: never

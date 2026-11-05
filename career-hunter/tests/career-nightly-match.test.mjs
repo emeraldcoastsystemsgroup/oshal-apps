@@ -79,6 +79,19 @@ test('a kept owner run matches before scoring, publishes success only on valid c
   assert.equal(fresh.nightlyMatchDecision(dir, corpusDb).reason, null, 'the next evening publication is due even after midday catch-up');
 });
 
+test('a receipt from an older match runs once more on the same corpus, then waits for the next publication', () => {
+  const dir = join(root, 'older-match'); mkdirSync(dir);
+  const file = join(dir, nightly.NIGHTLY_MATCH_FILE);
+  const stat = statSync(corpusDb);
+  const receipt = { version: 1, corpusVersion: `${Math.trunc(stat.mtimeMs)}:${stat.size}`, completedAt: new Date(Date.now() - 60_000).toISOString(), limit: 50, keywordMatched: 1, scored: 1, skipped: 0 };
+  writeFileSync(file, JSON.stringify(receipt));
+  assert.equal(nightly.nightlyMatchDecision(dir, corpusDb).reason, null, 'no contract: the match that wrote it reached fewer jobs');
+  writeFileSync(file, JSON.stringify({ ...receipt, matchContract: nightly.NIGHTLY_MATCH_CONTRACT - 1 }));
+  assert.equal(nightly.nightlyMatchDecision(dir, corpusDb).reason, null);
+  writeFileSync(file, JSON.stringify({ ...receipt, matchContract: nightly.NIGHTLY_MATCH_CONTRACT }));
+  assert.equal(nightly.nightlyMatchDecision(dir, corpusDb).reason, 'up-to-date');
+});
+
 test('malformed receipts and symlinks fail closed; missing titles and busy admission cannot consume success', async () => {
   const dir = join(root, 'invalid'); mkdirSync(dir);
   const file = join(dir, nightly.NIGHTLY_MATCH_FILE);

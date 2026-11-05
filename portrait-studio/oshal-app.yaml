@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.15.5: portrait-artist declares routing words (portrait, portrait studio, headshot, pet portrait, ...): asked from Jarvis, the request went to another application (Video Studio, Scan to Print) or to none. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — Portrait Studio
 #
@@ -38,7 +39,7 @@ description: >-
   whole crew from one group shot placed in a scene as a superhero team.
   Take the photo with your camera or upload one, crop the head (or every
   head), pick a style, generate.
-version: 1.15.5
+version: 1.15.6
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -208,7 +209,7 @@ migrations:
   - migrations/002-cost-and-resilience.sql
   - migrations/003-verified-portrait-ownership.sql
 
-theme: midnight
+theme: light-blue
 
 ribbon:
   defaultView: portrait-studio

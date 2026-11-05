@@ -11,6 +11,8 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | The administrator-only page speaks to the person: it told them an operator adds their subject to CAREER_HUNTER_ADMIN_SUBS 'and recreating the API container', a Docker-era step that does not exist on the native runtime. It now says to ask the person who runs the installation; the operator log line names the empty allow-list without the container step. Guard: tests/career-company-admin-copy.test.mjs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Project retained source attempts and content-delta counts through the existing administrator list; older snapshots explicitly have no recorded health.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | The same administrator list carries the latest nightly source review, so the report needs no new route or permission.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Resolve is honest on the native kernel, where request sandboxes mount the corpus read-only: the list says sources cannot be changed here and the route refuses before starting an engine that would die with 'attempt to write a readonly database'.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Resolve works on the native kernel. Where a request cannot write the corpus the route saves the change for the next pull and answers 202; the list says how changes work here and what became of each one. A board named by the source review can be accepted without a link.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isCareerAdmin = isCareerAdmin;
@@ -19,6 +21,7 @@ const logger_1 = require("@/shared/logger");
 const authz_1 = require("@/shared/middleware/authz");
 const career_user_store_1 = require("./career-user-store");
 const { sourceHealthByCompany, latestSourceReview } = require('../lib/career-source-health');
+const { saveChange, sourceChanges, validTarget } = require('../lib/career-source-requests');
 const career_engine_dispatch_1 = require("./career-engine-dispatch");
 const career_engine_response_1 = require("./career-engine-response");
 const career_surface_routes_1 = require("./career-surface-routes");
@@ -122,6 +125,10 @@ const requireCareerAdmin = (req, res, next) => {
     }
     res.json({ error: 'admin only' });
 };
+/** The native kernel binds the shared corpus read-only into every request; only its nightly pull writes it. */
+function canChangeSources() {
+    return process.env.OSHAL_EGRESS !== 'kernel';
+}
 function listCompanies(req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     const db = userSub && (0, career_user_store_1.openCorpusDb)();
@@ -137,7 +144,8 @@ function listCompanies(req, res) {
         const health = sourceHealthByCompany(db);
         res.json({ companies: companies.map((company) => ({ ...company,
             pull_health: health.states.get(company.id) ?? { status: 'unavailable', reason: 'not_recorded_yet' },
-        })), sourceHealth: { available: health.available, reason: health.reason }, sourceReview: latestSourceReview(db) });
+        })), sourceHealth: { available: health.available, reason: health.reason }, sourceReview: latestSourceReview(db),
+            sourceChangeMode: canChangeSources() ? 'now' : 'next-pull', sourceChanges: sourceChanges(db, (0, career_user_store_1.userPaths)(userSub).userDir) });
     }
     catch (err) {
         logger.error({ err, userSub }, 'company list failed');
@@ -147,10 +155,42 @@ function listCompanies(req, res) {
         db.close();
     }
 }
+/** The change waits in the caller's store; the kernel hands it on only if this admission holds the permission. */
+function queueSourceChange(req, res, userSub) {
+    const companyId = parseInt(String(req.query.companyId ?? ''), 10);
+    const target = validTarget(req.query.board ?? req.query.url);
+    if (!companyId || companyId < 1 || !target) {
+        res.status(400).json({ ok: false, error: 'A company and a job board link are required.' });
+        return;
+    }
+    if (!corpusListsCompany(companyId)) {
+        res.status(404).json({ ok: false, error: 'That company is no longer listed.' });
+        return;
+    }
+    const request = saveChange((0, career_user_store_1.userPaths)(userSub).userDir, companyId, target);
+    res.status(202).json({ ok: true, queued: true, request: { ...request, state: 'waiting', detail: {} },
+        message: 'Saved. The next nightly pull applies this and reads its jobs.' });
+}
+/** Whether the published corpus lists this company. */
+function corpusListsCompany(companyId) {
+    const db = (0, career_user_store_1.openCorpusDb)();
+    if (!db)
+        return false;
+    try {
+        return !!db.prepare('SELECT 1 FROM corpus.companies WHERE id=?').get(companyId);
+    }
+    finally {
+        db.close();
+    }
+}
 async function setCompanyUrl(ctx, req, res) {
     const userSub = (0, career_user_store_1.callerSub)(req);
     if (!userSub) {
         res.status(401).json({ error: 'unauthorized' });
+        return;
+    }
+    if (!canChangeSources()) {
+        queueSourceChange(req, res, userSub);
         return;
     }
     const companyId = parseInt(String(req.query.companyId ?? ''), 10);

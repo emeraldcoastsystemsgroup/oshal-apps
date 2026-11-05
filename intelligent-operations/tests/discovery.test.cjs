@@ -72,3 +72,12 @@ test('a forced read happens inside the interval, and a long live history still r
   assert.ok(earlier.assets.some(a=>a.name==='worker-'+(10%3)),'as of an earlier time, that time\'s scan');
  }finally{await f.close();}
 });
+
+test('past the tick deadline discovery reads no more, and answers that it ran out of time',async()=>{
+ const {fixture}=require('./fixtures/intake.cjs'),{saveDiscoveryConfig,runDiscovery}=require('../routes/discovery.js'),f=await fixture();
+ try{const pool=f.caller('alice'),source={id:'a'.repeat(64),name:'c',source:'urn:operations:source:c',environment:'c'},calls=[];
+  await saveDiscoveryConfig(pool,'alice',{enabled:true,sourceId:source.id,account:'default',namespace:'default',scope:'c',intervalMinutes:15,expectedRevision:0},[source.id]);
+  const out=await runDiscovery({pool,intent:async(name,input)=>{calls.push(input.operation);await new Promise(r=>setTimeout(r,60));return {items:[],observedAt:new Date().toISOString()};}},'alice',[source],Date.now,true,Date.now()+20);
+  assert.equal(out.state,'failed');assert.match(out.error,/ran out of time/);assert.ok(calls.length<3,'stopped between reads: '+calls);
+ }finally{await f.close();}
+});

@@ -34,13 +34,24 @@ test('two real SQL workers drain distinct occurrences exactly once and reserve e
 test('retry backoff, exhaustion, explicit recovery and foreign-owner refusal survive separate SQL sessions',async()=>{
  const x=await setup();try{
   await x.config({maxAttempts:2});const id=await x.event('retry');let at=Date.parse('2026-10-21T01:00:00Z');const clock=()=>at;
-  const down=async()=>{throw Error('unavailable');};assert.equal((await processPending(x.p,down,x.owner,clock)).failed,1);
+  const down=async()=>{throw Object.assign(Error('refused for this record'),{status:409});};assert.equal((await processPending(x.p,down,x.owner,clock)).failed,1);
   assert.equal((await processPending(x.f.caller(x.owner),down,x.owner,clock)).failed,0);
   at+=10000;assert.equal((await processPending(x.p,down,x.owner,clock)).failed,1);
   assert.equal((await processingRecords(x.p,x.owner)).jobs[0].state,'attention');
   await assert.rejects(retryProcessing(x.f.caller('other'),'other',id,clock),{status:404});
   await retryProcessing(x.p,x.owner,id,clock);assert.equal((await processPending(x.p,x.e.engine,x.owner,clock)).evaluated,1);
   assert.equal((await pipelineRecords(x.p,x.owner)).evidenceWork.length,1);
+ }finally{await x.close();}
+});
+test('an engine that does not answer spends no retries, however long it lasts, and the retry waits at most 5 minutes',async()=>{
+ const x=await setup();try{
+  await x.config({maxAttempts:2});await x.event('outage');let at=Date.parse('2026-10-21T01:00:00Z');const clock=()=>at;
+  for(const [down,why] of [[async()=>{throw Error('connection refused');},'no status'],[async()=>{throw Object.assign(Error('The detection engine is busy; retry shortly.'),{status:503});},'a 503']]){
+   for(let i=0;i<6;i++){assert.equal((await processPending(x.p,down,x.owner,clock)).failed,1,why);const job=(await processingRecords(x.p,x.owner)).jobs[0];assert.equal(job.state,'retry',why+': not attention');assert.ok(Date.parse(job.readyAt)-at<=300000,'the wait is capped');at=Date.parse(job.readyAt)+1;}
+  }
+  const job=(await processingRecords(x.p,x.owner)).jobs[0];assert.equal(job.processing.attempts,0,'an interrupted attempt after the outage cannot reach attention');
+  const rows=(await x.f.inspect.query('SELECT id FROM operations_processing_attempts WHERE user_sub=$1',[x.owner])).rows.length;assert.ok(rows<=4,'an outage stops adding attempt rows: '+rows);
+  assert.equal((await processPending(x.p,x.e.engine,x.owner,clock)).evaluated,1,'it reaches a decision when the engine answers, with nobody pressing Retry');
  }finally{await x.close();}
 });
 test('expired leases are recoverable and the stale worker cannot publish a decision',async()=>{

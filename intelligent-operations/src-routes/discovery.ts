@@ -1,3 +1,4 @@
+/** CHANGE LOG: discovery deadline | maintainer@emeraldcoastsystemsgroup.com | Discovery stops at the tick's deadline between its three reads, because three slow reads could reach the kernel's 60 s and cost a budget reservation (fourth review, 2026-11-04). */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Record each pod's container names in the live scan (identical to the panel builder). */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | A forced read: when the tick admits alerts that need evidence, discovery reads the cluster at once, so the evidence packet can name the alerting pod even when it appeared since the last interval (R17). */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Scheduled live discovery (R15, kernel ADR-196): with the person's opt-in, the processing tick reads one cluster's nodes and one namespace's pods and deployments through the person's own Kubernetes connection (kernel `connector.read`, read path only) at most once per chosen interval, and saves them as a live scan of a recorded cluster exactly as the Systems panel's Read and Save do. The attempt is claimed before the read, so concurrent ticks read once; a refused or failed read is recorded for the person and waits for the next interval. Nothing is executed. */
@@ -62,7 +63,7 @@ async function update(pool,owner,revision,patch,when){
 }
 
 /** @description On the tick: when due (or forced, when new alerts need evidence about the cluster now), claim the attempt, read through `connector.read`, save the live scan and record the outcome. */
-export async function runDiscovery(ctx,owner,sources,clock=Date.now,force=false){
+export async function runDiscovery(ctx,owner,sources,clock=Date.now,force=false,until=Infinity){
  const config=await discoveryConfig(ctx.pool,owner),now=clock();
  if(!config.enabled)return {enabled:false};
  if(typeof ctx.intent!=='function')return {enabled:true,available:false,reason:'The kernel connector read port is unavailable; read the cluster from Systems.'};
@@ -73,7 +74,8 @@ export async function runDiscovery(ctx,owner,sources,clock=Date.now,force=false)
  const source=sources.find(s=>s.id===config.sourceId);
  if(!source)result={state:'failed',error:'The chosen source revision is no longer saved; choose another in Systems.'};
  else try{
-  const read=(operation,input)=>ctx.intent('connector.read',{connector:'kubernetes',operation,account:config.account,input});
+  // The kernel allows each read 20 s and ends the whole call at 60 s: past the tick's deadline the next read waits for the next attempt.
+  const read=(operation,input)=>{if(Date.now()>=until)throw Error('The tick ran out of time before this read; the next attempt reads again.');return ctx.intent('connector.read',{connector:'kubernetes',operation,account:config.account,input});};
   const nodes=await read('kubernetes-list-nodes',{}),pods=await read('kubernetes-list-pods',{namespace:config.namespace}),deployments=await read('kubernetes-list-deployments',{namespace:config.namespace});
   const scan=liveScan(config.scope,config.namespace,nodes.items||[],pods.items||[],deployments.items||[],nodes.observedAt,[nodes,pods,deployments].some(r=>r.truncated));
   const saved=await saveScan(ctx.pool,owner,source,scan);

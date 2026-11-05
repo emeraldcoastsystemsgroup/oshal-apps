@@ -19,7 +19,7 @@ rating:
   features: []   # no model in the loop (T0)
 displayName: Hello OSHAL
 description: The minimal working OSHAL app package — one JSON route, one themed ribbon surface.
-version: 1.2.3
+version: 1.2.4
 status: active
 scope: person
 chatBot: general-bot
@@ -91,4 +91,4 @@ routes:
     requiresAuth: false
     requiresContext: false
 
-theme: midnight
+theme: light-blue

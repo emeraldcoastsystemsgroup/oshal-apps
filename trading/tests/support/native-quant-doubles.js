@@ -47,11 +47,12 @@ function candles(dates, dailyReturn, start = 100, volume = 1000000) {
  * @returns {{query:Function, rows:Map}} A pool double.
  */
 function memoryPool() {
-  const rows = new Map();
+  const rows = new Map(),portfolioRows=new Map();
   const keep = (id, group, payload) => rows.set(id, { group, payload });
   return {
-    rows,
+    rows,portfolioRows,
     async query(sql, args) {
+      if(sql.startsWith('SELECT')&&sql.includes('oshal_trading_portfolio_records'))return {rows:[...portfolioRows.values()].filter(r=>r.user_sub===args[0]&&r.kind===args[1])};
       if (sql.includes('oshal_trading_watchlist')) return { rows: [{ symbol: 'WATCH' }] };
       if (sql.includes('trading_quant_records')) return { rows: [], rowCount: 0 };
       const table = sql.includes('trading_quant_prices') ? 'p:' : 's:';

@@ -4,6 +4,7 @@ exports.detectorConfig = detectorConfig;
 exports.saveDetectorConfig = saveDetectorConfig;
 exports.runDetection = runDetection;
 exports.anomalyRecords = anomalyRecords;
+/** CHANGE LOG: detection deadline | maintainer@emeraldcoastsystemsgroup.com | Detection stops at the tick's deadline, between sources and between readings (fourth review, 2026-11-04). A tick the kernel ended mid-detection left candidates admitted behind an uncommitted cursor, and the next pass re-emitted them with a new evaluatedAt, which admit called a conflict, so that source failed every tick for good. A re-emitted candidate is now the same occurrence. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Express the compound cursor without a row-value comparison: the native package SQL interpreter refuses Tuple expressions (installed lab run 2026-10-22), and the OR form is equivalent. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Anomaly service on the retained telemetry banks: a persisted per-resource/metric baseline with a compound cursor, scoring before learning, explicit cold/ready/stale/failed readiness, and candidates admitted through the normal alert intake under a dedicated source revision so they flow into percolation and reduction like any source alert. */
 // @ts-nocheck
@@ -64,7 +65,7 @@ function candidate(config, source, delivery, point, result, status, now) {
             detector, metric: { name: point.name, unit: point.unit || null, value: point.value, observedAt: point.observedAt, telemetrySourceId: point.sourceId, observationId: delivery }, window: result.window, baseline: result.baseline, score: result.score, confidence: result.confidence, readiness: result.readiness, evaluatedAt: now, localDetection: true } };
 }
 /** @description One bounded detection pass per telemetry source: lock the cursor, score new metric samples in (observed_at,id) order, admit candidates through intake (idempotent by candidate id), then advance the cursor only after every admit of the batch succeeded. */
-async function detectSource(pool, owner, config, sources, sourceId, clock) {
+async function detectSource(pool, owner, config, sources, sourceId, clock, until = Infinity) {
     const candidateSource = sources.find(s => s.id === config.candidateSourceId);
     if (!candidateSource)
         fail(409, 'The candidate source revision is unavailable.');
@@ -77,7 +78,7 @@ async function detectSource(pool, owner, config, sources, sourceId, clock) {
         const rows = await observations(c, owner, sourceId, cursor), baselines = new Map();
         let last = null;
         for (const r of rows) {
-            if (Date.now() - started > BUDGET_MS)
+            if (Date.now() - started > BUDGET_MS || Date.now() >= until)
                 break;
             const point = r.record;
             last = { observedAt: new Date(r.observed_at).toISOString(), id: r.id };
@@ -112,7 +113,7 @@ async function detectSource(pool, owner, config, sources, sourceId, clock) {
                 summary.invalid++;
             if (result.emit) {
                 const event = candidate(config, candidateSource, r.id, { ...point, sourceId }, result, result.emit, new Date(clock()).toISOString());
-                const admitted = await (0, intake_2.admit)(pool, owner, candidateSource, event);
+                const admitted = await (0, intake_2.admit)(pool, owner, candidateSource, event, { sameOccurrence: true });
                 if (admitted.status >= 400)
                     fail(503, 'Candidate admission refused: ' + (admitted.attempt?.reasons?.[0] || admitted.status));
                 if (result.emit === 'firing')
@@ -137,13 +138,15 @@ async function recordFailure(pool, owner, sourceId, error, clock) { try {
 }
 catch { /* the next tick reports the same failure */ } }
 /** @description Run detection for every enabled telemetry source; a failed source keeps its cursor and records the failure, so nothing is skipped silently. */
-async function runDetection(pool, owner, sources, clock = Date.now) {
+async function runDetection(pool, owner, sources, clock = Date.now, until = Infinity) {
     const config = await detectorConfig(pool, owner), results = [];
     if (!config.enabled)
         return { enabled: false, results };
     for (const sourceId of config.telemetrySourceIds) {
+        if (Date.now() >= until)
+            break;
         try {
-            results.push(await detectSource(pool, owner, config, sources, sourceId, clock));
+            results.push(await detectSource(pool, owner, config, sources, sourceId, clock, until));
         }
         catch (error) {
             await recordFailure(pool, owner, sourceId, error, clock);

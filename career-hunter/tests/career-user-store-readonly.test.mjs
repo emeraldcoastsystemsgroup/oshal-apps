@@ -50,7 +50,7 @@ function fixture() {
   db.exec('CREATE TABLE postings_corpus(id INTEGER PRIMARY KEY); INSERT INTO postings_corpus VALUES(7)');
   db.close();
   db = new DatabaseSync(userDb);
-  db.exec("PRAGMA journal_mode=WAL; CREATE TABLE user_signals(posting_id INTEGER PRIMARY KEY,status TEXT,notes TEXT); INSERT INTO user_signals(posting_id,status) VALUES(7,'new')");
+  db.exec("PRAGMA journal_mode=WAL; CREATE TABLE user_signals (posting_id INTEGER PRIMARY KEY,status TEXT,notes TEXT, ai_input_fingerprint TEXT); INSERT INTO user_signals(posting_id,status) VALUES(7,'new')");
   db.close();
   const previous = [process.env.JOBHUNTER_STORE_ROOT, process.env.OSHAL_CAREER_OWNER_MOUNT];
   process.env.JOBHUNTER_STORE_ROOT = root;

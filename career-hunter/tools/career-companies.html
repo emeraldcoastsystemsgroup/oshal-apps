@@ -136,7 +136,7 @@
         <a href="/cockpit/">Cockpit</a>
       </nav>
     </div>
-    <div class="sub">Every company and its detected job board. Paste the real careers / jobs URL and hit
+    <div class="sub" id="companiesIntro">Every company and its detected job board. Paste the real careers / jobs URL and hit
       <b>Resolve</b> to re-detect the ATS and scrape now. Writes the shared corpus for all users.</div>
   </header>
   <div class="bar">
@@ -159,10 +159,11 @@
   <div class="wrap">
     <p class="sub" id="healthNote" role="status">Checking source history…</p>
     <p class="sub" id="healthSummary" role="status"></p>
+    <section class="review" id="sourceChanges" aria-labelledby="sourceChangesTitle" hidden></section>
     <section class="review" id="sourceReview" aria-labelledby="sourceReviewTitle" hidden></section>
     <table>
       <thead><tr><th>Company</th><th style="text-align:right">Jobs</th><th>Platform</th><th>Latest pull</th>
-        <th>Careers / jobs URL — paste the real search URL &amp; Resolve</th></tr></thead>
+        <th id="urlHeading">Careers / jobs URL — paste the real search URL &amp; Resolve</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
     <div class="empty" id="empty" hidden></div>
@@ -178,15 +179,112 @@ function needsAttention(c) { return !c.ats_type || (c.active_jobs || 0) === 0 ||
   || ['failed', 'partial', 'empty_unconfirmed'].includes(c.pull_health?.status); }
 function unconfirmedPull(c) { return ['failed', 'partial', 'empty_unconfirmed', 'running'].includes(c.pull_health?.status); }
 
-const PULL_REASONS = { fetch_failed: 'The source could not be read.', http_refused: 'The source refused a request.', pagination_incomplete: 'Not every page was received.', completion_unverified: 'This connector has no complete-feed proof yet.', empty_unconfirmed: 'An empty response does not prove every job closed.', invalid_feed_rows: 'The source returned invalid or duplicate job records.', page_limit_reached: 'The source has more jobs than could be read.', browser_navigation_failed: 'The page could not be opened.', browser_read_failed: 'The page could not be read.', challenge_detected: 'The site asked for a human check.' };
+let sourceChangeMode = 'now';
+let CHANGES = [];
+const PULL_REASONS = { fetch_failed: 'The source could not be read.', http_refused: 'The source refused a request.', pagination_incomplete: 'Not every page was received.', completion_unverified: 'This connector has no complete-feed proof yet.', empty_unconfirmed: 'An empty response does not prove every job closed.', invalid_feed_rows: 'The source returned invalid or duplicate job records.', page_limit_reached: 'The source has more jobs than could be read.', browser_navigation_failed: 'The page could not be opened.', browser_read_failed: 'The page could not be read.', challenge_detected: 'The site asked for a human check.', pull_interrupted: 'The pull stopped three times while reading this source, so it was skipped that night.' };
 
 /** One expandable list; nothing at all when it is empty, so the card stays short on a quiet night. */
-function reviewList(title, items, line, hint) {
+function reviewList(title, items, line, hint, actions) {
   const shown = Array.isArray(items) ? items.filter(Boolean) : [];
   if (!shown.length) return '';
   return '<details><summary>' + esc(title) + ' (' + shown.length + ')</summary>'
     + (hint ? '<p class="sub">' + esc(hint) + '</p>' : '')
-    + '<ul>' + shown.map(item => '<li>' + esc(line(item)) + '</li>').join('') + '</ul></details>';
+    + '<ul>' + shown.map(item => '<li>' + esc(line(item)) + (actions ? actions(item) : '') + '</li>').join('') + '</ul></details>';
+}
+
+/** One press per board the review named, only where a saved change reaches the next pull. */
+function acceptButtons(item) {
+  if (sourceChangeMode !== 'next-pull' || !item.id) return '';
+  if (latestChange(item.id)?.state === 'waiting') return ' <span class="sub">Saved. Waiting for the next pull.</span>';
+  return (item.options || []).map(board => ' <button type="button" class="pg accept" data-company="' + esc(item.id)
+    + '" data-board="' + esc(board) + '">Accept ' + esc(board) + '</button>').join('');
+}
+
+/** The newest change for one company, if any. */
+function latestChange(companyId) {
+  return CHANGES.find(change => change && change.companyId === companyId);
+}
+
+/** What became of a change, in words. Employer and board text is escaped by whoever shows this. */
+function changeText(change) {
+  const d = change.detail || {};
+  const n = (value) => Number(value || 0).toLocaleString();
+  switch (change.state) {
+    case 'waiting': return 'Waiting for the next nightly pull.';
+    case 'started': return 'The last pull did not finish applying this.';
+    case 'applied': return 'Applied: now reading ' + d.board + ', ' + n(d.jobs) + ' jobs, ' + n(d.new) + ' new, ' + n(d.closed) + ' closed.';
+    case 'saved_no_jobs': return 'The link was saved, but no jobs could be read from it, so the source did not change.';
+    case 'no_jobs': return 'Not applied: that board returned no jobs.';
+    case 'duplicate': return 'Not applied: ' + d.owner + ' already uses ' + d.board + '.';
+    case 'unknown_company': return 'Not applied: that company is no longer listed.';
+    case 'bad_target': return 'Not applied: that is not a job board link.';
+    case 'unsafe': return 'Not applied: that link leads to a private address.';
+    case 'timeout': return 'Not applied: reading it took more than 5 minutes.';
+    case 'interrupted': return 'Not applied: the pull stopped 3 times while applying it. Press Resolve to try again.';
+    default: return 'Not applied: the pull could not read it.';
+  }
+}
+
+function renderSourceChanges() {
+  const card = $('#sourceChanges');
+  const shown = CHANGES.filter(Boolean).slice(0, 20);
+  card.hidden = !shown.length;
+  if (!shown.length) return;
+  const name = (id) => ALL.find(c => c.id === id)?.name || ('Company ' + id);
+  card.innerHTML = '<h2 id="sourceChangesTitle">Source changes</h2><ul>'
+    + shown.map(change => '<li>' + esc(name(change.companyId)) + ': ' + esc(change.target || '') + '. ' + esc(changeText(change)) + undoButton(change) + '</li>').join('')
+    + '</ul>';
+}
+
+/** A wrong press closes the jobs the new board does not list, so going back takes one press too. */
+function undoButton(change) {
+  const before = change.detail?.from;
+  if (change.state !== 'applied' || sourceChangeMode !== 'next-pull' || !before || /:$/.test(before)) return '';
+  if (latestChange(change.companyId) !== change) return '';
+  return ' <button type="button" class="pg undo" data-company="' + esc(change.companyId) + '" data-board="' + esc(before) + '">Undo: back to ' + esc(before) + '</button>';
+}
+
+async function undoChange(button) {
+  button.disabled = true;
+  let error = 'Could not be saved.';
+  try {
+    const d = await sendChange(Number(button.dataset.company), 'board', button.dataset.board);
+    if (d.ok && d.queued) { render(); return; }
+    error = d.error || error;
+  } catch (e) { error = 'Request failed: ' + e; }
+  button.disabled = false;
+  button.insertAdjacentHTML('afterend', ' <span class="sub">' + esc(error) + '</span>');
+}
+
+/** Ask for a change; the answer says whether it applied now or waits for the next pull. */
+async function sendChange(companyId, field, value) {
+  const r = await fetch('/api/career-hunter/companies-admin/seturl?companyId=' + encodeURIComponent(companyId)
+    + '&' + field + '=' + encodeURIComponent(value), { method: 'POST' });
+  const d = await r.json();
+  if (d.ok && d.queued && d.request) {
+    CHANGES.unshift(d.request);
+    renderSourceChanges();
+  }
+  return d;
+}
+
+async function acceptSuggestion(button) {
+  const line = button.parentElement;
+  button.disabled = true;
+  const company = Number(button.dataset.company);
+  let error = 'Could not be saved.';
+  try {
+    const d = await sendChange(company, 'board', button.dataset.board);
+    if (d.ok && d.queued) {
+      line.querySelectorAll('button.accept').forEach(b => b.remove());
+      line.insertAdjacentHTML('beforeend', ' <span class="sub">Saved. Waiting for the next pull.</span>');
+      render();
+      return;
+    }
+    error = d.error || error;
+  } catch (e) { error = 'Request failed: ' + e; }
+  button.disabled = false;
+  line.insertAdjacentHTML('beforeend', ' <span class="sub">' + esc(error) + '</span>');
 }
 
 function renderSourceReview(r) {
@@ -212,7 +310,9 @@ function renderSourceReview(r) {
     + n(r.delta.unchanged) + ' unchanged, ' + n(r.delta.closed) + ' closed. ' + n(r.delta.notModified) + ' sources answered not modified.</p>'
     + reviewList('Repaired', r.review.repaired, i => i.company + ': ' + i.from + ' → ' + i.to + ', ' + n(i.jobs) + ' jobs')
     + reviewList('Suggested, not applied', r.review.suggested, i => i.company + ': ' + (i.options || []).join(', ') + (i.jobs == null ? '' : ', ' + n(i.jobs) + ' jobs') + ', ' + i.reason,
-      'To accept one, paste that employer\'s job board URL into its row below and press Resolve.')
+      sourceChangeMode === 'next-pull'
+        ? 'Nothing was changed, because the review could not prove these boards belong to the employer. Accept one and the next pull moves the employer to it, and closes its jobs that board does not list. You can undo it from Source changes. Or paste a link into its row below.'
+        : 'To accept one, paste that employer\'s job board URL into its row below and press Resolve.', acceptButtons)
     + reviewList('Board already held by another employer', r.review.duplicates, i => i.company + ': ' + i.board + ' is held by ' + i.owner)
     + reviewList('Closed more than half its jobs in this pull', r.massClosed, i => i.company + ' (' + i.ats + '): ' + n(i.closed) + ' closed, ' + n(i.kept) + ' kept',
       'A large closure can be real, or a feed that stopped returning everything.')
@@ -301,6 +401,7 @@ function render() {
       '<td>' + pullHealth(c) + '</td>' +
       '<td><div class="urlcell"><input class="url" value="' + esc(c.careers_url || '') + '" ' +
       'placeholder="paste careers / jobs search URL…" aria-label="Careers URL for ' + esc(c.name) + '" /><button type="button">Resolve</button></div>' +
+      (latestChange(c.id) ? '<div class="sub change">' + esc(changeText(latestChange(c.id))) + '</div>' : '') +
       '<div class="msg" hidden></div></td>';
     const input = tr.querySelector('input.url');
     const btn = tr.querySelector('button');
@@ -318,10 +419,13 @@ async function resolve(c, input, btn, msg, tr) {
   if (!url) { show(msg, 'Enter a URL first.', 'err'); return; }
   btn.disabled = true; btn.textContent = 'Resolving…'; msg.hidden = true;
   try {
-    const r = await fetch('/api/career-hunter/companies-admin/seturl?companyId=' + c.id +
-      '&url=' + encodeURIComponent(url), { method: 'POST' });
-    const d = await r.json();
-    if (d.ok && d.result) {
+    const d = await sendChange(c.id, 'url', url);
+    if (d.ok && d.queued) {
+      const line = tr.querySelector('.change');
+      if (line) line.textContent = changeText(d.request);
+      else msg.insertAdjacentHTML('beforebegin', '<div class="sub change">' + esc(changeText(d.request)) + '</div>');
+      show(msg, d.message || 'Saved.', 'ok');
+    } else if (d.ok && d.result) {
       c.active_jobs = d.result.jobs != null ? d.result.jobs : c.active_jobs;
       c.ats_type = d.result.atype || c.ats_type; c.careers_url = url;
       tr.querySelector('td.jobs').textContent = (c.active_jobs || 0).toLocaleString();
@@ -344,9 +448,23 @@ async function load() {
     if (!r.ok) throw new Error('Source configuration could not be read (HTTP ' + r.status + ').');
     const d = await r.json();
     ALL = d.companies || [];
+    sourceChangeMode = d.sourceChangeMode === 'next-pull' ? 'next-pull' : 'now';
+    CHANGES = Array.isArray(d.sourceChanges) ? d.sourceChanges : [];
+    if (sourceChangeMode === 'next-pull') {
+      $('#companiesIntro').textContent = 'Every company and its detected job board. Paste the real careers or jobs link and press Resolve. The next nightly pull applies it and reads its jobs, and this page shows what happened.';
+    }
+    try { renderSourceChanges(); } catch { $('#sourceChanges').hidden = true; }
     $('#healthNote').textContent = d.sourceHealth?.available
       ? 'Source history records each employer separately. Boards may still be fetched in full; unchanged posting bodies are retained. Only verified complete results may close missing jobs.'
       : 'This snapshot has no recorded pull history yet. Existing jobs and dates do not prove that every source was checked. History appears after the updated ingestion runs.';
+    $('#sourceChanges').onclick = (event) => {
+      const button = event.target.closest('button.undo');
+      if (button) undoChange(button);
+    };
+    $('#sourceReview').onclick = (event) => {
+      const button = event.target.closest('button.accept');
+      if (button) acceptSuggestion(button);
+    };
     try { renderSourceReview(d.sourceReview); }
     catch { renderSourceReview({ unreadable: true }); } // A bad report must not hide the company list.
     render();
