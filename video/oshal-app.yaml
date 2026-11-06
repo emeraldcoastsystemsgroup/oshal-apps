@@ -1,3 +1,4 @@
+# 1.12.3 | maintainer@emeraldcoastsystemsgroup.com | Declare restricted source editing with paired native public-share and typed-object authorization.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
@@ -41,6 +42,9 @@
 # Framework: OSHAL (see docs/adr/085-remote-app-packages-and-registries.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.12.2: admit the manual timeline without Vids while retaining explicit generation dependencies.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | 1.12.4: on a phone an empty project shows Add a clip as its one first action and the app bar is one row; the manifest no longer forces the sakura theme, so Video wears the person's portal theme (Roger, trial.oswarm.ai, 2026-11-06, F4).
 name: video
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -69,16 +73,19 @@ rating:
       generation: hosted
       degrade: disable
 displayName: Video Studio
-description: >-
-  Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea.
-  Shape the style, tone, length, captions and voiceover; the director storyboards it and the
-  studio renders a real .mp4 with voiceover and captions, saved to your Files storage.
-version: 1.11.1
+description: "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor."
+version: 1.12.4
 status: active
 chatBot: video-editor
+artifacts:
+  accepts:
+    - id: edit-video
+      label: Edit clip in Video
+      types: [video/mp4]
+      mode: open
 
-# Per-app skin (approved palette) — sakura so the media studio reads distinct.
-theme: sakura
+# No theme of its own: Video follows the person's portal theme, light-blue when none is saved
+# (docs/ux/screen-standard.md §1; Roger, 2026-11-06, F4: "has a theme that I've never seen before").
 
 source:
   type: git-subdir
@@ -107,6 +114,7 @@ uses:
   - storage          # video-routes.js saves finished MP4s through the kernel storage target
   - app-dependencies # compatibility floor for the tiered dependencies block (ADR-085 addendum)
   - test-catalog
+  - authenticated-artifacts # protected MP4 handle import uses the shared artifact exchange
   - application-authorization # the named catalog below; older cores refuse it instead of ignoring it
   - experience-roles
 
@@ -117,22 +125,22 @@ authorization:
   catalog: authorization.yaml
   roleTemplates:
     - id: admin
-      version: 1
+      version: 2
       label: Video Studio Administrator
       members:
         - { app: video, role: admin }
-        - { app: vids, role: '@app-admin' }
+        - { app: vids, role: admin }
         - { app: create, role: admin }
         - { app: motion-studio, role: administrator }
     - id: creator
-      version: 1
+      version: 2
       label: Video Creator
       members:
         - { app: video, role: producer }
         - { app: video, role: creator }
         - { app: video, role: editor }
         - { app: video, role: exporter }
-        - { app: vids, role: '@app-admin' }
+        - { app: vids, role: admin }
         - { app: create, role: creator }
         - { app: motion-studio, role: creator }
 
@@ -141,19 +149,24 @@ testing:
   catalog: tests/test-lab.yaml
 
 # ── Cross-package prerequisites: what this package actually reaches ─────────
+# The manual timeline owns its documents, media and exports and does not call Vids.
+# Keep Vids declared for the generation workflow without requiring its authority
+# merely to open an editor. Generation templates still grant Vids explicitly, and
+# every generation/pump operation retains its own native permission binding.
 # OPTIONAL, NOT REQUIRED: tools/video.html:461 reads /api/create/brand-kit to offer the "in brand
 # colours" chip. The chip stays hidden when the read returns nothing, so storyboarding, generation
 # and the series lifecycle are identical without Create.
 dependencies:
   required:
-    apps: [vids]
-    bots:
-      - app: vids
-        name: vids-operator
+    apps: []
+    bots: []
     tools: []
     connectors: []
   optional:
-    apps: [create, motion-studio] # optional brand kit and exact editable Motion render source
+    apps: [create, motion-studio, vids] # brand kit, exact Motion source and the separate generation workflow
+    bots:
+      - app: vids
+        name: vids-operator
     tools: []
     connectors: []
 
@@ -313,7 +326,7 @@ ribbon:
     - addressbook
     - dashboard
     - operations
-  defaultView: video-studio
+  defaultView: video-editor
 
 integrations:
   offers:
@@ -504,6 +517,7 @@ tools:
                   - extractAudio
                   - unlink
                   - text
+                  - updateText
                   - removeText
               id:
                 type: string

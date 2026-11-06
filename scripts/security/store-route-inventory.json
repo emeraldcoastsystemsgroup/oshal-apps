@@ -155,6 +155,8 @@
     "payroll|routes/payroll-routes.js|createPayrollRoutes|/api/payroll|oidc|machine-write",
     "pdf-workbench|routes/application.mjs|createPdfRoutes|/api/pdf-workbench|oidc|machine-write",
     "pdf-workbench|routes/package-smoke.js|createPackageSmokeRoutes|/api/pdf-workbench/_smoke|service|no-sql-write",
+    "phone-control|routes/package-smoke.js|createPackageSmokeRoutes|/api/phone-control/_smoke|service|no-sql-write",
+    "phone-control|routes/phone-control-routes.js|createPhoneControlRoutes|/api/phone-control|oidc|machine-write",
     "portrait-studio|routes/package-smoke.js|createPackageSmokeRoutes|/api/portrait-studio/_smoke|oidc|no-sql-write",
     "portrait-studio|routes/portrait-studio-routes.js|createPortraitStudioRoutes|/api/portrait-studio|service-or-oidc|machine-write",
     "presentations|routes/bot-presentation-routes.js|createBotPresentationRoutes|/api/presentations/sections|oidc|machine-write",

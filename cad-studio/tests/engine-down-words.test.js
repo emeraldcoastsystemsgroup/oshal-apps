@@ -25,8 +25,8 @@ function surface() {
   const $ = (id) => (nodes[id] ||= { textContent: '', className: '', hidden: true });
   const pick = (from, to) => script.slice(script.indexOf(from), script.indexOf(to, script.indexOf(from)));
   const source = pick('  const ENGINE_DOWN', '\n', 0) + '\n' + pick('  const ENGINE_SHORT', '\n') + '\n'
-    + pick('  function renderEngine(engine) {', '  function showBuild(build) {');
-  const context = { $ };
+    + pick('  let enginePoll = null;', '  function showBuild(build) {');
+  const context = { $, clearTimeout() {}, setTimeout() { throw new Error('unexpected readiness polling'); } };
   vm.createContext(context);
   vm.runInContext(source + '\nthis.renderEngine = renderEngine; this.buildWords = buildWords;', context);
   return { nodes, renderEngine: context.renderEngine, buildWords: context.buildWords };

@@ -19,6 +19,7 @@ async function open(t) {
  await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Original PDF preserved'));
  await page.locator('#title').fill('My PDF');await page.locator('#create').click();await page.waitForFunction(()=>document.querySelectorAll('.page').length===2);
  await page.waitForFunction(()=>window.__oshalDocumentSession);
+ for(const title of ['Selected pages','Form fields'])await page.locator('summary').filter({hasText:new RegExp('^'+title+'$')}).click();
  const api=async(path,body)=>{const response=await fetch(f.url+'/api/pdf-workbench'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const result=await response.json();assert.ok(response.ok,JSON.stringify(result));return result;};
  return{f,page,api,id:new URL(page.url()).searchParams.get('document')};
 }
@@ -43,7 +44,7 @@ test('PDF handoffs wait for the actual saved form/page revision and refresh nati
 });
 test('a rejected PDF automatic save blocks the read and preserves the local operation',async t=>{
  const {page,f,api,id}=await open(t);await page.locator('.page input').first().check();await page.locator('#rotate').click();f.states.get('alice').add('document.change');
- await assert.rejects(begin(page));assert.equal((await api('/documents/'+id)).document.revision,1);assert.match(await page.locator('.page img').first().getAttribute('style'),/90deg/);
+ await assert.rejects(begin(page));assert.equal((await api('/documents/'+id)).document.revision,1);assert.ok(Math.abs(await page.locator('.pdf-page-surface').first().evaluate(node=>{const[w,h]=node.style.aspectRatio.split('/').map(Number);return w/h;})-200/240)<1e-5);await page.locator('#undo').click();assert.ok(Math.abs(await page.locator('.pdf-page-surface').first().evaluate(node=>{const[w,h]=node.style.aspectRatio.split('/').map(Number);return w/h;})-240/200)<1e-5);
 });
 test('PDF refresh retains a concurrent focused form field',async t=>{
  const {page,api,id}=await open(t);const first=await begin(page),{document}=await api('/documents/'+id);
@@ -53,11 +54,11 @@ test('PDF refresh retains a concurrent focused form field',async t=>{
 test('a queued PDF save cannot replace a different document opened before it finishes',async t=>{
  const {page,api,id}=await open(t),{document}=await api('/documents/'+id);
  await page.waitForFunction(()=>[...document.querySelectorAll('.page img')].every(image=>image.complete));
- const second=await api('/documents',{source:document.model.pages[0].source,title:'Other PDF',requestKey:randomUUID()});await page.locator('#refresh').click();await page.getByRole('button',{name:'Other PDF · revision 1',exact:true}).waitFor();
+ const second=await api('/documents',{source:document.model.pages[0].source,title:'Other PDF',requestKey:randomUUID()});await page.locator('#refresh').click();await page.getByRole('button',{name:'Other PDF',exact:true}).waitFor();
  let arrived,release;const seen=new Promise(resolve=>{arrived=resolve;}),gate=new Promise(resolve=>{release=resolve;});t.after(()=>release());
  await page.route('**/api/pdf-workbench/jobs/*',async route=>{const response=await route.fetch();arrived();await gate;await route.fulfill({response});});
  await page.locator('.page input').first().check();await page.locator('#rotate').click();const handoff=begin(page).then(value=>({value}),error=>({error:error.message}));await seen;
- await page.getByRole('button',{name:'Other PDF · revision 1',exact:true}).click();await page.waitForFunction(()=>document.getElementById('document-title').textContent==='Other PDF');release();
+ await page.getByRole('button',{name:'Other PDF',exact:true}).click();await page.waitForFunction(()=>document.getElementById('document-title').textContent==='Other PDF');release();
  assert.match((await handoff).error,/open PDF or its draft changed/);assert.equal(await page.locator('#document-title').textContent(),'Other PDF');assert.equal((await begin(page)).recordId,second.document.id);
 });
 

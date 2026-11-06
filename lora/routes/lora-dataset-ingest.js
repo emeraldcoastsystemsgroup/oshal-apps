@@ -38,6 +38,8 @@ exports.recordDatasetCallback = recordDatasetCallback;
  *    holding that import's callback grant while the receipt is queued, and are deleted by the
  *    worker's ready/failed callback.
  */
+const lora_dataset_import_state_1 = require("./lora-dataset-import-state");
+const lora_caption_editor_1 = require("./lora-caption-editor");
 const express_1 = require("express");
 const node_crypto_1 = require("node:crypto");
 const logger_1 = require("@/shared/logger");
@@ -259,10 +261,17 @@ async function expireDatasetStaging(pool, characterId) {
 }
 /** Upsert the receipt and its staged bytes atomically; returns the receipt id. */
 async function stageDatasetImage(ctx, characterId, filename, caption, image) {
+    const stageActor = await (0, lora_caption_editor_1.editorAccess)(ctx, 'lora.configure');
+    await (0, lora_caption_editor_1.assertEditorCharacterOwner)(ctx, characterId, stageActor);
     const client = await ctx.pool.connect();
     let destroy = false;
     try {
         await client.query('BEGIN');
+        await client.query('SELECT id FROM oshal_lora_characters WHERE id=$1 FOR UPDATE', [characterId]);
+        const existing = (await client.query('SELECT id,filename,status FROM oshal_lora_dataset_images WHERE character_id=$1', [characterId])).rows;
+        const stem = filename.replace(/\.[^.]+$/, '.txt').toLowerCase();
+        if (existing.some((row) => String(row.filename).replace(/\.[^.]+$/, '.txt').toLowerCase() === stem && (row.filename !== filename || row.status !== 'failed')))
+            throw Object.assign(new Error('That dataset basename is already queued or saved. Edit its caption instead of overwriting the original image.'), { status: 409 });
         const receipt = await client.query(`INSERT INTO oshal_lora_dataset_images (character_id, filename, source_name, caption, byte_size, status)
        VALUES ($1, $2, $3, $4, $5, 'queued')
        ON CONFLICT (character_id, filename) DO UPDATE SET source_name = EXCLUDED.source_name,
@@ -273,6 +282,7 @@ async function stageDatasetImage(ctx, characterId, filename, caption, image) {
        VALUES ($1, $2, $3, $4, $5, NOW() + ($6 || ' hours')::INTERVAL)
        ON CONFLICT (image_id) DO UPDATE SET content_type = EXCLUDED.content_type, byte_size = EXCLUDED.byte_size,
          sha256 = EXCLUDED.sha256, image = EXCLUDED.image, expires_at = EXCLUDED.expires_at, created_at = NOW()`, [imageId, image.type, image.bytes.length, (0, node_crypto_1.createHash)('sha256').update(image.bytes).digest('hex'), image.bytes, String(exports.DATASET_STAGING_TTL_HOURS)]);
+        await (0, lora_caption_editor_1.editorAccess)(ctx, 'lora.configure', stageActor);
         await client.query('COMMIT');
         return imageId;
     }
@@ -318,7 +328,8 @@ async function queueWorkerWrite(ctx, deps, character, receipt, sub) {
         externalUrl: null, ownerSub: sub,
         metadata: { app: 'lora', character: subject, action: 'dataset-import', filename: receipt.filename, datasetImageId: receipt.imageId },
     });
-    const command = (0, lora_train_dispatch_1.buildDatasetImportCommand)(character.config, receipt.imageId, receipt.filename, receipt.caption, sub);
+    const importRevision = await (0, lora_dataset_import_state_1.bindDatasetImport)(ctx, character.id, receipt.imageId, ticket.ticketId);
+    const command = (0, lora_train_dispatch_1.buildDatasetImportCommand)(character.config, receipt.imageId, receipt.filename, receipt.caption, sub, importRevision);
     // The grant lives exactly as long as the staged bytes it exists to fetch.
     const dispatch = await (0, lora_callback_grants_1.dispatchWithCallbackGrant)(ctx, { characterId: character.id, ownerSub: sub, ticketId: ticket.ticketId,
         dispatchKind: 'dataset-import', ttlHours: exports.DATASET_STAGING_TTL_HOURS }, command);
@@ -344,6 +355,7 @@ async function importDatasetImage(ctx, deps, req, res) {
         res.status(404).json({ error: 'character not found' });
         return;
     }
+    await (0, lora_caption_editor_1.assertEditorCharacterOwner)(ctx, character.id);
     const caption = datasetCaption(input.caption, character.config.triggerWord || input.subject);
     if (!caption) {
         res.status(400).json({ error: 'caption must be non-empty and at most 2048 UTF-8 bytes' });
@@ -399,7 +411,7 @@ async function listDatasetImages(ctx, deps, req, res) {
     const live = (await ctx.pool.query(`SELECT s.image_id FROM oshal_lora_dataset_staging s JOIN oshal_lora_dataset_images d ON d.id = s.image_id
       WHERE d.character_id = $1 AND s.expires_at > NOW()`, [character.id])).rows.map((row) => String(row.image_id));
     res.set('Cache-Control', 'private, no-store').json({ subject, storageKey: `lora-${character.id.replace(/-/g, '')}`,
-        images: effectiveDatasetReceipts(rows, new Set(live)) });
+        images: await (0, lora_caption_editor_1.decorateCaptionImages)(ctx, character.id, effectiveDatasetReceipts(rows, new Set(live))) });
 }
 /**
  * @description The studio's dataset routes (mounted inside the `auth: oidc` /api/lora router).
@@ -409,6 +421,7 @@ async function listDatasetImages(ctx, deps, req, res) {
  */
 function createLoraDatasetRoutes(ctx, deps) {
     const router = (0, express_1.Router)();
+    router.use((0, lora_caption_editor_1.createCaptionEditorRoutes)(ctx, deps));
     router.get('/dataset', async (req, res) => {
         try {
             await listDatasetImages(ctx, deps, req, res);
@@ -424,17 +437,18 @@ function createLoraDatasetRoutes(ctx, deps) {
         }
         catch (err) {
             logger.error({ err }, 'dataset import failed');
-            res.status(502).json({ error: 'dataset import failed' });
+            res.status(err.status === 409 ? 409 : 502).json({ error: err.status === 409 ? err.message : 'dataset import failed' });
         }
     });
     return router;
 }
 /** Read one staged image for its exact owner while its receipt is still queued and unexpired. */
-async function readStagedImage(pool, imageId, ownerSub) {
+async function readStagedImage(pool, imageId, ownerSub, ticketId) {
     const row = (await pool.query(`SELECT d.character_id, s.content_type, s.image FROM oshal_lora_dataset_staging s
        JOIN oshal_lora_dataset_images d ON d.id = s.image_id
        JOIN oshal_lora_characters c ON c.id = d.character_id
-      WHERE s.image_id = $1 AND c.owner_sub = $2 AND d.status = 'queued' AND s.expires_at > NOW()`, [imageId, ownerSub])).rows[0];
+       JOIN oshal_lora_dataset_imports i ON i.image_id=d.id
+      WHERE i.ticket_id=$3 AND s.image_id = $1 AND c.owner_sub = $2 AND d.status = 'queued' AND s.expires_at > NOW()`, [imageId, ownerSub, ticketId])).rows[0];
     return row ? { characterId: String(row.character_id), contentType: row.content_type, bytes: Buffer.from(row.image) } : null;
 }
 /**
@@ -462,7 +476,7 @@ function createLoraDatasetWorkerRoutes(ctx, granted) {
             return;
         }
         try {
-            const staged = await readStagedImage(ctx.pool, imageId, grant.ownerSub);
+            const staged = await readStagedImage(ctx.pool, imageId, grant.ownerSub, grant.ticketId || '');
             if (!staged) {
                 res.status(404).json({ error: 'staged dataset image not found or expired' });
                 return;
@@ -494,7 +508,28 @@ function createLoraDatasetWorkerRoutes(ctx, granted) {
  * @param body - Untrusted callback body.
  * @returns True when a receipt was settled; the response is written either way.
  */
-async function recordDatasetCallback(ctx, res, character, body) {
+async function recordDatasetCallback(ctx, res, character, body, grant) {
+    const imageId = String(body.image_id || ''), importRevision = Number(body.import_revision);
+    if (!grant?.ticketId || !UUID_RE.test(imageId) || !Number.isSafeInteger(importRevision) || importRevision < 1) {
+        res.status(400).json({ error: 'An exact import image and revision are required' });
+        return false;
+    }
+    let source;
+    try {
+        source = await (0, lora_dataset_import_state_1.checkDatasetImport)(ctx, character.id, imageId, importRevision, grant.ticketId, body.status === 'check');
+    }
+    catch (error) {
+        res.status(error.status || 403).json({ error: 'The import job is stale or its current authority was revoked.' });
+        return false;
+    }
+    if (source.filename !== String(body.filename || '') || !(0, lora_train_dispatch_1.isSafeDatasetFilename)(String(body.filename || ''))) {
+        res.status(409).json({ error: 'The import filename does not match its bound source' });
+        return false;
+    }
+    if (body.status === 'check') {
+        res.json({ ok: true, kind: 'dataset', status: 'check', import_revision: importRevision });
+        return false;
+    }
     const filename = String(body.filename || '').trim();
     const status = String(body.status || 'ready');
     const bytes = body.byte_size == null ? null : Number(body.byte_size);
@@ -503,9 +538,13 @@ async function recordDatasetCallback(ctx, res, character, body) {
         res.status(400).json({ error: 'dataset callback requires a safe filename, status (ready|failed), and bounded byte_size' });
         return false;
     }
+    if (source.filename !== filename || (status === 'ready' && body.caption_sha256 !== (0, node_crypto_1.createHash)('sha256').update(source.caption, 'utf8').digest('hex'))) {
+        res.status(409).json({ error: 'The import caption bytes do not match their saved source' });
+        return false;
+    }
     const updated = await ctx.pool.query(`UPDATE oshal_lora_dataset_images
         SET status = $3, byte_size = COALESCE($4, byte_size), ingested_at = CASE WHEN $3 = 'ready' THEN NOW() ELSE NULL END
-      WHERE character_id = $1 AND filename = $2 RETURNING id`, [character.id, filename, status, bytes]);
+      WHERE character_id = $1 AND filename = $2 AND id=$5 AND status='queued' AND EXISTS(SELECT 1 FROM oshal_lora_dataset_imports i WHERE i.image_id=oshal_lora_dataset_images.id AND i.ticket_id=$6 AND i.import_revision=$7) RETURNING id`, [character.id, filename, status, bytes, imageId, grant.ticketId, importRevision]);
     if (updated.rowCount !== 1) {
         res.status(404).json({ error: 'dataset image not found' });
         return false;
@@ -515,4 +554,3 @@ async function recordDatasetCallback(ctx, res, character, body) {
     res.json({ ok: true, kind: 'dataset', subject: character.subject, filename, status, bytes });
     return true;
 }
-//# sourceMappingURL=lora-dataset-ingest.js.map

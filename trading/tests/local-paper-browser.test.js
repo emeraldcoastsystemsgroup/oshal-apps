@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: verify saved-strategy assignment and clearing on local paper account cards across desktop and phone viewports alongside graceful degraded research fallback.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Actual themed iframe controls on desktop and phone: explicit paper reset, independent account creation and native report presentation.
  */
 'use strict';
@@ -46,5 +47,37 @@ test('local paper accounts and the report work in the actual desktop and phone i
   await inner.evaluate(()=>{window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};});
   await frame.getByRole('button',{name:'Play briefing',exact:true}).click();assert.equal(await inner.evaluate(()=>window.testSpoken.length),1);assert.equal(await inner.evaluate(()=>window.testSpoken[0].local),true);
   await context.close();
+ }
+});
+test('local paper account cards assign and clear saved strategies on desktop and phone',async t=>{
+ const app=express();app.use(express.json());const writes=[];let assigned=null,armed=false;
+ app.get('/api/trading/paper',(_q,r)=>r.json({account:{cash:100000,equity:100000,startingCash:100000},config:{armed:false},ticks:[]}));
+ app.get('/api/trading/paper/books',(_q,r)=>r.json({accounts:[{book_ref:'book-1',label:'Paper growth',archived:false,account:{cash:100000,equity:100000,startingCash:100000},config:{armed,posture:'balanced'},strategy:assigned}]}));
+ app.get('/api/trading/portfolio/research',(_q,r)=>r.json({strategies:[{id:'strat-1',name:'Daily Quant margin rotation'},{id:'strat-2',name:'Defensive monthly trend'}]}));
+ app.post('/api/trading/paper/books/:ref/strategy',(q,r)=>{writes.push({ref:q.params.ref,body:q.body});if(q.body?.strategyId){assigned={strategyId:q.body.strategyId,strategyName:'Daily Quant margin rotation',lastDecisionAsOf:'2026-11-05'};armed=true;}else{assigned=null;}r.json({ok:true});});
+ app.get('/api/v1/agent/schedules',(_q,r)=>r.json({schedules:[{id:'paper',app:'intelligent-trades',name:'paper-autopilot',activation:{},status:'active'}]}));
+ const styles=fs.readFileSync(path.join(__dirname,'../tools/trading.html'),'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
+ app.get('/controls.js',(_q,r)=>r.type('js').send(fs.readFileSync(path.join(__dirname,'../tools/ui/native-paper-books.js'),'utf8')));
+ app.get('/paper-controls.js',(_q,r)=>r.type('js').send(fs.readFileSync(path.join(__dirname,'../tools/ui/native-paper.js'),'utf8')));
+ app.get('/boot.js',(_q,r)=>r.type('js').send(`const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const money=v=>'$'+Number(v).toFixed(2),spinner=esc,jbody=(method,b)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const api=async(p,init)=>{const r=await fetch('/api/trading'+p,init),b=await r.json();if(!r.ok)throw Error(b.message||b.error);return b;};renderLocalPaperAccounts();`));
+ app.get('/inner',(_q,r)=>r.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><div id="tabbody" data-gen="1"></div><script src="/paper-controls.js"></script><script src="/controls.js"></script><script src="/boot.js"></script>'));
+ const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const browser=await chromium.launch();t.after(()=>browser.close());
+ for(const width of [1280,390]){
+  assigned=null;armed=false;
+  const context=await browser.newContext({viewport:{width,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:'+server.address().port+'/inner');
+  await page.getByRole('heading',{name:'Paper growth',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Run strategy',exact:true}).click();
+  assert.match(await page.locator('#lpMsg').innerText(),/Choose a saved strategy/);
+  await page.locator('[data-lp-strategy="book-1"]').selectOption('strat-1');
+  await page.getByRole('button',{name:'Run strategy',exact:true}).click();
+  await page.getByRole('button',{name:'Use autopilot rules',exact:true}).waitFor();
+  assert.equal(writes.at(-1).body.strategyId,'strat-1');
+  assert.match(await page.locator('[data-lp-book="book-1"]').innerText(),/Strategy: Daily Quant margin rotation · targets 2026-11-05/);
+  await page.getByRole('button',{name:'Use autopilot rules',exact:true}).click();
+  await page.getByRole('button',{name:'Use autopilot rules',exact:true}).waitFor({state:'detached'});
+  assert.deepEqual(writes.at(-1).body,{});assert.match(await page.locator('[data-lp-book="book-1"]').innerText(),/Simulation armed · balanced/);
+  assert.deepEqual(errors,[]);await context.close();
  }
 });

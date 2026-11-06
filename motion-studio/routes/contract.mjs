@@ -1,10 +1,13 @@
+/** CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | Return a fresh transient contract edit key without changing saved source or retry semantics. */
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Publish the shared human/agent runtime contract and the actual pinned command registry.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve complete bounded agent observations with a compact registry index and exact per-command schema retrieval.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact native numeric text and original authority across the updated transport.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Include actual human effect schemas and bounded source agent lookup instructions.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Describe automatic inspector saves and native editable document refresh shared by human and concierge editing.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Include the executable native whole-text command and controller-held approval semantics without changing validation.
  */
+import {randomUUID} from 'node:crypto';
 import { stringifyNative } from '../tools/native-json.mjs';
 import { LIMITS, MotionError } from './project-store.mjs';
 import { motionEngine } from './engine-client.mjs';
@@ -12,8 +15,10 @@ import { effectRegistry } from './effects.mjs';
 import {fontInventory} from './text.mjs';
 const AGENT_RESPONSE_BYTES = 60 * 1024;
 function contract(ctx, engine) {
-  return { schemaVersion: 1, format: 'effectcraft-native-project', limits: LIMITS, engine,
+  return { requestKey:randomUUID(),requestKeyRule:"Copy requestKey unchanged from the just-read editing contract response for this new edit; never invent it. Read a fresh contract for each new intent; retry an uncertain result with the identical key and body.",schemaVersion: 1, format: 'effectcraft-native-project', limits: LIMITS, engine,
     documentHandoff: 'The editor automatically saves retained inspector fields before assistant reads and refreshes the same native composition on return. Use CURRENT DOCUMENT identity, revision and selection; read actual owned data first. Preserve native layers/effects/keyframes; never substitute a flattened image. Historical views stay read-only. Never ask for Save or Reload.',
+    nativeApproval: {tool:'motion-apply-exact-edits',instruction:'Invoke this offered tool to prepare the real controller card, then wait for approval. It does not approve its own proposal. Prose or Markdown cannot create a card.'},
+    textReplacement: {instruction:'Read actual saved text first. Copy id/baseRevision, compId and exact decimal STRING layer/compTimeTicks. Omit range to replace the whole text; partial ranges use Unicode scalar counts. Only attributes.text changes; omit title unless asked to rename the project. Example IDs are illustrative; copy the top-level requestKey unchanged and use response=receipt.',example:{"id":"11111111-1111-4111-8111-111111111111","baseRevision":2,"requestKey":"22222222-2222-4222-8222-222222222222","response":"receipt","compId":"1","commandsJson":"[{\"command\":\"text.patchAt\",\"params\":{\"layer\":\"2\",\"compTimeTicks\":\"0\",\"attributes\":{\"text\":\"Updated native title\"}}}]"}},
     operations: { create: { title: 'string', width: 'integer', height: 'integer', frameRate: 'number', duration: 'seconds', requestKey: 'uuid' },
       apply: { id: 'uuid', baseRevision: 'integer', requestKey: 'uuid', commands: '1..32 real catalog commands', comp: 'optional composition selector' },
       preview: { document: 'native object', comp: 'optional', time: 'seconds', max_side: '1..4096', transparent: 'boolean' } },
@@ -49,7 +54,7 @@ export async function agentContract(ctx) {
     effectPropertiesInspection:'motion-read-effect-properties marks incomplete large values for motion-read-effect-value exact bounded chunks; the human full binding retains original native capacity. Read one actual effect instance at exact composition ticks before expressions. properties.patchAt with effect seals changed targets to that same-layer instance and preserves native key semantics.',
     propertiesInspection:'motion-read-properties returns actual transform/camera/light values before expressions at exact decimal composition ticks. properties.patchAt uses sealed decimal target properties and changed-only original native setters.',
     agentInputBytes: 16384, agentObservationBytes: AGENT_RESPONSE_BYTES,
-    instructions: 'Fetch the exact command schema before constructing its parameters. The manual editing contract retains the complete registry schemas. Large document observations require bounded inspection; never infer truncated data.' });
+    instructions: 'For whole-text replacement the included textReplacement example is the complete existing native command shape. For other commands fetch the exact command schema before constructing parameters. The manual editing contract retains the complete registry schemas. Large document observations require bounded inspection; never infer truncated data.' });
 }
 export async function commandSchema(ctx, command) {
   if (typeof command !== 'string' || command.length > 128 || !/^[a-z][a-zA-Z0-9._-]*$/.test(command)) throw new MotionError(400, 'motion_invalid_command');

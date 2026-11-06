@@ -21,7 +21,7 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 83 packages, 83 rated, 0 unrated.
+Coverage: 84 packages, 84 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
@@ -114,6 +114,7 @@ Coverage: 83 packages, 83 rated, 0 unrated.
 | payments | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | payroll | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | pdf-workbench | 32 / 768 (declared) | pdf-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
+| phone-control | 48 / 192 (declared) | phone-control-action | device control operation | T1 | none | disable | not yet measured | none recorded |
 | portrait-studio | 32 / 128 (declared) | portrait-generation | portrait | T0 | hosted | disable | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | deck-guide | guide chat turn | T2 | none | disable | not yet measured | none recorded |

@@ -13,10 +13,10 @@ async function page(t){
  const context=await browser.newContext({viewport:{width:1280,height:900}});t.after(()=>context.close());
  await context.route('**/*',route=>new URL(route.request().url()).origin===fixture.origin?route.continue():route.abort());
  const page=await context.newPage(),errors=[];page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
- await page.goto(fixture.origin+'/api/motion-studio/app');await page.waitForFunction(()=>window.__oshalDocumentSession);return {page,errors,context};
+ await page.goto(fixture.origin+'/api/motion-studio/app');await page.waitForFunction(()=>window.__oshalDocumentSession);await page.locator('.ef-shell').waitFor();await page.locator('details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));return {page,errors,context};
 }
 async function saved(page,n){await page.locator('#revision').filter({hasText:'revision '+n}).waitFor();await page.locator('#status').filter({hasText:'Saved'}).waitFor();}
-async function create(page,title){await page.locator('#new [name=title]').fill(title);await page.locator('#new [name=width]').fill('160');await page.locator('#new [name=height]').fill('90');await page.locator('#new button').click();await saved(page,1);}
+async function create(page,title){await page.locator('#new').evaluate(form=>{form.closest('details').open=true;});await page.locator('#new [name=title]').fill(title);await page.locator('#new [name=width]').fill('160');await page.locator('#new [name=height]').fill('90');await page.locator('#new button').click();await saved(page,1);}
 async function caption(page,text){await page.locator('#add [name=text]').fill(text);await page.locator('#add button').click();await saved(page,2);await page.locator('#textEdit [name=content]:enabled').waitFor();}
 const begin=page=>page.evaluate(async()=>{const api=await import('/shared/ui/js/document-handoff.js');window.handoff=await api.beginDocumentHandoff();return window.handoff.context;});
 async function api(path,body){const response=await fetch(fixture.origin+'/api/motion-studio'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:stringifyNative(body)}:{});const result=parseNative(await response.text());assert.ok(response.ok,stringifyNative(result));return result;}

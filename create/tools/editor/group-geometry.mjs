@@ -21,7 +21,9 @@ export function throughGroup(layer, group) {
   const w = layer.w * scale, h = layer.h * scale;
   return { ...layer, x: group.x + group.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle) - w / 2,
     y: group.y + group.h / 2 + dx * Math.sin(angle) + dy * Math.cos(angle) - h / 2,
-    w, h, rotation: layer.rotation + group.rotation };
+    w, h, rotation: layer.rotation + group.rotation,
+    ...(layer.strokeWidth===undefined?{}:{strokeWidth:layer.strokeWidth*scale}),...(layer.fontSize===undefined?{}:{fontSize:layer.fontSize*scale}),...(layer.radius===undefined?{}:{radius:layer.radius*scale}),...(layer.dash===undefined?{}:{dash:layer.dash.map(value=>value*scale)}),...(layer.blur===undefined?{}:{blur:layer.blur*scale}),
+    ...(layer.shadow?{shadow:{...layer.shadow,blur:layer.shadow.blur*scale,offsetX:scale*(layer.shadow.offsetX*Math.cos(angle)-layer.shadow.offsetY*Math.sin(angle)),offsetY:scale*(layer.shadow.offsetX*Math.sin(angle)+layer.shadow.offsetY*Math.cos(angle))}}:{}) };
 }
 
 /** @description Resolve stable child geometry for overlays, hit testing and source-pixel selections.
@@ -71,14 +73,15 @@ function curveBounds(layer) {
  * @returns {object} Integer group frame preserving their positions. */
 export function groupFrame(layers) {
   const corners = layers.filter(layer => layer.type !== 'adjustment').flatMap(layer => {
+    const shadowBounds=points=>!layer.shadow?points:points.flatMap(point=>[point,{x:point.x+layer.shadow.offsetX-3*layer.shadow.blur,y:point.y+layer.shadow.offsetY-3*layer.shadow.blur},{x:point.x+layer.shadow.offsetX+3*layer.shadow.blur,y:point.y+layer.shadow.offsetY+3*layer.shadow.blur}]);
     if (layer.type === 'path') {
       const padding = (layer.strokeWidth ?? 0) * (layer.join === 'miter' ? 5 : .5);
-      return curveBounds(layer).flatMap(point => [{ x: point.x - padding, y: point.y - padding }, { x: point.x + padding, y: point.y + padding }]);
+      return shadowBounds(curveBounds(layer).flatMap(point => [{ x: point.x - padding, y: point.y - padding }, { x: point.x + padding, y: point.y + padding }]));
     }
     const angle = layer.rotation * Math.PI / 180, padding = (layer.strokeWidth ?? 0) / 2 + (layer.blur ?? 0) * 3;
-    return [[-padding, -padding], [layer.w + padding, -padding], [layer.w + padding, layer.h + padding], [-padding, layer.h + padding]].map(([x, y]) => ({
+    return shadowBounds([[-padding, -padding], [layer.w + padding, -padding], [layer.w + padding, layer.h + padding], [-padding, layer.h + padding]].map(([x, y]) => ({
       x: layer.x + layer.w / 2 + (x - layer.w / 2) * Math.cos(angle) - (y - layer.h / 2) * Math.sin(angle),
-      y: layer.y + layer.h / 2 + (x - layer.w / 2) * Math.sin(angle) + (y - layer.h / 2) * Math.cos(angle) }));
+      y: layer.y + layer.h / 2 + (x - layer.w / 2) * Math.sin(angle) + (y - layer.h / 2) * Math.cos(angle) })));
   });
   const bounds = corners.reduce((box, point) => ({ left: Math.min(box.left, point.x), top: Math.min(box.top, point.y), right: Math.max(box.right, point.x), bottom: Math.max(box.bottom, point.y) }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
   const x = Math.floor(bounds.left), y = Math.floor(bounds.top);

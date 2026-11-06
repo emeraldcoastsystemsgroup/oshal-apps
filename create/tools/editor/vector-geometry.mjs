@@ -22,6 +22,16 @@ export function traceVector(ctx, layer) {
   }
 }
 
+/** Trace one editable primitive; metadata is bounded by the shared native model. */
+export function traceShape(ctx, layer) {
+  const kind = layer.shape ?? (layer.type === 'ellipse' ? 'ellipse' : 'rectangle'), w=layer.w,h=layer.h;
+  if (kind === 'ellipse') ctx.ellipse(w/2,h/2,w/2,h/2,0,0,Math.PI*2);
+  else if (kind === 'rounded-rectangle') ctx.roundRect(0,0,w,h,Math.min(layer.radius??12,w/2,h/2));
+  else if (kind === 'triangle') { ctx.moveTo(w/2,0);ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.closePath(); }
+  else if (kind === 'diamond') { ctx.moveTo(w/2,0);ctx.lineTo(w,h/2);ctx.lineTo(w/2,h);ctx.lineTo(0,h/2);ctx.closePath(); }
+  else ctx.rect(0,0,w,h);
+}
+
 function point(layer, x, y) {
   const angle = layer.rotation * Math.PI / 180, dx = x - layer.w / 2, dy = y - layer.h / 2;
   return [layer.x + layer.w / 2 + dx * Math.cos(angle) - dy * Math.sin(angle),

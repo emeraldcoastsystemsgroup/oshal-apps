@@ -17,6 +17,7 @@
  *                     |                             | project-view.ts, express-free, so the in-process package tools
  *                     |                             | answer exactly like these routes. refuse() writes the classified
  *                     |                             | status and body; every route answers byte-for-byte as before.
+ * 2026-11-04 | maintainer@emeraldcoastsystemsgroup.com | Expose closed Blender object inspection and property editing without arbitrary-run permissions.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -93,6 +94,20 @@ function createProjectRoutes(deps) {
     registerProjectCrud(router, deps);
     registerFileRoutes(router, deps);
     registerToolRoutes(router, deps);
+    const objectHandler = (patch) => async (req, res) => {
+        try {
+            const projectId = req.sceneProject.project_id;
+            const { projectId: inputProjectId, ...operation } = body(req);
+            if (inputProjectId !== undefined && inputProjectId !== projectId)
+                throw new project_service_1.RequestError('projectId does not match the owned route', 'projectId');
+            outcome(res, await (0, project_service_1.callObjectTool)(deps, req.sceneSub, projectId, patch, operation));
+        }
+        catch (error) {
+            fail(res, error, 'Blender object ' + (patch ? 'edit' : 'inspect'));
+        }
+    };
+    router.post('/projects/:projectId/objects/inspect', objectHandler(false));
+    router.post('/projects/:projectId/objects/edit', objectHandler(true));
     registerOutputRoutes(router, deps);
     return router;
 }
@@ -197,7 +212,7 @@ function registerFileRoutes(router, deps) {
         try {
             if (typeof b.text !== 'string')
                 throw new project_service_1.RequestError('text must be a string (the whole file)', 'text');
-            outcome(res, await (0, project_service_1.writeTextFile)(deps, req.sceneSub, project.project_id, String(b.path ?? ''), b.text));
+            outcome(res, await (0, project_service_1.writeTextFile)(deps, req.sceneSub, project.project_id, String(b.path ?? ''), b.text, b.expectedRevision));
         }
         catch (error) {
             fail(res, error, 'Write file', { projectId: project.project_id });
@@ -248,7 +263,7 @@ function registerToolRoutes(router, deps) {
                 throw new project_service_1.RequestError(`blender tool must be one of ${tool_contract_1.BLENDER_PROJECT_TOOLS.join(', ')}`, 'tool');
             const args = tool === 'execute_blender_code_for_cli' ? { code: b.code } : {};
             const save = b.save === undefined ? true : b.save === true;
-            outcome(res, await (0, project_service_1.callProjectTool)(deps, req.sceneSub, project.project_id, { server: 'blender', tool, args, file: (0, project_view_1.optionalString)(b.file, 'file'), save }));
+            outcome(res, await (0, project_service_1.callProjectTool)(deps, req.sceneSub, project.project_id, { server: 'blender', tool, args, file: (0, project_view_1.optionalString)(b.file, 'file'), save, expectedRevision: b.expectedRevision }));
         }
         catch (error) {
             fail(res, error, 'Blender tool', { projectId: project.project_id });

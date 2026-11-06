@@ -1,3 +1,11 @@
+# 2.18.7 | maintainer@emeraldcoastsystemsgroup.com | Phones, the trial check (2026-11-06: 291 px of bars): one app bar row (title with its save state, Save, More); Create, Format and New, Generate, File, Export, Undo, Redo and the Insert toolbar wait in More, where Office's menus open in place.
+# 2.18.8 | maintainer@emeraldcoastsystemsgroup.com | Word at 1440x900 (the round-2 trial check, 2026-11-06): one click on a paragraph that is not yet selected puts the caret in it and the typing is kept; the page is no longer rebuilt under the mouse when only the selection changes (the defect dates from before round 1: red on 7dd7da1d).
+# 2.18.6 | maintainer@emeraldcoastsystemsgroup.com | Phones (Roger, trial.oswarm.ai, 2026-11-06): the pane switcher is the shared bottom bar instead of off-screen ribbon buttons, and a new Word document opens on an empty paragraph with a placeholder instead of the literal text "Start writing"; Office menus keep their own phone popovers.
+# 2.18.5 | maintainer@emeraldcoastsystemsgroup.com | Supply fresh contract request identities and enforce native UUID schemas before approval.
+# 2.18.4 | maintainer@emeraldcoastsystemsgroup.com | Explicitly require a successful current-turn contract read before proposing an Office edit.
+# Office concierge | maintainer@emeraldcoastsystemsgroup.com | Keep generation requests in the current editable document and distinguish standalone file tools.
+# CHANGE LOG: Office workspace | maintainer@emeraldcoastsystemsgroup.com | Keep generation in the current editable document with one pinned Concierge, a wide canvas, compact page thumbnails and readable mobile authoring.
+# 2.18.1 | maintainer@emeraldcoastsystemsgroup.com | Expose executable closed Office editing examples to the actual native model and validate them without weakening operations.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
@@ -38,6 +46,7 @@
 # Framework: OSHAL (see docs/build-your-own-swarm-app.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 2.18.0: real saved slide/document/workbook editors with native exports, original-owned import attestations and shared AI approval cards.
 name: presentations
 suite: ai-productivity   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -56,15 +65,8 @@ rating:
       generation: none
       degrade: disable
 displayName: AI Office
-description: >-
-  One outline, three artifacts: a themed PowerPoint deck, Word document, or live Excel
-  workbook — ten shared looks, fully editable in Microsoft Office, Google Workspace or
-  LibreOffice. A guided visual start walks you from artifact to look to outline — or just
-  talk to the Guide, open a file you already have, or type one line and AI drafts it all.
-  Phone-friendly: dictate instead of typing, resume recent files in one tap, and drive
-  edits with tap chips. My files is a real file browser - click a file for
-  download, open-in-provider, or edit-and-regenerate. Saves to Dropbox, Google Drive, OneDrive, or OSHAL local.
-version: 2.17.0
+description: "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge."
+version: 2.18.8
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -81,6 +83,10 @@ artifacts:
         - application/vnd.openxmlformats-officedocument.wordprocessingml.document
         - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
       mode: open
+authorization:
+  version: 1
+  catalog: authorization.yaml
+
 status: active
 
 source:
@@ -109,6 +115,7 @@ uses:
   - test-catalog
   - deck-generation
   - storage
+  - application-authorization
   - app-dependencies   # compatibility floor for the tiered dependencies block (ADR-085 addendum)
 
 # Runtime connector allow-list — where artifacts save (ADR-108 delivery adapters), the
@@ -185,7 +192,7 @@ ui:
     - toolName: presentations-studio
       label: AI Office
       icon: codicon codicon-files
-      iframeUrl: /api/presentations/sections/ui
+      iframeUrl: /api/presentations/editor/app
       section: top
 
 # Surface-bridge op allow-list (framework `surface.ops`, validated fail-closed at load —
@@ -214,7 +221,7 @@ tools:
     displayName: Make a PowerPoint deck
     type: api
     category: productivity
-    description: Make a PowerPoint deck (.pptx) from a title and slides and save it to the person's files. Use it for "make me a PowerPoint", "build a deck about ...".
+    description: Make a separate PowerPoint file (.pptx) from a title and slides when no current office-editor document is being edited. In an open Office editor, use office-apply-edits to populate or change that same document instead.
     executor: { executorType: api, apiEndpoint: "POST /api/presentations/sections/pptx" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -249,7 +256,7 @@ tools:
     displayName: Make a Word document
     type: api
     category: productivity
-    description: Make a Word document (.docx) from a title and slides and save it to the person's files. Use it for "make me a Word document", "build a report about ...".
+    description: Make a separate Word file (.docx) from a title and sections when no current office-editor document is being edited. In an open Office editor, use office-apply-edits to populate or change that same document instead.
     executor: { executorType: api, apiEndpoint: "POST /api/presentations/sections/docx" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -280,6 +287,306 @@ tools:
       openUrl as a link ("Open it in AI Office").
     tags: [presentations, route-backed]
 
+  - name: office-editing-contract
+    displayName: Office editing contract
+    type: api
+    category: productivity
+    description: >-
+      Read the installed structured Office model, exact closed operation names/keys, examples, units and
+      limits before proposing an edit. Text replacement uses text-range with actual page/id/start/end/text;
+      a presentation/Word text update is not a replace_text or set_text command.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/presentations/editor/editing-contract
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: Read this before editing an open Office document. Copy its fresh requestKey unchanged for the next create/edit proposal; never invent an identity. An uncertain identical retry keeps its prior key.
+    routingTags:
+      - office
+      - editing
+      - presentation
+      - document
+      - spreadsheet
+    skills:
+      - office-editing
+    tags:
+      - route-backed
+  - name: office-list-documents
+    displayName: List editable Office documents
+    type: api
+    category: productivity
+    description: List the original person’s saved editable slides, documents and workbooks.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/presentations/editor/documents
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    usageInstructions: Use actual document IDs returned here or by CURRENT DOCUMENT context; never guess ownership.
+    routingTags:
+      - office
+      - editing
+      - presentation
+      - document
+      - spreadsheet
+    skills:
+      - office-editing
+    tags:
+      - route-backed
+  - name: office-read-model-part
+    displayName: Read exact Office model part
+    type: api
+    category: productivity
+    description: Read a bounded exact JSON fragment at a pinned saved revision.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/presentations/editor/documents/{input.id}/model-part?revision={input.revision}&offset={input.offset}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 80
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 4194304
+      required:
+        - id
+        - revision
+        - offset
+    usageInstructions: >-
+      Prefer office-read-selection-part for the active objects/range. Otherwise start at offset0 and follow nextOffset until all relevant actual IDs and properties are known. Keep the
+      same saved revision. Fragments are exact text, never a complete model until reassembled.
+    routingTags:
+      - office
+      - editing
+      - presentation
+      - document
+      - spreadsheet
+    skills:
+      - office-editing
+    tags:
+      - route-backed
+  - name: office-read-selection-part
+    displayName: Read current Office selection
+    type: api
+    category: productivity
+    description: >-
+      Read exact selected objects or cell ranges at the saved revision without scanning unrelated content.
+      Reassemble text fragments through nextOffset before editing. The result supplies real page/object or
+      sheet IDs, rich text runs/styles and wholeTextRanges with exact UTF-16 start/end for text replacement.
+      Copy those ranges instead of counting characters. Follow office-editing-contract and office-apply-edits' closed
+      operation examples; never infer an operation name from natural-language intent.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/presentations/editor/documents/{input.id}/selection-part?revision={input.revision}&offset={input.offset}&selectionJson={input.selectionJson}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: {type: string, minLength: 1, maxLength: 80}
+        revision: {type: integer, minimum: 1, maximum: 100}
+        offset: {type: integer, minimum: 0, maximum: 4194304}
+        selectionJson: {type: string, minLength: 2, maxLength: 4096}
+      required: [id, revision, offset, selectionJson]
+    usageInstructions: Use the exact selection from CURRENT DOCUMENT. Start offset0 and follow nextOffset at the same revision. Reassemble exact text and verify textSha256 when necessary. Embedded images expose their digest and geometry; original image bytes stay unchanged. Use office-read-model-part for content outside the selection.
+    routingTags: [office, editing, presentation, document, spreadsheet]
+    skills: [office-editing]
+    tags: [route-backed]
+  - name: office-create-document
+    displayName: Create editable Office document
+    type: api
+    category: productivity
+    description: Create an original-owned editable presentation, Word document or workbook.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/presentations/editor/documents
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum:
+            - pptx
+            - docx
+            - xlsx
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        requestKey:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          minLength: 36
+          maxLength: 36
+      required:
+        - kind
+        - title
+        - requestKey
+    usageInstructions: >-
+      Read office-editing-contract and copy its fresh requestKey. Create a blank supported document only when requested; after approval read its actual IDs before
+      inserting content. Reuse requestKey only for an uncertain same-input retry.
+    routingTags:
+      - office
+      - editing
+      - presentation
+      - document
+      - spreadsheet
+    skills:
+      - office-editing
+    tags:
+      - route-backed
+  - name: office-apply-edits
+    displayName: Edit saved Office document
+    type: api
+    category: productivity
+    description: |
+      Propose an atomic edit to the actual saved Office document; nothing changes until its native card is approved.
+      Also use this to write/generate content in the CURRENT office-editor document, including a blank one.
+      Keep its recordId as id and fields.revision as baseRevision; do not create a separate legacy file or send the user to Generate.
+      First read office-editing-contract and office-read-selection-part at the current saved revision.
+      Send {id,baseRevision,requestKey,operationsJson}; operationsJson is a JSON STRING containing an array.
+      Copy requestKey from the just-read office-editing-contract response; never invent or alter it.
+      That key is a new valid UUID v4: xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx, hexadecimal only.
+      Keep that exact key only when retrying the same uncertain input; do not reuse another edit's key.
+      PPTX text boxes AND Word paragraphs use the SAME text-range operation. Read the concatenated runs' current text.
+      For whole-text replacement COPY the selected item's wholeTextRanges skeleton from the selection read,
+      then add text with the replacement. It supplies exact op/page/id/start/end; do not count or guess end.
+      TEXT_REPLACEMENT_OPERATION_JSON
+      {"op":"text-range","page":"actual-page-id","id":"actual-selected-text-id","start":0,"end":5,"text":"New words"}
+      END_TEXT_REPLACEMENT_OPERATION_JSON
+      The example replaces 5 characters. For whole text use the ACTUAL wholeTextRanges entry, never the example end.
+      PPTX_GEOMETRY_OPERATION_JSON
+      {"op":"update-object","page":"actual-page-id","id":"actual-selected-shape-id","patch":{"x":120,"fill":"#2563eb"}}
+      END_PPTX_GEOMETRY_OPERATION_JSON
+      WORKBOOK_CELL_OPERATION_JSON
+      {"op":"cell","sheet":"actual-sheet-id","from":"A1","value":"New words"}
+      END_WORKBOOK_CELL_OPERATION_JSON
+      Only supported closed operations/fields are accepted. Never invent replace_text, set_text, text or update_slide ops.
+      Use real IDs from the saved selection and preserve unrelated content. Read the contract for other edits.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/presentations/editor/documents/{input.id}/edits
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 80
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        requestKey:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          minLength: 36
+          maxLength: 36
+        operationsJson:
+          type: string
+          minLength: 2
+          maxLength: 12000
+      required:
+        - id
+        - baseRevision
+        - requestKey
+        - operationsJson
+    usageInstructions: >-
+      Read the actual editing contract and relevant saved model first. operationsJson is a JSON array of
+      closed operations, never code. Use latest baseRevision and real stable object IDs from the current
+      document/selection. Preserve unrelated objects. One batch creates one immutable revision after the real
+      approval card; report success only after the route result. A stale revision needs rereading and a new
+      proposal.
+    routingTags:
+      - office
+      - editing
+      - presentation
+      - document
+      - spreadsheet
+    skills:
+      - office-editing
+    tags:
+      - route-backed
+  - name: office-export-document
+    displayName: Export saved Office document
+    type: api
+    category: productivity
+    description: Render a real Office artifact from an exact owned saved revision and return its guarded download URL.
+    executor:
+      executorType: api
+      apiEndpoint: >-
+        GET
+        /api/presentations/editor/documents/{input.id}/export?revision={input.revision}&format={input.format}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 80
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
+        format:
+          type: string
+          enum:
+            - pptx
+            - docx
+            - xlsx
+            - json
+      required:
+        - id
+        - revision
+        - format
+    usageInstructions: >-
+      Use the document’s own Office kind or json. The actual renderer must return ready; then offer the
+      guarded download URL. Do not claim a provider upload or delivery.
+    routingTags:
+      - office
+      - editing
+      - presentation
+      - document
+      - spreadsheet
+    skills:
+      - office-editing
+    tags:
+      - route-backed
+
 routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
@@ -296,6 +603,14 @@ routes:
     requiresContext: true
     requiresAi: false
 
+  - module: routes/office-editor/application.mjs
+    factory: createOfficeEditorRoutes
+    mountPath: /api/presentations/editor
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
   - module: routes/bot-presentation-routes.js
     factory: createBotPresentationRoutes
     mountPath: /api/presentations/sections
@@ -307,6 +622,12 @@ routes:
 # packaged ensurePresentationsSchema still adds its owner-RLS at the chokepoint.
 migrations:
   - migrations/001-presentations.sql
+  - migrations/002-office-editor.sql
+  - migrations/native/002-office-editor.sql
+nativeMigrations:
+  - id: migrations/002-office-editor.sql
+    native: skip
+    reason: Native schema retains immutable revisions and physically scoped original-person data; PostgreSQL adds forced original-owner policies.
 
 # Trim the ribbon to: the Presentations surface, the ticket queue (your decks),
 # settings, and logs. Hide everything else.

@@ -8,7 +8,7 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources && printf '%s\n' \
 WORKDIR /opt/pdf-engine
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --require-hashes --no-deps -r requirements.txt
-COPY worker.py server.py ./
+COPY worker.py server.py page_content.py THIRD-PARTY.md ./
 ENV PDF_ENGINE_HOST=0.0.0.0 PDF_ENGINE_PORT=7415 PYTHONDONTWRITEBYTECODE=1
 USER 10001:10001
 EXPOSE 7415

@@ -41,6 +41,7 @@
  *                     |                             | exported for the package tools (print-tools.ts), so an agent's
  *                     |                             | print and a service call choose the printer and read the owner's
  *                     |                             | auto-start the same way.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep service job printing on its original print.send boundary when sharing the owner guard.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -245,7 +246,7 @@ function registerJobPrint(router, deps) {
             logger.error({ err: error, jobId: job?.job_id }, 'Service job print failed');
             res.status(500).json({ error: 'print_failed' });
         }
-    }));
+    }, 'write', 'print.send'));
 }
 /** @description Print a posted model file (multipart field `model`). */
 function registerFilePrint(router, deps) {

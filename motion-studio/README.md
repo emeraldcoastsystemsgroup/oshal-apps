@@ -1,5 +1,8 @@
 # Motion Studio
 
+0.2.2 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
+
+
 This is the canonical Motion Studio package promoted from the reviewed Create
 prototype. It provides original-owned editable compositions, exact native
 properties, layers, keyframes, masks and text, durable render jobs, verified

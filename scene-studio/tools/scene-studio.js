@@ -81,10 +81,10 @@
   /** Run one user action: disable re-entry, report progress and failure in the status line. */
   async function act(label, fn) {
     if (state.busy) { status('Still working on the last action…', 'bad'); return; }
-    state.busy = true;
+    state.busy = true;editorFoundation?.refresh();
     status(label + '…');
     const run = (async () => {
-      try { await fn(); } catch (e) { status(label + ' failed: ' + e.message, 'bad'); } finally { state.busy = false; }
+      try { await fn(); } catch (e) { status(label + ' failed: ' + e.message, 'bad'); } finally { state.busy = false;editorFoundation?.refresh(); }
     })();
     state.acting = run;
     await run;
@@ -103,6 +103,13 @@
 
   function renderEngine() {
     const caps = state.caps || {};
+    const refused = caps.access?.execute === false;
+    for (const id of ['run-godot-tool', 'run-blender', 'import-model', 'run-project', 'render-preview']) {
+      const button = $(id);
+      button.disabled = refused;
+      button.title = refused ? 'Your current role permits source editing but does not permit running project code.' : '';
+    }
+    $('execution-access').hidden = !refused;
     const live = !!caps.capabilities;
     const pill = $('engine-pill');
     const versions = (caps.capabilities && caps.capabilities.versions) || {};
@@ -205,7 +212,7 @@
     renderRevisions(detail.revisions || []);
     renderRun(p.lastRun);
     renderExportFormats(p.kind);
-    showPreview(p.preview);
+    showPreview(p.preview);editorFoundation?.refresh();
   }
 
   function renderFiles(detail) {
@@ -497,7 +504,7 @@
       await api('DELETE', '/projects/' + p.projectId, { confirm: true });
       stopPoll();
       state.project = null;
-      state.epoch += 1;
+      state.epoch += 1;editorFoundation?.refresh();
       $('project-panel').hidden = true;
       $('empty-panel').hidden = false;
       history.replaceState(null, '', location.pathname);
@@ -521,11 +528,12 @@
   /** The saved project's identity and revision: what the assistant is told it is reading. */
   function documentSnapshot(p) {
     return { app: 'scene-studio', screen: 'surface', surface: 'scene-studio', recordId: p.projectId, title: p.title,
-      fields: { revision: p.revision, updatedAt: p.updatedAt, kind: p.kind, openFile: state.filePath || null, readOnly: false, draft: false } };
+      fields: { revision: p.revision, updatedAt: p.updatedAt, kind: p.kind, openFile: state.filePath || null, selection:editorFoundation?.selection()||null, readOnly: false, draft: false } };
   }
 
   /** Save the editor's unsaved file through the page's own save, then hand over the saved project. */
   async function prepareDocumentHandoff() {
+    await editorFoundation?.flushPending();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     await settleActions();
     if (!state.project) return null;
@@ -597,7 +605,10 @@
     setInterval(() => { if (!document.hidden && !state.busy) loadProjects().catch(() => undefined); }, 20000);
   }
 
+  let editorFoundation=null;
   async function boot() {
+    const {bindSceneFoundation}=await import('/api/scene-studio/assets/editor-foundation-adapter.mjs');
+    editorFoundation=await bindSceneFoundation({state,api,fileDraft,prepare:prepareDocumentHandoff,refresh:async force=>{await refreshProject(force);if(state.filePath&&!fileDraft())await openFile(state.filePath);},undo:async()=>{const previous=(state.detail?.revisions||[]).find(r=>r.revision<state.project?.revision);if(previous)await restore(previous.revision);},notice:text=>status(text,'ok'),problem:error=>status(error.message||String(error),'bad')});
     wire();
     registerDocumentHandoff();
     await loadCapabilities();

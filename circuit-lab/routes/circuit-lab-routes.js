@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Opening capabilities requests admitted native readiness, allowing lazy download and honest progress without a model write.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -77,7 +78,7 @@ function serveFile(filePath, contentType) {
 }
 /** The native kernel restores the caller's files here for each request and checkpoints them after a write. */
 exports.NATIVE_DATA_ROOT = '/tmp/circuit-store';
-const NATIVE_INSTALL_HINT = 'on the kernel host run circuit-lab/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES';
+const NATIVE_INSTALL_HINT = 'This application prepares its engine automatically when opened or used.';
 /** @description True inside the native kernel's sandbox: its pool is the kernel's scoped document store. */
 function nativeContext(ctx) {
     return ctx.pool.storageModel === 'kernel-scoped-documents';
@@ -89,6 +90,11 @@ function engineClient(ctx, env, expectedBuildHash) {
         return new engine_client_1.EngineClient({ host: addr.host, port: addr.port, expectedBuildHash, installHint: installHint(env) });
     const intent = ctx.intent;
     return new engine_client_1.EngineClient({ host: addr.host, port: addr.port, expectedBuildHash: null, installHint: NATIVE_INSTALL_HINT,
+        readStatus: async () => {
+            if (typeof intent !== 'function')
+                throw new Error('the kernel intent port is unavailable');
+            return intent('engine.status', {});
+        },
         exchange: async (request, timeoutMs) => {
             if (typeof intent !== 'function')
                 throw new Error('the kernel intent port is unavailable');
@@ -142,9 +148,15 @@ function createCircuitLabRoutes(ctx, opts = {}) {
             return booted;
         }
     };
-    router.get('/capabilities', (_req, res) => {
-        const catalog = currentCatalog();
-        res.json({ app: 'circuit-lab', solver: 'ngspice (engine container)', contract: (0, circuit_contract_1.describeContract)(), examples: (0, examples_1.listExamples)(), engine: engine.status(), catalog: { drivers: catalog.drivers.length, unresolved: catalog.unresolved, path: '/api/circuit-lab/catalog/drivers' } });
+    router.get('/capabilities', async (_req, res) => {
+        try {
+            const readiness = await engine.refreshStatus();
+            const catalog = currentCatalog();
+            res.json({ app: 'circuit-lab', solver: 'ngspice (engine container)', contract: (0, circuit_contract_1.describeContract)(), examples: (0, examples_1.listExamples)(), engine: readiness, catalog: { drivers: catalog.drivers.length, unresolved: catalog.unresolved, path: '/api/circuit-lab/catalog/drivers' } });
+        }
+        catch (_error) {
+            res.status(503).json({ error: 'engine_status_unavailable', message: 'Engine readiness is unavailable. Try again shortly.' });
+        }
     });
     router.get('/examples', (_req, res) => { res.json({ examples: (0, examples_1.listExamples)() }); });
     router.get('/catalog/drivers', (req, res) => {

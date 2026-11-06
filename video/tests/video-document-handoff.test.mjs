@@ -5,7 +5,8 @@ import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startPostgres, resetPostgres } from './video-editor-postgres.fixture.mjs';
 import { mediaBytes, clipProbe } from './video-editor.fixture.mjs';
-import { chromium, openEditor } from './video-editor-browser.fixture.mjs';
+import { chromium, openEditor as openSourceEditor } from './video-editor-browser.fixture.mjs';
+async function openEditor(...args){const result=await openSourceEditor(...args);await result.page.locator('details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));return result;}
 let database, cleanup, browser;
 before(async () => { database = await startPostgres(fn => { cleanup = fn; }); browser = await chromium.launch({ headless: true }); });
 after(async () => { await browser?.close(); await cleanup?.(); });

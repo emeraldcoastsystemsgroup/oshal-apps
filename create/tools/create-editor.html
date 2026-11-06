@@ -7,6 +7,7 @@
 5 | maintainer@emeraldcoastsystemsgroup.com | Add region selection controls (Select region, Whole image, Clear) and a live region status beside the canvas.
 6 | maintainer@emeraldcoastsystemsgroup.com | Add the Change a region panel (what is sent and what it costs, instruction, regenerate, cancel) and the side-by-side compare dialog with explicit accept and reject.
 7 | maintainer@emeraldcoastsystemsgroup.com | Offer reviewed PSD import and separately guarded immutable original/report controls.
+8 | maintainer@emeraldcoastsystemsgroup.com | Load shared editor styles and retain opaque disclosures above the canvas.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -17,6 +18,7 @@
   <script src="/shared/ui/js/surface-theme.js"></script>
   <link rel="stylesheet" href="/api/create/theme/create.css">
   <link rel="stylesheet" href="/api/create/editor/editor.css">
+  <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 </head>
 <body>
   <header class="editor-header">
@@ -25,7 +27,7 @@
     <div class="header-actions">
       <button id="newProject" disabled>New</button><button id="openProjects" disabled>My projects</button>
       <button id="saveProject" class="primary" disabled>Save</button>
-      <details id="exportMenu"><summary>Export</summary><div class="popover">
+      <details id="exportMenu"><summary>Export</summary><div class="popover" data-no-glass>
         <button id="exportPng" disabled>PNG image</button><button id="exportJpeg" disabled>JPEG image</button>
         <button id="exportSvg" disabled>Vector SVG</button><button id="exportJson" disabled>Editable project</button>
       </div></details>
@@ -90,10 +92,16 @@
     <aside class="inspector-panel" aria-label="Layers and properties">
       <section><h2>Layers <span id="layerCount" class="count">0</span></h2>
         <div id="layers" class="layers" role="list" aria-label="Layer stack"><p class="hint">Your layers will appear here.</p></div>
-        <label>Align/distribute checked layers<select id="arrangeMode"><option value="left">Align left</option><option value="center">Align horizontal center</option><option value="right">Align right</option><option value="top">Align top</option><option value="middle">Align vertical center</option><option value="bottom">Align bottom</option><option value="distribute-x">Distribute horizontal centers</option><option value="distribute-y">Distribute vertical centers</option></select></label><button id="arrangeLayers" data-edit disabled>Arrange checked layers</button>
-        <label><input id="snapGrid" type="checkbox">Snap movement to grid</label><label>Grid spacing<input id="snapSpacing" type="number" min="1" max="100" value="10"></label>
-        <div class="layer-actions"><button id="raiseLayer" data-selected disabled aria-label="Move selected layer up">Up</button><button id="lowerLayer" data-selected disabled aria-label="Move selected layer down">Down</button>
-          <button id="groupBelow" data-selected disabled>Group with layer below</button><button id="ungroupLayer" data-selected disabled>Ungroup</button><button id="duplicateLayer" data-selected disabled>Duplicate</button><button id="deleteLayer" data-selected disabled>Delete</button></div>
+        <div class="layer-actions" role="toolbar" aria-label="Selected layer actions">
+          <details id="layerArrange"><summary>Arrange</summary><div class="layer-arrange-menu" data-no-glass>
+            <div class="layer-order"><button id="raiseLayer" data-selected disabled aria-label="Move selected layer up">Bring forward</button><button id="lowerLayer" data-selected disabled aria-label="Move selected layer down">Send backward</button></div>
+            <button id="groupBelow" data-selected disabled>Group with layer below</button><button id="ungroupLayer" data-selected disabled>Ungroup</button>
+            <label>Align checked layers<select id="arrangeMode"><option value="left">Align left</option><option value="center">Align horizontal center</option><option value="right">Align right</option><option value="top">Align top</option><option value="middle">Align vertical center</option><option value="bottom">Align bottom</option><option value="distribute-x">Distribute horizontal centers</option><option value="distribute-y">Distribute vertical centers</option></select></label><button id="arrangeLayers" data-edit disabled>Apply alignment</button>
+            <label class="check"><input id="snapGrid" type="checkbox">Snap movement to grid</label><label>Grid spacing<input id="snapSpacing" type="number" min="1" max="100" value="10"></label>
+          </div></details>
+          <button id="duplicateLayer" data-selected disabled aria-label="Duplicate selected layer" title="Duplicate selected layer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6" y="6" width="11" height="11" rx="1.5"/><path d="M13 6V3H3v10h3"/></svg></button>
+          <button id="deleteLayer" data-selected disabled aria-label="Delete selected layer" title="Delete selected layer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h14M7 5V2h6v3M5 5l1 12h8l1-12M8 8v6m4-6v6"/></svg></button>
+        </div>
       </section>
       <section id="generateImagePanel" class="region-edit-panel" aria-labelledby="generateImageTitle" hidden>
         <h2 id="generateImageTitle">Generate an image</h2>
@@ -179,12 +187,12 @@
       </fieldset>
     </aside>
   </main>
-  <dialog id="projectDialog" aria-labelledby="projectsTitle"><header><h2 id="projectsTitle">My image projects</h2><button id="closeProjects" aria-label="Close projects">Close</button></header>
+  <dialog data-no-glass id="projectDialog" aria-labelledby="projectsTitle"><header><h2 id="projectsTitle">My image projects</h2><button id="closeProjects" aria-label="Close projects">Close</button></header>
     <p class="hint">Open a saved canvas or a previous revision. Restoring a revision becomes a new edit.</p>
     <button id="cleanupUploads" disabled>Clean unused uploads</button><p id="cleanupResult" class="hint" role="status"></p>
     <div id="projectList" class="project-list"></div>
   </dialog>
-  <dialog id="regionCompareDialog" aria-labelledby="regionCompareTitle" aria-describedby="regionCompareIntro">
+  <dialog data-no-glass id="regionCompareDialog" aria-labelledby="regionCompareTitle" aria-describedby="regionCompareIntro">
     <header><h2 id="regionCompareTitle">Compare the regenerated region</h2><button id="closeRegionCompare" type="button">Decide later</button></header>
     <p id="regionCompareIntro" class="hint">Only the selected region differs. Accepting adds a new revision you can undo; rejecting keeps your project as it is.</p>
     <p class="hint">Instruction: <span id="regionCompareInstruction"></span></p>
@@ -192,7 +200,7 @@
       <figure><img id="regionAfter" alt="The image with the regenerated region"><figcaption>After</figcaption></figure></div>
     <div class="region-edit-actions"><button id="regionAccept" type="button" class="primary">Accept as a new revision</button><button id="regionReject" type="button">Reject</button></div>
   </dialog>
-  <dialog id="templateDialog" aria-labelledby="templatesTitle" aria-describedby="templateIntro">
+  <dialog data-no-glass id="templateDialog" aria-labelledby="templatesTitle" aria-describedby="templateIntro">
     <header><div><span class="eyebrow">MAKE IT YOURS</span><h2 id="templatesTitle">Start with a design</h2></div><button id="closeTemplates" type="button" aria-label="Close templates">Close</button></header>
     <p id="templateIntro" class="hint">Choose a starting point, then change every title, shape and color. Your saved projects stay in My projects.</p>
     <div class="template-filters"><label>Find a design<input id="templateSearch" type="search" placeholder="Try announcement, quote or event" maxlength="160" autocomplete="off"></label>

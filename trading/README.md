@@ -1,3 +1,13 @@
+1.53.5: Account strategy pages save validated daily models alongside whole-share monthly models, report failed daily backtest validation immediately, and keep default research windows at least 252 NYSE sessions within the 370-day bound without changing `orderAuthority`. Monthly presets load with whole-share defaults, and local paper account cards expose direct saved-strategy assignment and clearing. No account is armed by installation.
+
+1.53.4: Quant responses stay with the view that requested them. Leaving the desk stops further manual run passes and discards late reviews; returning releases the old run button. Account details retain render, detached-host, request and selected-holding protection. Saved strategies and schedules are unchanged.
+
+1.53.3: Forward paper runs use the daily replay’s costed sizing, turnover, saved stop state and next-session retirement settlement. Decisions and risk state commit with fills so an interrupted metadata save cannot duplicate a session. Paper history uses the native extended request; film rendering loads only for film routes.
+
+1.53.2: Daily activation and renewal reviews use the same account cost basis, saved trailing stops and completed-session decision as scheduled execution.
+
+1.53.1: Strategy tools describe the saved daily presets and require passing daily validation; the backtest tool timeout covers its bounded history request.
+
 1.53.0: Saved daily stock execution and historical replay through the native trading tool protocol. Native daily mandate support is required for activation; an older monthly-only service cannot approve or execute this model. No account is migrated or armed by installation.
 
 Daily stock model: `quant-stock-daily` persists an explicitly selected equity universe (up to the native tool’s twenty-symbol bound) and a named Quant price signal. The application saves, backtests, assigns, monitors and submits through its existing native tool routes. Runtime and replay share the Quant desk factor definitions. The default signal is momentum; the model is price-based and does not back-project today’s fundamentals, news or industry classifications. Retirement uses its separate cash-funded model. Synthetic broker route acceptance demonstrates the workflow; it is not real-money performance evidence.

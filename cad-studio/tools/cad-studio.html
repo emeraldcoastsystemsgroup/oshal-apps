@@ -122,12 +122,33 @@
   .toast.error { border-color: var(--cs-danger); }
   .toast.ok { border-color: var(--cs-ok); }
   @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } aside, aside.right { border: 0; border-bottom: 1px solid var(--cs-line); } .views { grid-template-columns: repeat(2, 1fr); } }
+
+body.cad-foundation {margin:0;background:var(--bg-primary);color:var(--text-primary)}
+.cad-foundation .ef-navigation,.cad-foundation .ef-inspector {padding:12px;min-width:0}
+.cad-foundation main {padding:16px;min-width:0}
+.cad-foundation button,.cad-foundation summary,.cad-foundation select {min-height:44px}
+.cad-foundation details {padding:8px 0}
+.cad-foundation summary {cursor:pointer;display:flex;align-items:center;font-weight:600}
+.cad-foundation .cad-feature-selection,.cad-foundation .cad-base-selection {width:100%;text-align:left;white-space:normal;font:inherit;border:1px solid var(--border-color);border-radius:8px;padding:10px;background:var(--bg-secondary);color:var(--text-primary)}
+.cad-foundation [aria-pressed=true] {border-color:var(--accent-primary);background:var(--bg-tertiary)}
+.cad-foundation .feature-head {align-items:start;flex-wrap:wrap}
+.cad-foundation .cad-feature-menu {width:100%}
+.cad-foundation .cad-feature-menu button {display:block;width:100%;text-align:left;margin:4px 0}
+.cad-foundation .features {padding-left:0;list-style:none}
+.cad-foundation .ef-inspector .step {padding:0;border:0}
+.cad-foundation .ef-inspector .params-form {grid-template-columns:1fr;min-width:0}
+.cad-foundation #viewer {width:100%;height:min(60vh,650px);min-height:280px}
+.cad-foundation .views {display:flex;flex-wrap:wrap}
+.cad-foundation .cad-revisions {padding:12px}.cad-foundation .cad-revisions h2 {font-size:14px;margin:0 0 8px}
+.cad-foundation .cad-revisions .revisions {max-height:140px;overflow:auto}
+@media(max-width:800px){.cad-foundation header {flex-wrap:nowrap;gap:8px;padding:6px 10px}.cad-foundation header #engine-pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cad-foundation header>span.small {display:none}.cad-foundation #viewer {height:45vh}.cad-foundation .ef-navigation,.cad-foundation .ef-inspector {max-height:none;border:0}}
 </style>
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />
 </head>
 <body>
 <header>
-  <h1>CAD Studio</h1>
-  <span class="muted small">base + feature list → OCCT kernel → STEP · STL · drawings — every edit rebuilds</span>
+  <h1 data-ef-phone="brand">CAD Studio</h1>
+  <span class="muted small" data-ef-phone="brand">Design and edit your part.</span>
   <span class="spacer"></span>
   <span id="engine-pill" class="badge">engine…</span>
   <button id="cancel-rebuild" class="ghost" hidden title="Stop the rebuild the kernel is running for this part; it stays at its last good revision">Stop rebuild</button>

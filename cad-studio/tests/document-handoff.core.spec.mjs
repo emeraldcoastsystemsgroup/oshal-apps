@@ -3,7 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com | The person and the concierge edit the same part in turn: the actual CAD page and the shared document-handoff module over the compiled routes, a disposable PostgreSQL database built from the package migration, and the real engine client talking to a loopback bridge that speaks the wire protocol (the OCCT kernel is the engine-kernel case). An unsaved feature form and an unsaved density are saved by the handoff, the concierge's route edit is drawn by refresh, and a density the person is still typing survives that refresh. The database connection is the fixture superuser, so owner RLS is not the boundary proven here.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | The person and the concierge edit the same part in turn: the actual CAD page and the shared document-handoff module over the compiled routes, a disposable PostgreSQL schema built from the package migration, and the real engine client talking to a loopback bridge that speaks the wire protocol (the OCCT kernel is the engine-kernel case). An unsaved feature form and an unsaved density are saved by the handoff, the concierge's route edit is drawn by refresh, and a density the person is still typing survives that refresh. The database connection is the fixture superuser, so owner RLS is not the boundary proven here.
  */
 import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,6 +21,7 @@ const DSN = process.env.OSHAL_TEST_POSTGRES;
 assert.ok(CORE && fs.existsSync(path.join(CORE, 'node_modules', 'express')), 'Set OSHAL_CORE_ROOT to a framework checkout with node_modules');
 assert.ok(PLATFORM && fs.existsSync(path.join(PLATFORM, 'src/shared/ui/js/document-handoff.js')), 'Set OSHAL_PLATFORM_ROOT to the kernel platform tree that ships the shared document handoff');
 assert.ok(DSN, 'Set OSHAL_TEST_POSTGRES to the disposable PostgreSQL fixture');
+assert.equal(new URL(DSN).hostname,'127.0.0.1');assert.equal(new URL(DSN).port,'35689');
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const coreRequire = createRequire(path.join(CORE, 'package.json'));
 const originalLoad = Module._load;
@@ -60,20 +61,19 @@ function fakeEngine() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ port: server.address().port, close: () => { sockets.forEach((s) => s.destroy()); server.close(); } })));
 }
 
-let owned, admin, pool, database, engine, server, origin, dataRoot, context, page;
+let owned, admin, pool, schema, engine, server, origin, dataRoot, context, page;
 before(async () => {
   admin = new Client({ connectionString: DSN }); await admin.connect();
-  database = 'cad_handoff_' + randomUUID().replace(/-/g, '').slice(0, 16);
-  await admin.query(`CREATE DATABASE ${database}`);
-  const url = new URL(DSN); url.pathname = '/' + database;
-  pool = new Pool({ connectionString: url.toString(), max: 4 });
+  schema = 'cad_handoff_' + randomUUID().replace(/-/g, '').slice(0, 16);
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  pool = new Pool({ connectionString: DSN, options:`-c search_path=${schema}`, max: 4 });
   await pool.query(fs.readFileSync(path.join(PKG, 'migrations', '001-cad-studio.sql'), 'utf8'));
   engine = await fakeEngine();
   dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cad-handoff-'));
   const app = express();
   app.use((req, _res, next) => { req.oidc = { user: { sub: 'handoff-owner' }, isAuthenticated: () => true }; next(); });
   app.use(express.json({ limit: '10mb' }));
-  app.use('/shared/ui', express.static(path.join(PLATFORM, 'src/shared/ui')));
+  app.use('/shared/ui', express.static(path.join(PLATFORM, 'src/shared/ui')));app.use('/cockpit/css/themes',express.static(path.join(PLATFORM,'src/pages/cockpit/css/themes')));
   app.use('/api/cad-studio', createCadStudioRoutes({ pool, appPackageDir: PKG }, { dataRoot, env: { CAD_STUDIO_ENGINE_ADDR: `127.0.0.1:${engine.port}` }, engineBuild: HASH, rebuildTimeoutMs: 10000 }));
   server = app.listen(0, '127.0.0.1'); await new Promise((resolve) => server.once('listening', resolve));
   origin = `http://127.0.0.1:${server.address().port}`;
@@ -83,7 +83,7 @@ after(async () => {
   await owned?.close();
   server?.closeAllConnections(); await new Promise((resolve) => server ? server.close(resolve) : resolve());
   engine?.close(); await pool?.end();
-  if (admin) { await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`); await admin.end(); }
+  if (admin) { await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`); await admin.end(); }
   if (dataRoot) fs.rmSync(dataRoot, { recursive: true, force: true });
 }, { timeout: 60000 });
 
@@ -107,6 +107,7 @@ beforeEach(async () => {
   await page.addInitScript(() => { const original = window.setInterval; window.setInterval = (fn, delay, ...rest) => original(fn, delay === 3000 ? 3600000 : delay, ...rest); });
   await page.goto(`${origin}/api/cad-studio/app?model=${id}`);
   await page.waitForFunction(() => /revision 1/.test(document.querySelector('#model-state').textContent) && window.__oshalDocumentSession);
+  await page.locator('.ef-shell').waitFor();await page.locator('.ef-shell details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));
 });
 afterEach(async () => { await context?.close(); });
 

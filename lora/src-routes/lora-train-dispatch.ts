@@ -36,6 +36,7 @@
  * @module lora-train-dispatch
  */
 
+import {createHash} from 'node:crypto';
 import { createChildLogger } from '@/shared/logger';
 import { remoteClientRegistry } from '@/app/routes/remote-client-routes';
 import type { RemoteClientRecord } from '@/features/remote-client';
@@ -491,6 +492,7 @@ export function buildDatasetImportCommand(
   filename: string,
   caption: string,
   ownerSub: string,
+  importRevision=1,
 ): string {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(imageId)) throw new Error('dataset image id is invalid');
   const write = buildDatasetWriteFragment(config, filename, caption);
@@ -501,17 +503,19 @@ export function buildDatasetImportCommand(
   // The signed target is the path the controller receives, so it is derived from the same URL.
   const stagedPath = new URL(stagedUrl).pathname;
   const callbackPath = new URL(callbackUrl).pathname;
-  const identity = `kind='dataset'; character=${psLiteral(boxSubjectFor(config))}; filename=${psLiteral(filename)}`;
+  if(!Number.isSafeInteger(importRevision)||importRevision<1||importRevision>1000000)throw new Error('Invalid import revision');
+  const captionPath=`${boxRootFor(config)}/curated/${filename.replace(/\.[^.]+$/,'.txt')}`;
+  const identity = `kind='dataset'; character=${psLiteral(boxSubjectFor(config))}; filename=${psLiteral(filename)}; image_id=${psLiteral(imageId.toLowerCase())}; import_revision=${importRevision}`;
   const report = (fields: string) => `$cb=[Text.Encoding]::UTF8.GetBytes((@{${identity}; ${fields}} | ConvertTo-Json -Compress)); `
     + `Invoke-RestMethod -Method Post -Uri ${psLiteral(callbackUrl)} -Headers (Get-LoraHeaders 'POST' ${psLiteral(callbackPath)} $cb) `
     + `-ContentType 'application/vnd.oshal.lora-callback+json' -Body $cb | Out-Null`;
-  return `$ErrorActionPreference='Stop'; ${psCallbackSigner(ownerSubB64)}; $temp=[IO.Path]::GetTempFileName(); try { `
+  return `$ErrorActionPreference='Stop'; ${psCallbackSigner(ownerSubB64)}; $temp=[IO.Path]::GetTempFileName(); $datasetLock=$null; try { `
     + `Invoke-WebRequest -UseBasicParsing -Method Post -Uri ${psLiteral(stagedUrl)} -Headers (Get-LoraHeaders 'POST' ${psLiteral(stagedPath)} ([byte[]]@())) -OutFile $temp; `
     + `$bytes=[IO.File]::ReadAllBytes($temp); ${psImageCheck()}; `
-    + `${write}; `
-    + `${report("status='ready'; byte_size=$bytes.Length")}; `
+    + `${datasetLockStart(config)} ${report("status='check'")}; ${write}; `
+    + `${report("status='ready'; byte_size=$bytes.Length; caption_sha256=(Get-FileHash -LiteralPath "+psBoxPath(captionPath)+" -Algorithm SHA256).Hash.ToLowerInvariant()")}; `
     + `} catch { $failure=$_; try { ${report("status='failed'")} } catch { Write-Warning 'dataset failure callback was not delivered' }; throw $failure } `
-    + `finally { if (Test-Path -LiteralPath $temp) { Remove-Item -Force -LiteralPath $temp } }`;
+    + `finally { if ($null -ne $datasetLock) { $datasetLock.Dispose() }; if (Test-Path -LiteralPath $temp) { Remove-Item -Force -LiteralPath $temp } }`;
 }
 
 /**
@@ -547,3 +551,14 @@ export async function dispatchBoxCommand(command: string, correlationId: string)
     return { ok: false, error: 'The GPU edge worker could not accept the task.' };
   }
 }
+
+/** A bounded selected caption revision, with identity derived from the saved receipt rather than a caller path. */
+export interface CaptionWrite {imageId:string;filename:string;caption:string;revision:number;updateId:string;sha256:string}
+function validateCaptionWrite(value:CaptionWrite):void{if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.imageId)||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.updateId)||!isSafeDatasetFilename(value.filename)||!Number.isSafeInteger(value.revision)||value.revision<1||value.revision>1000000||value.caption.includes('\0')||!value.caption.trim()||Buffer.byteLength(value.caption,'utf8')>2048||! /^[a-f0-9]{64}$/.test(value.sha256)||createHash('sha256').update(value.caption,'utf8').digest('hex')!==value.sha256)throw new Error('Invalid bounded caption revision');}
+/** Exclusive dataset file lock shared by imports, caption edits and training; an interrupted process releases the OS handle. */
+function datasetLockStart(config:LoraCharacterConfig):string{const root=boxRootFor(config);return `New-Item -ItemType Directory -Force -Path ${psBoxPath(`${root}/curated`)} | Out-Null; $datasetLock=$null; $lockUntil=[DateTime]::UtcNow.AddSeconds(10); while ($null -eq $datasetLock) { try { $datasetLock=[IO.File]::Open(${psBoxPath(`${root}/curated/.oshal-editor.lock`)},[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None) } catch [IO.IOException] { if ([DateTime]::UtcNow -ge $lockUntil) { throw 'The dataset is busy. Retry this caption after the active worker finishes.' }; Start-Sleep -Milliseconds 100 } }; `;}
+/** The genuine UTF-8 file update. Exported so a controlled real PowerShell process proves the shipped code, including stale-write refusal. */
+export function buildCaptionWriteFragment(config:LoraCharacterConfig,value:CaptionWrite):string{validateCaptionWrite(value);const root=`${boxRootFor(config)}/curated`,path=`${root}/${value.filename.replace(/\.[^.]+$/,'.txt')}`,state=`${root}/.oshal-editor/${value.imageId.toLowerCase()}.json`;return `$captionPath=${psBoxPath(path)}; $imagePath=${psBoxPath(`${root}/${value.filename}`)}; $captionState=${psBoxPath(state)}; if (!(Test-Path -LiteralPath $imagePath -PathType Leaf)) { throw 'The original dataset image is missing' }; if ((Get-Item -LiteralPath $imagePath).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked dataset images are unsupported' }; if (Test-Path -LiteralPath $captionPath) { if ((Get-Item -LiteralPath $captionPath).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Linked caption files are unsupported' } }; $prior=$null; if (Test-Path -LiteralPath $captionState) { if ((Get-Item -LiteralPath $captionState).Length -gt 4096) { throw 'Caption revision receipt exceeds its bound' }; $prior=Get-Content -Raw -LiteralPath $captionState | ConvertFrom-Json; if ($prior.imageId -ne ${psLiteral(value.imageId.toLowerCase())} -or [long]$prior.revision -gt ${value.revision} -or ([long]$prior.revision -eq ${value.revision} -and $prior.sha256 -ne ${psLiteral(value.sha256)})) { throw 'Stale caption worker revision refused' } }; $captionBytes=[Convert]::FromBase64String(${psLiteral(Buffer.from(value.caption,'utf8').toString('base64'))}); $captionTemp=$captionPath+'.'+[guid]::NewGuid().ToString('N')+'.tmp'; $stateTemp=$captionState+'.'+[guid]::NewGuid().ToString('N')+'.tmp'; try { [IO.File]::WriteAllBytes($captionTemp,$captionBytes); if (Test-Path -LiteralPath $captionPath) { [IO.File]::Replace($captionTemp,$captionPath,[NullString]::Value) } else { [IO.File]::Move($captionTemp,$captionPath) }; $actual=(Get-FileHash -LiteralPath $captionPath -Algorithm SHA256).Hash.ToLowerInvariant(); if ($actual -ne ${psLiteral(value.sha256)}) { throw 'The saved caption bytes do not match the requested source' }; New-Item -ItemType Directory -Force -Path ${psBoxPath(`${root}/.oshal-editor`)} | Out-Null; $receipt=@{imageId=${psLiteral(value.imageId.toLowerCase())};revision=${value.revision};sha256=${psLiteral(value.sha256)}} | ConvertTo-Json -Compress; [IO.File]::WriteAllText($stateTemp,$receipt,[Text.UTF8Encoding]::new($false)); if (Test-Path -LiteralPath $captionState) { [IO.File]::Replace($stateTemp,$captionState,[NullString]::Value) } else { [IO.File]::Move($stateTemp,$captionState) } } finally { if (Test-Path -LiteralPath $captionTemp) { Remove-Item -Force -LiteralPath $captionTemp }; if (Test-Path -LiteralPath $stateTemp) { Remove-Item -Force -LiteralPath $stateTemp } }`;}
+export function buildCaptionUpdateCommand(config:LoraCharacterConfig,value:CaptionWrite,ownerSub:string):string{validateCaptionWrite(value);const callback=`${controllerCallbackUrl()}/api/lora/ingest`,target=new URL(callback).pathname,identity=`kind='caption'; character=${psLiteral(boxSubjectFor(config))}; image_id=${psLiteral(value.imageId.toLowerCase())}; update_id=${psLiteral(value.updateId.toLowerCase())}; revision=${value.revision}; sha256=${psLiteral(value.sha256)}`,report=(status:string)=>`$cb=[Text.Encoding]::UTF8.GetBytes((@{${identity};status=${psLiteral(status)}} | ConvertTo-Json -Compress)); Invoke-RestMethod -Method Post -Uri ${psLiteral(callback)} -Headers (Get-LoraHeaders 'POST' ${psLiteral(target)} $cb) -ContentType 'application/vnd.oshal.lora-callback+json' -Body $cb | Out-Null`;return `$ErrorActionPreference='Stop'; ${psCallbackSigner(Buffer.from(ownerSub,'utf8').toString('base64url'))}; $datasetLock=$null; try { ${report('check')}; ${datasetLockStart(config)} ${buildCaptionWriteFragment(config,value)}; ${report('applied')}; } catch { $failure=$_; try { ${report('failed')} } catch { Write-Warning 'caption failure acknowledgement could not be delivered' }; throw $failure } finally { if ($null -ne $datasetLock) { $datasetLock.Dispose() } }`;}
+/** Recheck the original person's signed live source immediately before training and hold the dataset lock for this task's complete native workload. */
+export function guardTrainingDataset(config:LoraCharacterConfig,ownerSub:string,command:string):string{const callback=`${controllerCallbackUrl()}/api/lora/ingest`,target=new URL(callback).pathname;return `$ErrorActionPreference='Stop'; ${psCallbackSigner(Buffer.from(ownerSub,'utf8').toString('base64url'))}; ${datasetLockStart(config)} try { $cb=[Text.Encoding]::UTF8.GetBytes((@{kind='dataset-state';character=${psLiteral(boxSubjectFor(config))}} | ConvertTo-Json -Compress)); $manifest=Invoke-RestMethod -Method Post -Uri ${psLiteral(callback)} -Headers (Get-LoraHeaders 'POST' ${psLiteral(target)} $cb) -ContentType 'application/vnd.oshal.lora-callback+json' -Body $cb; if (!$manifest.ok -or @($manifest.captions).Count -gt 1000) { throw 'The current dataset source could not be verified' }; foreach ($entry in $manifest.captions) { if ($entry.filename -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,179}[.](png|jpg|jpeg|webp)$' -or $entry.sha256 -notmatch '^[a-f0-9]{64}$') { throw 'Invalid managed caption receipt' }; $file=Join-Path ${psBoxPath(`${boxRootFor(config)}/curated`)} ([IO.Path]::ChangeExtension([string]$entry.filename,'.txt')); if (!(Test-Path -LiteralPath $file -PathType Leaf) -or (Get-Item -LiteralPath $file).Length -gt 2048 -or ((Get-Item -LiteralPath $file).Attributes -band [IO.FileAttributes]::ReparsePoint) -or (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) { throw 'A managed caption does not match its acknowledged source revision. Retry sync before training.' } }; ${command} } finally { if ($null -ne $datasetLock) { $datasetLock.Dispose() } }`;}

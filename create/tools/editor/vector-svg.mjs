@@ -44,6 +44,11 @@ function svgText(layer, definitions) {
 function svgLayer(layer, project, definitions) {
   if (!layer.visible) return '';
   demand(!['image', 'adjustment'].includes(layer.type), 'SVG export cannot retain raster masks or adjustment layers. Use PNG or native JSON.');
+  if (layer.shadow) {
+    const shadow=layer.shadow,id=`shadow-${definitions.length}`,padding=Math.ceil(Math.max(Math.abs(shadow.offsetX),Math.abs(shadow.offsetY))+3*shadow.blur+2),parent=parentGroup(project,layer.id),w=parent?.baseWidth??project.width,h=parent?.baseHeight??project.height;
+    definitions.push(`<filter id="${id}" filterUnits="userSpaceOnUse" x="${-padding}" y="${-padding}" width="${w+2*padding}" height="${h+2*padding}" color-interpolation-filters="sRGB"><feDropShadow dx="${shadow.offsetX}" dy="${shadow.offsetY}" stdDeviation="${shadow.blur/2}" flood-color="${shadow.color}" flood-opacity="${shadow.opacity}"/></filter>`);
+    return `<g filter="url(#${id})">${svgLayer({...layer,shadow:null},project,definitions)}</g>`;
+  }
   if (layer.type === 'group') {
     const id = `group-frame-${definitions.length}`;
     definitions.push(`<clipPath id="${id}"><rect width="${layer.baseWidth}" height="${layer.baseHeight}"/></clipPath>`);
@@ -59,11 +64,17 @@ function svgLayer(layer, project, definitions) {
     const id = `clip-${definitions.length}`;
     definitions.push(`<clipPath id="${id}"><polygon points="${layer.clip.map(point => `${point.x * layer.w},${point.y * layer.h}`).join(' ')}"/></clipPath>`); clipping = ` clip-path="url(#${id})"`;
   }
-  const attributes = `fill="${escape(fill)}" stroke="${escape(layer.stroke ?? 'transparent')}" stroke-width="${layer.strokeWidth ?? 0}" opacity="${layer.opacity}" transform="${transform(layer)}"${clipping}`;
+  const outline=layer.type==='path'?'':` stroke-dasharray="${(layer.dash??[]).join(',')}" stroke-linecap="${layer.cap??(layer.type==='freehand'?'round':'butt')}" stroke-linejoin="${layer.join??(layer.type==='freehand'?'round':'miter')}"`;
+  const attributes = `fill="${escape(fill)}" stroke="${escape(layer.stroke ?? 'transparent')}" stroke-width="${layer.strokeWidth ?? 0}" opacity="${layer.opacity}" transform="${transform(layer)}"${clipping}${outline}`;
   if (layer.type === 'path') return `<path ${attributes} d="${pathData(layer)}" fill-rule="${layer.fillRule}" stroke-linecap="${layer.cap}" stroke-linejoin="${layer.join}" stroke-dasharray="${layer.dash.join(',')}"/>`;
-  if (layer.type === 'rect') return `<rect ${attributes} width="${layer.w}" height="${layer.h}"/>`;
-  if (layer.type === 'ellipse') return `<ellipse ${attributes} cx="${layer.w / 2}" cy="${layer.h / 2}" rx="${layer.w / 2}" ry="${layer.h / 2}"/>`;
-  if (layer.type === 'freehand') return `<polyline ${attributes.replace(/fill="[^"]*"/, 'fill="none"')} points="${layer.points.map(point => `${point.x * layer.w},${point.y * layer.h}`).join(' ')}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  if (['rect','ellipse'].includes(layer.type)) {
+    const kind=layer.shape??(layer.type==='ellipse'?'ellipse':'rectangle');
+    if(kind==='triangle')return `<polygon ${attributes} points="${layer.w/2},0 ${layer.w},${layer.h} 0,${layer.h}"/>`;
+    if(kind==='diamond')return `<polygon ${attributes} points="${layer.w/2},0 ${layer.w},${layer.h/2} ${layer.w/2},${layer.h} 0,${layer.h/2}"/>`;
+    if(kind==='ellipse')return `<ellipse ${attributes} cx="${layer.w/2}" cy="${layer.h/2}" rx="${layer.w/2}" ry="${layer.h/2}"/>`;
+    return `<rect ${attributes} width="${layer.w}" height="${layer.h}"${kind==='rounded-rectangle'?` rx="${Math.min(layer.radius??12,layer.w/2,layer.h/2)}"`:''}/>`;
+  }
+  if (layer.type === 'freehand') return `<polyline ${attributes.replace(/fill="[^"]*"/, 'fill="none"')} points="${layer.points.map(point => `${point.x * layer.w},${point.y * layer.h}`).join(' ')}"/>`;
   throw new Error('Unsupported SVG layer');
 }
 
@@ -159,6 +170,12 @@ function shapeContours(element) {
   }
   if (tag === 'rect') {
     const x = get('x'), y = get('y'), w = get('width'), h = get('height'); demand(w > 0 && h > 0, 'SVG rectangle needs positive dimensions');
+    const rx=Math.min(w/2,get('rx',get('ry'))),ry=Math.min(h/2,get('ry',get('rx')));demand(rx>=0&&ry>=0,'SVG corner radii must be non-negative');
+    if(rx&&ry){const k=.5522847498307936,zero={x:0,y:0};return[{closed:true,nodes:[
+      {x:x+rx,y,in:{x:-k*rx,y:0},out:zero},{x:x+w-rx,y,in:zero,out:{x:k*rx,y:0}},
+      {x:x+w,y:y+ry,in:{x:0,y:-k*ry},out:zero},{x:x+w,y:y+h-ry,in:zero,out:{x:0,y:k*ry}},
+      {x:x+w-rx,y:y+h,in:{x:k*rx,y:0},out:zero},{x:x+rx,y:y+h,in:zero,out:{x:-k*rx,y:0}},
+      {x,y:y+h-ry,in:{x:0,y:k*ry},out:zero},{x,y:y+ry,in:zero,out:{x:0,y:-k*ry}}]}];}
     return [{ closed: true, nodes: [[x, y], [x + w, y], [x + w, y + h], [x, y + h]].map(([x, y]) => ({ x, y, in: { x: 0, y: 0 }, out: { x: 0, y: 0 } })) }];
   }
   const cx = get('cx'), cy = get('cy'), rx = get('rx'), ry = get('ry'); demand(rx > 0 && ry > 0, 'SVG ellipse needs positive radii');
@@ -284,6 +301,7 @@ export function importVectorSvg(source) {
     }
     if (element.localName === 'text') { if (!element.getAttribute('data-oshal-text')) warnings.push('Plain SVG text baseline/font metrics are approximated; inspect before saving.'); layers.push(textLayer(element, combined, paint, alpha)); warnings.push('SVG fonts are referenced by name; missing local fonts may be substituted.'); return; }
     demand(element.children.length === 0, 'SVG geometry cannot contain nested elements');
+    if(element.localName==='rect'&&(Number(element.getAttribute('rx'))>0||Number(element.getAttribute('ry'))>0))warnings.push('Rounded SVG corners are converted to editable cubic curves.');
     const layer = pathLayer(shapeContours(element), combined, paint, definitions); layer.opacity = alpha; layers.push(layer);
   };
   const rootTransform = [width / box[2], 0, 0, height / box[3], -box[0] * width / box[2], -box[1] * height / box[3]];

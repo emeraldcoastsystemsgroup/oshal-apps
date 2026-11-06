@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Open the REAL editor screen served by the real compiled Video routes over a disposable PostgreSQL, with the core's real shared theme code, in real Chromium. Every request that leaves the loopback origin is refused and recorded; the named fixture prober and encoder stand in for ffprobe and FFmpeg (real FFmpeg is proved in video-edit-export.test.mjs).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Serve kernel shared document handoff code beside the actual editor routes in browser proofs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | A proof may open the editor as a touch phone (options.device: isMobile, hasTouch, deviceScaleFactor).
  */
 import { resolve } from 'node:path';
 import { express, requireCore, packageRoot, startApi, fixtureEncoder } from './video-editor.fixture.mjs';
@@ -28,7 +29,7 @@ function sharedAssets(app) {
 export async function openEditor(t, browser, database, options = {}) {
   const encoder = fixtureEncoder();
   const api = await startApi(t, database.pool, { denied: options.denied, exports: encoder, extend: sharedAssets });
-  const context = await browser.newContext({ viewport: options.viewport ?? { width: 1440, height: 1000 } });
+  const context = await browser.newContext({ viewport: options.viewport ?? { width: 1440, height: 1000 }, ...(options.device ?? {}) });
   const errors = [], external = [], requests = [];
   t.after(async () => { await context.close(); });
   await context.addInitScript(theme => { try { if (!localStorage.getItem('cockpit-theme')) localStorage.setItem('cockpit-theme', theme); } catch { /* storage off */ } }, options.theme ?? 'workspace');

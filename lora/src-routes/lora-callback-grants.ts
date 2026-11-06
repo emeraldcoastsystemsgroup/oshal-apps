@@ -86,16 +86,17 @@ export const CALLBACK_GRANT_TTL_HOURS = boundedSetting(process.env.LORA_CALLBACK
 export const CALLBACK_SKEW_SECONDS = boundedSetting(process.env.LORA_CALLBACK_SKEW_SECONDS, 300, 30, 900);
 
 /** What a box job was dispatched to do; it decides which callbacks its grant may send. */
-export type DispatchKind = 'train' | 'validate' | 'improve' | 'overnight' | 'dataset-import';
+export type DispatchKind = 'train' | 'validate' | 'improve' | 'overnight' | 'dataset-import' | 'caption-write';
 /** One callback a worker may send to the ingest mount. */
-export type CallbackKind = 'training' | 'score' | 'cell-image' | 'review' | 'dataset' | 'dataset-download';
+export type CallbackKind = 'training' | 'score' | 'cell-image' | 'review' | 'dataset' | 'dataset-download' | 'caption' | 'dataset-state';
 
 const KINDS_BY_DISPATCH: Record<DispatchKind, readonly CallbackKind[]> = {
-  train: ['training'],
+  train: ['training', 'dataset-state'],
   validate: ['score', 'cell-image'],
-  improve: ['training'],
-  overnight: ['training', 'score', 'cell-image', 'review'],
+  improve: ['training', 'dataset-state'],
+  overnight: ['training', 'score', 'cell-image', 'review', 'dataset-state'],
   'dataset-import': ['dataset-download', 'dataset'],
+  'caption-write': ['caption'],
 };
 
 /** The binding one dispatch is minted with. */
@@ -170,7 +171,7 @@ export function callbackGrantSchemaStatements(): string[] {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         character_id UUID NOT NULL REFERENCES oshal_lora_characters(id) ON DELETE CASCADE,
         owner_sub TEXT NOT NULL, ticket_id TEXT,
-        dispatch_kind TEXT NOT NULL CHECK (dispatch_kind IN ('train', 'validate', 'improve', 'overnight', 'dataset-import')),
+        dispatch_kind TEXT NOT NULL CHECK (dispatch_kind IN ('train', 'validate', 'improve', 'overnight', 'dataset-import', 'caption-write')),
         callback_kinds TEXT[] NOT NULL CHECK (cardinality(callback_kinds) > 0),
         signing_key TEXT NOT NULL CHECK (signing_key ~ '^[0-9a-f]{64}$'),
         expires_at TIMESTAMPTZ NOT NULL, revoked_at TIMESTAMPTZ,

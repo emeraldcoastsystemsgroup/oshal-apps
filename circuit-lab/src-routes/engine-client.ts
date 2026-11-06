@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Ask the native kernel for admitted first-use image readiness; report lifecycle progress separately from a contacted transport.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -41,6 +42,13 @@ export class EngineFailure extends Error {
   constructor(readonly code: EngineFailureCode, message: string, readonly reason?: string, readonly field?: string) { super(message); this.name = 'EngineFailure'; }
 }
 
+export interface EngineLifecycle {
+  state: 'not-prepared' | 'preparing' | 'ready' | 'running' | 'failed' | 'pinned' | 'none';
+  detail?: string;
+  doneBytes?: number;
+  totalBytes?: number | null;
+}
+
 export interface EngineClientOptions {
   host: string;
   port: number;
@@ -55,6 +63,8 @@ export interface EngineClientOptions {
   /** Test seam: a socket factory. */
   connect?: (host: string, port: number) => net.Socket;
   /** Native kernel: send one request through the kernel's `engine.exchange` intent instead of a socket. */
+  /** Explicit app first use: request preparation of only this admitted package's engine. */
+  readStatus?: () => Promise<unknown>;
   exchange?: (request: Record<string, unknown>, timeoutMs: number) => Promise<NativeExchange>;
 }
 
@@ -90,13 +100,36 @@ export class EngineClient {
   private helloHash: string | null = null;
   private lastFailure: EngineFailure | null = null;
   private nativeActive = 0;
+  private lifecycle: EngineLifecycle | null = null;
 
   constructor(private readonly opts: EngineClientOptions) {}
 
   /** @description What the surface shows about the engine. */
-  status(): { connected: boolean; contacted: boolean; buildHash: string | null; expectedBuildHash: string | null; lastError: string | null; installHint: string; address: string } {
+  status(): { connected: boolean; contacted: boolean; buildHash: string | null; expectedBuildHash: string | null; lastError: string | null; installHint: string; address: string; lifecycle: EngineLifecycle | null } {
     const native = Boolean(this.opts.exchange);
-    return { connected: native ? !this.lastFailure : this.ready, contacted: this.ready || Boolean(this.lastFailure), buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
+    return { connected: this.ready && !this.lastFailure && (!this.lifecycle || ['ready', 'running', 'pinned'].includes(this.lifecycle.state)), lifecycle: this.lifecycle, contacted: this.ready || Boolean(this.lastFailure), buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
+  }
+
+  /** Request image readiness without starting an engine command or claiming a transport connection. */
+  async refreshStatus(): Promise<ReturnType<EngineClient['status']>> {
+    if (!this.opts.readStatus) return this.status();
+    this.lifecycle = null;
+    try {
+      const value = await this.opts.readStatus();
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid engine readiness');
+      const row = value as Record<string, unknown>;
+      if (typeof row.state !== 'string' || !['not-prepared', 'preparing', 'ready', 'running', 'failed', 'pinned', 'none'].includes(row.state)) throw new Error('invalid engine readiness state');
+      if (row.detail !== undefined && typeof row.detail !== 'string') throw new Error('invalid engine readiness detail');
+      for (const key of ['doneBytes', 'totalBytes']) {
+        if (row[key] !== undefined && !(key === 'totalBytes' && row[key] === null) && (!Number.isSafeInteger(row[key]) || Number(row[key]) < 0)) throw new Error('invalid engine readiness progress');
+      }
+      this.lifecycle = { state: row.state as EngineLifecycle['state'], ...(row.detail === undefined ? {} : { detail: row.detail as string }), ...(row.doneBytes === undefined ? {} : { doneBytes: row.doneBytes as number }), ...(row.totalBytes === undefined ? {} : { totalBytes: row.totalBytes as number | null }) };
+      return this.status();
+    } catch (error) {
+      this.lifecycle = { state: 'failed', detail: 'Engine readiness is unavailable.' };
+      this.ready = false;
+      throw error;
+    }
   }
 
   /**

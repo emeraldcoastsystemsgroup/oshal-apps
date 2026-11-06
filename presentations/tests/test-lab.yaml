@@ -15,6 +15,9 @@
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register ai-draft-outline (the topic draft fills Title and Outline; sweep 10: an outline cut off at the output budget keeps its complete slides or answers 502 in plain words, and the draft asks for 8192 output tokens) and generate-reenable (sweep 10: a failed generate left every generate button disabled).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register create-tools: deck-builder's presentations-create-deck and presentations-create-document are automatic writes onto POST /pptx and /docx whose body renders and saves, and the persona says to call them.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register routing-words: deck-builder keeps the words people use for a deck or a Word file, so Jarvis reaches the AI Office tools.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Register the Word phone proof: the pane bar on screen, an empty first paragraph with a placeholder, typing replaces it.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 2.18.7: the phone case also proves one app bar row, Insert from More and drawn Navigation items under the finger.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 2.18.8: register the Word desktop first-click proof (one mouse click focuses a not-yet-selected paragraph and keeps the typing).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -129,7 +132,8 @@ cases:
     expected:
       - Anonymous guide requests stop before bot execution.
       - Valid deck-builder replies expose only whitelisted editor operations with bounded fields.
-      - Image bytes never cross the Guide boundary — a data-URI #image: bullet reaches the prompt and any returned action
+      - >-
+        Image bytes never cross the Guide boundary — a data-URI #image: bullet reaches the prompt and any returned action
         as the "#image: (attached)" marker, and the prompt teaches the design directives.
     prerequisites:
       - runner:node-test
@@ -232,7 +236,8 @@ cases:
     expected:
       - The authored image's exact bytes are in ppt/media beyond any theme decor, and every outline slide is a real slide.
       - A data URI whose payload is not image bytes is dropped by the sniffer and the deck still renders.
-      - The same #image: data URI through renderDocx lands the authored bytes in word/media and the directive line never
+      - >-
+        The same #image: data URI through renderDocx lands the authored bytes in word/media and the directive line never
         leaks into the document text.
     prerequisites:
       - runner:node-test
@@ -426,6 +431,7 @@ cases:
       scope: package
       files:
         - tests/office-assets.test.mjs
+        - tests/office-entry-actions.test.mjs
         - tests/office-assistant.test.mjs
         - tests/office-workspace-browser.test.mjs
         - tests/presentations-slide-workspace.test.mjs
@@ -435,8 +441,10 @@ cases:
     expected:
       - Editing selected slides and cells preserves other sections and structured source.
       - AI suggestions require review and cannot overwrite a newer human draft.
-      - The AI partner remains visible on desktop and phone.
-      - The design row writes only renderer-honoured directives — a picked layout as `#layout:`, an image file as the
+      - The Concierge remains available on desktop and phone.
+      - Generate opens the current editable document Concierge without navigation or an automatic model call; historical file imports and audience views remain available.
+      - >-
+        The design row writes only renderer-honoured directives — a picked layout as `#layout:`, an image file as the
         inline `#image:` data URI drawn on the canvas with its `#caption:` — and removal or undo restores the outline exactly.
       - splitDesign separates design directives from prose and mergeDesign keeps the person's design through helper
         edits (a returned "(attached)" placeholder is never written; a person-given https image URL is).
@@ -446,6 +454,7 @@ cases:
     sideEffects: fixture-write
     isolation:
       mode: disposable
+      cleanup: Close only owned Chromium contexts and loopback HTTP servers; retain no installed records or external deliveries.
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
@@ -501,3 +510,108 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
+  - id: structured-office-model
+    name: Shared editable Office models and calculations
+    purpose: Validate atomic typed operations, exact rich-text ranges, dependency-aware formulas and immutable manual history used by both UI and AI.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/office/model.test.mjs]
+    expected:
+      - Unsupported operations and invalid models never partially mutate saved documents; calculation cycles and unsupported functions are explicit.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 30000, maxMemoryMb: 256}
+    installation: never
+  - id: structured-office-formats
+    name: Actual PPTX DOCX and XLSX editable formats
+    purpose: Round-trip real OOXML through the pinned existing native libraries and inspect visible XML, workbook formulas, stale embedded sources and refused active content.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/office/formats.test.mjs]
+    expected:
+      - Exported files contain actual editable Office content; an externally changed visible file cannot silently restore stale private model metadata.
+    prerequisites: [runner:node-test, runtime:office-pinned-node-dependencies]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 120000, maxMemoryMb: 768}
+    installation: never
+  - id: structured-office-persistence-and-editing
+    name: Real isolated Office persistence and browser editing
+    purpose: Exercise the actual server and forced-RLS PostgreSQL with original-owner isolation, immutable revisions and retries, then edit real slides, rich text and workbook ranges in Chromium including mobile properties and saved assistant handoff.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/office/store.test.mjs, tests/office/browser.test.mjs]
+    expected:
+      - Manual changes persist through reopen and actual OOXML export; stale revisions and withdrawn grants refuse writes and exact imported originals survive edits.
+      - Dragging is one undoable geometry edit; focused Word drafts save before assistant reads and valid shared properties recover after rejected mobile drafts.
+    prerequisites: [runner:node-test, runtime:office-pinned-node-dependencies, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/office/fixture.mjs]
+      cleanup: Remove only each unique fixture database and role and its own HTTP and browser children; preserve the shared disposable service and unrelated data.
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+  - id: office-phone-browser
+    name: Word on a phone starts on an empty paragraph with the panes on screen
+    purpose: >-
+      At 390x844 with touch, a new Word document shows the shared bottom pane bar on screen and under the finger, an empty first
+      paragraph with a placeholder, and typed text as the paragraph's whole text; Office's own menus still open. Real routes over
+      disposable PostgreSQL, the kernel's shared editor from OSHAL_PLATFORM_ROOT.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/office/phone-browser.test.mjs
+    expected:
+      - Every pane button is inside the screen and hit-testable; the first paragraph is empty with a placeholder; typing gives exactly the typed text.
+      - '2.18.7: one app bar row (title with its save state, Save, More) and content within 74 px of the frame; Insert waits in More and a choice there runs and closes More.'
+      - '2.18.7: every drawn Navigation item is under the finger with Your documents open.'
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+  - id: office-word-desktop-browser
+    name: Word at 1440x900 takes the first click on a paragraph
+    purpose: >-
+      With a real mouse at 1440x900, one click on a paragraph that is not yet selected (a new document's empty first paragraph,
+      then a second paragraph) puts the caret in it and the typed text lands in the model; the round-2 trial check found the first
+      click lost (2026-11-06), and the same proof is red on 7dd7da1d, before the phone rounds. Real routes over disposable
+      PostgreSQL, the kernel's shared editor from OSHAL_PLATFORM_ROOT.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/office/word-desktop-browser.test.mjs
+    expected:
+      - After one click the focused element is that paragraph, and the typed text is the paragraph's text in the model.
+      - One click on a second paragraph moves the caret there; the first keeps its words and the second receives the typing.
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024

@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep paper broker/network/process isolation intact with lazy report rendering, and independently constrain the renderer to local media and narration.
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: the native paper engine cannot reach a broker (TRADE-01). Statically, no module under routes/paper/ nor routes/trading-paper-routes.js requires the platform's trading engine, a broker adapter, a network module or anything outside the package, and the only kernel intents it names are prices.latest and prices.series. At run time, a complete trading tick runs with fetch and every broker / network module trapped to throw, and still fills only by writing rows.
  */
 'use strict';
@@ -40,7 +41,7 @@ test('paper and report modules name only explicit read-only market and authority
     const src = fs.readFileSync(file, 'utf8');
     for (const m of src.matchAll(/intent\(\s*['"]([^'"]+)['"]/g)) names.add(m[1]);
   }
-  assert.deepEqual([...names].sort(), ['prices.latest', 'prices.series','trading.bars','trading.config','trading.orders.mandate.status','trading.orders.protection.status','trading.quotes']);
+  assert.deepEqual([...names].sort(), ['prices.latest', 'prices.series','trading.bars','trading.config','trading.orders.list','trading.orders.mandate.status','trading.orders.protection.status','trading.quotes']);
 });
 
 test('a full trading tick completes with every network and broker path trapped', async () => {
@@ -72,4 +73,20 @@ test('a full trading tick completes with every network and broker path trapped',
     Module._load = originalLoad;
     for (const file of ENGINE_FILES) delete require.cache[file];
   }
+});
+
+// Media may render locally and request narration, but it cannot access a broker writer or network.
+test('report rendering has only local media dependencies and narration, and no brokerage effects',()=>{
+ const dir=path.join(ROUTES,'reports'),names=new Set();
+ for(const entry of fs.readdirSync(dir)){
+  const source=fs.readFileSync(path.join(dir,entry),'utf8');
+  for(const m of source.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)){
+   const name=m[1];
+   assert.ok(name.startsWith('./')||name.startsWith('../')||['node:crypto','node:fs','node:path','node:child_process'].includes(name),name);
+   assert.ok(!FORBIDDEN.test(name)||name==='node:child_process',name);
+  }
+  for(const m of source.matchAll(/intent\(\s*['"]([^'"]+)['"]/g))names.add(m[1]);
+  assert.doesNotMatch(source,/\bfetch\s*\(|getBrokerAdapter|getBrokerReader|placeDecisionOrder|submitOrder|createOrder/);
+ }
+ assert.deepEqual([...names],['voice.speak']);
 });

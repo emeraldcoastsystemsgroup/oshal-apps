@@ -48,6 +48,7 @@ const { HASH, PNG, b64, fakePool, fakeEngine } = require('./scene.fixture.cjs');
 
 // ── The app under test ───────────────────────────────────────────────────────
 let currentSub = 'alice';
+let executePermit = false;
 let server, baseUrl, engine, pool, dataRoot;
 const onMcp = { fn: () => ({ text: 'ok', isError: false, changed: false, delta: { added: [], modified: [], deleted: [] } }) };
 test.before(async () => {
@@ -57,7 +58,7 @@ test.before(async () => {
   const app = express();
   app.use((req, _res, next) => { if (currentSub) req.oidc = { user: { sub: currentSub }, isAuthenticated: () => true }; next(); });
   app.use(express.json({ limit: '100kb' }));
-  const ctx = { pool, appPackageDir: PKG };
+  const ctx = { pool, appPackageDir: PKG, authorization: {registerResource() {}, async authorize({permission}) { assert.equal(permission, 'scene.run'); return {allowed: executePermit}; }} };
   app.use('/api/scene-studio/home-summary', createHomeSummaryRoutes(ctx));
   app.use('/api/scene-studio', createSceneStudioRoutes(ctx, { dataRoot, env: { SCENE_STUDIO_ENGINE_ADDR: `127.0.0.1:${engine.port}`, OSHAL_API_CONTAINER: 'oshal-local-api' }, engineBuild: HASH }));
   await new Promise((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
@@ -252,4 +253,13 @@ test('Home reads metadata; delete needs confirm and removes the files; a down en
   down.close();
   other.closeAllConnections();
   other.close();
+});
+
+test('capabilities reports fresh caller execution access without reusing cached engine authority', async () => {
+  executePermit = false;
+  assert.equal((await call('/capabilities')).body.access.execute, false);
+  executePermit = true;
+  assert.equal((await call('/capabilities')).body.access.execute, true);
+  executePermit = false;
+  assert.equal((await call('/capabilities')).body.access.execute, false);
 });

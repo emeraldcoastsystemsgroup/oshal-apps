@@ -1,3 +1,4 @@
+/** CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: monthly research presets default to whole shares so saved preset strategies qualify for account monitoring without manual edits. */
 /** CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Expose the saved stock Quant model with an editable universe while preserving fixed ETF presets. */
 /* CHANGE LOG
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Save exact daily presets and display failed historical validation without assigning or arming an account.
@@ -132,7 +133,7 @@ function portfolioLoadRotationPreset(active){
  form.elements.name.value=active?'Quarterly-momentum monthly rotation — research':'Defensive monthly trend — research';
  form.elements.kind.value=active?'quarterly-rotation':'monthly-trend';
  form.elements.assets.value=symbols.map(symbol=>symbol+':'+100/symbols.length).join('\n');
- form.elements.fractionalShares.checked=true;
+ form.elements.fractionalShares.checked=false;
  portfolioConfigureModel(form);form.scrollIntoView({block:'nearest'});
  portfolioNotice('Candidate loaded for review. Save it to run a source-backed backtest; no account strategy was assigned.');
 }
@@ -141,7 +142,7 @@ function portfolioLoadCongressBasket(basket){
  const form=main.querySelector('form[data-portfolio="strategy"]');form.closest('details').open=true;const symbols=basket.candidates.slice(0,10).map(c=>c.symbol);
  if(!symbols.length)return;
  form.elements.name.value='Congress disclosed-stock monthly trend — '+basket.readAt.slice(0,10);
- form.elements.kind.value='monthly-trend';form.elements.assets.value=symbols.map(symbol=>symbol+':'+100/symbols.length).join('\n');form.elements.fractionalShares.checked=true;
+ form.elements.kind.value='monthly-trend';form.elements.assets.value=symbols.map(symbol=>symbol+':'+100/symbols.length).join('\n');form.elements.fractionalShares.checked=false;
  form.dataset.congressSelection=JSON.stringify(symbols);portfolioConfigureModel(form);form.scrollIntoView({block:'nearest'});
  portfolioNotice('Congress purchase basket loaded for review. Saving rechecks both chambers and retains the source filings. Its historical price study cannot establish historical Congress-following returns.');
 }

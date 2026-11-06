@@ -126,6 +126,7 @@ export function applyMultitrack(value, operation) {
   else if (operation.type === 'extractAudio') extractAudio(document, operation);
   else if (operation.type === 'unlink') { const own = found(document, operation.id), linked = partner(document, own.clip); editable(own.track); if (linked) { editable(linked.track); delete linked.clip.link; } delete own.clip.link; }
   else if (operation.type === 'text') { demand(['titles', 'captions'].includes(operation.track), 'Choose titles or captions'); document[operation.track].push({ ...operation.entry, id: uid('text') }); }
+  else if (operation.type === 'updateText') { demand(['titles', 'captions'].includes(operation.track), 'Choose titles or captions'); const entry=document[operation.track].find(entry=>entry.id===operation.id); demand(entry, 'Select an existing title or caption'); demand(operation.patch && Object.keys(operation.patch).every(key=>['text','start','end','position','size'].includes(key)), 'Unsupported text change'); Object.assign(entry,operation.patch); }
   else if (operation.type === 'removeText') { demand(['titles', 'captions'].includes(operation.track), 'Choose titles or captions'); document[operation.track] = document[operation.track].filter(entry => entry.id !== operation.id); }
   else throw new TypeError('Unsupported multitrack edit');
   return validateTimeline(document);

@@ -139,3 +139,61 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+
+  - id: workspace-foundation
+    name: Video source briefs and honest rendered-media states
+    purpose: Exercise the actual shared editor shell and package source controls in real Chromium on isolated fixtures.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/workspace-foundation.test.mjs]}
+    expected:
+      - Shared properties edit the actual source controls and preserve the native domain command path.
+      - Phone navigation and inspector remain usable without horizontal overflow or provider calls.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser and loopback fixture. Only synthetic data is used.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: durable-source-projects
+    name: Actual saved generation brief and assistant source
+    purpose: Drive the compiled Vids UI and typed source routes through genuine application-owned forced-RLS SQL, with no registered generation worker.
+    level: browser
+    runner: {kind: external, scope: package, files: [tests/source-projects-browser.test.mjs]}
+    expected: [Focused properties save and reopen, Assistant preparation saves the actual source revision and selection, Typed edits remain undoable and preserve concurrent drafts, Saving and editing source never dispatches generation, Foreign original identity and stale edits refuse]
+    prerequisites: [runner:node, browser:chromium, runtime:store-toolchain, source:kernel-shared-ui, runtime:docker-existing-postgres16-alpine]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the exact browser/server and remove only the uniquely labeled PostgreSQL container and its volumes. No generation provider is connected."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: bounded-source-contract
+    name: Bounded native source operation contract
+    purpose: Execute the actual closed operation examples and keep model-facing contract responses within an 8KiB observation budget.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/source-contract.test.mjs]}
+    expected:
+      - Contract and native held-tool description examples execute through the actual package validator.
+      - Invented operation aliases, type discriminators and unrelated fields remain refused.
+    prerequisites: [runner:node, runtime:canonical-store-toolchain]
+    sideEffects: none
+    isolation:
+      mode: none
+    limits: {timeoutMs: 15000, maxMemoryMb: 256}
+    installation: never
+
+  - id: source-editor-authority
+    name: Owned source editor authority
+    purpose: Exercise actual source guards and exact named route bindings without generation or anonymous dispatch claims.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/authorization-catalog.test.mjs]}
+    expected:
+      - The source editor cannot generate, publish or attach rendered media.
+      - Source reads and edits retain original identity, current grants and owned resource adapters.
+      - Anonymous media declarations require the paired native catalog-read capability.
+    prerequisites: [runner:node, runtime:canonical-store-toolchain]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 15000, maxMemoryMb: 512}
+    installation: never

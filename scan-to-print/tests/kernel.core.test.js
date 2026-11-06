@@ -8,6 +8,7 @@
  * FRAMEWORK-COUPLED: needs a core checkout (its node_modules, and src/ through the core's tsx hook
  * or a built dist/). Not part of the store-CI wildcard (no hyphen in the name); run:
  * OSHAL_CORE_DIR=<oshal checkout> node --test tests/kernel.core.test.js
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Bootstrap real framework aliases and verify the seven-tool current catalog with original-person fixture actors.
  */
 'use strict';
 const test = require('node:test');
@@ -24,14 +25,14 @@ assert.ok(fs.existsSync(path.join(CORE, 'node_modules', 'express')), `OSHAL_CORE
 const PKG = path.resolve(__dirname, '..');
 const APP = 'scan-to-print';
 const ISSUER = 'https://identity.example.test';
-const ACTORS = Object.freeze({
+const ACTORS = Object.freeze(Object.fromEntries(Object.entries({
   admin: { sub: 'swarm-admin', issuer: ISSUER, isActive: true, isSwarmAdmin: true },
   alice: { sub: 'alice-maker', issuer: ISSUER, isActive: true, isSwarmAdmin: false },
   bob: { sub: 'bob-other', issuer: ISSUER, isActive: true, isSwarmAdmin: false },
   carol: { sub: 'carol-no-role', issuer: ISSUER, isActive: true, isSwarmAdmin: false },
   dana: { sub: 'dana-former-admin', issuer: ISSUER, isActive: true, isSwarmAdmin: false },
-});
-const READ_ONLY_TOOLS = ['print-service-jobs', 'print-service-printer-status', 'print-service-printers', 'scan-to-print-capabilities'];
+}).map(([name,actor])=>[name,{...actor,principalId:'fixture:'+name,tenantIds:['scan-kernel-fixture']}])));
+const READ_ONLY_TOOLS = ['print-service-jobs', 'print-service-printer-status', 'print-service-printers', 'scan-to-print-capabilities'].sort();
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-kernel-core-'));
 Object.assign(process.env, { APP_PACKAGE_DYNAMIC_ROUTES: 'true', OSHAL_APPLICATION_AUTHORIZATION_MODE: 'enforce', SCAN_TO_PRINT_DATA_DIR: dataRoot, SCAN_TO_PRINT_SLICER_CMD: '' });
 
@@ -53,7 +54,9 @@ function redirectPackageRequires(coreRequire) {
 function loadCore() {
   const coreRequire = Module.createRequire(path.join(CORE, 'package.json'));
   redirectPackageRequires(coreRequire);
-  const compiled = fs.existsSync(path.join(CORE, 'dist', 'app', 'composition', 'manifest-route-mounter.js'));
+  const compiled = process.env.OSHAL_TEST_FRAMEWORK_SOURCE!=='1'&&fs.existsSync(path.join(CORE, 'dist', 'app', 'composition', 'manifest-route-mounter.js'));
+  // Match the framework mounter's own alias bootstrap before loading any core dependency.
+  coreRequire('tsconfig-paths').register({baseUrl:path.join(CORE,compiled?'dist':'src'),paths:{'@/*':['*']}});
   if (!compiled) { process.env.TSX_TSCONFIG_PATH = path.join(CORE, 'tsconfig.json'); coreRequire('tsx/cjs'); }
   const load = (relative) => coreRequire(path.join(CORE, compiled ? 'dist' : 'src', `${relative}.${compiled ? 'js' : 'ts'}`));
   return {
@@ -145,8 +148,8 @@ test.after(async () => {
   fs.rmSync(dataRoot, { recursive: true, force: true });
 });
 
-test('the framework accepts 0.7.0, and the bare binding mirror agrees with the kernel matcher everywhere', () => {
-  assert.equal(manifest.version, '0.7.0');
+test('the framework accepts 0.8.0, and the bare binding mirror agrees with the kernel matcher everywhere', () => {
+  assert.equal(manifest.version, '0.8.0');
   const declarations = core.packageTools.validatePackageTools(manifest);
   assert.deepEqual(declarations.map((d) => [d.name, d.enabled, d.authMode]), [
     ['scan-to-print-capabilities', true, 'auto'], ['print-service-jobs', true, 'auto'], ['print-service-printers', true, 'auto'],
@@ -155,7 +158,7 @@ test('the framework accepts 0.7.0, and the bare binding mirror agrees with the k
   const registration = { catalog, mountPaths: manifest.routes.map((route) => route.mountPath) };
   const mirror = readCatalog();
   const routes = mountedRoutes();
-  assert.equal(routes.length, 36);
+  assert.equal(routes.length, 38);
   for (const row of routes) {
     const relative = relativeToMount(row.request, registration.mountPaths);
     const bare = matchBindings(mirror.http, row.method, relative);
@@ -168,8 +171,8 @@ test('the framework accepts 0.7.0, and the bare binding mirror agrees with the k
   assert.equal(core.shared.resolveOperationPermissions(registration, { app: APP, kind: 'http', method: 'GET', path: '/unbound' }), null);
 });
 
-test('activation publishes the five handlers and the scan adapter; only the four read tools are auto-proposable', async () => {
-  const names = manifest.tools.map((tool) => tool.name);
+test('activation publishes the five in-process handlers and scan adapter; route-backed calibration is declared independently', async () => {
+  const names = manifest.tools.filter(tool=>tool.executor.executorType==='builtin').map((tool) => tool.name);
   assert.deepEqual(names.filter((name) => seam.registry.requires(name) && seam.registry.inspect(name)), names);
   assert.deepEqual(names.filter((name) => seam.registry.inspect(name).mode === 'auto').sort(), READ_ONLY_TOOLS);
   assert.equal(seam.registry.inspect('print-to-3d-printer').mode, 'ask');

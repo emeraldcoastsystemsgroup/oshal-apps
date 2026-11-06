@@ -1,5 +1,8 @@
 # brand-graphics — an OSHAL app package
 
+1.2.3 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
+
+
 1.1.2 adds the family audience view (ADR-164 D6): the Home shell (Jarvis) opens this package's first surface, `GET /api/brand-graphics/review`, with `?audience=family`; the shared kit paints a card from the package's own home-summary (read-only, owner-scoped) with the cockpit escape and an in-frame link to the full page, refusals said and never filled in; without the audience the page runs unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`.
 
 On-brand OSHAL motion graphics: a specialist bot turns a short brief ("intro for
@@ -63,3 +66,11 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 |---|---|---|---|---|---|---|
 | brand-graphic | brand motion graphic | T2 | hosted | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Editable source workspace
+
+The shared editor keeps navigation, the open source, selectable objects, Properties and the AI partner in the same layout. Changes use this package’s owned operations and current permissions. A saved source is separate from generated or published output.
+
+Save source and Saved source projects persist the brief, build mode, source link and ordered storyboard scenes with stable IDs. Select a scene to change its title, text and duration; add, duplicate, delete and reorder scenes, with local undo/redo. Server revisions are immutable and compare-and-swap; Reload saved resolves an explicit choice between a browser draft and newer saved source.
+
+Routes /source-projects, /source-projects/contract and /source-projects/:id/edits serve both UI and declared source tools. Source operations preserve the legacy @app-admin requirement, freshly recheck the original principal, and never render or publish. The AI pane uses the brand-graphics bot and native held approval cards. Connected document/episode workflows receive a separate bounded text draft; scene objects remain in this source. Rendering uses the actual Vids worker, including scene text/timing when the complete brief fits its 2,000-character contract.

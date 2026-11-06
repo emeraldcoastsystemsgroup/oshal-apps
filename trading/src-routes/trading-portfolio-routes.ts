@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: ensure the default portfolio research window spans at least 252 NYSE sessions within the 370-day bound without altering orderAuthority modules.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Expose daily research presets and validation while enforcing account class before historical studies.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | The research read names each account's assigned strategy, so the concierge can compare a new strategy with the one an account runs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Record measured owner-bound account values and expose separate read-only account details.
@@ -19,9 +20,16 @@ import {portfolioHistory} from './trading-portfolio-history';
 import {congressStrategyEvidence} from './trading-congress-candidates';
 import {registerPortfolioPlanRoutes} from './trading-portfolio-plan-routes';
 import {registerNativeManagementRoutes} from './trading-native-management';
-import {validDay,portfolioResearchWindow} from './trading-portfolio-calendar';
+import {validDay,sessionDates,portfolioResearchWindow} from './trading-portfolio-calendar';
 import {recordAccountValues,registerAccountValueRoutes} from './trading-account-values';
 const running=new Set<string>();
+function portfolioWindow(now:Date) {
+ const w=portfolioResearchWindow(now);
+ if(!w.available||!w.latestCompletedSession||!w.suggestedStart)return w;
+ const earliest=new Date(Math.max(Date.parse('2024-01-01T00:00:00Z'),Date.parse(w.latestCompletedSession+'T00:00:00Z')-370*86400000)).toISOString().slice(0,10);
+ const days=sessionDates(earliest,w.latestCompletedSession),min252=days.length>=252?days[days.length-252]:(days[0]||w.suggestedStart);
+ return {...w,suggestedStart:w.suggestedStart<=min252&&w.suggestedStart>=earliest?w.suggestedStart:min252};
+}
 function label(value:unknown,name='Name'):string {
  if(typeof value!=='string'||!value.trim()||value.trim().length>120)throw new PortfolioError(400,'name_invalid',`${name} must contain 1 to 120 characters.`);
  return value.trim();
@@ -40,7 +48,7 @@ export async function portfolioSnapshot(ctx:AppContext,owner:string,now=new Date
  ]);
  if(!Array.isArray(native.accounts)||!Array.isArray(native.errors)||typeof native.readAt!=='string')throw new PortfolioError(502,'account_read_invalid','The account roster could not be verified.');
  const rows:PortfolioRow[]=[...native.accounts.map(a=>({...a,nativeReadOnly:true})),...outside.map(a=>a.account as PortfolioRow)];
- return {native,profiles,rows,report:{...buildPortfolio(rows,profiles as PortfolioProfile[],watch.rows.map(row=>String(row.symbol)),native.errors,now),readAt:native.readAt,nativePortfolio:true,researchWindow:portfolioResearchWindow(now),outsideSources:outside.map(row=>({id:row.id,asOf:row.asOf,provider:row.provider,accountId:row.account.accountId,label:row.account.label})),
+ return {native,profiles,rows,report:{...buildPortfolio(rows,profiles as PortfolioProfile[],watch.rows.map(row=>String(row.symbol)),native.errors,now),readAt:native.readAt,nativePortfolio:true,researchWindow:portfolioWindow(now),outsideSources:outside.map(row=>({id:row.id,asOf:row.asOf,provider:row.provider,accountId:row.account.accountId,label:row.account.label})),
   caveat:'Outside snapshots are owner-entered and may be stale or overlap connected accounts. Coverage does not certify net worth or active portfolio management.'}};
 }
 async function selected(ctx:AppContext,owner:string,body:Data,now=new Date()) {

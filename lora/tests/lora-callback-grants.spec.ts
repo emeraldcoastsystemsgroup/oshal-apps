@@ -44,7 +44,7 @@ import { buildDatasetImportCommand, characterConfigFromRow } from '../src-routes
 import { fixtureAuthorization, mountLoraIngest } from './helpers/lora-callback-rail';
 
 const MIGRATIONS = ['058-lora-studio.sql', '100-lora-owner-rls.sql', '101-lora-cell-images.sql', '102-lora-character-identity.sql',
-  '103-lora-dataset-images.sql', '104-lora-dataset-staging.sql', '105-lora-callback-grants.sql', '106-lora-callback-identity.sql'];
+  '103-lora-dataset-images.sql', '104-lora-dataset-staging.sql', '105-lora-callback-grants.sql', '106-lora-callback-identity.sql','107-lora-editor-captions.sql'];
 const ISSUER = 'https://issuer.oshal.example.com';
 const fixture = new DisposablePostgres({ purpose: 'lora-callback-grants', roles: [
   { name: 'grants_a', options: '-c oshal.current_sub=grants_a -c oshal.is_operator=off' },
@@ -107,6 +107,11 @@ beforeEach(async () => {
   await fixture.pool.query(`INSERT INTO oshal_lora_characters (id, subject, display_name, trigger_word, owner_sub) VALUES
     ($1, 'drummer', 'Drummer', 'drummer', 'grants_a'), ($2, 'piper', 'Piper', 'piper', 'grants_a'),
     ($3, 'drummer', 'Other drummer', 'drummer', 'grants_b')`, [A1, A2, B1]);
+  // Trusted fixture provenance; production never adopts an unbound legacy character.
+  for (const [id, sub] of [[A1, 'grants_a'], [A2, 'grants_a'], [B1, 'grants_b']]) {
+    const key = createHash('sha256').update(JSON.stringify({ issuer: ISSUER, sub, principalId: 'fixture:' + sub, tenant: 'lora-branch-fixture' })).digest('hex');
+    await fixture.pool.query('INSERT INTO oshal_lora_character_editor (character_id, owner_key, revision) VALUES ($1, $2, 0)', [id, key]);
+  }
   recorded.commands.length = 0; recorded.tickets.length = 0; recorded.online = true; recorded.noIssuer = false;
 });
 
@@ -142,7 +147,7 @@ describe('per-dispatch LoRA callback grants', () => {
     expect(command).not.toContain(FLEET_SECRET);
     const [row] = await rows('SELECT * FROM oshal_lora_callback_grants');
     expect(row).toMatchObject({ id: grant.id, character_id: A1, owner_sub: 'grants_a', owner_issuer: ISSUER, ticket_id: 'fixture-ticket-1',
-      dispatch_kind: 'train', callback_kinds: ['training'], revoked_at: null });
+      dispatch_kind: 'train', callback_kinds: ['training','dataset-state'], revoked_at: null });
     expect(row.signing_key).toBe(createHash('sha256').update(`oshal-lora-callback-grant-v1:${grant.secret}`).digest('hex'));
     expect(JSON.stringify(row)).not.toContain(grant.secret);
     const hours = (new Date(row.expires_at).getTime() - Date.now()) / 3_600_000;
@@ -384,7 +389,7 @@ describe('the shared header contract, from both box-side producers', () => {
     expect(readFileSync(join(curated, 'portrait.txt'), 'utf8')).toBe('drummer, portrait');
     expect(await rows('SELECT status, byte_size FROM oshal_lora_dataset_images')).toEqual([{ status: 'ready', byte_size: PNG.length }]);
     expect(await rows('SELECT * FROM oshal_lora_dataset_staging')).toHaveLength(0);
-    expect(await rows('SELECT count(*)::int AS n FROM oshal_lora_callback_nonces')).toEqual([{ n: 2 }]);
+    expect(await rows('SELECT count(*)::int AS n FROM oshal_lora_callback_nonces')).toEqual([{ n: 3 }]);
     expect((await rows('SELECT revoked_at FROM oshal_lora_callback_grants'))[0].revoked_at).not.toBeNull();
     const again = await run(shell, ['-NoProfile', '-NonInteractive', '-Command', command], process.env);
     expect(again.status).not.toBe(0);

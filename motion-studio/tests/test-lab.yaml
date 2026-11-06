@@ -13,6 +13,9 @@
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register real automatic inspector and concierge handoff proofs, including native gray effects, full text values and concurrent/switching drafts.
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: register the edit-title guidance case (title renames the project; omitted unless asked).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: register the storage-busy retry case.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | Register actual model-facing text example execution, Unicode source preservation and strict invalid-range refusal.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: register phone-start (one app bar row, New composition as the one first action, no dead playback, sheets clear of the pane bar).
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: phone-start also proves the Concierge composer: Send and Read latest reply aloud on screen and under the finger on a phone and at 1440x900.
 version: 1
 cases:
   - id: storage-busy-retry
@@ -1376,4 +1379,56 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1536
+    installation: never
+
+  - id: common-editor-foundation
+    name: Shared Motion editor and inline native text
+    purpose: Verify common selection/property controls against the actual original-owned SQL and compositor, save/reopen and phone layout.
+    level: integration
+    runner: {kind: external, scope: package, files: [tests/browser/editor-foundation.test.mjs]}
+    expected:
+      - Selected position and text changes persist as exact native properties and rendered output.
+      - Inline caption editing uses the existing native draft handoff and preserves the same document.
+      - Common navigation and property drawers remain usable on a phone.
+    prerequisites: [runner:node, runtime:motion-engine-reviewed, runtime:sharp-playwright, service:postgres-disposable-35689, runtime:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: Close the fixture compositor and browser; drop only its unique SQL schema and role.}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1536}
+    installation: never
+  - id: phone-start
+    name: Motion Studio on a phone starts on a blank composition in one tap
+    purpose: At 390x844 with touch the app bar is one row and content starts within 74 px of the frame, New composition is the empty state's one first action with no dead control drawn, one tap opens a blank composition with live playback, and a pane sheet stays clear of the pane bar (Roger F7 and the trial check, 2026-11-06).
+    level: browser
+    runner: {kind: external, scope: package, files: [tests/browser/phone-start.test.mjs]}
+    expected:
+      - No band above the app bar and no repeated name; New composition is the only drawn control before a composition exists; the first pane is Layers.
+      - One tap opens revision 1 with Play enabled; the Properties sheet overlaps neither the app bar nor the pane bar.
+      - '0.2.4, the Concierge sheet at 390x844 and the Concierge column at 1440x900: Attach, Read latest reply aloud and Send lie inside the panel and a tap at each centre lands on it.'
+      - '0.2.4: the + and the speaker are icon buttons (56 px or less, transparent), not Motion''s full-width filled field; Send is live once a message is typed.'
+    prerequisites: [runner:node, runtime:motion-engine-reviewed, runtime:sharp-playwright, service:postgres-disposable-35689, runtime:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: Close the fixture compositor and browser; drop only its unique SQL schema and role.}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: text-approval-contract
+    name: Executable native text approval contract
+    purpose: Keep the actual model-visible text example executable and clarify that calling the held tool prepares the real controller card.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/text-approval-guidance.test.mjs]
+    expected:
+      - Actual description and bounded contract expose the same native whole-text shape.
+      - Genuine compositor and owned SQL preserve typography and all other document fields for ASCII and astral Unicode.
+      - Invalid partial ranges still refuse without a source revision; no input clamping or engine changes.
+      - Controlled source execution does not establish live provider or installed approval acceptance.
+    prerequisites: [runner:node, service:postgres-disposable-35689, engine:motion-worker]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/application-fixture.mjs]
+      cleanup: Close only owned compositor children/listeners and remove only the unique fixture schema and role.
+    limits: {timeoutMs: 300000, maxMemoryMb: 1536}
     installation: never

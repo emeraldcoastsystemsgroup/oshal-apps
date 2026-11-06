@@ -10,6 +10,8 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | A held Motion import keeps a newly opened draft intact instead of attaching its old source to another project.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Automatically save and refresh the concierge's current editable timeline; fence delayed saves to their original project.
  */
+import {readVideoArtifact} from './artifact-import.mjs';
+import {bindVideoFoundation} from './editor-foundation-adapter.mjs';
 import { motionSourceUrl } from './motion-source.mjs';
 import { createMultitrackEditor } from './multitrack-editor.mjs';
 import * as model from './timeline-model.mjs';
@@ -19,9 +21,13 @@ import { remainingFrames, renderBed, renderInspector, renderSources, renderTitle
 import { createPlayer } from './editor-player.mjs';
 import { createExporter } from './editor-export.mjs';
 
+const incomingVideoRefs=new URLSearchParams(location.search).getAll('artifact');
 const $ = id => document.getElementById(id);
 const state = { history: null, projectId: null, revision: null, savedText: '', selected: null, permissions: {}, busy: false, draftEpoch: 0 };
-let player, exporter, multitrack;
+let player, exporter, multitrack, foundation;
+let textSelection=null;
+function selection(){return textSelection&&doc()[textSelection.kind]?.some(item=>item.id===textSelection.id)?textSelection:doc().version===2?(multitrack?.selected()?{kind:'clip',id:multitrack.selected().clip.id}:null):(state.selected?{kind:'segment',id:state.selected}:null);}
+function selectText(kind,id){textSelection={kind,id};state.selected=null;player?.seek(doc()[kind].find(item=>item.id===id)?.start??0);}
 let motionJobs = [], motionPending = null;
 let pendingSave = null;
 function renderMotion(current,canEdit) {
@@ -76,7 +82,7 @@ function render() {
   $('deleteProject').title = state.permissions.delete ? '' : 'Your access does not include deleting projects.';
   $('addTitle').disabled = !canEdit || !current.segments.length;
   $('dirtyFlag').hidden = !dirty();
-  renderMotion(current,canEdit); multitrack?.render(); player.refresh(); exporter.refresh();
+  renderMotion(current,canEdit); multitrack?.render(); player.refresh(); exporter.refresh(); foundation?.refresh();
 }
 
 function commit(next) {
@@ -98,20 +104,24 @@ function sourceOf(media, name) {
 }
 
 async function uploadFile(kind, input) {
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
+  const file=input.files?.[0];input.value='';if(file)await uploadMediaFile(kind,file);
+}
+async function uploadMediaFile(kind,file,expectedHash) {
+  const epoch=state.draftEpoch;
   hideError(); setStatus(`Uploading ${cleanName(file.name, kind)}…`);
   try {
     const media = await upload(kind, file);
-    apply(current => {
+    if(state.draftEpoch!==epoch)throw new Error('The open video changed. Its timeline was kept; choose the clip again.');
+    if(expectedHash&&media.sha256!==expectedHash)throw new Error('The imported video bytes do not match the protected artifact.');
+    const changed = apply(current => {
       const added = model.addSource(current, sourceOf(media, cleanName(file.name, kind)));
       if (added.document.version === 2) return multitrack.appendSource(added.document, added.key);
       if (kind === 'audio' && !added.document.audioBed) return model.setAudioBed(added.document, added.key, 40);
       return kind === 'video' && remainingFrames(added.document) > 0 ? model.appendSegment(added.document, added.key) : added.document;
     });
+    if (!changed) throw new Error('The uploaded media could not be added to this timeline. Correct the timeline and try again.');
     setStatus(`${cleanName(file.name, kind)} added.`);
-  } catch (error) { showError(describe(error)); setStatus('Upload failed. Your edits are still here.'); }
+  } catch (error) { showError(describe(error)); setStatus('Upload failed. Your edits are still here.');throw error; }
 }
 
 async function loadProjects() {
@@ -148,6 +158,7 @@ function save(asNew = false) {
 }
 
 async function saveNow(asNew = false) {
+  await foundation?.flushPending();
   if (state.busy || (asNew ? !state.permissions.create : !editable())) return;
   hideError(); state.busy = true; setStatus('Saving…'); render();
   const current = doc(), body = { title: current.name, document: current }, previousKey = draftKey();
@@ -238,7 +249,7 @@ function wireTimeline() {
   $('track').addEventListener('click', event => {
     const id = event.target.closest('[data-segment]')?.dataset.segment;
     if (!id) return;
-    state.selected = id; render();
+    textSelection=null;state.selected = id; render();foundation?.showPanel('properties');
     player.seek(model.timelineLayout(doc()).find(row => row.id === id).start);
   });
   $('sources').addEventListener('click', event => {
@@ -309,8 +320,8 @@ function wireProject() {
   $('refreshMotionJobs').addEventListener('click',readyMotionJobs);
   $('motionRender').addEventListener('change',render);
   $('motionImportForm').addEventListener('submit',importMotion);
-  $('addClip').addEventListener('change', event => uploadFile('video', event.target));
-  $('addBed').addEventListener('change', event => uploadFile('audio', event.target));
+  $('addClip').addEventListener('change', event => {void uploadFile('video', event.target).catch(()=>{});});
+  $('addBed').addEventListener('change', event => {void uploadFile('audio', event.target).catch(()=>{});});
   $('undo').addEventListener('click', undo); $('redo').addEventListener('click', redo);
   $('saveProject').addEventListener('click', () => save());
   $('saveAsNew').addEventListener('click', () => save(true));
@@ -324,13 +335,14 @@ function wireProject() {
 async function init() {
   state.history = createTimelineHistory(model.createTimeline('Untitled video'));
   state.savedText = JSON.stringify(doc());
-  multitrack = createMultitrackEditor({ doc, apply, editable, frame: () => player?.frame() ?? 0, error: showError });
+  multitrack = createMultitrackEditor({ doc, apply, editable, frame: () => player?.frame() ?? 0, error: showError, onSelect:()=>{textSelection=null;foundation?.refresh();foundation?.showPanel('properties');},selectText });
   player = createPlayer({ viewer: $('viewer'), bed: $('bedAudio'), overlay: $('titleOverlay'), noPicture: $('noPicture'), playhead: $('playhead'),
     clock: $('clock'), play: $('play') }, doc, () => undefined);
   exporter = createExporter({ exportButton: $('exportMp4'), previewButton: $('renderPreview'), cancel: $('cancelExport'), progress: $('exportProgress'),
     status: $('exportStatus'), hint: $('exportHint'), download: $('downloadExport'), watch: $('watchExport') },
   () => ({ projectId: state.projectId, revision: state.revision, dirty: dirty(), canExport: !!state.permissions.export }));
   wireTimeline(); wireInspector(); wireProject();
+  try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo});foundation.refresh(); } catch(failure){showError('The common editor could not start: '+failure.message);}
   try { const current = await call('/permissions'); state.permissions = current.permissions; configureMediaTransport(current.nativeMedia); }
   catch (error) {
     showError(describe(error)); setStatus('The video editor is not available to you.'); render();
@@ -342,13 +354,14 @@ async function init() {
   else { startNew(); await loadProjects(); setStatus(state.permissions.create ? 'Ready. Add a clip to start.' : 'Your access does not include creating projects.'); }
   try { await bindDocumentHandoff(); }
   catch (failure) { showError(`The concierge cannot synchronize this document: ${failure.message}`); }
+  try{await acceptVideoArtifact();}catch(failure){showError('The clip could not be imported: '+failure.message);}
   document.documentElement.dataset.editorReady = 'true';
 }
 
 async function bindDocumentHandoff() {
   const { registerDocumentSession } = await import('/shared/ui/js/document-handoff.js');
   registerDocumentSession({ app: 'video', prepare: async () => {
-    document.activeElement?.blur?.();
+    document.activeElement?.blur?.();await foundation?.flushPending();
     const epoch = state.draftEpoch;
     const current = () => { if(state.draftEpoch !== epoch) throw new Error('The open project changed during the handoff. Ask again from the document you want to edit.'); };
     if (!state.permissions.read) throw new Error('Your access does not allow the concierge to read this project.');
@@ -358,7 +371,7 @@ async function bindDocumentHandoff() {
     for (let attempt = 0; attempt < 3 && (!state.projectId || dirty()); attempt++) { await save(); current(); }
     if (!state.projectId || dirty()) throw new Error($('error').textContent || 'The current video draft could not be saved.');
     return { app: 'video', screen: 'surface', surface: 'video-editor', recordId: state.projectId, title: doc().name,
-      fields: { revision: state.revision, draft: false, ...(state.selected ? { clipId: state.selected } : {}) } };
+      fields: { revision: state.revision, draft: false, selection:selection(), ...(selection()?.id ? { clipId: selection().id } : {}) } };
   }, refresh: async expected => {
     const id = state.projectId, revision = state.revision;
     if (!id || (expected?.recordId && expected.recordId !== id) || !state.permissions.read) return;
@@ -375,5 +388,9 @@ async function bindDocumentHandoff() {
     } catch (failure) { showError(failure.message); throw failure; }
   } });
 }
+
+
+const receivedVideoArtifacts=new Set();
+async function acceptVideoArtifact(){const refs=incomingVideoRefs;if(!refs.length)return;if(new Set(refs).size!==1)throw new Error('Choose one video artifact at a time.');const ref=refs[0];if(receivedVideoArtifacts.has(ref))return;if(!editable())throw new Error('Your access does not allow importing a video clip.');const epoch=state.draftEpoch;setStatus('Reading protected video artifact…');const source=await readVideoArtifact(ref);if(state.draftEpoch!==epoch)throw new Error('The open video changed. Choose the clip again.');await uploadMediaFile('video',source.file,source.sha256);receivedVideoArtifacts.add(ref);const url=new URL(location.href);url.searchParams.delete('artifact');history.replaceState(null,'',url);setStatus('Imported verified clip. Trim, title or arrange it, then save the editable timeline.');}
 
 init();

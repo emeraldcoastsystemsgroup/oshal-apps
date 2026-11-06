@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Redirect a bare require to the framework checkout only when the package itself asks for it. Requires made inside node_modules resolve normally again: redirecting them to core's root broke in the Test Lab sandbox, where the image's pruned node_modules keeps semver only nested under sharp (Cannot find module 'semver'); a developer checkout hoists it, which is why no local run saw it.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The print service: mount createScanToPrintServiceRoutes at /api/scan-to-print/service the way the manifest mounter does for `service-or-oidc` (a request carrying the fixture's service secret gets oshalCallerSub from X-Oshal-User-Sub and no session; anything else needs the session), stub requireTrustedServiceUserIdentity with the real contract (session passes, a secret without a user is 403, a secret with one narrows the identity to that user, non-operator), model the printer-settings UPDATE and the JSON slice_profile column, and accept slicer/printer socket seams.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: `options.ctx` adds the kernel's activation ports (`tools`, `authorization`) to the person's route factory context, so tools.core can capture the package tools and the resource adapter that factory registers; fakePool is exported for kernel.core, which activates the package through the real core runtime over this same SQL-dispatching store.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Keep historical SQL-dispatching lifecycle fixtures explicitly synthetic; new genuine calibration proofs use their isolated PostgreSQL fixture.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -131,13 +132,15 @@ function query(tables, sql, p) {
 }
 
 function fakePool(control) {
-  const tables = { scan_print_job: [], scan_print_image: [], scan_print_printer: [], scan_print_submission: [] };
-  return { tables, async query(sql, params = []) {
+  const tables = { scan_print_job_editor: [],scan_print_job: [], scan_print_image: [], scan_print_printer: [], scan_print_submission: [] };
+  const pool={ tables,connect:async()=>({query:(...args)=>pool.query(...args),release(){}}), async query(sql, params = []) {
     const text = typeof sql === 'string' ? sql : sql.text, values = typeof sql === 'string' ? params : sql.values;
+    if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(text.trim())||/^SELECT set_config/.test(text))return{rows:[],rowCount:0};
     if (!queryIdentity(control, text)) return { rows: [], rowCount: 0 };
     if (control.beforeQuery) await control.beforeQuery(text, values);
+    if(/^INSERT INTO scan_print_job_editor/.test(text)){tables.scan_print_job_editor.push({job_id:values[0],owner_key:values[1]});return{rows:[],rowCount:1};}
     return query(tables, text, values);
-  } };
+  } };return pool;
 }
 
 function queryIdentity(control, sql) {
@@ -187,8 +190,8 @@ async function startFixture(options = {}) {
   };
   const express = coreRequire('express'), app = express();
   app.use(express.json());
-  app.use('/shared/ui/css', express.static(path.join(CORE, 'src/shared/ui/css')));
-  app.use('/shared/ui/js', express.static(path.join(CORE, 'src/shared/ui/js')));
+  app.use('/shared/ui/css', express.static(path.join(process.env.OSHAL_PLATFORM_ROOT || CORE, 'src/shared/ui/css')));
+  app.use('/shared/ui/js', express.static(path.join(process.env.OSHAL_PLATFORM_ROOT || CORE, 'src/shared/ui/js')));
   app.use('/cockpit', express.static(path.join(CORE, 'src/pages/cockpit')));
   app.get('/shared/ui-debug.js', (_req, res) => res.sendFile(path.join(CORE, 'src/pages/shared/ui-debug.js')));
   const seams = { slicerConnect: options.slicerConnect, bambuIo: options.bambuIo };
@@ -206,6 +209,12 @@ async function startFixture(options = {}) {
     if (!req.oidc) { res.status(401).json({ error: 'unauthenticated' }); return undefined; }
     return next();
   }, loaded.serviceFactory({ pool, appPackageDir: PKG }, { dataRoot: tmp, env, fetchImpl, execFile, ...seams }));
+  if(!options.ctx?.authorization){
+    // Named legacy UI transport seam, not SQL/CAS/authority evidence. Genuine calibration proofs use calibration.fixture.mjs.
+    const editor=require(path.join(PKG,'routes/calibration-editor.js'));
+    app.get('/api/scan-to-print/jobs/:jobId/calibration',(req,res)=>{const job=pool.tables.scan_print_job.find(row=>row.job_id===req.params.jobId&&row.owner_sub===control.sub);if(!job)return res.status(404).json({error:'job_not_found'});res.json({jobId:job.job_id,sourceSha:editor.calibrationHash(job),...editor.calibrationSource(job),canEdit:true,state:job.state,sourceKind:job.source_kind});});
+    app.patch('/api/scan-to-print/jobs/:jobId/calibration',async(req,res)=>{const job=pool.tables.scan_print_job.find(row=>row.job_id===req.params.jobId&&row.owner_sub===control.sub);if(!job)return res.status(404).json({error:'job_not_found'});if(req.body.expectedSourceSha!==editor.calibrationHash(job))return res.status(409).json({error:'fixture_calibration_conflict'});const r=await fetch('http://127.0.0.1:'+req.socket.localPort+'/api/scan-to-print/jobs/'+job.job_id,json('PATCH',{knownDimensions:req.body.knownDimensions,settings:req.body.settings})),result=await r.json();if(!r.ok)return res.status(r.status).json(result);res.json({job:result.job,calibration:{jobId:job.job_id,sourceSha:editor.calibrationHash(job),...editor.calibrationSource(job),canEdit:true,state:job.state,sourceKind:job.source_kind},changed:true});});
+  }
   app.use('/api/scan-to-print', (req, res, next) => { if (!req.oidc) { res.status(401).json({ error: 'unauthenticated' }); return undefined; } return next(); },
     loaded.factory({ pool, appPackageDir: PKG, ...(options.ctx || {}) }, { dataRoot: tmp, env, fetchImpl, execFile, ...seams }));
   let server;

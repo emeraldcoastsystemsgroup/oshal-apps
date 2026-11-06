@@ -1,10 +1,13 @@
+# 1.8.3 | maintainer@emeraldcoastsystemsgroup.com | Bind Concierge source-edit instructions to the open character and selected caption.
+# 1.8.2 | maintainer@emeraldcoastsystemsgroup.com | Separate source changes from broad configuration and processing authority.
+# 1.8.1 | maintainer@emeraldcoastsystemsgroup.com | Add owned source editing without training or autonomous execution authority.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-lora.sql (every LoRA table and index in final shape, with 102's identity columns, 106's issuer columns and 101's model foreign key folded in) and skip 058 and 100-106 natively: 058 seeds a character owned by system:seed:lora, which the native owner-field check refuses, sets NOT NULL by ALTER and installs RLS policies, and 102's comment carries an escaped quote; the declared migrations stayed pending for every person. PostgreSQL still applies 058-106 and the native file is a no-op there.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.7.5: declare lora-director as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
-# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.7.6: the director gets read tools lora-characters and lora-models (bound to lora.read in authorization.yaml). Asked from Jarvis what LoRA models were trained, it answered that it could not list trained models, while the studio showed them. Guarded by lora/tests/lora-read-tools.test.cjs.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: the director gets read tools lora-characters and lora-models (bound to lora.read in authorization.yaml). Asked from Jarvis what LoRA models were trained, it answered that it could not list trained models, while the studio showed them. Guarded by lora/tests/lora-read-tools.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — lora ("LoRA Studio")
@@ -62,7 +65,7 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.7.6
+version: 1.8.3
 status: active
 
 # Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
@@ -197,6 +200,74 @@ tools:
     usageInstructions: Call with {} when the person asks what models they have trained. An empty list means none are trained yet.
     tags: [lora, route-backed]
 
+
+  - name: lora-editor-contract
+    displayName: LoRA editor contract
+    type: api
+    category: creative
+    description: Read the exact supported caption and cosmetic identity editing contract.
+    executor: {executorType: api, apiEndpoint: "GET /api/lora/editor-contract"}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: {type: object, properties: {}}
+    usageInstructions: Read before editing; trained weights and trigger/hero identity anchors are immutable.
+    tags: [lora, route-backed]
+  - name: lora-editor-character
+    displayName: Read selected LoRA identity metadata
+    type: api
+    category: creative
+    description: Read the saved display name and CAS revision of the actual owned character.
+    executor: {executorType: api, apiEndpoint: "GET /api/lora/characters/{input.subject}/editor"}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: {type: object, required: [subject], properties: {subject: {type: string, maxLength: 128}}}
+    usageInstructions: Use the actual subject from the current document or lora-characters; retain the returned revision.
+    tags: [lora, route-backed]
+  - name: lora-editor-caption
+    displayName: Read selected LoRA caption
+    type: api
+    category: creative
+    description: Read exact desired/applied caption revisions and worker acknowledgement for one saved owned dataset image.
+    executor: {executorType: api, apiEndpoint: "GET /api/lora/dataset/{input.imageId}/caption?subject={input.subject}"}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: {type: object, required: [subject, imageId], properties: {subject: {type: string, maxLength: 128}, imageId: {type: string, format: uuid}}}
+    usageInstructions: Use the actual imageId from the current document; never guess IDs. A desired caption is unapplied until applied_revision matches caption_revision.
+    tags: [lora, route-backed]
+  - name: lora-editor-character-edit
+    displayName: Edit selected LoRA display name
+    type: api
+    category: creative
+    description: Change only the cosmetic display name with the exact saved revision; leave trained identity anchors unchanged.
+    executor: {executorType: api, apiEndpoint: "PATCH /api/lora/characters/{input.subject}/editor"}
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema: {type: object, required: [subject, displayName, baseRevision], properties: {subject: {type: string, maxLength: 128}, displayName: {type: string, minLength: 1, maxLength: 120}, baseRevision: {type: integer, minimum: 0, maximum: 1000000}}}
+    usageInstructions: Read lora-editor-character first; propose the actual display name and returned revision. On conflict reread and retain the person's pending field.
+    tags: [lora, route-backed]
+  - name: lora-editor-caption-edit
+    displayName: Edit selected LoRA dataset caption
+    type: api
+    category: creative
+    description: Save one bounded desired caption under CAS and request an exact signed worker file update. Training stays blocked until the matching worker acknowledgement.
+    executor: {executorType: api, apiEndpoint: "PATCH /api/lora/dataset/{input.imageId}/caption"}
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema: {type: object, required: [subject, imageId, caption, baseRevision], properties: {subject: {type: string, maxLength: 128}, imageId: {type: string, format: uuid}, caption: {type: string, minLength: 1, maxLength: 2048}, baseRevision: {type: integer, minimum: 0, maximum: 1000000}}}
+    usageInstructions: Read the selected saved caption first. Use its actual imageId and caption_revision. Caption must fit 2048 UTF-8 bytes. Never claim GPU files changed until matching applied_revision is returned by a fresh read.
+    tags: [lora, route-backed]
+  - name: lora-editor-caption-retry
+    displayName: Retry saved caption synchronization
+    type: api
+    category: creative
+    description: Retry the exact already-saved pending caption revision without changing its content or trained weights.
+    executor: {executorType: api, apiEndpoint: "POST /api/lora/dataset/{input.imageId}/caption/retry"}
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema: {type: object, required: [subject, imageId, baseRevision], properties: {subject: {type: string, maxLength: 128}, imageId: {type: string, format: uuid}, baseRevision: {type: integer, minimum: 0, maximum: 1000000}}}
+    usageInstructions: Read the exact pending caption first; retry only that saved caption_revision. Wait for a real worker acknowledgement before claiming it is applied.
+    tags: [lora, route-backed]
+
 routes:
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
@@ -278,8 +349,13 @@ migrations:
   - migrations/105-lora-callback-grants.sql
   - migrations/106-lora-callback-identity.sql
   - migrations/native/001-lora.sql
+  - migrations/107-lora-editor-captions.sql
+  - migrations/native/007-lora-editor-captions.sql
 # The native kernel applies the native file above in place of 058 and 100-106 (seed owner, backfills, comments and RLS policies are PostgreSQL-only).
 nativeMigrations:
+  - id: migrations/107-lora-editor-captions.sql
+    native: skip
+    reason: "The final native table shape is in native/007; native/001 includes caption-write grants. PostgreSQL RLS and constraint upgrades are not native DDL."
   - id: migrations/058-lora-studio.sql
     native: skip
     reason: "Its tables and indexes are in migrations/native/001-lora.sql; its system:seed:lora sample character has no person to own it in a native scope, and its backfill, SET NOT NULL and RLS policies are PostgreSQL-only; the native per-person scope and its owner-field check keep each person's characters their own."

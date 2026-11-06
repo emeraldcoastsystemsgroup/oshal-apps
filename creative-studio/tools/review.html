@@ -7,6 +7,7 @@ SEQ | AUTHOR | DESCRIPTION
 <html lang="en" data-theme="workspace"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Creative Studio</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN story
      videos (how many are waiting or being made, which the route counts together as queued plus running, finished in
      the last five days and not finished, and the newest three with where each one stands) from the SAME GET /api/creative-studio/home-summary the full page reads, painted by the shared kit
@@ -111,16 +112,94 @@ SEQ | AUTHOR | DESCRIPTION
   --border: var(--border-color, #ffffff1c);
 }
 *{box-sizing:border-box}body{margin:0;background:var(--bg-primary, #10131e);color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:var(--bg-card, #202638)}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:var(--bg-secondary, #0e1320);border:1px solid var(--border);border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:var(--bg-tertiary, #202638);border:1px solid var(--border);border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:var(--bg-card-hover, #2a3146)}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent-primary, #b7beff);color:var(--text-on-accent, #fff);font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
+
+/* The same editor anatomy surrounds the actual brief, evidence and generation controls. */
+main.ef-editor{max-width:none;padding:0;margin:0}.ef-editor .layout{display:contents}
+.ef-editor .ef-navigation>.panel,.ef-editor .ef-viewport>.panel,.ef-editor .brief-inspector{padding:16px;border:0;border-radius:0;background:transparent;min-width:0}
+.ef-editor .ef-viewport>.panel{overflow:auto}.ef-editor .ef-header-slot>header{margin:0;padding:12px 16px}
+.ef-editor .ef-header-slot h1{font-size:20px;margin:0}.ef-editor .ef-header-slot .eyebrow{display:none}
+.ef-editor #metrics{grid-template-columns:1fr;gap:8px}.ef-editor #metrics .metric{padding:10px}.ef-editor #metrics .metric strong{font-size:20px}
+.ef-editor .connected-app-actions{display:flex;flex-wrap:wrap;gap:8px}.ef-editor button{min-height:40px}
+.ef-editor textarea#notes{min-height:45dvh}.ef-editor .brief-inspector h2{font-size:14px}
+@media(max-width:800px){.ef-editor button,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor input,.ef-editor textarea,.ef-editor select{font-size:16px}}
+
+.source-project-actions{display:flex;flex-wrap:wrap;gap:8px}.source-scene{display:flex;flex-wrap:wrap;gap:6px;border-block-end:1px solid var(--border);padding:10px 0}.source-scene>button:first-child{flex-basis:100%;text-align:left}.source-scene button[aria-pressed="true"]{outline:2px solid var(--accent)}
 </style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><div class="eyebrow">Connected creative workspace</div><h1>Creative Studio</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button><a href="/api/vids/app">Open Vids Studio</a></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
-import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
+import {mountConnectedActions,requestHandoff} from '/cockpit/js/app-workflows.js';
 // The full page only: under an audience view the shared kit paints instead (see the head script), so no handoff listener
 // is bound, no connected-actions offer is fetched, no Refresh handler is bound and the summary is not read a second time.
 if (!window.AppView || !AppView.active()) {
 const app="creative-studio",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
-const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';};
+
+// Briefs keep their actual source controls; rendered outputs retain an explicit editor handoff.
+let briefEditor,sourceEditor,sourceAssistant;
+const briefIdentity='brief:'+crypto.randomUUID();
+function briefProperties(){
+  if(sourceEditor?.properties())return sourceEditor.properties();
+  const fields=[{key:'title',label:'Title',type:'text',value:title.value,group:'Brief'},{key:'sourceUrl',label:'Source link',type:'text',value:sourceUrl.value,group:'Brief'}];
+  const mode=document.querySelector('#mode');
+  if(mode)fields.push({key:'mode',label:'Build',type:'select',value:mode.value,options:[...mode.options].map(option=>({value:option.value,label:option.textContent})),group:'Output'});
+  return fields;
+}
+function applyBriefProperty(key,value,expected){
+  if(sourceEditor?.properties())return sourceEditor.applyProperty(key,value,expected);
+  if(expected.documentId!==(sourceEditor?.getState().documentId??briefIdentity)||!['title','sourceUrl','mode'].includes(key))throw Error('Select the current brief before editing.');
+  const field=document.getElementById(key);if(!field)throw Error('This brief property is unavailable.');
+  const previous=field.value;field.value=String(value);
+  if(!field.checkValidity()){field.value=previous;throw Error('Correct the '+key+' value.');}
+  field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));
+}
+
+async function continueBrief(offer,button){
+  try{
+    await briefEditor?.flushPending();
+    if(!notes.value.trim())throw Error('Write or select a brief before opening its editor.');
+    button.disabled=true;
+    await requestHandoff(app,offer,{title:title.value.trim(),notes:sourceEditor?.handoffNotes()??notes.value.trim(),sourceUrl:sourceUrl.value.trim()},()=>{status.textContent='Opening the receiving editor…';});
+    status.textContent='Brief handed to the receiving editor.';
+  }catch(error){
+    status.textContent=error.message;
+    if(error.cockpitUrl){const link=document.createElement('a');link.href=error.cockpitUrl;link.target='_top';link.textContent='Open this studio in the cockpit';status.append(' ',link);}
+  }finally{button.disabled=false;}
+}
+function briefHandoffs(inspector){
+  const row=document.createElement('div');row.className='brief-editor-actions';
+  for(const [offer,label] of [['prepare-document','Edit brief as document'],['prepare-episode','Open episode workflow']]){
+    const button=document.createElement('button');button.type='button';button.textContent=label;
+    button.onclick=()=>continueBrief(offer,button);row.append(button);
+  }
+  inspector.append(row);
+}
+async function mountBriefWorkspace(){
+  const {createEditorFoundation}=await import('/shared/ui/js/editor-foundation.js');
+  const {createEditorAssistant}=await import('/shared/ui/js/editor-assistant.js');
+  const root=document.querySelector('main'),panels=[...root.querySelectorAll('.layout>.panel')];
+  if(panels.length!==2)return;
+  const inspector=document.createElement('section');inspector.className='brief-inspector';
+  const heading=document.createElement('h2');heading.textContent='Output';inspector.append(heading);
+  for(const key of ['sourceUrl','mode']){const field=document.getElementById(key);if(field)inspector.append(field.closest('label'));}
+  for(const key of ['render','renderHint']){const action=document.getElementById(key);if(action)inspector.append(action);}
+  const note=document.createElement('p');note.className='hint';note.textContent='Generated video is a rendered output. Edit scenes here; connected workflows open a separate draft from your brief text. Scene objects remain in this source project.';inspector.append(note);briefHandoffs(inspector);
+  const metrics=document.getElementById('metrics');panels[0].prepend(metrics);root.append(inspector);
+  sourceAssistant=createEditorAssistant({app,bot:'story-editor',title:'Source AI partner',root,prepare:()=>sourceEditor.prepare(),refresh:context=>sourceEditor.refreshFromAssistant(context),getState:()=>sourceEditor?.getState()??{documentId:briefIdentity,revision:0,dirty:true,busy:true}});
+  briefEditor=createEditorFoundation({root,ai:sourceAssistant.element,navigation:panels[0],viewport:panels[1],inspector,header:root.querySelector('header'),
+    getState:()=>sourceEditor?.getState()??({documentId:briefIdentity,revision:0,title:title.value||'New brief',dirty:Boolean(notes.value||title.value),readOnly:false,status:'Brief draft · generation is a separate action'}),
+    getSelection:()=>sourceEditor?.getSelection()??({kind:'brief',ids:['current']}),getProperties:briefProperties,applyProperty:applyBriefProperty,actions:{save:()=>sourceEditor?.save(),undo:()=>sourceEditor?.undo(),redo:()=>sourceEditor?.redo()}});
+  const {installSourceEditor}=await import('/api/creative-studio/source-project-editor.mjs');
+  sourceEditor=installSourceEditor({app,kind:'story',viewport:panels[1],navigation:panels[0],header:root.querySelector('header'),foundation:()=>briefEditor,
+    readBrief:()=>({title:title.value,notes:notes.value,sourceUrl:sourceUrl.value,mode:document.getElementById('mode')?.value||'episode'}),
+    writeBrief:model=>{title.value=model.title;notes.value=model.notes;sourceUrl.value=model.sourceUrl;if(document.getElementById('mode'))document.getElementById('mode').value=model.mode;},message:text=>{status.textContent=text;},onChange:()=>sourceAssistant?.refresh()});
+  briefEditor.refresh();sourceAssistant.refresh();
+
+  root.addEventListener('input',()=>briefEditor.refresh());root.addEventListener('change',()=>briefEditor.refresh());
+  window.addEventListener('pagehide',event=>{if(!event.persisted){sourceAssistant?.destroy();briefEditor.destroy();}},{once:true});
+}
+
+const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';notes.dispatchEvent(new Event('input',{bubbles:true}));};
 receiveHandoff({app,action:'prepare-brief',version:1,contextType:'research-brief',fields:['title','notes','sourceUrl']},fill);
 await mountConnectedActions({app,element:document.querySelector('.connected-app-actions'),contextForOffer:()=>notes.value.trim()?{title:title.value.trim(),notes:notes.value.trim(),sourceUrl:sourceUrl.value.trim()}:null});
+await mountBriefWorkspace().catch(error=>{status.textContent='The shared editor could not open: '+error.message;});
 const localInstants=t=>String(t).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})/g,m=>{const d=new Date(m);return Number.isFinite(d.getTime())?d.toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):m;});
 async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();for(const m of data.metrics||[]){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}const rows=[],notes=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');if(context){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});c3.append(b);}}wrap.append(table);list.append(wrap);}for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 document.querySelector('#refresh').addEventListener('click',refresh);

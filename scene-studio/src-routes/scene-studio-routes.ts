@@ -38,7 +38,7 @@ import { capabilityCache, describeCapabilities } from './scene-capabilities';
 import { registerSceneStudioTools } from './scene-tools';
 
 const logger = createChildLogger({ module: 'scene-studio-routes' });
-const SURFACE_SCRIPTS = ['scene-studio.js'] as const;
+const SURFACE_SCRIPTS = ['scene-studio.js', 'editor-foundation-adapter.mjs', 'scene-object-model.mjs'] as const;
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 
 /** @description Resolve the authenticated caller's sub (oidc session, or the mounter's service-rail sub). */
@@ -84,10 +84,11 @@ export function installHint(env: Record<string, string | undefined>): string {
   return `docker exec ${api} sh /app/workspace-shared/deployed-apps/scene-studio/engine/install-engine.sh`;
 }
 
-function capabilitiesRoute(capabilities: () => Promise<Record<string, unknown>>): RequestHandler {
+function capabilitiesRoute(capabilities: () => Promise<Record<string, unknown>>, ctx: AppContext): RequestHandler {
   return async (_req: Request, res: Response) => {
     try {
-      res.json(await capabilities());
+      const execute = ctx.authorization?.authorize ? (await ctx.authorization.authorize({permission: 'scene.run'})).allowed : null;
+      res.json({...await capabilities(), access: {execute}});
     } catch (error) {
       logger.error({ err: error }, 'Scene Studio capabilities failed');
       res.status(500).json({ error: 'capabilities_failed' });
@@ -141,7 +142,7 @@ export function createSceneStudioRoutes(ctx: AppContext, opts: SceneStudioRouteO
   const assets = Router();
   for (const file of SURFACE_SCRIPTS) assets.get(`/${file}`, serveFile(packageFile(ctx.appPackageDir, 'tools', file), 'application/javascript'));
   router.use('/assets', assets);
-  router.get('/capabilities', capabilitiesRoute(capabilities));
+  router.get('/capabilities', capabilitiesRoute(capabilities, ctx));
   router.use(createProjectRoutes(deps));
   return router;
 }

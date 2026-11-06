@@ -281,6 +281,45 @@ bindings:
         - document.view
         - document.read
         - document.delete
+    - id: pdf-editing-sources
+      method: GET
+      path: /documents/:document/editing-sources
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-draft-preview
+      method: POST
+      path: /documents/:document/draft-preview
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-image-list
+      method: GET
+      path: /image-assets
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-image-upload
+      method: POST
+      path: /image-assets
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-image-delete
+      method: DELETE
+      path: /image-assets/:asset
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+    - id: pdf-form-find
+      method: GET
+      path: /documents/:document/forms/find
+      allOf:
+        - document.view
+        - document.read
   tools:
     - id: pdf-editing-contract
       allOf:

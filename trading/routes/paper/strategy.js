@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Daily models use persisted holdings/risk state, shared costed sizing and next-session retirement settlement; request bounded extended history from the current clock.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | A local paper account can run a saved portfolio strategy: the owner (or the concierge on their behalf) assigns one, and each scheduled pass of a regular session rebalances the simulated book in whole shares to the strategy's current targets (the same portfolioNextTargets the live accounts use) once per new decision. Daily closes and quotes come from read-only Schwab when configured, else the platform archive. No broker order path exists here.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Assigning computes the strategy's current targets first and refuses (422 strategy_history_unavailable) when a year of daily prices cannot be read: the archive serves at most 365 days, short of the monthly warmup, so a login without Schwab is told at assignment instead of failing at the open.
  */
@@ -43,7 +44,9 @@ async function assignStrategy(deps,sub,book,strategyId,now){
  const strategy=await getRecord({pool:deps.pool},sub,'strategy',strategyId);
  const config=normalizePortfolioStrategy(strategy.config),symbols=portfolioStrategySymbols(config);
  // Prove now that the strategy's targets can be computed for this person, so a pass at the open cannot fail on history.
- const preview=await previewTargets(deps,config,symbols,now);
+ const pool=require('./books').bookPool(deps.pool,book.book_ref);
+ const positions=await store.loadPositions(pool,sub),previous=config.modelVersion===3?(await store.listTicks(pool,sub)).find(t=>t.summary?.daily)?.summary.daily:null;
+ const preview=await previewTargets(deps,config,symbols,now,{positions,previous});
  const assignment={bookRef:book.book_ref,strategyId,strategyName:strategy.name,config,symbols,assignedAt:now.toISOString(),preview,lastDecisionAsOf:null,lastCheckedSession:null,lastAttemptAt:null,lastResult:null};
  return saveRecord({pool:deps.pool},sub,KIND,assignment,book.book_ref);
 }
@@ -56,11 +59,12 @@ async function assignStrategy(deps,sub,book,strategyId,now){
  * @param {Date} now - Instant.
  * @returns {Promise<{decisionAsOf:string,targets:Array<object>,priceSource:string}>} The preview.
  */
-async function previewTargets(deps,config,symbols,now){
+async function previewTargets(deps,config,symbols,now,{positions=[],previous=null}={}){
  if(typeof deps.intent!=='function')refuse(503,'prices_unavailable','This host has no price service.');
  let schwab=false;try{schwab=(await deps.intent('trading.config',{})).configured===true;}catch{}
  try{
-  const signal=portfolioNextTargets(config,await dailyCloses(deps.intent,[...new Set([...symbols,'SPY'])],schwab),lastCompletedSession(now));
+  const series=await dailyCloses(deps.intent,[...new Set([...symbols,'SPY'])],schwab,now),asOf=lastCompletedSession(now);
+  const signal=config.modelVersion===3?require('./daily-strategy').decide(config,series,asOf,positions,previous):portfolioNextTargets(config,series,asOf);
   return {decisionAsOf:signal.decisionAsOf,targets:signal.targets,priceSource:schwab?'schwab-read-only':'world-archive'};
  }catch(err){
   refuse(422,'strategy_history_unavailable','This strategy needs a year of daily prices for '+symbols.join(', ')+', which come from your connected Schwab login (read-only), the same data a backtest uses. '+(schwab?'':'No Schwab login is connected. ')+'Details: '+String(err&&err.message||err).slice(0,200));
@@ -86,20 +90,25 @@ async function clearStrategy(deps,sub,ref){
  * @param {boolean} schwab - Whether read-only Schwab market data is configured.
  * @returns {Promise<Object<string,Array<{date:string,close:number}>>>} Series.
  */
-async function dailyCloses(intent,symbols,schwab){
+async function dailyCloses(intent,symbols,schwab,now=new Date()){
  const series={};
  if(schwab){
-  // The monthly models warm up over a year of sessions: two reads, as the live backtest makes (trading-portfolio-history).
-  const nowMs=Date.now();
-  for(const symbol of symbols){
-   const rows=new Map();
-   for(const end of [nowMs,nowMs-350*86400000]){
-    const data=await intent('trading.bars',{symbol,timeframe:'1Day',end:Math.floor(end)});
-    if(data.source!=='schwab'||data.symbol!==symbol||!Array.isArray(data.bars))throw Error(symbol+' daily history is unavailable.');
-    for(const b of data.bars)if(Number(b.c)>0&&Number.isFinite(b.t))rows.set(etParts(new Date(b.t*1000)).date,Number(b.c));
+  // Use the supported extended request, rather than moving end outside the native 400-day bound.
+  const nowMs=now.getTime();
+  const deadline=Date.now()+90000;
+  const readSymbol=async symbol=>{
+   if(Date.now()>deadline)throw Error('Historical reads exceeded their time budget.');
+   const data=await intent('trading.bars',{symbol,timeframe:'1Day',end:Math.floor(nowMs),historyDays:800}),rows=new Map();
+   if(data.source!=='schwab'||data.symbol!==symbol||!Array.isArray(data.bars)||data.bars.length>10000)throw Error(symbol+' daily history is unavailable.');
+   for(const b of data.bars){
+    if(!Number.isFinite(b.c)||b.c<=0||!Number.isFinite(b.t))throw Error(symbol+' has invalid daily evidence.');
+    const date=new Date(b.t*1000).toISOString().slice(0,10),old=rows.get(date);
+    if(old!==undefined&&old!==b.c)throw Error(symbol+' daily evidence changed.');
+    rows.set(date,b.c);
    }
    series[symbol]=[...rows].sort(([a],[b])=>a.localeCompare(b)).map(([date,close])=>({date,close}));
-  }
+  };
+  for(let i=0;i<symbols.length;i+=2){const results=await Promise.allSettled(symbols.slice(i,i+2).map(readSymbol));const failed=results.find(r=>r.status==='rejected');if(failed)throw failed.reason;}
   return series;
  }
  const answer=await intent('prices.series',{symbols,interval:'day',days:365});
@@ -187,15 +196,19 @@ async function runStrategyTick(deps,root,sub,assignment,opts){
  try{
   let schwab=false;try{schwab=(await deps.intent('trading.config',{})).configured===true;}catch{}
   const symbols=[...new Set([...assignment.symbols,'SPY'])];
-  const signal=portfolioNextTargets(assignment.config,await dailyCloses(deps.intent,symbols,schwab),lastCompletedSession(now));
+  const positions=await store.loadPositions(deps.pool,sub),daily=assignment.config.modelVersion===3;
+  const committed=daily?(await store.listTicks(deps.pool,sub)).find(t=>t.summary?.daily)?.summary.daily:null;
+  if(committed?.session===session)return {skipped:'checked_today',window,strategy:assignment.strategyName};
+  const series=await dailyCloses(deps.intent,symbols,schwab,now),asOf=lastCompletedSession(now);
+  const signal=daily?require('./daily-strategy').decide(assignment.config,series,asOf,positions,committed):portfolioNextTargets(assignment.config,series,asOf);
   if(assignment.lastDecisionAsOf===signal.decisionAsOf){await keep({lastCheckedSession:session,lastAttemptAt:now.toISOString(),lastResult:'current'});return {ok:true,window,unchanged:signal.decisionAsOf};}
-  const positions=await store.loadPositions(deps.pool,sub);
-  const needed=[...new Set([...positions.map(p=>p.symbol),...signal.targets.map(t=>t.symbol)])];
+  const needed=[...new Set([...positions.map(p=>p.symbol),...signal.targets.map(t=>t.symbol),...(daily?assignment.symbols:[])])];
   const prices=await currentPrices(deps.intent,needed,schwab);
   const unpriced=needed.filter(s=>!prices.has(s));
   if(unpriced.length)throw Error('No current price for '+unpriced.join(', ')+'.');
-  const plan=rebalancePlan(account,positions,signal.targets,prices,assignment.strategyName);
-  plan.summary={strategy:assignment.strategyName,strategyId:assignment.strategyId,decisionAsOf:signal.decisionAsOf,targets:signal.targets,priceSource:schwab?'schwab-read-only':'world-archive'};
+  for(const [symbol,q] of prices)if(!Number.isFinite(Date.parse(q.at))||now-Date.parse(q.at)>config.maxQuoteAgeMinutes*60000||Date.parse(q.at)>now.getTime()+60000)throw Error('No fresh current price for '+symbol+'.');
+  const plan=daily?require('./daily-strategy').planDaily(account,positions,signal,prices,assignment,committed,session):rebalancePlan(account,positions,signal.targets,prices,assignment.strategyName);
+  plan.summary={strategy:assignment.strategyName,strategyId:assignment.strategyId,decisionAsOf:signal.decisionAsOf,targets:signal.targets,priceSource:schwab?'schwab-read-only':'world-archive',...(daily?{daily:plan.daily}:{})};
   const newId=deps.newId||randomUUID,ids=plan.fills.map(()=>({orderId:newId(),decisionId:newId()}));
   const result=await store.writeTick(deps.pool,sub,{window,trigger:opts.trigger,runId:opts.runId,at:now.toISOString(),sessionDate:session,plan,account,ids,previousSymbols:positions.map(p=>p.symbol)});
   if(!result.written)return {skipped:result.reason,window};

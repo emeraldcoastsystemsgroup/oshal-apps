@@ -30,6 +30,10 @@
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Register description-paper: the description's catalog short form says 3D printers only and that it cannot print paper documents (sweep 14 / demo sweep 2: Jarvis offered it for a home inkjet).
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Register print-tools-reentry: a saved code sealed by the earlier platform answers re-enter it.
 # -----------------------------------------------------------------------------
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Register genuine calibration SQL/geometry/browser proofs separately from older synthetic lifecycle fixtures.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | Register the phone capture proofs: Take photos to a filled checklist in the browser, and canReconstruct over the genuine calibration fixture.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6: register scanner-role (the trial visitor's narrow role builds the model and never controls a printer or prints).
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7: the phone capture case also proves the measure step before Make 3D model, the model to Download STL, the reload reopen, the self-closing Objects sheet and the photo-removal question.
 version: 1
 cases:
   - id: package-readiness
@@ -756,7 +760,7 @@ cases:
     expected:
       - All 36 mounted routes resolve to exactly one of the 32 http bindings, and no binding is unused.
       - Each of the five tools has one binding; the operator bot and the photo intake have theirs; print-to-3d-printer needs print.send.
-      - The maker role grants app.open, scan.read, scan.edit, printer.manage and print.send at scope own.
+      - The maker role grants app.open, scan.read, scan.source.change, scan.edit, printer.manage and print.send at scope own; source changes remain separate from reconstruction.
       - The operator persona is assigned exactly the five tools (reads auto, print ask) with bash and write_file off.
     prerequisites:
       - runner:node-test
@@ -1041,3 +1045,127 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+
+  - id: workspace-foundation
+    name: Typed scale edits and reconstruction freshness
+    purpose: Exercise the actual shared editor shell and package source controls in real Chromium on isolated fixtures.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/workspace-foundation.test.mjs]}
+    expected:
+      - Shared properties edit the actual source controls and preserve the native domain command path.
+      - Phone navigation and inspector remain usable without horizontal overflow or provider calls.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser and loopback fixture. Only synthetic data is used.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+  - id: calibration-source
+    name: Durable original-person calibration source
+    purpose: Prove real SQL/RLS source CAS, append-only upgrade refusal, fresh original authority, actual native geometry consumption and stale-output retirement without implicit reconstruct or print.
+    level: integration
+    runner: { kind: external, scope: package, files: [tests/calibration-source.test.mjs] }
+    expected:
+      - New jobs bind provenance transactionally; same-sub foreign issuer, principal or tenant cannot edit or claim legacy source.
+      - Actual photo ingest and bundled reconstruction consume saved measured dimensions; calibration retires real outputs without printing or reconstructing.
+      - Stale hashes, invalid drafts and withdrawn permissions leave the saved source intact.
+      - Point-cloud calibration refuses unsupported ruler/resolution edits and exposes only actual smoothing with explicit reimport.
+    prerequisites: [runner:node, fixture:postgres-35689, runtime:store-ci-toolchain, runtime:sharp-native]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, fixtures: [tests/calibration.fixture.mjs], cleanup: "Close only this fixture's loopback server, drop its unique SQL schema/non-bypass role and delete its temporary scan data." }
+    limits: { timeoutMs: 180000, maxMemoryMb: 1536 }
+    installation: never
+  - id: calibration-browser
+    name: Saved calibration AI handoff in the common editor
+    purpose: Prove actual saved calibration, focused property flush, real returned edits and concurrent/switch guards over genuine SQL/routes/geometry and kernel shared UI; provider choice is an explicit seam.
+    level: integration
+    runner: { kind: external, scope: package, files: [tests/calibration-browser.test.mjs] }
+    expected:
+      - A focused dimension saves before the actual bot request; its context identifies the saved source SHA, job and selection.
+      - Returned changes refresh the same object; invalid or concurrent fields and newly selected objects are retained.
+      - Provider503 stays visibly unavailable and keeps saved source; desktop and phone use the same native controls.
+    prerequisites: [runner:node, fixture:postgres-35689, runtime:store-ci-toolchain, runtime:sharp-native, browser:chromium, core:shared-theme-assets]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, fixtures: [tests/calibration.fixture.mjs], cleanup: "Close Chromium and only the fixture's own HTTP, SQL schema/role and temporary source files; contact no printer, slicer or provider." }
+    limits: { timeoutMs: 180000, maxMemoryMb: 1536 }
+    installation: never
+
+  - id: source-editor-authority
+    name: Owned source editor authority
+    purpose: Exercise the actual source access guard with explicit named decision seams and compare privileged operation bindings.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/editor-role-closure.test.mjs]}
+    expected:
+      - Source edits require the original active owner and current named permissions.
+      - Provider generation, training, printer control and sending are not conferred by the source editor role.
+      - Existing privileged roles retain their reviewed operations.
+    prerequisites: [runner:node, runtime:canonical-store-toolchain]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 15000, maxMemoryMb: 512}
+    installation: never
+  - id: scanner-role
+    name: The scanner role builds the model and never prints
+    purpose: Read the shipped catalog and run the real compiled calibration guard for the narrow scanner role the trial's visitors hold.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/scanner-role.test.mjs]}
+    expected:
+      - Photos, angles, Make 3D model, video, .ply, depth and downloads are admitted.
+      - Printer registration, change, removal and print release are refused; maker and source-editor are unchanged.
+    prerequisites: [runner:node, runtime:canonical-store-toolchain]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 15000, maxMemoryMb: 512}
+    installation: never
+  - id: phone-capture-browser
+    name: Scan to Print on a phone, Take photos to Make 3D model
+    purpose: >-
+      At 390x844 with touch, the empty state's one primary action Take photos creates the object and opens the photo picker
+      when no live camera answers; the photos show as thumbnails, placing Front, Top and Right fills the checklist and turns
+      the primary action into Make 3D model; Advanced is closed and in the flow. Route fixture, real compiled routes.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/phone-capture-browser.test.mjs
+    expected:
+      - One primary action on the first screen; three thumbnails with naturalWidth > 0; the checklist fills; Make 3D model appears.
+      - 0.8.7: a 2 · Measure width field sits above Make 3D model, which waits for it; one width builds the model to Download STL; the app bar names the object, not the app; a reload reopens the object open in the tab; choosing an object closes the Objects sheet; removing a photo asks first.
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - fixture:core-checkout
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+  - id: phone-capture-projection
+    name: Model building is offered only to a seat holding scan.edit
+    purpose: >-
+      Over the genuine SQL/RLS calibration fixture, the calibration projection carries canReconstruct true for the full editor and
+      false for a source editor (the trial visitor's role), which still edits the source.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/phone-capture.test.mjs
+    expected:
+      - canReconstruct follows scan.edit; canEdit follows scan.source.change.
+    prerequisites:
+      - runner:node
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512

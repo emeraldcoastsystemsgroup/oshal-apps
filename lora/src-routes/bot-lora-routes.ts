@@ -37,6 +37,8 @@
  * 2026-07-17 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com | ADR-085 carve-out into the lora store package. Studio factory is the standard (ctx) shape — the surface serves from this package's tools/ (ctx.appPackageDir, portrait-studio pattern). The ingest router's internal paths move to '/' because the package mounts it at /api/lora/ingest (the loader-sanctioned split-mountPath shape for mixed auth: ingest = auth public + self-guard, studio = auth oidc) — the external URL the box calls is unchanged. scorecard + lora-train-dispatch are vendored package siblings (relative imports); shared core helpers stay @/ aliases (resolved by the loader at runtime).
  */
 
+import {captionSchemaStatements,CAPTION_REQUIREMENTS,datasetCaptionReadiness,assertEditorCharacterOwner} from './lora-caption-editor';
+import {guardTrainingDataset} from './lora-train-dispatch';
 import { Router, type Request, type Response } from 'express';
 import * as path from 'path';
 import { createChildLogger } from '@/shared/logger';
@@ -185,6 +187,7 @@ export async function ensureLoraSchema(pool: AppContext['pool']): Promise<void> 
       ...datasetSchemaStatements(),
       ...callbackGrantSchemaStatements(),
       ...callbackIdentitySchemaStatements(),
+      ...captionSchemaStatements(),
     ],
     requirements: [
       { table: 'oshal_lora_characters', columns: ['id', 'subject', 'display_name', 'trigger_word', 'hero_image', 'base_model', 'ident_prompt', 'negative_prompt', 'identity_structure', 'identity_violation', 'autonomous', 'autonomous_issuer', 'max_hours', 'plateau_epsilon', 'active_version', 'owner_sub', 'created_at'] },
@@ -192,6 +195,7 @@ export async function ensureLoraSchema(pool: AppContext['pool']): Promise<void> 
       { table: 'oshal_lora_scores', columns: ['id', 'character_id', 'version', 'overall', 'identity_mean', 'quality_mean', 'min_cell', 'cells', 'weak_cells', 'gallery_url', 'created_at'] },
       CELL_IMAGE_REQUIREMENT,
       ...DATASET_REQUIREMENTS,
+      ...CAPTION_REQUIREMENTS,
       ...CALLBACK_GRANT_REQUIREMENTS,
     ],
   });
@@ -275,6 +279,8 @@ async function startOvernightLoop(
   dedupeActive: boolean,
 ): Promise<OvernightStartResult> {
   const subject = char.config.subject;
+  if(source==='console')await assertEditorCharacterOwner(ctx,char.id);
+  const captions=await datasetCaptionReadiness(ctx,char.id);if(!captions.ok)return{state:'not-ready',subject,detail:captions.message};
   const settings = char.row as { autonomous?: boolean; max_hours?: number; plateau_epsilon?: number; owner_sub?: string; autonomous_issuer?: string | null };
   if (!settings.autonomous) return { state: 'disabled', subject, detail: 'autonomous mode is not enabled' };
   const maxHours = Number(settings.max_hours) || 9;
@@ -312,7 +318,7 @@ async function startOvernightLoop(
       loraOvernightCharacterId: char.id, source, scheduledAt: scheduledAtIso, startVersion,
     },
   });
-  const command = buildOvernightCommand(char.config, startVersion, maxHours, plateau, ownerSub, modelName, ticket.ticketId);
+  const command = guardTrainingDataset(char.config,ownerSub,buildOvernightCommand(char.config, startVersion, maxHours, plateau, ownerSub, modelName, ticket.ticketId));
   // The grant outlives the loop's own budget by the one-shot queue grace, then expires on its own.
   const dispatched = await dispatchWithCallbackGrant(ctx, { characterId: char.id, ownerSub, ownerIssuer, ticketId: ticket.ticketId,
     dispatchKind: 'overnight', ttlHours: maxHours + CALLBACK_GRANT_TTL_HOURS }, command);
@@ -573,6 +579,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     try {
       const id = await characterId(ctx, subject, sub);
       if (!id) { res.status(404).json({ error: 'character not found' }); return; }
+      await assertEditorCharacterOwner(ctx,id);
       const versions = Number((await ctx.pool.query(
         'SELECT count(*)::int AS n FROM oshal_lora_models WHERE character_id = $1', [id],
       )).rows[0]?.n ?? 0);
@@ -598,6 +605,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     try {
       const id = await characterId(ctx, subject, sub);
       if (!id) { res.status(404).json({ error: 'character not found' }); return; }
+      await assertEditorCharacterOwner(ctx,id);
       // Thumbnails go first: if the run row disappeared but its bytes stayed, a deleted run would
       // still be readable, which is exactly the access this route exists to end.
       const removedImages = await deleteRunCellImages(ctx.pool, id, version);
@@ -631,6 +639,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     const issuer = enabled === true ? verifiedIssuer(ctx, sub) : null;
     if (enabled === true && !issuer) { res.status(401).json({ error: 'verified_owner_required' }); return; }
     try {
+      const ownedCharacter=await loadCharacter(ctx,subject,sub);if(!ownedCharacter){res.status(404).json({error:'character not found'});return;}await assertEditorCharacterOwner(ctx,ownedCharacter.id);
       const r = await ctx.pool.query(
         `UPDATE oshal_lora_characters
          SET autonomous = COALESCE($2, autonomous),
@@ -660,6 +669,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     try {
       const id = await characterId(ctx, subject, sub);
       if (!id) { res.status(404).json({ error: 'character not found' }); return; }
+      await assertEditorCharacterOwner(ctx,id);
       const exists = (await ctx.pool.query('SELECT 1 FROM oshal_lora_models WHERE character_id = $1 AND version = $2', [id, version])).rowCount;
       if (!exists) { res.status(404).json({ error: 'no such version' }); return; }
       await ctx.pool.query(
@@ -681,6 +691,8 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     try {
       const char = await loadCharacter(ctx, subject, sub);
       if (!char) { res.status(404).json({ error: 'character not found' }); return; }
+      await assertEditorCharacterOwner(ctx,char.id);
+      const captions=await datasetCaptionReadiness(ctx,char.id);if(!captions.ok){res.status(409).json({error:'dataset_captions_pending',message:captions.message});return;}
       const version = Number((await ctx.pool.query(
         'SELECT COALESCE(max(version), 0) + 1 AS v FROM oshal_lora_models WHERE character_id = $1', [char.id],
       )).rows[0].v);
@@ -707,7 +719,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
         [char.id, version, ticket.ticketId],
       );
       const d = await dispatchWithCallbackGrant(ctx, { characterId: char.id, ownerSub: sub, ticketId: ticket.ticketId,
-        dispatchKind: 'train' }, buildTrainCommand(char.config, version, null, sub));
+        dispatchKind: 'train' }, guardTrainingDataset(char.config,sub,buildTrainCommand(char.config, version, null, sub)));
       if (!d.ok) {
         await ctx.pool.query(`UPDATE oshal_lora_models SET status = 'failed' WHERE character_id = $1 AND version = $2`, [char.id, version]);
         res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error });
@@ -730,6 +742,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     try {
       const char = await loadCharacter(ctx, subject, sub);
       if (!char) { res.status(404).json({ error: 'character not found' }); return; }
+      await assertEditorCharacterOwner(ctx,char.id);
       const version = Number.isInteger(asked) ? asked : Number((await ctx.pool.query(
         `SELECT max(version) AS v FROM oshal_lora_models WHERE character_id = $1 AND status IN ('trained', 'scored')`, [char.id],
       )).rows[0]?.v);
@@ -772,6 +785,8 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
     try {
       const char = await loadCharacter(ctx, subject, sub);
       if (!char) { res.status(404).json({ error: 'character not found' }); return; }
+      await assertEditorCharacterOwner(ctx,char.id);
+      const captions=await datasetCaptionReadiness(ctx,char.id);if(!captions.ok){res.status(409).json({error:'dataset_captions_pending',message:captions.message});return;}
       // The most-recently scored version is the parent we improve from.
       const parentRow = (await ctx.pool.query(
         `SELECT s.version, s.weak_cells FROM oshal_lora_scores s WHERE s.character_id = $1 ORDER BY s.version DESC LIMIT 1`, [char.id],
@@ -807,7 +822,7 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
         [char.id, version, parentVersion, ticket.ticketId],
       );
       const d = await dispatchWithCallbackGrant(ctx, { characterId: char.id, ownerSub: sub, ticketId: ticket.ticketId,
-        dispatchKind: 'improve' }, buildImproveCommand(char.config, version, parentVersion, weakValues, sub));
+        dispatchKind: 'improve' }, guardTrainingDataset(char.config,sub,buildImproveCommand(char.config, version, parentVersion, weakValues, sub)));
       if (!d.ok) {
         await ctx.pool.query(`UPDATE oshal_lora_models SET status = 'failed' WHERE character_id = $1 AND version = $2`, [char.id, version]);
         res.status(503).json({ ok: false, status: 'box_required', version, ticketId: ticket.ticketId, message: d.error });

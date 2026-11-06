@@ -1,3 +1,4 @@
+# 1.0.3 | maintainer@emeraldcoastsystemsgroup.com | Preserve reviewed Office app-admin authority through the declared admin role; all other workspace grants are unchanged.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
@@ -10,7 +11,7 @@
 name: business-experience
 displayName: Business
 description: Your schedule, projects, documents and explicitly connected business applications.
-version: 1.0.2
+version: 1.0.3
 status: active
 suite: ai-productivity
 rating:
@@ -141,13 +142,13 @@ experience:
       audience: company
   roleTemplates:
     - id: staff
-      version: 2
+      version: 3
       label: Staff
       members:
         - app: business-experience
           role: staff
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: email-summarizer
           role: '@app-admin'
         - app: calendar
@@ -183,13 +184,13 @@ experience:
         - app: private-app-3
           role: administrator
     - id: manager
-      version: 2
+      version: 3
       label: Manager
       members:
         - app: business-experience
           role: manager
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: email-summarizer
           role: '@app-admin'
         - app: calendar
@@ -225,13 +226,13 @@ experience:
         - app: private-app-3
           role: administrator
     - id: specialist
-      version: 2
+      version: 3
       label: Specialist
       members:
         - app: business-experience
           role: specialist
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: email-summarizer
           role: '@app-admin'
         - app: calendar

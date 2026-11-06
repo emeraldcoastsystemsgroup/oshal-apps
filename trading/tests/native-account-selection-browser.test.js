@@ -1,4 +1,7 @@
-/** Account-scoped strategy changes over the shipped routes. All identities, prices and authorities are synthetic. */
+/** CHANGE LOG
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: verify browser backtest, failed-validation refusal, 252-session Monday research window, account-class checks, daily strategy assignment, mandate activation and deactivation.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Account-scoped strategy changes over the shipped routes. All identities, prices and authorities are synthetic.
+ */
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {allocationFixture}=require('./support/native-allocation-host');
@@ -65,4 +68,53 @@ assert.equal(await select.inputValue(),h.strategyId);assert.equal(await select.i
  assert.equal(new URL(page.frames()[1].url()).searchParams.get('account'),'b');
  assert.equal(new URL(page.frames()[1].url()).searchParams.get('connection'),'owned-login');
  assert.equal(h.count(),0);assert.deepEqual(errors,[]);
+});
+function mountAccountManagementApp(h){
+ h.app.get('/fixture-schedule',(_q,r)=>r.json({id:'fixture',status:'active',nextRunAt:'2026-11-03T15:01:00Z'}));
+ const files=['view-accounts','native-management','native-protection-controls','native-account-controls','native-account-management'];
+ for(const f of files)h.app.get('/'+f+'.js',(_q,r)=>r.type('js').send(fs.readFileSync(path.join(__dirname,'../tools/ui/'+f+'.js'),'utf8')));
+ const styles=fs.readFileSync(path.join(__dirname,'../tools/trading.html'),'utf8').match(/<style>([\s\S]*?)<\/style>/)[1];
+ h.app.get('/boot.js',(_q,r)=>r.type('js').send(`const main=document.getElementById('main'),$=id=>document.getElementById(id);let RENDER_TOKEN=1;const stale=t=>t!==RENDER_TOKEN;const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=v=>'$'+Number(v).toFixed(2);const jbody=(method,obj)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});const api=async(p,init)=>{const r=await fetch('/api/trading'+p,init),b=await r.json();if(!r.ok)throw Error(b.message||b.error);return b;};const paperScheduleRow=async()=>fetch('/fixture-schedule').then(r=>r.json()),paperKernel=async()=>({status:'active'}),watcherScheduleStart=async()=>{},navigate=()=>{};showFocusedNativeAccount(${JSON.stringify(h.accounts)}.map(a=>({...a,nativeReadOnly:true,state:'ok',label:a.accountMasked})));`));
+ h.app.get('/',(_q,r)=>r.send('<!doctype html><meta name="viewport" content="width=device-width"><style>'+styles+'</style><main id="main"></main>'+files.map(f=>'<script src="/'+f+'.js"></script>').join('')+'<script src="/boot.js"></script>'));
+}
+test('daily account strategies validate, save, activate and deactivate in the browser while refusing failed or mismatched studies',async t=>{
+ const {PRESETS}=require('../routes/strategy/policies'),{sessionDates}=require('../routes/trading-portfolio-calendar');
+ const h=await allocationFixture(t,{cash:10000,equity:10000});h.accounts[0].accountType='margin';
+ h.accounts.push({...structuredClone(h.accounts[0]),accountId:'ret',accountMasked:'…4010',accountType:'cash'});
+ await h.req('/profiles',{accountId:'ret',connectionKey:'owned-login',label:'…4010',registration:'401k'});
+ h.setNow('2026-11-03T15:00:00Z');const windowCheck=await h.req('');
+ assert.equal(windowCheck.researchWindow.latestCompletedSession,'2026-11-02');
+ assert.ok(sessionDates(windowCheck.researchWindow.suggestedStart,windowCheck.researchWindow.latestCompletedSession).length>=252,'Monday window covers 252 sessions');
+ let failingBars=true;const original=h.ctx.intent,dates=sessionDates('2024-08-01','2026-11-03');
+ h.ctx.intent=async(name,input)=>{
+  if(name!=='trading.bars')return original(name,input);
+  const j=['SPY','EFA','IEF','GLD','DBC','VNQ'].indexOf(input.symbol);
+  return{source:'schwab',symbol:input.symbol,bars:dates.map((date,i)=>({t:Date.parse(date+'T05:00:00Z')/1000,c:failingBars?100*Math.exp(-.002*i):100*Math.exp((.001+Math.max(0,j)*.0001)*i+.00002*Math.sin(i/6))}))};
+ };
+ for(const symbol of ['SPY','EFA','IEF','GLD','DBC','VNQ'])h.setQuote(symbol,{tradeAt:'2026-11-03T15:00:00Z'});
+ const marginStrat=(await h.req('/strategies',{name:'Margin daily',config:PRESETS['quant-margin-daily']})).strategy;
+ const retStrat=(await h.req('/strategies',{name:'Retirement daily',config:PRESETS['retirement-defensive-daily']})).strategy;
+ mountAccountManagementApp(h);
+ const browser=await chromium.launch();t.after(()=>browser.close());
+ const context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage();t.after(()=>context.close());const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(h.base+'/?view=accounts&account=a&connection=owned-login');
+ const select=page.locator('[data-native-account-strategy]');await select.waitFor();
+ await page.getByRole('button',{name:'Change strategy',exact:true}).click();
+ await select.selectOption(retStrat.id);await page.getByRole('button',{name:'Save strategy',exact:true}).click();
+ await page.getByText('This strategy requires an explicitly classified retirement account.',{exact:true}).waitFor();
+ assert.equal((await h.req('')).accounts.find(a=>a.accountId==='a').strategyId,h.strategyId);
+ await select.selectOption(marginStrat.id);await page.locator('details.native-evidence summary').filter({hasText:'Backtest selected strategy'}).click();
+ await page.getByRole('button',{name:'Run account backtest',exact:true}).click();await page.getByText(/Daily validation failed:/).waitFor();
+ await page.getByRole('button',{name:'Save strategy',exact:true}).click();await page.getByText(/This daily strategy has not passed account validation\./).waitFor();
+ assert.equal((await h.req('')).accounts.find(a=>a.accountId==='a').strategyId,h.strategyId);
+ failingBars=false;await page.getByRole('button',{name:'Run account backtest',exact:true}).click();
+ await page.getByText(/You can save this selection; live trading stays inactive\./).waitFor();
+ await page.getByRole('button',{name:'Save strategy',exact:true}).click();await page.getByRole('button',{name:'Review & activate',exact:true}).waitFor();
+ assert.equal((await h.req('')).accounts.find(a=>a.accountId==='a').strategyId,marginStrat.id);
+ await page.getByRole('button',{name:'Review & activate',exact:true}).click();await page.getByRole('button',{name:'Activate live trading',exact:true}).waitFor();
+ page.once('dialog',d=>d.accept());await page.getByRole('button',{name:'Activate live trading',exact:true}).click();
+ await page.getByRole('button',{name:'Deactivate strategy',exact:true}).waitFor();
+ assert.equal((await h.req('/management')).watches.find(w=>w.accountId==='a').executionMode,'automatic-daily');
+ await page.getByRole('button',{name:'Deactivate strategy',exact:true}).click();await page.getByRole('button',{name:'Refresh activation review',exact:true}).waitFor();
+ assert.equal((await h.req('/management')).watches.find(w=>w.accountId==='a').automatedTrading,false);assert.equal(h.count(),0);assert.deepEqual(errors,[]);
 });

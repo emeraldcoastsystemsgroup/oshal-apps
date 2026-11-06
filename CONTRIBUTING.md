@@ -13,6 +13,23 @@ the **only automatic gate this repository has**: `store-ci` is `workflow_dispatc
 already was, there is no root `package.json`, and required status checks are not available on this
 plan. One command, once, per clone.
 
+## A commit never puts a file back to an older version by accident
+
+The same setting turns on `.githooks/commit-msg`, the revert guard. It refuses a commit or a merge
+that puts a file back to an **older committed version of itself**. A checkout that fell behind
+`main` produces exactly that: it keeps older copies of files, and they look like local edits. The
+refusal names each path, the commit that version came from and the commit that replaced it.
+
+- Keep the newer file: `git restore --source=HEAD --staged --worktree -- <path>`, or leave it out of
+  the commit with `git restore --staged -- <path>`. In a merge, `git checkout HEAD -- <path>` keeps
+  this branch's file; `git merge --abort` abandons the merge.
+- Go back on purpose: put `[allow-revert]` in the commit message, or run once with
+  `OSHAL_ALLOW_REVERT=1 git commit ...`. `git revert`'s own `Revert "..."` messages pass as they are.
+- New files, deletions, renames and mode-only changes are never refused.
+- `git commit --no-verify` skips every hook, this one included.
+
+`node --test scripts/revert-guard.test.mjs` proves it with real git in a throwaway repository.
+
 ## Run the CI locally before you push
 
 ```bash
@@ -82,6 +99,12 @@ bash scripts/store-ci-local.sh --allow-skips     # exits 0, still names everythi
 
 The hook passes that for you when `OSHAL_STORE_CI_ALLOW_SKIPS=1` is set. `scripts/store-ci-local.test.mjs`
 pins both halves of this contract.
+
+Failed TAP assertions are printed even when they occur in the middle of a long suite. To retain
+complete failed-check output, set `STORE_CI_FAILURE_LOG_DIR` to an absolute directory whose parent
+exists and which does not exist yet. On Linux the gate creates it with mode 0700 and writes mode
+0600 files; an existing directory is refused so earlier evidence cannot be overwritten. The flag
+only retains evidence and never changes a verdict or accepts a skip.
 
 ### Prerequisites, and what you lose without them
 

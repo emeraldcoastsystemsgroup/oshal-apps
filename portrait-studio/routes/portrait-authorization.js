@@ -10,10 +10,11 @@ exports.createPortraitAuthorizationRoutes = createPortraitAuthorizationRoutes;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bind Portrait permissions to verified identities and issuer-qualified ownership.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Expose portrait.source.create in /permissions so narrow source-editor roles can create and save photo sources without paid generation authority.
  */
 const express_1 = require("express");
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ACTIONS = ['view', 'read', 'create', 'change', 'delete', 'export', 'email', 'artist'];
+const ACTIONS = ['view', 'read', 'create', 'source.create', 'change', 'delete', 'export', 'email', 'artist'];
 /** @description Read only the framework-verified execution identity.
  * @param ctx Bound package context. @returns Active exact principal, or an authentication failure.
  */

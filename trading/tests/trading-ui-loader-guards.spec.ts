@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Classify all native account and Quant loaders with their explicit render and tab guards; preserve capture-before-await and guard-before-paint checks.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -30,7 +31,7 @@ const all = files.map((f) => sources[f]).join('\n');
  * the render token and the sub-tab generation.
  */
 const TAB_SCOPED = [
-  'loadRosterTab', 'loadLabApplied', 'loadLabKnobs', 'loadTuneRecs', 'loadTuneParams', 'loadFuturesResearch',
+  'loadQuantDesk', 'loadRosterTab', 'loadLabApplied', 'loadLabKnobs', 'loadTuneRecs', 'loadTuneParams', 'loadFuturesResearch',
   'loadFuturesPredictions', 'loadFuturesPredictionEvidence', 'loadFuturesArchiveImports', 'loadSchwabCaptureStatus',
   'loadEventPlansTab', 'loadCongressCandidates', 'loadScoreboard', 'loadFeed', 'loadMovers', 'loadWatchlistPanel', 'loadCongressPanel', 'loadJournal',
 ];
@@ -38,6 +39,7 @@ const TAB_SCOPED = [
 const VIEW_SCOPED = [
   'loadKpisAndPositions', 'loadRealized', 'loadPerfSummary', 'loadSignalModel',
   'loadEventPlanCard', 'loadLotsCard', 'loadDatedCard', 'loadEarningsRulesCard', 'loadPositionPlans', 'loadNativeAccountManagement',
+  'loadNativeAccountDetails', 'loadNativeStockComparison', 'loadNativeDashboardState', 'loadNativeAccountOverview',
 ];
 /** State-only: writes module state and paints NOTHING, so it has no stale paint to guard against. */
 const STATE_ONLY = ['loadBooks'];

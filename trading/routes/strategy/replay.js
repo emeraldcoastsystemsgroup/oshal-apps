@@ -1,3 +1,4 @@
+/** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Reuse the exact costed sizing step for forward paper execution; keep replay timing and settlement unchanged. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Require the configured stock factor warmup and describe selected-universe price research accurately. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Costed chronological daily replay, held-out and harsher-cost evidence; no same-close fills, current fundamentals or future membership. */
 'use strict';
@@ -20,21 +21,10 @@ function replay(raw,input,{costMultiplier=1}={}){
   const holdings=[...book].map(([symbol,p])=>({symbol,...p}));
   const decision=signal(c,maps,previous,{holdings,riskState});riskState=decision.riskState;
   let equity=cash+settling.reduce((n,x)=>n+x.amount,0)+holdings.reduce((n,h)=>n+h.qty*prices[h.symbol],0);
-  const targets=new Map(decision.targets.map(t=>[t.symbol,t.weightPct]));
-  const actions=c.assets.map(a=>{const held=book.get(a.symbol)?.qty||0,target=Math.floor(equity*(targets.get(a.symbol)||0)/100/prices[a.symbol]);return {symbol:a.symbol,change:target-held,riskExit:target===0&&held>0};}).filter(a=>a.change!==0&& (a.riskExit||Math.abs(a.change)*prices[a.symbol]>=equity*c.minTradeEquityPct/100));
-  let regularBudget=equity*(offset===0?c.initialTransitionTurnoverPct:c.maxDailyTurnoverPct)/100;
-  const fills=[];
-  for(const action of actions.sort((a,b)=>(a.change>0)-(b.change>0)||a.symbol.localeCompare(b.symbol))){
-   const price=prices[action.symbol],buy=action.change>0;
-   let qty=Math.min(Math.abs(action.change),Math.floor((action.riskExit?Infinity:regularBudget)/(price*(1+costRate))));
-   if(buy)qty=Math.min(qty,Math.floor(cash/(price*(1+costRate))));
-   if(qty<1)continue;const notional=qty*price,fee=notional*costRate;costs+=fee;trades++;
-   if(!action.riskExit)regularBudget=Math.max(0,regularBudget-notional-fee);
-   const old=book.get(action.symbol);
-   if(buy){cash-=notional+fee;book.set(action.symbol,{qty:(old?.qty||0)+qty,entry:((old?.entry||0)*(old?.qty||0)+notional)/((old?.qty||0)+qty),peak:Math.max(old?.peak||price,price)});}
-   else{const remaining=old.qty-qty;if(remaining)book.set(action.symbol,{...old,qty:remaining});else book.delete(action.symbol);if(c.accountClass==='retirement-cash')settling.push({session:ix+1,amount:notional-fee});else cash+=notional-fee;}
-   fills.push({symbol:action.symbol,side:buy?'buy':'sell',qty,price,cost:fee});
-  }
+  const step=require('./rebalance').rebalance(c,{holdings,cash,unsettledCash:settling.reduce((n,x)=>n+x.amount,0),prices,targets:decision.targets,initial:offset===0,costMultiplier});
+  cash=step.cash;costs+=step.costs;trades+=step.fills.length;book.clear();for(const {symbol,...p} of step.holdings)book.set(symbol,p);
+  settling=step.unsettledCash?[{session:ix+1,amount:step.unsettledCash}]:[];
+  const fills=step.fills;
   if(!offset){const px=maps.get('SPY').get(day);benchmarkShares=Math.floor(capital/(px*(1+costRate)));benchmarkCash-=benchmarkShares*px*(1+costRate);}
   equity=cash+settling.reduce((n,x)=>n+x.amount,0)+[...book].reduce((n,[s,p])=>n+p.qty*prices[s],0);
   if(cash<-.000001||equity<=0)throw Error('Cash/solvency invariant failed.');

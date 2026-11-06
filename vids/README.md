@@ -1,5 +1,10 @@
 # Vids Studio (vids) — OSHAL app package
 
+1.6.4 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
+
+
+Named source-editor grants retain anonymous token media only on a kernel supporting `package-anonymous-catalog-reads` and its trusted read proof. Older kernels refuse this manifest; upgrade and qualify the paired kernel before installing this version.
+
 1.5.4 declares the `package-anonymous-routes` opt-in for `GET` and `HEAD` on `/:token/video.mp4` under `/api/vids-public`, allowing published finished-video bytes to be fetched anonymously under application authorization enforcement while maintaining strict 401 gate protection across all control, job, and un-opted routes. 1.5.3 added the company audience view beside the family one (ADR-164 D6). Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 Turn an idea into generated video. The **vids-operator** (Veo specialist) drives
@@ -131,3 +136,11 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 | brand-graphic | brand graphic | T2 | hosted | disable | not yet measured | none recorded |
 | vids-ticket | vids ticket | T4 | hosted | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Editable source workspace
+
+The shared editor keeps navigation, the open source, selectable objects, Properties and the AI partner in the same layout. Changes use this package’s owned operations and current permissions. A saved source is separate from generated or published output.
+
+The shared workspace separates the editable next-clip brief/orientation/placement from selected recorded output. A failed dispatch retains the brief; an offline worker is not reported as ready. A protected finished MP4 can play in the viewport and use Edit or send clip to import as one media source in the actual Video editor. Trim/sequence/title editing starts from that clip; the original generation scene objects are not recovered. Existing protected attach/publish/revoke operations remain explicit.
+
+Saved generation briefs retain a title, complete prompt, orientation and placement as original-owned immutable source revisions. Save, reopen, undo/redo and the AI partner use the same typed brief model and CAS operations. The AI partner saves focused fields before reading the actual source ID/revision/selection; concurrent local edits are preserved. Source edits never dispatch generation or spend quota. Generate is a separate explicit action using the saved brief, and a successful dispatch retains that editable brief. The existing legacy app-admin admission is checked freshly against the exact original issuer, subject, principal and single tenant; no new source grant bypass is introduced. Finished jobs and rendered MP4s remain separate evidence.

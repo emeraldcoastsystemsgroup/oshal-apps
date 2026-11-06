@@ -1,3 +1,6 @@
+# 0.2.3 | maintainer@emeraldcoastsystemsgroup.com | Phones (F7 and the trial check, 2026-11-06): New composition is the empty state's one first action, the time slider, playback, work area and timeline wait until a composition is open, one app bar row (status, More), first pane Layers.
+# 0.2.4 | maintainer@emeraldcoastsystemsgroup.com | The Concierge (the round-2 trial check, 2026-11-06): Motion's full-width filled look for every input, select, textarea and button skips the shared Concierge, so the + and speaker are icons again and Read latest reply aloud and Send are on screen and tappable on a phone and at 1440 px.
+# CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.2.2: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare reviewed own-scoped Motion source contracts; installed acceptance remains open.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact native integer transport and bind an approval-held exact edit tool.
@@ -8,13 +11,13 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: synchronize native inspector drafts and concierge edits automatically without flattening layers/effects.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: motion-apply-edits and motion-apply-exact-edits say their optional title renames the project and is omitted unless the person asked for a rename (an installed handoff run put an action heading in it, which would have renamed the composition). Words only; no schema, permission or binding change. Guarded by tests/edit-title-guidance.test.mjs.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.1.4: the workbench retries a request refused only because the project storage lock was busy (503 motion_storage_busy, raised before any write); a manual edit right after a concierge change was lost with "Your project storage is busy. Retry shortly.". Guarded by tests/busy-retry.test.mjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | Publish an executable whole-text command shape and real approval-card semantics in the actual model-visible tool description.
 name: motion-studio
 suite: ai-creative
 displayName: Motion Studio
-description: >-
-  Editable motion compositions with layers, captions, keyframes, masks and owned photos.
-  Preview frames and export editable native JSON.
-version: 0.1.4
+description: "Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos."
+version: 0.2.4
 runtime: process
 lastingStorage: true
 status: active
@@ -340,7 +343,10 @@ tools:
           minimum: 1
           maximum: 1000
         requestKey:
+          description: Copy requestKey unchanged from the just-read editing contract response for this new edit; never invent it. Read a fresh contract for each new intent; retry an uncertain result with the identical key and body.
           type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
           minLength: 36
           maxLength: 36
         title:
@@ -761,8 +767,17 @@ tools:
     type: api
     category: creative
     description: >-
-      Edit with exact native JSON command text and decimal composition id, preserving wider integer
-      literals.
+      Invoke this tool to prepare the real native approval card for a requested source edit; it does
+      not approve its own proposal. Do not ask for a separate prose confirmation before invoking it.
+      Markdown or narrated proposals never create a controller card. Read the current selected text
+      first. For whole-text replacement use one text.patchAt command with exact decimal STRING layer
+      and compTimeTicks, and attributes containing only text. Omit range to replace the whole text;
+      partial ranges use Unicode scalar offsets, never UTF-16. commandsJson is a JSON ARRAY encoded
+      as a string, compId is the actual decimal string, response must be receipt. Omit optional title
+      unless the user asked to rename the project. Copy requestKey unchanged from the just-read motion-editing-contract response, and supply current id and
+      baseRevision; preserve the same values for an identical retry. Example: {"id":"11111111-1111-4111-8111-111111111111","baseRevision":2,"requestKey":"22222222-2222-4222-8222-222222222222","response":"receipt","compId":"1","commandsJson":"[{\"command\":\"text.patchAt\",\"params\":{\"layer\":\"2\",\"compTimeTicks\":\"0\",\"attributes\":{\"text\":\"Updated native title\"}}}]"}
+      The example IDs are illustrative; copy actual saved identity, revision, composition, layer and
+      ticks from the current document read. Preserve all other fields, typography and native keys.
     executor:
       executorType: api
       apiEndpoint: POST /api/motion-studio/projects/{input.id}/operations
@@ -780,7 +795,10 @@ tools:
           minimum: 1
           maximum: 1000
         requestKey:
+          description: Copy requestKey unchanged from the just-read editing contract response for this new edit; never invent it. Read a fresh contract for each new intent; retry an uncertain result with the identical key and body.
           type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
           minLength: 36
           maxLength: 36
         title:

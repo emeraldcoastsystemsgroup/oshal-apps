@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The four role-closure cases read the old TypeScript platform checkout (its scripts/oshal-app-dependencies.js contract, swarm-apps/jarvis.yaml and workflow-studio.yaml, and its js-yaml). Without that checkout they report SKIPPED naming it instead of failing the whole file at load; the three owned-entry cases always run.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the page title is the application's display name alone (it read '<name> · your swarm', which the concierge repeated as the screen's name).
  */
+// Office's declared admin preserves its earlier reserved app-admin tier; all other reviewed role limits remain.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
@@ -29,10 +30,10 @@ const manifest = LEGACY ? null : yaml.load(read('oshal-app.yaml'));
 const template = manifest?.experience.roleTemplates[0];
 const components = 'home purchasing finance little-monsters movies spotify travel presentations calendar email-summarizer world switchboard social calling-assistant marketing-engine venture-plan private-app-1 payroll payments identity cad-studio circuit-lab create portrait-studio video lora vids creative-studio scan-to-print brand-graphics motion-studio publishing-studio pdf-workbench scene-studio storage career-hunter dnd game-show games jarvis workflow-studio private-app-2 intelligent-sales private-app-3'.split(' ');
 const ordinaryRoles = {
-  jarvis: ['chat-user'], 'scan-to-print': ['maker'],
+  jarvis: ['chat-user'], 'scan-to-print': ['maker'], presentations: ['admin'],
   'little-monsters': ['student'], 'calling-assistant': ['caller'], 'venture-plan': ['member'], 'private-app-1': ['crm_representative'], 'intelligent-sales': ['sales_manager'], 'private-app-3': ['administrator'],
-  create: ['creator', 'editor', 'exporter', 'generator'], 'portrait-studio': ['creator', 'editor', 'deleter', 'mailer', 'artist'],
-  video: ['producer', 'creator', 'editor', 'exporter'], lora: ['trainer'], 'motion-studio': ['creator', 'editor', 'exporter'], 'publishing-studio': ['creator', 'editor', 'exporter'], 'pdf-workbench': ['creator', 'editor', 'exporter', 'ocr'], 'scene-studio': ['creator'], 'career-hunter': ['member'],
+  create: ['creator', 'editor', 'exporter', 'generator'], 'portrait-studio': ['creator', 'editor', 'deleter', 'artist', 'mailer'],
+  video: ['creator', 'editor', 'exporter', 'producer'], lora: ['trainer'], 'motion-studio': ['creator', 'editor', 'exporter'], 'publishing-studio': ['creator', 'editor', 'exporter'], 'pdf-workbench': ['creator', 'editor', 'exporter', 'ocr'], 'scene-studio': ['creator'], 'career-hunter': ['member'],
 };
 const expectedMembers = [{ app: manifest?.name, role: 'member' }, ...components.flatMap(app => (ordinaryRoles[app] || ['@app-admin']).map(role => ({ app, role })))];
 const componentManifest = name => {
@@ -40,11 +41,11 @@ const componentManifest = name => {
   return { file, directory: ['jarvis', 'workflow-studio'].includes(name) ? framework : path.dirname(file), manifest: yaml.load(fs.readFileSync(file, 'utf8')) };
 };
 test('one complete product role includes every functional component, without optional setup', { skip: LEGACY }, () => {
-  assert.equal(manifest.version, '1.1.2'); assert.equal(template.version, 4);
+  assert.equal(manifest.version, '1.1.4'); assert.equal(template.version, 6);
   assert.deepEqual(manifest.dependencies.required.apps, components);
   assert.deepEqual(manifest.dependencies.optional.apps, []); assert.equal(components.length, 44);
   assert.deepEqual(template.members, expectedMembers); assert.equal(template.members.length, 62);
-  assert.ok(template.members.every(({ role }) => !['@access-admin', '@access-auditor', 'admin', 'manager', 'teacher'].includes(role)));
+  assert.ok(template.members.every(({ app, role }) => app === 'presentations' ? role === 'admin' : !['@access-admin', '@access-auditor', 'admin', 'manager', 'teacher'].includes(role)));
 });
 test('four layouts share the same product rights instead of granting one empty shell', { skip: LEGACY }, () => {
   for (const skin of ['studio', 'jarvis', 'orbit', 'commons']) {
@@ -62,7 +63,9 @@ test('public component roles exist and include their current required package cl
     const catalog = declaration ? yaml.load(fs.readFileSync(path.join(source.directory, declaration.catalog), 'utf8')) : null;
     for (const role of ordinaryRoles[name] || ['@app-admin']) {
       if (role === '@app-admin') assert.equal(catalog, null, name + ' must use its named catalog when present');
-      else { assert.ok(catalog.roles[role], name + ':' + role); assert.notEqual(catalog.roles[role].tier, 'admin'); }
+      else { assert.ok(catalog.roles[role], name + ':' + role);
+        if(name === 'presentations' && role === 'admin') { assert.equal(catalog.roles[role].tier, 'admin'); assert.ok(catalog.roles[role].grants.every(grant => grant.scope === 'own')); }
+        else assert.notEqual(catalog.roles[role].tier, 'admin'); }
     }
   }
 });

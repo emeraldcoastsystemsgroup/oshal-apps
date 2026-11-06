@@ -1,0 +1,49 @@
+{
+  "ownerKey": "SHA256(JSON.stringify([issuer,sub,principalId,tenant]))",
+  "tables": [
+    "office_editor_documents",
+    "office_editor_revisions",
+    "office_editor_originals",
+    "office_editor_original_parts",
+    "office_editor_requests",
+    "office_editor_exports"
+  ],
+  "queries": [
+    "SET LOCAL statement_timeout='5s'",
+    "SET LOCAL lock_timeout='2s'",
+    "SELECT set_config('office_editor.owner_key',$1,true)",
+    "SELECT pg_advisory_xact_lock($1::bigint)",
+    "COMMIT",
+    "ROLLBACK",
+    "SELECT * FROM office_editor_documents WHERE owner_key=$1 AND id=$2",
+    "SELECT * FROM office_editor_revisions WHERE owner_key=$1 AND document_id=$2 AND revision=$3",
+    "SELECT COALESCE(sum(bytes),0)::text AS bytes FROM office_editor_revisions WHERE owner_key=$1",
+    "SELECT COALESCE(sum(bytes),0)::text AS bytes FROM office_editor_originals WHERE owner_key=$1",
+    "INSERT INTO office_editor_revisions(owner_key,document_id,revision,model,sha256,bytes) VALUES($1,$2,$3,$4::jsonb,$5,$6)",
+    "SELECT * FROM office_editor_requests WHERE owner_key=$1 AND request_key=$2",
+    "DELETE FROM office_editor_requests WHERE owner_key=$1 AND expires_at<$2",
+    "SELECT count(*)::int AS n FROM office_editor_requests WHERE owner_key=$1",
+    "INSERT INTO office_editor_requests(owner_key,request_key,fingerprint,document_id,revision,expires_at,tombstone) VALUES($1,$2,$3,$4,$5,$6,false)",
+    "SELECT id,title,kind,current_revision,updated_at FROM office_editor_documents WHERE owner_key=$1 ORDER BY updated_at DESC",
+    "SELECT revision,created_at FROM office_editor_revisions WHERE owner_key=$1 AND document_id=$2 ORDER BY revision DESC",
+    "SELECT count(*)::int AS n FROM office_editor_documents WHERE owner_key=$1",
+    "INSERT INTO office_editor_documents(owner_key,id,title,kind,current_revision) VALUES($1,$2,$3,$4,1)",
+    "UPDATE office_editor_documents SET title=$3,current_revision=$4,updated_at=now() WHERE owner_key=$1 AND id=$2 AND current_revision=$5 RETURNING id",
+    "SELECT model_sha256 FROM office_editor_exports WHERE owner_key=$1 AND sha256=$2 AND expires_at>NOW()",
+    "INSERT INTO office_editor_originals(owner_key,id,name,sha256,bytes,findings) VALUES($1,$2,$3,$4,$5,$6::jsonb)",
+    "INSERT INTO office_editor_original_parts(owner_key,original_id,offset_bytes,data_base64,sha256) VALUES($1,$2,$3,$4,$5)",
+    "INSERT INTO office_editor_documents(owner_key,id,title,kind,current_revision,original_id,original_name,original_sha256) VALUES($1,$2,$3,$4,1,$5,$6,$7)",
+    "SELECT * FROM office_editor_originals WHERE owner_key=$1 AND id=$2",
+    "SELECT * FROM office_editor_original_parts WHERE owner_key=$1 AND original_id=$2 ORDER BY offset_bytes",
+    "DELETE FROM office_editor_exports WHERE owner_key=$1 AND expires_at<=NOW()",
+    "SELECT count(*)::int AS n FROM office_editor_exports WHERE owner_key=$1",
+    "INSERT INTO office_editor_exports(owner_key,sha256,model_sha256,document_id,revision,expires_at) VALUES($1,$2,$3,$4,$5,NOW()+INTERVAL '24 hours')",
+    "UPDATE office_editor_requests SET tombstone=true WHERE owner_key=$1 AND document_id=$2",
+    "DELETE FROM office_editor_documents WHERE owner_key=$1 AND id=$2",
+    "DELETE FROM office_editor_originals WHERE owner_key=$1 AND id=$2"
+  ],
+  "transactionModes": [
+    "BEGIN",
+    "BEGIN READ ONLY"
+  ]
+}

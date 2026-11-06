@@ -7,7 +7,7 @@
 const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { etParts } = require('./market');
+const { etParts } = require('../paper/market');
 const film = require('./report-film');
 
 const SQL = {

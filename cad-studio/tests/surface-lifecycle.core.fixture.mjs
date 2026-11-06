@@ -82,8 +82,8 @@ function routes(app, models, requests, bodyHolds) {
 /** @description Start one ephemeral loopback fixture with actual package HTML and canonical core assets. */
 export async function startFixture() {
   const app = express(), models = new Map([[IDS[0], model(IDS[0], 60)], [IDS[1], model(IDS[1], 100)]]), requests = [], bodyHolds = [];
-  app.use('/shared/ui', express.static(path.join(coreRoot, 'src/shared/ui')));
-  app.use('/cockpit', express.static(path.join(coreRoot, 'src/pages/cockpit')));
+  app.use('/shared/ui', express.static(path.join(process.env.OSHAL_PLATFORM_ROOT||coreRoot, 'src/shared/ui')));
+  app.use('/cockpit', express.static(path.join(process.env.OSHAL_PLATFORM_ROOT||coreRoot, 'src/pages/cockpit')));
   app.get(BASE + '/app', (_req, res) => res.sendFile(path.join(packageRoot, 'tools/cad-studio.html')));
   if (process.env.CAD_LIFECYCLE_SOURCE) app.get(BASE + '/assets/cad-studio.js', (_req, res) => res.sendFile(path.resolve(process.env.CAD_LIFECYCLE_SOURCE)));
   app.use(BASE + '/assets', express.static(path.join(packageRoot, 'tools')));

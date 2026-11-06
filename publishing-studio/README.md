@@ -1,5 +1,8 @@
 # Publishing Studio
 
+0.3.5 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
+
+
 Create original-owned, English print layouts with linked text frames, character and paragraph styles, masters, page numbering, bleed, guides and images. The human workbench and Publishing Editor use the same immutable revision store and edit operations. Read the actual `/editing-contract` before proposing changes. Agent writes, render and export use the original person's current named permissions and held approvals.
 
 This is a bounded first publishing profile, not complete InDesign parity. [PROFILE.md](PROFILE.md) lists the supported document and output limits; [API.md](API.md) describes the HTTP, held-agent and private engine contracts. The package is admitted to the native kernel. Installed human workflow and configured-provider acceptance remain pending the admin-owned engine mapping activation.
@@ -74,3 +77,48 @@ read-only revisions remain visible when handing a question back.
 and real publication operations with the pinned Typst runtime. Its internal bot reply is an
 explicit transport seam; separate native-kernel and installed-provider acceptance are required.
 Installed acceptance for this source release is pending.
+
+## Shared editor foundation (0.2.0)
+
+The workbench uses the kernel shared editor shell: document in the center, pages
+on the left, contextual Properties and AI partner tabs on the right, and drawers
+on narrow screens. Select a frame or object to change its geometry; rectangles
+expose fill color and simple single-run stories/text expose editable text. The
+existing tools remain under More tools. Linked frame sizes retain the renderer's
+uniform-size rule; complex styled text stays in the existing story/style tools.
+
+Common property edits use the existing native operations and undo history. Save
+and assistant handoff flush focused fields; invalid drafts stop the handoff.
+Changing documents requires an explicit discard and cannot carry old field text
+into a new document. No document schema, permission or AI transport changes.
+The shared assets must be installed with this package; an older kernel UI leaves
+the original workbench usable and reports that the shared editor is unavailable.
+
+Source acceptance: `tests/editor-foundation.test.mjs` and
+`tests/browser/editor-foundation.test.mjs` (genuine Publishing SQL/Typst with
+test-owned actors and deterministic assistant edit selection). The isolated
+review shim is documented at `scripts/editor-foundation/README.md` in the store.
+Installed provider acceptance remains separate from these source proofs.
+
+## Saved history and assistant updates (0.3.0)
+
+Undo and redo retain complete model snapshots during the open document session,
+including across saves. A changed same-document assistant refresh becomes one
+undoable step; an unchanged saved model keeps the existing redo branch. A new
+manual edit branches the history. Switching or explicitly reopening a document
+starts a new history, and concurrent unsaved fields still prevent refresh.
+
+History replay uses the closed `replace-model` operation on the original
+`document.change` route with the current `baseRevision` and a fresh request key.
+The server validates the entire bounded profile and every owned asset reference;
+the publication title remains immutable. The operation can remove styles added
+by an assistant, restore page view and layout, and preserve exact stories without
+partial rollback. Previous saved revisions and their assets remain immutable.
+The editing contract exposes this operation; native agent input remains bounded
+to 16 KiB, so a larger snapshot requires ordinary smaller edits rather than
+truncation. Human history replay uses the existing bounded revision endpoint.
+
+Source proofs cover actual SQL/RLS and Typst prerequisites, complete style/view
+undo and redo, stale CAS, foreign asset refusal, revoked writes, concurrent draft
+retention and delayed refresh after switching documents. Provider replies in
+these browser fixtures remain explicit transport seams.

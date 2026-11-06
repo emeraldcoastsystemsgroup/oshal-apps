@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: the print service's package tools (BACKLOG B18) as the kernel runs them. The person's route factory registers exactly the manifest's five tools and the `scan` resource adapter on the activation ports; each handler is called the way core's package-tool registry calls it, inside the real core request identity for the verified actor (src/shared/package-tools/index.ts), against the shared HTTP fixture's store, a fake Bambu printer on real local TLS and a slicer bridge speaking the real line protocol. Without an active verified actor every tool refuses before any query; reads answer as that actor and never carry a printer secret; inputs are closed; a print with auto-start off uploads and records requested_by service, with auto-start on it starts; a print holds the job's lock and refuses a stale model, an unknown printer and a busy job.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Cover the extended registered tool set with explicit original-person actor metadata and unchanged printer semantics.
  */
 'use strict';
 const test = require('node:test');
@@ -49,10 +50,10 @@ async function toolWorld(printerOpts = {}) {
   const tools = new Map(), resources = new Map(), box = { actor: undefined };
   const ctx = {
     tools: { register(name, handler) { if (tools.has(name)) throw new Error(`duplicate tool ${name}`); tools.set(name, handler); } },
-    authorization: { registerResource(name, adapter) { resources.set(name, adapter); }, currentActor: () => box.actor },
+    authorization: { registerResource(name, adapter) { resources.set(name, adapter); }, currentActor: () => box.actor,authorize:async()=>({allowed:true}) },
   };
   const f = await startFixture({ identityModule, slicerConnect: slicer.connect, bambuIo: { connect: printer.connect, connectTcp: printer.connectTcp, statusTimeoutMs: 4000, startTimeoutMs: 4000 }, ctx });
-  const actor = { sub: f.control.sub, issuer: f.control.issuer, isActive: true };
+  const actor = { sub: f.control.sub, issuer: f.control.issuer,principalId:'fixture:'+f.control.sub,tenantIds:['scan-tool-fixture'], isActive: true };box.actor=actor;
   const run = (name, input) => {
     box.actor = actor;
     return identityModule.runWithRequestIdentity({ sub: actor.sub, principalIssuer: actor.issuer, isOperator: false }, () => tools.get(name)(input));
@@ -85,7 +86,7 @@ test('without an active verified actor every tool refuses before any query', asy
     const inputs = { 'print-service-printer-status': { printerId: '00000000-0000-4000-8000-000000000000' }, 'print-to-3d-printer': { jobId: '00000000-0000-4000-8000-000000000000' } };
     for (const actor of [undefined, { ...w.actor, isActive: false }, { ...w.actor, issuer: '' }, { ...w.actor, sub: '' }]) {
       w.box.actor = actor;
-      for (const [name, handler] of w.tools) await assert.rejects(handler(inputs[name] ?? {}), /signed_in_owner_required/, `${name} with ${JSON.stringify(actor)}`);
+      for (const [name, handler] of w.tools) await assert.rejects(handler(inputs[name] ?? {}), /signed_in_owner_required|active original person/, `${name} with ${JSON.stringify(actor)}`);
     }
     assert.equal(w.f.control.identityQueries.length, before, 'nothing was queried');
   } finally { await w.close(); }

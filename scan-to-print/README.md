@@ -1,5 +1,7 @@
 # Scan to Print
 
+0.8.0 adds the shared document workspace with editable axis measurements and reconstruction settings. Saving dimensions uses the existing owned operation and retires obsolete outputs; real drawing, mesh and report views remain open for review.
+
 0.7.3: **access code** on a Bambu printer in the Printers panel replaces its stored code in place. A code sealed by an earlier platform cannot be read on the native kernel, and the print route now says so instead of a bare failure. Adding a new Bambu printer still needs the network from the package, so on the native kernel it is backlog B22.
 
 0.7.2 makes Bambu slicing and upload work on the native kernel, where a package has no network. The slicer engine is reached through the kernel's `engine.exchange` (pin it in `OSHAL_PACKAGE_ENGINES`), and the upload runs in the engine container (`engine/bambu_upload.py`), checked against the pinned certificate before the access code is sent. It waits on the printer: the broker that starts a print and reads live status is out of reach from a native package, so start it from the printer's screen. One exchange is limited to 55 s and 12 MB. Run `engine/install-engine.sh` after updating.
@@ -385,3 +387,70 @@ Container memory, MiB low / high: **64 / 3200 (declared)**.
 
 No model in the loop (T0): every feature of this application is deterministic code.
 <!-- oshal-rating:end -->
+
+## Editable source workspace
+
+The shared editor keeps navigation, the open source, selectable objects, Properties and the AI partner in the same layout. Changes use this package’s owned operations and current permissions. A saved source is separate from generated or published output.
+
+The shared workspace exposes actual axis measurements and reconstruction settings. Typed edits update the existing scale controls; saving dimensions retires obsolete reconstruction outputs. Real drawing/mesh/report/download views stay in the document viewport. Existing native reconstruction and CAD contour handoffs remain the domain operations. Reconstructed pixels or a mesh are not advertised as recovered source CAD features.
+
+## Saved calibration and AI editing — 0.8.0
+
+The common editor saves measured axes and reconstruction quality on the actual
+owned job. Focused valid fields save before the existing Scan operator reads;
+its native tools read that saved calibration and apply approved edits using an
+expected source SHA. Human editing works without a provider. A provider refusal
+stays visible and does not claim an AI adjustment.
+
+`GET /jobs/:jobId/calibration` returns the actual calibration and source SHA.
+`PATCH` accepts `expectedSourceSha`, complete `knownDimensions`, and complete
+`settings` (`resolution`, `smoothIterations`). The hash covers title, source kind,
+sorted measured axes and effective settings. Updates validate the closed profile,
+lock the original job, compare the hash and recheck current `scan.read`/`scan.edit`
+permissions before commit. They retire persisted output freshness and fixed
+artifacts, and never reconstruct, slice or print. Native writes join the kernel’s admitted request-wide SQL/file transaction, so saved source and artifact retirement commit together; a missing trusted transaction refuses the write. Unchanged calibration keeps its
+current geometry. Reconstruct explicitly before using a changed photo/video
+source. Optional depth refinement must be uploaded again for that capture lane.
+
+Point-cloud ruler dimensions and silhouette resolution do not control its import
+units, so the editor does not offer those properties and the API rejects them.
+Smoothing is saved for the next original point-cloud reimport; the import's voxel
+size, unit scale and orientation remain its own explicit controls. This is not
+saved point-cloud mesh or source-file editing. CAD handoff uses only genuinely
+current reconstructed contours.
+
+`scan-read-calibration` is read-only; `scan-update-calibration` is a real native
+route-backed API tool that uses the existing native held approval card. Its bounded string inputs carry complete
+calibration JSON and the current SHA, routed through the same original-owned HTTP transaction and closed validation as human edits. Stale source requires another read and
+approval. The UI retains invalid/failed/concurrent drafts and refuses old refreshes
+after switching objects. No local storage acts as the document store.
+
+Only new job creation binds shared-PostgreSQL original-person provenance
+(issuer, subject, principal and one active tenant). There is no legacy self-claim
+endpoint. Ambiguous legacy source remains readable in the existing evidence
+domain and refuses source edits. An explicitly authoritative native physical
+namespace can admit its own legacy source. Existing migration001/002 bytes are
+unchanged; additive normal003 and native003 provide the new binding table.
+
+Source receipts: `tests/calibration-source.test.mjs` uses real forced-RLS SQL,
+real image ingestion and the bundled reconstruction engine; it also executes an
+upgrade over preexisting unbound rows. `tests/calibration-browser.test.mjs` uses
+those same routes and actual kernel shared assets. Actor/grant selection and
+provider edit choice are named fixture seams. Installed native approval and live
+provider acceptance are separate proofs. The older SQL-dispatching lifecycle
+fixtures remain synthetic and are not SQL/authority evidence.
+
+Reproduce with the private disposable fixture environment (PostgreSQL on loopback
+35689 only), `STORE_CI_TOOLCHAIN`, `OSHAL_PLATFORM_ROOT` and a native Sharp dependency
+root in `SCAN_RASTER_DEPS` or `OSHAL_CORE_ROOT`, then run:
+
+```sh
+node --test --test-concurrency=1 tests/calibration-source.test.mjs tests/calibration-browser.test.mjs
+```
+
+The review factory is `startCalibrationFixture()` plus
+`seedCalibrationFixture(fixture)` from `tests/calibration.fixture.mjs`. It seeds
+through actual HTTP image/measurement/reconstruction operations and exposes
+`origin`, `app` and `close`. Its own provider endpoint returns503, and printer and
+external-process ports refuse execution. Closing it drops only its isolated test
+schema/role/files; it does not modify installation or production documents.

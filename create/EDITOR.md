@@ -1,5 +1,21 @@
 # Create image editor
 
+The shared editor foundation places the open canvas between a navigation/layer
+rail and a contextual property inspector. On narrow screens Navigation and
+Properties open drawers above the canvas. The common inspector edits supported
+geometry, opacity, fill, outline and text values through Create's existing
+validated operations; More tools retains masks, vectors and the advanced controls.
+Save and the existing concierge/Jarvis handoff settle focused property edits first.
+Invalid or stale fields remain available to correct or explicitly discard. Locked
+layers and withdrawn permissions retain the same refusal behavior as other edits.
+
+The reusable UI is served by the kernel at `/shared/ui/js/editor-foundation.js`
+and `/shared/ui/css/editor-foundation.css`; this package owns its adapter, model,
+history, rendering, original-owner storage and AI tools. An older kernel without
+these assets retains the existing editor layout. The source browser fixture uses
+isolated synthetic projects and a named assistant-update seam; it does not prove
+an installed provider's natural-language tool selection or format parity.
+
 Create 1.5.0 adds manual layered-image editing to the Create workspace. Open
 **Create → Image editor**, the **Image design** quick start, or
 `/api/create/editor`. Home's saved image cards reopen their exact project.

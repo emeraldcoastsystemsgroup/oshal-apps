@@ -1,0 +1,3 @@
+/** Source-only registered recipe: run the canonical generator's actual no-write drift check. */
+import{test}from'node:test';import assert from'node:assert/strict';import{spawnSync}from'node:child_process';import{resolve}from'node:path';
+test('all package-owned source persistence and fixtures match canonical hashes/DDL',()=>{const root=process.env.OSHAL_STORE_ROOT;assert.ok(root,'OSHAL_STORE_ROOT must select the source Store repository');const result=spawnSync(process.execPath,[resolve(root,'scripts/editor-source-projects/vendor.mjs'),'--check'],{cwd:root,encoding:'utf8',timeout:30000});assert.equal(result.status,0,result.stderr||result.stdout);});

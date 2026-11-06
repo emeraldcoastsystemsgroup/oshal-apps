@@ -1,3 +1,4 @@
+# 0.3.2 | maintainer@emeraldcoastsystemsgroup.com | Phones (F9 and the trial check, 2026-11-06): the Project menu and Rebuild wait in More and the app's name is not repeated, so the app bar is one row.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — cad-studio ("CAD Studio")
 #
@@ -24,6 +25,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # CHANGE LOG
+# 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Explicit app first use requests native engine preparation and shows truthful download progress; passive catalog reads remain unchanged.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Activate the packaged Test Lab catalog with its declared execution prerequisites.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Retain current editor selection and manual feature drafts across delayed responses; register the actual-page lifecycle suite.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: revolve, sweep and loft feature types (BACKLOG B1). The engine tree changed, so the engine build hash changes: re-run engine/install-engine.sh after updating.
@@ -32,6 +34,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: the engine builds on arm64 (DGX Spark): CadQuery 2.5.2 -> 2.8.0 and cadquery-ocp 7.7.2 -> 7.9.3.1.1, the first kernel with linux/aarch64 wheels. The engine tree changed, so the engine build hash changes: re-run engine/install-engine.sh after updating.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.2.5: on the native kernel the engine link counts as connected until a request through it fails. Status read "engine not connected" before the first drawing, so Jarvis refused every CAD request.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.2.6: the open part saves its unsaved feature form and density before Jarvis or the concierge reads it, and redraws the saved part when their change returns (shared document handoff), keeping a field the person is still typing.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
 name: cad-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -45,15 +48,8 @@ rating:
       generation: none
       degrade: disable
 displayName: CAD Studio
-description: >-
-  A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively.
-  Start from a box, a cylinder, a sketch, the outlines of a Scan to Print job or an
-  uploaded STL; add holes, bosses, pockets, sketch extrusions, revolves, sweeps,
-  lofts, fillets, chamfers, shells and cut planes as an ordered feature list; every edit rebuilds the part
-  and re-exports STEP, STL, hidden-line drawing views and a report. Ask the
-  concierge for a change in plain words and it edits the same list through the
-  package's tools, so the person, the bot and any MCP client iterate on one model.
-version: 0.2.6
+description: "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports."
+version: 0.3.2
 status: active
 scope: person
 
@@ -142,14 +138,20 @@ tools:
     displayName: CAD Studio Capabilities
     type: api
     category: engineering
-    description: The exact feature contract the server enforces — base kinds, every feature type with its parameter names, units (mm) and ranges, edge/face selectors, the world frame — plus the engine's status and the install command when it is down.
+    description: The exact feature contract the server enforces — base kinds, every feature type with its parameter names, units (mm) and ranges, edge/face selectors, the world frame — plus admitted native preparation progress or legacy engine connection status.
     executor: { executorType: api, apiEndpoint: "GET /api/cad-studio/capabilities" }
     defaultAuthMode: auto
     requiresApproval: false
     usageInstructions: >-
       Read this FIRST before adding or changing a feature: parameter names and units come from
-      here, never from memory. If engine.connected is false, tell the person the engine container
-      is down and quote engine.installHint verbatim; do not retry edits until it is up.
+      here, never from memory. Opening native capabilities asks this application's engine to prepare.
+      If engine.lifecycle.state is not-prepared or preparing, report automatic preparation and
+      progress, then read capabilities again before building. ready, running or pinned permits normal
+      work (pinned uses the installation's existing engine);
+      connected false alone means no verified transport contact yet, not that setup is required.
+      failed or none is unavailable: report the failure without claiming a result. A failed write
+      must never be repeated blindly; keep any returned model or design ID for its supported retry.
+      If lifecycle is absent, the legacy engine connection and installHint still describe setup.
     routingTags: [cad, capabilities, contract]
     tags: [cad-studio, route-backed]
 

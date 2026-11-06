@@ -1,3 +1,6 @@
+# CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
+# 1.6.3 | maintainer@emeraldcoastsystemsgroup.com | Declare restricted source editing with paired native public-share and typed-object authorization.
+# 1.6.1 | maintainer@emeraldcoastsystemsgroup.com | Declare the prepared saved-brief posture explicitly for concierge and Jarvis handoff.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
@@ -65,7 +68,10 @@ description: >-
   Turn an idea into generated video. The Veo specialist drives Google Vids by
   clicking — describes the shot, generates the clip, places it on the timeline —
   on a remote operator machine, and learns what works over time.
-version: 1.5.8
+version: 1.6.4
+authorization:
+  version: 1
+  catalog: authorization.yaml
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -110,6 +116,8 @@ uses:
   - app-dependencies
   - test-catalog
   - package-anonymous-routes
+  - package-anonymous-catalog-reads
+  - application-authorization
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — reuses the already-registered SHARED vids-operator worker (registered in
@@ -132,6 +140,73 @@ bots:
 # package's own route), which hands it to the remote-client registry the worker
 # polls. The CLI itself is kernel-resident (scripts/oshal-vids.js).
 tools:
+  - name: vids-source-list
+    displayName: Vids Source List
+    type: api
+    category: creative
+    description: List actual original-owned saved generation briefs and revisions.
+    executor: {executorType: api, apiEndpoint: "GET /api/vids/source-projects"}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Read the source contract and actual saved source first. Use returned IDs and baseRevision, and requestKey copied unchanged from the just-read source-contract response per exact edit intent. Retry an uncertain result unchanged. Brief edits never generate a clip; generation requires a separate explicit request and its existing approval.
+    tags: [vids, editing, source]
+
+  - name: vids-source-contract
+    displayName: Vids Source Contract
+    type: api
+    category: creative
+    description: Read the typed generation-brief editing contract.
+    executor: {executorType: api, apiEndpoint: "GET /api/vids/source-projects/contract"}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Read the source contract and actual saved source first. Use returned IDs and baseRevision, and requestKey copied unchanged from the just-read source-contract response per exact edit intent. Retry an uncertain result unchanged. Brief edits never generate a clip; generation requires a separate explicit request and its existing approval.
+    tags: [vids, editing, source]
+
+  - name: vids-source-read
+    displayName: Vids Source Read
+    type: api
+    category: creative
+    description: Read one actual owned brief, current revision and immutable history.
+    executor: {executorType: api, apiEndpoint: "GET /api/vids/source-projects/{input.id}"}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {id: {type: string, minLength: 36, maxLength: 36}}
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Read the source contract and actual saved source first. Use returned IDs and baseRevision, and requestKey copied unchanged from the just-read source-contract response per exact edit intent. Retry an uncertain result unchanged. Brief edits never generate a clip; generation requires a separate explicit request and its existing approval.
+    tags: [vids, editing, source]
+
+  - name: vids-source-edits
+    displayName: Vids Source Edits
+    type: api
+    category: creative
+    description: >-
+      Apply typed edits to an actual saved generation brief at its exact revision.
+      A prompt change uses {"op":"set-brief","values":{"prompt":"requested prompt"}} in operations.
+      Use op, never type; prompt belongs inside values. Never dispatches generation or changes finished media.
+    executor: {executorType: api, apiEndpoint: "POST /api/vids/source-projects/{input.id}/edits"}
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: {id: {type: string, minLength: 36, maxLength: 36}, baseRevision: {type: integer, minimum: 1, maximum: 99}, requestKey: {description: "Copy requestKey unchanged from the just-read editing contract response for this new edit; never invent it. Read a fresh contract for each new intent; retry an uncertain result with the identical key and body.", type: string, format: uuid, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$', minLength: 36, maxLength: 36}, operations: {type: array, minItems: 1, maxItems: 16, items: {type: object}}}
+      required: [id, baseRevision, requestKey, operations]
+      additionalProperties: false
+    usageInstructions: Read the source contract and actual saved source first. Use returned IDs and baseRevision, and requestKey copied unchanged from the just-read source-contract response per exact edit intent. Retry an uncertain result unchanged. Brief edits never generate a clip; generation requires a separate explicit request and its existing approval.
+    tags: [vids, editing, source]
+
   - name: vids-jobs
     displayName: My Vids Jobs
     type: api
@@ -215,6 +290,13 @@ tools:
 # assertion. Fleet authentication alone never selects a user's queue — ADR-085 D2.)
 # ─────────────────────────────────────────────────────────────────────────────
 routes:
+  - module: routes/source-projects.mjs
+    factory: createSourceProjectRoutes
+    mountPath: /api/vids
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
   - module: routes/home-summary.js
     factory: createHomeSummaryRoutes
     mountPath: /api/vids/home-summary
@@ -271,12 +353,17 @@ ui:
 # installs; 100 upgrades installations that already recorded 059. Both make ownership
 # mandatory and enforce owner/operator access with FORCE RLS.
 migrations:
+  - migrations/006-editor-source-projects.sql
+  - migrations/native/006-editor-source-projects.sql
   - migrations/059-vids-platform.sql
   - migrations/100-vids-owner-rls.sql
   - migrations/101-vids-artifact-publication.sql
   - migrations/native/001-vids.sql
 # The native kernel applies the native file above in place of 059-101 (agents-table seed, RLS policies and a pg_roles-guarded GRANT are PostgreSQL-only).
 nativeMigrations:
+  - id: migrations/006-editor-source-projects.sql
+    native: skip
+    reason: Native final schema retains physical original-person scope; PostgreSQL additionally forces owner RLS.
   - id: migrations/059-vids-platform.sql
     native: skip
     reason: "Its job table and indexes are in migrations/native/001-vids.sql; it seeds the platform agents table, which is not a package table (the native kernel registers vids-operator from this manifest's bots: block), and its RLS policy is PostgreSQL-only."

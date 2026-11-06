@@ -75,6 +75,7 @@ const slack_client_1 = require("@/app/routes/slack-client");
 const email_routes_1 = require("@/app/routes/email-routes");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const office_starters_1 = require("./office-starters");
+const office_authorization_1 = require("./office-authorization");
 const kernel_delivery_1 = require("./kernel-delivery");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -329,8 +330,14 @@ function createBotPresentationRoutes(ctx) {
         : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');
     void ensurePresentationsSchema(ctx.pool).catch((err) => logger.warn({ err: err?.message }, 'presentations schema ensure failed'));
     /** GET /ui — the Presentations Studio surface. */
-    router.get('/ui', (_req, res) => {
-        res.sendFile(path.join(assetRoot, 'presentations.html'), (err) => {
+    router.get('/ui', async (req, res) => {
+        // Editing and generation share the modern document; only explicit audience mode uses the viewer.
+        const legacy = !!req.query.audience;
+        if (legacy && !await (0, office_authorization_1.legacyAccess)(ctx)) {
+            res.status(403).json({ error: 'office_permission_denied', message: 'Your current role does not allow the generation and delivery surface.' });
+            return;
+        }
+        res.sendFile(path.join(assetRoot, legacy ? 'presentations.html' : 'office/editor.html'), (err) => {
             if (err) {
                 logger.error({ err }, 'serve presentations UI failed');
                 res.status(404).send('Page not found');

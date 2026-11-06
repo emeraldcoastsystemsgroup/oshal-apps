@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Keep the real native build/owner fixture while asserting separate admitted image readiness before any engine command.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -374,7 +375,7 @@ test('native kernel: the engine is reached only through engine.exchange and the 
     });
   });
   const nativePool = Object.assign(fakePool(), { storageModel: 'kernel-scoped-documents' });
-  const intent = async (name, input) => { intents.push({ name, input }); return exchange(input.request); };
+  const intent = async (name, input) => { intents.push({ name, input }); if (name === 'engine.status') { assert.deepEqual(input, {}); return { state: 'ready' }; } assert.equal(name, 'engine.exchange'); return exchange(input.request); };
   const nativeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cad-native-'));
   const app = express();
   app.use((req, _res, next) => { req.oidc = { user: { sub: 'native-alice' }, isAuthenticated: () => true }; next(); });
@@ -385,11 +386,13 @@ test('native kernel: the engine is reached only through engine.exchange and the 
     const url = `http://127.0.0.1:${nativeServer.address().port}/api/cad-studio`;
     const caps = await (await fetch(url + '/capabilities')).json();
     assert.equal(caps.engine.address, 'native://engine.exchange');
+    assert.equal(caps.engine.lifecycle.state, 'ready'); assert.equal(caps.engine.connected, false);
+    assert.deepEqual(intents.map((row) => row.name), ['engine.status']);
     const res = await fetch(url + '/models', json('POST', { title: 'native part', base: { kind: 'box', sizeX: 10, sizeY: 10, sizeZ: 10 } }));
     const body = await res.json();
     assert.equal(res.status, 201); assert.equal(body.model.revision, 1);
-    assert.equal(intents.length, 1); assert.equal(intents[0].name, 'engine.exchange');
-    assert.equal(intents[0].input.request.cmd, 'rebuild'); assert.equal(intents[0].input.request.id, undefined);
+    assert.equal(intents.length, 2); assert.equal(intents[1].name, 'engine.exchange');
+    assert.equal(intents[1].input.request.cmd, 'rebuild'); assert.equal(intents[1].input.request.id, undefined);
     assert.equal(nativePool.tables.cad_revision[0].engine_build, HASH);
     assert.equal(fs.readdirSync(nativeRoot, { recursive: true }).filter((f) => String(f).endsWith('model.stl')).length, 1);
   } finally { nativeServer.close(); fs.rmSync(nativeRoot, { recursive: true, force: true }); }

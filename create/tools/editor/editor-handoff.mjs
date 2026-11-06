@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Automatically save the visible draft before concierge/Jarvis editing, then refresh the same project after its saved edit without discarding concurrent browser changes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Report the saved project's real edit permission separately from the read-only screen bridge.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Settle shared property drafts before the assistant reads the original project.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Hand off exact saved selection identities while leaving complete current text to protected source reads.
  */
 import { state, dirty, api, notify, subscribe, error, canEdit } from './editor-state.mjs';
 import { saveProject } from './editor-projects.mjs';
@@ -26,13 +28,18 @@ function ready() {
 async function prepare() {
   try {
     document.activeElement?.blur?.();
+    await state.foundation?.flushPending();
     ready(); await waitForSave();
     // If a person types during the first save, capture that change too before the assistant reads.
     for (let attempt = 0; attempt < 3 && dirty(); attempt++) { await saveProject(); await waitForSave(); }
     if (dirty()) throw new Error('The document is still changing. Finish your edit and ask again.');
     const snapshot = editorSnapshot();
     if (!snapshot.fields.available) throw new Error('The current document is unavailable.');
-    return { app: 'create', screen: 'surface', ...snapshot, fields: { ...snapshot.fields, readOnly: !canEdit() } };
+    // The screen bridge may show clipped text. A document handoff identifies the saved
+    // source and selection; the concierge reads complete current text from its owned tools.
+    const fields = { ...snapshot.fields, readOnly: !canEdit() }; delete fields.text;
+    return { app: 'create', screen: 'surface', ...snapshot, fields,
+      selection: { kind: fields.layerType ?? 'document', ids: fields.layerId ? [fields.layerId] : [] } };
   } catch (failure) { error(failure.message); throw failure; }
 }
 
@@ -67,3 +74,6 @@ export async function bindEditorHandoff() {
   const { registerDocumentSession } = await import('/shared/ui/js/document-handoff.js');
   return registerDocumentSession({ app: 'create', prepare, refresh });
 }
+
+/** Reuse the same authorized save/refresh path in the shared inline AI panel. */
+export { prepare as prepareEditorDocument, refresh as refreshEditorDocument };

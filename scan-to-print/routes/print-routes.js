@@ -42,6 +42,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` encryptField (asynchronous on the
  *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
  *                     |                             | printer key ciphertext.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owner checks and the existing independent print.send permission before sending current models.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -63,6 +64,7 @@ const printer_adapters_1 = require("./engine/print/printer-adapters");
 const slicer_engine_1 = require("./printing/slicer-engine");
 const slicer_1 = require("./engine/print/slicer");
 const export_stl_1 = require("./engine/geometry/export-stl");
+const calibration_editor_1 = require("./calibration-editor");
 const job_outputs_1 = require("./job-outputs");
 const node_crypto_1 = require("node:crypto");
 const print_service_1 = require("./print-service");
@@ -313,6 +315,8 @@ async function bambuJobOutcome(deps, sub, job, printer, start, requestedBy) {
  * @returns HTTP status and body.
  */
 async function printJob(deps, sub, job, body, start, requestedBy) {
+    if (deps.context)
+        await (0, calibration_editor_1.assertCalibrationOwner)(deps.context, job.job_id, await (0, calibration_editor_1.calibrationAccess)(deps.context, 'print.send'));
     const printer = await (0, print_service_1.loadPrinter)(deps.pool, sub, (0, data_dir_1.requireUuid)(body.printerId));
     if (!printer)
         return { status: 404, body: { error: 'printer_not_found' } };
@@ -354,7 +358,7 @@ function registerPrint(router, deps) {
             logger.error({ err: error, jobId: job?.job_id }, 'Print submission failed');
             res.status(500).json({ error: 'print_failed' });
         }
-    }));
+    }, 'write', 'print.send'));
 }
 /**
  * @description Compose printer management, owner settings and guarded current-model submission.

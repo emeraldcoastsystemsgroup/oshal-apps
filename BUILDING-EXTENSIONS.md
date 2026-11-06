@@ -806,3 +806,19 @@ packages through the core YAML/dependency parser. The companion mutation suite i
 the standard store gate. They prove declaration consistency, not provider execution or live
 authorization. Catalog dependency mirrors are regenerated with
 `node scripts/gen-catalog-dependencies.mjs`.
+
+## Shared document editor foundation
+
+Applications with an editable document may use `/shared/ui/js/editor-foundation.js`
+and `/shared/ui/css/editor-foundation.css`. They supply existing navigation,
+viewport and inspector elements plus typed property/selection adapters. The
+foundation owns layout, accessible fields and retained field drafts; the package
+keeps validation, authorization, undo, rendering, revision storage and AI tools.
+Do not import sibling package files or copy the shared kit into each application.
+
+Working adapters: `create/tools/editor/editor-foundation-adapter.mjs` and
+`publishing-studio/tools/editor-foundation-adapter.mjs`. Save and assistant
+prepare hooks must await `flushPending()`; dirty/conflict checks include
+`hasPending()`. Call `discardPending()` only after a confirmed successful document
+replacement. Kernel guide: `docs/apps/editor-foundation.md`; local review:
+`scripts/editor-foundation/README.md`.

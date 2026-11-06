@@ -7,17 +7,18 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Explain the region-edit refusals in plain words: one at a time, the daily limit, a region or image that changed, a locked target and an unconfigured image service.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Integrate version 3 brush and arithmetic masks plus editable stack/clipped color adjustments with existing project history.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Track unsaved document identity and pending shared properties without changing stored project data.
  */
 import { createProject, applyOperation, serializeProject } from './model.mjs';
 import { createHistory } from './history.mjs';
 
 export const $ = id => document.getElementById(id);
-export const state = { project: createProject(), history: null, selected: null, id: null, revision: 0,
+export const state = { project: createProject(), history: null, selected: null, id: null, revision: 0, documentSession: crypto.randomUUID(),
   saved: '', permissions: {}, loading: true, saving: false, conflict: false, saveFailed: false, draw: false, images: new Map(),
-  region: null, regionMode: false, maskBrush: '', vectorMode: false, vectorDraft: [], arrangeIds: [] };
+  region: null, regionMode: false, maskBrush: '', vectorMode: false, vectorDraft: [], arrangeIds: [], foundation: null };
 state.history = createHistory(state.project);
 const listeners = new Set();
-export const dirty = () => serializeProject(state.project) !== state.saved;
+export const dirty = () => serializeProject(state.project) !== state.saved || Boolean(state.foundation?.hasPending());
 export const canEdit = () => !state.loading && Boolean(state.id ? state.permissions.change : state.permissions.create);
 export const notify = () => { for (const listener of listeners) listener(); };
 export const subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
@@ -56,7 +57,10 @@ export function edit(operation) {
 
 /** Preserve a distinct saved baseline and reset undo only when opening a document. */
 export function openDocument(project, record = null) {
-  state.project = state.history.reset(project); state.id = record?.id ?? null;
+  const replacement = createHistory(project), document = replacement.current();
+  state.foundation?.discardPending();
+  state.documentSession = crypto.randomUUID();
+  state.history = replacement; state.project = document; state.id = record?.id ?? null;
   state.revision = record?.revision ?? 0; state.saved = record ? serializeProject(state.project) : '';
   state.selected = null; state.conflict = false; state.saveFailed = false; state.draw = false;
   state.region = null; state.regionMode = false; state.maskBrush = ''; state.vectorMode = false; state.vectorDraft = []; state.arrangeIds = []; error(''); notify();

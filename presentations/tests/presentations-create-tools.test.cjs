@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | deck-builder can make the file. Asked from Jarvis for a PowerPoint it called no tool (its one tool was presentations-list) and answered an outline of TBD lines. The manifest declares presentations-create-deck and presentations-create-document as automatic route writes onto POST /pptx and /docx, the exact body their inputSchema describes renders and saves through the compiled route, and the persona tells the bot to call them instead of sending the person to Generate.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A made file answers openUrl, and an open= link reopens that saved file in the studio (Jarvis never offered to open a deck it made).
  *
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Guard current-document editing precedence and unchanged approval/ownership boundaries for all Office kinds.
+ *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
 'use strict';
@@ -98,3 +100,27 @@ test('an open= link reopens that saved file from My files in the studio', () => 
   assert.match(html, /el\.onclick = \(\) => reopenDeck\(recent\[/, 'Jump back in and the link reopen the same way');
 });
 
+
+// Source contract guard only: actual provider choice and approved live edits need separate native evidence.
+test('current Office context takes precedence over standalone generation without relaxing approval', () => {
+  const persona = fs.readFileSync(path.join(PKG, 'personas', 'deck-builder.yaml'), 'utf8');
+  assert.match(persona, /Current saved document and selection/);
+  assert.match(persona, /surface=office-editor/);
+  assert.match(persona, /Use recordId as the tools' id, fields\.revision as revision\/baseRevision/);
+  assert.match(persona, /fields\.kind as pptx\/docx\/xlsx/);
+  assert.match(persona, /JSON-encode the exact selection as selectionJson/);
+  assert.match(persona, /Write the requested content and propose office-apply-edits against that same id/);
+  assert.match(persona, /Never send the person to Generate/);
+  assert.doesNotMatch(persona, /tell them[^\n]*click|Hand them off to Generate|buttons sit next to Generate/);
+  assert.match(persona, /card must complete before reporting success/);
+  assert.match(persona, /on the next turn read the new supplied revision/);
+  const edit = toolBlock('office-apply-edits');
+  assert.match(edit, /defaultAuthMode: ask/);assert.match(edit, /requiresApproval: true/);
+  assert.match(edit, /CURRENT office-editor document, including a blank one/);
+  assert.match(edit, /POST \/api\/presentations\/editor\/documents\/\{input\.id\}\/edits/);
+  assert.match(toolBlock('office-read-selection-part'), /revision=\{input\.revision\}/);
+  for (const name of ['presentations-create-deck', 'presentations-create-document']) {
+    assert.match(toolBlock(name), /when no current office-editor document is being edited/);
+    assert.match(toolBlock(name), /use office-apply-edits to populate or change that same document instead/);
+  }
+});

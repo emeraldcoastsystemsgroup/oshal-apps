@@ -16,6 +16,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register character-delete: DELETE /characters/:subject over real HTTP against disposable forced-RLS PostgreSQL as owner roles.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register character-required-fields: Save character names an empty required field instead of doing nothing.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register lora-read-tools: the director's character and model reads bound to lora.read.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing director tool case to saved-source context and held edits without provider calls.
 version: 1
 cases:
   - id: character-required-fields
@@ -309,9 +310,9 @@ cases:
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
     installation: never
   - id: lora-read-tools
-    name: The director reads characters and models
-    purpose: lora-characters and lora-models are read tools on the mounted routes, catalog-bound to the permission each route
-      needs, and the persona calls them.
+    name: The director reads and edits the selected saved source
+    purpose: Check actual source handoff identities and revisions, persona read/edit instructions, and own-role tool/route
+      admission with held source writes; training remains separate.
     level: unit
     runner:
       kind: node-test
@@ -327,4 +328,69 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+
+  - id: workspace-foundation
+    name: Character creation and dataset import properties
+    purpose: Exercise the actual shared editor shell and package source controls in real Chromium on isolated fixtures.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/workspace-foundation.test.mjs]}
+    expected:
+      - Shared properties edit the actual source controls and preserve the native domain command path.
+      - Phone navigation and inspector remain usable without horizontal overflow or provider calls.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser and loopback fixture. Only synthetic data is used.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+  - id: editor-captions-store
+    name: Actual desired and applied caption source
+    purpose: Verify genuine owned SQL, caption and cosmetic metadata CAS, current configure/execute decisions and signed exact-job callbacks without a GPU.
+    level: integration
+    runner: {kind: external, scope: package, files: [tests/editor-captions.test.mjs]}
+    expected: [Desired caption persistence does not impersonate a worker acknowledgement, Stale jobs and foreign original identities refuse, Revocation preserves atomic source and current permissions]
+    prerequisites: [runner:node, service:postgres-disposable-35689, runtime:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close loopback HTTP and drop only the fixture's unique SQL schema and non-bypass role."}
+    limits: {timeoutMs: 90000, maxMemoryMb: 512}
+    installation: never
+  - id: editor-caption-native-worker
+    name: Genuine PowerShell caption and training-source contract
+    purpose: Execute shipped worker code in an existing reviewed PowerShell container against real owned SQL and signed callbacks, with a harmless local marker instead of a trainer.
+    level: integration
+    runner: {kind: external, scope: package, files: [tests/editor-caption-worker.test.mjs]}
+    expected: [Real Unicode files match the saved revision, Deferred configure revocation prevents writing, Stale callbacks and old worker revisions cannot replace current source, Original image import attempts are fenced to their ticket and exact bytes, Training preflight rejects pending or drifted actual files]
+    prerequisites: [runner:node, service:postgres-disposable-35689, runtime:store-toolchain, runtime:docker-existing-reviewed-powershell-image]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove only the --rm fixture containers and temporary mounted source files; drop the unique SQL schema/role; contact no GPU or production service."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
+    installation: never
+
+  - id: editor-source-browser
+    name: Actual identity and dataset caption editor
+    purpose: Drive the shipped shared workspace through actual owned SQL and typed metadata/caption routes, with recorded worker dispatch and no automatic acknowledgement.
+    level: browser
+    runner: {kind: external, scope: package, files: [tests/editor-source-browser.test.mjs]}
+    expected: [Focused fields save and reopen from real SQL, Pending captions retain the actual applied source and gate training, Explicit retry dispatches the exact saved source revision, Desktop and phone retain usable document and property panes]
+    prerequisites: [runner:node, browser:chromium, service:postgres-disposable-35689, runtime:store-toolchain, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the exact loopback fixture and browser, then drop only the unique SQL schema and non-bypass role. Initial directory reads are named fixture seams; worker commands are recorded without GPU or production calls."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: source-editor-authority
+    name: Owned source editor authority
+    purpose: Exercise the actual source access guard with explicit named decision seams and compare privileged operation bindings.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/editor-role-closure.test.mjs]}
+    expected:
+      - Source edits require the original active owner and current named permissions.
+      - Provider generation, training, printer control and sending are not conferred by the source editor role.
+      - Existing privileged roles retain their reviewed operations.
+    prerequisites: [runner:node, runtime:canonical-store-toolchain]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 15000, maxMemoryMb: 512}
     installation: never

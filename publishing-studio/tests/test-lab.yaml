@@ -1,7 +1,67 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register real browser/SQL automatic document handoff proofs with explicit prerequisites.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Cover complete saved history replay, redo retention and old-view refusal.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.6: register phone-start (one app bar row, New publication as the one first action, More choices close the sheet).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7: phone-start also proves touch scrolling over the open page, tap-to-select and the Move handle, no preview request for an unrendered revision, and the mouse-only desktop guard.
 version: 1
 cases:
+  - id: editor-foundation
+    name: Shared property adapter preserves native publishing operations
+    purpose: Validate geometry, fill and styled text adapters against the actual closed publishing model.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/editor-foundation.test.mjs]
+    expected:
+      - Invalid geometry refuses and unrelated styled content remains unchanged.
+    prerequisites: [runner:node]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-memory models only; no network, files or user data.
+    limits: {timeoutMs: 30000, maxMemoryMb: 512}
+    installation: never
+  - id: editor-foundation-browser
+    name: Shared inspector save reopen and assistant handoff
+    purpose: Real Chromium and owned disposable SQL prove property edits, history, saved reopen, focused-field handoff and phone layout.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/browser/editor-foundation.test.mjs]
+    expected:
+      - Shared property edits remain native and editable after manual and assistant handoffs.
+      - Invalid field drafts block handoff and remain visible for correction.
+    prerequisites: [runner:node, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique fixture databases, roles, engine children and temp directories; preserve shared services and user documents.
+    limits: {timeoutMs: 180000, maxMemoryMb: 1536}
+    installation: never
+  - id: phone-start
+    name: Publishing Studio on a phone starts in one tap
+    purpose: At 390x844 with touch the app bar is one row and content starts within 74 px of the frame, New publication is the empty state's one first action with no dead document control drawn, one tap creates and opens a publication, and a choice in More runs and closes it (Roger F6 and the trial check, 2026-11-06); with a publication open a finger scrolls the page and only the chosen frame's Move handle drags it (the round-2 trial check).
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/browser/phone-start.test.mjs]
+    expected:
+      - Only Save revision and More in the one app bar row; New publication is the only drawn control before a publication exists.
+      - One tap opens Revision 1 with its page boards; Refresh files from More closes the sheet and returns to its toolbar.
+      - '0.3.7, with a publication open: a CDP touch swipe that starts on the story frame, on the page margin or on the page body scrolls the editor and moves nothing; no swipe leaves a draft.'
+      - '0.3.7: a tap selects a frame without moving it or the scroll; only its 44 px opaque Move handle (touch-action none) drags it into an unsaved draft.'
+      - '0.3.7, desktop guard: at 1440x900 with a mouse no handle is drawn and dragging the outline still moves the frame.'
+      - '0.3.7: opening a never-rendered revision makes no preview request (no 409, no console error).'
+    prerequisites: [runner:node, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique fixture databases, roles, engine children and temp directories; preserve shared services and user documents.
+    limits: {timeoutMs: 180000, maxMemoryMb: 1536}
+    installation: never
   - id: model
     name: Closed human/agent model and actual Python parity
     purpose: >-
@@ -204,7 +264,7 @@ cases:
 
   - id: document-handoff
     name: Manual and concierge publication handoff
-    purpose: Automatically apply and save the current editor fields before concierge reading and refresh the same native publication on return.
+    purpose: Automatically save current editor fields before concierge reading and retain complete model undo across saved same-document updates while guarding dirty or switched publications.
     level: integration
     runner:
       kind: external
@@ -214,6 +274,9 @@ cases:
       - Unapplied manual text saves without pressing Apply or Save before the assistant reads.
       - The same original-owner native story refreshes, then the next manual change reaches the next handoff.
       - Failed saves and concurrent focused fields preserve the browser draft.
+      - Real assistant story, style and view updates undo and redo across saves without losing the earlier manual history.
+      - Unchanged saved revisions retain redo, and a delayed refresh cannot replace a newly opened publication.
+      - Old handoffs preserve a later historical view, and old approval cards cannot execute from a different document.
       - The embedded chat saves before sending its real request; a full manual batch saves before pending fields continue.
     prerequisites: [runner:node, browser:chromium, runtime:publishing-pinned-python, runtime:typst-pinned, fixture:postgres-35689, core:shared-theme-assets]
     sideEffects: fixture-write

@@ -10,6 +10,8 @@ exports.CreateProjectStore = void 0;
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Share the owner lock, the optimistic project lock and one revision-append step with region-edit acceptance, so an accepted candidate becomes a revision by exactly the same path a manual save does; unused-upload cleanup also keeps a candidate that is still generating or waiting for review.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep native normalized image bytes, immutable metadata and eligible cleanup on the same admitted SQL client transaction.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Reuse original-client admissions for atomic PSD source, image and project publication.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: count the images a person saved in the last day, for the generation ceiling.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Reuse one database-derived revision timestamp for write, read and list metadata even when the SQL clock advances between statements.
  */
 const node_crypto_1 = require("node:crypto");
 const node_crypto_2 = require("node:crypto");
@@ -174,7 +176,7 @@ class CreateProjectStore {
         await this.checkAssets(client, owner, input);
         const id = (0, node_crypto_1.randomUUID)();
         const result = await client.query(`INSERT INTO create_projects (project_id,owner_issuer,owner_sub,title) VALUES ($3,$1,$2,$4) RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title]);
-        await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,1,$4,$5::jsonb)', [owner.issuer, owner.sub, id, input.title, JSON.stringify(input.document)]);
+        await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document,created_at) VALUES ($3,$1,$2,1,$4,$5::jsonb,$6)', [owner.issuer, owner.sub, id, input.title, JSON.stringify(input.document), result.rows[0].updated_at]);
         await this.recordAssets(client, owner, id, 1, input);
         return { ...metadata(result.rows[0]), document: input.document };
     }
@@ -187,10 +189,10 @@ class CreateProjectStore {
     async appendRevision(client, owner, id, expected, input) {
         await this.checkAssets(client, owner, input);
         const revision = expected + 1;
-        await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,$4,$5,$6::jsonb)', [owner.issuer, owner.sub, id, revision, input.title, JSON.stringify(input.document)]);
+        const appended = await client.query('INSERT INTO create_project_revisions (project_id,owner_issuer,owner_sub,revision,title,document) VALUES ($3,$1,$2,$4,$5,$6::jsonb) RETURNING created_at', [owner.issuer, owner.sub, id, revision, input.title, JSON.stringify(input.document)]);
         await this.recordAssets(client, owner, id, revision, input);
-        const result = await client.query(`UPDATE create_projects SET title=$4,current_revision=$5,updated_at=NOW()
-      WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$6 RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title, revision, expected]);
+        const result = await client.query(`UPDATE create_projects SET title=$4,current_revision=$5,updated_at=$7
+      WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND current_revision=$6 RETURNING ${METADATA}`, [owner.issuer, owner.sub, id, input.title, revision, expected, appended.rows[0].created_at]);
         if (!result.rows.length)
             throw new create_project_types_1.ProjectError(409, 'project_revision_conflict');
         return { ...metadata(result.rows[0]), document: input.document };

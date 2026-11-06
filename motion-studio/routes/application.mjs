@@ -76,7 +76,7 @@ export function createMotionRoutes(ctx){
     }
   };
   router.get('/app',run('view',async()=>({send:res=>res.type('html').sendFile(resolve(root,'tools/workbench.html'))})));
-  for(const file of ['workbench.mjs','editor-handoff.mjs','workbench.css','native-json.mjs','bundle-client.mjs','sha256-stream.mjs','value-patch.mjs','render-client.mjs','busy-retry.mjs'])router.get('/ui/'+file,run('view',async()=>({send:res=>res.type(file.endsWith('.css')?'text/css':'text/javascript').sendFile(resolve(root,'tools',file))})));
+  for(const file of ['workbench.mjs','editor-foundation-adapter.mjs','editor-handoff.mjs','workbench.css','native-json.mjs','bundle-client.mjs','sha256-stream.mjs','value-patch.mjs','render-client.mjs','busy-retry.mjs'])router.get('/ui/'+file,run('view',async()=>({send:res=>res.type(file.endsWith('.css')?'text/css':'text/javascript').sendFile(resolve(root,'tools',file))})));
   mountPortableRoutes(router,run);
   mountValueRoutes(router,run);
   mountRenderRoutes(router,run,ctx,contextStore);

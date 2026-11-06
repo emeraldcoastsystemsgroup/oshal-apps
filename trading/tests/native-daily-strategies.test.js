@@ -1,3 +1,4 @@
+/** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Pin daily activation review and scheduled execution parity for cost stops and persisted trailing anchors. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Recreate the application against a reconnected disposable PostgreSQL database and verify exact two-margin/retirement assignments, settings and owner isolation. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Exercise stock save, account binding, costed replay, native approval protocol, fills and duplicate prevention with a synthetic broker. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Named synthetic history/SQL/native-broker tests: exact account class, failed-validation refusal, persisted daily configuration, fractional leftovers, fresh cycles and replay safety. No live brokerage I/O. */
@@ -128,4 +129,25 @@ test('account strategies survive application recreation and PostgreSQL reconnect
  const changed=await req('/profiles',{accountId:'a',connectionKey:'owned-login',label:'New account label',registration:'taxable'});assert.equal(changed.profile.strategyId,saved[0].id);
  const foreign=await req('/research',undefined,'owner-b');assert.deepEqual(foreign.strategies,[]);assert.deepEqual(foreign.accounts,[]);
  const last=await req('/research');assert.equal(last.accounts.find(a=>a.accountId==='b').strategyId,saved[1].id);assert.equal(last.accounts.find(a=>a.accountId==='retirement').strategyId,saved[2].id);
+});
+
+test('daily activation review and first scheduled decision agree on a held stock beyond its cost stop',async t=>{
+ const h=await dailyFixture(t,stock,{positions:[{symbol:'AAA',qty:1,marketValue:100,avgEntryPrice:1000,unmanaged:true}]});
+ const review=h.draft.review;assert.ok(review.signal);assert.ok(!review.signal.targets.some(t=>t.symbol==='AAA'),'review must include the real holding cost stop');
+ assert.equal(review.proposal.actions.find(a=>a.symbol==='AAA')?.action,'sell');
+ await h.activate();const tick=await h.req('/watch/tick',{});assert.ok(tick.receipts?.[0]?.signal);
+ assert.deepEqual(tick.receipts[0].signal.targets,review.signal.targets,'the reviewed and scheduled completed-session decisions must agree');
+ assert.equal(h.tickets.at(-1).terms.symbol,'AAA');assert.equal(h.tickets.at(-1).terms.side,'sell');
+});
+
+test('daily reviews retain trailing anchors and reuse the same valid completed-session decision as the monitor',async t=>{
+ const h=await dailyFixture(t,stock,{positions:[{symbol:'AAA',qty:1,marketValue:100,avgEntryPrice:100,unmanaged:true}]});
+ const record=[...h.records.values()].find(r=>r.kind==='watch'&&r.record_id===h.watch.id),watch=JSON.parse(record.payload);
+ watch.signal={signalAsOf:'2026-10-20',riskState:{asOf:'2026-10-20',anchors:{AAA:{entry:100,peak:1000}},stops:{}}};record.payload=JSON.stringify(watch);
+ const renewed=await h.req('/live/mandate',{watchId:h.watch.id,capitalCents:1000000,scope:'whole-account'});assert.ok(renewed.review.signal);
+ assert.ok(!renewed.review.signal.targets.some(t=>t.symbol==='AAA'),'review must preserve the existing trailing peak');
+ await h.req('/watch/tick',{});const monitored=JSON.parse([...h.records.values()].find(r=>r.kind==='watch'&&r.record_id===h.watch.id).payload);assert.deepEqual(monitored.signal.targets,renewed.review.signal.targets);
+ // Fresh SQL load after monitoring must keep the completed-session signal rather than discard stop state.
+ const rereview=await h.req('/live/mandate',{watchId:h.watch.id,capitalCents:1000000,scope:'whole-account'});
+ assert.deepEqual(rereview.review.signal,monitored.signal);
 });

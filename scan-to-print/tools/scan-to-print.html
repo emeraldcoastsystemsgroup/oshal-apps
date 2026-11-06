@@ -6,13 +6,14 @@
   shared surface-theme bootstrap, and every framework token is consumed READ-ONLY with a local
   fallback so the page renders in any skin. (.html is exempt from the CHANGE LOG header.)
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="light-blue">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Scan to Print</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the signed-in account's OWN
      objects (how many, which are printable, which failed, the newest ones with their state, source, extents and printable
@@ -227,14 +228,31 @@
   .cam-shots figure { margin: 0; text-align: center; }
   .cam-shots canvas { height: 64px; width: auto; border-radius: 4px; border: 1px solid var(--stp-line); background: #000; }
   @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--stp-line); } .two { grid-template-columns: 1fr; } #cam-shutter { padding: 14px 22px; font-size: 16px; } }
+
+/* Scan objects use the shared document anatomy and retain their owned reconstruction/print operations. */
+.layout.ef-editor{height:100dvh;padding:0;max-width:none}.ef-editor .ef-header-slot>header{height:auto;margin:0;padding:12px 16px;gap:10px;flex-wrap:wrap}
+.ef-editor .ef-navigation>aside,.ef-editor .ef-viewport>main,.ef-editor .scan-inspector{padding:14px;border:0;min-width:0;overflow:auto;background:transparent}
+.ef-editor .ef-viewport>main{height:100%}.ef-editor .scan-inspector .row{display:grid;grid-template-columns:minmax(0,1fr)}
+.ef-editor .scan-inspector .step{border:0;padding:0;margin:14px 0}.ef-editor .scan-inspector input,.ef-editor .scan-inspector select{width:100%!important;max-width:100%}.ef-editor .scan-inspector input[type=checkbox]{width:auto!important}
+.ef-editor .two{grid-template-columns:minmax(0,1fr)}.ef-editor #viewer{width:100%;max-height:55dvh}.ef-editor #drawing{max-height:55dvh;object-fit:contain}
+.view-checklist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}.view-slot{display:grid;gap:4px;justify-items:center;align-content:center;min-height:96px;padding:6px;border:1px solid var(--stp-line);border-radius:10px;background:var(--stp-panel);color:var(--stp-text);font:inherit;font-size:13px;cursor:pointer}
+.view-slot.missing{border-style:dashed;color:var(--stp-muted)}.view-slot img{width:100%;height:64px;object-fit:cover;border-radius:6px}.view-slot b{font-size:13px}.capture-advanced{margin-top:12px}.capture-advanced>summary{cursor:pointer;padding:8px 0}
+.link-like{border:0;background:none;color:var(--stp-accent);text-decoration:underline}
+.header-title{display:none}@media(max-width:800px){.ef-editor .ef-header-slot>header .header-title{display:block;flex:1;min-width:0;font-weight:650;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+.measure-step{display:grid;gap:6px;margin:4px 0 10px;padding:10px 12px;border:1px solid var(--stp-accent);border-radius:10px;background:var(--stp-panel)}.measure-step[hidden]{display:none}.measure-step label{display:block;font-size:14px}.measure-input{display:flex;align-items:center;gap:6px}.measure-input input{width:120px}.measure-step p{margin:0}.measure-step.needed #measure-note{color:var(--stp-warn,var(--stp-accent))}
+@media(max-width:800px){.ef-editor .ef-viewport>main{height:auto;overflow:visible}.ef-editor .ef-header-slot>header>.muted{display:none}.ef-editor .ef-header-slot>header h1{font-size:16px;margin:0}.ef-editor .ef-header-slot>header{padding:6px 10px;flex-wrap:nowrap}
+ .toast{top:60px;bottom:auto;left:12px;right:12px;max-width:none;background:var(--bg-primary,var(--stp-panel2))}}
+@media(max-width:800px){.ef-editor .downloads a{display:inline-flex;align-items:center;min-height:44px;padding:8px}.ef-editor button,.ef-editor summary,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor input,.ef-editor select{font-size:16px}}
+
 </style>
 </head>
 <body>
 <header>
-  <h1>Scan to Print</h1>
-  <span class="muted small">photos → drawing → STL → your printer · deterministic geometry</span>
+  <h1 data-ef-phone="brand">Scan to Print</h1>
+  <span class="muted small" data-ef-phone="brand">photos → drawing → STL → your printer · deterministic geometry</span>
+  <span id="header-title" class="header-title" aria-hidden="true"></span>
   <span class="spacer"></span>
-  <button id="new-job" class="primary">New object</button>
+  <button id="new-job" class="primary" data-ef-phone="more">New object</button>
 </header>
 <div class="layout">
   <aside>
@@ -274,14 +292,16 @@
 
       <section class="step">
         <h2>1 · Capture <small>plain background · camera square to the face · same orientation for every photo</small></h2>
-        <div class="row">
-          <button id="open-camera" class="primary">Use camera</button>
-          <label class="file">Take a photo <input id="photo-capture" type="file" accept="image/*" capture="environment" /></label>
-          <label class="file">Add photos <input id="photos" type="file" accept="image/*" multiple /></label>
-          <label class="file">Add a video <input id="video" type="file" accept="video/*" /></label>
-          <button id="toggle-mask" class="ghost">show silhouettes</button>
-          <span id="video-note" class="muted small"></span>
-          <span id="camera-note" class="muted small"></span>
+        <div id="measure-step" class="measure-step" hidden>
+          <label for="measure-width"><b>2 · Measure</b> How wide is the object, left to right?</label>
+          <span class="measure-input"><input id="measure-width" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="e.g. 60" autocomplete="off" /> mm</span>
+          <p id="measure-note" class="small muted">Use a ruler across the front. The model is scaled from this one number. Then press Make 3D model.</p>
+        </div>
+        <div class="row capture-start">
+          <button id="take-photos" class="primary">Take photos</button>
+          <button id="make-model" class="primary" hidden>Make 3D model</button>
+          <a id="download-stl" class="btn primary" hidden>Download STL</a>
+          <label class="file link-like">Choose photos <input id="photos" type="file" accept="image/*" multiple /></label>
         </div>
         <div id="camera-panel" class="camera" hidden>
           <div class="cam-stage">
@@ -301,26 +321,38 @@
           </div>
           <div id="cam-shots" class="cam-shots"></div>
         </div>
-        <div class="row small muted">
-          <span>Point cloud (.ply) instead:</span>
-          <label class="file">Import .ply <input id="pointcloud" type="file" accept=".ply" /></label>
-          <label>voxel <input id="pc-voxel" type="number" value="1" min="0.1" step="0.1" style="width:70px" /> mm</label>
-          <label>units × <input id="pc-units" type="number" value="1000" min="0.001" step="any" style="width:80px" /></label>
-          <label>up <select id="pc-up"><option value="y">Y (phone export)</option><option value="z">Z</option></select></label>
-          <label title="Tick when the object stood on a flat surface and its underside was never scanned. The lowest scanned layer is capped so the interior can close; the base face is then an assumption, and the report says so."><input id="pc-seal" type="checkbox" /> seal base</label>
-        </div>
-        <p id="upload-note" class="small muted"></p>
+        <div id="view-checklist" class="view-checklist" role="list" aria-label="Views a solid needs"></div>
         <p id="assigned-summary" class="small muted"></p>
-        <div id="suggest-panel" class="small" hidden>
-          <button id="suggest-views" class="ghost">Suggest views from the video</button>
-          <button id="suggest-all" class="ghost" hidden>Assign all suggested</button>
-          <span id="suggest-note" class="muted small"></span>
-          <ul id="suggest-list" class="suggestions"></ul>
-        </div>
         <div id="image-grid" class="image-grid"></div>
+        <details id="capture-advanced" class="capture-advanced">
+          <summary>Advanced</summary>
+          <div class="row">
+            <button id="open-camera" class="ghost">Use camera</button>
+            <label class="file">Take a photo <input id="photo-capture" type="file" accept="image/*" capture="environment" /></label>
+            <label class="file" id="video-pick">Add a video <input id="video" type="file" accept="video/*" /></label>
+            <button id="toggle-mask" class="ghost">show silhouettes</button>
+            <span id="video-note" class="muted small"></span>
+            <span id="camera-note" class="muted small"></span>
+          </div>
+          <div class="row small muted" id="pointcloud-row">
+            <span>Point cloud (.ply) instead:</span>
+            <label class="file">Import .ply <input id="pointcloud" type="file" accept=".ply" /></label>
+            <label>voxel <input id="pc-voxel" type="number" value="1" min="0.1" step="0.1" style="width:70px" /> mm</label>
+            <label>units × <input id="pc-units" type="number" value="1000" min="0.001" step="any" style="width:80px" /></label>
+            <label>up <select id="pc-up"><option value="y">Y (phone export)</option><option value="z">Z</option></select></label>
+            <label title="Tick when the object stood on a flat surface and its underside was never scanned. The lowest scanned layer is capped so the interior can close; the base face is then an assumption, and the report says so."><input id="pc-seal" type="checkbox" /> seal base</label>
+          </div>
+          <p id="upload-note" class="small muted"></p>
+          <div id="suggest-panel" class="small" hidden>
+            <button id="suggest-views" class="ghost">Suggest views from the video</button>
+            <button id="suggest-all" class="ghost" hidden>Assign all suggested</button>
+            <span id="suggest-note" class="muted small"></span>
+            <ul id="suggest-list" class="suggestions"></ul>
+          </div>
+        </details>
       </section>
 
-      <section class="step">
+      <section id="scale-step" class="step">
         <h2>2 · Scale <small>measure at least one extent with a ruler</small></h2>
         <div class="row">
           <label>Width X <input id="dim-x" type="number" min="0" step="0.1" style="width:90px" /> mm</label>
@@ -330,9 +362,9 @@
         </div>
       </section>
 
-      <section class="step">
+      <section id="reconstruct-step" class="step">
         <h2>3 · Reconstruct <small>visual hull → watertight mesh → drawing</small></h2>
-        <div class="row">
+        <div id="reconstruct-controls" class="row">
           <label>Resolution <input id="res" type="range" /> <span id="res-label"></span> voxels</label>
           <label>Smoothing <input id="smooth" type="range" /> <span id="smooth-label"></span> passes</label>
           <button id="reconstruct" class="primary">Reconstruct</button>

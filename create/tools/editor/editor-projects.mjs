@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Save immutable revisions, reopen owned work and explicitly resolve stale-tab conflicts.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Cancel a queued autosave when a concierge handoff saves now, so the pending timer cannot overlap that save.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Commit or refuse focused shared properties before capturing a saved revision.
  */
 import { $, state, dirty, canEdit, api, jsonRequest, openDocument, notify, error, handle } from './editor-state.mjs';
 import { createProject, serializeProject } from './model.mjs';
@@ -9,6 +10,7 @@ let saveTimer;
 /** Save a captured snapshot; edits made during the request retain their unsaved baseline. */
 export async function saveProject(copy = false) {
   clearTimeout(saveTimer);
+  await state.foundation?.flushPending();
   if (state.saving || state.loading) throw new Error('Wait for the current action to finish.');
   if (copy ? !state.permissions.create : !canEdit()) throw new Error('Your role does not allow saving this project.');
   if (state.conflict && !copy) throw new Error('Reopen the project or save a copy to resolve the revision conflict.');

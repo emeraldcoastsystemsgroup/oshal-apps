@@ -14,6 +14,8 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Register video-storyboard-words: a one-scene storyboard and video say 1 scene, and the subtitle says the storyboard is not saved (sweep 13).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register closed owned-job discovery and approved internal typed mint source checks.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register automatic document handoffs, save failures, concurrent drafts and delayed-save project switching.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | Register the phone first-step proof (Add a clip from the empty project, one-row app bar, no forced theme) with real touch.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | The phone case also proves no band above the app bar and content within 74 px of the frame.
 version: 1
 cases:
   - id: package-readiness
@@ -562,3 +564,59 @@ cases:
       cleanup: Close owned servers and browser contexts and remove only the uniquely labelled disposable PostgreSQL container.
     limits: { timeoutMs: 180000, maxMemoryMb: 1024 }
     installation: never
+
+  - id: common-editor-foundation
+    name: Shared Video clip and title editor
+    purpose: Verify direct clip/title properties and stable editable v2 text through the actual mounted editor and isolated SQL.
+    level: integration
+    runner: {kind: node-test, scope: package, files: [tests/video-editor-foundation.test.mjs]}
+    expected:
+      - Clip trims and volume and selected title text survive save/reopen.
+      - V2 title changes retain object identity and other clip data.
+      - Common timeline and property drawer fit phone widths.
+    prerequisites: [runner:node-test, browser:chromium, service:postgres-disposable-35689, runtime:kernel-shared-ui, harness:oshal-core-root]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: Close the browser and HTTP fixture and remove only its uniquely owned SQL database and role.}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1024}
+    installation: never
+
+  - id: protected-video-artifact-import
+    name: Protected MP4 artifact receiver
+    purpose: Verify standard receiver declaration, fixed owned-handle routes, byte limits and SHA verification before ordinary source probing.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/video-artifact-import.test.mjs]}
+    expected:
+      - Exact protected source bytes are retained; changed, foreign and oversized sources refuse.
+      - The ordinary Video front door forwards the standard artifact handle to its real manual editor.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: All response bytes are in-memory synthetic fixtures.}
+    limits: {timeoutMs: 15000, maxMemoryMb: 256}
+    installation: never
+  - id: video-editor-phone
+    name: Video editor on a phone adds a clip from the empty project
+    purpose: >-
+      At 390x844 with touch, an empty project shows Add a clip on the first screen; a tap opens the real picker and the clip
+      lands in the timeline; the app bar is one row with More; the manifest forces no theme. Real compiled routes, disposable
+      PostgreSQL, the kernel's shared editor from OSHAL_PLATFORM_ROOT.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/video-editor-phone.test.mjs
+    expected:
+      - Add a clip is hit-testable on the first screen, one tap adds the clip, Undo waits in More, and Video declares no theme.
+      - The shell starts at the top of the frame (no band from the emptied workspace) and content starts within 74 px of it.
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - service:docker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1024

@@ -11,7 +11,7 @@ const report=require('../routes/paper/report');
 async function fixture(t){
  const dsn=process.env.OSHAL_TEST_POSTGRES;
  assert.ok(dsn,'OSHAL_TEST_POSTGRES must name an explicitly disposable PostgreSQL fixture.');
- const base=new URL(dsn);assert.ok(['127.0.0.1','localhost'].includes(base.hostname)&&['35689','32768'].includes(base.port)&&base.pathname==='/kernel','Require the declared disposable kernel fixture');
+ const base=new URL(dsn);assert.ok(['127.0.0.1','localhost'].includes(base.hostname)&&['35689','32768'].includes(base.port),'Require the declared disposable PostgreSQL fixture');
  const admin=new Client({connectionString:dsn});await admin.connect();
  const name='paper_contract_'+randomUUID().replaceAll('-','');await admin.query('CREATE DATABASE '+name);base.pathname='/'+name;
  const pool=new Pool({connectionString:base.toString()});

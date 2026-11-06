@@ -1,3 +1,5 @@
+# CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 1.16.3: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
+# 1.16.2 | maintainer@emeraldcoastsystemsgroup.com | Separate owned source creation from provider generation while preserving existing creator and manager operations.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
@@ -20,6 +22,7 @@
 # nothing compiled into the swarm core. Every path below is package-relative.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: durable original-owned editable source projects, typed operations, saved AI selection and compact shared editor.
 name: portrait-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -33,13 +36,8 @@ rating:
       generation: hosted
       degrade: disable
 displayName: Portrait Studio
-description: >-
-  Turn any photo into a portrait worth framing — a professional studio
-  headshot, your pet's face on a human body holding a pitchfork, or the
-  whole crew from one group shot placed in a scene as a superhero team.
-  Take the photo with your camera or upload one, crop the head (or every
-  head), pick a style, generate.
-version: 1.15.6
+description: "Edit face crops and generation settings in a saved source project, retain original photos, and hand rendered results into the image editor."
+version: 1.16.4
 status: active
 # Deployment-wide tile visibility (the little-monsters lesson: person-scope hid
 # the installed row from every other user). Portrait DATA stays strictly
@@ -203,11 +201,21 @@ routes:
     auth: service-or-oidc
     requiresContext: true
 
+  - module: routes/source-projects.mjs
+    factory: createSourceProjectRoutes
+    mountPath: /api/portrait-studio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
 # ── This app's own schema, applied idempotently on install ───────────────────
 migrations:
   - migrations/001-portrait-studio.sql
   - migrations/002-cost-and-resilience.sql
   - migrations/003-verified-portrait-ownership.sql
+  - migrations/006-editor-source-projects.sql
+  - migrations/native/006-editor-source-projects.sql
 
 theme: light-blue
 
@@ -228,3 +236,83 @@ integrations:
       targetAction: prepare-brief
       contextType: research-brief
       version: 1
+
+nativeMigrations:
+  - id: migrations/006-editor-source-projects.sql
+    native: skip
+    reason: Native schema retains physical original-person scope; PostgreSQL additionally forces owner RLS.
+
+tools:
+  - name: portrait-studio-source-list
+    displayName: Source List
+    type: api
+    category: creative
+    description: List this original owner’s saved editable source projects.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/source-projects
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      required: []
+      additionalProperties: false
+    usageInstructions: Read the source-contract and source-read first. Use returned IDs and revision, copy requestKey from the just-read source-contract response for each exact edit intent, and retry an uncertain result with the identical requestKey and body. A conflict changes nothing; reread before proposing changes. The browser saves before assistant handoff and refreshes only when its draft is unchanged.
+    routingTags: [creative, editing, portrait, source]
+  - name: portrait-studio-source-contract
+    displayName: Source Contract
+    type: api
+    category: creative
+    description: Read the compact closed operation contract before changing photo crops and generation settings. Omit section for operation shapes and examples; set section to read one bounded actual catalog of allowed IDs.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/source-projects/contract?section={input.section}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        section: {type: string, enum: [styles, background, attire, headwear, prop, finish, framing]}
+      required: []
+      additionalProperties: false
+    usageInstructions: Read the source-contract and source-read first. Use returned IDs and revision, copy requestKey from the just-read source-contract response for each exact edit intent, and retry an uncertain result with the identical requestKey and body. A conflict changes nothing; reread before proposing changes. The browser saves before assistant handoff and refreshes only when its draft is unchanged.
+    routingTags: [creative, editing, portrait, source]
+  - name: portrait-studio-source-read
+    displayName: Source Read
+    type: api
+    category: creative
+    description: Read the actual owned source project, stable photo and crop IDs, current revision and immutable history.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/portrait-studio/source-projects/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {id: {type: string, minLength: 36, maxLength: 36}}
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Read the source-contract and source-read first. Use returned IDs and revision, copy requestKey from the just-read source-contract response for each exact edit intent, and retry an uncertain result with the identical requestKey and body. A conflict changes nothing; reread before proposing changes. The browser saves before assistant handoff and refreshes only when its draft is unchanged.
+    routingTags: [creative, editing, portrait, source]
+  - name: portrait-studio-source-edits
+    displayName: Source Edits
+    type: api
+    category: creative
+    description: >-
+      Apply bounded typed source operations to an owned project at the exact revision.
+      Every operations item uses op, never type. Crop example: {"op":"set-crop","id":"actual crop UUID","values":{"x":17}}.
+      Notes example: {"op":"set-brief","values":{"notes":"requested notes"}}.
+      Substitute actual source-read IDs. Never renders or changes generated evidence.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/portrait-studio/source-projects/{input.id}/edits
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties: {id: {type: string, minLength: 36, maxLength: 36}, baseRevision: {type: integer, minimum: 1, maximum: 99}, requestKey: {description: "Copy requestKey unchanged from the just-read editing contract response for this new edit; never invent it. Read a fresh contract for each new intent; retry an uncertain result with the identical key and body.", type: string, format: uuid, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$', minLength: 36, maxLength: 36}, operations: {type: array, minItems: 1, maxItems: 16, items: {type: object}}}
+      required: [id, baseRevision, requestKey, operations]
+      additionalProperties: false
+    usageInstructions: Read the source-contract and source-read first. Use returned IDs and revision, copy requestKey from the just-read source-contract response for each exact edit intent, and retry an uncertain result with the identical requestKey and body. A conflict changes nothing; reread before proposing changes. The browser saves before assistant handoff and refreshes only when its draft is unchanged.
+    routingTags: [creative, editing, portrait, source]

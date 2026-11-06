@@ -1,3 +1,10 @@
+# 0.3.6 | maintainer@emeraldcoastsystemsgroup.com | Phones (F6 and the trial check, 2026-11-06): New publication is the empty state's one first action, dead document controls wait until a publication is open, one app bar row (Save revision, More), the editor viewport is the one scroller, first pane Publications.
+# 0.3.7 | maintainer@emeraldcoastsystemsgroup.com | Touch (the round-2 trial check, 2026-11-06): a finger scrolls the open publication's page, also from a frame or the page margin, and a tap selects a frame; only the chosen frame's Move handle (touch screens) drags it, as in the reference editors; a mouse still drags outlines directly. Choosing a frame keeps the scroll position. Previews are asked for only when the opened revision has a ready render (GET /documents/:id answers rendered), so opening revision 1 logs no 409s.
+# CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.3.5: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
+# 0.3.4 | maintainer@emeraldcoastsystemsgroup.com | Use an obviously synthetic UUIDv4 request example while requiring a fresh identifier for each new request.
+# 0.3.1 | maintainer@emeraldcoastsystemsgroup.com | Share the pinned native concierge, live saved-document refresh, same-session manual follow-up and controller-owned approval cards.
+# 0.3.0 | maintainer@emeraldcoastsystemsgroup.com | Complete validated model history survives saves and same-document assistant updates with original CAS and asset ownership.
+# 0.2.0 | maintainer@emeraldcoastsystemsgroup.com | Shared editor shell and contextual properties use existing document commands, history and automatic assistant handoff.
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare real bounded Publishing routes and original held agent contracts.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: automatically save inspector drafts and refresh the concierge document handoff.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.2: the page opens inside the cockpit. Its query rule refused the v= every cockpit frame carries and the audience= an experience adds, so the screen showed {"error":"publishing_personal_scope_only"} instead of the studio. Found by the main menu's every-screen sweep. No contract change.
@@ -7,7 +14,7 @@ displayName: Publishing Studio
 description: >-
   Original-owned bounded English print layouts, linked stories, styles, masters and native Typst
   PDF/PNG output.
-version: 0.1.2
+version: 0.3.7
 runtime: process
 lastingStorage: true
 status: active
@@ -402,7 +409,16 @@ tools:
       JSON schemas. Supply operationsJson as a JSON array of exact canonical operations (raw null
       allowed), never code. Explain edits and hold approval; latest baseRevision CAS. Native total
       input <=16KiB, including escaping. Saving appends immutable history; rendering is separate.
-      Preserve every unaffected story/object.
+      Preserve every unaffected story/object. Invoke this actual tool to hold the native approval
+      card; an approval summary or ordinary JSON/code fence does not create a card. requestKey
+      MUST be a fresh UUIDv4 exactly 36 characters including hyphens, never a label or counter.
+      UUIDv4 has the exact form xxxxxxxx-xxxx-4xxx-[89ab]xxx-xxxxxxxxxxxx, hexadecimal only:
+      the third group starts with 4 (NOT 7), and the fourth starts with 8,9,a or b.
+      Copy requestKey unchanged from the just-read publishing-editing-contract response.
+      Never invent a key or reuse an illustrative example. A UUIDv7 or sequential placeholder fails unchanged validation.
+      Operation example: [{"op":"replace-story","story":"story","paragraphs":[{"style":"body","runs":[{"style":"default","text":"Replacement text"}]}]}].
+      Copy the actual story ID and existing paragraph/run styles from the saved model; replace
+      only requested text. The complete call has id, baseRevision, requestKey and operationsJson.
     executor:
       executorType: api
       apiEndpoint: POST /api/publishing-studio/documents/{input.id}/edits
@@ -421,7 +437,10 @@ tools:
           minimum: 1
           maximum: 100
         requestKey:
+          description: Copy requestKey unchanged from the just-read editing contract response for this new edit; never invent it. Read a fresh contract for each new intent; retry an uncertain result with the identical key and body.
           type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
           minLength: 36
           maxLength: 36
         operationsJson:

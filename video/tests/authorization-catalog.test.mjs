@@ -95,3 +95,30 @@ test('Motion discovery is metadata-only automatic original-Writer access and imp
   assert.ok(admitted(['editor'],binding.allOf));assert.ok(!admitted(['reader'],binding.allOf));assert.ok(!admitted(['viewer'],binding.allOf));
  }
 });
+
+test('manual editor roles need no Vids grant; generation still requires its own authority', () => {
+  const roles = ['creator', 'editor', 'exporter'];
+  assert.deepEqual(manifest.dependencies.required.apps, []);
+  assert.deepEqual(manifest.dependencies.required.bots, []);
+  assert.ok(manifest.dependencies.optional.apps.includes('vids'));
+  assert.deepEqual(manifest.dependencies.optional.bots, [{ app: 'vids', name: 'vids-operator' }]);
+  const grants = roles.flatMap((role) => catalog.roles[role].grants);
+  assert.deepEqual([...new Set(grants.map((grant) => grant.permission))].sort(),
+    ['editor.change', 'editor.create', 'editor.delete', 'editor.export', 'editor.read', 'editor.view']);
+  assert.ok(grants.every((grant) => grant.scope === 'own'));
+  for (const binding of catalog.bindings.http.filter((binding) =>
+    binding.allOf.includes('studio.generate') || binding.allOf.includes('pump.manage'))) {
+    assert.equal(admitted(roles, binding.allOf), false, `${binding.id} still refuses manual editor roles`);
+  }
+  for (const name of ['video-director', 'screenplay-writer']) {
+    const bot = manifest.bots.find((item) => item.name === name);
+    assert.ok(bot, `${name} remains declared`);
+    assert.deepEqual(botPermissions(bot), ['studio.generate']);
+    assert.equal(admitted(roles, botPermissions(bot)), false);
+  }
+  for (const id of ['admin', 'creator']) {
+    const template = manifest.authorization.roleTemplates.find((item) => item.id === id);
+    assert.ok(template.members.some((item) => item.app === 'vids' && item.role === '@app-admin'),
+      `${id} generation template retains the explicit existing Vids grant`);
+  }
+});

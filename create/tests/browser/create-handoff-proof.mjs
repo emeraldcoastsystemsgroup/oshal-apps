@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove automatic save/read/edit/refresh through real editor controls, project operations and PostgreSQL/RLS, including repeated handoffs, editable gray adjustment layers, failed saves and concurrent drafts.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Distinguish writable saved-project context from read-only screen reporting and preserve reader restrictions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact selected identities and verify full saved text independently of clipped screen summaries.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,6 +74,10 @@ test('manual edits are saved for the concierge, its real layers refresh, and the
   assert.equal(await frame.locator('#saveStatus').innerText(), 'Saved · revision 5');
   await frame.locator('[data-layer-id="badge"] .layer-select').click();
   assert.equal(await frame.locator('[data-property="text"]').inputValue(), 'Continued from your edit');
+  const textContext = await begin(page);
+  assert.deepEqual(textContext.selection, { kind: 'text', ids: ['badge'] });
+  assert.equal(Object.hasOwn(textContext.fields, 'text'), false, 'Clipped screen text is not substituted for the actual saved document');
+  assert.equal((await api.call(`/projects/${id}`)).body.project.document.layers.find(layer => layer.id === 'badge').text, 'Continued from your edit');
   await frame.locator('#undo').click();
   assert.equal(await frame.locator('[data-property="text"]').inputValue(), 'Concierge edit');
   assert.deepEqual(errors, []);

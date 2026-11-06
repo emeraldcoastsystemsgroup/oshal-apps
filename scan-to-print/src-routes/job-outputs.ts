@@ -5,7 +5,10 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Retire stale geometry before input changes and serialize one job's reads, rebuilds and print preparation in the current single-API process.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: the admission itself is claimJobOperation and the stale/not-printable answer is currentOutputRefusal, so the print package tool (print-tools.ts), which runs without an HTTP request, takes the same per-job lock and gives the same refusals as the routes: a print never prepares files while a rebuild writes them. withCurrentJob and requireCurrentOutput answer exactly as before.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Require original-person ownership on source mutations while preserving independent print.send authority.
  */
+import type {AppContext} from '@/app/composition/app-context';
+import {assertCalibrationOwner,calibrationAccess,CalibrationError} from './calibration-editor';
 import type { Request, Response, RequestHandler } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,7 +18,7 @@ import { ARTIFACT_FILES, type ArtifactKey, artifactPath, jobDir, requireUuid } f
 /** @description Shared owner/job context for guarded handlers. */
 export interface JobRequest extends Request { scanSub?: string; scanJob?: JobRow }
 /** @description Only storage dependencies are needed to coordinate current outputs. */
-export interface OutputDeps { pool: QueryablePool; dataRoot: string }
+export interface OutputDeps { context?:AppContext; pool: QueryablePool; dataRoot: string }
 type JobHandler = (req: JobRequest, res: Response) => Promise<unknown> | unknown;
 interface Operation { readers: number; writing: boolean }
 const active = new WeakMap<QueryablePool, Map<string, Operation>>();
@@ -58,7 +61,7 @@ export function claimJobOperation(deps: OutputDeps, sub: string, jobId: string, 
 }
 
 /** @description Admit once without a queue; release only after the complete handler settles. This is a single-API guard, not a distributed lock. */
-export function withCurrentJob(deps: OutputDeps, handler: JobHandler, mode: 'read' | 'write' = 'write'): RequestHandler {
+export function withCurrentJob(deps: OutputDeps, handler: JobHandler, mode: 'read' | 'write' = 'write',permission='scan.edit'): RequestHandler {
   return async (req: JobRequest, res: Response) => {
     let release: (() => void) | undefined;
     res.setHeader('Cache-Control', 'private, no-store');
@@ -71,9 +74,11 @@ export function withCurrentJob(deps: OutputDeps, handler: JobHandler, mode: 'rea
       release = claim.release;
       const job = await getJob(deps.pool, sub, id);
       if (!job) { res.status(404).json({ error: 'job_not_found' }); return; }
+      if(mode==='write'&&deps.context)await assertCalibrationOwner(deps.context,id,await calibrationAccess(deps.context,permission));
       req.scanJob = job;
       await handler(req, res);
     } catch (error) {
+      if(error instanceof CalibrationError){if(!res.headersSent)res.status(error.status).json({error:'calibration_refused',message:error.message});return;}
       if (!res.headersSent) res.status(error instanceof RangeError ? 400 : 500).json({ error: error instanceof RangeError ? 'invalid_job_id' : 'job_operation_failed' });
     } finally { cleanupUpload(deps, req); release?.(); }
   };

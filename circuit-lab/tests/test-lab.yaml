@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Run native first-use/readiness/owner-preserving UI regression beside the transport contract.
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -73,6 +74,7 @@ cases:
       scope: package
       files:
         - tests/engine-client.test.js
+        - tests/native-readiness.test.js
     expected:
       - A stale build hash is capability_unavailable naming the install command; a timeout is engine_timeout and the next request reconnects.
     prerequisites:

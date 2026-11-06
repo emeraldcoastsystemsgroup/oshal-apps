@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Run native first-use/readiness/owner-preserving UI regression beside the transport contract.
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
 # -----------------------------------------------------------------------------
@@ -13,6 +14,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register part-list-names: parts sharing a title carry 'made <date>' in the list (sweep 8: two identical rows read as one model).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register engine-down-words: with no engine the page says once, in words, that the CAD engine is not answering on this installation, never the host's install command (demo sweep 1).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the person and the concierge edit the same part in turn through the shared document handoff, over the compiled routes and a disposable PostgreSQL database.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.3.2: register phone-editor (one app bar row on a phone, Project and Rebuild in More, content within 74 px).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -65,6 +67,7 @@ cases:
       scope: package
       files:
         - tests/engine-client.test.js
+        - tests/native-readiness.test.js
     expected:
       - A stale build hash is capability_unavailable naming the install command; a timeout is engine_timeout and the next request reconnects.
       - Cancelling the in-flight request closes its connection while another caller's queued request is answered on a fresh one.
@@ -297,4 +300,26 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1536
+    installation: never
+  - id: common-editor-native
+    name: Shared editor with real OCCT geometry
+    purpose: Prove selected native base and feature edits against an isolated existing reviewed engine image and forced-owner PostgreSQL role; genuine STEP and reopened geometry.
+    level: integration
+    runner: {kind: external, scope: package, files: [tests/editor-foundation.native.test.mjs]}
+    expected: [Native dimension and hole changes rebuild the same owned part, Immutable revisions and real STEP survive reopen, Common properties work on mobile]
+    prerequisites: [runner:node, runtime:docker-existing-reviewed-cad-image, service:postgres-disposable-35689, runtime:kernel-shared-ui, runtime:playwright]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove only the labelled fixture engine container, temporary artifact directory and unique SQL schema/role; preserve shared services."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 4096}
+    installation: never
+  - id: phone-editor
+    name: CAD Studio on a phone keeps one app bar row
+    purpose: At 390x844 with touch the app's name is not repeated, Project and Rebuild wait in More, content starts within 74 px of the frame, and Rebuild from More rebuilds the part and closes the sheet (Roger F9 and the trial check, 2026-11-06).
+    level: browser
+    runner: {kind: external, scope: package, files: [tests/phone-editor.native.test.mjs]}
+    expected: [One app bar row ending New part and More, Content within 74 px of the frame, Rebuild from More advances the revision and returns to its place]
+    prerequisites: [runner:node, runtime:docker-existing-reviewed-cad-image, service:postgres-disposable-35689, runtime:kernel-shared-ui, runtime:playwright]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove only the labelled fixture engine container, temporary artifact directory and unique SQL schema/role; preserve shared services."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 4096}
     installation: never

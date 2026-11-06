@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Show automatic preparation and bounded readiness-only refresh without retrying circuit writes.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -61,7 +62,7 @@
   'use strict';
   const BASE = '/api/circuit-lab';
   const $ = (id) => document.getElementById(id);
-  const ENGINE_DOWN = 'The circuit engine is not answering on this installation, so circuits cannot run right now. If this keeps happening, an administrator needs to set the engine up.';
+  const ENGINE_DOWN = 'The circuit engine is not answering on this installation, so circuits cannot run right now. Try again shortly.';
   const ENGINE_SHORT = 'The circuit engine is not answering on this installation.';
   const Canvas = window.CircuitLabCanvas, Plot = window.CircuitLabPlot, Board = window.CircuitLabBoard;
   const state = { view: 'schematic', caps: null, catalog: [], designs: [], design: null, runs: [], waveforms: null, report: null, picked: [], timeIndex: 0, playing: false, playStart: 0, lastSeen: '', pollTimer: null, saveTimer: null, saving: false, dirty: false, selection: null, epoch: 0, history: { past: [], future: [] }, snapshot: '', clipboard: null, inspectorDirty: false, saveError: null, pending: new Set() };
@@ -110,14 +111,49 @@
   const W = (w) => (Number.isFinite(w) ? (Math.abs(w) >= 1 ? w.toFixed(2) + ' W' : (w * 1000).toFixed(1) + ' mW') : '—');
 
   // ── Engine ─────────────────────────────────────────────────────────────────
+  let enginePoll = null;
+  let enginePollUntil = 0;
+  let enginePollStopped = false;
+  function stopEnginePoll() { enginePollStopped = true; clearTimeout(enginePoll); enginePoll = null; enginePollUntil = 0; }
+  async function refreshEngine() {
+    if (enginePollStopped) return;
+    try {
+      const caps = await api('/capabilities');
+      if (enginePollStopped) return;
+      state.caps = caps;
+      renderEngine(caps.engine);
+    } catch (_) {
+      if (enginePollStopped) return;
+      clearTimeout(enginePoll); enginePoll = null; enginePollUntil = 0;
+      $('engine-pill').textContent = 'Readiness unavailable';
+      $('engine-pill').className = 'badge failed';
+      $('engine-banner').hidden = false;
+      $('engine-reason').textContent = 'Engine readiness is unavailable. Refresh to try again.';
+    }
+  }
   function renderEngine(engine) {
     if (!engine) return;
+    const lifecycle = engine.lifecycle;
+    const phase = lifecycle && lifecycle.state;
+    const preparing = phase === 'not-prepared' || phase === 'preparing';
+    const failed = phase === 'failed' || phase === 'none';
+    const transportError = engine.lastError && (!phase || phase === 'pinned');
     const pill = $('engine-pill');
-    pill.textContent = engine.connected ? 'engine: connected' : (engine.lastError ? 'engine: down' : 'engine: idle');
-    pill.className = 'badge ' + (engine.connected ? 'ran' : engine.lastError ? 'failed' : '');
-    $('engine-banner').hidden = !engine.lastError;
-    $('engine-reason').textContent = engine.lastError ? ENGINE_DOWN : '';
+    const labels = { 'not-prepared': 'Preparing engine…', preparing: 'Downloading engine…', ready: 'Ready', running: 'Running', failed: 'Preparation failed', none: 'Unavailable', pinned: 'Ready to connect' };
+    pill.textContent = phase ? labels[phase] : (engine.connected ? 'Connected' : engine.lastError ? 'Connection unavailable' : 'Not contacted');
+    pill.className = 'badge ' + (engine.connected || phase === 'ready' || phase === 'running' ? 'ran' : failed || transportError ? 'failed' : '');
+    $('engine-banner').hidden = !(preparing || failed || transportError);
+    let message = preparing ? 'The engine is being prepared automatically. You can keep editing while it downloads.' : failed ? 'The engine could not be prepared. Try again shortly.' : transportError ? ENGINE_DOWN : '';
+    if (preparing && Number.isSafeInteger(lifecycle.doneBytes) && Number.isSafeInteger(lifecycle.totalBytes) && lifecycle.totalBytes > 0) message += ' ' + Math.min(100, Math.floor(100 * lifecycle.doneBytes / lifecycle.totalBytes)) + '% downloaded.';
+    $('engine-reason').textContent = message;
+    clearTimeout(enginePoll); enginePoll = null;
+    if (preparing && !enginePollStopped) {
+      if (!enginePollUntil) enginePollUntil = Date.now() + 600000;
+      if (Date.now() < enginePollUntil) enginePoll = setTimeout(refreshEngine, 2000);
+      else $('engine-reason').textContent = 'The engine is still being prepared. Refresh to check again.';
+    } else enginePollUntil = 0;
   }
+
   /** A person's words for a failed build: an engine that is not answering is one plain sentence (never the
    * kernel's address or the host's install command); any other refusal is the engine's own sentence. */
   function buildWords(build) {
@@ -125,7 +161,7 @@
   }
   function showBuild(build) {
     if (!build || build.ok) return;
-    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') renderEngine({ connected: false, lastError: buildWords(build) });
+    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') { renderEngine({ connected: false, lastError: buildWords(build) }); void refreshEngine(); }
     toast('Run failed: ' + buildWords(build) + (build.field ? ' [' + build.field + ']' : ''), 'error');
   }
 
@@ -185,7 +221,10 @@
       const out = await api('/designs', { method: 'POST', json: example ? { example } : { title: 'Untitled circuit', run: false } });
       await adopt(out, true);
       await loadDesigns();
-    } catch (e) { toast(e.message, 'error'); }
+    } catch (e) {
+      if (e.body && e.body.design) { await adopt(e.body, true); await loadDesigns(); }
+      else toast(e.message, 'error');
+    }
   }
   async function openDesign(designId) {
     stopPoll(); state.epoch += 1; const epoch = state.epoch;
@@ -658,6 +697,8 @@
       .catch((e) => toast('The concierge cannot synchronize this circuit: ' + e.message, 'error'));
   }
   window.CircuitLabAssistant = { contextDigest, applyAssistantActions, publishContext, ACTION_DOC };
+
+  window.addEventListener('pagehide', stopEnginePoll);
 
   // ── Wiring ─────────────────────────────────────────────────────────────────
   Canvas.init($('canvas'), {

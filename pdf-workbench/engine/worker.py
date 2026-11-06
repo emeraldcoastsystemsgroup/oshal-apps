@@ -17,6 +17,7 @@ from pathlib import Path
 from pypdf import PdfReader, PdfWriter
 from pypdf.annotations import FreeText, Highlight
 from pypdf.generic import ArrayObject, DictionaryObject, FloatObject, NameObject, NumberObject
+from page_content import inspect_objects, inspect_image, edit_page, ContentRefused
 
 MAX_BYTES = 4 * 1024 * 1024
 MAX_PAGES = 32
@@ -119,8 +120,9 @@ def fields_of(reader):
 
 def inspect_pdf(data):
     reader = safe_reader(data)
+    objects = inspect_objects(data, reader)
     return {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
-            "pages": [{"index": i, "cropBox": [float(x) for x in page.cropbox], "rotation": page.rotation}
+            "pages": [{"index": i, "cropBox": [float(x) for x in page.cropbox], "rotation": page.rotation, **objects[i]}
                       for i, page in enumerate(reader.pages)], "fields": fields_of(reader)}
 
 
@@ -166,10 +168,26 @@ def annotate(writer, page_number, item):
     writer.add_annotation(page_number, annotation)
 
 
-def derive(sources, model):
-    exact(model, ("pages", "annotations", "fields"))
+def derive(sources, model, assets=None):
+    exact(model, ("pages", "annotations", "fields", "contentEdits", "objects"))
     require(isinstance(sources, list) and 1 <= len(sources) <= 32)
+    assets = assets or []
+    require(isinstance(assets, list) and len(assets) <= 128, "pdf_content_limit")
+    images, image_bytes = {}, 0
+    for asset in assets:
+        exact(asset, ("id", "data", "sha256", "type"))
+        key = asset.get("id")
+        require(UUID.fullmatch(str(key)) and key not in images)
+        encoded = asset.get("data")
+        require(isinstance(encoded, str) and len(encoded) <= 1398104, "pdf_content_image_limit")
+        data = base64.b64decode(encoded, validate=True)
+        info = inspect_image(data)
+        require(base64.b64encode(data).decode() == encoded and info["sha256"] == asset.get("sha256") and info["type"] == asset.get("type"), "pdf_image_asset_changed")
+        image_bytes += len(data)
+        require(image_bytes <= MAX_BYTES, "pdf_content_image_limit")
+        images[key] = asset
     readers = {}
+    source_bytes = {}
     total = 0
     definitions = {}
     for source in sources:
@@ -181,6 +199,7 @@ def derive(sources, model):
         require(total <= MAX_BYTES, "pdf_input_limit")
         require(hashlib.sha256(data).hexdigest() == source.get("sha256"), "pdf_source_changed")
         reader = safe_reader(data)
+        source_bytes[key] = data
         definitions[key] = fields_of(reader)
         reader.add_form_topname(key)
         readers[key] = reader
@@ -189,6 +208,10 @@ def derive(sources, model):
     writer = PdfWriter()
     seen = set()
     source_instances = set()
+    content_edits, additions = model.get("contentEdits", []), model.get("objects", [])
+    require(isinstance(content_edits, list) and len(content_edits) <= 2048 and isinstance(additions, list) and len(additions) <= 128, "pdf_content_limit")
+    valid_pages = {item.get("id") for item in pages if isinstance(item, dict)}
+    require(all(isinstance(item, dict) and item.get("page") in valid_pages for item in content_edits + additions))
     for item in pages:
         exact(item, ("id", "source", "index", "rotation"))
         key, index, rotation = item.get("source"), item.get("index"), item.get("rotation")
@@ -198,8 +221,25 @@ def derive(sources, model):
                 and 0 <= index < len(readers[key].pages) and rotation in (0, 90, 180, 270))
         require(not definitions[key] or (key, index) not in source_instances, "pdf_repeated_form_page_unsupported")
         source_instances.add((key, index))
-        writer.reset_translation(readers[key])
-        writer.append(readers[key], pages=[index], import_outline=False)
+        selected_reader = readers[key]
+        edits = [edit for edit in content_edits if edit["page"] == item["id"]]
+        objects = []
+        for obj in additions:
+            if obj["page"] != item["id"]:
+                continue
+            if obj.get("kind") == "image":
+                asset = images.get(obj.get("asset"))
+                require(asset is not None, "pdf_image_asset_unavailable")
+                objects.append({**obj, "image": asset["data"], "imageType": asset["type"]})
+            else:
+                objects.append(obj)
+        if edits or objects:
+            changed = edit_page(source_bytes[key], index, edits, objects, [float(x) for x in readers[key].pages[index].cropbox])
+            require(len(changed) <= MAX_BYTES, "pdf_output_limit")
+            selected_reader = safe_reader(changed)
+            selected_reader.add_form_topname(key)
+        writer.reset_translation(selected_reader)
+        writer.append(selected_reader, pages=[index], import_outline=False)
         writer.pages[-1].rotate(rotation)
     annotations = model.get("annotations", [])
     require(isinstance(annotations, list) and len(annotations) <= 128, "pdf_annotation_limit")
@@ -249,12 +289,25 @@ def raster(data, page, side, directory):
 
 
 def operation(request):
-    exact(request, ("op", "data", "sources", "model", "page", "side", "language"))
+    exact(request, ("op", "data", "sources", "model", "page", "side", "language", "assets"))
     op = request.get("op")
     if op == "inspect":
         return inspect_pdf(decode(request.get("data")))
+    if op == "inspect-image":
+        encoded = request.get("data")
+        require(isinstance(encoded, str) and len(encoded) <= 1398104, "pdf_content_image_limit")
+        data = base64.b64decode(encoded, validate=True)
+        require(base64.b64encode(data).decode() == encoded, "pdf_invalid_encoding")
+        return inspect_image(data)
     if op == "derive":
-        return derive(request.get("sources"), request.get("model"))
+        return derive(request.get("sources"), request.get("model"), request.get("assets"))
+    if op == "draft-preview":
+        derived = derive(request.get("sources"), request.get("model"), request.get("assets"))
+        data = decode(derived["data"])
+        with tempfile.TemporaryDirectory(prefix="pdf-draft-") as directory:
+            png, _ = raster(data, request.get("page"), request.get("side", 1200), directory)
+            return {"type": "image/png", "data": base64.b64encode(png).decode(), "bytes": len(png),
+                    "sha256": hashlib.sha256(png).hexdigest(), "page": derived["pages"][request["page"]]}
     data = decode(request.get("data"))
     if op == "preview":
         with tempfile.TemporaryDirectory(prefix="pdf-preview-") as directory:
@@ -303,7 +356,7 @@ def main():
         require(len(raw) <= 12 * 1024 * 1024, "pdf_request_limit")
         result = operation(json.loads(raw))
         print(json.dumps({"ok": True, "result": result}, separators=(",", ":")))
-    except Refused as error:
+    except (Refused, ContentRefused) as error:
         print(json.dumps({"ok": False, "error": str(error)}))
     except Exception:
         print(json.dumps({"ok": False, "error": "pdf_parse_or_operation_refused"}))

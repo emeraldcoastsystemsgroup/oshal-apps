@@ -12,7 +12,11 @@ Base: `/api/pdf-workbench`. Authenticated current original owner only. No query/
 | GET `/documents` | read | Owned current document index |
 | POST `/documents` | create | `{source,title,indices?,requestKey}` new derivative |
 | GET `/documents/:id?revision=n&receipt=1` | read | Pinned small receipt and history; human default includes full model |
-| GET `/documents/:id/model/:part/:offset?revision=n` | read | One exact pages/annotations/fields/form-fields descriptor and nextOffset |
+| GET `/documents/:id/model/:part/:offset?revision=n` | read | One exact pages/annotations/fields/form-fields/objects/object-text/image-assets descriptor and nextOffset |
+| GET `/documents/:id/editing-sources?revision=n` | read | Original source-object identities and actual saved inspection |
+| POST `/documents/:id/draft-preview` | change | `{baseRevision,operations,page,side?}` actual unsaved PNG/inspection, no publication |
+| GET/POST `/image-assets` | read/change | Owned image library; multipart file/title/requestKey upload |
+| DELETE `/image-assets/:asset` | delete | Refuses references retained by any revision |
 | GET `/documents/:id/forms?revision=n` | read | Form definitions/value/appearance support |
 | GET `/documents/:id/pages/:pageId/preview?revision=n` | read | Actual saved PNG preview |
 | GET `/documents/:id/text?revision=n` | read | Bounded selectable text by page |
@@ -32,3 +36,18 @@ Closed operations: `reorder {pageIds}` exact permutation; `rotate {page,degrees:
 Exports minted at a browser boundary use the existing ordinary `/api/artifacts/handles` source URL pointing to this protected content route. The producer does not recursively mint its own package; that runtime recursion is refused. Each handle metadata/chunk checks original ownership, producer source and current grant. The source contract unit test is not evidence that a native handle was accepted: that requires genuine installed-fixture integration.
 
 Retry receipts:24h retention;256 records/2MiB encoded results per owner,256KiB/result. Current matching keys replay within the horizon; conflicts409, deleted-resource replay410. Expired receipts reclaim on the next authorized mutation; no live receipt evicts automatically to admit a new one. All structured metadata additionally charges against8MiB/owner in the same transaction as publication. Exceeding count/bytes/metadata yields413 without partial publication. Delete unused originals or derivative history to reclaim metadata; deletions replace matching cached results with small tombstones while preserving original fingerprint/key/horizon.
+
+Native content operations: `update-object {page,object,properties}`,
+`delete-object {page,object}`, `add-object {page,item}`. Original object IDs are
+source-bound `o<ordinal>`; added objects have UUIDs. The closed properties are
+`rect`, `text`, `font`, `fontSize`, `fill`, `stroke`, `strokeWidth`, `opacity`,
+restricted by actual object type and crop bounds. Colors are six lowercase hex
+digits; opacity is0..1. Added kinds are text/rectangle/ellipse/image. An image
+item references an actual immutable owned `asset` UUID; it never embeds repeated
+image bytes in a model. Unsupported nested text/font or paint controls refuse.
+
+For objects/object-text, `query` is the exact `pageUUID/objectID`. Object text
+returns at most1024 UTF-16 units with a safe nextOffset; it never silently clips
+a requested replacement. Image-assets accepts a literal name fragment or UUID.
+Full inspection is bounded; omitted objects are explicitly reported, while all
+untouched native content remains in the saved PDF.

@@ -64,6 +64,8 @@
  *                     |                             | mesh whose STL cannot fit one download, or whose outputs cannot
  *                     |                             | fit one save, is refused (422) in words naming a resolution that
  *                     |                             | fits (artifact-budget.ts). Guard: tests/reconstruct-save-bound.test.js.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind new jobs and source mutations to original-person calibration authority and expose closed durable calibration routes.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | Pass scan.source.change to withCurrentJob on calibration, job patch/delete and photo upload/assign/delete routes so narrow source-editor roles match authorization.yaml.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -89,6 +91,7 @@ const pipeline_1 = require("./engine/pipeline");
 const depth_decode_1 = require("./engine/grid/depth-decode");
 const frame_suggest_1 = require("./engine/grid/frame-suggest");
 const job_outputs_1 = require("./job-outputs");
+const calibration_editor_1 = require("./calibration-editor");
 const contour_export_1 = require("./engine/drawing/contour-export");
 const artifact_budget_1 = require("./artifact-budget");
 const logger = (0, logger_1.createChildLogger)({ module: 'scan-to-print-job-routes' });
@@ -317,7 +320,7 @@ function registerCollection(router, deps) {
         }
         let job = null;
         try {
-            job = await (0, job_store_1.createJob)(deps.pool, req.scanSub, title, 'photos');
+            job = deps.context ? await (0, calibration_editor_1.createOwnedJob)(deps.context, req.scanSub, title) : await (0, job_store_1.createJob)(deps.pool, req.scanSub, title, 'photos');
             (0, data_dir_1.ensureDir)((0, data_dir_1.jobDir)(deps.dataRoot, req.scanSub, job.job_id));
             res.status(201).json({ job });
         }
@@ -325,7 +328,9 @@ function registerCollection(router, deps) {
             logger.error({ err: error }, 'Create job failed');
             if (job)
                 await (0, job_store_1.deleteJob)(deps.pool, req.scanSub, job.job_id).catch((err) => logger.error({ err }, 'Orphan job cleanup failed'));
-            if (storageFailure(error))
+            if (error instanceof calibration_editor_1.CalibrationError)
+                res.status(error.status).json({ error: 'calibration_refused', message: error.message });
+            else if (storageFailure(error))
                 res.status(503).json(STORAGE_UNAVAILABLE);
             else
                 res.status(500).json({ error: 'create_failed' });
@@ -334,6 +339,17 @@ function registerCollection(router, deps) {
 }
 /** @description Register detail routes with their existing owner and response contracts. */
 function registerDetail(router, deps) {
+    const calibrationRoute = (write) => (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => { try {
+        if (!deps.context)
+            throw new calibration_editor_1.CalibrationError('The calibration context is unavailable.', 503);
+        res.json(write ? await (0, calibration_editor_1.updateCalibration)(deps.context, deps.dataRoot, req.scanSub, String(req.params.jobId), req.body) : await (0, calibration_editor_1.readCalibration)(deps.context, req.scanSub, String(req.params.jobId)));
+    }
+    catch (error) {
+        const e = error;
+        res.status(e.status ?? 500).json({ error: 'calibration_refused', message: e.message });
+    } }, write ? 'write' : 'read', 'scan.source.change');
+    router.get('/jobs/:jobId/calibration', calibrationRoute(false));
+    router.patch('/jobs/:jobId/calibration', calibrationRoute(true));
     router.get('/jobs/:jobId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         try {
@@ -372,7 +388,7 @@ function registerDetail(router, deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Patch job failed');
             res.status(500).json({ error: 'patch_failed' });
         }
-    }));
+    }, 'write', 'scan.source.change'));
     router.delete('/jobs/:jobId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         try {
@@ -384,7 +400,7 @@ function registerDetail(router, deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Delete job failed');
             res.status(500).json({ error: 'delete_failed' });
         }
-    }));
+    }, 'write', 'scan.source.change'));
 }
 /** @description Register photos routes with their existing owner and response contracts. */
 function registerPhotos(router, deps) {
@@ -419,7 +435,7 @@ function registerPhotos(router, deps) {
             }
             res.status(422).json({ error: 'image_ingest_failed', message: error instanceof Error ? error.message : String(error) });
         }
-    }));
+    }, 'write', 'scan.source.change'));
 }
 /** @description Register video routes with their existing owner and response contracts. */
 function registerVideo(router, deps) {
@@ -493,7 +509,7 @@ function registerImageMutations(router, deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Assign view failed');
             res.status(500).json({ error: 'assign_failed' });
         }
-    }));
+    }, 'write', 'scan.source.change'));
     router.delete('/jobs/:jobId/images/:imageId', (0, job_outputs_1.withCurrentJob)(deps, async (req, res) => {
         const job = req.scanJob;
         try {
@@ -522,7 +538,7 @@ function registerImageMutations(router, deps) {
             logger.error({ err: error, jobId: job.job_id }, 'Delete image failed');
             res.status(500).json({ error: 'delete_failed' });
         }
-    }));
+    }, 'write', 'scan.source.change'));
 }
 /** @description Register imageread routes with their existing owner and response contracts. */
 function registerImageRead(router, deps) {

@@ -1,3 +1,6 @@
+# 0.3.3 | maintainer@emeraldcoastsystemsgroup.com | Gate every Godot MCP/import behind execution authority and show unavailable execution controls.
+# 0.3.2 | maintainer@emeraldcoastsystemsgroup.com | Declare restricted source editing with paired native public-share and typed-object authorization.
+# CHANGE LOG: 2026-11-04 | maintainer@emeraldcoastsystemsgroup.com | Declare closed typed native Blender read/edit tools with approval for writes.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — scene-studio ("Scene Studio")
 #
@@ -30,6 +33,8 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.2.1: the director no longer declares its own node. Core's shared concierge node (concierge-bot, profile concierge-node) serves every inline app bot for a caller whose brain is a CLI login (the operator's Antigravity), so `container: scene-studio-bot` and `port` are dropped and the core scene-studio-bot service folds into it (the oshal_bot pool stays at 40 nodes x 3). Other callers keep the inline hosted path. Turns stay protected direct turns over the same package tools; the persona now rides in the controller-signed dispatch.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Tool usage only (no version, catalog or engine change): scene-get-project returns the live engine status, so scene-capabilities is read only when it reports the engine disconnected or an upstream schema is needed (a turn has six tool calls); a project is created only when asked; a scene is read before it is edited; meshes and materials stay BoxMesh/StandardMaterial3D sub_resources inside the .tscn.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: the open project file saves before Jarvis or the concierge reads it, and the project and its open file are read again when their change returns (shared document handoff), keeping text still being edited.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Put executable fresh native text reads and changed-only writes in the actual model-visible Blender description; preserve automatic source authority.
 name: scene-studio
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -43,14 +48,8 @@ rating:
       generation: none
       degrade: disable
 displayName: Scene Studio
-description: >-
-  Build games and 3-D scenes in Godot and models in Blender, by hand or by asking the
-  Scene Studio Director: it drives both through their own MCP servers (godot-mcp and the
-  Blender Lab MCP) running in the package's sandboxed engine container. Every change is a
-  revision you can undo; render a preview (a still plus a 3-D orbit view), run a Godot
-  project headless to read its output, bring a Blender model into a Godot game, and export
-  a Godot project zip or glTF, FBX, OBJ, STL or the .blend.
-version: 0.2.4
+description: "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects."
+version: 0.3.3
 status: active
 scope: person
 
@@ -432,10 +431,74 @@ tools:
     routingTags: [godot, run, test, errors]
     tags: [scene-studio, package-tool, godot-mcp]
 
+  - name: scene-inspect-object
+    type: api
+    displayName: Read native Blender object
+    category: creative
+    description: >-
+      Read current saved native Blender objects without saving or running caller code. First call scene-get-project for actual revision.
+      Send projectId and expectedRevision; optional objectName selects the actual stable object from the current document, frame1..1000000, offset0..1000000 pages24 objects.
+      The response inspection.selected contains actual current text/transform/material properties. Read AGAIN after manual edits; prepared UI context is not a fresh source observation.
+    executor: { executorType: api, apiEndpoint: 'POST /api/scene-studio/projects/{input.projectId}/objects/inspect' }
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        projectId: { type: string, maxLength: 36 }
+        expectedRevision: { type: integer, minimum: 1 }
+        objectName: { type: string, minLength: 1, maxLength: 200 }
+        frame: { type: integer, minimum: 1, maximum: 1000000 }
+        offset: { type: integer, minimum: 0, maximum: 1000000 }
+      required: [projectId, expectedRevision]
+    defaultAuthMode: auto
+    requiresApproval: false
+    authGroup: scene-studio
+    tags: [scene-studio, object, read]
+
+  - name: scene-edit-object
+    type: api
+    displayName: Save native Blender object property
+    category: creative
+    description: >-
+      Propose one closed native property edit, never Python. FIRST use scene-inspect-object to read the actual selected object and revision.
+      Copy actual projectId/objectName/expectedRevision and selected frame. operationJson is a JSON STRING, not an object or code.
+      To edit text use operationJson='{"kind":"set-property","property":"text","value":"Updated native text"}'.
+      Other property keys: location:0..2, rotation:0..2(degrees), scale:0..2, visible(boolean), color(#rrggbb), lightEnergy, lens, orthoScale.
+      Numeric values must be finite within +/-1e9; text must be fewer than2000 UTF-8 bytes. Keyframe example operationJson='{"kind":"keyframe","channel":"location"}' (or rotation/scale).
+      Invoke THIS tool for a real native approval card; prose is never a card. The server re-inspects native type/library/material support and saves one original-owned revision under CAS.
+      No render, game run, export, new object or arbitrary script is needed. Preserve all untouched source. A stale revision refuses; read fresh before retrying.
+    executor: { executorType: api, apiEndpoint: 'POST /api/scene-studio/projects/{input.projectId}/objects/edit' }
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        projectId: { type: string, maxLength: 36 }
+        expectedRevision: { type: integer, minimum: 1 }
+        objectName: { type: string, minLength: 1, maxLength: 200 }
+        frame: { type: integer, minimum: 1, maximum: 1000000 }
+        operationJson: { type: string, minLength: 2, maxLength: 8192 }
+      required: [projectId, expectedRevision, objectName, frame, operationJson]
+    defaultAuthMode: ask
+    requiresApproval: true
+    authGroup: scene-studio
+    tags: [scene-studio, object, edit]
+
   - name: blender-run-python
     displayName: Blender — Run Python
     category: creative
-    description: Blender Lab MCP execute_blender_code_for_cli — run Blender Python (bpy) on the project's .blend in a background Blender 5.1; assign a dict to `result` to get data back. With save (default true) the changed scene is saved as a new revision.
+    description: >-
+      Run Blender Python on the current owned project's actual .blend. To change an existing object,
+      FIRST invoke this tool with save=false and return its actual current properties through result;
+      then invoke it with save=true for only the requested changes. Do not infer current values from
+      page context or earlier messages. For questions after manual edits, perform a NEW save=false
+      read and report the returned native value; never return a literal copied from the question or
+      page. Use the actual projectId and existing selected object name from the current document.
+      Source writes are automatic and append a revision; never invent an approval card. No render,
+      export or game run is needed for a text edit. Preserve untouched data and typography. Set a
+      dict result to return native data. Read example: {"projectId":"11111111-1111-4111-8111-111111111111","save":false,"code":"import bpy\no = bpy.data.objects[\"ExistingText\"]\nresult = {\"name\": o.name, \"text\": o.data.body}\n"}
+      Write example: {"projectId":"11111111-1111-4111-8111-111111111111","save":true,"code":"import bpy\no = bpy.data.objects[\"ExistingText\"]\no.data.body = \"Updated native text\"\nresult = {\"name\": o.name, \"text\": o.data.body}\n"}
+      Example identities are illustrative; copy actual saved project and object identities.
+      save=false is a read, not a source revision. save=true keeps the modified .blend as a revision.
     executor: { executorType: builtin, builtinKey: package }
     authGroup: scene-studio
     inputSchema:

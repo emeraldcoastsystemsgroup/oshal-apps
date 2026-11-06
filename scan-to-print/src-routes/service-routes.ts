@@ -40,6 +40,7 @@
  *                     |                             | exported for the package tools (print-tools.ts), so an agent's
  *                     |                             | print and a service call choose the printer and read the owner's
  *                     |                             | auto-start the same way.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Keep service job printing on its original print.send boundary when sharing the owner guard.
  */
 
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
@@ -204,7 +205,7 @@ function registerJobPrint(router: Router, deps: PrintRouteDeps): void {
       if (error instanceof PrinterKeyUnreadable) { res.status(409).json({ error: 'printer_key_unreadable', message: error.message }); return; }
       logger.error({ err: error, jobId: job?.job_id }, 'Service job print failed'); res.status(500).json({ error: 'print_failed' });
     }
-  }));
+  },'write','print.send'));
 }
 
 /** @description Print a posted model file (multipart field `model`). */

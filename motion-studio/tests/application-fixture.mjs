@@ -44,7 +44,7 @@ export async function startApplicationFixture({exchangeTimeoutMs=10000,extend}={
   intent:async(name,input)=>{if(name!=='engine.exchange')throw new Error('unexpected fixture intent');state.engineCalls++;const result=await exchange(bridge,input.request,exchangeTimeoutMs);await state.afterEngine?.(scope.getStore());return result;}};
  const app=express();app.use((req,res,next)=>{state.requests.push({method:req.method,path:req.path});const sub=req.header('x-fixture-user')||'alice';scope.run({actor:{issuer:'motion-http-fixture',sub,isActive:true}},next);});
  app.use('/api/motion-studio',createMotionRoutes(ctx));
- app.use('/shared/ui',express.static(resolve(process.env.OSHAL_PLATFORM_ROOT||resolve(repository,'../oshal-kernel/platform'),'src/shared/ui')));extend?.(app);
+ app.use('/shared/ui',express.static(resolve(process.env.OSHAL_PLATFORM_ROOT||resolve(repository,'../oshal-kernel/platform'),'src/shared/ui')));app.use('/cockpit/css/themes',express.static(resolve(process.env.OSHAL_PLATFORM_ROOT||resolve(repository,'../oshal-kernel/platform'),'src/pages/cockpit/css/themes')));extend?.(app);
  const server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
  return{origin:`http://127.0.0.1:${server.address().port}`,state,bridge,ctx,image:()=>sharp({create:{width:16,height:8,channels:4,background:{r:255,g:0,b:0,alpha:.5}}}).png().toBuffer(),
   close:async()=>{server.closeAllConnections();await new Promise(done=>server.close(done));await bridge.close();await pool.end();try{await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.query(`DROP ROLE ${role}`);}finally{await admin.end();}}};

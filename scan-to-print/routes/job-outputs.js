@@ -10,6 +10,7 @@ exports.currentOutputRefusal = currentOutputRefusal;
 exports.requireCurrentOutput = requireCurrentOutput;
 exports.artifactPresence = artifactPresence;
 exports.retireOutput = retireOutput;
+const calibration_editor_1 = require("./calibration-editor");
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const job_store_1 = require("./job-store");
@@ -60,7 +61,7 @@ function claimJobOperation(deps, sub, jobId, mode) {
         } };
 }
 /** @description Admit once without a queue; release only after the complete handler settles. This is a single-API guard, not a distributed lock. */
-function withCurrentJob(deps, handler, mode = 'write') {
+function withCurrentJob(deps, handler, mode = 'write', permission = 'scan.edit') {
     return async (req, res) => {
         let release;
         res.setHeader('Cache-Control', 'private, no-store');
@@ -82,10 +83,17 @@ function withCurrentJob(deps, handler, mode = 'write') {
                 res.status(404).json({ error: 'job_not_found' });
                 return;
             }
+            if (mode === 'write' && deps.context)
+                await (0, calibration_editor_1.assertCalibrationOwner)(deps.context, id, await (0, calibration_editor_1.calibrationAccess)(deps.context, permission));
             req.scanJob = job;
             await handler(req, res);
         }
         catch (error) {
+            if (error instanceof calibration_editor_1.CalibrationError) {
+                if (!res.headersSent)
+                    res.status(error.status).json({ error: 'calibration_refused', message: error.message });
+                return;
+            }
             if (!res.headersSent)
                 res.status(error instanceof RangeError ? 400 : 500).json({ error: error instanceof RangeError ? 'invalid_job_id' : 'job_operation_failed' });
         }

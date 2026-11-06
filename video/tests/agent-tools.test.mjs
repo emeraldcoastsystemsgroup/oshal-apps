@@ -31,3 +31,11 @@ test('agent contract uses the public source fields and explicit frame units',()=
  assert.equal(contract.operationSchema.additionalProperties,false);assert.match(contract.conventions.timing,/30fps/);assert.match(contract.conventions.sources,/Do not include fps/);
  const result=applyAgentOperations(populated(),[{type:'text',track:'captions',entry:{text:'Caption',start:0,end:60,position:'bottom',size:'small'}}]);assert.equal(result.captions[0].text,'Caption');
 });
+
+// A reviewed edit changes the existing text object, preserving its identity and unrelated source data.
+test('agent text corrections keep the same caption object and reject unsupported properties atomically',()=>{
+ const initial=applyAgentOperations(populated(),[{type:'text',track:'captions',entry:{text:'Original',start:0,end:60,position:'bottom',size:'small'}}]);
+ const id=initial.captions[0].id,next=applyAgentOperations(initial,[{type:'updateText',track:'captions',id,patch:{text:'Corrected',position:'top'}}]);
+ assert.equal(next.captions[0].id,id);assert.equal(next.captions[0].text,'Corrected');assert.deepEqual(next.tracks,initial.tracks);assert.deepEqual(next.sources,initial.sources);assert.equal(initial.captions[0].text,'Original');
+ assert.throws(()=>applyAgentOperations(initial,[{type:'updateText',track:'captions',id,patch:{owner:'someone'}}]));
+});

@@ -29,8 +29,47 @@
 # 25 | maintainer@emeraldcoastsystemsgroup.com | 1.15.4: the schema checked before a card is held and the worked drawing (editor-agent expectations).
 # 26 | maintainer@emeraldcoastsystemsgroup.com | 1.16.0: the generated-image route's refusals (region-edit HTTP expectations) and its save against the real store (generated-image-postgres).
 # -----------------------------------------------------------------------------
+# 27 | maintainer@emeraldcoastsystemsgroup.com | Register deterministic statement-clock create/append/read/list/history equality with immutable images and owner/revision guards.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | Register fourteen-module discovery parity and actual CAD/LoRA Home/New access, navigation and owner-summary guards without a browser, CAD engine or training job.
 version: 1
 cases:
+  - id: editor-foundation-adapter
+    name: Shared editor properties retain Create commands and history
+    purpose: Verify the actual foundation adapter against immutable Create validation, stale unsaved identities, inherited locks and group scaling.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/editor/foundation-adapter.test.mjs]
+    expected:
+      - Supported properties call the existing validated edit/history path and failed mutations preserve the project.
+      - Two unsaved drafts have distinct identities; stale selection, locked ancestors and withdrawn authority refuse changes.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 30000, maxMemoryMb: 512 }
+    installation: never
+  - id: editor-foundation-browser
+    name: Shared editor canvas, properties and document handoff
+    purpose: Drive the actual editor and shared foundation through selection, typed edits, saved revisions, AI handoff and phone drawers.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/create-foundation-proof.mjs]
+    expected:
+      - Canvas selections and shared properties retain unrelated editable objects through undo, save and reopen.
+      - Invalid and stale focused fields remain recoverable and cannot publish a revision or change another target.
+      - The existing handoff saves focused text before reading and returns an editable same-layer update.
+      - Read-only permissions hold and phone drawers retain a usable canvas without horizontal page overflow.
+    prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, core:shared-theme-assets, core:editor-foundation]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-editor-fixture.mjs]
+      cleanup: Close loopback servers, synthetic stores and the exact owned Chromium process; no installed projects or model providers.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
   - id: psd-parser
     name: Bounded real PSD format and editable layer profile
     purpose: Decode original raw/RLE binary PSD and licensed upstream corpus with independent pixels, native group geometry and explicit unsupported findings.
@@ -509,9 +548,12 @@ cases:
       scope: package
       files:
         - tests/create-surface.test.js
+        - tests/create-cad-navigation.test.js
     expected:
       - Inline scripts parse and the bundled theme supplies the framework tokens.
       - Studios and starters match declared navigation; unauthorized studios are not opened or probed.
+      - CAD remains optional with independently assigned access; Home and New open the same existing editor and only accessible CAD studios read their owner summary.
+      - All fourteen modules appear in Home and New; the LoRA card opens its own workspace without starting a job and honors locked access.
       - The Edit video quick start and Video editor card open Video Studio's own editor tile, and that entry never reads Video's summary a second time.
     prerequisites:
       - runner:node-test
@@ -693,6 +735,7 @@ cases:
         - tests/project-postgres.test.mjs
     expected:
       - Concurrent saves admit one current revision and preserve immutable history and owner separation.
+      - Advancing SQL defaults preserve complete create, read, list and revision snapshots without timing sleeps.
       - Revocation rollback, deletion, quota and cleanup are exercised against actual PostgreSQL.
     prerequisites:
       - runner:node
@@ -1019,6 +1062,49 @@ cases:
       - Every bot the package declares is bound; an undeclared bot has no binding and is refused.
       - Each route-backed tool's binding equals the permissions of the HTTP route it calls.
       - Workspace members delete their own projects; viewer, reader and exporter roles alone cannot, and every grant stays own-scoped.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: disposable }
+    limits: { timeoutMs: 10000, maxMemoryMb: 256 }
+    installation: never
+
+  - id: shape-appearance
+    name: Native shape outlines and shadows in actual pixels
+    purpose: Prove selectable primitive geometry, dash outlines and isolated alpha shadows through native Canvas2D, PNG and SVG export.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/editor/appearance-browser.test.mjs]}
+    expected:
+      - Hit tests follow the painted shape and dash gaps.
+      - PNG pixels match the editor and SVG renders the same shadow alpha.
+      - Group frames retain shadows; transformed paint properties and solid interiors survive ungrouping.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: Close the exact browser and loopback fixture; synthetic documents only.}
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+  - id: editor-source-vendor
+    name: Canonical source persistence vendoring check
+    purpose: Execute the canonical no-write generator check against every package-owned runtime, DDL and disposable source fixture copy.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/editor-source-vendor.test.mjs]}
+    expected: [Every generated copy matches its canonical source and provenance hash.]
+    prerequisites: [runner:node, source:store-repository]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 30000, maxMemoryMb: 512}
+    installation: never
+
+  - id: project-canonical-timestamps
+    name: Canonical owned project timestamps across snapshots
+    purpose: Exercise the actual project store with advancing statement-time defaults, keeping full saved snapshots stable across create, append, read, list and immutable history.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files: [tests/project-timestamp-roundtrip.test.mjs]
+    expected:
+      - Create and append responses equal their full owned GET snapshots, with matching list and revision timestamps.
+      - Immutable image references and asset metadata stay unchanged; another owner and a stale revision remain refused.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation: { mode: disposable }

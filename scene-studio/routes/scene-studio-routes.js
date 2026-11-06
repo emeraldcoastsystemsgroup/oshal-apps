@@ -43,7 +43,7 @@ const scene_authorization_1 = require("./scene-authorization");
 const scene_capabilities_1 = require("./scene-capabilities");
 const scene_tools_1 = require("./scene-tools");
 const logger = (0, logger_1.createChildLogger)({ module: 'scene-studio-routes' });
-const SURFACE_SCRIPTS = ['scene-studio.js'];
+const SURFACE_SCRIPTS = ['scene-studio.js', 'editor-foundation-adapter.mjs', 'scene-object-model.mjs'];
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** @description Resolve the authenticated caller's sub (oidc session, or the mounter's service-rail sub). */
 function callerSub(req) {
@@ -76,10 +76,11 @@ function installHint(env) {
     const api = (env.OSHAL_API_CONTAINER || env.HOSTNAME || '<api-container>').trim();
     return `docker exec ${api} sh /app/workspace-shared/deployed-apps/scene-studio/engine/install-engine.sh`;
 }
-function capabilitiesRoute(capabilities) {
+function capabilitiesRoute(capabilities, ctx) {
     return async (_req, res) => {
         try {
-            res.json(await capabilities());
+            const execute = ctx.authorization?.authorize ? (await ctx.authorization.authorize({ permission: 'scene.run' })).allowed : null;
+            res.json({ ...await capabilities(), access: { execute } });
         }
         catch (error) {
             logger.error({ err: error }, 'Scene Studio capabilities failed');
@@ -133,7 +134,8 @@ function createSceneStudioRoutes(ctx, opts = {}) {
     for (const file of SURFACE_SCRIPTS)
         assets.get(`/${file}`, serveFile(packageFile(ctx.appPackageDir, 'tools', file), 'application/javascript'));
     router.use('/assets', assets);
-    router.get('/capabilities', capabilitiesRoute(capabilities));
+    router.get('/capabilities', capabilitiesRoute(capabilities, ctx));
     router.use((0, project_routes_1.createProjectRoutes)(deps));
     return router;
 }
+//# sourceMappingURL=scene-studio-routes.js.map

@@ -81,7 +81,7 @@
       "suite": "ai-home",
       "displayName": "Little Monsters",
       "description": "SAT and ACT Study Lab with a shared question bank, private answer and timing history, progress dashboard, saved topic training, monster-taught lesson videos and a Jarvis study coach, plus class lectures, flashcards and tutoring.",
-      "version": "1.7.1",
+      "version": "1.7.2",
       "theme": "little-monsters",
       "dependencies": {
         "apps": [
@@ -122,24 +122,22 @@
       "name": "brand-graphics",
       "suite": "ai-creative",
       "displayName": "Brand Graphics",
-      "description": "On-brand OSHAL motion graphics — a short brief becomes the validated electric-\"oshal\" intro look via Google Vids on the operator's signed-in Chrome.",
-      "version": "1.1.6",
+      "description": "Edit and save brand briefs with an AI partner, retain generated evidence, and hand the source into document and graphics editing.",
+      "version": "1.2.4",
       "theme": "light-blue",
       "dependencies": {
-        "apps": [
-          "vids"
-        ],
+        "apps": [],
         "tools": [],
         "connectors": [],
         "required": {
-          "apps": [
-            "vids"
-          ],
+          "apps": [],
           "tools": [],
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "vids"
+          ],
           "tools": [],
           "connectors": []
         }
@@ -160,8 +158,8 @@
       "name": "lora",
       "suite": "ai-creative",
       "displayName": "LoRA Studio",
-      "description": "Train a reusable character (a \"sprite\") from images and captions, validate it on a fixed held-out matrix, and improve it by targeting its weak spots — every version scored so \"better\" is a number, with an owner-enabled nightly loop and morning review gate. Runs free on your GPU box.",
-      "version": "1.7.6",
+      "description": "Owned character identity and dataset captions with in-place editing, worker-confirmed synchronization and guarded training.",
+      "version": "1.8.3",
       "theme": "indigo",
       "dependencies": {
         "apps": [],
@@ -534,8 +532,8 @@
       "name": "presentations",
       "suite": "ai-productivity",
       "displayName": "AI Office",
-      "description": "One outline, three artifacts — a themed PowerPoint deck, Word document, or live Excel workbook. Ten shared looks, twenty layouts, fully editable in Microsoft Office, Google Workspace or LibreOffice; saves to Dropbox, Google Drive, OneDrive, or OSHAL local. A guided visual start walks you from artifact to look to outline — or talk to the Guide, open a file, or type one line and AI drafts it all. Phone-friendly: dictate instead of typing, resume recent files in one tap, drive edits with tap chips. My files is a real file browser - click a file for download, open-in-provider, or edit-and-regenerate. The deck-generation engine stays framework-resident (kernel skill); this package is the studio surface.",
-      "version": "2.17.0",
+      "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
+      "version": "2.18.8",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -626,8 +624,8 @@
       "name": "portrait-studio",
       "suite": "ai-creative",
       "displayName": "Portrait Studio",
-      "description": "Create portraits from camera or uploaded photos with presets and backdrops. Imported roles separately control viewing, reading, creating, editing, deleting and exporting your portraits. Group scenes and passport or print exports remain available within assigned permissions. See the package authorization guide for connected-email and legacy-image availability.",
-      "version": "1.15.6",
+      "description": "Edit face crops and generation settings in a saved source project, retain original photos, and hand rendered results into the image editor.",
+      "version": "1.16.4",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1136,31 +1134,17 @@
       "name": "creative-studio",
       "suite": "ai-creative",
       "displayName": "Creative Studio",
-      "description": "A creative bot that just keeps making short kid-safe videos - it rotates a public-domain library (fables, fairytales, famous sayings), animates each ~100-word story across ~10 continuous Google Vids Extend scenes on the remote worker (ADR-080), downloads the finished MP4, and saves it to your content folder + Google Drive. The shared vids-operator desktop worker, its registry entries, and the oshal-vids CLI stay framework-resident; the /api/vids surface it tiles is owned by the vids app (declared dependency); this package is the manifest + tools + tile over them.",
-      "version": "1.2.6",
+      "description": "Edit and save story briefs and selectable storyboard scenes, with revision history, an AI partner and real editing handoffs.",
+      "version": "1.3.5",
       "theme": "midnight",
       "dependencies": {
-        "apps": [
-          "vids"
-        ],
+        "apps": [],
         "tools": [],
         "connectors": [],
-        "bots": [
-          {
-            "app": "vids",
-            "name": "vids-operator"
-          }
-        ],
+        "bots": [],
         "required": {
-          "apps": [
-            "vids"
-          ],
-          "bots": [
-            {
-              "app": "vids",
-              "name": "vids-operator"
-            }
-          ],
+          "apps": [],
+          "bots": [],
           "tools": [],
           "connectors": []
         },
@@ -1168,7 +1152,14 @@
           "apps": [
             "video",
             "portrait-studio",
-            "lora"
+            "lora",
+            "vids"
+          ],
+          "bots": [
+            {
+              "app": "vids",
+              "name": "vids-operator"
+            }
           ],
           "tools": [],
           "connectors": []
@@ -1190,8 +1181,8 @@
       "name": "create",
       "suite": "ai-creative",
       "displayName": "Create",
-      "description": "One studio for everything you make: decks, documents and workbooks from AI Office, portraits, short videos, story episodes, LoRA characters, 3D scans and brand intro clips — a single home page that shows what you were working on and one tap to pick up where you left off, in every studio you already have.",
-      "version": "1.16.0",
+      "description": "Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace.",
+      "version": "1.18.8",
       "theme": "create",
       "dependencies": {
         "apps": [],
@@ -1215,7 +1206,8 @@
             "motion-studio",
             "publishing-studio",
             "pdf-workbench",
-            "scene-studio"
+            "scene-studio",
+            "cad-studio"
           ],
           "tools": [],
           "connectors": []
@@ -1286,23 +1278,24 @@
       "name": "video",
       "suite": "ai-creative",
       "displayName": "Video Studio",
-      "description": "Make prompted short-form videos (TikTok / YouTube Shorts / Instagram Reels) from an idea - the director bot storyboards it and the studio renders a real .mp4 with voiceover and captions, saved to your Files storage; a series is written by the screenplay-writer, approval-gated on the script, then rendered one episode at a time on the remote Vids node. The series conductor engine, the video-generation slice, the video-director + screenplay-writer inline nodes, and the shared vids-operator desktop worker stay framework-resident; this package is the surface over them.",
-      "version": "1.11.1",
+      "description": "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor.",
+      "version": "1.12.4",
       "theme": "sakura",
       "dependencies": {
-        "apps": [
-          "vids"
-        ],
+        "apps": [],
         "tools": [],
         "connectors": [],
-        "bots": [
-          {
-            "app": "vids",
-            "name": "vids-operator"
-          }
-        ],
+        "bots": [],
         "required": {
+          "apps": [],
+          "bots": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
           "apps": [
+            "create",
+            "motion-studio",
             "vids"
           ],
           "bots": [
@@ -1310,14 +1303,6 @@
               "app": "vids",
               "name": "vids-operator"
             }
-          ],
-          "tools": [],
-          "connectors": []
-        },
-        "optional": {
-          "apps": [
-            "create",
-            "motion-studio"
           ],
           "tools": [],
           "connectors": []
@@ -1339,8 +1324,8 @@
       "name": "vids",
       "suite": "ai-creative",
       "displayName": "Vids Studio",
-      "description": "Turn an idea into generated video - the Veo specialist drives Google Vids by clicking, in a remote operator's logged-in Chrome: describe the shot, it generates the clip and places it on the timeline. Job + multi-scene Extend-story dispatch to the registered desktop worker, with the job-queue surface behind the cockpit tile. The shared vids-operator desktop worker (the ADR-080 story engine lives in its content.* tools), its registry entries, the remote-client mesh, and the oshal-vids CLI stay framework-resident; this package is the surface over them.",
-      "version": "1.5.8",
+      "description": "Saved editable video briefs with native AI source operations, recorded clip preview and handoff to the Video editor.",
+      "version": "1.6.4",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -1502,7 +1487,7 @@
       "suite": "ai-finance",
       "displayName": "Intelligent Trades",
       "description": "Research stocks, track connected brokerage accounts and test strategies in a separate paper book, with a decision trail from signals to orders. Trading actions follow the connected account's supported controls. Cash equities. No crypto.",
-      "version": "1.53.0",
+      "version": "1.53.5",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -2432,7 +2417,7 @@
       "suite": "ai-engineering",
       "displayName": "Scan to Print",
       "description": "Scans and 3D-prints objects. 3D printers only; it cannot print paper documents. Photograph an object from its six sides (or film it, or import a LiDAR point cloud), enter one ruler measurement, and get a third-angle engineering drawing with overall dimensions, a watertight STL/OBJ you can rotate in the browser, and a one-click job on your own OctoPrint, Klipper/Moonraker, PrusaLink or Bambu Lab printer (sliced for that printer by a bundled OrcaSlicer engine and sent over your home network). The same printers are a swarm print service any agent or app can call, starting a print on its own only on printers where you turned auto-start on. The geometry is deterministic — silhouettes carve a voxel grid, the grid becomes the mesh and the drawing — and the same occupancy grid accepts depth and LiDAR input, so it is the building block a scanner plugs into.",
-      "version": "0.7.3",
+      "version": "0.8.7",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2540,8 +2525,8 @@
       "name": "cad-studio",
       "suite": "ai-engineering",
       "displayName": "CAD Studio",
-      "description": "A real CAD kernel (Open CASCADE via CadQuery) the swarm can drive iteratively. Start from a box, a cylinder, a sketch, the outlines of a Scan to Print job or an uploaded STL; add holes, bosses, pockets, sketch extrusions, revolves, sweeps, lofts, fillets, chamfers, shells and cut planes as an ordered feature list; every edit rebuilds the part and re-exports STEP, STL, hidden-line drawing views and a report. Ask the concierge for a change in plain words and it edits the same list through the package's tools, so the person, the bot and any MCP client iterate on one model.",
-      "version": "0.2.6",
+      "description": "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports.",
+      "version": "0.3.2",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2575,8 +2560,8 @@
       "name": "scene-studio",
       "suite": "ai-creative",
       "displayName": "Scene Studio",
-      "description": "Build games and 3-D scenes in Godot and models in Blender, by hand or by asking the Scene Studio Director: it drives both through their own MCP servers (godot-mcp and the Blender Lab MCP) running in the package's sandboxed engine container. Every change is a revision you can undo; render a preview (a still plus a 3-D orbit view), run a Godot project headless to read its output, bring a Blender model into a Godot game, and export a Godot project zip or glTF, FBX, OBJ, STL or the .blend.",
-      "version": "0.2.4",
+      "description": "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects.",
+      "version": "0.3.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2609,7 +2594,7 @@
       "suite": "ai-engineering",
       "displayName": "Circuit Lab",
       "description": "A local circuit and mechanism lab the swarm can drive. Place batteries, resistors, LEDs, capacitors, switches, transistors, op-amps, relays, regulators, a 555, a sequenced pin, an H-bridge, signal sources, DC motors, gears and loads on a schematic, wire them, and a real SPICE solver (ngspice, in the package's engine container) runs the transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their solved speed. Ask the concierge for a change in plain words and it edits the same circuit through the package's tools, so the person, the bot and any MCP client iterate on one design.",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2827,7 +2812,7 @@
       "suite": "ai-home",
       "displayName": "Home",
       "description": "Your schedule, shopping list, household updates and explicitly connected applications in the established Home layout.",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "dependencies": {
         "apps": [
           "purchasing",
@@ -2896,7 +2881,7 @@
       "suite": "ai-productivity",
       "displayName": "Business",
       "description": "Your schedule, projects, documents and explicitly connected business applications.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "dependencies": {
         "apps": [
           "presentations",
@@ -2979,7 +2964,7 @@
       "suite": "ai-knowledge",
       "displayName": "Classroom",
       "description": "Classwork, class schedules and personal learning through existing school roles and roster rules.",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "dependencies": {
         "apps": [
           "little-monsters",
@@ -3022,7 +3007,7 @@
       "suite": "ai-productivity",
       "displayName": "Studio",
       "description": "Applications, recent work and conversations in your established Studio workspace.",
-      "version": "1.1.2",
+      "version": "1.1.6",
       "dependencies": {
         "apps": [
           "home",
@@ -3145,7 +3130,7 @@
       "suite": "ai-home",
       "displayName": "Jarvis",
       "description": "Your assistant briefing, conversations, agenda and admitted applications.",
-      "version": "1.1.2",
+      "version": "1.1.6",
       "dependencies": {
         "apps": [
           "home",
@@ -3280,7 +3265,7 @@
       "suite": "ai-productivity",
       "displayName": "Orbit",
       "description": "Explore your admitted applications, relationships and recent work in the Orbit map.",
-      "version": "1.1.2",
+      "version": "1.1.6",
       "dependencies": {
         "apps": [
           "home",
@@ -3403,7 +3388,7 @@
       "suite": "ai-home",
       "displayName": "Commons",
       "description": "Your applications, shared rooms and conversations, with existing household and team boundaries.",
-      "version": "1.1.2",
+      "version": "1.1.6",
       "dependencies": {
         "apps": [
           "home",
@@ -3701,8 +3686,8 @@
       "name": "motion-studio",
       "suite": "ai-creative",
       "displayName": "Motion Studio",
-      "description": "Edit original-owned motion compositions with layers, captions, keyframes, masks and photos. Preview frames, render verified MP4 or transparent PNG sequences, export editable native JSON, and link owned renders to Video with their exact editable source. Live installed acceptance and broader upstream fidelity remain separately tracked.",
-      "version": "0.1.4",
+      "description": "Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos.",
+      "version": "0.2.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3734,8 +3719,8 @@
       "name": "pdf-workbench",
       "suite": "ai-creative",
       "displayName": "PDF Workbench",
-      "description": "Owned PDF page organization, annotations, supported AcroForm filling and explicit OCR. Preserves original files and saves new derivative revisions.",
-      "version": "0.1.6",
+      "description": "Select and edit actual PDF text, images and shapes with owned source assets, forms, revision history and native PDF exports.",
+      "version": "0.2.4",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -3768,8 +3753,8 @@
       "name": "publishing-studio",
       "suite": "ai-creative",
       "displayName": "Publishing Studio",
-      "description": "Original-owned bounded English print layouts, linked stories, styles, masters and native Typst PDF/PNG output.",
-      "version": "0.1.2",
+      "description": "Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history.",
+      "version": "0.3.7",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -3794,6 +3779,40 @@
       },
       "audit": {
         "record": "audits/publishing-studio.json",
+        "sourceSha": "0000000000000000000000000000000000000000"
+      },
+      "status": "pending"
+    },
+    {
+      "name": "phone-control",
+      "suite": "ai-productivity",
+      "displayName": "Phone & Device Control",
+      "description": "Control your Android phone over Wi-Fi (its live screen, taps, swipes, keys, typing, apps and the words on screen) and type, press keys, open apps and move the pointer on your iPhone as a Bluetooth keyboard, through your own computer running OSHAL Node. Also shows your computers' screens. iPhone screens cannot be shown.",
+      "version": "1.1.2",
+      "theme": "light-blue",
+      "dependencies": {
+        "apps": [],
+        "tools": [],
+        "connectors": [],
+        "required": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        },
+        "optional": {
+          "apps": [],
+          "tools": [],
+          "connectors": []
+        }
+      },
+      "source": {
+        "type": "git-subdir",
+        "url": "https://github.com/emeraldcoastsystemsgroup/oshal-apps",
+        "path": "phone-control",
+        "ref": "main"
+      },
+      "audit": {
+        "record": "audits/phone-control.json",
         "sourceSha": "0000000000000000000000000000000000000000"
       },
       "status": "pending"

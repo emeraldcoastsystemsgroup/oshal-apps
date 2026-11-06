@@ -1,3 +1,4 @@
+/** CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | Check actual transient private contract GET identities. */
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify real owned CRUD, agent operations, raster masks, keyframes, retries and permission withdrawal over HTTP/PG/worker.
  */
@@ -15,3 +16,8 @@ test('grant/identity changes during worker computation cannot append a project o
 test('missing preview document is an input refusal before the engine runs',async()=>{const before=fixture.state.engineCalls;await call('/preview',{method:'POST',body:{},status:400});assert.equal(fixture.state.engineCalls,before);});
 
 test('authorized malformed JSON is400 and actual oversized multipart is413',async()=>{const response=await fetch(fixture.origin+'/api/motion-studio/projects',{method:'POST',headers:{'Content-Type':'application/json'},body:'{'});assert.equal(response.status,400);assert.equal((await response.json()).error,'motion_invalid_json');const form=new FormData();form.append('file',new Blob([Buffer.alloc(4194305)]),'huge.png');await call('/assets',{method:'POST',body:form,status:413});});
+
+test('actual Motion contract GETs are private, uncached and issue distinct edit identities',async()=>{
+ const keys=[];for(let n=0;n<2;n++){const response=await fetch(fixture.origin+'/api/motion-studio/agent-contract');assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'private, no-store');const body=await response.json();assert.match(body.requestKey,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);keys.push(body.requestKey);}
+ assert.notEqual(keys[0],keys[1]);
+});

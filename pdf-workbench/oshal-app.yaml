@@ -1,3 +1,7 @@
+# 0.2.4 | maintainer@emeraldcoastsystemsgroup.com | Phones, the trial check (2026-11-06): one app bar row (title, Save, More); the Document menu and Download PDF wait in More.
+# 0.2.3 | maintainer@emeraldcoastsystemsgroup.com | Phones (Roger, trial.oswarm.ai, 2026-11-06, F5): Upload a PDF opens a document in one step and Blank page opens a blank Letter page from the empty state; the Document menu opens as an opaque sheet and lists only what the seat can do now; Export, Undo and Redo move into More.
+# CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.2.2: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
+# 0.2.1 | maintainer@emeraldcoastsystemsgroup.com | Give the live document concierge exact native content-edit and real approval-card guidance.
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Declare exact original PDF contracts using supported native tool schema nodes.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: await actual automatic PDF saves before concierge reads and refresh the same document on return.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.1.3: bounded field lookup uses optional query on the existing canonical read-tool path.
@@ -8,9 +12,9 @@ name: pdf-workbench
 suite: ai-creative
 displayName: PDF Workbench
 description: >-
-  Owned PDF page organization, annotations, supported AcroForm filling and explicit OCR. Preserves
-  original files and saves new derivative revisions.
-version: 0.1.6
+  Select and edit actual PDF text, images and shapes in a shared document workspace. Owned
+  source assets, page organization, forms, annotations, history and native PDF exports.
+version: 0.2.4
 runtime: process
 lastingStorage: true
 status: active
@@ -90,12 +94,17 @@ smoke:
 migrations:
   - migrations/001-pdf-workbench.sql
   - migrations/native/001-pdf-workbench.sql
+  - migrations/002-image-assets.sql
+  - migrations/native/002-image-assets.sql
 nativeMigrations:
   - id: migrations/001-pdf-workbench.sql
     native: skip
     reason: >-
       Native final schema retains original-person physical scope and immutable triggers; PostgreSQL
       additionally applies forced original-owner RLS policies.
+  - id: migrations/002-image-assets.sql
+    native: skip
+    reason: Native image assets use the matching physical-namespace migration; PostgreSQL additionally forces owner policies.
 summary:
   path: /api/pdf-workbench/home-summary
   tilesPointer: /metrics
@@ -122,9 +131,8 @@ bots:
       - pdf-form-filling
       - pdf-annotations
     selectorDescriptor: >-
-      Choose for owned PDF page reorder/rotate/merge/extract, supported standard forms, annotations
-      and explicit English OCR. Do not claim redaction, signing or arbitrary original content
-      editing.
+      Choose for actual bounded PDF text/image/shape editing, owned page organization, supported
+      forms, annotations and explicit English OCR. Do not claim text reflow, redaction or signing.
     routingKeywords:
       - PDF
       - page reorder
@@ -277,6 +285,9 @@ tools:
             - annotations
             - fields
             - form-fields
+            - objects
+            - object-text
+            - image-assets
         query:
           type: string
           minLength: 1
@@ -285,7 +296,7 @@ tools:
         offset:
           type: integer
           minimum: 0
-          maximum: 1000
+          maximum: 4095
       required:
         - id
         - revision
@@ -441,7 +452,22 @@ tools:
     displayName: Save PDF operations
     type: api
     category: creative
-    description: Save native PDF operations under current original-owner permission; annotation rect must fit actual cropBox from pdf-read-document.
+    description: |
+      INVOKE THIS TOOL to propose a real PDF edit. Only its returned native proposal creates the controller's approval card.
+      Markdown, a text description headed "approval card", or a promise to edit is NOT a card and does NOT edit anything.
+      First read pdf-editing-contract and only the needed current saved objects through pdf-read-model-part.
+      Send {id,baseRevision,requestKey,operations}; operations is an ARRAY, not operationsJson or code.
+      Copy requestKey unchanged from the just-read pdf-editing-contract response for a new intended edit, and real page/object IDs from the owned saved read.
+      To change an existing editable text run, copy its real page and stable object fields, and set ONLY properties.text:
+      TEXT_OBJECT_OPERATION_JSON
+      {"op":"update-object","page":"actual-page-instance-uuid","object":"actual-selected-object-id","properties":{"text":"New native text"}}
+      END_TEXT_OBJECT_OPERATION_JSON
+      Text must be printable Latin-1 and the read must declare textEditable:true. Preserve font, size, geometry and paint by omitting them.
+      If text is locked, respect its font/encoding findings; never silently choose another font or expose hidden text.
+      Other operations must follow the actual closed editing contract; annotation rectangles must fit the read cropBox.
+      After reading, CALL pdf-apply-operations with the requested typed operation. Then explain the returned real proposal.
+      Do not fabricate a card in your reply. Wait for the person's controller approval before reporting any mutation.
+      A released202 means queued, not saved; read pdf-job-status until ready before naming the saved revision.
     executor:
       executorType: api
       apiEndpoint: POST /api/pdf-workbench/documents/{input.id}/revisions
@@ -460,7 +486,10 @@ tools:
           minimum: 1
           maximum: 100
         requestKey:
+          description: Copy requestKey unchanged from the just-read editing contract response for this new edit; never invent it. Read a fresh contract for each new intent; retry an uncertain result with the identical key and body.
           type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
           minLength: 36
           maxLength: 36
         operations:
@@ -481,6 +510,10 @@ tools:
                   - merge
                   - annotate
                   - remove-annotation
+                  - update-annotation
+                  - update-object
+                  - delete-object
+                  - add-object
                   - fill
               pageIds:
                 type: array
@@ -517,6 +550,117 @@ tools:
                   type: integer
                   minimum: 0
                   maximum: 31
+              object:
+                type: string
+                minLength: 2
+                maxLength: 36
+              properties:
+                type: object
+                additionalProperties: false
+                properties:
+                  rect:
+                    type: array
+                    minItems: 4
+                    maxItems: 4
+                    items:
+                      type: number
+                  text:
+                    type: string
+                    minLength: 1
+                    maxLength: 4000
+                  font:
+                    type: string
+                    maxLength: 64
+                  fontSize:
+                    type: number
+                    minimum: 1
+                    maximum: 256
+                  fill:
+                    type: string
+                    minLength: 6
+                    maxLength: 6
+                  stroke:
+                    type: string
+                    minLength: 6
+                    maxLength: 6
+                  strokeWidth:
+                    type: number
+                    minimum: 0
+                    maximum: 40
+                  opacity:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                  color:
+                    type: string
+                    minLength: 6
+                    maxLength: 6
+                  points:
+                    type: array
+                    minItems: 2
+                    maxItems: 256
+                    items:
+                      type: array
+                      minItems: 2
+                      maxItems: 2
+                      items:
+                        type: number
+              item:
+                type: object
+                additionalProperties: false
+                properties:
+                  id:
+                    type: string
+                    minLength: 36
+                    maxLength: 36
+                  kind:
+                    type: string
+                    enum:
+                      - text
+                      - rectangle
+                      - ellipse
+                      - image
+                  rect:
+                    type: array
+                    minItems: 4
+                    maxItems: 4
+                    items:
+                      type: number
+                  asset:
+                    type: string
+                    minLength: 36
+                    maxLength: 36
+                  text:
+                    type: string
+                    minLength: 1
+                    maxLength: 4000
+                  font:
+                    type: string
+                    maxLength: 64
+                  fontSize:
+                    type: number
+                    minimum: 1
+                    maximum: 256
+                  fill:
+                    type: string
+                    minLength: 6
+                    maxLength: 6
+                  stroke:
+                    type: string
+                    minLength: 6
+                    maxLength: 6
+                  strokeWidth:
+                    type: number
+                    minimum: 0
+                    maximum: 40
+                  opacity:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                required:
+                  - id
+                  - kind
+                  - rect
               annotation:
                 type: object
                 additionalProperties: false
@@ -580,8 +724,13 @@ tools:
         - operations
     usageInstructions: >-
       Explain exact edits and hold approval. Read actual page cropBox bounds from pdf-read-document.
+      For content edits, read objects model part for actual stable object and page IDs. Use update-object
+      with closed typed properties or add-object with item. Preserve untouched content; no text reflow
+      or certified redaction is offered. Text uses printable Latin-1 and supported standard fonts.
       For unspecified text placement use its textAnnotationRect; every rect must fit that page.
-      Supply closed operations and latest baseRevision.202 is
+      Read objects with query equal to the exact selected page/object identity; use object-text
+      with the same query for bounded complete text chunks. Read image-assets with a literal name
+      fragment to insert an actual owned image asset by UUID. Supply closed operations and latest baseRevision.202 is
       queued, not saved. Poll the returned job; only ready proves a new revision.
     routingTags:
       - pdf

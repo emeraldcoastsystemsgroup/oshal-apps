@@ -1,8 +1,11 @@
+# Editing-only source role; privileged generation, training and sending remain separately bound.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | First Scan to Print authorization catalog (ADR-149, 0.7.0; BACKLOG B18). The print service's agent tools became in-process package tools, which the kernel admits only for a package that declares a catalog, so every mounted route, every tool, the operator bot and the photo intake are bound to named permissions here. Until now the package had no catalog and, under enforce, admitted only holders of the application's @app-admin assignment; that posture is mirrored, not widened: one maker role carries the whole app.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bind calibration read/edit tools and routes to existing scan.read/scan.edit; print.send remains independent.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6: a narrow `scanner` role (app.open, scan.read, scan.edit, scan.source.change) so a person can take photos and build the model without registering a printer address or sending a print. The trial's visitor seats hold it (Roger, 2026-11-06: no dead ends; approved by @release-coordinator). maker and source-editor are unchanged.
 #
 # One resource, `scan`, with `own` scope only. Ownership stays where it was: every store statement filters on
 # owner_sub (src-routes/job-store.ts), every table FORCEs row security on the owner (migrations/001-scan-to-print.sql),
@@ -22,6 +25,7 @@ permissions:
   app.open: { resource: scan, effect: read, minimumTier: viewer }
   scan.read: { resource: scan, effect: read, minimumTier: viewer }
   scan.edit: { resource: scan, effect: write, minimumTier: editor }
+  scan.source.change: { resource: scan, effect: write, minimumTier: editor }
   printer.manage: { resource: scan, effect: write, minimumTier: editor }
   print.send: { resource: scan, effect: execute, minimumTier: editor }
 roles:
@@ -31,8 +35,22 @@ roles:
       - { permission: app.open, scope: own }
       - { permission: scan.read, scope: own }
       - { permission: scan.edit, scope: own }
+      - { permission: scan.source.change, scope: own }
       - { permission: printer.manage, scope: own }
       - { permission: print.send, scope: own }
+  source-editor:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: scan.read, scope: own }
+      - { permission: scan.source.change, scope: own }
+  scanner:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: scan.read, scope: own }
+      - { permission: scan.edit, scope: own }
+      - { permission: scan.source.change, scope: own }
 bindings:
   http:
     - { id: root, method: GET, path: /, allOf: [scan.read] }
@@ -42,14 +60,16 @@ bindings:
     - { id: app-script-camera, method: GET, path: /assets/scan-to-print-camera.js, allOf: [app.open] }
     - { id: capabilities, method: GET, path: /capabilities, allOf: [scan.read] }
     - { id: list-jobs, method: GET, path: /jobs, allOf: [scan.read] }
-    - { id: create-job, method: POST, path: /jobs, allOf: [scan.edit] }
+    - { id: create-job, method: POST, path: /jobs, allOf: [scan.source.change] }
+    - { id: read-calibration, method: GET, path: /jobs/:jobId/calibration, allOf: [scan.read] }
+    - { id: change-calibration, method: PATCH, path: /jobs/:jobId/calibration, allOf: [scan.read, scan.source.change] }
     - { id: read-job, method: GET, path: /jobs/:jobId, allOf: [scan.read] }
-    - { id: change-job, method: PATCH, path: /jobs/:jobId, allOf: [scan.edit] }
-    - { id: delete-job, method: DELETE, path: /jobs/:jobId, allOf: [scan.edit] }
-    - { id: add-images, method: POST, path: /jobs/:jobId/images, allOf: [scan.edit] }
+    - { id: change-job, method: PATCH, path: /jobs/:jobId, allOf: [scan.source.change] }
+    - { id: delete-job, method: DELETE, path: /jobs/:jobId, allOf: [scan.source.change] }
+    - { id: add-images, method: POST, path: /jobs/:jobId/images, allOf: [scan.source.change] }
     - { id: add-video, method: POST, path: /jobs/:jobId/video, allOf: [scan.edit] }
-    - { id: change-image, method: PATCH, path: /jobs/:jobId/images/:imageId, allOf: [scan.edit] }
-    - { id: delete-image, method: DELETE, path: /jobs/:jobId/images/:imageId, allOf: [scan.edit] }
+    - { id: change-image, method: PATCH, path: /jobs/:jobId/images/:imageId, allOf: [scan.source.change] }
+    - { id: delete-image, method: DELETE, path: /jobs/:jobId/images/:imageId, allOf: [scan.source.change] }
     - { id: read-image, method: GET, path: /jobs/:jobId/images/:imageId/file, allOf: [scan.read] }
     - { id: reconstruct, method: POST, path: /jobs/:jobId/reconstruct, allOf: [scan.edit] }
     - { id: import-pointcloud, method: POST, path: /jobs/:jobId/pointcloud, allOf: [scan.edit] }
@@ -68,6 +88,8 @@ bindings:
     - { id: print-job, method: POST, path: /jobs/:jobId/print, allOf: [print.send] }
     - { id: print-model, method: POST, path: /print, allOf: [print.send] }
   tools:
+    - { id: scan-read-calibration, allOf: [scan.read] }
+    - { id: scan-update-calibration, allOf: [scan.read, scan.source.change] }
     - { id: scan-to-print-capabilities, allOf: [scan.read] }
     - { id: print-service-jobs, allOf: [scan.read] }
     - { id: print-service-printers, allOf: [scan.read] }

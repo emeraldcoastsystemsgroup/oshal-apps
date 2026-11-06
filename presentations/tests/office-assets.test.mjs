@@ -97,11 +97,21 @@ function guideHandler() {
 
 
 test('actual compiled Office asset router delivers every workspace asset under a named authenticated mount',async()=>{
+  let legacyAllowed=false;
+  const authorization={currentActor:()=>({isActive:true,issuer:'fixture',sub:'owner',principalId:'person',tenantIds:['tenant']}),authorize:async()=>({allowed:legacyAllowed})};
   const app=express();
-  app.use('/api/presentations/sections',(req,res,next)=>{if(req.headers['x-office-fixture-owner']!=='owner')return res.status(401).json({error:'not_authenticated'});req.oidc={user:{sub:'owner'}};next();},createBotPresentationRoutes({pool:{query:async()=>({rows:[]})},appPackageDir:path.resolve(here,'..')}));
+  app.use('/api/presentations/sections',(req,res,next)=>{if(req.headers['x-office-fixture-owner']!=='owner')return res.status(401).json({error:'not_authenticated'});req.oidc={user:{sub:'owner'}};next();},createBotPresentationRoutes({pool:{query:async()=>({rows:[]})},authorization,appPackageDir:path.resolve(here,'..')}));
   const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});
   const base=`http://127.0.0.1:${server.address().port}/api/presentations/sections/assets/`;
   try{
+    for(const query of ['', '?legacy=1', '?legacy=1&kind=docx', '?kind=xlsx']){
+      const response=await fetch(base.replace('/assets/','/ui')+query,{headers:{'x-office-fixture-owner':'owner'}});
+      assert.equal(response.status,200,query);const html=await response.text();assert.match(html,/id="document-canvas"/);assert.match(html,/Generate/);assert.doesNotMatch(html,/id="genBtn"/);
+    }
+    const audienceUrl=base.replace('/assets/','/ui')+'?audience=1';
+    assert.equal((await fetch(audienceUrl,{headers:{'x-office-fixture-owner':'owner'}})).status,403,'audience retains its legacy authority check');
+    legacyAllowed=true;
+    const audience=await fetch(audienceUrl,{headers:{'x-office-fixture-owner':'owner'}});assert.equal(audience.status,200);assert.match(await audience.text(),/id="genBtn"/,'the audience surface remains available');
     for(const name of ['office-workspace.css','office-assistant.mjs','slide-workspace.css','slide-workspace.mjs','sheet-workspace.css','sheet-workspace.mjs']){
       const unauthorized=await fetch(base+name);assert.equal(unauthorized.status,401);
       const response=await fetch(base+name,{headers:{'x-office-fixture-owner':'owner'}});

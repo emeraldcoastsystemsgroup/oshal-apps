@@ -355,3 +355,11 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 |---|---|---|---|---|---|---|
 | training-ticket-review | training loop ticket | T2 | local | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Editable source workspace
+
+The shared editor keeps navigation, the open source, selectable objects, Properties and the AI partner in the same layout. Changes use this package’s owned operations and current permissions. A saved source is separate from generated or published output.
+
+The shared workspace keeps character creation, trained version evidence and dataset source controls together. Select a saved dataset image to edit its desired caption, inspect the applied worker caption and compare source/applied revisions. Save caption persists source through the owned CAS route; Retry worker sync dispatches that saved revision. Pending/failed text remains visibly unapplied and training is gated until matching signed acknowledgement. Saving text never claims that a model trained.
+
+Cosmetic identity display names are editable through the actual owned revision route. Trigger words, hero anchors and trained weights retain their original identity. The declared lora-director AI partner uses the same saved metadata/caption operations; the document handoff preserves concurrent browser edits. Worker execution needs its existing separate permission, even when configuration may be saved.

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Real SQL daily margin/retirement route tests cover cost stops, extended history, turnover, settlement and interrupted metadata saves without duplicated fills.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A saved strategy runs on a paper account (Schwab read-only history, two bounded reads; the archive's 365 days refuses at assignment): the route assigns and arms it, a scheduled pass rebalances the book to the strategy's targets once per decision, the read names it, and clearing returns the account to its posture engine.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Asked to set up and start a paper strategy, the concierge had no paper tools. Its paper tools are route tools over the local paper account routes only, the analyst creates after agreement and names the schedule button, and the accounts read reports each owner's armed accounts, last ticks and the last scheduled pass against a real disposable PostgreSQL.
  */
@@ -110,8 +111,8 @@ test('a saved strategy runs on a paper account: assigned, armed, rebalanced once
  const last=base=>base*(1+days.length*0.002);
  const intent=async(name,input)=>{calls.push(name);
   if(name==='trading.config')return {configured:schwab};
-  // Schwab answers a bounded window per read (about 350 days before end), as trading.bars does.
-  if(name==='trading.bars'){assert.equal(input.timeframe,'1Day');const end=new Date(input.end).toISOString().slice(0,10),from=new Date(input.end-350*86400000).toISOString().slice(0,10);
+  // Native extended history uses one current end and an explicit bounded lookback.
+  if(name==='trading.bars'){assert.equal(input.timeframe,'1Day');assert.equal(input.end,now.getTime());assert.equal(input.historyDays,800);const end=new Date(input.end).toISOString().slice(0,10),from=new Date(input.end-input.historyDays*86400000).toISOString().slice(0,10);
    return {source:'schwab',symbol:input.symbol,bars:days.map((d,i)=>[d,i]).filter(([d])=>d>=from&&d<=end).map(([d,i])=>({t:Date.parse(d+'T16:00:00-04:00')/1000,c:base[input.symbol]*(1+i*0.002)}))};}
   if(name==='trading.quotes')return {source:'schwab',quotes:input.symbols.map(s=>({symbol:s,tradePrice:last(base[s]),tradeAt:now.toISOString()}))};
   // The archive serves at most 365 days, short of the monthly warmup.
@@ -147,4 +148,39 @@ test('a saved strategy runs on a paper account: assigned, armed, rebalanced once
  assert.equal((await store.listOrders(book,'alice')).length,orders.length,'one rebalance per decision, not per pass');
  assert.equal((await h.bookStrategy(as('alice',{params:{ref},body:{}}))).body.cleared,true);
  assert.equal((await h.books(as('alice'))).body.accounts[0].strategy,null,'cleared: back to the posture engine');
+});
+
+test('daily stock and retirement paper routes retain stops and settlement across handler recreation and interrupted assignment saves',async t=>{
+ const {PRESETS,normalizePolicy}=require('../routes/strategy/policies'),{sessionDates,lastCompletedSession}=require('../routes/trading-portfolio-calendar'),{saveRecord}=require('../routes/trading-portfolio-store');
+ for(const kind of ['quant-stock-daily','retirement-defensive-daily']){
+  const pool=await fixture(t);let now=new Date('2026-10-27T15:00:00Z'),failAssignment=false;
+  const config=normalizePolicy(kind==='quant-stock-daily'?{...PRESETS[kind],assets:[{symbol:'AAA',weightPct:50},{symbol:'BBB',weightPct:50}]}:PRESETS[kind]);
+  const days=sessionDates('2025-01-02','2026-10-30'),calls=[];
+  const intent=async(name,input)=>{calls.push(name);if(name==='trading.config')return {configured:true};
+   if(name==='trading.bars'){assert.equal(input.historyDays,800);assert.equal(input.end,now.getTime());return {source:'schwab',symbol:input.symbol,bars:days.map((d,i)=>({t:Date.parse(d+'T05:00:00Z')/1000,c:100*Math.exp(.001*i)}))};}
+   if(name==='trading.quotes')return {source:'schwab',quotes:input.symbols.map(symbol=>({symbol,tradePrice:200,tradeAt:now.toISOString()}))};
+   throw Error('Unexpected broker effect: '+name);};
+  const wrapped={query:async(sql,args)=>{if(failAssignment&&sql.startsWith('INSERT INTO oshal_trading_portfolio_records')&&args[2]==='paper-strategy'){failAssignment=false;throw Error('Simulated assignment write interruption after ledger commit');}return pool.query(sql,args);},connect:()=>pool.connect()};
+  const h=paperHandlers({pool:wrapped,intent},()=>now),as=(extra={})=>({oshalCallerSub:'alice',body:{},headers:{},params:{},...extra});
+  const ref=(await h.createBook(as({body:{label:kind,startingCash:100000,posture:'balanced'}}))).body.book.book_ref,book=books.bookPool(pool,ref);
+  const held=kind==='quant-stock-daily'?'AAA':'SPY',before=await store.loadAccount(book,'alice');
+  await book.query(store.SQL.ACCOUNT_WRITE,['alice',0,100000,100000,0,before.version+1,null,now.toISOString(),before.version]);
+  await book.query(store.SQL.POSITION_UPSERT,['alice',held,500,1000,200,now.toISOString(),1000,now.toISOString(),now.toISOString()]);
+  const saved=await saveRecord({pool},'alice','strategy',{name:kind,config,researchOnly:true});
+  const assigned=(await h.bookStrategy(as({params:{ref},body:{strategyId:saved.id}}))).body;
+  assert.ok(!assigned.strategy.targets.some(t=>t.symbol===held),'assignment review includes actual holding cost stop');
+  failAssignment=true;await h.tick(as({headers:{'x-oshal-trigger':'schedule'}}));
+  const first=(await store.listTicks(book,'alice'))[0],orders=await store.listOrders(book,'alice');
+  assert.equal(first.summary.daily.decisionAsOf,lastCompletedSession(now));assert.equal(first.summary.daily.riskState.stops[held].session,lastCompletedSession(now));
+  assert.ok(orders.some(o=>o.symbol===held&&o.side==='sell'));assert.ok(first.summary.daily.costs>0);
+  if(kind==='retirement-defensive-daily'){assert.equal(orders.filter(o=>o.side==='buy').length,0,'same-session retirement proceeds remain unsettled');assert.equal(first.summary.daily.unsettledCash,99750);assert.equal(first.summary.daily.settledCash,0);}
+  else assert.ok(orders.some(o=>o.symbol==='BBB'&&o.side==='buy'),'margin paper may use sale proceeds without debt');
+  now=new Date('2026-10-27T15:10:00Z');await paperHandlers({pool,intent},()=>now).tick(as({headers:{'x-oshal-trigger':'schedule'}}));
+  assert.equal((await store.listOrders(book,'alice')).length,orders.length,'durable ledger decision prevents duplication when assignment metadata failed');
+  now=new Date('2026-10-28T15:00:00Z');await paperHandlers({pool,intent},()=>now).tick(as({headers:{'x-oshal-trigger':'schedule'}}));
+  const second=(await store.listTicks(book,'alice'))[0],later=(await store.listOrders(book,'alice')).filter(o=>new Date(o.created_at).toISOString()===now.toISOString());
+  assert.equal(second.summary.daily.session,'2026-10-28');assert.ok(second.summary.targets.some(t=>t.symbol===held),'a later signal can reconsider a stopped name');
+  if(kind==='retirement-defensive-daily'){assert.ok(later.some(o=>o.side==='buy'),'retirement proceeds settle on the next exchange session');assert.equal(second.summary.daily.unsettledCash,0);assert.ok(later.reduce((n,o)=>n+o.notional,0)<=9975,'daily turnover cap survives the recreated handler');}
+  assert.ok((await store.loadAccount(book,'alice')).cash>=0);assert.ok(calls.every(n=>['trading.config','trading.bars','trading.quotes'].includes(n)));
+ }
 });

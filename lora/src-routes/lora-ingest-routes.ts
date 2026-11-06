@@ -15,6 +15,7 @@
  * RLS. Every route also checks `requireAdmittedGrant`, so none can run without a verified grant.
  */
 
+import {captionStateCallback,datasetStateCallback,assertEditorCharacterOwner} from './lora-caption-editor';
 import { Router, raw, type Request, type RequestHandler, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
@@ -155,6 +156,7 @@ async function scopedCharacter(
   if (!character) { res.status(404).json({ error: 'character not found' }); return null; }
   const characterRefusal = grantRefusal(grant, kind, character.id);
   if (characterRefusal) { res.status(403).json({ error: characterRefusal }); return null; }
+  try{await assertEditorCharacterOwner(ctx,character.id);}catch(error){res.status(403).json({error:'original_character_owner_required',message:(error as Error).message});return null;}
   return character;
 }
 
@@ -275,16 +277,18 @@ async function ingestCallback(ctx: AppContext, req: Request, res: Response): Pro
   const b = callbackBody(req);
   if (!b) { res.status(415).json({ error: `a ${CALLBACK_CONTENT_TYPE} object body is required` }); return; }
   const kind = String(b.kind || '').trim();
-  if (!['training', 'score', 'review', 'dataset'].includes(kind)) {
-    res.status(400).json({ error: 'character and kind (training|score|review|dataset) required' });
+  if (!['training', 'score', 'review', 'dataset', 'caption', 'dataset-state'].includes(kind)) {
+    res.status(400).json({ error: 'character and kind (training|score|review|dataset|caption|dataset-state) required' });
     return;
   }
   const character = await scopedCharacter(ctx, res, grant, kind as CallbackKind, String(b.character || b.subject || '').trim());
   if (!character) return;
+  if (kind === 'dataset-state') { await datasetStateCallback(ctx,res,character);return; }
+  if (kind === 'caption') { if(await captionStateCallback(ctx,res,character,grant,b))await revokeCallbackGrant(ctx.pool,grant.id);return; }
   if (kind === 'review') { await parkReview(ctx, res, grant, character, b); return; }
   if (kind === 'dataset') {
     // The import's last word: its grant has nothing left to report once the receipt is settled.
-    if (await recordDatasetCallback(ctx, res, character, b)) await revokeCallbackGrant(ctx.pool, grant.id);
+    if (await recordDatasetCallback(ctx, res, character, b,grant)) await revokeCallbackGrant(ctx.pool, grant.id);
     return;
   }
   const version = Number(b.version);

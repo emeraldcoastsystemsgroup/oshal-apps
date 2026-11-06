@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Ask the native kernel for admitted first-use image readiness; report lifecycle progress separately from a contacted transport.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -86,13 +87,41 @@ class EngineClient {
     helloHash = null;
     lastFailure = null;
     nativeActive = 0;
+    lifecycle = null;
     constructor(opts) {
         this.opts = opts;
     }
     /** @description What the surface shows about the engine. */
     status() {
         const native = Boolean(this.opts.exchange);
-        return { connected: native ? !this.lastFailure : this.ready, contacted: this.ready || Boolean(this.lastFailure), buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
+        return { connected: this.ready && !this.lastFailure && (!this.lifecycle || ['ready', 'running', 'pinned'].includes(this.lifecycle.state)), lifecycle: this.lifecycle, contacted: this.ready || Boolean(this.lastFailure), buildHash: this.helloHash, expectedBuildHash: native ? this.helloHash : this.opts.expectedBuildHash, lastError: this.lastFailure ? this.lastFailure.reason || this.lastFailure.message : null, installHint: this.opts.installHint, address: native ? 'native://engine.exchange' : `${this.opts.host}:${this.opts.port}` };
+    }
+    /** Request image readiness without starting an engine command or claiming a transport connection. */
+    async refreshStatus() {
+        if (!this.opts.readStatus)
+            return this.status();
+        this.lifecycle = null;
+        try {
+            const value = await this.opts.readStatus();
+            if (!value || typeof value !== 'object' || Array.isArray(value))
+                throw new Error('invalid engine readiness');
+            const row = value;
+            if (typeof row.state !== 'string' || !['not-prepared', 'preparing', 'ready', 'running', 'failed', 'pinned', 'none'].includes(row.state))
+                throw new Error('invalid engine readiness state');
+            if (row.detail !== undefined && typeof row.detail !== 'string')
+                throw new Error('invalid engine readiness detail');
+            for (const key of ['doneBytes', 'totalBytes']) {
+                if (row[key] !== undefined && !(key === 'totalBytes' && row[key] === null) && (!Number.isSafeInteger(row[key]) || Number(row[key]) < 0))
+                    throw new Error('invalid engine readiness progress');
+            }
+            this.lifecycle = { state: row.state, ...(row.detail === undefined ? {} : { detail: row.detail }), ...(row.doneBytes === undefined ? {} : { doneBytes: row.doneBytes }), ...(row.totalBytes === undefined ? {} : { totalBytes: row.totalBytes }) };
+            return this.status();
+        }
+        catch (error) {
+            this.lifecycle = { state: 'failed', detail: 'Engine readiness is unavailable.' };
+            this.ready = false;
+            throw error;
+        }
     }
     /**
      * @description Send one command and await its result.

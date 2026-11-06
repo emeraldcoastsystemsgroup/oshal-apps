@@ -14,6 +14,7 @@
  *                     |                             | a whole project, so lines are assembled in linear time and
  *                     |                             | bounded. The socket factory is injectable for the specs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Reuse the client through admitted native RPC without adding process network access.
+ * 2026-11-04 | maintainer@emeraldcoastsystemsgroup.com | Lower typed object operations locally while native requests keep their closed operation for original-caller admission.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -21,6 +22,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EngineClient = exports.LineSplitter = exports.EngineFailure = exports.MAX_LINE_CHARS = exports.DEFAULT_ENGINE_ADDR = exports.BRIDGE_PROTOCOL = void 0;
 exports.parseEngineAddr = parseEngineAddr;
+const object_operations_1 = require("./object-operations");
 const node_net_1 = __importDefault(require("node:net"));
 const logger_1 = require("@/shared/logger");
 const logger = (0, logger_1.createChildLogger)({ module: 'scene-studio-engine-client' });
@@ -125,6 +127,10 @@ class EngineClient {
     request(op, fields = {}, timeoutMs) {
         if (this.opts.nativeRequest)
             return this.requestNative(op, fields, timeoutMs);
+        if (op === 'object_inspect' || op === 'object_patch') {
+            const lowered = (0, object_operations_1.lowerObjectRequest)(op, fields);
+            return this.request(lowered.op, lowered.fields, timeoutMs);
+        }
         const max = this.opts.maxQueue ?? 8;
         if (this.queue.length >= max)
             return Promise.reject(new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`));
@@ -347,3 +353,4 @@ function parseEngineAddr(value) {
         throw new Error(`invalid engine address "${text}" (expected host:port)`);
     return { host: m[1], port: Number(m[2]) };
 }
+//# sourceMappingURL=engine-client.js.map

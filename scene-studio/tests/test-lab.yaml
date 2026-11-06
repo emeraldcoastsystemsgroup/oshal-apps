@@ -9,8 +9,20 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register bounded native transport and held revision transaction compatibility proof.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register director-rules (persona and tool usage rules: named project, read before edit, BoxMesh sub_resources, no capabilities-first read); package-tools also proves scene-get-project reports the live engine.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the person and the concierge edit the same project file in turn through the shared document handoff, over the compiled routes and the package's shared fixture.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Register actual model-visible Blender read/write example execution through owned SQL and a real isolated engine.
 version: 1
 cases:
+  - id: safe-object-operations
+    name: Closed Blender editing without arbitrary-run rights
+    purpose: Guard typed request closure, JSON-only executable boundaries, native linkage/shared-data checks, editor permissions, and original-owner CAS before engine dispatch.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/safe-object-operations.test.js]}
+    expected: [Caller code and metadata are refused, Only the closed native operation reaches dispatch, Foreign/stale edits never reach the engine, Editor role has no run permission]
+    prerequisites: [runner:node-test, runtime:python3]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove only the test's private source-revision directory; synthetic SQL/datablocks, no actual engine or provider."}
+    limits: {timeoutMs: 15000, maxMemoryMb: 256}
+    installation: never
   - id: director-rules
     name: The director's working rules
     purpose: The persona and the tool usage text carry the rules the sweep found broken - create a project only when asked, read a scene before editing it, keep meshes as BoxMesh sub_resources inside the .tscn, and read scene-capabilities only when the engine is reported disconnected.
@@ -19,7 +31,7 @@ cases:
     expected: [The persona carries each rule, The tool usage text carries the same rules]
     prerequisites: [runner:node-test]
     sideEffects: none
-    isolation: { mode: disposable, cleanup: Reads package source files only; no engine or database. }
+    isolation: { mode: disposable, cleanup: "Reads package source files only; no engine or database."}
     limits: { timeoutMs: 15000, maxMemoryMb: 128 }
     installation: never
   - id: package-readiness
@@ -200,7 +212,7 @@ cases:
     installation: never
   - id: catalog-bindings
     name: Authorization catalog covers every route, tool and bot
-    purpose: Prove the ADR-149 catalog binds the package exactly - every literal route under every manifest mount matches one http binding under the kernel's segment rule and every binding serves a route, every manifest tool has one tools binding, the director is the one bound bot, exactly the 8 read tools are read-only, and the creator role grants every bound permission at scope own.
+    purpose: Prove the ADR-149 catalog binds the package exactly - every literal route under every manifest mount matches one http binding under the kernel's segment rule and every binding serves a route, every manifest tool has one tools binding, the director is the one bound bot, exactly the 7 read tools are read-only, and the creator role grants every bound permission at scope own.
     level: unit
     runner:
       kind: node-test
@@ -209,7 +221,7 @@ cases:
         - tests/catalog-bindings.test.js
     expected:
       - 24 mounted routes each match exactly one of the 23 http bindings; GET / serves the Home summary and the readiness smoke with scene.read.
-      - The 22 tool bindings equal the manifest's tools and the bots binding is the director with scene.run; the read-only tools are exactly the 8 read tools.
+      - The 22 tool bindings equal the manifest's tools and the bots binding is the director with scene.read; the read-only tools are exactly the 7 read tools.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -231,7 +243,7 @@ cases:
       files:
         - tests/tools.core.test.js
     expected:
-      - The kernel's resolveOperationPermissions agrees with the bare binding mirror for all 24 routes, 22 tools and the director; activation publishes 22 handlers and the 8 read tools are the auto-proposable ones.
+      - The kernel's resolveOperationPermissions agrees with the bare binding mirror for all 24 routes, 22 tools and the director; activation publishes 22 handlers and the 7 read tools are the auto-proposable ones.
       - A creator granted through the real preview and apply runs all 22 tools; no role is authorization_tier_denied, a permit without scene.edit is authorization_executor_scope_denied, an explicit deny wins.
       - An @app-admin grant makes the catalog-adopting prepare refuse authorization_catalog_migration_required (breaking); after approval the next start removes @app-admin and the former admin needs creator.
     prerequisites:
@@ -343,4 +355,56 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1536
+    installation: never
+  - id: scene-object-model
+    name: Exact native node transforms and object commands
+    purpose: Verify source-preserving Godot transform/text edits and bounded native Blender object commands, including material sharing and executable-name refusal.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/scene-object-model.test.mjs]}
+    expected: [Untouched native resources and siblings remain intact, Unsupported native properties refuse, Names remain JSON data]
+    prerequisites: [runner:node-test, runtime:python3]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "No database or engine; close the bounded Python name-decoding subprocess."}
+    limits: {timeoutMs: 15000, maxMemoryMb: 256}
+    installation: never
+  - id: common-editor-native
+    name: Shared editor with real Blender and Godot
+    purpose: Prove native object selection, transforms/material/keyframes and Godot node edits using isolated reviewed native engines and forced-owner PostgreSQL, with genuine PNG/GLB and stale-revision refusal.
+    level: integration
+    runner: {kind: external, scope: package, files: [tests/editor-foundation.native.test.mjs]}
+    expected: [Selected native edits persist without replacing the source scene, Shared materials remain scoped to the selected object, Genuine render/export and revisions survive reopen, Stale inspector edits refuse under the project lock]
+    prerequisites: [runner:node, runtime:docker-existing-reviewed-scene-image, service:postgres-disposable-35689, runtime:kernel-shared-ui, runtime:playwright]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove only the labelled fixture engine container, temporary artifacts and unique SQL schema/role; preserve shared services."}
+    limits: {timeoutMs: 300000, maxMemoryMb: 4096}
+    installation: never
+  - id: native-fixture-parity
+    name: Package-contained native fixture provenance
+    purpose: Verify the Scene fixture's pinned source and optional monorepo canonical parity without requiring another package in an archived Test Lab run.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/native-fixture-parity.test.mjs]}
+    expected: [The fixture exists inside this package and matches its reviewed source hash]
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: {mode: disposable, cleanup: "Read package fixture source only."}
+    limits: {timeoutMs: 15000, maxMemoryMb: 128}
+    installation: never
+
+  - id: blender-source-guidance
+    name: Executable Blender source observations
+    purpose: Keep the actual model-visible native text read/write examples executable and truthful after source changes.
+    level: integration
+    runner: {kind: external, scope: package, files: [tests/blender-source-guidance.test.mjs]}
+    expected:
+      - A readonly native query returns existing Unicode text without a revision.
+      - The actual write example changes only text and keeps geometry, typography and other objects.
+      - A fresh readonly query observes the new source revision rather than a literal or page context.
+      - Controlled engine execution is separate from live provider or installed interaction acceptance.
+    prerequisites: [runner:node, service:postgres-disposable-35689, engine:scene-studio-engine]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/native-editor-fixture.mjs]
+      cleanup: Remove only this fixture's container, data root, PostgreSQL schema and role.
+    limits: {timeoutMs: 300000, maxMemoryMb: 1536}
     installation: never

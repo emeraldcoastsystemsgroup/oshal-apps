@@ -40,7 +40,7 @@ const video_editor_native_1 = require("./video-editor-native");
 const logger = (0, logger_1.createChildLogger)({ module: 'video-editor-routes' });
 /** The editor screen's only files: a fixed name-to-type allowlist, never a path taken from the request. */
 const EDITOR_ASSETS = Object.freeze({
-    'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
+    'artifact-import.mjs': 'text/javascript; charset=utf-8', 'editor-foundation-adapter.mjs': 'text/javascript; charset=utf-8', 'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
     'editor-player.mjs': 'text/javascript; charset=utf-8', 'editor-export.mjs': 'text/javascript; charset=utf-8',
     'timeline-view.mjs': 'text/javascript; charset=utf-8', 'timeline-model.mjs': 'text/javascript; charset=utf-8',
     'timeline-validation.mjs': 'text/javascript; charset=utf-8', 'multitrack-model.mjs': 'text/javascript; charset=utf-8', 'multitrack-editor.mjs': 'text/javascript; charset=utf-8',

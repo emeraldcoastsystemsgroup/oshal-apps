@@ -9,6 +9,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Validate actual read-only effect tools and register rendered effect workflow evidence.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Validate exact keyframe read/tool bindings and register native curve/path workflows.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Require the automatic document handoff browser recipe in the actual source catalog.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | Prove fresh actual contract keys, native/backend edit-key refusals, and register the 49-case Test Lab catalog.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -126,6 +127,7 @@ test('complete agent index and exact real schemas fit below the platform observa
   const manual = await fixture.call('/editing-contract'); assert.equal(manual.status, 200);
   assert.ok(Buffer.byteLength(JSON.stringify(manual.body)) > 65536, 'the full manual catalog would be truncated as an agent observation');
   const compact = await tool('motion-editing-contract');
+  const second = await tool('motion-editing-contract');assert.notEqual(compact.requestKey,second.requestKey);assert.match(compact.requestKey,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);assert.match(compact.requestKeyRule,/Copy requestKey unchanged/);
   assert.equal(compact.commandIndexComplete, true);
   assert.equal(compact.commandCount, manual.body.engine.commands.length);
   assert.deepEqual(compact.engine.commands.map(command => command.id), manual.body.engine.commands.map(command => command.id));
@@ -314,9 +316,19 @@ test('Test Lab catalog is loaded by the actual framework catalog reader and regi
   assert.ok(framework, 'Explicit framework source required for catalog loader proof');
   const loader = createRequire(resolve(framework, 'package.json'))('./scripts/oshal-test-catalog.js');
   const result = loader.loadPackageTestCatalog(root, source);
-  assert.equal(result.catalog.cases.length, 45);
+  assert.equal(result.catalog.cases.length, 49);
   const registered = new Set(result.catalog.cases.flatMap(testCase => testCase.runner.files));
   for (const file of ['engine/src/lib.rs', 'tests/project-store.test.mjs', 'tests/engine-bridge.test.mjs',
-    'tests/application.test.mjs', 'tests/browser/document-handoff.test.mjs', 'tests/workbench.test.mjs', 'tests/native-runner.test.mjs',
-    'tests/native-sql.test.mjs', 'tests/bounded-json-wire.test.mjs', 'tests/package-contract.test.mjs', 'tests/project-inspection.test.mjs', 'tests/engine-container.test.mjs', 'tests/document-exchange.test.mjs','tests/lossless-json.test.mjs','tests/lossless-documents.test.mjs','tests/owned-blobs.test.mjs','tests/durable-assets.test.mjs','tests/durable-revisions.test.mjs','tests/crash-recovery.test.mjs','tests/portable-bundle.test.mjs','tests/portable-store.test.mjs','tests/render-export.test.mjs','tests/layer-workflows.test.mjs','tests/effects.test.mjs','tests/keyframe-workflows.test.mjs','tests/playback-workflows.test.mjs','tests/text-workflows.test.mjs','tests/point-text.test.mjs','tests/candidate-package.test.mjs','tests/mask-workflows.test.mjs','tests/animated-mask-workflows.test.mjs','tests/per-character-text.test.mjs','tests/variable-feather.test.mjs','tests/bundle-transfers.test.mjs','tests/bundle-http.test.mjs','tests/bundle-workbench.test.mjs','tests/sha256-stream.test.mjs','tests/bundle-streaming.test.mjs','tests/properties-workflows.test.mjs']) assert.ok(registered.has(file), file);
+    'tests/application.test.mjs', 'tests/browser/document-handoff.test.mjs', 'tests/browser/editor-foundation.test.mjs', 'tests/workbench.test.mjs', 'tests/native-runner.test.mjs',
+    'tests/native-sql.test.mjs', 'tests/bounded-json-wire.test.mjs', 'tests/package-contract.test.mjs', 'tests/project-inspection.test.mjs', 'tests/engine-container.test.mjs', 'tests/document-exchange.test.mjs','tests/lossless-json.test.mjs','tests/lossless-documents.test.mjs','tests/owned-blobs.test.mjs','tests/durable-assets.test.mjs','tests/durable-revisions.test.mjs','tests/crash-recovery.test.mjs','tests/portable-bundle.test.mjs','tests/portable-store.test.mjs','tests/render-export.test.mjs','tests/layer-workflows.test.mjs','tests/effects.test.mjs','tests/keyframe-workflows.test.mjs','tests/playback-workflows.test.mjs','tests/text-workflows.test.mjs','tests/point-text.test.mjs','tests/candidate-package.test.mjs','tests/mask-workflows.test.mjs','tests/animated-mask-workflows.test.mjs','tests/per-character-text.test.mjs','tests/variable-feather.test.mjs','tests/bundle-transfers.test.mjs','tests/bundle-http.test.mjs','tests/bundle-workbench.test.mjs','tests/sha256-stream.test.mjs','tests/bundle-streaming.test.mjs','tests/properties-workflows.test.mjs','tests/busy-retry.test.mjs','tests/edit-title-guidance.test.mjs','tests/text-approval-guidance.test.mjs']) assert.ok(registered.has(file), file);
+});
+
+test('both native edit schemas reject malformed and v7 request keys before proposal and backend work',async()=>{
+ const contract=await tool('motion-editing-contract'),base={id:randomUUID(),baseRevision:1,requestKey:contract.requestKey,response:'receipt'};
+ for(const name of ['motion-apply-edits','motion-apply-exact-edits']){
+  const input=name==='motion-apply-edits'?{...base,commands:[{command:'layer.newSolid',params:{}}]}:{...base,compId:'1',commandsJson:'[{"command":"layer.newSolid","params":{}}]'};
+  await validate(name,input);
+  for(const requestKey of ['not-a-uuid'.padEnd(36,'x'),'11111111-1111-7111-8111-111111111111','00000000-0000-0000-0000-000000000000'])await assert.rejects(validate(name,{...input,requestKey}));
+ }
+ for(const requestKey of ['not-a-uuid'.padEnd(36,'x'),'11111111-1111-7111-8111-111111111111']){const refused=await fixture.call('/projects/'+base.id+'/operations',{method:'POST',body:{...base,requestKey,commands:[{command:'layer.newSolid',params:{}}]}});assert.equal(refused.status,400);assert.equal(refused.body.error,'motion_invalid_id');}
 });

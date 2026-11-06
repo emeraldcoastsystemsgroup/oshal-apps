@@ -37,7 +37,7 @@ test('each named application role includes the whole bundle without component se
   const bundles = roleBlock.split(/    - id: /).slice(1);
   assert.deepEqual(bundles.map(row => row.split(/\r?\n/)[0]), ["staff", "manager", "specialist"]);
   for (const bundle of bundles) {
-    assert.match(bundle, /      version: 2/);
+    assert.match(bundle, /      version: 3/);
     const apps = [...bundle.matchAll(/        - app: ([a-z0-9-]+)/g)].map(match => match[1]);
     assert.deepEqual(apps, ['business-experience', ...required]);
     assert.equal(new Set(apps).size, apps.length);

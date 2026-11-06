@@ -20,6 +20,7 @@ CHANGE LOG
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Portrait Studio</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's saved
      portraits (ready to see, waiting or being made, did not finish), painted by the shared kit in the family grammar
@@ -281,6 +282,21 @@ CHANGE LOG
   .em-actions #emailSend { background: var(--accent); border-color: var(--accent); color: #08131c; font-weight: 600; }
   .em-actions button:disabled { opacity: .6; cursor: default; }
   #emailStatus { margin-top: 10px; font-size: 12.5px; min-height: 16px; }
+
+/* A source-photo viewport, saved-image rail and real generation/crop inspector. */
+.wrap.ef-editor{max-width:none;padding:0;margin:0}.ef-editor #studioComposer{display:contents}.ef-editor .ef-header-slot>header{margin:0;padding:12px 16px;gap:10px;flex-wrap:wrap}
+.ef-editor .ef-header-slot h1{font-size:20px}.ef-editor .ef-header-slot .sub{display:none}.ef-editor .ef-viewport>.panel,.ef-editor .ef-more-tools>.panel{padding:14px;border:0;border-radius:0;overflow:auto;background:transparent}
+.ef-editor .ef-viewport>.panel{height:100%}.ef-editor #gallery{margin:0;padding:14px}.ef-editor .g-grid{grid-template-columns:minmax(0,1fr)}.ef-editor .g-item .acts{display:flex;flex-wrap:wrap;gap:5px}
+.ef-editor #styleCards{grid-template-columns:minmax(0,1fr)}.ef-editor .opts{display:block}.ef-editor .opt-group{margin:12px 0}.ef-editor #cropCanvasWrap{max-width:100%;overflow:hidden}
+.ef-editor #cropCanvas{max-width:100%;height:auto}.ef-editor #providerBanner{margin:0!important}.ef-editor .mode-toggle{flex-wrap:wrap}
+@media(max-width:800px){.ef-editor button,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor input,.ef-editor select{font-size:16px}.ef-editor .mode-toggle{display:flex;width:100%}.ef-editor .mode-toggle button{flex:1}}
+
+
+.ef-editor .crop-history-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.ef-editor .crop-history-actions button,.ef-editor .source-actions input{min-height:44px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:8px 12px;font:inherit}
+.ef-editor .crop-history-actions button:disabled{opacity:.5}.ef-editor .source-actions label{display:flex;flex-direction:column;gap:4px;flex:1 1 240px;min-width:0}.ef-editor .source-actions input{width:100%;min-width:0}.ef-editor .source-actions button{flex:0 1 auto}
+@media(max-width:800px){.ef-editor .source-actions label{flex-basis:100%}.ef-editor .source-actions button{flex:1 1 auto;font-size:14px}}
+
 </style>
 </head>
 <body class="mode-professional">
@@ -345,7 +361,7 @@ CHANGE LOG
       <div id="groupChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
       <div class="cards" id="styleCards"></div>
 
-      <h2 style="margin-top:18px"><span class="step">Step 3</span> Fine-tune — every piece is swappable</h2>
+      <h2 style="margin-top:18px"><span class="step">Step 3</span> Generation settings</h2>
       <div class="opts" id="tuneOpts">
         <div class="opt-group">
           <label for="tuneBackground">Background</label>
@@ -387,7 +403,7 @@ CHANGE LOG
   </div>
 
   <div id="gallery" hidden>
-    <h2>Your portraits</h2>
+    <h2>Your portraits</h2><p class="hint">Generated portraits are rendered images. Edit or send an image to add editable text, shapes and image layers in an editor.</p>
     <div class="g-grid" id="galleryGrid"></div>
     <div class="empty" id="galleryEmpty" style="display:none">Nothing here yet — your generated portraits will appear in this gallery.</div>
   </div>
@@ -492,20 +508,25 @@ if (!window.AppView || !AppView.active()) (function () {
 
   var $ = function (id) { return document.getElementById(id); };
   function can(action) { return state.permissions[action] === true; }
+  function canCreateSource() { return can('create') || can('source.create'); }
   function escapeText(value) { var node = document.createElement('span'); node.textContent = String(value || ''); return node.innerHTML; }
   function updateAccess(data) {
     if (faceFinder) faceFinder.cancel();
     state.permissions = data.permissions || {};
     state.unavailable = data.unavailable || {};
-    $('studioComposer').hidden = !can('create');
+    $('studioComposer').hidden = !canCreateSource() && !portraitSourceId;
+    if (portraitPhotoPanel) portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId;
+    if (portraitSettingsPanel) portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId;
+    portraitEditor?.refresh(); updateCropButtons();
     $('gallery').hidden = !can('read');
-    document.querySelector('.mode-toggle').hidden = !can('create');
+    document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId;
     // Plain words: what this person can do, what they cannot, and who can change it (no role or broker names).
     $('accessBanner').textContent = !can('view') ? 'Portrait Studio is not open to your account. Ask an administrator for access.' :
       !can('read') ? 'You can open the studio, but your saved portraits are not shown to your account. Ask an administrator for access to them.' :
-      !can('create') ? 'You can see your portraits. To make new ones, ask an administrator for access to create portraits.' : '';
+      !can('create') ? (can('source.create') ? 'You can edit and save photo sources and see your portraits. Creating generated portraits requires additional access.' : 'You can see your portraits. To make new ones, ask an administrator for access to create portraits.') : '';
     if (can('email') && state.unavailable.email) $('accessBanner').textContent += ' Sending a portrait by email is not available here yet: download it and send it from your own mail app.';
     if (!can('read')) $('galleryGrid').replaceChildren();
+    sourceNotify();
     updateGenerateBtn();
   }
   async function loadAccess() {
@@ -528,6 +549,144 @@ if (!window.AppView || !AppView.active()) (function () {
   function imgW() { return state.img ? state.img.naturalWidth : 0; }
   function imgH() { return state.img ? state.img.naturalHeight : 0; }
   function groupMax() { return (state.catalog.groupLimits && state.catalog.groupLimits.max) || window.PortraitCapture.MAX_GROUP_SUBJECTS; }
+
+
+  var portraitEditor, portraitPhotoPanel, portraitSettingsPanel, portraitAssistant, portraitSourceSession;
+  var cropIdentities = new WeakMap(), photoIdentities = new WeakMap(), cropHistories = new WeakMap();
+  var emptyPortraitDraft = 'portrait-draft:' + crypto.randomUUID();
+  function portraitIdentity(value, map) { if (!value) return null; if (!map.has(value)) map.set(value, value._editorId || crypto.randomUUID()); if (map === cropIdentities) value._editorId = map.get(value); return map.get(value); }
+  function portraitContext() { return { documentId: portraitSourceId || emptyPortraitDraft,
+    selection: { kind: cur() ? 'face crop' : 'portrait brief', ids: cur() ? [portraitIdentity(cur(), cropIdentities)] : ['brief'] } }; }
+  function cropHistory() {
+    if (!state.img || !state.crops.length) return null;
+    state.crops.forEach(function (crop) { portraitIdentity(crop, cropIdentities); });
+    var key = state.mode + ':' + state.aspect, history = cropHistories.get(state.img);
+    if (!history || history.key !== key) { history = { key: key, past: [JSON.stringify(state.crops)], future: [] }; cropHistories.set(state.img, history); }
+    return history;
+  }
+  function rememberCrop() { var history = cropHistory(); if (!history) return; var value = JSON.stringify(state.crops);
+    if (history.past[history.past.length - 1] !== value) { history.past.push(value); if (history.past.length > 50) history.past.shift(); history.future = []; } updateCropButtons(); }
+  function updateCropButtons() {
+    var history = cropHistory();
+    if ($('undoCrop')) $('undoCrop').disabled = !sourceEditable() || !history || history.past.length < 2;
+    if ($('redoCrop')) $('redoCrop').disabled = !sourceEditable() || !history || !history.future.length;
+  }
+  function moveCropHistory(forward) {
+    var history = cropHistory(); if (!history || (forward ? !history.future.length : history.past.length < 2)) return;
+    if (forward) history.past.push(history.future.pop()); else history.future.push(history.past.pop());
+    state.crops = JSON.parse(history.past[history.past.length - 1]); state.active = Math.min(state.active, state.crops.length - 1);
+    syncPhoto(); drawCrop(); updateFaceTools();
+  }
+  function portraitProperties() {
+    var fields = [{ key: 'notes', label: 'Generation notes', type: 'text', value: $('notes').value, group: 'Generation brief' }], box = cur();
+    if (box) ['x', 'y', 'w', 'h'].forEach(function (key) { fields.push({ key: 'crop-' + key, label: ({ x: 'X', y: 'Y', w: 'Width', h: 'Height' })[key], type: 'number', value: Math.round(box[key] * 100000) / 100000, min: key === 'x' || key === 'y' ? 0 : 1, max: key === 'x' || key === 'w' ? imgW() : imgH(), step: 'any', unit: 'source px', group: 'Face crop' }); });
+    document.querySelectorAll('#tuneOpts select').forEach(function (field) { if (field.options.length) fields.push({ key: field.id, label: field.closest('.opt-group').querySelector('label').textContent, type: 'select', value: field.value, options: [...field.options].map(function (option) { return { value: option.value, label: option.textContent }; }), group: 'Generation settings' }); });
+    return fields;
+  }
+  function applyPortraitProperty(key, value, expected) {
+    var current = portraitContext();
+    if (!sourceEditable() || state.generating || expected.documentId !== current.documentId || JSON.stringify(expected.selection) !== JSON.stringify(current.selection)) throw Error('The selected photo or crop changed. Select it again.');
+    if (key.indexOf('crop-') === 0) {
+      var field = key.slice(5), box = cur(), next = Object.assign({}, box); if (!box || !['x', 'y', 'w', 'h'].includes(field)) throw Error('Select a face crop first.');
+      next[field] = value; if (field === 'w') next.h = value / state.aspect; if (field === 'h') next.w = value * state.aspect;
+      if (![next.x, next.y, next.w, next.h].every(Number.isFinite) || next.x < 0 || next.y < 0 || next.w < 1 || next.h < 1 || next.x + next.w > imgW() || next.y + next.h > imgH()) throw Error('Keep the complete crop inside the source photo. Width and height retain the selected aspect ratio.');
+      Object.assign(box, next); syncPhoto(); drawCrop(); return;
+    }
+    var control = $(key); if (!portraitProperties().some(function (field) { return field.key === key; }) || !control) throw Error('This portrait property is unavailable.');
+    if (control.tagName === 'SELECT' && ![...control.options].some(function (option) { return option.value === value; })) throw Error('Choose a generation setting from its catalog.');
+    if (control.maxLength > 0 && String(value).length > control.maxLength) throw Error('Shorten the generation notes.');
+    control.value = value; control.dispatchEvent(new Event('input', { bubbles: true })); control.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  // The original photo Blob is retained until an owned immutable source asset is acknowledged.
+  var originalPhotoFiles = new WeakMap(), photoAssets = new WeakMap(), photoAssetRequests = new WeakMap();
+  var photoLoadEpoch = 0, portraitSourceId = null, portraitSourceRevision = 0, portraitSourceBaseline = null;
+  var portraitSourceBusy = false, portraitSourcePending = null, portraitSourceTitle, portraitSourceLibrary;
+  function sourceDraft() {
+    syncPhoto();
+    return { version: 1, kind: 'portrait', title: portraitSourceTitle ? portraitSourceTitle.value : 'Portrait source', mode: state.mode, style: state.style, aspect: state.aspect, notes: $('notes').value, settings: tuneOverrides(),
+      photos: state.photos.map(function (photo) { var asset = photoAssets.get(photo.img); return { id: portraitIdentity(photo.img, photoIdentities), assetId: asset ? asset.id : null, sha256: asset ? asset.sha256 : null, width: photo.img.naturalWidth, height: photo.img.naturalHeight,
+        crops: photo.crops.map(function (crop) { return { id: portraitIdentity(crop, cropIdentities), x: crop.x, y: crop.y, w: crop.w, h: crop.h }; }) }; }) };
+  }
+  function sourceDirty() { return JSON.stringify(sourceDraft()) !== portraitSourceBaseline || Boolean(portraitEditor?.hasPending()); }
+  async function sourceRequest(path, options) { var response = await fetch(API + path, Object.assign({ credentials: 'same-origin', cache: 'no-store' }, options)); var body = await response.json().catch(function () { return {}; }); if (!response.ok) throw Error(body.error || 'Source request refused (' + response.status + ').'); return body; }
+  function sourceEditable() { return canCreateSource() || Boolean(portraitSourceId && can('change')); }
+  function sourceNotify() { $('studioComposer').hidden = !canCreateSource() && !portraitSourceId; document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId; if (portraitPhotoPanel) portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; if (portraitSettingsPanel) portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId; $('generateBtn').hidden = !can('create'); if (portraitSourceTitle) portraitSourceTitle.disabled = !sourceEditable(); portraitEditor?.refresh(); portraitAssistant?.refresh(); if (portraitSourceSaveButton) portraitSourceSaveButton.disabled = portraitSourceBusy || !(portraitSourceId ? can('change') : canCreateSource()); }
+  async function listSources() { if (!portraitSourceLibrary) return; try { var data = await sourceRequest('/source-projects'); portraitSourceLibrary.replaceChildren(); data.projects.forEach(function (project) { var button = document.createElement('button'); button.type = 'button'; button.textContent = project.title + ' · revision ' + project.revision; button.onclick = function () { openSource(project.id).catch(function (error) { setStatus(error.message, true); }); }; portraitSourceLibrary.append(button); }); if (!data.projects.length) portraitSourceLibrary.textContent = 'No saved photo sources yet.'; } catch (error) { portraitSourceLibrary.textContent = 'Saved photo sources unavailable: ' + error.message; } }
+  async function saveSource(copy) {
+    if (portraitSourceBusy || state.generating) throw Error('Wait for the current source operation.');
+    document.activeElement?.blur(); await portraitEditor?.flushPending();
+    if (!(portraitSourceId && !copy ? can('change') : canCreateSource())) throw Error('Your current access does not allow this source save.');
+    if (!copy && portraitSourceId && !sourceDirty() && !portraitSourcePending) return;
+    if (copy && portraitSourcePending) throw Error('Resolve the previous source save before saving a copy.');
+    if (!sourceDraft().title.trim()) throw Error('Give the source a title before saving.');
+    portraitSourceBusy = true; sourceNotify();
+    try {
+      if (!portraitSourcePending) {
+        var images = state.photos.map(function (photo) { return photo.img; });
+        for (var image of images) { if (photoAssets.has(image)) continue; var file = originalPhotoFiles.get(image); if (!file) throw Error('The original photo is unavailable. Upload it again before saving the source.'); if (file.size > 4194304 || image.naturalWidth * image.naturalHeight > 16777216) throw Error('Saved original photos are limited to 4 MiB and 16 megapixels each. Your current photo and crops are still here.');
+          var requestKey = photoAssetRequests.get(image); if (!requestKey) { requestKey = crypto.randomUUID(); photoAssetRequests.set(image, requestKey); }
+          var uploaded = await sourceRequest('/source-assets' + (portraitSourceId && !canCreateSource() ? '/for-edit/' + portraitSourceId : '') + '?requestKey=' + requestKey, { method: 'POST', headers: { 'Content-Type': file.type }, body: file }); photoAssets.set(image, uploaded.asset);
+        }
+        var snapshot = sourceDraft(); if (snapshot.photos.some(function (photo) { return !photo.assetId; })) throw Error('Your photo selection changed while saving. The current draft is here; save again to store the new originals.'); portraitSourcePending = { id: copy ? null : portraitSourceId, snapshot: snapshot, body: { requestKey: crypto.randomUUID() } };
+        if (portraitSourcePending.id) Object.assign(portraitSourcePending.body, { baseRevision: portraitSourceRevision, operations: [{ op: 'set-brief', values: { title: snapshot.title, mode: snapshot.mode, style: snapshot.style, aspect: snapshot.aspect, notes: snapshot.notes, settings: snapshot.settings } }, { op: 'replace-photos', photos: snapshot.photos }] });
+        else portraitSourcePending.body.model = snapshot;
+      }
+      var captured = portraitSourcePending, result = await sourceRequest('/source-projects' + (captured.id ? '/' + captured.id + '/edits' : ''), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(captured.body) });
+      portraitSourceId = result.project.id; portraitSourceRevision = result.project.revision; portraitSourceBaseline = JSON.stringify(captured.snapshot); portraitSourcePending = null;
+      setStatus('Saved photo source revision ' + portraitSourceRevision + (sourceDirty() ? '. Newer edits are still unsaved.' : '.')); await listSources();
+    } finally { portraitSourceBusy = false; sourceNotify(); }
+  }
+  function sourceReplaceAllowed() { return !sourceDirty() || confirm('Discard unsaved photo source changes and open another project?'); }
+  async function openSource(id, assistant) {
+    if (portraitSourceBusy || state.generating) throw Error('Wait for the current source operation.');
+    if (!assistant && !sourceReplaceAllowed()) return; var before = JSON.stringify(sourceDraft()), pendingBefore = Boolean(portraitEditor?.hasPending()); portraitSourceBusy = true; sourceNotify();
+    try {
+      var data = await sourceRequest('/source-projects/' + id), project = data.project, model = project.model;
+      if (!model || model.kind !== 'portrait' || !Array.isArray(model.photos)) throw Error('The saved photo source is invalid.');
+      if (assistant && (portraitSourceId !== id || project.currentRevision <= portraitSourceRevision)) return;
+      var photos = await Promise.all(model.photos.map(function (photo) { return new Promise(function (resolve, reject) { var existing = state.photos.find(function (entry) { var cached = photoAssets.get(entry.img); return photoIdentities.get(entry.img) === photo.id && cached?.id === photo.assetId && cached.sha256 === photo.sha256; }); if (existing) { if (!assistant) cropHistories.delete(existing.img); resolve({ img: existing.img, crops: photo.crops.map(function (crop) { return { _editorId: crop.id, x: crop.x, y: crop.y, w: crop.w, h: crop.h }; }), active: 0 }); return; } var image = new Image(); image.onload = function () { if (image.naturalWidth !== photo.width || image.naturalHeight !== photo.height) { reject(Error('The original photo dimensions changed.')); return; } photoIdentities.set(image, photo.id); photoAssets.set(image, { id: photo.assetId, sha256: photo.sha256, metadata: { width: photo.width, height: photo.height } }); resolve({ img: image, crops: photo.crops.map(function (crop) { return { _editorId: crop.id, x: crop.x, y: crop.y, w: crop.w, h: crop.h }; }), active: 0 }); }; image.onerror = function () { reject(Error('The saved original photo could not open.')); }; image.src = API + '/source-assets/' + photo.assetId + '/content'; }); }));
+      if (assistant && sourceDirty()) throw Error('The assistant saved a new source revision while you were editing. Your photo draft is still here. Reopen the saved source to choose which version to keep.');
+      if (!assistant && (before !== JSON.stringify(sourceDraft()) || pendingBefore !== Boolean(portraitEditor?.hasPending())) && !sourceReplaceAllowed()) return;
+      portraitEditor?.discardPending(); ++photoLoadEpoch; faceFinder?.cancel(); closeCamera();
+      portraitSourceId = project.id; portraitSourceRevision = project.revision; portraitSourceTitle.value = model.title;
+      state.photos = []; state.img = null; state.crops = []; state.active = 0; state.photo = 0; state.mode = model.mode; state.style = model.style; state.aspect = model.aspect;
+      setMode(model.mode); state.style = model.style; renderStyles(); syncTuneToPreset(); if (model.style === null) { state.style = null; document.querySelectorAll('#styles .card').forEach(function (card) { card.classList.remove('active'); }); } Object.keys(model.settings).forEach(function (key) { var field = document.querySelector('select[data-layer="' + key + '"]'); if (field) field.value = model.settings[key]; }); $('notes').value = model.notes;
+      state.photos = photos; if (photos.length) { loadPhotoEntry(0); $('cropStage').style.display = 'block'; dz.style.display = 'none'; sizeCanvas(); drawCrop(); } else { $('cropStage').style.display = 'none'; dz.style.display = ''; }
+      document.querySelectorAll('[data-aspect]').forEach(function (button) { button.classList.toggle('active', Number(button.dataset.aspect) === model.aspect); });
+      renderPhotoStrip(); updateFaceTools(); updateGenerateBtn(); portraitSourcePending = null; portraitSourceBaseline = JSON.stringify(sourceDraft()); setStatus('Opened photo source revision ' + portraitSourceRevision + '.');
+    } finally { portraitSourceBusy = false; sourceNotify(); }
+  }
+  function newSource() { if (portraitSourceBusy || state.generating || !sourceReplaceAllowed()) return; portraitEditor?.discardPending(); ++photoLoadEpoch; faceFinder?.cancel(); closeCamera(); portraitSourceId = null; portraitSourceRevision = 0; emptyPortraitDraft = 'portrait-draft:' + crypto.randomUUID(); portraitSourcePending = null; state.photos = []; state.img = null; state.crops = []; state.active = 0; state.photo = 0; portraitSourceTitle.value = 'Portrait source'; $('notes').value = ''; $('cropStage').style.display = 'none'; dz.style.display = ''; renderPhotoStrip(); updateGenerateBtn(); portraitSourceBaseline = JSON.stringify(sourceDraft()); sourceNotify(); }
+  var portraitSourceSaveButton;
+  async function mountPortraitSource() {
+    var header = document.querySelector('.wrap header'), row = document.createElement('div'); row.className = 'crop-history-actions source-actions';
+    var label = document.createElement('label'); label.textContent = 'Source title'; portraitSourceTitle = document.createElement('input'); portraitSourceTitle.maxLength = 120; portraitSourceTitle.value = 'Portrait source'; portraitSourceTitle.addEventListener('input', sourceNotify); label.append(portraitSourceTitle); row.append(label);
+    [['New source', newSource], ['Save source', function () { return saveSource(false); }], ['Save copy', function () { return saveSource(true); }], ['Reload saved', function () { if (portraitSourceId) return openSource(portraitSourceId); }]].forEach(function (entry) { var button = document.createElement('button'); button.type = 'button'; button.textContent = entry[0]; if (entry[0] === 'Save source') portraitSourceSaveButton = button; button.onclick = function () { Promise.resolve().then(entry[1]).catch(function (error) { setStatus(error.message, true); }); }; row.append(button); }); header.append(row);
+    var library = document.createElement('section'), heading = document.createElement('h3'); heading.textContent = 'Saved photo sources'; portraitSourceLibrary = document.createElement('div'); library.append(heading, portraitSourceLibrary); $('gallery').prepend(library); portraitSourceBaseline = JSON.stringify(sourceDraft()); sourceNotify(); await listSources();
+    var handoff = await import('/shared/ui/js/document-handoff.js'); portraitSourceSession = { app: 'portrait-studio', prepare: async function () { for (var attempt = 0; attempt < 3 && (!portraitSourceId || sourceDirty()); attempt++) await saveSource(); if (sourceDirty() || !portraitSourceId) throw Error('Finish your source edit before asking the assistant.'); return { app: 'portrait-studio', selection: portraitContext().selection, screen: 'source-editor', surface: 'portrait-source', title: sourceDraft().title, recordId: portraitSourceId, digest: 'Owned original photo/crop source. Use the typed source tools and current revision. Generated portraits remain separate outputs.', can: [], customOps: [], fields: { available: true, readOnly: !can('change'), revision: portraitSourceRevision, saved: true, draft: false, cropId: cur() ? portraitIdentity(cur(), cropIdentities) : null } }; }, refresh: async function (expected) { if (expected?.recordId && expected.recordId !== portraitSourceId) return; if (portraitSourceId) await openSource(portraitSourceId, true); } }; handoff.registerDocumentSession(portraitSourceSession); portraitAssistant?.refresh();
+    document.querySelector('.wrap').addEventListener('editor-foundation:draft', sourceNotify); window.addEventListener('beforeunload', function (event) { if (sourceDirty()) { event.preventDefault(); event.returnValue = ''; } });
+  }
+
+  async function mountPortraitWorkspace() {
+    var foundation = await import('/shared/ui/js/editor-foundation.js');
+    var assistant = await import('/shared/ui/js/editor-assistant.js');
+    var root = document.querySelector('.wrap'), panels = [...$('studioComposer').querySelectorAll(':scope > .panel')];
+    portraitPhotoPanel = panels[0]; portraitSettingsPanel = panels[1];
+    portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId;
+    var actions = document.createElement('div'); actions.className = 'crop-history-actions';
+    [['undoCrop','Undo crop',false],['redoCrop','Redo crop',true]].forEach(function (entry) { var button = document.createElement('button'); button.id = entry[0]; button.type = 'button'; button.textContent = entry[1]; button.disabled = true; button.onclick = function () { moveCropHistory(entry[2]); }; actions.append(button); });
+    root.querySelector('header').append(actions);
+    var note = document.createElement('p'); note.className = 'hint'; note.textContent = 'A finished portrait opens as a single image layer. Original photos, crops and generation settings stay in this source project.'; portraitSettingsPanel.prepend(note);
+    portraitAssistant = assistant.createEditorAssistant({ app: 'portrait-studio', bot: 'portrait-artist', title: 'Portrait source AI partner', root: root, prepare: function () { return portraitSourceSession.prepare(); }, refresh: function (context) { return portraitSourceSession.refresh(context); }, getState: function () { return { documentId: portraitContext().documentId, revision: portraitSourceRevision, selection: portraitContext().selection, dirty: portraitSourceTitle ? sourceDirty() : false, busy: !portraitSourceSession || state.generating || portraitSourceBusy }; } });
+    portraitEditor = foundation.createEditorFoundation({ root: root, ai: portraitAssistant.element, navigation: $('gallery'), viewport: portraitPhotoPanel, inspector: portraitSettingsPanel, header: root.querySelector('header'), status: $('accessBanner'),
+      getState: function () { var history = cropHistory(); return { documentId: portraitContext().documentId, revision: portraitSourceRevision, title: portraitSourceTitle?.value || 'Portrait Studio', readOnly: !sourceEditable(), busy: state.generating || portraitSourceBusy, dirty: portraitSourceTitle ? sourceDirty() : Boolean(state.img || $('notes').value), canUndo: Boolean(history && history.past.length > 1), canRedo: Boolean(history && history.future.length), status: portraitSourceId ? 'Photo source revision ' + portraitSourceRevision + (sourceDirty() ? ' · unsaved changes' : ' · saved') : 'Unsaved photo source' }; },
+      getSelection: function () { return portraitContext().selection; }, getProperties: portraitProperties, applyProperty: applyPortraitProperty,
+      actions: { save: function () { return saveSource(false); }, undo: function () { moveCropHistory(false); }, redo: function () { moveCropHistory(true); } } });
+    await mountPortraitSource();
+    root.addEventListener('input', function () { portraitEditor.refresh(); }); root.addEventListener('change', function () { portraitEditor.refresh(); });
+    new ResizeObserver(function () { if (state.img) { sizeCanvas(); drawCrop(); } }).observe(portraitPhotoPanel);
+    window.addEventListener('pagehide', function (event) { if (!event.persisted) { portraitAssistant?.destroy(); portraitEditor.destroy(); } }, { once: true });
+  }
 
   // ── multi-photo group sourcing ─────────────────────────────────────────────
   // The working set (img/crops/active) is always ONE photo; photos[] holds every source
@@ -754,10 +913,13 @@ if (!window.AppView || !AppView.active()) (function () {
     var reason = CAP.photoRejectReason(file);
     if (reason) { setStatus(reason, true); return; }
     var label = name || file.name || '';
+    var loadEpoch = ++photoLoadEpoch;
     var url = URL.createObjectURL(file);
     var img = new Image();
+    originalPhotoFiles.set(img, file);
     img.onload = function () {
       URL.revokeObjectURL(url);
+      if (loadEpoch !== photoLoadEpoch) return;
       // Group mode with a photo already loaded ADDS a source photo (faces can come from
       // several pictures); everywhere else the new photo replaces the old one.
       var adding = isGroup() && !!state.img;
@@ -784,6 +946,7 @@ if (!window.AppView || !AppView.active()) (function () {
       URL.revokeObjectURL(url);
       // A HEIC off a phone is a real image that most desktop browsers simply cannot decode —
       // say which format failed instead of a bare "could not read".
+      if (loadEpoch !== photoLoadEpoch) return;
       setStatus(CAP.isRiskyImage(label)
         ? 'This browser cannot open ' + label.split('.').pop().toUpperCase() + ' photos — export it as JPEG and try again.'
         : 'Could not read that image.', true);
@@ -895,12 +1058,14 @@ if (!window.AppView || !AppView.active()) (function () {
   function takePhoto() {
     var v = $('camVideo');
     if (!camStream || !v.videoWidth) { setCamStatus('The camera is not ready yet — give it a moment.', true); return; }
+    var captureEpoch = photoLoadEpoch;
     var box = CAP.frameBox(v.videoWidth, v.videoHeight);
     var c = document.createElement('canvas');
     c.width = box.sw; c.height = box.sh;
     // Drawn from the video source, so the mirrored PREVIEW never produces a mirrored photo.
     c.getContext('2d').drawImage(v, box.sx, box.sy, box.sw, box.sh, 0, 0, box.sw, box.sh);
     c.toBlob(function (blob) {
+      if (captureEpoch !== photoLoadEpoch) return;
       var reason = CAP.photoRejectReason(blob);
       if (reason) { setCamStatus(reason, true); return; }
       closeCamera();
@@ -964,6 +1129,7 @@ if (!window.AppView || !AppView.active()) (function () {
 
   function drawCrop() {
     if (!state.img) return;
+    if (!drag) rememberCrop(); sourceNotify();
     var s = view.scale;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(state.img, 0, 0, canvas.width, canvas.height);
@@ -1016,7 +1182,7 @@ if (!window.AppView || !AppView.active()) (function () {
     return { x: cx / view.scale * (canvas.width / r.width), y: cy / view.scale * (canvas.height / r.height) };
   }
   function onDown(e) {
-    if (!state.img) return;
+    if (!sourceEditable() || portraitSourceBusy || !state.img) return;
     var p = evtPos(e), c = cur(), grab = 14 / view.scale;
     drag = null;
     // 1. a corner of the ACTIVE box → resize it
@@ -1070,7 +1236,7 @@ if (!window.AppView || !AppView.active()) (function () {
     }
     drawCrop();
   }
-  function onUp() { drag = null; }
+  function onUp() { if (drag) { drag = null; rememberCrop(); portraitEditor?.refresh(); } }
   canvas.addEventListener('mousedown', onDown);
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onUp);
@@ -1135,7 +1301,7 @@ if (!window.AppView || !AppView.active()) (function () {
   var faceFinder = window.PortraitFaces && window.PortraitFaces.install({
     button: $('findFacesBtn'), host: document,
     read: function () {
-      return { allowed: can('create') && isGroup(), image: state.img, photo: state.photo,
+      return { allowed: sourceEditable() && isGroup(), image: state.img, photo: state.photo,
         mode: state.mode, aspect: state.aspect, boxes: state.crops,
         maxFaces: Math.max(1, groupMax() - (totalFaces() - state.crops.length)) };
     },
@@ -1150,6 +1316,7 @@ if (!window.AppView || !AppView.active()) (function () {
 
   // ── generate ───────────────────────────────────────────────────────────────
   function updateGenerateBtn() {
+    portraitEditor?.refresh(); portraitAssistant?.refresh();
     var btn = $('generateBtn');
     if (!can('create')) { btn.disabled = true; btn.textContent = 'Creating portraits requires permission'; return; }
     if (state.engineUnavailable) { btn.disabled = true; btn.textContent = 'Image generation is not available here'; return; }
@@ -1228,7 +1395,8 @@ if (!window.AppView || !AppView.active()) (function () {
     out.toBlob(cb, 'image/png');
   }
 
-  $('generateBtn').onclick = function () {
+  $('generateBtn').onclick = async function () {
+    try { await portraitEditor?.flushPending(); } catch (error) { setStatus(error.message, true); return; }
     if (!can('create')) return;
     if (!state.img || !state.style || state.generating) return;
     var subjects = isGroup() ? totalFaces() : state.crops.length;
@@ -1307,7 +1475,7 @@ if (!window.AppView || !AppView.active()) (function () {
             '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=portrait" download title="Portrait 4×6 print PNG (1200×1800)">▯ 4×6</a>' +
             '<a href="' + API + '/portraits/' + row.portrait_id + '/export?size=landscape" download title="Landscape 6×4 print PNG (1800×1200)">▭ 6×4</a>' +
             '<button data-email="' + row.portrait_id + '" title="Email this portrait">✉️ Email</button>' +
-            '<button data-sendto="' + row.portrait_id + '" title="Send this portrait to another app">📤 Send to…</button>' +
+            '<button data-sendto="' + row.portrait_id + '" title="Open this rendered image in an editor or another app">Edit or send image…</button>' +
             '</div>' : '');
         if (!can('delete')) el.querySelector('[data-del]').remove();
         if (!can('export')) el.querySelectorAll('a[download], [data-sendto]').forEach(function (node) { node.remove(); });
@@ -1450,12 +1618,14 @@ if (!window.AppView || !AppView.active()) (function () {
   // ── boot ───────────────────────────────────────────────────────────────────
   loadAccess().then(function (allowed) {
   if (!allowed) return;
+  mountPortraitWorkspace().catch(function (error) { setStatus('The shared editor could not open: ' + error.message, true); });
   fetch(API + '/catalog').then(function (r) { return r.json(); }).then(function (j) {
     state.catalog = j;
     populateTunePickers();
     renderGroupChips();
     renderStyles();
     updateGenerateBtn();
+    if (!state.img && !$('notes').value && portraitSourceTitle?.value === 'Portrait source') portraitSourceBaseline = JSON.stringify(sourceDraft());
   }).catch(function () { setStatus('Could not load the style catalog — is the app installed?', true); });
   if (can('create')) fetch(API + '/provider').then(function (r) { return r.json(); }).then(function (j) {
     var b = $('providerBanner');

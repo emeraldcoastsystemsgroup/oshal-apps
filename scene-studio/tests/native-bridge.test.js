@@ -98,3 +98,11 @@ test('native limits are explicit and legacy file limits remain unchanged',()=>{
     assert.equal(legacy.maxStoredBytes,undefined);assert.equal(legacy.maxUploadBytes,32*1024*1024);
   } finally {if(before===undefined)delete process.env.OSHAL_SCENE_NATIVE_RUNTIME;else process.env.OSHAL_SCENE_NATIVE_RUNTIME=before;delete require.cache[file];}
 });
+
+test('typed native object requests remain closed data until the trusted kernel lowers them',async()=>{
+ const calls=[],c=client(async(op,fields)=>{calls.push({op,fields});return proof({text:'{}',isError:false,changed:false});});
+ const fields={files:[],objectName:'Cube',frame:1,operationJson:JSON.stringify({kind:'set-property',property:'location:0',value:47})};
+ await c.request('object_patch',fields);await c.request('object_inspect',{files:[],objectName:'Cube',frame:1});
+ assert.deepEqual(calls,[{op:'object_patch',fields},{op:'object_inspect',fields:{files:[],objectName:'Cube',frame:1}}]);
+ assert.equal(calls.some(call=>JSON.stringify(call).includes('execute_blender_code_for_cli')),false);c.close();
+});

@@ -77,12 +77,13 @@ export function applyAgentOperations(value, operations) {
   return validateProject(next, { assetMode: 'reference' });
 }
 export function editingContract() {
-  return { editor: 'create', version: 1, sourceVersion: '1.16.0', maxOperations: 16, maxInputBytes: 16384,
+  return { editor: 'create', version: 1, sourceVersion: '1.18.5', maxOperations: 16, maxInputBytes: 16384,
     operations: forms, operationSchema,
     conventions: { drawing: 'Compose a requested picture yourself from rect, ellipse, text and path layers; no asset is needed. A rect, ellipse or text layer has id, type, x, y, w, h in canvas pixels. A path layer also has contours; each contour has at least 2 nodes, each node x and y between 0 and 1 of the layer box. Layer type is exactly one of image, text, rect, ellipse, freehand, adjustment, group, path.',
       coordinates: 'Canvas pixels; children use parent-local coordinates; path node x/y normalized 0..1, in/out offsets relative to node.',
       opacity: '0..1', masks: 'Original image source pixels; polygon points or additive/subtractive brush operations; feather 0..64.',
       adjustments: 'Add a layer type adjustment with scope stack or layer/targetId. exposure -8..8, black < white 0..255, gamma .1..10, saturation 0..300, curve ordered {x,y} 0..1.',
+      appearance: 'Version 4 shape primitives (rect/ellipse layer types) accept shape rectangle|rounded-rectangle|ellipse|triangle|diamond and radius 0..4096. Outlines on primitives/freehand/path accept dash (up to16 lengths .1..512), cap butt|round|square, join miter|round|bevel. Every paint layer/group supports shadow null or {color six-digit hex, opacity0..1, blur0..64, offsetX/offsetY -512..512}; parent-coordinate pixels, source alpha preserved. Shadows have an aggregate bounded scratch pixel budget. Group shadows must be removed before ungrouping; transformed child paint scales with the group.',
       vectors: 'Add/update path contours [{closed,nodes:[{x,y,in:{x,y},out:{x,y}}]}], fill, stroke, strokeWidth, dash, cap, join, gradient {from,to,stops:[{offset,color}]}, clip polygon.',
       assets: 'Only original-owner canonical uploaded image references. No URL fetching, filesystem paths, code, provider calls or inline data.',
       saves: 'Read project id/revision first. One batch = one immutable revision; invalid batch saves nothing. A stale revision is a conflict. The editor automatically saves its current draft before the concierge reads it and refreshes the same project on return. A concurrent browser draft is preserved with a conflict message.',

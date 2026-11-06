@@ -1,3 +1,4 @@
+/** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Close owned fixture HTTP connections during teardown so a failed browser assertion cannot hide behind an open server. */
 /** Synthetic account/history/SQL and broker-ticket seam for native management route/browser guards. */
 'use strict';
 const assert=require('node:assert/strict');
@@ -15,7 +16,7 @@ async function setup(t){
   if(name==='trading.orders.submit'){submissions++;return{ticketId:input.ticketId,status:'submitted',orderId:'12345'};}
   return original(name,input);
  };
- const server=await new Promise(resolve=>{const s=h.app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const server=await new Promise(resolve=>{const s=h.app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));
  const req=async(path,body,owner='owner-a')=>{const res=await fetch('http://127.0.0.1:'+server.address().port+'/api/trading/portfolio'+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','x-fixture-owner':owner},...(body?{body:JSON.stringify(body)}:{})});return{status:res.status,...await res.json()};};
  const config={modelVersion:2,kind:'quarterly-rotation',assets:['SPY','EFA','IEF','GLD','VNQ','DBC'].map(symbol=>({symbol,weightPct:100/6})),lookbackSessions:63,rebalanceSessions:20,topN:3,grossExposurePct:100,transactionCostBps:10,marginAprPct:null,maintenancePct:null,fractionalShares:false};
  const strategy=(await req('/strategies',{name:'Monthly model',config})).strategy;

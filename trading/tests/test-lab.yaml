@@ -1,3 +1,4 @@
+# CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Register delayed Quant and native account navigation regressions against shipped browser code.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
@@ -1571,6 +1572,22 @@ cases:
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close synthetic fixture servers and browsers. }
     limits: { timeoutMs: 60000 }
+    installation: never
+
+  - id: native-ui-navigation
+    name: Delayed native Trading responses stay with their originating view
+    purpose: Exercise the shipped Quant and account-detail loaders with delayed responses across render, sub-tab, request, host and selected-holding changes.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-ui-navigation.test.js] }
+    expected:
+      - Late Quant reads, errors and reviews cannot repaint a different view or overwrite its research state.
+      - Leaving a manual run stops further passes; returning releases its button and an old completion cannot stop a newer run.
+      - Account and holding comparisons refuse stale render tokens, detached hosts, superseded requests and changed holdings.
+      - Current responses still render normally.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 10000 }
     installation: never
 
   - id: native-account-details

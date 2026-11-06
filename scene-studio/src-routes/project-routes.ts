@@ -16,6 +16,7 @@
  *                     |                             | project-view.ts, express-free, so the in-process package tools
  *                     |                             | answer exactly like these routes. refuse() writes the classified
  *                     |                             | status and body; every route answers byte-for-byte as before.
+ * 2026-11-04 | maintainer@emeraldcoastsystemsgroup.com | Expose closed Blender object inspection and property editing without arbitrary-run permissions.
  */
 
 import fs from 'node:fs';
@@ -28,7 +29,7 @@ import { ARTIFACT_TYPES, artifactsDir, isArtifactName, requireRevision, requireU
 import { FILE_LIMITS, FileError, fileData, isText, listing } from './project-files';
 import { deleteProject, getProject, listProjects, listRevisions, renameProject, type ProjectKind, type ProjectRow } from './project-store';
 import {
-  RequestError, blenderDocs, callProjectTool, createProject, deleteFile, exportProject, importModel,
+  RequestError, blenderDocs, callProjectTool, callObjectTool, createProject, deleteFile, exportProject, importModel,
   loadFiles, removeProjectFiles, renderPreview, restoreRevision, runProject, uploadFile, writeTextFile,
   type MutationOutcome, type ServiceDeps,
 } from './project-service';
@@ -92,6 +93,16 @@ export function createProjectRoutes(deps: ProjectRouteDeps): Router {
   registerProjectCrud(router, deps);
   registerFileRoutes(router, deps);
   registerToolRoutes(router, deps);
+  const objectHandler = (patch: boolean) => async (req: SceneRequest, res: Response): Promise<void> => {
+    try {
+      const projectId = (req.sceneProject as ProjectRow).project_id;
+      const {projectId: inputProjectId, ...operation} = body(req);
+      if (inputProjectId !== undefined && inputProjectId !== projectId) throw new RequestError('projectId does not match the owned route', 'projectId');
+      outcome(res, await callObjectTool(deps, req.sceneSub as string, projectId, patch, operation));
+    } catch (error) { fail(res, error, 'Blender object ' + (patch ? 'edit' : 'inspect')); }
+  };
+  router.post('/projects/:projectId/objects/inspect', objectHandler(false));
+  router.post('/projects/:projectId/objects/edit', objectHandler(true));
   registerOutputRoutes(router, deps);
   return router;
 }
@@ -168,7 +179,7 @@ function registerFileRoutes(router: Router, deps: ProjectRouteDeps): void {
     const b = body(req);
     try {
       if (typeof b.text !== 'string') throw new RequestError('text must be a string (the whole file)', 'text');
-      outcome(res, await writeTextFile(deps, req.sceneSub as string, project.project_id, String(b.path ?? ''), b.text));
+      outcome(res, await writeTextFile(deps, req.sceneSub as string, project.project_id, String(b.path ?? ''), b.text, b.expectedRevision));
     } catch (error) { fail(res, error, 'Write file', { projectId: project.project_id }); }
   });
   router.post('/projects/:projectId/files/upload', upload.single('file'), async (req: SceneRequest, res) => {
@@ -204,7 +215,7 @@ function registerToolRoutes(router: Router, deps: ProjectRouteDeps): void {
       if (!BLENDER_PROJECT_TOOLS.includes(tool)) throw new RequestError(`blender tool must be one of ${BLENDER_PROJECT_TOOLS.join(', ')}`, 'tool');
       const args = tool === 'execute_blender_code_for_cli' ? { code: b.code } : {};
       const save = b.save === undefined ? true : b.save === true;
-      outcome(res, await callProjectTool(deps, req.sceneSub as string, project.project_id, { server: 'blender', tool, args, file: optionalString(b.file, 'file'), save }));
+      outcome(res, await callProjectTool(deps, req.sceneSub as string, project.project_id, { server: 'blender', tool, args, file: optionalString(b.file, 'file'), save, expectedRevision:b.expectedRevision }));
     } catch (error) { fail(res, error, 'Blender tool', { projectId: project.project_id }); }
   });
   router.post('/blender-docs', async (req: SceneRequest, res) => {

@@ -1,3 +1,4 @@
+# CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Describe actual versioned daily margin and retirement models and distinguish passing validation and native availability from saved research.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
@@ -123,10 +124,14 @@ perspective: |
   - When the owner wants to create, change or compare a strategy, work it out with them in
     conversation, then use the strategy tools. trading_strategies shows the saved strategies, their
     completed backtests and the strategy each account is assigned. Propose concrete assets and
-    weights and say why, and save with trading_strategy_save only after the owner agrees. Live
-    accounts run only cash-funded, whole-share monthly models (modelVersion 2, "monthly-trend" or
-    "quarterly-rotation" with the fixed fields the tool describes); an idea outside that can be saved
-    as research, but say plainly that it cannot run on a live account. Then backtest the new strategy
+    weights and say why, and save with trading_strategy_save only after the owner agrees. Read the
+    returned strategyPresets before constructing a model. modelVersion 3 offers quant-stock-daily
+    for confirmed taxable margin accounts with an explicitly saved equity universe, and the separate
+    retirement-defensive-daily model for cash retirement accounts. Copy the preset's fixed fields;
+    never reuse a margin model for a 401k or IRA. Older modelVersion 2 monthly models remain available.
+    Daily live execution requires the matching native release and result.validation.passed for the
+    exact account and capital; a merely completed or failed backtest does not qualify. Report a
+    missing native release as unavailable, not as successful activation. Then backtest the new strategy
     with trading_strategy_backtest on the account the owner names (accountId and connectionKey from
     trading_strategies or trading_accounts), and backtest the account's assigned strategy over the
     same window. Compare the two in sentences: total return, worst drawdown, and each one against
@@ -144,7 +149,7 @@ perspective: |
     trading_paper_create (name, starting cash and the posture they want; balanced if they do not say)
     unless they name an existing one, and put the strategy into use there with trading_paper_strategy
     (its book_ref and the strategy id). That account then rebalances to the strategy's targets in whole
-    shares from the next scheduled pass of an open market, and again at each new monthly decision. Read
+    shares from the next scheduled pass of an open market, and again when its saved decision changes. Read
     trading_paper_accounts again and report the account, its strategy and that it is armed. An account
     without a strategy trades on the posture engine instead (multi-timeframe signals under a risk
     posture). Start, re-configure or stop an account with trading_paper_start or trading_paper_stop; to

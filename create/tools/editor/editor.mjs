@@ -12,6 +12,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind the automatic save-before-reading and refresh-on-return document handoff for Concierge and Jarvis.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Bind the Generate an image panel.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Mount the shared editor shell while preserving existing domain controls and AI handoff.
  */
 import { $, state, edit, notify, subscribe, handle, api, error, openDocument } from './editor-state.mjs';
 import { render, fitCanvas, paint } from './editor-view.mjs';
@@ -21,6 +22,7 @@ import { bindInteractions } from './editor-interactions.mjs';
 import { bindTemplates, acceptIncomingTemplate } from './editor-templates.mjs';
 import { bindEditorContext } from './editor-context.mjs';
 import { bindEditorHandoff } from './editor-handoff.mjs';
+import { bindEditorFoundation } from './editor-foundation-adapter.mjs';
 import { bindBrand, loadBrand } from './brand-editor.mjs';
 import { bindVectors } from './vector-editor.mjs';
 import { parentGroup } from './group-geometry.mjs';
@@ -110,6 +112,9 @@ function bindAdjustments() {
 }
 
 function bindEditing() {
+  $('layerArrange').addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); $('layerArrange').open = false; $('layerArrange').querySelector('summary').focus(); }
+  });
   for (const [id, type] of [['addText', 'text'], ['addRectangle', 'rect'], ['addEllipse', 'ellipse']]) $(id).onclick = handle(() => addLayer(type));
   $('drawMode').onclick = () => { state.draw = !state.draw; if (state.draw) { state.regionMode = false; state.maskBrush = ''; state.vectorMode = false; } notify(); };
   $('regionMode').onclick = () => { state.regionMode = !state.regionMode; if (state.regionMode) { state.draw = false; state.maskBrush = ''; state.vectorMode = false; } notify(); };
@@ -138,6 +143,7 @@ async function start() {
   bindEditing(); bindProperties(); bindMasks(); bindAdjustments(); bindProjects(); bindFiles(); bindTemplates(); bindBrand(); bindRegionEditPanel(); bindGenerateImagePanel();
   const brandReady = loadBrand();
   subscribe(render); bindVectors(); bindInteractions(); subscribe(queueAutosave); render();
+  void bindEditorFoundation().catch(() => console.warn('[Create] Shared editor layout is unavailable. The existing editor remains available.'));
   void bindEditorContext().catch(() => console.warn('[Create] Shared screen context is unavailable. Manual editing remains available.'));
   void bindEditorHandoff().catch(failure => error(`The concierge cannot synchronize this document: ${failure.message}`));
   try {

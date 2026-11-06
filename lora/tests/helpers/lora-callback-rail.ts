@@ -40,8 +40,9 @@ export function fixtureAuthorization(): NonNullable<AppContext['authorization']>
     currentActor: () => {
       const identity = getRequestIdentity();
       return identity?.sub && identity.principalIssuer
-        ? { sub: identity.sub, issuer: identity.principalIssuer, isActive: true, isSwarmAdmin: false } : undefined;
+        ? { sub: identity.sub, issuer: identity.principalIssuer, isActive: true, isSwarmAdmin: false,principalId:'fixture:'+identity.sub,tenantIds:['lora-branch-fixture'] } : undefined;
     },
-    authorize: async () => { throw new Error('named permissions are decided by the kernel; branch specs never ask'); },
+    // Named fixture decisions; the actual kernel policy boundary remains in signed-callback-boundary.core.test.js.
+    authorize: async ({permission}) => ({allowed:['lora.read','lora.configure','lora.execute','app.open'].includes(permission)} as any),
   };
 }

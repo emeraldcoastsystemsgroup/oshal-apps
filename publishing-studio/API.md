@@ -8,7 +8,7 @@ All application paths are under `/api/publishing-studio`. Every data route uses 
 | GET `/permissions`, `/editing-contract` | Current capabilities and authoritative closed operation schemas |
 | GET `/documents`, `/home-summary` | Original-owned document catalogue/summary |
 | POST `/documents` | `{title,pageCount,requestKey}`; creates immutable revision1 |
-| GET `/documents/:document?revision=n` | Exact saved model and immutable revision history; `receipt=1` gives compact metadata |
+| GET `/documents/:document?revision=n` | Exact saved model, immutable revision history and `rendered` (that revision has an unexpired ready render, so its page previews answer 200 instead of 409 `publishing_render_required`); `receipt=1` gives compact metadata |
 | GET `/documents/:document/model/:part/:offset?revision=n` | One bounded page/master/story/asset/style entry, or complete JSON-text fragments, pinned to one revision/source SHA |
 | POST `/documents/:document/revisions` | `{baseRevision,requestKey,operations}` or `{baseRevision,requestKey,restoreRevision}`; exact-one edit/restore; CAS |
 | POST `/documents/:document/edits` | Held agent transport `{baseRevision,requestKey,operationsJson}`; JSON array of the same canonical operations,16KiB total |

@@ -1,0 +1,108 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL named authorization catalog — phone-control ("Phone & Device Control")
+# Strict role-based access control and personal owner isolation
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.0.0 as delivered on 2026-11-05.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: bindings for the routes and tools that remain; the drawn screen, frame ingest, operations batch, concierge, screenshot import, control contract, blobs, artifacts, enrol and every pair-* and verify route are gone with their bindings. New: history.write (what the page sent and what the computer answered), bridge.read (the bridge files the page installs on the person's own computer), the device update and the computer reports.
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: 1
+resources:
+  execution:
+    scopes: [own]
+  configuration:
+    scopes: [own]
+
+permissions:
+  execution.view: { resource: execution, effect: read, minimumTier: viewer }
+  execution.read: { resource: execution, effect: read, minimumTier: viewer }
+  execution.operate: { resource: execution, effect: execute, minimumTier: editor }
+  history.write: { resource: execution, effect: write, minimumTier: editor }
+  configuration.view: { resource: configuration, effect: read, minimumTier: viewer }
+  configuration.read: { resource: configuration, effect: read, minimumTier: viewer }
+  configuration.pair: { resource: configuration, effect: write, minimumTier: editor }
+  configuration.manage: { resource: configuration, effect: write, minimumTier: editor }
+  configuration.revoke: { resource: configuration, effect: write, minimumTier: editor }
+  bridge.read: { resource: configuration, effect: read, minimumTier: editor }
+
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - { permission: execution.view, scope: own }
+      - { permission: configuration.view, scope: own }
+  reader:
+    tier: viewer
+    grants:
+      - { permission: execution.view, scope: own }
+      - { permission: execution.read, scope: own }
+      - { permission: configuration.view, scope: own }
+      - { permission: configuration.read, scope: own }
+  operator:
+    tier: editor
+    grants:
+      - { permission: execution.view, scope: own }
+      - { permission: execution.read, scope: own }
+      - { permission: execution.operate, scope: own }
+      - { permission: history.write, scope: own }
+      - { permission: configuration.view, scope: own }
+      - { permission: configuration.read, scope: own }
+      - { permission: configuration.pair, scope: own }
+      - { permission: configuration.manage, scope: own }
+      - { permission: configuration.revoke, scope: own }
+      - { permission: bridge.read, scope: own }
+  editor:
+    tier: editor
+    grants:
+      - { permission: execution.view, scope: own }
+      - { permission: execution.read, scope: own }
+      - { permission: execution.operate, scope: own }
+      - { permission: history.write, scope: own }
+      - { permission: configuration.view, scope: own }
+      - { permission: configuration.read, scope: own }
+      - { permission: configuration.pair, scope: own }
+      - { permission: configuration.manage, scope: own }
+      - { permission: configuration.revoke, scope: own }
+      - { permission: bridge.read, scope: own }
+  admin:
+    tier: admin
+    grants:
+      - { permission: execution.view, scope: own }
+      - { permission: execution.read, scope: own }
+      - { permission: execution.operate, scope: own }
+      - { permission: history.write, scope: own }
+      - { permission: configuration.view, scope: own }
+      - { permission: configuration.read, scope: own }
+      - { permission: configuration.pair, scope: own }
+      - { permission: configuration.manage, scope: own }
+      - { permission: configuration.revoke, scope: own }
+      - { permission: bridge.read, scope: own }
+
+bindings:
+  http:
+    - { id: smoke, method: GET, path: /_smoke, allOf: [execution.view] }
+    - { id: home-summary, method: GET, path: /home-summary, allOf: [execution.view, execution.read] }
+    - { id: cockpit-open, method: GET, path: /cockpit, allOf: [execution.view] }
+    - { id: execution-ui, method: GET, path: /ui, allOf: [execution.view] }
+    - { id: execution-ui-asset, method: GET, path: '/ui/:asset', allOf: [execution.view] }
+    - { id: config-ui, method: GET, path: /config/ui, allOf: [configuration.view] }
+    - { id: devices-list, method: GET, path: /devices, allOf: [execution.view, execution.read] }
+    - { id: devices-create, method: POST, path: /devices, allOf: [configuration.view, configuration.pair] }
+    - { id: device-get, method: GET, path: '/devices/:id', allOf: [execution.view, execution.read] }
+    - { id: device-update, method: POST, path: '/devices/:id', allOf: [configuration.view, configuration.manage] }
+    - { id: device-delete, method: DELETE, path: '/devices/:id', allOf: [configuration.view, configuration.revoke] }
+    - { id: history-list, method: GET, path: /history, allOf: [execution.view, execution.read] }
+    - { id: history-write, method: POST, path: /history, allOf: [execution.view, history.write] }
+    - { id: computer-reports, method: GET, path: /computers/reports, allOf: [configuration.view, configuration.read] }
+    - { id: computer-report-write, method: POST, path: '/computers/:node/report', allOf: [configuration.view, configuration.manage] }
+    - { id: bridge-manifest, method: GET, path: /bridge/manifest.json, allOf: [configuration.view, bridge.read] }
+    - { id: bridge-file, method: GET, path: '/bridge/files/:file', allOf: [configuration.view, bridge.read] }
+
+  bots:
+    - { id: f518c3e9-92a4-47d6-85c1-d827a93c1058, allOf: [execution.view, execution.read, configuration.view, configuration.read] }
+
+  tools:
+    - { id: phone-control-list-devices, allOf: [execution.view, execution.read] }
+    - { id: phone-control-read-device, allOf: [execution.view, execution.read] }
+    - { id: phone-control-hardware-status, allOf: [configuration.view, configuration.read] }
+    - { id: phone-control-history, allOf: [execution.view, execution.read] }

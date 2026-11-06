@@ -5,6 +5,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Persist masked v2 revisions through the actual HTTP router and PostgreSQL with owner isolation and immutable originals.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The migration case asserted relforcerowsecurity was FALSE, so it pinned the defect in place: the four tables are owned by the role the api connects as, PostgreSQL exempts a table owner from its own row security unless the table is FORCEd, and this suite recorded that missing FORCE as the expected state. It now requires the opposite. The fixture also migrates as the application role now, so the reader here is the OWNER, which is the installed condition and the only one under which the difference is observable.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Use a disposable sequence-backed volatile clock to prove actual SQL/API create and concurrent append snapshots stay canonical, restoring all defaults and owned clock objects afterward.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -72,6 +73,87 @@ test('shared model-valid whitespace, data-prefixed text and large bounded stroke
   assert.equal(stored.title, name); assert.equal(stored.document.name, name);
   assert.equal(stored.document.layers[0].text, 'data: science');
   assert.equal(stored.document.layers[1].points.length, 5000);
+});
+
+/** The fixture's own database only: advance default timestamps without timing sleeps. */
+async function withAdvancingProjectClock(work) {
+  assert.match(db.evidence.container, /^oshal-create-project-test-[a-f0-9]{16}$/);
+  assert.match(db.evidence.image, /^sha256:[a-f0-9]{64}$/);
+  const token = randomUUID().replaceAll('-', ''), sequence = `create_clock_seq_${token}`, clock = `create_clock_now_${token}`;
+  const defaults = (await db.admin.query(`SELECT c.relname AS table_name,a.attname AS column_name,
+    pg_get_expr(d.adbin,d.adrelid) AS expression
+    FROM pg_attrdef d JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum
+    JOIN pg_class c ON c.oid=d.adrelid
+    WHERE c.relnamespace='public'::regnamespace AND
+      ((c.relname='create_projects' AND a.attname IN ('created_at','updated_at')) OR
+       (c.relname='create_project_revisions' AND a.attname='created_at'))
+    ORDER BY c.relname,a.attname`)).rows;
+  assert.deepEqual(defaults.map(row => `${row.table_name}.${row.column_name}`), [
+    'create_project_revisions.created_at', 'create_projects.created_at', 'create_projects.updated_at']);
+  assert(defaults.every(row => typeof row.expression === 'string' && row.expression.length));
+  let sequenceCreated = false, functionCreated = false, originalError;
+  try {
+    await db.admin.query(`CREATE SEQUENCE public.${sequence}`); sequenceCreated = true;
+    await db.admin.query(`CREATE FUNCTION public.${clock}() RETURNS timestamptz LANGUAGE sql VOLATILE AS $$
+      SELECT TIMESTAMPTZ '2026-11-04T12:00:00.000Z' + nextval('public.${sequence}'::regclass) * INTERVAL '1 millisecond'
+    $$`); functionCreated = true;
+    await db.admin.query(`GRANT USAGE ON SEQUENCE public.${sequence} TO create_fixture_app`);
+    for (const row of defaults) {
+      await db.admin.query(`ALTER TABLE public.${row.table_name} ALTER COLUMN ${row.column_name} SET DEFAULT public.${clock}()`);
+    }
+    return await work();
+  } catch (error) { originalError = error; throw error; }
+  finally {
+    const failures = [];
+    // These expressions and identifiers came only from the three exact fixture columns above.
+    for (const row of defaults) {
+      try { await db.admin.query(`ALTER TABLE public.${row.table_name} ALTER COLUMN ${row.column_name} SET DEFAULT ${row.expression}`); }
+      catch (error) { failures.push(error); }
+    }
+    if (functionCreated) {
+      try { await db.admin.query(`DROP FUNCTION public.${clock}()`); } catch (error) { failures.push(error); }
+    }
+    if (sequenceCreated) {
+      try { await db.admin.query(`DROP SEQUENCE public.${sequence}`); } catch (error) { failures.push(error); }
+    }
+    if (failures.length) throw new AggregateError(originalError ? [originalError, ...failures] : failures, 'Disposable timestamp defaults or clock cleanup failed');
+  }
+}
+
+test('advancing SQL defaults preserve full create and concurrent append API snapshots', async t => {
+  await withAdvancingProjectClock(async () => {
+    const api = await startApi(t, db.pool), asset = await uploaded(api);
+    const original = await api.call('/projects', 'POST', withImage(asset, 'Canonical first'));
+    assert.equal(original.status, 201, JSON.stringify(original.body));
+    const first = original.body.project, path = `/projects/${first.id}`;
+    const metadata = ({ document, ...rest }) => rest;
+    assert.deepEqual((await api.call(path)).body.project, first);
+    assert.deepEqual((await api.call('/projects')).body.projects, [metadata(first)]);
+    assert.deepEqual((await api.call(`${path}/revisions`)).body.revisions, [
+      { revision: 1, title: first.title, createdAt: first.updatedAt }]);
+    const saves = await Promise.all(['Canonical A', 'Canonical B'].map(title =>
+      api.call(`${path}/revisions`, 'POST', { ...withImage(asset, title), baseRevision: 1 })));
+    assert.deepEqual(saves.map(row => row.status).sort(), [201, 409]);
+    const second = saves.find(row => row.status === 201).body.project;
+    assert.equal(second.revision, 2); assert.equal(second.createdAt, first.createdAt);
+    assert(second.updatedAt > first.updatedAt);
+    assert.deepEqual((await api.call(path)).body.project, second);
+    assert.deepEqual((await api.call('/projects')).body.projects, [metadata(second)]);
+    assert.deepEqual((await api.call(`${path}/revisions/1`)).body.project, first);
+    assert.deepEqual((await api.call(`${path}/revisions`)).body.revisions, [
+      { revision: 2, title: second.title, createdAt: second.updatedAt },
+      { revision: 1, title: first.title, createdAt: first.updatedAt }]);
+    assert.deepEqual(second.document.images, first.document.images);
+    for (const actor of ['bob', 'collision']) {
+      assert.equal((await api.call(path, 'GET', undefined, actor)).status, 404);
+      assert.equal((await api.call(`${path}/revisions`, 'POST', { ...withImage(asset, 'Foreign'), baseRevision: 2 }, actor)).status, 404);
+    }
+    assert.equal((await api.call(`${path}/revisions`, 'POST', { ...withImage(asset, 'Stale'), baseRevision: 1 })).status, 409);
+    assert.deepEqual((await api.call(path)).body.project, second);
+    const bytes = Buffer.from(await (await fetch(api.origin + asset.src)).arrayBuffer());
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256);
+    assert.equal((await db.admin.query('SELECT count(*)::int AS count FROM create_project_revisions WHERE project_id=$1', [first.id])).rows[0].count, 2);
+  });
 });
 
 test('simultaneous saves admit exactly one immutable new revision and reject stale deletion', async t => {

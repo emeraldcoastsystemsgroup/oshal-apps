@@ -1,0 +1,169 @@
+# Named owned-source roles. Rendering/generation and mutating CLI dispatch stay admin-only.
+# Existing @app-admin assignments require an explicit reviewed Replace to admin; never auto-map or reactivate revoked rows.
+version: 1
+resources:
+  sources:
+    scopes:
+    - own
+  legacy:
+    scopes:
+    - own
+permissions:
+  app.open:
+    resource: sources
+    effect: read
+    minimumTier: viewer
+  source.read:
+    resource: sources
+    effect: read
+    minimumTier: viewer
+  source.create:
+    resource: sources
+    effect: write
+    minimumTier: editor
+  source.change:
+    resource: sources
+    effect: write
+    minimumTier: editor
+  source.delete:
+    resource: sources
+    effect: write
+    minimumTier: editor
+  legacy.read:
+    resource: legacy
+    effect: read
+    minimumTier: viewer
+  legacy.execute:
+    resource: legacy
+    effect: execute
+    minimumTier: editor
+roles:
+  reader:
+    tier: viewer
+    grants:
+    - permission: app.open
+      scope: own
+    - permission: source.read
+      scope: own
+    - permission: legacy.read
+      scope: own
+  source-editor:
+    tier: editor
+    grants:
+    - permission: app.open
+      scope: own
+    - permission: source.read
+      scope: own
+    - permission: source.create
+      scope: own
+    - permission: source.change
+      scope: own
+    - permission: source.delete
+      scope: own
+    - permission: legacy.read
+      scope: own
+  admin:
+    tier: admin
+    grants:
+    - permission: app.open
+      scope: own
+    - permission: source.read
+      scope: own
+    - permission: source.create
+      scope: own
+    - permission: source.change
+      scope: own
+    - permission: source.delete
+      scope: own
+    - permission: legacy.read
+      scope: own
+    - permission: legacy.execute
+      scope: own
+bindings:
+  http:
+  - id: source-surface
+    method: GET
+    path: /review
+    allOf:
+    - app.open
+  - id: source-module
+    method: GET
+    path: /source-project-editor.mjs
+    allOf:
+    - app.open
+  - id: source-list
+    method: GET
+    path: /source-projects
+    allOf:
+    - app.open
+    - source.read
+  - id: source-read
+    method: GET
+    path: /source-projects/:id
+    allOf:
+    - app.open
+    - source.read
+  - id: source-create
+    method: POST
+    path: /source-projects
+    allOf:
+    - app.open
+    - source.read
+    - source.create
+  - id: source-change
+    method: POST
+    path: /source-projects/:id/edits
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: source-delete
+    method: DELETE
+    path: /source-projects/:id
+    allOf:
+    - app.open
+    - source.read
+    - source.delete
+  - id: home-summary
+    method: GET
+    path: /home-summary
+    allOf:
+    - app.open
+    - legacy.read
+  - id: package-smoke
+    method: GET
+    path: /_smoke
+    allOf:
+    - app.open
+  tools:
+  - id: brand-graphics-source-list
+    allOf:
+    - app.open
+    - source.read
+  - id: brand-graphics-source-contract
+    allOf:
+    - app.open
+    - source.read
+  - id: brand-graphics-source-read
+    allOf:
+    - app.open
+    - source.read
+  - id: brand-graphics-source-edits
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: brand_graphic
+    allOf:
+    - app.open
+    - legacy.execute
+  bots:
+  - id: b0110000-0000-0000-0000-000000000001
+    allOf:
+    - app.open
+    - source.read
+  jobs:
+  - id: brand-graphics
+    allOf:
+    - app.open
+    - legacy.execute

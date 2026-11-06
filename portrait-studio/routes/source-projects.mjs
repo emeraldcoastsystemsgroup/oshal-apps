@@ -1,0 +1,21 @@
+/** Exact original-person photo source, typed revisions and the same current Portrait grants as the studio. */
+import {createRequire}from'node:module';import{join}from'node:path';
+import{SourceProjectStore,exact,uuid,integer,fail,LIMITS}from'./vendor/source-project-store.mjs';
+import{validate,apply,references,verifyReferences,sourceContract}from'./source-model.mjs';
+const require=createRequire(import.meta.url),{Router,json,raw}=require('express'),sharp=require('sharp');
+export async function authorizeSource(ctx,action){if(!['read','create','change','delete'].includes(action))fail(403,'source_permission_denied');for(const permission of ['portrait.view',action==='create'?'portrait.source.create':'portrait.'+action])if(!(await ctx.authorization.authorize({permission})).allowed)fail(403,'source_permission_denied');}
+export const sourceStore=(ctx,assetAction='create')=>new SourceProjectStore(ctx,{prefix:'portrait_source',authorize:action=>authorizeSource(ctx,action==='asset.create'?assetAction:action),validate,apply,references,verifyReferences});
+function pathBody(req){const body={...req.body};if(body.id!==undefined){if(uuid(body.id)!==uuid(req.params.id))fail(400,'source_path_body_mismatch');delete body.id;}return body;}
+export function createSourceProjectRoutes(ctx){const r=Router(),parse=json({limit:'320kb',strict:true}),image=raw({type:['image/png','image/jpeg','image/webp'],limit:LIMITS.assetBytes});r.use((_req,res,next)=>{res.set('Cache-Control','private, no-store');next();});const run=fn=>async(req,res)=>{try{for(const key of ['tenantId','owner','ownerKey','userSub','principalId'])if(req.query?.[key]!==undefined)fail(400,'source_personal_scope_only');await fn(req,res,sourceStore(ctx));}catch(error){res.status(error.status||500).json({error:error.status?error.code||error.message:'source_unavailable'});}};
+ r.get('/source-projects',run(async(_req,res,s)=>res.json(await s.list())));
+ r.get('/source-projects/contract',run(async(req,res,s)=>{await s.guard('read');exact(req.query,[],['section']);res.json(sourceContract(req.query.section));}));
+ r.post('/source-projects',parse,run(async(req,res,s)=>res.status(201).json(await s.create(req.body))));
+ r.get('/source-projects/:id',run(async(req,res,s)=>res.json(await s.get(uuid(req.params.id),req.query.revision===undefined?undefined:integer(Number(req.query.revision),1,100)))));
+ r.post('/source-projects/:id/edits',parse,run(async(req,res,s)=>res.json(await s.save(uuid(req.params.id),pathBody(req)))));
+ r.delete('/source-projects/:id',run(async(req,res,s)=>res.json(await s.remove(uuid(req.params.id)))));
+ const uploadSource=run(async(req,res,_s)=>{const s=sourceStore(ctx,req.params.project?'change':'create');await s.guard('asset.create');if(req.params.project)await s.get(uuid(req.params.project));uuid(req.query.requestKey);if(!Buffer.isBuffer(req.body)||!req.body.length)fail(400,'source_invalid_photo');let info;try{const result=await sharp(req.body,{limitInputPixels:16777216,failOn:'warning',animated:false}).rotate().raw().toBuffer({resolveWithObject:true});info=result.info;}catch{fail(400,'source_photo_decode_failed');}const metadata=await sharp(req.body,{limitInputPixels:16777216}).metadata(),mime={png:'image/png',jpeg:'image/jpeg',webp:'image/webp'}[metadata.format];if(mime!==req.get('content-type')||metadata.pages>1)fail(400,'source_photo_format');res.status(201).json(await s.putAsset({data:req.body,mime,metadata:{width:info.width,height:info.height,format:metadata.format},requestKey:req.query.requestKey}));});
+ r.post('/source-assets',image,uploadSource);r.post('/source-assets/for-edit/:project',image,uploadSource);
+ r.get('/source-assets/:id',run(async(req,res,s)=>res.json({asset:await s.getAsset(uuid(req.params.id))})));
+ r.get('/source-assets/:id/content',run(async(req,res,s)=>{const asset=await s.getAsset(uuid(req.params.id),{data:true});res.set('X-Content-Type-Options','nosniff').set('Content-Disposition','inline').type(asset.mime).send(asset.data);}));
+ r.delete('/source-assets/:id',run(async(req,res,s)=>res.json(await s.removeAsset(uuid(req.params.id)))));
+ r.use((error,_req,res,_next)=>res.status(error.status===413?413:400).json({error:error.status===413?'source_body_limit':'source_invalid_body'}));return r;}

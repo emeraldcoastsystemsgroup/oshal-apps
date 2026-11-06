@@ -226,10 +226,10 @@ test('native kernel: requests travel through the exchange intent and are judged 
   assert.equal(good.cancel('anything'), null);
 });
 
-test('native kernel: the link counts as connected until a request through it fails', async () => {
+test('native kernel: an untouched transport is not connected; a verified reply establishes contact', async () => {
   const native = (answer) => new EngineClient({ host: 'cad-studio-engine', port: 7412, expectedBuildHash: null, installHint: 'pin the engine', exchange: async (request) => answer(request) });
   const fresh = native(() => ({ hello: { bridge: { protocol: BRIDGE_PROTOCOL, buildHash: HASH } }, reply: { id: 1, ok: true, result: {} } }));
-  assert.deepEqual([fresh.status().connected, fresh.status().contacted], [true, false], 'not yet asked is not "not connected"');
+  assert.deepEqual([fresh.status().connected, fresh.status().contacted], [false, false], 'untouched native transport must not claim a connection');
   await fresh.request('check', {}, 1000);
   assert.deepEqual([fresh.status().connected, fresh.status().contacted, fresh.status().buildHash], [true, true, HASH]);
   const down = native(() => { throw new Error('engine container is not reachable or broke its line protocol'); });

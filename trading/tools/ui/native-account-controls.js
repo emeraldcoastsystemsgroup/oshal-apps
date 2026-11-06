@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: admit validated daily account strategies (modelVersion 3) alongside whole-share monthly models when saving an account strategy, surface failed daily backtest validation immediately, and restore the previous profile assignment if monitor binding fails.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make shared schedule state and its next action visible above the account control cards.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Account-bound strategy selection, explicit current authority, shared schedule status and compact account roster. Selection never activates execution.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Make account strategy controls the Strategies landing page, with persistent section navigation and exact account switching.
@@ -79,9 +80,40 @@ function nativeScheduleControls(schedule){
  const active=schedule?.status==='active';
  return '<div class="native-schedule-bar '+(active?'is-active':'is-paused')+'"><div><strong>Watcher schedule '+(active?'is active':schedule?'is '+esc(schedule.status):'status unavailable')+'</strong><span class="native-cell-note">'+(schedule?.nextRunAt?'Next check '+esc(new Date(schedule.nextRunAt).toLocaleString()):'Checks all enabled account policies once a minute.')+'</span><span class="native-cell-note">Only activated strategies and exit policies may submit orders.</span></div><button class="btn '+(active?'ghost':'primary')+'" data-native-management="schedule-activate"'+(active||!schedule?' disabled':'')+'>'+(active?'Watcher schedule is active':'Activate watcher schedule')+'</button>'+(active?'<button class="btn ghost" data-native-management="schedule-deactivate">Deactivate shared schedule</button>':'')+'<p data-native-schedule-notice role="status" aria-live="polite"></p></div>';
 }
+/** Validate model/account compatibility and select the exact completed study before mutating profile state. */
+function nativeSelectAccountStudy(runs,account,strategyId,latestSession){
+ const strategy=runs.strategies?.find(s=>s.id===strategyId),c=strategy?.config;
+ if(!c)throw Error('Choose a saved strategy.');
+ const monthly=c.modelVersion===2&&['monthly-trend','quarterly-rotation'].includes(c.kind)&&!c.fractionalShares&&c.grossExposurePct===100;
+ const daily=c.modelVersion===3&&['quant-stock-daily','quant-margin-daily','retirement-defensive-daily'].includes(c.kind)&&!c.borrowing;
+ if(!monthly&&!daily)throw Error('Live accounts support cash-funded whole-share monthly trend, monthly rotation, or validated daily account strategies.');
+ if(daily){
+  const reg=account.constraints?.registration,type=String(account.accountType||'').toLowerCase();
+  if(c.accountClass==='taxable-margin'&&(reg!=='taxable'||type!=='margin'))throw Error('This Quant strategy is only for confirmed taxable margin accounts.');
+  if(c.accountClass==='retirement-cash'&&(!['401k','ira','roth-ira'].includes(reg)||type!=='cash'))throw Error('This strategy requires an explicitly classified retirement account.');
+ }
+ const completed=(runs.runs||[]).filter(r=>nativeAccountsMatch(r,account)&&r.strategyId===strategyId&&r.status==='completed');
+ if(!completed.length)throw Error('Run a completed backtest for this strategy and this account before saving.');
+ if(!daily)return completed.sort((a,b)=>(b.window?.sessions||b.result?.window?.sessions||0)-(a.window?.sessions||a.result?.window?.sessions||0))[0];
+ const verdict=r=>r.validation??r.result?.validation,passed=completed.filter(r=>verdict(r)?.passed===true);
+ if(!passed.length){const reasons=(verdict(completed[0])?.reasons||[]).join(' ');throw Error('This daily strategy has not passed account validation.'+(reasons?' '+reasons:' Run a passing 252-session account backtest before saving.'));}
+ return passed.sort((a,b)=>((b.endDate===latestSession?1:0)-(a.endDate===latestSession?1:0))||String(b.endDate||'').localeCompare(String(a.endDate||''))||(b.window?.sessions||0)-(a.window?.sessions||0))[0];
+}
+async function nativeSaveAccountStrategy(account,binding,strategyId,latestSession,current){
+ const fresh=await api('/portfolio/management');if(!current())return false;
+ const live=fresh.watches?.find(w=>nativeAccountsMatch(w,account));
+ if(live?.automatedTrading||live?.authority?.active)throw Error('Deactivate '+account.label+' before changing its strategy.');
+ const runs=await api('/portfolio/research');if(!current())return false;
+ const run=nativeSelectAccountStudy(runs,account,strategyId,latestSession),previousStrategyId=account.strategyId??null;
+ await api('/portfolio/profiles',jbody('POST',{...binding,label:account.label,registration:account.constraints.registration,strategyId}));
+ if(!current())return false;
+ try{await api('/portfolio/watch',jbody('POST',{runId:run.id,confirm:true}));}
+ catch(err){await api('/portfolio/profiles',jbody('POST',{...binding,label:account.label,registration:account.constraints.registration,strategyId:previousStrategyId})).catch(()=>{});throw err;}
+ return true;
+}
 /** Account identity comes from the loaded roster, never the global paper book or another form. */
 async function nativeAccountControlAction(action,host,context){
- const {account,watch,model,token,research}=context,select=host.querySelector('[data-native-account-strategy]'),notice=host.querySelector(action.startsWith('schedule-')?'[data-native-schedule-notice]':'[data-native-account-notice]');
+ const {account,model,token,research,researchWindow}=context,select=host.querySelector('[data-native-account-strategy]'),notice=host.querySelector(action.startsWith('schedule-')?'[data-native-schedule-notice]':'[data-native-account-notice]');
  const current=()=>!stale(token)&&host.isConnected;
  if(action==='account-change'){
   select.disabled=false;host.querySelector('[data-native-account-edit]').hidden=false;
@@ -110,21 +142,13 @@ async function nativeAccountControlAction(action,host,context){
    const result=await api('/portfolio/backtest',jbody('POST',{...binding,strategyId,startDate:host.querySelector('[data-native-account-start]').value,endDate:host.querySelector('[data-native-account-end]').value}));
    if(!current())return;
    if(result.run?.status!=='completed')throw Error(result.run?.error?.message||'The backtest could not complete.');
-   research.runs.unshift(result.run);notice.textContent='Backtest complete. Return '+accountPercent(result.run.metrics?.totalReturnPct??result.run.result?.metrics?.totalReturnPct)+'. You can save this selection; live trading stays inactive.';return;
+   const validation=result.run.validation??result.run.result?.validation,ret=accountPercent(result.run.metrics?.totalReturnPct??result.run.result?.metrics?.totalReturnPct);
+   research.runs.unshift(result.run);
+   notice.textContent=validation&&validation.passed===false?'Backtest complete ('+ret+'). Daily validation failed: '+(validation.reasons||[]).join(' ')+' Live activation remains blocked.':'Backtest complete. Return '+ret+'. You can save this selection; live trading stays inactive.';return;
   }
   if(action==='account-save'){
-   const fresh=await api('/portfolio/management');if(!current())return;
-   const live=fresh.watches?.find(w=>nativeAccountsMatch(w,account));
-   if(live?.automatedTrading||live?.authority?.active)throw Error('Deactivate '+account.label+' before changing its strategy.');
-   const runs=await api('/portfolio/research');if(!current())return;
-   const run=runs.runs.filter(r=>nativeAccountsMatch(r,account)&&r.strategyId===strategyId&&r.status==='completed').sort((a,b)=>(b.window?.sessions||0)-(a.window?.sessions||0))[0];
-   if(!run)throw Error('Run a completed backtest for this strategy and this account before saving.');
-   const strategy=runs.strategies.find(s=>s.id===strategyId),c=strategy?.config;
-   if(c?.modelVersion!==2||!['monthly-trend','quarterly-rotation'].includes(c.kind)||c.fractionalShares||c.grossExposurePct!==100)throw Error('Live accounts currently support cash-funded, whole-share monthly trend or monthly rotation strategies.');
-   await api('/portfolio/profiles',jbody('POST',{...binding,label:account.label,registration:account.constraints.registration,strategyId}));
-   if(!current())return;
-   await api('/portfolio/watch',jbody('POST',{runId:run.id,confirm:true}));
-   if(current())await loadNativeAccountManagement(model,token);
+   const latest=researchWindow?.latestCompletedSession||host.querySelector('[data-native-account-end]')?.max||'';
+   if(await nativeSaveAccountStrategy(account,binding,strategyId,latest,current)&&current())await loadNativeAccountManagement(model,token);
   }
  }catch(e){if(current())notice.textContent=e.message;}
 }

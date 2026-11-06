@@ -1,8 +1,15 @@
+# 0.8.7 | maintainer@emeraldcoastsystemsgroup.com | Phones, the trial check (2026-11-06): a 2 · Measure width field sits directly above Make 3D model, which waits for it, and the 422 'knownDimensions' refusal reads as that step; a reload reopens the object open in that tab; choosing an object closes the Objects sheet; removing a photo asks first; the app bar names the open object instead of repeating Scan to Print.
+# 0.8.6 | maintainer@emeraldcoastsystemsgroup.com | A narrow scanner role in authorization.yaml (photos, Make 3D model, video, .ply and depth; no printer registration and no print), held by the trial's visitor seats so a visitor's photos end in a model.
+# 0.8.5 | maintainer@emeraldcoastsystemsgroup.com | Phones (Roger, trial.oswarm.ai, 2026-11-06, F2/F3): one primary Take photos that starts the object and opens the camera, a Front/Top/Right checklist with thumbnails above the fold, then Make 3D model and Download STL; video, .ply and silhouettes under a closed Advanced; the calibration projection carries canReconstruct (scan.edit) so a seat without it is not offered model building; the camera never scrolls the Today page.
+# 0.8.3 | maintainer@emeraldcoastsystemsgroup.com | Separate source changes from broad configuration and processing authority.
+# 0.8.2 | maintainer@emeraldcoastsystemsgroup.com | Add owned scan editing without printer registration or print release authority.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 0.7.1: a printer access code sealed by the earlier platform is reported as "re-enter it on the Scan to Print screen" instead of a refusal Jarvis read as insufficient permissions. Guarded by scan-to-print/tests/print-tools-reentry.test.js.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Use route-backed native held approval for the new calibration read/update tools; preserve strict source CAS and original-owner HTTP authority.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0: expose original-owned saved calibration read/update tools and additive provenance migrations without reconstruct or print side effects.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — scan-to-print ("Scan to Print")
 #
@@ -62,7 +69,7 @@
 # docs/adr/036-bot-owned-application-architecture.md, docs/adr/140-local-device-access.md)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 0.7.3: a stored access code this installation cannot read is named, and a printer's code can be entered again in place; the engine hash is not checked natively because the sandbox hides its Dockerfile.
+# 0.8.0: a stored access code this installation cannot read is named, and a printer's code can be entered again in place; the engine hash is not checked natively because the sandbox hides its Dockerfile.
 # 0.7.2: on the native kernel the slicer engine is reached through engine.exchange and the Bambu upload runs in the engine container, because a native package has no network. No catalog change.
 name: scan-to-print
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
@@ -86,7 +93,7 @@ description: >-
   turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
   grid, the grid becomes the mesh and the drawing — and the same occupancy grid
   accepts depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.7.3
+version: 0.8.7
 status: active
 scope: person
 
@@ -212,6 +219,39 @@ bots:
 # unless the printer's owner turned that printer's auto-start on. Inputs are closed server-side.
 # ─────────────────────────────────────────────────────────────────────────────
 tools:
+  - name: scan-read-calibration
+    displayName: Read saved scan calibration
+    category: engineering
+    description: Read the actual original-owned scan calibration, source SHA, measured dimensions and bounded reconstruction settings. No reconstruction or printing.
+    executor: { executorType: api, apiEndpoint: 'GET /api/scan-to-print/jobs/{input.jobId}/calibration' }
+    authGroup: scan-to-print
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        jobId: { type: string, format: uuid }
+      required: [jobId]
+    tags: [scan-to-print, calibration-source]
+  - name: scan-update-calibration
+    displayName: Update saved scan calibration
+    category: engineering
+    description: Save complete measured calibration using the current source SHA. Retires stale geometry without reconstructing, slicing or printing. Never guess a ruler measurement.
+    executor: { executorType: api, apiEndpoint: 'PATCH /api/scan-to-print/jobs/{input.jobId}/calibration' }
+    authGroup: scan-to-print
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        jobId: { type: string, format: uuid }
+        expectedSourceSha: { type: string, minLength: 64, maxLength: 64 }
+        knownDimensionsJson: { type: string, maxLength: 2048, description: 'Complete JSON array of zero to three distinct {axis:x|y|z,mm:number} measurements, positive and at most 100000 mm.' }
+        settingsJson: { type: string, maxLength: 1024, description: 'Complete JSON object with resolution and smoothIterations from the actual capabilities bounds.' }
+      required: [jobId, expectedSourceSha, knownDimensionsJson, settingsJson]
+    tags: [scan-to-print, calibration-source]
   - name: scan-to-print-capabilities
     displayName: Scan to Print Capabilities
     category: engineering
@@ -358,6 +398,13 @@ routes:
 migrations:
   - migrations/001-scan-to-print.sql
   - migrations/002-bambu-lan-printers.sql
+  - migrations/003-calibration-editor.sql
+  - migrations/native/003-calibration-editor.sql
+
+nativeMigrations:
+  - id: migrations/003-calibration-editor.sql
+    native: skip
+    reason: Original-person native scopes use native/003 for the same provenance table; PostgreSQL RLS and session policies are not native DDL.
 
 # The right-rail chat agent when this app is focused.
 chatBot: scan-to-print-operator

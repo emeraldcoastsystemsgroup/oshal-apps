@@ -1,20 +1,26 @@
 # PDF Workbench
 
-A bounded, provider-independent PDF editor for the original person's documents. Upload or import a native owned PDF, keep its original bytes, and save page/form/annotation edits as new derivative revisions. Manual controls and approval-held agent tools call the same validated operations.
+0.2.2 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
 
-Source proofs and a genuine disposable native kernel proof exist; audit and live installed acceptance are pending. This is not full Acrobat parity. The prior failed normal checkpoint push was held by the structural package/engine gate; no hook was bypassed.
 
-Supported first profile:
+A bounded, provider-independent PDF editor for the original person's documents. Upload or import a native owned PDF, keep its original bytes, select actual page text/images/shapes and save edits as new derivative revisions. Manual controls and approval-held agent tools call the same validated operations.
+
+Source and native kernel proofs are tracked separately from installation and provider acceptance; audit remains pending.
+
+Supported editing profile (0.2.0):
+
+- Shared document workspace with selectable native objects, a page/object tree, direct text editing and dragging, typed geometry/font/color/line/opacity properties, draft previews, focused-field Save, draft Undo/Redo and phone drawers. Text stays within its own PDF object. Re-encoding controls are enabled only for safe standard-font runs; embedded/subset/custom fonts keep geometry/paint editing, with text/size locked until an explicit supported standard font is chosen for Latin-1 text. Visible non-Latin runs retain geometry/paint controls. Hidden/clipping text and pages with Type3 glyph programs stay read only for content editing; page organization/annotations preserve them. Font choice never silently substitutes the original. Native shapes and owned PNG/JPEG images can be inserted, moved and edited. Existing images retain their masks and opacity when transformed.
+- Immutable image assets are stored once in bounded SQL chunks, referenced by revisions and protected from deletion while retained history uses them. PNG transparency survives native PDF export.
 
 - Page reorder, quarter-turn rotation, remove, keep-selected extraction and merge from owned originals. Human selected-page new-copy currently accepts unedited pages from one original; edited pages use keep-selected and append a saved revision. No unchanged-original overwrite.
-- Printable ASCII Helvetica free-text notes, rectangular highlights and bounded ink strokes in crop-box coordinates before rotation. Saved derivatives reopen through independent Poppler. Draft page rotation/order and undo/redo are visible; annotations and merged pages render after save.
+- Printable ASCII Helvetica free-text notes, rectangular highlights and bounded ink strokes in crop-box coordinates before rotation. Saved derivatives reopen through independent Poppler. Draft page/content/annotation edits render with the actual worker; merged source pages appear after save.
 - Standard AcroForm text, checkbox, radio and single-choice values with real generated/retained appearances. Source UUID namespaces prevent colliding field names. Text filling is ASCII with existing field length limits. Read-only/rich-text/push-button/multi-select or unsupported field flags/fonts/appearances are refused. Repeated copies of form-bearing source pages are refused.
 - Selectable-text search and explicit selected-page English OCR. OCR returns page scope, language, raster size, word boxes/confidence, uncertainty and quality. It is a separate result and never changes the original.
 - Saved history and restoration by appending a new revision; separate current read/change/export/delete/OCR grants and original owner checks.
 
-Encrypted and signed PDFs, XFA, embedded files/active actions, original-content rewriting, redaction, digital signing, accessibility/PDF-A and arbitrary non-Latin form appearance generation are unsupported. A highlight or ink rectangle does not remove data.
+Encrypted and signed PDFs, XFA, embedded files/active actions, text reflow or arbitrary nested form-XObject text rewriting, redaction, digital signing, accessibility/PDF-A and arbitrary non-Latin form appearance generation are unsupported. A highlight or ink rectangle does not remove data.
 
-Bounds: combined source bytes and derivative at most4MiB, at most32 pages,64 operations,128 new annotations,256 fields,32MiB retained owner PDF bytes and a separate8MiB accounted structured-metadata budget,32 original sources and32 documents,100 revisions/document, one active job/owner and16 retained job receipts. OCR selects at most10 pages and retains at most1MiB combined report; previews cap1600px/side and4MiB. A producer has a five-minute deadline; every engine RPC is at most50s. Pre-work engine-busy retries have a five-second bound and refresh original permissions; unknown/lost-reply failures are not blindly repeated.
+Bounds: combined source bytes and derivative at most4MiB, at most32 pages,64 operations,128 new annotations,128 added native objects,2048 original-object patches,256 fields,32MiB retained owner PDF bytes and a separate8MiB accounted structured-metadata budget,32 original sources and32 documents,100 revisions/document, one active job/owner and16 retained job receipts. OCR selects at most10 pages and retains at most1MiB combined report; previews cap1600px/side and4MiB. A producer has a five-minute deadline; every engine RPC is at most50s. Pre-work engine-busy retries have a five-second bound and refresh original permissions; unknown/lost-reply failures are not blindly repeated.
 
 Immutable original/derivative content is stored in64KiB SQL parts, with independent per-part and whole SHA256. The same original SQL client publishes bytes, lineage and a head CAS in one transaction. Quota includes originals and all retained derivative history. Deleting history retains originals; deleting a source referenced by any history refuses. Original source and derivative update triggers refuse in both migration profiles. PostgreSQL adds forced original-owner RLS; the native engine retains its physical original-person namespace.
 
@@ -24,7 +30,7 @@ A queued/rendering result is incomplete. Status reads project a deadline-expired
 
 The package uses only existing native `engine.exchange`, scoped SQL, current application authority and native generic artifact metadata/chunks. It never calls the old `/builtin/extract-text` relay, a service secret, a user-supplied URL, an owner selector or arbitrary shell command. Ordinary native artifact handles cap4MiB. Handle ownership/current producer-source proof requires the genuine full-kernel fixture; contract callbacks alone are not that proof.
 
-The source bridge hashes worker/server/requirements, and verifies that identity on every engine reply. pypdf6.20.1 is pinned by wheel SHA256. The own sidecar image uses an official Python image digest and dated signed Debian repositories for Poppler/Tesseract/fonts. Source identity is not an image attestation: retain the built image digest and installed package manifest alongside final operator installation receipts. `engine/install-engine.sh` touches only the own compose project, asserts its project label, and leaves kernel mapping/admission/restart to coordinated root installation.
+The source bridge hashes worker/server/page_content/requirements, and verifies that identity on every engine reply. pypdf6.20.1, pypdfium2 5.14.0 and Pillow13.0.0 are pinned by wheel SHA256. Image assets cap1MiB and16MP; native object inspection caps512 objects/page and4096/document, with explicit read-only/truncation flags. The own sidecar image uses an official Python image digest and dated signed Debian repositories for Poppler/Tesseract/fonts. Source identity is not an image attestation: retain the built image digest and installed package manifest alongside final operator installation receipts. `engine/install-engine.sh` touches only the own compose project, asserts its project label, and leaves kernel mapping/admission/restart to coordinated root installation.
 
 Run genuine source fixtures on the shared disposable PostgreSQL only:
 
@@ -107,3 +113,24 @@ queueing a render, with the independent worker checks retained.
 
 Installed0.1.3 fixed the bounded field read but its actual full provider trial
 failed on geometry;0.1.4 has no installed-provider qualification yet.
+
+## Upgrade and native editing contracts
+
+Apply both schema migrations in the appropriate PostgreSQL or native profile.
+New source/preview/image HTTP bindings change the authorization catalog revision;
+existing installations require explicit named-role reapproval under the normal
+application lifecycle. No blanket legacy grant is promoted automatically.
+The native viewer/reader/change/export boundaries remain distinct.
+
+The shared PDF AI partner saves focused fields and waits for the actual job, then
+uses the existing PDF bot and native held approval cards. It reads selected stable
+page/object IDs and complete text in bounded chunks. Draft Undo/Redo operates on
+local edits; saved revision restoration appends a new immutable revision. Provider
+unavailability is reported without simulated edits.
+
+`tests/content-editor.test.mjs` independently extracts text and renders paths,
+transparent inserted images and reimported-image transforms through Poppler.
+`tests/browser/content-editor.test.mjs` exercises real original-owner SQL/worker
+save/reopen/export, focused invalid fields, phone drawers, immutable asset
+references, one-click object selection after property blur and Undo pixel reset.
+These source tests do not establish installed provider availability.

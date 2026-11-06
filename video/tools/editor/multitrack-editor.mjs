@@ -28,7 +28,7 @@ export function createMultitrackEditor(ctx) {
         button(track.locked ? 'Unlock' : 'Lock', () => operate({ type: 'track', id: track.id, patch: { locked: !track.locked } }), !ctx.editable()));
       const strip = document.createElement('div'); strip.className = 'multi-clips';
       for (const clip of track.clips) {
-        const node = button(`${timeline.sources[clip.source].name} · ${clip.start}–${clip.start + clip.out - clip.in}f${clip.link ? ' · linked' : ''}`, () => { selected = clip.id; render(); });
+        const node = button(`${timeline.sources[clip.source].name} · ${clip.start}–${clip.start + clip.out - clip.in}f${clip.link ? ' · linked' : ''}`, () => { selected = clip.id; render(); ctx.onSelect?.(); });
         node.dataset.multiClip = clip.id; node.draggable = ctx.editable() && !track.locked;
         const total = Math.max(1, timelineFrames(timeline)); node.style.left = `${clip.start / total * 100}%`; node.style.width = `${(clip.out - clip.in) / total * 100}%`;
         node.ondragstart = event => { event.dataTransfer.setData('text/plain', clip.id); event.dataTransfer.effectAllowed = 'move'; };
@@ -49,7 +49,7 @@ export function createMultitrackEditor(ctx) {
     const list = $('multiTextList'); list.replaceChildren();
     for (const key of ['titles', 'captions']) for (const entry of timeline[key]) {
       const row = document.createElement('li'), text = document.createElement('span'); text.textContent = `${key}: ${entry.text} · ${entry.start}–${entry.end}f`;
-      row.append(text, button('Remove', () => operate({ type: 'removeText', track: key, id: entry.id }), !ctx.editable())); list.append(row);
+      const choose=button(entry.text,()=>ctx.selectText?.(key,entry.id));choose.dataset.selectText=entry.id;choose.dataset.textKind=key;row.append(choose, text, button('Remove', () => operate({ type: 'removeText', track: key, id: entry.id }), !ctx.editable())); list.append(row);
     }
   }
 

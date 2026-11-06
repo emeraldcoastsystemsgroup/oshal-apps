@@ -1,3 +1,4 @@
+# 1.0.5 | maintainer@emeraldcoastsystemsgroup.com | Preserve reviewed Office app-admin authority through the declared admin role; all other workspace grants are unchanged.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
@@ -10,7 +11,7 @@
 name: classroom-experience
 displayName: Classroom
 description: Classwork, class schedules and personal learning through existing school roles and roster rules.
-version: 1.0.4
+version: 1.0.5
 status: active
 suite: ai-knowledge
 rating:
@@ -108,7 +109,7 @@ experience:
       audience: classroom
   roleTemplates:
     - id: learner
-      version: 3
+      version: 4
       label: Learner
       members:
         - app: classroom-experience
@@ -116,13 +117,13 @@ experience:
         - app: little-monsters
           role: student
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: circuit-lab
           role: '@app-admin'
         - app: email-summarizer
           role: '@app-admin'
     - id: teacher
-      version: 3
+      version: 4
       label: Teacher
       members:
         - app: classroom-experience
@@ -130,13 +131,13 @@ experience:
         - app: little-monsters
           role: teacher
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: circuit-lab
           role: '@app-admin'
         - app: email-summarizer
           role: '@app-admin'
     - id: administrator
-      version: 3
+      version: 4
       label: School administrator
       members:
         - app: classroom-experience
@@ -144,7 +145,7 @@ experience:
         - app: little-monsters
           role: admin
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: circuit-lab
           role: '@app-admin'
         - app: email-summarizer

@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | The revert guard: refuse a commit, or a merge, that puts a file
+#   back to an OLDER committed version of itself. A checkout that falls far behind its branch keeps older
+#   copies of files that look like local edits; committing them reverts shipped work without a word. On
+#   2026-11-05 the shared store checkout (branch fix/home-weather-description, 148 commits behind main) had
+#   45 modified files: 25 byte-identical to main f5daf367, and of the 20 that differ this guard refuses 14
+#   as older committed versions. The same guard runs in the kernel repository (.githooks/commit-msg there).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Review fixes, each proved on the real histories. (a) A mode-only
+#   change (chmod +x, or a merge whose side changed only the mode) was refused as a revert: its blob is HEAD's
+#   own, which the walk always finds; the kernel's PR #158 merge 29f50558 (ops/deploy-bare-metal.sh 100755 -> 100644) was
+#   refused that way. A path whose blob is unchanged is no longer a candidate. (b) The per-path window of 300
+#   history entries let a stale copy through without a word: the store's marketplace.json has 1,183 entries
+#   and its copy from main~148 (the checkout that fell 148 commits behind) was not refused. The walk already
+#   reads the whole history, so the window bought no time; it now defaults to the whole history (replaying
+#   all 2,467 store commits refuses the same 9 either way), and a bound set with OSHAL_REVERT_GUARD_COMMITS
+#   says which paths it cut.
+# -----------------------------------------------------------------------------
+#
+# The revert guard compares each staged path whose blob differs from HEAD's (modified files, and the result
+# of a merge) with the blobs that path had in HEAD's history: `git log --raw --full-history -m` over all
+# candidate paths in one walk, the whole history unless OSHAL_REVERT_GUARD_COMMITS=<n> keeps only the newest
+# n entries per path (and then names the paths it cut). A staged blob found there is an older version, and
+# the commit is refused with the path, the commit that version came from, and how to proceed. New files,
+# deletions, renames and mode-only changes are never refused; a re-added file whose content is an earlier
+# committed version gets a note.
+#
+# Deliberate reverts pass:
+#   - a message whose subject starts with "Revert " or "Reapply " (git revert's own messages);
+#   - a commit while REVERT_HEAD exists (`git revert --no-commit` followed by `git commit`);
+#   - "[allow-revert]" anywhere in the message;
+#   - OSHAL_ALLOW_REVERT=1 in the environment.
+# `git commit --no-verify` (and `git merge --no-verify`) skip every hook, this one included.
+#
+# Where it runs: `git commit` and `git merge` (so also the merge `git pull` makes) call commit-msg. Git's
+# sequencer does not: with git 2.43.0, `git revert`, `git cherry-pick` and rebase picks committed without
+# calling it. Plumbing (`git commit-tree`, the private-index recipe) never runs hooks.
+#
+# What it cannot see: it matches whole blobs, so a stale copy with an edit on top, or only part of one
+# staged, passes. `git commit --amend` is judged against the commit being amended, so an amend that drops
+# that commit's change to a file is refused like a revert ([allow-revert] lets it through).
+#
+# Bounds: at most OSHAL_REVERT_GUARD_MAX_PATHS (default 300) paths are checked per commit; when a commit
+# changes more, the guard says how many it did not check. Enable once per clone:
+#   git config core.hooksPath .githooks
+set -uo pipefail
+
+MSG_FILE="${1:-}"
+
+say() { printf '%s\n' "$*" >&2; }
+
+# The message as git will record it: drop a verbose commit's diff below the scissors line, then comments.
+MESSAGE=""
+if [ -n "$MSG_FILE" ] && [ -r "$MSG_FILE" ]; then
+  MESSAGE="$(sed -e '/^. -\{24\} >8 -\{24\}$/,$d' "$MSG_FILE" | git stripspace --strip-comments 2>/dev/null)"
+fi
+
+# ── The revert guard ──────────────────────────────────────────────────────────
+revert_guard() {
+  local limit max subject tip merging work
+  limit="${OSHAL_REVERT_GUARD_COMMITS:-0}"
+  max="${OSHAL_REVERT_GUARD_MAX_PATHS:-300}"
+  case "$limit" in ''|*[!0-9]*) limit=0 ;; esac
+  case "$max" in ''|*[!0-9]*) max=300 ;; esac
+
+  if [ "${OSHAL_ALLOW_REVERT:-}" = "1" ]; then
+    say "revert guard: not checked (OSHAL_ALLOW_REVERT=1)."
+    return 0
+  fi
+  subject="$(printf '%s\n' "$MESSAGE" | sed -n '1p')"
+  case "$subject" in "Revert "*|"Reapply "*) return 0 ;; esac
+  case "$MESSAGE" in *"[allow-revert]"*) return 0 ;; esac
+  git rev-parse -q --verify REVERT_HEAD >/dev/null 2>&1 && return 0
+
+  # The first commit of a repository has nothing older to go back to.
+  tip="$(git rev-parse -q --verify 'HEAD^{commit}' 2>/dev/null)" || return 0
+  merging=0
+  git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 && merging=1
+
+  work="$(mktemp -d "${TMPDIR:-/tmp}/oshal-revert-guard.XXXXXX")" || {
+    say "revert guard: cannot create a temporary directory; not committing."
+    say "  Fix TMPDIR, or skip this check once with OSHAL_ALLOW_REVERT=1."
+    return 1
+  }
+  # shellcheck disable=SC2064
+  trap "rm -rf '$work'" EXIT
+
+  # What this commit records against HEAD. GIT_INDEX_FILE is the index git commits from, so a
+  # `git commit -- <paths>` sees exactly those paths.
+  if ! git diff-index --cached --no-renames --raw -z "$tip" >"$work/staged" 2>"$work/err"; then
+    say "revert guard: git diff-index failed; not committing:"
+    sed 's/^/  /' "$work/err" >&2
+    say "  Skip this check once with OSHAL_ALLOW_REVERT=1 if you know why."
+    return 1
+  fi
+
+  local meta path _om _nm os ns st newline_paths=0 total_m=0 total_a=0 capped=0
+  local -a paths=()
+  : >"$work/modified"
+  : >"$work/added"
+  while IFS= read -r -d '' meta && IFS= read -r -d '' path; do
+    read -r _om _nm os ns st <<<"$meta"
+    case "$ns" in *[!0]*) ;; *) continue ;; esac   # intent-to-add: nothing staged yet
+    [ "$ns" = "$os" ] && continue                  # mode-only change: the content is HEAD's own
+    case "$path" in *$'\n'*) newline_paths=$((newline_paths + 1)); continue ;; esac
+    case "$st" in
+      M*|T*) total_m=$((total_m + 1)); printf '%s\t%s\n' "$ns" "$path" >>"$work/modified" ;;
+      A*) total_a=$((total_a + 1)); printf '%s\t%s\n' "$ns" "$path" >>"$work/added" ;;
+    esac
+  done <"$work/staged"
+
+  # Modified paths take the budget first: they are the ones that can be refused.
+  head -n "$max" "$work/modified" | sed 's/^/M\t/' >"$work/candidates"
+  [ "$total_m" -gt "$max" ] && capped=$((total_m - max))
+  local room=$((max - total_m))
+  if [ "$room" -gt 0 ]; then
+    head -n "$room" "$work/added" | sed 's/^/A\t/' >>"$work/candidates"
+  fi
+  while IFS= read -r line; do
+    paths+=("${line#*$'\t'*$'\t'}")
+  done <"$work/candidates"
+
+  if [ "$capped" -gt 0 ]; then
+    say "revert guard: this commit changes $total_m files; only the first $max were checked and $capped were NOT."
+    say "  Raise the bound with OSHAL_REVERT_GUARD_MAX_PATHS=<n> to check them all."
+  fi
+  if [ "$newline_paths" -gt 0 ]; then
+    say "revert guard: $newline_paths path(s) with a newline in the name were not checked."
+  fi
+  [ "${#paths[@]}" -eq 0 ] && return 0
+
+  if ! git -c log.follow=false -c log.showSignature=false -c color.ui=never --literal-pathspecs \
+      log -z --raw --no-abbrev --no-renames --full-history -m --no-color --format='C %H %P' \
+      "$tip" -- "${paths[@]}" >"$work/history.z" 2>"$work/err"; then
+    say "revert guard: git log failed; not committing:"
+    sed 's/^/  /' "$work/err" >&2
+    say "  Skip this check once with OSHAL_ALLOW_REVERT=1 if you know why."
+    return 1
+  fi
+  tr '\0' '\n' <"$work/history.z" >"$work/history"
+
+  # Per candidate path: the newest commit whose change produced the staged blob (introduced) and the
+  # newest commit whose change replaced it (replaced), within the newest $limit entries for that path
+  # when a bound is set (0: the whole history). Paths a bound cut are written to $work/cut.
+  # Any entry decides the match; for naming the commit, an ordinary commit is preferred over a merge
+  # (-m shows merges against each parent, and "Merge pull request" names nothing).
+  awk -v limit="$limit" -v cutfile="$work/cut" '
+    FNR == NR {
+      kind = substr($0, 1, 1); rest = substr($0, 3)
+      tab = index(rest, "\t"); sha = substr(rest, 1, tab - 1); p = substr(rest, tab + 1)
+      want[p] = sha; kindof[p] = kind; order[++n] = p
+      next
+    }
+    expect {
+      expect = 0
+      if (!($0 in want)) next
+      if (limit > 0 && ++seen[$0] > limit) { cut[$0] = 1; next }
+      if (newsha == want[$0]) {
+        if (!($0 in intro)) intro[$0] = commit
+        if (!merge && !($0 in intro1)) intro1[$0] = commit
+      }
+      if (oldsha == want[$0]) {
+        if (!($0 in repl)) repl[$0] = commit
+        if (!merge && !($0 in repl1)) repl1[$0] = commit
+      }
+      next
+    }
+    /^C / { commit = $2; merge = (NF > 3); next }
+    /^:/ { split($0, f, " "); oldsha = f[3]; newsha = f[4]; expect = 1; next }
+    END {
+      printf "" > cutfile
+      for (p in cut) printf "%s\n", p > cutfile
+      for (i = 1; i <= n; i++) {
+        p = order[i]
+        if (p in intro1) intro[p] = intro1[p]
+        if (p in repl1) repl[p] = repl1[p]
+        if ((p in intro) || (p in repl))
+          printf "%s\t%s\t%s\t%s\n", kindof[p], ((p in intro) ? intro[p] : "-"), ((p in repl) ? repl[p] : "-"), p
+      }
+    }' "$work/candidates" "$work/history" >"$work/matches" || {
+    say "revert guard: could not read the history walk; not committing."
+    return 1
+  }
+  if [ -s "$work/cut" ]; then
+    say "revert guard: OSHAL_REVERT_GUARD_COMMITS=$limit: versions older than the newest $limit history entries were NOT checked for $(wc -l <"$work/cut") path(s):"
+    sed 's/^/  /' "$work/cut" >&2
+  fi
+
+  local kind intro repl refused=0 noted=0
+  : >"$work/refused"
+  while IFS=$'\t' read -r kind intro repl path; do
+    if [ "$kind" = "M" ]; then
+      refused=$((refused + 1))
+      printf '%s\t%s\t%s\n' "$intro" "$repl" "$path" >>"$work/refused"
+    else
+      noted=$((noted + 1))
+      local from="$intro"
+      [ "$from" = "-" ] && from="$repl"
+      say "revert guard: note: new file $path is identical to an earlier committed version ($(describe "$from")); not refused."
+    fi
+  done <"$work/matches"
+  [ "$refused" -eq 0 ] && return 0
+
+  say ""
+  if [ "$merging" -eq 1 ]; then
+    say "MERGE REFUSED by the revert guard (.githooks/commit-msg): the merge result puts $refused file(s) back"
+    say "to an OLDER committed version of themselves. The other side carries old copies of files this"
+    say "branch has moved past (the stale-copy merge revert):"
+  else
+    say "COMMIT REFUSED by the revert guard (.githooks/commit-msg): $refused staged file(s) would go back to"
+    say "an OLDER committed version of themselves. A checkout that fell behind its branch keeps older"
+    say "copies of files, and they look like local edits:"
+  fi
+  while IFS=$'\t' read -r intro repl path; do
+    say ""
+    say "  $path"
+    if [ "$intro" != "-" ]; then
+      say "    staged content = the version committed in $(describe "$intro")"
+    fi
+    if [ "$repl" != "-" ]; then
+      say "    that version was replaced in $(describe "$repl")"
+    fi
+  done <"$work/refused"
+  say ""
+  if [ "$merging" -eq 1 ]; then
+    say "Keep this branch's newer version, then finish the merge:"
+    say "    git checkout HEAD -- <path>      (each path above), then: git commit"
+    say "  or abandon the merge:  git merge --abort"
+  else
+    say "Keep the newer version (re-sync the file to HEAD):"
+    say "    git restore --source=HEAD --staged --worktree -- <path>"
+    say "  or only leave it out of this commit:  git restore --staged -- <path>"
+    say "  (with \`git commit -- <paths>\`, drop it from the paths you name)."
+  fi
+  say "Going back on purpose (an intended revert, or restoring a version lost to an accidental one):"
+  say "    put [allow-revert] in the commit message, or run once with OSHAL_ALLOW_REVERT=1."
+  say "    git revert's own \"Revert ...\" / \"Reapply ...\" messages pass as they are."
+  say "git commit --no-verify skips every hook, this one included."
+  return 1
+}
+
+# One line naming a commit: short id, date and subject.
+describe() {
+  git -c log.showSignature=false show -s --no-color --date=short --format='%h %ad "%s"' "$1" 2>/dev/null || printf '%s' "$1"
+}
+
+revert_guard || exit 1
+exit 0

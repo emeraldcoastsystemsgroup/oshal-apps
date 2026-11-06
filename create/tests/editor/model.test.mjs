@@ -340,3 +340,10 @@ test('path booleans keep hidden editable operands and commit their result as one
   const aligned = applyOperation(project, { type: 'arrange', ids: ['a', 'b'], mode: 'left' });
   assert.equal(aligned.layers[0].x, aligned.layers[1].x); assert.equal(project.layers[1].x, 20);
 });
+
+test('appearance v4 retains typed shadows/shapes, rejects malformed metadata and bounds render scratch memory',()=>{
+ const original=createProject({width:200,height:200});const edited=applyOperation(original,{type:'add',layer:{id:'shape',type:'rect',shape:'diamond',dash:[8,4],shadow:{color:'#123456',opacity:.5,blur:12,offsetX:4,offsetY:6}}});
+ assert.equal(edited.version,4);assert.deepEqual(parseProject(serializeProject(edited)),edited);assert.throws(()=>validateProject({...edited,version:3}),/version 4/);assert.equal(original.version,1);
+ for(const patch of [{shape:'unknown'},{radius:-1},{dash:[0]},{cap:'triangle'},{shadow:{color:'red',opacity:1,blur:0,offsetX:0,offsetY:0}},{shadow:{color:'#000000',opacity:1,blur:65,offsetX:0,offsetY:0}},{shadow:{color:'#000000',opacity:1,blur:0,offsetX:513,offsetY:0}}]){assert.throws(()=>applyOperation(edited,{type:'update',id:'shape',patch}));assert.equal(edited.layers[0].shape,'diamond');}
+ let large=createProject({width:8192,height:4096});assert.throws(()=>applyOperation(large,{type:'add',layer:{id:'huge-shadow',type:'rect',shadow:{color:'#000000',opacity:.5,blur:64,offsetX:512,offsetY:512}}}),/pixel budget/);
+});

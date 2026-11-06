@@ -20,6 +20,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # CHANGE LOG
+# 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Explicit app first use requests native engine preparation and shows download progress; passive catalog reads remain unchanged.
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Initial package: engine container, contract, routes, surface, concierge, Test Lab catalog.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.1.1: drag a part from the palette onto the canvas; the actual-page editing suite registered.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.0: eight more parts (zener, lamp, regulator, op-amp, relay, sequenced pin, H-bridge, 555), relaxed-tolerance retry, restore a run, gear-to-CAD-Studio hand-off, undo/redo, copy/paste, zoom/pan and live values on the canvas.
@@ -57,7 +58,7 @@ description: >-
   transient: waveforms, per-part readings, warnings, and gears that turn on the canvas at their
   solved speed. Ask the concierge for a change in plain words and it edits the same circuit
   through the package's tools, so the person, the bot and any MCP client iterate on one design.
-version: 0.9.0
+version: 0.9.1
 status: active
 scope: person
 
@@ -168,8 +169,14 @@ tools:
     requiresApproval: false
     usageInstructions: >-
       Read this FIRST before adding or changing anything: pin names, property names and units
-      come from here, never from memory. If engine.connected is false, tell the person the engine
-      container is down and quote engine.installHint verbatim; do not retry edits until it is up.
+      come from here, never from memory. Opening native capabilities asks this application's engine to prepare.
+      If engine.lifecycle.state is not-prepared or preparing, report automatic preparation and
+      progress, then read capabilities again before building. ready, running or pinned permits normal
+      work (pinned uses the installation's existing engine);
+      connected false alone means no verified transport contact yet, not that setup is required.
+      failed or none is unavailable: report the failure without claiming a result. A failed write
+      must never be repeated blindly; keep any returned model or design ID for its supported retry.
+      If lifecycle is absent, the legacy engine connection and installHint still describe setup.
     routingTags: [circuit, capabilities, contract]
     tags: [circuit-lab, route-backed]
 

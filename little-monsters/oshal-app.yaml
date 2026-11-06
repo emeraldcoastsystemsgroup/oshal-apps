@@ -1,3 +1,4 @@
+# 1.7.2 | maintainer@emeraldcoastsystemsgroup.com | Preserve reviewed Office app-admin authority through the declared admin role; all other workspace grants are unchanged.
 # CHANGE LOG
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 1.7.1: the page frame's More menu carries All applications back to the main cockpit: the frame hides the cockpit's menu, and that menu now opens every Little Monsters screen. A child-safe kiosk does not get the link. No contract change.
 # 35 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: the 21 Study Lab lessons are real videos taught by the app's monsters: directed voices, a rigged fur puppet, chalk writing and math that move on the spoken word (scripts/lesson-studio). The retired videos were five still cards read by a flat synthesizer. Videos stream with byte ranges from lasting storage (routes/education-prep-media.js), because a package reply stops at 8 MiB and every package file is copied into every sandbox: each installation runs scripts/lesson-studio/install-videos.py. The lesson list shows posters. No contract change.
@@ -101,7 +102,7 @@ description: >-
   their school calendar; and chat with a Socratic tutor grounded only in
   caller-owned or teacher/admin-approved class material through per-material
   RAG collections.
-version: 1.7.1
+version: 1.7.2
 lastingStorage: true
 chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 
@@ -110,37 +111,37 @@ authorization:
   catalog: authorization.yaml
   roleTemplates:
     - id: student
-      version: 2
+      version: 3
       label: Student
       members:
         - app: little-monsters
           role: student
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: circuit-lab
           role: '@app-admin'
         - app: email-summarizer
           role: '@app-admin'
     - id: teacher
-      version: 2
+      version: 3
       label: Teacher
       members:
         - app: little-monsters
           role: teacher
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: circuit-lab
           role: '@app-admin'
         - app: email-summarizer
           role: '@app-admin'
     - id: admin
-      version: 2
+      version: 3
       label: School administrator
       members:
         - app: little-monsters
           role: admin
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: circuit-lab
           role: '@app-admin'
         - app: email-summarizer

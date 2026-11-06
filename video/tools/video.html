@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="en" data-theme="midnight">
 <head>
+<script>
+// Artifact exchange opens the app's first surface; its owned manual editor receives MP4 handles.
+{const refs=new URLSearchParams(location.search).getAll('artifact');if(refs.length&&new Set(refs).size===1&&/^art_[A-Za-z0-9_-]{8,64}$/.test(refs[0]))location.replace('/api/video/editor?artifact='+encodeURIComponent(refs[0]));}
+</script>
+
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Video Studio — OSHAL</title>

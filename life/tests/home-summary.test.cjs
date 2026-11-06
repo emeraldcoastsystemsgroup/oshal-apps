@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Resolve js-yaml from the supported STORE_CI_TOOLCHAIN override, retaining the repository toolchain fallback and all Life summary assertions.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: on the Movies & TV tab the concierge said no part of Life was usable without connecting
  *   something, although Get a Ride, the travel and food concierges work without one; Life declared no summary, so the concierge knew
  *   only the Movies screen. The COMPILED route (what the runtime mounts) behind the manifest's real declaration: unauthenticated
@@ -15,9 +16,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { createRequire } = require('node:module');
 
 const PKG = path.resolve(__dirname, '..');
-const yaml = require(path.resolve(PKG, '..', 'scripts', 'toolchain', 'node_modules', 'js-yaml'));
+const toolchain = createRequire(path.resolve(process.env.STORE_CI_TOOLCHAIN || path.join(PKG, '..', 'scripts', 'toolchain'), 'package.json'));
+const yaml = toolchain('js-yaml');
 const manifest = yaml.load(fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8'));
 
 /** @description Load the compiled router with only express stubbed; return a GET caller. */

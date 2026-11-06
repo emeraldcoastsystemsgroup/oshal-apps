@@ -10,7 +10,7 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | GET /characters no longer saves the starter character (a GET is admitted read-only and must not write; the native host refused it, so the list failed to load for every account). An account with no characters now sees an explicit "Add the starter character" action, which calls POST /characters/starter and paints the list it returns; a refusal (a viewer may not create characters) is shown in place. The audience-view note no longer gives the starter as the reason the view skips /characters.
   7 | maintainer@emeraldcoastsystemsgroup.com | Save character with a required field empty (Hero image on the worker) did nothing and said nothing: the browser's validity bubble did not show in the docked frame. The form is novalidate and names each empty required field by its label in the result line, focusing the first; nothing is sent.
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="light-blue">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -185,8 +185,24 @@
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
   @media (max-width: 640px){ .split{flex-direction:column;height:auto} .left{flex:none;width:100%;border-right:none;border-bottom:1px solid var(--line)} }
+
+.split.ef-editor{display:block;height:100dvh;max-width:none;margin:0}.ef-editor .ef-header-slot>.top{padding:12px 16px;margin:0}.ef-editor .top h1{font-size:20px}
+.ef-editor .ef-navigation>.left,.ef-editor .ef-viewport>.right,.ef-editor .lora-inspector{width:auto;max-width:none;height:auto;min-width:0;overflow:auto;border:0;padding:14px;flex:none}
+.ef-editor .ef-viewport>.right{height:100%}.ef-editor .lora-inspector .bar{display:flex;flex-wrap:wrap;gap:8px}.ef-editor .lora-inspector button{min-height:40px}
+.ef-editor .character-config dl{display:none}.ef-editor #datasetRows{overflow-wrap:anywhere}.ef-editor #actions{margin-top:0}
+@media(max-width:800px){.ef-editor .btn,.ef-editor summary,.ef-editor input{min-height:44px}.ef-editor input,.ef-editor textarea{font-size:16px}}
+
+
+.ef-editor .source-edit-panel{padding:4px 0 20px;border-block-end:1px solid var(--border-color);margin-bottom:16px}
+.ef-editor .source-edit-panel h3{margin:8px 0;font-size:15px}.ef-editor .source-edit-panel label{display:grid;gap:6px;margin:12px 0}
+.ef-editor .source-edit-panel input,.ef-editor .source-edit-panel textarea{width:100%;box-sizing:border-box;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:10px;font:inherit;min-height:44px}
+.ef-editor .source-edit-panel textarea{min-height:160px;line-height:1.55}.ef-editor .source-edit-panel button{min-height:44px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:8px 12px;font:inherit;margin:0 6px 6px 0}
+.ef-editor .source-edit-panel button:hover{border-color:var(--accent-primary)}.ef-editor .source-edit-panel button:disabled{opacity:.5}
+.ef-editor #datasetRows .card{overflow-wrap:anywhere}.ef-editor #datasetRows [data-dataset-id]{width:100%;text-align:left;white-space:normal}
+
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+  <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 </head>
 <body>
   <div class="top">
@@ -252,6 +268,161 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let CHARS = [], SEL = null;
+let loraEditor, creationDraft=false;
+const characterDraft='character-draft:'+crypto.randomUUID();
+let identitySource = null, captionObject = null, datasetObjects = [], sourceBusy = false, identityLoad = 0, datasetLoad = 0, loraAssistant = null, sourceSelectionEpoch = 0, modelDispatchBusy = false, currentModels = [], sourceUnavailableReason = "";
+function sourceSelection() { return { kind: creationDraft || !SEL ? 'character draft' : captionObject ? 'dataset image' : 'character', ids: [creationDraft || !SEL ? characterDraft : captionObject?.id ?? identitySource?.characterId ?? SEL] }; }
+function sourceDocumentId() { return creationDraft || !SEL ? characterDraft : identitySource?.characterId ?? SEL; }
+function sourceRevision() { return captionObject ? Number(captionObject.caption_revision ?? 0) : Number(identitySource?.revision ?? 0); }
+function captionDirty() { return Boolean(captionObject && $('editSavedCaption') && $('editSavedCaption').value !== String(captionObject.caption ?? '')); }
+function identityDirty() { return Boolean(identitySource && $('editIdentityName') && $('editIdentityName').value !== identitySource.displayName); }
+function sourceDirty() { return captionDirty() || identityDirty() || Boolean(loraEditor?.hasPending()); }
+function captionsPending() { return datasetObjects.some(row => row.caption_status && row.caption_status !== 'applied' || Number(row.caption_revision ?? 0) !== Number(row.applied_revision ?? 0)); }
+function notifySource() { if ($('sourceEditPanel'))
+    $('sourceEditPanel').hidden = creationDraft || !SEL; loraEditor?.refresh(); loraAssistant?.refresh(); const pending = captionsPending(); for (const id of ['trainBtn', 'impBtn', 'overnightBtn']) {
+    $(id).disabled = sourceBusy || modelDispatchBusy || pending || Boolean(SEL && !identitySource) || identitySource?.canExecute === false;
+    $(id).title = pending ? 'Apply saved dataset captions on the worker before training.' : '';
+} $('valBtn').disabled = sourceBusy || modelDispatchBusy || Boolean(SEL && !identitySource) || identitySource?.canExecute === false || !currentModels.some(model => ['trained', 'scored'].includes(model.status)); if ($('saveIdentityName'))
+    $('saveIdentityName').disabled = sourceBusy || !identitySource?.canConfigure; if ($('saveSavedCaption'))
+    $('saveSavedCaption').disabled = sourceBusy || !captionObject || !identitySource?.canConfigure; if ($('retrySavedCaption'))
+    $('retrySavedCaption').disabled = sourceBusy || !captionObject || !identitySource?.canExecute; }
+function sourceMessage(message) { $('sourceEditStatus').textContent = message; }
+function paintCaptionSource() { if (!$('savedCaptionEditor'))
+    return; if (!identitySource)
+    $('editIdentityName').disabled = true; $('savedCaptionEditor').hidden = !captionObject; $('identitySourceEditor').hidden = !SEL || !identitySource; if (captionObject) {
+    $('selectedSourceFilename').textContent = captionObject.filename;
+    $('editSavedCaption').value = captionObject.caption ?? '';
+    $('editSavedCaption').disabled = !identitySource?.canConfigure;
+    $('appliedCaption').textContent = captionObject.applied_caption ?? captionObject.caption ?? '';
+    $('captionReceipt').textContent = 'Source revision ' + Number(captionObject.caption_revision ?? 0) + ' · applied ' + Number(captionObject.applied_revision ?? 0) + ' · ' + String(captionObject.caption_status ?? 'applied');
+} notifySource(); }
+async function loadIdentitySource(subject) { const generation = ++identityLoad, before = $('editIdentityName')?.value ?? '', old = identitySource; const { ok, j } = await api('/characters/' + encodeURIComponent(subject) + '/editor'); if (generation !== identityLoad || SEL !== subject)
+    return; if (!ok) {
+    identitySource = null;
+    notifySource();
+    return;
+} if (old && old.subject === subject && $('editIdentityName')?.value !== before) {
+    sourceMessage('The identity changed while loading. Your draft remains here.');
+    return;
+} identitySource = j; if ($('editIdentityName')) {
+    $('editIdentityName').value = j.displayName;
+    $('editIdentityName').disabled = !j.canConfigure;
+} $('identitySourceEditor').hidden = false; paintCaptionSource(); }
+async function chooseDatasetObject(id) { try {
+    if (sourceBusy)
+        return;
+    await loraEditor?.flushPending();
+    if (captionDirty() && !confirm('Discard the unsaved caption and select another image?'))
+        return;
+    const row = datasetObjects.find(item => item.id === id);
+    if (!row)
+        return;
+    captionObject = { ...row };
+    paintCaptionSource();
+    sourceMessage(identitySource?'Editing '+row.filename+'. Saving a caption does not train or change image bytes.':'Read-only dataset evidence. '+sourceUnavailableReason);
+}
+catch (error) {
+    sourceMessage(error.message);
+} }
+async function saveIdentitySource() { await loraEditor?.flushPending(); if (!identitySource?.canConfigure)
+    throw Error('Changing this identity name requires configuration access.'); if (!identityDirty())
+    return; const subject = SEL, previous = identitySource, displayName = $('editIdentityName').value; sourceBusy = true; notifySource(); try {
+    const { ok, j } = await api('/characters/' + encodeURIComponent(subject) + '/editor', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ displayName, baseRevision: previous.revision }) });
+    if (!ok)
+        throw Error(j.error || 'The identity name could not be saved.');
+    if (SEL === subject) {
+        identitySource = { ...previous, ...j };
+        if ($('editIdentityName').value === displayName)
+            $('editIdentityName').value = j.displayName;
+        const character = CHARS.find(row => row.subject === subject);
+        if (character)
+            character.display_name = j.displayName;
+        $('actName').textContent = j.displayName;
+        sourceMessage('Saved identity name revision ' + j.revision + '. Trained weights and identity anchors are unchanged.');
+        await loadChars();
+    }
+}
+finally {
+    sourceBusy = false;
+    notifySource();
+} }
+async function saveCaptionSource(retry = false) { await loraEditor?.flushPending(); if (!captionObject || !identitySource?.canConfigure)
+    throw Error('Select a saved dataset image with configuration access.'); if (retry && captionDirty())
+    throw Error('Save the changed caption before retrying the saved revision.'); const object = { ...captionObject }, subject = SEL, caption = $('editSavedCaption').value; if (!retry && !captionDirty())
+    return; sourceBusy = true; notifySource(); try {
+    const { ok, j } = await api('/dataset/' + encodeURIComponent(object.id) + '/caption' + (retry ? '/retry' : ''), { method: retry ? 'POST' : 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ subject, baseRevision: Number(object.caption_revision ?? 0), ...(retry ? {} : { caption }) }) });
+    if (!ok)
+        throw Error(j.error || 'The caption source could not be saved.');
+    if (SEL === subject && captionObject?.id === object.id) {
+        const liveDraft = $('editSavedCaption').value, newerDraft = liveDraft !== caption;
+        captionObject = { ...object, ...j.image };
+        paintCaptionSource();
+        if (newerDraft)
+            $('editSavedCaption').value = liveDraft;
+        sourceMessage(j.dispatch?.status === 'queued' ? 'Caption source saved. Waiting for the GPU worker to apply this revision.' : j.dispatch?.status === 'permission-required' ? 'Caption source saved; worker synchronization requires execution access.' : 'Caption source saved; worker synchronization failed. Retry this saved revision when a worker is available.');
+        await loadDataset(subject);
+    }
+}
+finally {
+    sourceBusy = false;
+    notifySource();
+} }
+async function prepareLoraSource() { document.activeElement?.blur(); await loraEditor?.flushPending(); if (creationDraft || !SEL)
+    throw Error('Save the new character before asking about its saved source.'); for (let attempt = 0; attempt < 3 && sourceDirty(); attempt++) {
+    if (identityDirty())
+        await saveIdentitySource();
+    if (captionDirty())
+        await saveCaptionSource(false);
+} if (sourceDirty() || !identitySource)
+    throw Error('Finish the current source edit before asking the assistant.'); return { app: 'lora', screen: 'source-editor', surface: 'lora-source', recordId: identitySource.characterId, title: identitySource.displayName, selection: sourceSelection(), digest: 'Owned identity metadata and dataset caption source. Captions must be applied by the signed worker before training; trained weights remain immutable.', can: [], customOps: [], fields: { available: true, readOnly: !identitySource.canConfigure, revision: sourceRevision(), subject: SEL, ...(captionObject ? { imageId: captionObject.id, captionStatus: captionObject.caption_status ?? 'applied' } : {}) } }; }
+async function refreshLoraSource(expected) { if (expected?.recordId && expected.recordId !== identitySource?.characterId)
+    return; if (sourceDirty())
+    throw Error('The assistant changed saved source while you were editing. Your draft remains here.'); const subject = SEL, before = JSON.stringify({ selection: sourceSelection(), revision: sourceRevision() }); const [identity, dataset] = await Promise.all([api('/characters/' + encodeURIComponent(subject) + '/editor'), api('/dataset?subject=' + encodeURIComponent(subject))]); if (SEL !== subject || before !== JSON.stringify({ selection: sourceSelection(), revision: sourceRevision() }) || sourceDirty())
+    throw Error('The source changed while loading. Your draft remains here.'); if (!identity.ok || !dataset.ok)
+    throw Error('The saved source could not be refreshed.'); identitySource = identity.j; $('editIdentityName').value = identity.j.displayName; datasetObjects = dataset.j.images ?? []; if (captionObject)
+    captionObject = datasetObjects.find(row => row.id === captionObject.id) ?? null; paintCaptionSource(); await loadChars(); await loadDataset(subject); }
+function mountSourceControls(inspector) { const panel = document.createElement('section'); panel.id = 'sourceEditPanel'; panel.className = 'source-edit-panel'; panel.innerHTML = '<h3>Saved source</h3><button id="reloadSavedSource" type="button">Reload saved source</button><div id="identitySourceEditor" hidden><label>Display name<input id="editIdentityName" maxlength="120" disabled></label><button id="saveIdentityName" type="button" disabled>Save identity name</button><p class="hint">Trigger words, hero anchors and trained weights keep their original identity.</p></div><div id="savedCaptionEditor" hidden><h4 id="selectedSourceFilename">Selected dataset image</h4><p id="captionReceipt" class="hint"></p><label>Caption source<textarea id="editSavedCaption" maxlength="2048" rows="5"></textarea></label><div class="bar"><button id="saveSavedCaption" type="button">Save caption</button><button id="retrySavedCaption" type="button">Retry worker sync</button></div><p class="hint">Applied caption on the worker</p><pre id="appliedCaption" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><p class="hint">Saving caption text retains the original image and every trained model. Training waits for the matching worker acknowledgement.</p></div><p id="sourceEditStatus" class="hint" role="status"></p>'; inspector.prepend(panel); $('reloadSavedSource').onclick = () => { if (SEL)
+    void select(SEL).catch(error => sourceMessage(error.message)); }; for (const id of ['editIdentityName', 'editSavedCaption'])
+    $(id).addEventListener('input', notifySource); for (const [id, fn] of [['saveIdentityName', saveIdentitySource], ['saveSavedCaption', () => saveCaptionSource(false)], ['retrySavedCaption', () => saveCaptionSource(true)]]) {
+    $(id).onpointerdown = event => { if (document.activeElement?.matches('[data-editor-property]'))
+        event.preventDefault(); };
+    $(id).onclick = () => Promise.resolve().then(fn).catch(error => sourceMessage(error.message));
+} $('datasetRows').addEventListener('click', event => { const button = event.target.closest('[data-dataset-id]'); if (button)
+    void chooseDatasetObject(button.dataset.datasetId); }); window.addEventListener('beforeunload', event => { if (sourceDirty()) {
+    event.preventDefault();
+    event.returnValue = '';
+} }); }
+function loraSourceState() { return { documentId: sourceDocumentId(), revision: sourceRevision(), selection: sourceSelection(), title: SEL ? CHARS.find(row => row.subject === SEL)?.display_name || SEL : 'New character', dirty: sourceDirty(), readOnly: Boolean(SEL && !creationDraft && !identitySource?.canConfigure), busy: sourceBusy || modelDispatchBusy || $('characterFields').disabled, status: creationDraft || !SEL ? 'Character draft · Save character starts no training' : captionObject ? 'Caption source revision ' + sourceRevision() + ' · ' + (captionObject.caption_status ?? 'applied') : 'Saved identity · trained outputs stay immutable' }; }
+
+function characterProperties(){
+  if(creationDraft||!SEL)return [...$('characterForm').elements].filter(field=>field.name).map(field=>({key:field.name,label:field.closest('label')?.firstChild.textContent.trim()||field.name,type:field.tagName==='TEXTAREA'?'textarea':'text',value:field.value,group:'New character'}));
+  const character=CHARS.find(row=>row.subject===SEL);if(!character)return [];
+  if(captionObject)return[{key:'filename',label:'Dataset image',type:'text',value:captionObject.filename,disabled:true,group:'Selected image'},{key:'savedCaption',label:'Caption source',type:'textarea',value:$('editSavedCaption')?.value??captionObject.caption??'',disabled:!identitySource?.canConfigure,group:'Selected image'}];
+  return [{key:'display_name',label:'Character',type:'text',value:identitySource?$('editIdentityName').value:character.display_name||SEL,disabled:!identitySource?.canConfigure,group:'Saved identity'},
+    {key:'trigger_word',label:'Trigger word',type:'text',value:character.trigger_word||'',disabled:true,group:'Saved identity'},
+    {key:'datasetCaption',label:'Training-pair caption',type:'textarea',value:$('datasetCaption').value,disabled:!identitySource?.canConfigure,group:'Dataset import'}];
+}
+function applyCharacterProperty(key,value,expected){
+  const creating=creationDraft||!SEL,id=sourceDocumentId();
+  if(expected.documentId!==id||expected.revision!==sourceRevision()||JSON.stringify(expected.selection)!==JSON.stringify(sourceSelection()))throw Error('The selected source changed.');
+  const field=creating?$('characterForm').elements.namedItem(key):key==='datasetCaption'?$('datasetCaption'):key==='display_name'?$('editIdentityName'):key==='savedCaption'?$('editSavedCaption'):null;
+  if(!field||field.disabled)throw Error('This source field cannot be edited with your current access.');
+  const previous=field.value;field.value=String(value);if(!field.checkValidity()){field.value=previous;throw Error('Correct the character field before saving.');}
+  field.dispatchEvent(new Event('input',{bubbles:true}));
+}
+async function mountLoraWorkspace(){
+  const{createEditorFoundation}=await import('/shared/ui/js/editor-foundation.js');
+  const{createEditorAssistant}=await import('/shared/ui/js/editor-assistant.js');
+  const root=document.querySelector('.split'),navigation=root.querySelector('.left'),viewport=root.querySelector('.right'),inspector=document.createElement('section');
+  inspector.className='lora-inspector';inspector.append($('actions'));root.append(inspector);mountSourceControls(viewport);viewport.prepend($('characterEditor'));const datasetLabel=document.createElement('h3');datasetLabel.className='lbl';datasetLabel.textContent='Dataset images';navigation.append(datasetLabel,$('datasetRows'));
+  loraAssistant=createEditorAssistant({app:'lora',bot:'lora-director',title:'LoRA source AI partner',root,prepare:prepareLoraSource,refresh:refreshLoraSource,getState:loraSourceState});
+  loraEditor=createEditorFoundation({root,ai:loraAssistant.element,navigation,viewport,inspector,header:document.querySelector('.top'),
+    getState:loraSourceState,getSelection:sourceSelection,getProperties:characterProperties,applyProperty:applyCharacterProperty,actions:{save:async()=>{if(creationDraft||!SEL)return saveCharacter({preventDefault(){}});if(identityDirty())await saveIdentitySource();if(captionDirty())await saveCaptionSource(false);}}});
+  root.addEventListener('input',notifySource);root.addEventListener('change',notifySource);root.addEventListener('editor-foundation:draft',notifySource);
+  $('characterEditor').addEventListener('toggle',()=>{creationDraft=$('characterEditor').open;notifySource();});
+  const{registerDocumentSession}=await import('/shared/ui/js/document-handoff.js');registerDocumentSession({app:'lora',prepare:prepareLoraSource,refresh:refreshLoraSource});
+  window.addEventListener('pagehide',event=>{if(!event.persisted){loraAssistant?.destroy();loraEditor.destroy();}},{once:true});
+}
 const ARTIFACT_REF = (()=>{
   try{
     const locations=[window.location,window.top&&window.top.location];
@@ -293,6 +464,7 @@ function requiredGaps(form){
 }
 async function saveCharacter(event){
   event.preventDefault();
+  try{await loraEditor?.flushPending();}catch(error){creationResult('err',error.message);return;}
   if($('characterFields').disabled) return;
   const gaps=requiredGaps($('characterForm'));
   if(gaps.length){
@@ -324,9 +496,10 @@ async function saveCharacter(event){
 }
 // The studio's controls are wired only for the full page (the gate at the end of this script).
 function bindStudio(){
+  void mountLoraWorkspace().catch(error=>creationResult('err','The shared editor could not open: '+error.message));
   $('characterForm').addEventListener('submit',saveCharacter);
   $('cancelCharacter').addEventListener('click',()=>{
-    $('characterForm').reset(); $('createResult').className='result'; $('createResult').textContent=''; $('characterEditor').open=false;
+    loraEditor?.discardPending(); $('characterForm').reset(); creationDraft=false; loraEditor?.refresh(); $('createResult').className='result'; $('createResult').textContent=''; $('characterEditor').open=false;
   });
   $('importArtifactBtn').addEventListener('click',importIncomingArtifact);
   $('refreshDatasetBtn').addEventListener('click',()=>{ if(SEL) void loadDataset(SEL); });
@@ -384,14 +557,17 @@ function showCharacterConfig(c){
 function datasetStatusText(status){ return status==='ready'?'ready on worker':status==='failed'?'worker write failed':'queued for worker'; }
 
 async function loadDataset(subject){
+  const generation=++datasetLoad;
   const {ok,j}=await api('/dataset?subject='+encodeURIComponent(subject));
+  if(generation!==datasetLoad||subject!==SEL)return;
   if(!ok){ $('datasetRows').textContent=j.error||'Dataset receipts unavailable.'; return; }
-  const rows=Array.isArray(j.images)?j.images:[];
+  const rows=Array.isArray(j.images)?j.images:[];datasetObjects=rows;
+  if(captionObject&&!captionDirty()&&!loraEditor?.hasPending()){captionObject=rows.find(row=>row.id===captionObject.id)??null;paintCaptionSource();}
   $('datasetRows').innerHTML=rows.length?rows.map((row)=>{
     const status=safeDatasetStatus(row.status);
     const bytes=Number(row.byte_size);
     const size=Number.isFinite(bytes)?' · '+Math.round(bytes/1024)+' KiB':'';
-    return '<div class="card" style="cursor:default;padding:9px 10px;margin:7px 0"><div><b>'+esc(row.filename)+'</b> <span class="badge '+(status==='ready'?'scored':status)+'">'+esc(datasetStatusText(status))+'</span></div><div class="hint">'+esc(row.caption||'')+esc(size)+'</div></div>';
+    return '<div class="card" style="cursor:default;padding:9px 10px;margin:7px 0"><div><button type="button" class="btn ghost" data-dataset-id="'+esc(row.id)+'">Edit '+esc(row.filename)+'</button> <span class="badge '+(status==='ready'?'scored':status)+'">'+esc(datasetStatusText(status))+'</span><span class="hint"> caption '+esc(row.caption_status??'applied')+' · r'+Number(row.caption_revision??0)+'</span></div><div class="hint">'+esc(row.caption||'')+esc(size)+'</div></div>';
   }).join(''):'<div class="hint">No curated images recorded yet.</div>';
 }
 
@@ -445,8 +621,17 @@ async function loadChars(){
 }
 
 async function select(subject){
+  if(sourceBusy||!CHARS.some(row=>row.subject===subject))return;
+  if(sourceDirty()&&!confirm('Discard unsaved source edits and select another character?'))return;
+  const generation=++sourceSelectionEpoch,before=JSON.stringify({subject:SEL,name:$('editIdentityName')?.value,caption:$('editSavedCaption')?.value,pending:loraEditor?.hasPending()});
+  const [incomingIdentity,incomingDataset]=await Promise.all([api('/characters/'+encodeURIComponent(subject)+'/editor'),api('/dataset?subject='+encodeURIComponent(subject))]);
+  if(generation!==sourceSelectionEpoch)return;
+  if(!incomingDataset.ok){showResult('err','The saved character data could not open. Your current draft remains here.');return;}
+  if(before!==JSON.stringify({subject:SEL,name:$('editIdentityName')?.value,caption:$('editSavedCaption')?.value,pending:loraEditor?.hasPending()})&&sourceDirty()&&!confirm('Discard the newer source edits and select this character?'))return;
+  loraEditor?.discardPending();captionObject=null;identitySource=incomingIdentity.ok?incomingIdentity.j:null;sourceUnavailableReason=incomingIdentity.ok?'':String(incomingIdentity.j.error||'The saved source editor is unavailable.');datasetObjects=incomingDataset.j.images??[];
+  if($('editIdentityName')){$('editIdentityName').value=identitySource?.displayName??'';$('editIdentityName').disabled=!identitySource?.canConfigure;}
   if(DELETE_ARMED!==subject) resetDeleteCharacter();
-  SEL = subject; const c = CHARS.find(x=>x.subject===subject);
+  creationDraft=false; SEL = subject; const c = CHARS.find(x=>x.subject===subject);
   if(!c) return;
   await loadChars();
   $('actions').style.display='block';
@@ -456,8 +641,8 @@ async function select(subject){
   $('artifactHint').textContent=ARTIFACT_REF?'An owner-owned image is ready to import. Confirm the character and caption, then queue it to the GPU worker.':'Send an owner-owned image here from Portrait Studio or another image source, then choose this character before queueing it to the GPU worker.';
   $('importArtifactBtn').disabled=!ARTIFACT_REF;
   $('result').className='result'; $('result').style.display='none';
-  await loadDataset(subject);
-  await loadVersions(subject);
+  paintCaptionSource();if(!identitySource)sourceMessage('Read-only saved evidence. '+sourceUnavailableReason);await loadDataset(subject);
+  await loadVersions(subject); loraEditor?.refresh();
 }
 
 async function loadVersions(subject){
@@ -465,7 +650,7 @@ async function loadVersions(subject){
   $('gallery').innerHTML='';
   const { ok, j } = await api('/models?subject='+encodeURIComponent(subject));
   if(!ok){ empty('vers',j.error||'Failed'); return; }
-  const models = Array.isArray(j.models)?j.models:[];
+  const models = Array.isArray(j.models)?j.models:[];currentModels=models;notifySource();
   const c = CHARS.find(x=>x.subject===subject);
   if(!models.length){ $('vers').innerHTML='<div class="empty">No trained versions yet. Train the first version from the existing dataset to start the loop.</div>'; return; }
   $('vers').innerHTML = models.map((m,index)=>{
@@ -533,12 +718,16 @@ async function setAuto(){
 }
 
 async function act(kind){
-  if(!SEL) return;
-  showResult('warn','Dispatching '+kind+'…');
-  const { ok, status, j } = await api('/'+kind, { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({subject:SEL}) });
-  if(ok){ showResult('ok', j.message||(kind+' started.')); await loadVersions(SEL); }
-  else if(status===503 && j.status==='box_required'){ showResult('warn', '⏳ '+j.message); }
-  else showResult('err', j.error||(kind+' failed'));
+  if(!SEL||sourceBusy||modelDispatchBusy)return;
+  if(identitySource?.canExecute===false){showResult('err','Worker execution requires execution access.');return;}
+  if(['train','improve','improve-overnight'].includes(kind)&&captionsPending()){showResult('warn','Apply the saved caption revisions on the worker before training.');return;}
+  modelDispatchBusy=true;notifySource();showResult('warn','Dispatching '+kind+'…');
+  try{const{ok,status,j}=await api('/'+kind,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subject:SEL})});
+    if(ok){showResult('ok',j.message||(kind+' started.'));await loadVersions(SEL);}
+    else if(status===503&&j.status==='box_required')showResult('warn','⏳ '+j.message);
+    else showResult('err',j.error||(kind+' failed'));
+  }catch(error){showResult('err','The worker request could not be confirmed. Refresh its saved status before retrying.');}
+  finally{modelDispatchBusy=false;notifySource();}
 }
 
 // The full studio only: under an audience view the shared kit paints instead (see the head script) and nothing here

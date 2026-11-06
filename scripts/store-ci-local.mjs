@@ -24,11 +24,12 @@
  * 18 | maintainer@emeraldcoastsystemsgroup.com | Carry store-ci's store-bots job: a `check` policy entry for scripts/check-store-bots.mjs and a `provision` entry for its `npm ci --prefix scripts/toolchain`, whose STORE_TOOLCHAIN_YAML capability is the gate toolchain's own js-yaml (reported SKIPPED with the install command when absent, never green).
  * 19 | maintainer@emeraldcoastsystemsgroup.com | A hung suite can no longer hold a push. The checks themselves take about four minutes, but with OSHAL_TEST_SEARCH unset four Operations suites open their database pool, fail to start the engine and never close the pool, so `node --test` waited without limit: 15,214 s and 8,377 s on two pushes, ended only when the fixture database went away, and a plain spawn timeout would have left the per-file runners behind as orphans holding fixture connections. A step whose workflow env names a service address (OSHAL_TEST_POSTGRES, OSHAL_TEST_SEARCH) now FAILS in seconds, before its suite starts, when that variable is unset here or nothing answers at the address, naming the value store-ci uses. Every check runs as the leader of its own process group with a deadline (STORE_CI_CHECK_DEADLINE_SECONDS, default 900): past it, or after the command exits, the whole group is stopped, and an interrupted gate passes the stop on.
  * 20 | maintainer@emeraldcoastsystemsgroup.com | A check that can never run here again stops blocking a push (Roger, 2026-11-03, "1 yes"): LEGACY steps test the retired TypeScript platform this gate no longer resolves and the Embodied live suites need a running engine, so every push had to pass --allow-skips, and that flag also accepted a real missing prerequisite. They are still printed on every run and still say they did not run. Any other skip, such as Career's Python, still exits non-zero.
+ * 21 | maintainer@emeraldcoastsystemsgroup.com | Show failed TAP diagnostics from the middle of long suites and optionally retain complete failed-check output privately without changing any verdict.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // CHANGE LOG: maintainer@emeraldcoastsystemsgroup.com | Isolate fixture Git commands from inherited pre-push repository locations.
@@ -617,8 +618,25 @@ function plan(jobs, capabilities) {
   return checks;
 }
 
+/** @description Show bounded failed-test diagnostics even when passing cases surround them. */
+function failedTapEvidence(output) {
+  const lines = output.split(/\r?\n/);
+  const selected = [];
+  for (let index = 0; index < lines.length && selected.length < 160; index += 1) {
+    if (!/^\s*not ok \d+(?:\s+-|$)/.test(lines[index])) continue;
+    const limit = Math.min(lines.length, index + 60, index + 160 - selected.length);
+    for (let cursor = index; cursor < limit; cursor += 1) {
+      selected.push(lines[cursor]);
+      if (cursor > index && /^\s*\.\.\.\s*$/.test(lines[cursor])) break;
+    }
+  }
+  return selected;
+}
+
 /** @description Run every mirrored store-ci check against the working tree and report one verdict. */
 async function main() {
+  const failureLogDir = process.env.STORE_CI_FAILURE_LOG_DIR || '';
+  if (failureLogDir && !isAbsolute(failureLogDir)) throw new Error('STORE_CI_FAILURE_LOG_DIR must be an absolute fresh directory');
   const jobs = parseJobs(readFileSync(WORKFLOW, 'utf8'));
   const declared = jobs.flatMap((job) => job.steps.map((s) => s.nodeVersion).filter(Boolean));
   const highest = Math.max(...declared.map(Number));
@@ -688,10 +706,20 @@ async function main() {
   for (const r of partial) console.log(`  PARTIAL  ${r.title}\n           ${r.detail}`);
   for (const r of skipped) console.log(`  SKIPPED  ${r.title}\n           ${r.detail}`);
   for (const r of blocked) console.log(`  BLOCKED  ${r.title}\n           ${r.detail}`);
-  for (const r of failures) {
+  if (failures.length && failureLogDir) mkdirSync(failureLogDir, { mode: 0o700 });
+  for (const [index, r] of failures.entries()) {
     console.log(`  FAILED   ${r.title}\n           ${r.detail}`);
-    // Head AND tail, never the middle: a failing suite puts the assertion near the top and the
-    // TAP summary at the very bottom, and a naive truncation loses whichever one you needed.
+    if (failureLogDir) {
+      const outputPath = join(failureLogDir, `check-${String(index + 1).padStart(3, '0')}.log`);
+      writeFileSync(outputPath, r.output ?? '', { mode: 0o600, flag: 'wx' });
+      console.log(`           Full failed-check output: ${outputPath}`);
+    }
+    const diagnostic = failedTapEvidence(r.output ?? '');
+    if (diagnostic.length) {
+      console.log('           Failed TAP diagnostics (bounded):');
+      for (const line of diagnostic) console.log(`           ! ${line}`);
+    }
+    // Preserve both startup context and the final TAP summary alongside failed-test diagnostics.
     const lines = (r.output ?? '').split(/\r?\n/).filter(Boolean);
     for (const line of lines.slice(0, 12)) console.log(`           | ${line}`);
     if (lines.length > 24) {

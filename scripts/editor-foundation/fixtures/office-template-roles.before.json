@@ -1,0 +1,1878 @@
+{
+  "sourceCommit": "51ccfe475008642ed4552b31279fea73ca667d5e",
+  "packages": {
+    "create": {
+      "version": "1.18.0",
+      "templates": [
+        {
+          "path": [
+            "authorization",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "admin",
+            "version": 1,
+            "label": "Create Studio Administrator",
+            "members": [
+              {
+                "app": "create",
+                "role": "admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "manager"
+              },
+              {
+                "app": "video",
+                "role": "admin"
+              },
+              {
+                "app": "lora",
+                "role": "trainer"
+              },
+              {
+                "app": "vids",
+                "role": "@app-admin"
+              },
+              {
+                "app": "creative-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "scan-to-print",
+                "role": "maker"
+              },
+              {
+                "app": "brand-graphics",
+                "role": "@app-admin"
+              },
+              {
+                "app": "motion-studio",
+                "role": "administrator"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "administrator"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "administrator"
+              },
+              {
+                "app": "scene-studio",
+                "role": "creator"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "authorization",
+            "roleTemplates",
+            1
+          ],
+          "before": {
+            "id": "creator",
+            "version": 1,
+            "label": "Creator",
+            "members": [
+              {
+                "app": "create",
+                "role": "creator"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "creator"
+              },
+              {
+                "app": "video",
+                "role": "creator"
+              },
+              {
+                "app": "lora",
+                "role": "trainer"
+              },
+              {
+                "app": "vids",
+                "role": "@app-admin"
+              },
+              {
+                "app": "creative-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "scan-to-print",
+                "role": "maker"
+              },
+              {
+                "app": "brand-graphics",
+                "role": "@app-admin"
+              },
+              {
+                "app": "motion-studio",
+                "role": "creator"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "creator"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "editor"
+              },
+              {
+                "app": "scene-studio",
+                "role": "creator"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "little-monsters": {
+      "version": "1.7.1",
+      "templates": [
+        {
+          "path": [
+            "authorization",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "student",
+            "version": 2,
+            "label": "Student",
+            "members": [
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "authorization",
+            "roleTemplates",
+            1
+          ],
+          "before": {
+            "id": "teacher",
+            "version": 2,
+            "label": "Teacher",
+            "members": [
+              {
+                "app": "little-monsters",
+                "role": "teacher"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "authorization",
+            "roleTemplates",
+            2
+          ],
+          "before": {
+            "id": "admin",
+            "version": 2,
+            "label": "School administrator",
+            "members": [
+              {
+                "app": "little-monsters",
+                "role": "admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "business-experience": {
+      "version": "1.0.2",
+      "templates": [
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "staff",
+            "version": 2,
+            "label": "Staff",
+            "members": [
+              {
+                "app": "business-experience",
+                "role": "staff"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "world",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "switchboard",
+                "role": "@app-admin"
+              },
+              {
+                "app": "social",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calling-assistant",
+                "role": "caller"
+              },
+              {
+                "app": "marketing-engine",
+                "role": "@app-admin"
+              },
+              {
+                "app": "venture-plan",
+                "role": "member"
+              },
+              {
+                "app": "private-app-1",
+                "role": "crm_representative"
+              },
+              {
+                "app": "payroll",
+                "role": "@app-admin"
+              },
+              {
+                "app": "payments",
+                "role": "@app-admin"
+              },
+              {
+                "app": "identity",
+                "role": "@app-admin"
+              },
+              {
+                "app": "cad-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "private-app-2",
+                "role": "@app-admin"
+              },
+              {
+                "app": "intelligent-sales",
+                "role": "sales_manager"
+              },
+              {
+                "app": "private-app-3",
+                "role": "administrator"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            1
+          ],
+          "before": {
+            "id": "manager",
+            "version": 2,
+            "label": "Manager",
+            "members": [
+              {
+                "app": "business-experience",
+                "role": "manager"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "world",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "switchboard",
+                "role": "@app-admin"
+              },
+              {
+                "app": "social",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calling-assistant",
+                "role": "caller"
+              },
+              {
+                "app": "marketing-engine",
+                "role": "@app-admin"
+              },
+              {
+                "app": "venture-plan",
+                "role": "member"
+              },
+              {
+                "app": "private-app-1",
+                "role": "crm_representative"
+              },
+              {
+                "app": "payroll",
+                "role": "@app-admin"
+              },
+              {
+                "app": "payments",
+                "role": "@app-admin"
+              },
+              {
+                "app": "identity",
+                "role": "@app-admin"
+              },
+              {
+                "app": "cad-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "private-app-2",
+                "role": "@app-admin"
+              },
+              {
+                "app": "intelligent-sales",
+                "role": "sales_manager"
+              },
+              {
+                "app": "private-app-3",
+                "role": "administrator"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            2
+          ],
+          "before": {
+            "id": "specialist",
+            "version": 2,
+            "label": "Specialist",
+            "members": [
+              {
+                "app": "business-experience",
+                "role": "specialist"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "world",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "switchboard",
+                "role": "@app-admin"
+              },
+              {
+                "app": "social",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calling-assistant",
+                "role": "caller"
+              },
+              {
+                "app": "marketing-engine",
+                "role": "@app-admin"
+              },
+              {
+                "app": "venture-plan",
+                "role": "member"
+              },
+              {
+                "app": "private-app-1",
+                "role": "crm_representative"
+              },
+              {
+                "app": "payroll",
+                "role": "@app-admin"
+              },
+              {
+                "app": "payments",
+                "role": "@app-admin"
+              },
+              {
+                "app": "identity",
+                "role": "@app-admin"
+              },
+              {
+                "app": "cad-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "private-app-2",
+                "role": "@app-admin"
+              },
+              {
+                "app": "intelligent-sales",
+                "role": "sales_manager"
+              },
+              {
+                "app": "private-app-3",
+                "role": "administrator"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "classroom-experience": {
+      "version": "1.0.4",
+      "templates": [
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "learner",
+            "version": 3,
+            "label": "Learner",
+            "members": [
+              {
+                "app": "classroom-experience",
+                "role": "learner"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            1
+          ],
+          "before": {
+            "id": "teacher",
+            "version": 3,
+            "label": "Teacher",
+            "members": [
+              {
+                "app": "classroom-experience",
+                "role": "teacher"
+              },
+              {
+                "app": "little-monsters",
+                "role": "teacher"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            2
+          ],
+          "before": {
+            "id": "administrator",
+            "version": 3,
+            "label": "School administrator",
+            "members": [
+              {
+                "app": "classroom-experience",
+                "role": "administrator"
+              },
+              {
+                "app": "little-monsters",
+                "role": "admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "home-experience": {
+      "version": "1.0.5",
+      "templates": [
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "adult",
+            "version": 3,
+            "label": "Household adult",
+            "members": [
+              {
+                "app": "home-experience",
+                "role": "adult"
+              },
+              {
+                "app": "purchasing",
+                "role": "@app-admin"
+              },
+              {
+                "app": "home",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "movies",
+                "role": "@app-admin"
+              },
+              {
+                "app": "spotify",
+                "role": "@app-admin"
+              },
+              {
+                "app": "travel",
+                "role": "@app-admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            1
+          ],
+          "before": {
+            "id": "child",
+            "version": 3,
+            "label": "Household child",
+            "members": [
+              {
+                "app": "home-experience",
+                "role": "child"
+              },
+              {
+                "app": "purchasing",
+                "role": "@app-admin"
+              },
+              {
+                "app": "home",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "movies",
+                "role": "@app-admin"
+              },
+              {
+                "app": "spotify",
+                "role": "@app-admin"
+              },
+              {
+                "app": "travel",
+                "role": "@app-admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        },
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            2
+          ],
+          "before": {
+            "id": "guest",
+            "version": 3,
+            "label": "Household guest",
+            "members": [
+              {
+                "app": "home-experience",
+                "role": "guest"
+              },
+              {
+                "app": "purchasing",
+                "role": "@app-admin"
+              },
+              {
+                "app": "home",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "movies",
+                "role": "@app-admin"
+              },
+              {
+                "app": "spotify",
+                "role": "@app-admin"
+              },
+              {
+                "app": "travel",
+                "role": "@app-admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "commons-experience": {
+      "version": "1.1.2",
+      "templates": [
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "member",
+            "version": 4,
+            "label": "Complete workspace member",
+            "members": [
+              {
+                "app": "commons-experience",
+                "role": "member"
+              },
+              {
+                "app": "home",
+                "role": "@app-admin"
+              },
+              {
+                "app": "purchasing",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "movies",
+                "role": "@app-admin"
+              },
+              {
+                "app": "spotify",
+                "role": "@app-admin"
+              },
+              {
+                "app": "travel",
+                "role": "@app-admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              },
+              {
+                "app": "world",
+                "role": "@app-admin"
+              },
+              {
+                "app": "switchboard",
+                "role": "@app-admin"
+              },
+              {
+                "app": "social",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calling-assistant",
+                "role": "caller"
+              },
+              {
+                "app": "marketing-engine",
+                "role": "@app-admin"
+              },
+              {
+                "app": "venture-plan",
+                "role": "member"
+              },
+              {
+                "app": "private-app-1",
+                "role": "crm_representative"
+              },
+              {
+                "app": "payroll",
+                "role": "@app-admin"
+              },
+              {
+                "app": "payments",
+                "role": "@app-admin"
+              },
+              {
+                "app": "identity",
+                "role": "@app-admin"
+              },
+              {
+                "app": "cad-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "create",
+                "role": "creator"
+              },
+              {
+                "app": "create",
+                "role": "editor"
+              },
+              {
+                "app": "create",
+                "role": "exporter"
+              },
+              {
+                "app": "create",
+                "role": "generator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "creator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "editor"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "deleter"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "mailer"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "artist"
+              },
+              {
+                "app": "video",
+                "role": "producer"
+              },
+              {
+                "app": "video",
+                "role": "creator"
+              },
+              {
+                "app": "video",
+                "role": "editor"
+              },
+              {
+                "app": "video",
+                "role": "exporter"
+              },
+              {
+                "app": "lora",
+                "role": "trainer"
+              },
+              {
+                "app": "vids",
+                "role": "@app-admin"
+              },
+              {
+                "app": "creative-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "scan-to-print",
+                "role": "maker"
+              },
+              {
+                "app": "brand-graphics",
+                "role": "@app-admin"
+              },
+              {
+                "app": "motion-studio",
+                "role": "creator"
+              },
+              {
+                "app": "motion-studio",
+                "role": "editor"
+              },
+              {
+                "app": "motion-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "creator"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "editor"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "creator"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "editor"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "ocr"
+              },
+              {
+                "app": "scene-studio",
+                "role": "creator"
+              },
+              {
+                "app": "storage",
+                "role": "@app-admin"
+              },
+              {
+                "app": "career-hunter",
+                "role": "member"
+              },
+              {
+                "app": "dnd",
+                "role": "@app-admin"
+              },
+              {
+                "app": "game-show",
+                "role": "@app-admin"
+              },
+              {
+                "app": "games",
+                "role": "@app-admin"
+              },
+              {
+                "app": "jarvis",
+                "role": "chat-user"
+              },
+              {
+                "app": "workflow-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "private-app-2",
+                "role": "@app-admin"
+              },
+              {
+                "app": "intelligent-sales",
+                "role": "sales_manager"
+              },
+              {
+                "app": "private-app-3",
+                "role": "administrator"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "orbit-experience": {
+      "version": "1.1.2",
+      "templates": [
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "member",
+            "version": 4,
+            "label": "Complete workspace member",
+            "members": [
+              {
+                "app": "orbit-experience",
+                "role": "member"
+              },
+              {
+                "app": "home",
+                "role": "@app-admin"
+              },
+              {
+                "app": "purchasing",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "movies",
+                "role": "@app-admin"
+              },
+              {
+                "app": "spotify",
+                "role": "@app-admin"
+              },
+              {
+                "app": "travel",
+                "role": "@app-admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              },
+              {
+                "app": "world",
+                "role": "@app-admin"
+              },
+              {
+                "app": "switchboard",
+                "role": "@app-admin"
+              },
+              {
+                "app": "social",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calling-assistant",
+                "role": "caller"
+              },
+              {
+                "app": "marketing-engine",
+                "role": "@app-admin"
+              },
+              {
+                "app": "venture-plan",
+                "role": "member"
+              },
+              {
+                "app": "private-app-1",
+                "role": "crm_representative"
+              },
+              {
+                "app": "payroll",
+                "role": "@app-admin"
+              },
+              {
+                "app": "payments",
+                "role": "@app-admin"
+              },
+              {
+                "app": "identity",
+                "role": "@app-admin"
+              },
+              {
+                "app": "cad-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "create",
+                "role": "creator"
+              },
+              {
+                "app": "create",
+                "role": "editor"
+              },
+              {
+                "app": "create",
+                "role": "exporter"
+              },
+              {
+                "app": "create",
+                "role": "generator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "creator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "editor"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "deleter"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "mailer"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "artist"
+              },
+              {
+                "app": "video",
+                "role": "producer"
+              },
+              {
+                "app": "video",
+                "role": "creator"
+              },
+              {
+                "app": "video",
+                "role": "editor"
+              },
+              {
+                "app": "video",
+                "role": "exporter"
+              },
+              {
+                "app": "lora",
+                "role": "trainer"
+              },
+              {
+                "app": "vids",
+                "role": "@app-admin"
+              },
+              {
+                "app": "creative-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "scan-to-print",
+                "role": "maker"
+              },
+              {
+                "app": "brand-graphics",
+                "role": "@app-admin"
+              },
+              {
+                "app": "motion-studio",
+                "role": "creator"
+              },
+              {
+                "app": "motion-studio",
+                "role": "editor"
+              },
+              {
+                "app": "motion-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "creator"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "editor"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "creator"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "editor"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "ocr"
+              },
+              {
+                "app": "scene-studio",
+                "role": "creator"
+              },
+              {
+                "app": "storage",
+                "role": "@app-admin"
+              },
+              {
+                "app": "career-hunter",
+                "role": "member"
+              },
+              {
+                "app": "dnd",
+                "role": "@app-admin"
+              },
+              {
+                "app": "game-show",
+                "role": "@app-admin"
+              },
+              {
+                "app": "games",
+                "role": "@app-admin"
+              },
+              {
+                "app": "jarvis",
+                "role": "chat-user"
+              },
+              {
+                "app": "workflow-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "private-app-2",
+                "role": "@app-admin"
+              },
+              {
+                "app": "intelligent-sales",
+                "role": "sales_manager"
+              },
+              {
+                "app": "private-app-3",
+                "role": "administrator"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "jarvis-experience": {
+      "version": "1.1.2",
+      "templates": [
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "member",
+            "version": 4,
+            "label": "Complete workspace member",
+            "members": [
+              {
+                "app": "jarvis-experience",
+                "role": "member"
+              },
+              {
+                "app": "home",
+                "role": "@app-admin"
+              },
+              {
+                "app": "purchasing",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "movies",
+                "role": "@app-admin"
+              },
+              {
+                "app": "spotify",
+                "role": "@app-admin"
+              },
+              {
+                "app": "travel",
+                "role": "@app-admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              },
+              {
+                "app": "world",
+                "role": "@app-admin"
+              },
+              {
+                "app": "switchboard",
+                "role": "@app-admin"
+              },
+              {
+                "app": "social",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calling-assistant",
+                "role": "caller"
+              },
+              {
+                "app": "marketing-engine",
+                "role": "@app-admin"
+              },
+              {
+                "app": "venture-plan",
+                "role": "member"
+              },
+              {
+                "app": "private-app-1",
+                "role": "crm_representative"
+              },
+              {
+                "app": "payroll",
+                "role": "@app-admin"
+              },
+              {
+                "app": "payments",
+                "role": "@app-admin"
+              },
+              {
+                "app": "identity",
+                "role": "@app-admin"
+              },
+              {
+                "app": "cad-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "create",
+                "role": "creator"
+              },
+              {
+                "app": "create",
+                "role": "editor"
+              },
+              {
+                "app": "create",
+                "role": "exporter"
+              },
+              {
+                "app": "create",
+                "role": "generator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "creator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "editor"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "deleter"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "mailer"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "artist"
+              },
+              {
+                "app": "video",
+                "role": "producer"
+              },
+              {
+                "app": "video",
+                "role": "creator"
+              },
+              {
+                "app": "video",
+                "role": "editor"
+              },
+              {
+                "app": "video",
+                "role": "exporter"
+              },
+              {
+                "app": "lora",
+                "role": "trainer"
+              },
+              {
+                "app": "vids",
+                "role": "@app-admin"
+              },
+              {
+                "app": "creative-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "scan-to-print",
+                "role": "maker"
+              },
+              {
+                "app": "brand-graphics",
+                "role": "@app-admin"
+              },
+              {
+                "app": "motion-studio",
+                "role": "creator"
+              },
+              {
+                "app": "motion-studio",
+                "role": "editor"
+              },
+              {
+                "app": "motion-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "creator"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "editor"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "creator"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "editor"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "ocr"
+              },
+              {
+                "app": "scene-studio",
+                "role": "creator"
+              },
+              {
+                "app": "storage",
+                "role": "@app-admin"
+              },
+              {
+                "app": "career-hunter",
+                "role": "member"
+              },
+              {
+                "app": "dnd",
+                "role": "@app-admin"
+              },
+              {
+                "app": "game-show",
+                "role": "@app-admin"
+              },
+              {
+                "app": "games",
+                "role": "@app-admin"
+              },
+              {
+                "app": "jarvis",
+                "role": "chat-user"
+              },
+              {
+                "app": "workflow-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "private-app-2",
+                "role": "@app-admin"
+              },
+              {
+                "app": "intelligent-sales",
+                "role": "sales_manager"
+              },
+              {
+                "app": "private-app-3",
+                "role": "administrator"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "studio-experience": {
+      "version": "1.1.2",
+      "templates": [
+        {
+          "path": [
+            "experience",
+            "roleTemplates",
+            0
+          ],
+          "before": {
+            "id": "member",
+            "version": 4,
+            "label": "Complete workspace member",
+            "members": [
+              {
+                "app": "studio-experience",
+                "role": "member"
+              },
+              {
+                "app": "home",
+                "role": "@app-admin"
+              },
+              {
+                "app": "purchasing",
+                "role": "@app-admin"
+              },
+              {
+                "app": "finance",
+                "role": "@app-admin"
+              },
+              {
+                "app": "little-monsters",
+                "role": "student"
+              },
+              {
+                "app": "movies",
+                "role": "@app-admin"
+              },
+              {
+                "app": "spotify",
+                "role": "@app-admin"
+              },
+              {
+                "app": "travel",
+                "role": "@app-admin"
+              },
+              {
+                "app": "presentations",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calendar",
+                "role": "@app-admin"
+              },
+              {
+                "app": "email-summarizer",
+                "role": "@app-admin"
+              },
+              {
+                "app": "world",
+                "role": "@app-admin"
+              },
+              {
+                "app": "switchboard",
+                "role": "@app-admin"
+              },
+              {
+                "app": "social",
+                "role": "@app-admin"
+              },
+              {
+                "app": "calling-assistant",
+                "role": "caller"
+              },
+              {
+                "app": "marketing-engine",
+                "role": "@app-admin"
+              },
+              {
+                "app": "venture-plan",
+                "role": "member"
+              },
+              {
+                "app": "private-app-1",
+                "role": "crm_representative"
+              },
+              {
+                "app": "payroll",
+                "role": "@app-admin"
+              },
+              {
+                "app": "payments",
+                "role": "@app-admin"
+              },
+              {
+                "app": "identity",
+                "role": "@app-admin"
+              },
+              {
+                "app": "cad-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "circuit-lab",
+                "role": "@app-admin"
+              },
+              {
+                "app": "create",
+                "role": "creator"
+              },
+              {
+                "app": "create",
+                "role": "editor"
+              },
+              {
+                "app": "create",
+                "role": "exporter"
+              },
+              {
+                "app": "create",
+                "role": "generator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "creator"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "editor"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "deleter"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "mailer"
+              },
+              {
+                "app": "portrait-studio",
+                "role": "artist"
+              },
+              {
+                "app": "video",
+                "role": "producer"
+              },
+              {
+                "app": "video",
+                "role": "creator"
+              },
+              {
+                "app": "video",
+                "role": "editor"
+              },
+              {
+                "app": "video",
+                "role": "exporter"
+              },
+              {
+                "app": "lora",
+                "role": "trainer"
+              },
+              {
+                "app": "vids",
+                "role": "@app-admin"
+              },
+              {
+                "app": "creative-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "scan-to-print",
+                "role": "maker"
+              },
+              {
+                "app": "brand-graphics",
+                "role": "@app-admin"
+              },
+              {
+                "app": "motion-studio",
+                "role": "creator"
+              },
+              {
+                "app": "motion-studio",
+                "role": "editor"
+              },
+              {
+                "app": "motion-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "creator"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "editor"
+              },
+              {
+                "app": "publishing-studio",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "creator"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "editor"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "exporter"
+              },
+              {
+                "app": "pdf-workbench",
+                "role": "ocr"
+              },
+              {
+                "app": "scene-studio",
+                "role": "creator"
+              },
+              {
+                "app": "storage",
+                "role": "@app-admin"
+              },
+              {
+                "app": "career-hunter",
+                "role": "member"
+              },
+              {
+                "app": "dnd",
+                "role": "@app-admin"
+              },
+              {
+                "app": "game-show",
+                "role": "@app-admin"
+              },
+              {
+                "app": "games",
+                "role": "@app-admin"
+              },
+              {
+                "app": "jarvis",
+                "role": "chat-user"
+              },
+              {
+                "app": "workflow-studio",
+                "role": "@app-admin"
+              },
+              {
+                "app": "private-app-2",
+                "role": "@app-admin"
+              },
+              {
+                "app": "intelligent-sales",
+                "role": "sales_manager"
+              },
+              {
+                "app": "private-app-3",
+                "role": "administrator"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

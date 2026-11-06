@@ -101,6 +101,7 @@ test('the editor serves exact bundled modules and never arbitrary neighboring fi
       ['/editor/model.mjs', 'tools/editor/model.mjs', 'text/javascript'],
       ['/editor/templates.mjs', 'tools/editor/templates.mjs', 'text/javascript'],
       ['/editor/editor-templates.mjs', 'tools/editor/editor-templates.mjs', 'text/javascript'],
+      ['/editor/editor-foundation-adapter.mjs', 'tools/editor/editor-foundation-adapter.mjs', 'text/javascript'],
       ['/editor/editor.css', 'tools/editor/editor.css', 'text/css'],
       ['/brand', 'tools/create-brand.html', 'text/html'],
       ['/editor/brand-kit.mjs', 'tools/editor/brand-kit.mjs', 'text/javascript'],
@@ -136,7 +137,8 @@ test('a package dir without the bundled files answers 404 JSON, never a stack tr
 });
 
 test('the actual shipped Express factory serves every PSD module with exact bytes and JavaScript MIME', async () => {
-  const expressPath = require.resolve('express', { paths: [path.resolve(PKG, '../scripts/toolchain')] });
+  const toolchain = Module.createRequire(path.resolve(process.env.STORE_CI_TOOLCHAIN || path.join(PKG, '../scripts/toolchain'), 'package.json'));
+  const expressPath = toolchain.resolve('express');
   const express = require(expressPath), routePath = require.resolve('../routes/create-routes.js');
   const previous = require.cache[routePath], stub = STUBS.express;
   let actualFactory;

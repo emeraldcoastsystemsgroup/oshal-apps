@@ -812,3 +812,27 @@ uploads included. The picture is 1024 by 1024: the bridge passes a prompt and no
 
 
 The generator sleeps when idle, so the route asks again inside the request's 55 seconds and the person approves once. `create-new-project` also takes `operations`, so one card makes a finished drawing. Create's bot now claims picture and drawing requests, so Jarvis hands them over instead of answering alone.
+
+## Editable source workspace
+
+The shared editor keeps navigation, the open source, selectable objects, Properties and the AI partner in the same layout. Changes use this package’s owned operations and current permissions. A saved source is separate from generated or published output.
+
+The image/vector editor retains editable layers, geometry, text, fill/opacity and line weight. The Arrange menu holds stacking, grouping and alignment; Duplicate and Delete remain accessible actions. Version 4 adds rectangle, rounded rectangle, ellipse, triangle and diamond primitives, corner radius, dash/cap/join and isolated alpha shadows. Undo, saves, agent edits, actual hit testing, PNG and vector SVG export use the same typed model. Native JSON retains the complete source; the bounded SVG importer still refuses unsupported filter definitions rather than silently dropping them. Shadows have a bounded scratch-pixel budget. Ungroup refuses a group-level shadow; child paint scales/transforms with the group.
+
+The AI partner uses the declared create-editor bot and native approval cards. The document saves focused edits before an assistant read, and a concurrent browser draft is retained when a saved assistant revision returns.
+
+## Stable saved-project timestamps — 1.18.4
+
+Saving and reopening the same project revision now returns the same complete snapshot, including its
+updated time. New projects reuse the project row's timestamp for their first revision; later saves reuse
+the inserted revision's timestamp for current-project metadata. This also keeps project lists and revision
+history consistent when the native SQL clock advances between statements. Owner checks, optimistic
+revision locks, documents and immutable image assets retain their existing behavior.
+
+`tests/project-timestamp-roundtrip.test.mjs` exercises the actual store with a deterministic advancing
+statement clock and compares complete create/save/read snapshots, list/history metadata, image references,
+owner isolation and stale-save refusal. The existing PostgreSQL concurrency and RLS suites remain required.
+
+## Editor entry and mobile layout — 1.18.5
+
+Create opens the editable Office and Video workspaces. Blank Word, PowerPoint and spreadsheet choices remain available when the legacy starter catalog cannot be read. Phone starter and template cards fit the viewport.

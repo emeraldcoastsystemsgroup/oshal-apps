@@ -1,1 +1,1 @@
-{"protocol": 1, "buildHash": "f65e6ae93ae9abd8e5782e979e9da95a9528f0e3ecf397fa03eb37f4b1b2b644", "upstream": "pypdf/6.20.1"}
+{"protocol": 1, "buildHash": "2853bc3bd7c686f152e1272420b7afb024b63b6c6b0dfe509660fbb750d3b5ef", "upstream": "pypdf/6.20.1+pypdfium2/5.14.0+Pillow/13.0.0"}

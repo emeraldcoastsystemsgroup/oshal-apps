@@ -21,7 +21,7 @@ const CORE = path.resolve(process.env.OSHAL_CORE_ROOT || process.env.OSHAL_CORE_
 const ISSUER = 'https://issuer.oshal.example.com';
 const OWNERS = ['lcb_a', 'lcb_b'];
 const MIGRATIONS = ['058-lora-studio.sql', '100-lora-owner-rls.sql', '101-lora-cell-images.sql', '102-lora-character-identity.sql',
-  '103-lora-dataset-images.sql', '104-lora-dataset-staging.sql', '105-lora-callback-grants.sql', '106-lora-callback-identity.sql'];
+  '103-lora-dataset-images.sql', '104-lora-dataset-staging.sql', '105-lora-callback-grants.sql', '106-lora-callback-identity.sql','107-lora-editor-captions.sql'];
 
 /** Environment the kernel and the package read at construction or module load. */
 function harnessEnv(boxRoot) {

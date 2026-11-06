@@ -1,0 +1,31 @@
+/** Actual old/new Publishing SQL fixtures preserve protected original pixels, history backups and independent cloned source. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
+import { clonePublishingReview } from './publishing-review-copy.mjs';
+test('Publishing snapshot retains immutable history and exact images while current clone supports full-model undo', async (t) => {
+    const { fixture } = await import('../../publishing-studio/tests/fixtures/fixture.mjs'), old = await fixture({ http: true }), fresh = await fixture({ http: true }), dir = await mkdtemp(join(tmpdir(), 'publishing-copy-proof-'));
+    t.after(async () => { await fresh.close(); await old.close(); await rm(dir, { recursive: true, force: true }); });
+    const sharp = createRequire(resolve(process.env.OSHAL_EDITOR_SHARP_ROOT, 'package.json'))('sharp'), data = await sharp({ create: { width: 4, height: 4, channels: 4, background: { r: 40, g: 120, b: 220, alpha: .5 } } }).png().toBuffer(), store = old.context('alice').store, { asset } = await store.upload({ title: 'Original owned image', data, mime: 'image/png', requestKey: randomUUID() }), { document } = await store.create({ title: 'Earlier source with image', pageCount: 1, requestKey: randomUUID() });
+    const source = structuredClone(document.model);
+    source.assets = [{ id: asset.id, mime: asset.mime, bytes: asset.bytes, sha256: asset.sha256 }];
+    source.pages[0].objects = [{ id: 'originalImage', kind: 'image', assetId: asset.id, x: 80, y: 320, width: 120, height: 80 }];
+    await store.save(document.id, { baseRevision: 1, requestKey: randomUUID(), operations: [{ op: 'replace-model', model: source }] });
+    const copied = await clonePublishingReview({ oldOrigin: old.url, fresh, stateDir: dir }), receipt = JSON.parse(await readFile(copied.receiptPath, 'utf8')), record = receipt.documents[0], current = (await fresh.context('alice').store.get(record.clonedId)).document;
+    assert.equal(receipt.complete, true);
+    assert.equal(receipt.documents[0].revisions.length, 2);
+    assert.equal((await stat(copied.receiptPath)).mode & 0o777, 0o600);
+    assert.equal(current.model.pages[0].objects[0].assetId, receipt.assets[0].clonedId);
+    assert.notEqual(receipt.assets[0].clonedId, asset.id);
+    assert.deepEqual((await store.get(document.id)).document.model, source);
+    assert.deepEqual(await readFile(join(copied.directory, receipt.assets[0].filename)), data);
+    assert.deepEqual((await fresh.context('alice').store.assetContent(receipt.assets[0].clonedId)).data, data);
+    const changed = await fresh.context('alice').store.save(record.clonedId, { baseRevision: 2, requestKey: randomUUID(), operations: [{ op: 'set-object', page: current.model.pages[0].id, object: 'originalImage', values: { x: 100 } }] });
+    const restored = await fresh.context('alice').store.save(record.clonedId, { baseRevision: changed.document.revision, requestKey: randomUUID(), operations: [{ op: 'replace-model', model: current.model }] });
+    assert.equal(restored.document.model.pages[0].objects[0].x, 80);
+    assert.deepEqual((await store.get(document.id)).document.model, source);
+});

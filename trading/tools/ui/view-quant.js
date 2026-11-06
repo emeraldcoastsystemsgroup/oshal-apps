@@ -3,6 +3,7 @@
  * Research only: nothing on this screen can place an order. Sort headers and the Why disclosures keep every number readable at phone width.
  *
  * CHANGE LOG
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Keep delayed Quant reads, reviews and run passes within their original render and research tab generation.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Show the published signal's actual historical evidence and exact saved account execution cadence; suppress target lists from earlier reviews.
  * -----------------------------------------------------------------------------
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Build and restore an unarmed daily Quant strategy review with account-specific candidates, holding exceptions and explicit evidence still required before live use.
@@ -51,9 +52,10 @@ async function quantScheduleKeep() {
 /**
  * @description Turn the desk on or off: the setting, then the person's own nightly job.
  * @param {boolean} enabled - The new state.
+ * @param {Function} current - Whether the originating desk is still visible.
  * @returns {Promise<void>}
  */
-async function qdSetEnabled(enabled) {
+async function qdSetEnabled(enabled, current) {
   await api('/quant/settings', jbody('POST', { enabled }));
   if (enabled) { QD.keeperRefused = null; await quantScheduleKeep(); }
   else {
@@ -61,6 +63,7 @@ async function qdSetEnabled(enabled) {
     if (row && paperScheduleActive(row)) await paperKernel('/api/v1/agent/schedules/' + encodeURIComponent(row.id) + '/deactivate', { method: 'POST', body: '{}' });
   }
   const job = await paperScheduleRow(QD_SCHEDULE);
+  if (!current()) return;
   if (!enabled) QD.message = { text: 'Nightly scoring is off. Run now still works whenever you want a fresh list.' };
   else if (paperScheduleActive(job)) QD.message = { text: 'Nightly scoring is on. First run: ' + qdWhen(job.nextRunAt) + '.' };
   else QD.message = { text: 'Nightly scoring is on, but its job did not start: ' + (QD.keeperRefused || 'the job is not available') + '. Press Turn off, then Turn on, to try again.', bad: true };
@@ -76,34 +79,37 @@ function qdWhen(at) {
 /**
  * @description Run bounded passes while this page stays on the desk, until the list is finished.
  * @param {HTMLElement} host - The tab body.
+ * @param {Function} current - Whether the originating desk is still visible.
  * @returns {Promise<void>}
  */
-async function qdRun(host) {
-  if (QD.running) return;
+async function qdRun(host, current) {
+  if (QD.running || !current()) return;
   QD.running = true;
-  const say = (text, bad) => { QD.message = { text, bad: Boolean(bad) }; qdShowMessage(); };
+  QD.runOwner = current;
+  const say = (text, bad) => { if (!current()) return; QD.message = { text, bad: Boolean(bad) }; qdShowMessage(); };
   const button = host.querySelector('[data-qd="run"]');
   if (button) { button.disabled = true; button.textContent = 'Running…'; }
   say('Checking for new prices…');
   try {
-    for (let i = 0; i < QD_MAX_PASSES && $('tabbody') === host; i += 1) {
+    for (let i = 0; i < QD_MAX_PASSES && current(); i += 1) {
       const out = await api('/quant/run', jbody('POST', {}));
+      if (!current()) return;
       if (out.status === 'needs-schwab') { say(out.message, true); return; }
       const p = out.progress || {};
       if (out.status === 'done') {
         // Already finished before this press: nothing changed, so nothing repaints.
         if (i === 0 && QD.today && QD.today.ready && QD.today.session === p.session) { say('Already up to date: this list covers the close of ' + (p.session || 'the last session') + '. There is nothing new to score until the next close.'); return; }
         say('Finished: scored the close of ' + (p.session || 'the last session') + '.');
-        await qdLoad(host);
+        await qdLoad(host, current);
         return;
       }
       say(qdProgressText(p));
-      if (p.publishedAt && !(QD.today && QD.today.ready && QD.today.session === p.session)) { await qdLoad(host); say(qdProgressText(p)); }
+      if (p.publishedAt && !(QD.today && QD.today.ready && QD.today.session === p.session)) { await qdLoad(host, current); say(qdProgressText(p)); }
       await new Promise((r) => setTimeout(r, out.status === 'busy' ? 8000 : QD_PASS_GAP_MS));
     }
   } catch (e) { say(e.message, true); } finally {
-    QD.running = false;
-    const again = host.querySelector('[data-qd="run"]');
+    if (QD.runOwner === current) { QD.running = false; QD.runOwner = null; }
+    const again = current() && host.querySelector('[data-qd="run"]');
     if (again) { again.disabled = false; again.textContent = 'Run now'; }
   }
 }
@@ -262,9 +268,10 @@ function qdStrategyReview(review){
 }
 
 /** @description Read the list for what is selected and repaint only its rows, so the search box keeps its place. @param {HTMLElement} host - Tab body. @returns {Promise<void>} */
-async function qdLoadList(host) {
+async function qdLoadList(host, current) {
+  if (!current()) return;
   const today = await api(qdTodayPath());
-  if ($('tabbody') !== host || !today.ready) return;
+  if (!current() || !today.ready) return;
   QD.today = today;
   const list = host.querySelector('[data-quant-list]'), rank = host.querySelector('[data-quant-rank]'), held = host.querySelector('[data-quant-holdings-slot]');
   if (list) list.innerHTML = qdListBody(today);
@@ -273,34 +280,34 @@ async function qdLoadList(host) {
 }
 
 /** @description Read the desk's records and paint them. @param {HTMLElement} host - Tab body. @returns {Promise<void>} */
-async function qdLoad(host) {
+async function qdLoad(host, current) {
+  if (!current()) return;
   const [status, today, board, job, savedReview] = await Promise.all([api('/quant/status'), api(qdTodayPath()), api('/quant/scoreboard'), paperScheduleRow(QD_SCHEDULE).catch(() => null), api('/quant/strategy-review').catch(()=>null)]);
-  if ($('tabbody') !== host) return;
+  if (!current()) return;
   QD = { ...QD, status, today, board, job, strategyReview:savedReview?.review||QD.strategyReview||null };
   qdPaint(host);
 }
 
-/** @description Research sub-tab entry. @returns {Promise<void>} */
-async function loadQuantDesk() {
-  const host = $('tabbody');
-  if (!host) return;
-  QD.message = null;
-  host.innerHTML = '<div class="panel">' + spinner('Reading the Quant desk…') + '</div>';
-  const showError = (err) => { QD.message = { text: err.message, bad: true }; qdShowMessage(); };
-  const reload = () => qdLoadList(host).catch(showError);
+/** @description Bind desk actions to their originating render and sub-tab. */
+function wireQuantDesk(host, current) {
+  const showError = (err) => { if (!current()) return; QD.message = { text: err.message, bad: true }; qdShowMessage(); };
+  const reload = () => qdLoadList(host, current).catch(showError);
   let searching = null;
   host.onchange = (e) => {
+    if (!current()) return;
     const rank = e.target.closest('[data-qd-rank]'), group = e.target.closest('[data-qd-group]');
     if (rank) { QD.rankBy = rank.value; QD.sort = { key: 'rank', dir: 1 }; QD.offset = 0; reload(); }
     if (group) { QD.group = group.value; QD.offset = 0; reload(); }
   };
   host.oninput = (e) => {
+    if (!current()) return;
     const box = e.target.closest('[data-qd-search]');
     if (!box) return;
     clearTimeout(searching);
-    searching = setTimeout(() => { QD.search = box.value.trim(); QD.offset = 0; reload(); }, 300);
+    searching = setTimeout(() => { if (!current()) return; QD.search = box.value.trim(); QD.offset = 0; reload(); }, 300);
   };
   host.onclick = async (e) => {
+    if (!current()) return;
     const sort = e.target.closest('[data-qd-sort]'), research = e.target.closest('[data-qd-research]'), act = e.target.closest('[data-qd]'), page = e.target.closest('[data-qd-page]'), pick = e.target.closest('[data-qd-pick]');
     if (sort) { const k = sort.dataset.qdSort; QD.sort = { key: k, dir: QD.sort.key === k ? -QD.sort.dir : (k === 'rank' || k === 'symbol' ? 1 : -1) }; QD.offset = 0; reload(); return; }
     if (page) { QD.offset = Math.max(0, QD.offset + Number(page.dataset.qdPage) * QD_PAGE_ROWS); reload(); return; }
@@ -308,16 +315,30 @@ async function loadQuantDesk() {
     if (research) { researchSymbol(research.dataset.qdResearch); return; }
     if (!act) return;
     try {
-      if (act.dataset.qd === 'run') { await qdRun(host); return; }
+      if (act.dataset.qd === 'run') { await qdRun(host, current); return; }
       if (act.dataset.qd === 'strategy-review') {
-        act.disabled=true;QD.strategyReview=await api('/quant/strategy-review',jbody('POST',{}));
-        if($('tabbody')===host)qdPaint(host);return;
+        act.disabled=true;const review=await api('/quant/strategy-review',jbody('POST',{}));
+        if(!current())return;QD.strategyReview=review;qdPaint(host);return;
       }
       act.disabled = true;
-      await qdSetEnabled(act.dataset.qd === 'on');
-      await qdLoad(host);
+      await qdSetEnabled(act.dataset.qd === 'on', current);
+      await qdLoad(host, current);
     } catch (err) { showError(err); act.disabled = false; }
   };
-  try { await qdLoad(host); }
-  catch (e) { if ($('tabbody') === host) host.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>'; }
+}
+
+/** @description Research sub-tab entry. @returns {Promise<void>} */
+async function loadQuantDesk() {
+  const token = RENDER_TOKEN, gen = tabGen(), host = $('tabbody');
+  if (!host) return;
+  const current = () => !stale(token) && !tabStale(gen) && $('tabbody') === host;
+  if (QD.runOwner && !QD.runOwner()) { QD.running = false; QD.runOwner = null; }
+  QD.message = null;
+  host.innerHTML = '<div class="panel">' + spinner('Reading the Quant desk…') + '</div>';
+  wireQuantDesk(host, current);
+  try { await qdLoad(host, current); }
+  catch (e) {
+    if (stale(token) || tabStale(gen) || !current()) return;
+    host.innerHTML = '<div class="panel err">' + esc(e.message) + '</div>';
+  }
 }

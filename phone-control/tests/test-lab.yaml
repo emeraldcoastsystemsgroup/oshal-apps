@@ -1,0 +1,257 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register unit/acceptance and host-process bridge dev-shim test cases for Phone & Device Control (phone-control).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: every case crosses its real boundary. The 1.0.0 cases asserted the made-up key handshake with Bluetooth switched off and are deleted. Locally tested and live-proven are kept apart: routes, honesty, computer link and bridge run in store-ci; the kernel runner, real adb and the whole chain run on a computer that has them; the Bluetooth takeover and the Android phone are live and need the operator's own computer and phones.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: the live installation proof (tests/live/production-proof.cjs), run as the operator at 390x844 with touch and at 1440x900: with no computer nothing says connected, removed routes answer as routes that never existed, no fake text, no console error; on the operator's own computer Set up this computer, Replace the earlier test keyboard, Pair with a dead address, the computer's picture; with that computer's app closed it reads Not connected.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify the readiness probe answers the package identity, its version and that its own store opens.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed phone-control package answers its identity and version 1.1.2 with its store open.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+
+  - id: phone-control-routes
+    name: Routes over real HTTP and SQLite, owner isolation and the 1.0.0 cleanup
+    purpose: Prove what remains answers, what 1.0.0 faked answers 404, records are the caller's own, history and reports validate, the bridge files match their sha256, and an existing 1.0.0 store loses its starter rows.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-routes.test.cjs
+    expected:
+      - Fourteen removed 1.0.0 routes answer 404; no kernel caller is 401; a chosen tenant or owner is 400.
+      - Another person reads a phone, its history and the reports as missing or empty.
+      - Every 1.0.0 device row (each carries the invented handshake), its frames and its blob files are deleted once; other rows stay.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-routes.test.cjs }
+
+  - id: phone-control-honesty
+    name: Honesty guard against fakes returning
+    purpose: Go red if the package server reaches a network, process or radio, if a mirroring, receiver, key or OCR claim returns, if a public default secret returns, or if a button is not wired to a real call.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-honesty.test.cjs
+    expected:
+      - Every page button and form has a handler; every key button names a key the bridge has; every page verb is a bridge verb.
+      - Every route has exactly one catalog binding; the concierge's tools only read.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
+    installation: never
+    regressionTests:
+      - { level: unit, file: tests/phone-control-honesty.test.cjs }
+
+  - id: phone-control-link
+    name: Computer link commands run by real bash and python3
+    purpose: Prove only a closed verb and base64 reach the shell, the install command installs exactly the package bridge and refuses a damaged file before writing any, and a picture read in parts is checked by sha256.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-link.test.mjs
+    expected:
+      - Hostile typed text never appears in the command; nothing it names runs.
+      - After install the bridge reports the manifest's sha256 for every file.
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-link.test.mjs }
+
+  - id: phone-control-bridge
+    name: The bridge on a computer with no Bluetooth
+    purpose: Run the bridge with the system python3 where there is no system message bus and prove it says so, never answers sent, keeps its verb list closed, checks every argument before adb is touched and answers one bounded JSON line.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-bridge.test.mjs
+    expected:
+      - Every iPhone verb answers ble_not_running and never sent; the resident keyboard refuses to start and leaves no socket.
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-bridge.test.mjs }
+
+  - id: phone-control-runner
+    name: Under the kernel's real package runner
+    purpose: Load phone-control in crates/host-process/bridge/runner.js over its stdio protocol with the real catalog and prove routes, the runner's own grant gate, owner isolation and lasting storage.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/live/phone-control-runner.test.cjs
+    expected:
+      - A caller without the route's grants is refused 403 application_resource_denied by the runner.
+    prerequisites:
+      - runner:node-test
+      - harness:oshal-kernel-root
+      - runtime:store-pinned-toolchain
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/live/phone-control-runner.test.cjs }
+
+  - id: phone-control-adb-host
+    name: Real adb on a Linux computer, no root and no phone
+    purpose: Set up's setup-adb downloads adb with apt-get download and dpkg-deb -x in a throwaway home, adb reports 30 or newer, its server starts on a private port, and pairing or connecting where no phone listens gives adb's own failure in words.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/adb-host.sh
+    expected:
+      - setup_ok, adb_30_or_newer, server_started, pair_no_answer and connect_no_answer are all true.
+    prerequisites:
+      - runtime:python3
+      - network:ubuntu-archive
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+    installation: never
+
+  - id: phone-control-chain
+    name: The whole chain on a throwaway installation with the real OSHAL Node app
+    purpose: Browser to kernel to command queue to the published OSHAL Node AppImage (real sign-in and Allow) to bash to the bridge to adb, pressed as a person presses it.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/chain-proof.sh
+        - tests/live/chain-browser.cjs
+        - tests/live/chain-node.cjs
+        - tests/live/chain-desktop.Dockerfile
+    expected:
+      - Set up this computer ends with Android tools ready and No Bluetooth adapter on this computer, and the bridge there has the package's sha256.
+      - Pair with an address where no phone listens says the phone did not answer, and History records it as failed.
+      - The computer's picture shows in Devices and inside the cockpit frame; Work on it opens the kernel's page; no removed route is requested; no sideways scroll at 412 px.
+    prerequisites:
+      - service:docker
+      - runtime:chromium
+      - fixture:oshald-binary
+      - fixture:oshal-node-appimage
+    sideEffects: disposable
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 900000
+    installation: never
+
+  - id: phone-control-live-installation
+    name: The delivered package on a live installation, as its operator
+    purpose: Prove on the installation itself, at 390x844 with real touch and at 1440x900, that nothing claims a connection that is not there, that every 1.0.0 fake and route is gone, and that Set up this computer, Replace the earlier test keyboard and Pair answer what the operator's own computer answered.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/production-proof.cjs
+    expected:
+      - Phase empty: no element says connected, no 1.0.0 starter device or fake text, every removed route answers as a route that never existed, no removed route requested, no console error, nothing scrolls sideways, every control at least 44 px on the phone.
+      - Phase computer: after Replace the earlier test keyboard the setup table reads the iPhone keyboard On as OSHAL-KB from the bridge's own keyboard; Pair at a dead address says the phone did not answer.
+      - Phase offline: with that computer's app closed its row reads Not connected and Use this computer is disabled.
+    prerequisites:
+      - runtime:chromium
+      - fixture:live-installation
+      - device:operator-computer
+    sideEffects: external-write
+    isolation:
+      mode: live
+    limits:
+      timeoutMs: 900000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/live/production-proof.cjs }
+
+  - id: phone-control-ble-takeover
+    name: The iPhone keyboard takes over on the operator's computer
+    purpose: After Set up this computer and Replace the earlier test keyboard on the computer with the bonded iPhone, record that the earlier keyboard is gone, the bridge's keyboard advertises, the iPhone is connected and subscribed, a typed line is sent, and the pairing window closes back to not pairable.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/ble-takeover.sh
+    expected:
+      - The receipt shows ble.registered and ble.advertising, a connected paired iPhone, its reports subscribed and ble-type answered sent true; the operator confirms the text on the phone.
+    prerequisites:
+      - device:bluetooth-adapter
+      - device:bonded-iphone
+    sideEffects: external-write
+    isolation:
+      mode: live
+    limits:
+      timeoutMs: 120000
+    installation: never
+
+  - id: phone-control-android-device
+    name: An Android phone after pairing
+    purpose: On the computer the phone is paired with, list it, read a picture whose aspect matches the phone, press Home and read the launcher, open an app and see it on screen.
+    level: live
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/android-device.sh
+    expected:
+      - adb-frame gives a JPEG or PNG matching the phone's size; after HOME adb-ui names the launcher; after adb-launch the chosen package is on screen.
+    prerequisites:
+      - device:paired-android-phone
+    sideEffects: external-write
+    isolation:
+      mode: live
+    limits:
+      timeoutMs: 120000
+    installation: never

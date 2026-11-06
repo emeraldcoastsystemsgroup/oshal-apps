@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | A failed request reads as a sentence on the Scan to Print page. The native kernel answers a request that failed after the route ran with a bare {"error":"application_route_failed"}, which the toast showed as is. The shipped failureText (cut out of tools/scan-to-print.js and run) prefers the message, then the detail, then a known code in words, and never shows a bare snake_case code.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7 (the trial check, 2026-11-06): the reconstruct route's "knownDimensions must be a list of 1 to 3 {axis, mm} entries" reads as the step the person missed, never the field name.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -37,4 +38,10 @@ test('a message wins, then a detail, and an unknown code is made readable', () =
     'Frame extraction is unavailable in this native runtime (native_executor_unavailable)');
   assert.equal(failureText({ error: 'storage_unavailable' }, 503), 'The server refused this request: storage unavailable (HTTP 503).');
   assert.equal(failureText(null, 502), 'The server answered HTTP 502.');
+});
+
+test('a model asked for before the ruler measurement says what to do, not the field name', () => {
+  const text = failureText({ error: 'invalid_request', message: 'knownDimensions must be a list of 1 to 3 {axis, mm} entries' }, 422);
+  assert.equal(text, 'Measure the object first: enter its width in millimetres under 2 · Measure, then press Make 3D model.');
+  assert.doesNotMatch(text, /knownDimensions|axis/);
 });

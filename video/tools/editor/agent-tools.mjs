@@ -8,7 +8,7 @@ import { migrateMultitrack, applyMultitrack } from './multitrack-model.mjs';
 const forms = { migrate: [], rename: ['name'], addSource: ['source'], removeSource: ['key'], replaceMotionSource: ['key','source'],
   addTrack: ['name','kind'], track: ['id','patch'], addClip: ['track','source','start','in','out'], clip: ['id','patch'],
   moveClip: ['id','track','start'], removeClip: ['id','ripple'], split: ['id','frame'], extractAudio: ['id','track'], unlink: ['id'],
-  text: ['track','entry'], removeText: ['track','id'] };
+  text: ['track','entry'], updateText: ['track','id','patch'], removeText: ['track','id'] };
 export const operationSchema = { type: 'object', additionalProperties: false, required: ['type'], properties: {
   type: { type: 'string', enum: Object.keys(forms) }, id: { type: 'string', maxLength: 100 },
   name: { type: 'string', minLength: 1, maxLength: 120 }, key: { type: 'string', maxLength: 32 },
@@ -42,7 +42,7 @@ export function applyAgentOperations(value, operations) {
   return validateTimeline(next);
 }
 export function editingContract() {
-  return { editor: 'video', version: 1, sourceVersion: '1.11.1', maxOperations: 16, maxInputBytes: 16384, operations: Object.fromEntries(Object.entries(forms).map(([type,keys]) => [type,keys.map(key => key === 'source' ? (type === 'addClip' ? 'sourceKey' : 'sourceMetadata') : key)])), operationSchema,
+  return { editor: 'video', version: 1, sourceVersion: '1.12.0', maxOperations: 16, maxInputBytes: 16384, operations: Object.fromEntries(Object.entries(forms).map(([type,keys]) => [type,keys.map(key => key === 'source' ? (type === 'addClip' ? 'sourceKey' : 'sourceMetadata') : key)])), operationSchema,
     conventions: { timing: 'All timing in integer frames at 30fps. Clip in/out are source frames (out exclusive); start/split frame are timeline frames. Keys are clip-local.',
       clips: 'clip patch allows in/out/start/volume/x/y/scale/opacity/keys/transition/fadeIn/fadeOut/brightness/contrast/saturation/audioEnabled.',
       bounds: '4 video + 8 audio tracks, 32 clips, 60 seconds, 8 video + 8 audio sources; x/y -100..100 percent, scale10..200, opacity0..100, volume0..200.',
@@ -56,6 +56,7 @@ export function editingContract() {
     examples: [ {type:'migrate'}, {type:'addClip',track:'video1',sourceKey:'v1',start:30,in:0,out:90},
       {type:'clip',id:'clip-id',patch:{opacity:80,fadeIn:15,transition:'dissolve'}},
       {type:'text',track:'captions',entry:{text:'Hello',start:0,end:60,position:'bottom',size:'small'}},
+      {type:'updateText',track:'captions',id:'text-id',patch:{text:'Updated caption'}},
       {type:'extractAudio',id:'clip-id',track:'audio1'}, {type:'split',id:'clip-id',frame:60} ],
     unsupported: ['Audio recording/EQ/compression workstation','Local Motion graph editing inside Video (linked owned graph edits open in Motion)','RAW','Publishing','PDF','PSD'] };
 }

@@ -1,3 +1,8 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify bounded native profile and full-model history replay without relaxing original validation.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Execute the actual model-visible operation example and reject invented request identities.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Align requestKey schema assertion with contract-copied UUIDv4 pattern and description.
+ */
 import test from 'node:test';import assert from 'node:assert/strict';import{validate,apply,initial,LIMITS}from'../routes/model.mjs';import{brochure}from'./fixtures/brochure.mjs';
 test('shared model keeps exact four-page links/master/styles/bleed and rejects malformed authority/path/model fields',()=>{const{model}=brochure();assert.deepEqual(validate(model),model);assert.deepEqual(initial('Owned brochure',4).pages.map(p=>p.id),['page1','page2','page3','page4']);assert.throws(()=>validate({...model,owner:'foreign'}),e=>e.code==='publishing_model_invalid');assert.throws(()=>validate({...model,title:'bad😀'}),e=>e.code==='publishing_text_profile_unsupported');assert.equal(LIMITS.ownerMetadataBytes,8388608);});
 test('human and agent operation list preserves immutable input and enforces link cycles/style/font/profile boundaries',()=>{const{model}=brochure(),original=structuredClone(model);const edited=apply(model,[{op:'set-frame',frame:'main1',values:{x:40}},{op:'set-character-style',name:'default',values:{...model.characterStyles.default,size:12}},{op:'set-view',pageView:'single'}]);assert.equal(edited.pages[0].frames[0].x,40);assert.equal(edited.characterStyles.default.size,12);assert.equal(edited.pageView,'single');assert.deepEqual(model,original);assert.throws(()=>apply(model,[{op:'set-link',frame:'main4',nextFrame:'main1'}]),e=>e.code==='publishing_link_cycle_or_branch');assert.throws(()=>apply(model,[{op:'set-frame',frame:'main1',values:{width:350}}]),e=>e.code==='publishing_linked_frame_size_unsupported');assert.throws(()=>apply(model,[{op:'set-character-style',name:'default',values:{...model.characterStyles.default,font:'Missing font'}}]),e=>e.code==='publishing_font_missing'&&e.details.requiresExplicitSubstitution);assert.throws(()=>apply(model,[{op:'set-frame',frame:'main1',values:{owner:'other'}}]),e=>e.code==='publishing_model_invalid');assert.throws(()=>apply(model,[{op:'rewrite-kernel'}]),e=>e.code==='publishing_operation_unsupported');});
@@ -27,4 +32,25 @@ test('actual Python validator and JS accept the same bounded JSON models under a
  assert.equal(result.status,0,result.stderr);const native=JSON.parse(result.stdout);assert.equal(native.length,cases.length);
  for(const [i,row]of cases.entries()){let accepted=true;try{validate(row.model);}catch(e){assert.ok(e.code,`${row.name}: JS must give a closed refusal`);accepted=false;}assert.equal(native[i].crash,undefined,`${row.name}: Python must give a closed refusal`);assert.equal(native[i].accepted,accepted,`${row.name}: actual Python/JS acceptance differs`);}
  assert.ok(cases.length>250);
+});
+
+test('complete history snapshots remove introduced styles and view changes without changing document identity or relaxing validation',()=>{
+ const original=initial('History profile',1),changed=apply(original,[{op:'set-character-style',name:'accent',values:{...original.characterStyles.default,size:24}},{op:'set-paragraph-style',name:'caption',values:{...original.paragraphStyles.body,align:'right'}},{op:'set-view',pageView:'single'}]);
+ assert.deepEqual(apply(changed,[{op:'replace-model',model:original}]),original);assert.ok(changed.characterStyles.accent);assert.ok(changed.paragraphStyles.caption);
+ for(const model of[{...original,owner:'forged'},{...original,characterStyles:{...original.characterStyles,default:{...original.characterStyles.default,font:'Missing font'}}}])assert.throws(()=>apply(changed,[{op:'replace-model',model}]),error=>!!error.code);
+ assert.throws(()=>apply(changed,[{op:'replace-model',model:{...original,title:'Another publication'}}]),error=>error.code==='publishing_document_identity_immutable');assert.throws(()=>apply(changed,[{op:'replace-model',model:original,owner:'forged'}]),error=>error.code==='publishing_model_invalid');
+});
+
+// Execute the canonical operation the actual model-visible manifest supplies.
+test('model-visible edit example preserves the document and uses a real UUID request identity',async()=>{
+ const{readFile}=await import('node:fs/promises'),{createRequire}=await import('node:module');
+ const yaml=createRequire(new URL('../../scripts/toolchain/package.json',import.meta.url))('js-yaml');
+ const manifest=yaml.load(await readFile(new URL('../oshal-app.yaml',import.meta.url),'utf8'));
+ const tool=manifest.tools.find(tool=>tool.name==='publishing-apply-edits');
+ const operations=JSON.parse(tool.description.match(/Operation example:\s*(\[[\s\S]*?\])\./)[1]);
+ const before=initial('Example publication',1),after=apply(before,operations),expected=structuredClone(before);
+ expected.stories[0].paragraphs=operations[0].paragraphs;assert.deepEqual(after,expected);
+ assert.equal(before.stories[0].paragraphs[0].runs[0].text,'Write your brochure here. Text flows through linked frames using the same native fonts and layout for preview and PDF.');
+ const{id}=await import('../routes/model.mjs');assert.doesNotThrow(()=>id('2ee5af81-d4c6-4d98-8dd6-59cc2094e46d'));
+ assert.throws(()=>id('edit-story-text-002'));assert.throws(()=>id('a1b2c3d4-e5f6-7890-abcd-ef1234567890'));assert.match(tool.description,/third group starts with 4/);assert.match(tool.description,/UUIDv4/);assert.match(tool.inputSchema.properties.requestKey.description,/Copy requestKey unchanged from the just-read editing contract response/);assert.equal(tool.inputSchema.properties.requestKey.format,'uuid');assert.ok(new RegExp(tool.inputSchema.properties.requestKey.pattern).test('2ee5af81-d4c6-4d98-8dd6-59cc2094e46d'));
 });

@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Show automatic first-use preparation and bounded readiness-only refresh; never retry a model write or claim an untouched engine is connected.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -41,7 +42,7 @@
   'use strict';
   const BASE = '/api/cad-studio';
   const $ = (id) => document.getElementById(id);
-  const ENGINE_DOWN = 'The CAD engine is not answering on this installation, so parts cannot be built right now. If this keeps happening, an administrator needs to set the engine up.';
+  const ENGINE_DOWN = 'The CAD engine is not answering on this installation, so parts cannot be built right now. Try again shortly.';
   const ENGINE_SHORT = 'The CAD engine is not answering on this installation.';
   const state = { models: [], model: null, revisions: [], caps: null, viewer: null, editing: null, lastSeen: '', pollTimer: null, selection: 0, listRequest: 0, previewRequest: 0, building: {}, writes: new Set(), densityShown: null, editBaseline: '' };
 
@@ -106,14 +107,49 @@
   const fmt = (v, d) => (Number.isFinite(Number(v)) ? Number(v).toFixed(d === undefined ? 1 : d) : '—');
 
   // ── Engine status ──────────────────────────────────────────────────────────
+  let enginePoll = null;
+  let enginePollUntil = 0;
+  let enginePollStopped = false;
+  function stopEnginePoll() { enginePollStopped = true; clearTimeout(enginePoll); enginePoll = null; enginePollUntil = 0; }
+  async function refreshEngine() {
+    if (enginePollStopped) return;
+    try {
+      const caps = await api('/capabilities');
+      if (enginePollStopped) return;
+      state.caps = caps;
+      renderEngine(caps.engine);
+    } catch (_) {
+      if (enginePollStopped) return;
+      clearTimeout(enginePoll); enginePoll = null; enginePollUntil = 0;
+      $('engine-pill').textContent = 'Readiness unavailable';
+      $('engine-pill').className = 'badge failed';
+      $('engine-banner').hidden = false;
+      $('engine-reason').textContent = 'Engine readiness is unavailable. Refresh to try again.';
+    }
+  }
   function renderEngine(engine) {
     if (!engine) return;
+    const lifecycle = engine.lifecycle;
+    const phase = lifecycle && lifecycle.state;
+    const preparing = phase === 'not-prepared' || phase === 'preparing';
+    const failed = phase === 'failed' || phase === 'none';
+    const transportError = engine.lastError && (!phase || phase === 'pinned');
     const pill = $('engine-pill');
-    pill.textContent = engine.connected ? 'engine: connected' : (engine.lastError ? 'engine: down' : 'engine: idle');
-    pill.className = 'badge ' + (engine.connected ? 'built' : engine.lastError ? 'failed' : '');
-    $('engine-banner').hidden = !engine.lastError;
-    $('engine-reason').textContent = engine.lastError ? ENGINE_DOWN : '';
+    const labels = { 'not-prepared': 'Preparing engine…', preparing: 'Downloading engine…', ready: 'Ready', running: 'Running', failed: 'Preparation failed', none: 'Unavailable', pinned: 'Ready to connect' };
+    pill.textContent = phase ? labels[phase] : (engine.connected ? 'Connected' : engine.lastError ? 'Connection unavailable' : 'Not contacted');
+    pill.className = 'badge ' + (engine.connected || phase === 'ready' || phase === 'running' ? 'built' : failed || transportError ? 'failed' : '');
+    $('engine-banner').hidden = !(preparing || failed || transportError);
+    let message = preparing ? 'The engine is being prepared automatically. You can keep editing while it downloads.' : failed ? 'The engine could not be prepared. Try again shortly.' : transportError ? ENGINE_DOWN : '';
+    if (preparing && Number.isSafeInteger(lifecycle.doneBytes) && Number.isSafeInteger(lifecycle.totalBytes) && lifecycle.totalBytes > 0) message += ' ' + Math.min(100, Math.floor(100 * lifecycle.doneBytes / lifecycle.totalBytes)) + '% downloaded.';
+    $('engine-reason').textContent = message;
+    clearTimeout(enginePoll); enginePoll = null;
+    if (preparing && !enginePollStopped) {
+      if (!enginePollUntil) enginePollUntil = Date.now() + 600000;
+      if (Date.now() < enginePollUntil) enginePoll = setTimeout(refreshEngine, 2000);
+      else $('engine-reason').textContent = 'The engine is still being prepared. Refresh to check again.';
+    } else enginePollUntil = 0;
   }
+
   /** A person's words for a failed build: an engine that is not answering is one plain sentence (never the
    * kernel's address or the host's install command); any other refusal is the engine's own sentence. */
   function buildWords(build) {
@@ -122,7 +158,7 @@
   function showBuild(build) {
     if (!build) return;
     if (build.ok) return;
-    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') renderEngine({ connected: false, lastError: buildWords(build) });
+    if (build.code === 'capability_unavailable' || build.code === 'engine_busy' || build.code === 'engine_timeout') { renderEngine({ connected: false, lastError: buildWords(build) }); void refreshEngine(); }
     toast('Rebuild failed: ' + buildWords(build), 'error');
   }
 
@@ -191,7 +227,7 @@
       if (!applyResponse(out, intent, true)) return;
       await loadModels(); if (!selected(intent)) return;
       startPoll(); toast('Part created and built.', 'ok');
-    } catch (e) { if (!selected(intent)) return; if (e.body && e.body.model) applyResponse(e.body, intent, true); toast(e.message, 'error'); }
+    } catch (e) { if (!selected(intent)) return; if (e.body && e.body.model) applyResponse(e.body, intent, true); if (e.body && e.body.build) showBuild(e.body.build); else toast(e.message, 'error'); }
   }
   async function renameModel() {
     if (!state.model) return;
@@ -221,7 +257,7 @@
     $('model-state').textContent = m.state + ' · revision ' + m.revision; $('model-state').className = 'badge ' + m.state;
     $('model-source').textContent = m.source && m.source.kind === 'scan' ? 'from Scan to Print job "' + (m.source.title || m.source.jobId) + '"' : '';
     if (m.state === 'failed' && m.failure_reason) toast(m.failure_reason, 'error');
-    renderBase(m); renderReport(m); renderViews(m); renderFeatures(m); renderRevisions(); renderStop();
+    renderBase(m); renderReport(m); renderViews(m); renderFeatures(m); renderRevisions(); renderStop();editorFoundation?.refresh();
     if (m.artifacts && m.artifacts.stl) loadStl(m); else clearPreview();
     const density = (m.settings && m.settings.densityGcm3) || (state.caps && state.caps.defaults.densityGcm3) || 1.24;
     if (!densityDirty()) $('density').value = density;
@@ -302,12 +338,11 @@
       const failed = st && st.ok === false;
       const item = el('li', { class: (failed ? 'failed ' : '') + (f.enabled ? '' : 'disabled ') + (state.editing === f.id ? 'selected' : '') }, [
         el('div', { class: 'feature-head' }, [
-          el('span', { class: 'muted small', text: String(i + 1) + '.' }), el('span', { class: 'type', text: f.type + (f.label ? ' — ' + f.label : '') }), el('span', { class: 'spacer' }),
-          el('button', { class: 'link', text: '↑', title: 'earlier', onclick: () => moveFeature(f.id, i - 1) }),
-          el('button', { class: 'link', text: '↓', title: 'later', onclick: () => moveFeature(f.id, i + 1) }),
-          el('button', { class: 'link', text: 'edit', onclick: () => beginEdit(f) }),
-          el('button', { class: 'link', text: f.enabled ? 'disable' : 'enable', onclick: () => updateFeature(f.id, { enabled: !f.enabled }) }),
-          el('button', { class: 'link danger', text: 'remove', onclick: () => removeFeature(f.id) }),
+          el('button', { class: 'cad-feature-selection', text: String(i + 1)+'. '+f.type+(f.label?' — '+f.label:''), 'aria-pressed': String(state.editing===f.id), onclick: () => {if(featureDraft()&&state.editing!==f.id)return toast('Save or cancel your feature form first.','error');if(!featureDraft())beginEdit(f);} }),
+          el('details', { class: 'cad-feature-menu' }, [el('summary', {text:'Actions'}),
+            el('button', {text:'Move earlier',onclick:()=>moveFeature(f.id,i-1)}),el('button',{text:'Move later',onclick:()=>moveFeature(f.id,i+1)}),
+            el('button',{text:'Native parameter form',onclick:()=>{beginEdit(f);editorFoundation?.showFeatureForm();}}),
+            el('button',{text:f.enabled?'Disable':'Enable',onclick:()=>updateFeature(f.id,{enabled:!f.enabled})}),el('button',{text:'Remove feature',onclick:()=>removeFeature(f.id)})]),
         ]),
         el('div', { class: 'feature-params', text: paramsText(f.params) }),
       ]);
@@ -370,9 +405,9 @@
   function beginEdit(f) {
     state.editing = f.id; $('feature-type').value = f.type; renderParamsForm(f.params); $('feature-label').value = f.label || '';
     $('feature-submit').textContent = 'Save feature'; $('feature-cancel').hidden = false; renderFeatures(state.model);
-    state.editBaseline = featureFormState();
+    state.editBaseline = featureFormState();editorFoundation?.refresh();
   }
-  function endEdit() { state.editing = null; state.editBaseline = ''; $('feature-submit').textContent = 'Add feature'; $('feature-cancel').hidden = true; $('feature-label').value = ''; renderParamsForm({}); if (state.model) renderFeatures(state.model); }
+  function endEdit() { state.editing = null; state.editBaseline = ''; $('feature-submit').textContent = 'Add feature'; $('feature-cancel').hidden = true; $('feature-label').value = ''; renderParamsForm({}); if (state.model) renderFeatures(state.model);else{$('feature-list').replaceChildren();$('revisions').replaceChildren();}editorFoundation?.refresh(); }
   /** Keep newer manual input when an earlier submitted feature finishes rebuilding. */
   function featureFormState() {
     return JSON.stringify({ editing: state.editing, type: $('feature-type').value, label: $('feature-label').value,
@@ -474,10 +509,11 @@
   /** The saved part's identity and revision: what the assistant is told it is reading. */
   function documentSnapshot(m) {
     return { app: 'cad-studio', screen: 'surface', surface: 'cad-studio', recordId: m.model_id, title: String(m.title).slice(0, 200),
-      fields: { revision: m.revision, updatedAt: m.updated_at, state: m.state, featureCount: m.features.length, readOnly: false, draft: false } };
+      fields: { revision: m.revision, updatedAt: m.updated_at, state: m.state, featureCount: m.features.length, selectedFeature:state.editing||null, readOnly: false, draft: false } };
   }
   /** Save every unsaved change through the page's own save paths, then hand over the saved part. */
   async function prepareDocumentHandoff() {
+    await editorFoundation?.flushPending();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     await settleWrites();
     if (!state.model) return null;
@@ -536,7 +572,16 @@
   }
 
   // ── Boot ───────────────────────────────────────────────────────────────────
+  let editorFoundation = null;
   async function boot() {
+    window.addEventListener('pagehide', stopEnginePoll);
+    const {bindCadFoundation}=await import('/api/cad-studio/assets/editor-foundation-adapter.mjs');
+    editorFoundation=await bindCadFoundation({state,dirty:()=>featureDraft()||densityDirty(),prepare:prepareDocumentHandoff,selectBase:()=>{if(featureDraft())return toast('Save or cancel the feature form before selecting the base.','error');endEdit();editorFoundation.refresh();},changeProperty:async(key,value)=>{
+      const intent=selection(),m=state.model,feature=m.features.find(f=>f.id===state.editing);let path='/models/'+m.model_id,body;
+      if(feature){body=key==='label'?{label:value}:key==='enabled'?{enabled:value}:{params:{[key.slice(6)]:typeof feature.params[key.slice(6)]==='object'?JSON.parse(value):value}};path+='/features/'+feature.id;}
+      else body=key==='title'?{title:value}:key==='density'?{settings:{densityGcm3:value}}:{base:{...m.base,[key.slice(5)]:value}};
+      const out=await api(path,{method:'PATCH',json:body,rebuilds:intent.modelId});if(!applyResponse(out,intent))throw new Error('The part changed while rebuilding.');if(out.build&&out.build.ok===false)throw new Error(buildWords(out.build));if(feature){const latest=state.model.features.find(f=>f.id===feature.id);if(latest)beginEdit(latest);}
+    }});
     try { state.caps = await api('/capabilities'); renderEngine(state.caps.engine); renderTypeOptions(); } catch (e) { toast('Capabilities unavailable: ' + e.message, 'error'); }
     $('new-model').addEventListener('click', () => createModel().catch((e) => toast(e.message, 'error')));
     $('rename-model').addEventListener('click', renameModel);

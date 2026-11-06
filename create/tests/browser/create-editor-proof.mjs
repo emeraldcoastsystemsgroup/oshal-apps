@@ -202,15 +202,22 @@ test('live global and optional Create palettes preserve the actual editor docume
 
 for (const width of [390, 768]) test(`actual ${width}px editor controls and canvas stay within the viewport`, async t => {
   const value = await open(t, { width, height: 900 }); const { surface } = value;
-  await surface.locator('#addText').click(); await change(surface, '#layerText', 'Synthetic narrow title');
+  await surface.locator('.ef-tools').getByRole('button', { name: 'Navigation', exact: true }).click();
+  await surface.locator('#addText').click();
+  await surface.getByRole('button', { name: 'Close navigation', exact: true }).click();
+  await surface.locator('.ef-tools').getByRole('button', { name: 'Properties', exact: true }).click();
+  await change(surface, '#layerText', 'Synthetic narrow title');
   const geometry = await surface.locator('html').evaluate(root => ({ width: innerWidth, scroll: root.scrollWidth })); assert.ok(geometry.scroll <= geometry.width + 1);
   for (const selector of ['#projectName', '#saveProject', '#layerText', '#artboard']) {
     const box = await surface.locator(selector).evaluate(node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, width: innerWidth }; });
     assert.ok(box.left >= -1 && box.right <= box.width + 1, selector);
   }
+  await surface.getByRole('button', { name: 'Close inspector', exact: true }).click();
+  await surface.locator('.ef-tools').getByRole('button', { name: 'Navigation', exact: true }).click();
   if (width <= 720) await surface.locator('#canvasOptions summary').click();
   assert.equal(await surface.locator('#canvasWidth').isVisible(), true, 'Canvas dimensions must remain available on narrow screens');
   await surface.locator('#canvasWidth').fill('640'); await surface.locator('#applyCanvas').click();
+  await surface.getByRole('button', { name: 'Close navigation', exact: true }).click();
   assert.equal(await surface.locator('#artboard').getAttribute('width'), '640');
   await screenshot(value, `editor-${width}-workspace`); clean(value);
 });
@@ -444,7 +451,7 @@ test('group controls retain isolated opacity and child identity through save/reo
   const value = await open(t), { surface, page } = value; await noAutosave(value);
   await surface.locator('#addRectangle').click(); await change(surface, '#layerName', 'First child');
   await surface.locator('#addEllipse').click(); await change(surface, '#layerName', 'Second child');
-  await surface.locator('#groupBelow').click(); await change(surface, '#layerName', 'My group');
+  await surface.locator('#layerArrange summary').click(); await surface.locator('#groupBelow').click(); await change(surface, '#layerName', 'My group');
   await change(surface, '#layerOpacity', .5);
   await surface.locator('#saveProject').click(); await saved(value);
   const record = [...value.fixture.state.projects.values()][0];
@@ -453,7 +460,7 @@ test('group controls retain isolated opacity and child identity through save/reo
   await surface.locator('#saveStatus').filter({ hasText: 'Saved' }).waitFor();
   await surface.locator('.layer-select').filter({ hasText: 'My group' }).click();
   assert.equal(await surface.locator('#layerOpacity').inputValue(), '0.5');
-  await noAutosave(value); await change(surface, '#layerOpacity', 1); await surface.locator('#ungroupLayer').click();
+  await noAutosave(value); await change(surface, '#layerOpacity', 1); await surface.locator('#layerArrange summary').click(); await surface.locator('#ungroupLayer').click();
   await surface.locator('#layerCount').filter({ hasText: '2' }).waitFor();
   await surface.locator('#saveProject').click(); await saved(value, 2);
   assert.equal(value.fixture.state.projects.get(record.id).document.layers.length, 2); clean(value);

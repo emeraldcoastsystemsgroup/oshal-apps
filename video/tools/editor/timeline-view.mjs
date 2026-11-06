@@ -68,12 +68,12 @@ export function renderTrack(track, doc, selected) {
 export function renderTitles(track, list, doc, editable) {
   const total = Math.max(1, timelineFrames(doc));
   track.replaceChildren(...doc.titles.map(title => {
-    const bar = element('span', { className: 'title-bar', text: title.text });
+    const bar = element('button', { type: 'button', className: 'title-bar', text: title.text, dataset: { selectText:title.id, textKind:'titles' }, 'aria-label': 'Select title: '+title.text });
     bar.style.left = `${(title.start / total) * 100}%`; bar.style.width = `${((title.end - title.start) / total) * 100}%`;
     return bar;
   }));
   list.replaceChildren(...doc.titles.map(title => element('li', {}, [
-    element('span', { text: `“${title.text}”` }), element('span', { className: 'muted', text: `${clock(title.start)}–${clock(title.end)} · ${title.position} · ${title.size}` }),
+    element('button', { type:'button', text: `“${title.text}”`, dataset:{selectText:title.id,textKind:'titles'} }), element('span', { className: 'muted', text: `${clock(title.start)}–${clock(title.end)} · ${title.position} · ${title.size}` }),
     element('button', { type: 'button', text: 'Remove', disabled: !editable, dataset: { removeTitle: title.id } })])));
 }
 

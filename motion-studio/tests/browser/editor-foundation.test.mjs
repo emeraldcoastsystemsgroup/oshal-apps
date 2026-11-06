@@ -1,0 +1,36 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove common Motion selection, exact native properties, inline caption handoff and responsive layout over actual owned SQL and compositor pixels.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Assert real saved-document/selection context and unchanged owned content through an explicit unavailable-provider boundary.
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdir} from 'node:fs/promises';
+import {join} from 'node:path';
+import {startApplicationFixture,chromium} from '../application-fixture.mjs';
+import {parseNative,readProject} from '../../tools/native-json.mjs';
+test('Motion common editor changes the selected native layer and text, saves/reopens and retains rendered output',{timeout:180000},async t=>{
+ const f=await startApplicationFixture(),browser=await chromium.launch({headless:true});t.after(async()=>{await browser.close();await f.close();});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(30000);
+ await page.goto(f.origin+'/api/motion-studio/app');await page.locator('.ef-shell').waitFor();await page.locator('#new button:enabled').waitFor();
+ await page.locator('#new [name=title]').fill('Common Motion editor');await page.locator('#new [name=width]').fill('320');await page.locator('#new [name=height]').fill('180');await page.locator('#new button').click();await page.locator('#revision').filter({hasText:'revision 1'}).waitFor();
+ await page.locator('#add [name=text]').fill('Selectable native title');await page.locator('#add button').click();await page.locator('#revision').filter({hasText:'revision 2'}).waitFor();
+ const x=page.locator('[data-editor-property="transform/position:0"]');await x.waitFor();await x.fill('120');await x.press('Tab');await page.locator('#revision').filter({hasText:'revision 3'}).waitFor().catch(async error=>{throw new Error('Common native transform: '+await page.locator('.ef-field-status').textContent()+' / '+await page.locator('#error').textContent()+' / '+await page.locator('#revision').textContent());});
+ const handle=page.getByRole('button',{name:'Move selected layer in composition'});await handle.waitFor();const box=await handle.boundingBox(),previewBox=await page.locator('#preview').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+20,box.y+box.height/2,{steps:3});await page.mouse.up();await page.locator('#revision').filter({hasText:'revision 4'}).waitFor();
+ const text=page.locator('[data-editor-property="text"]');await text.waitFor();await text.fill('Edited native title');await text.press('Tab');await page.locator('#revision').filter({hasText:'revision 5'}).waitFor();
+ const id=await page.locator('#projects').inputValue();let saved=readProject(parseNative(await(await fetch(f.origin+'/api/motion-studio/projects/'+id)).text()).project);const comp=Object.values(saved.document.items).find(i=>i.kind.type==='Comp'),layer=comp.kind.layers[0];assert.ok(Math.abs(layer.props.children.find(p=>p.match==='transform').children.find(p=>p.match==='position').value.v[0]-(120+20*320/previewBox.width))<0.001);assert.equal(layer.props.children.find(p=>p.match==='text').children.find(p=>p.match==='sourceText').value.v.text,'Edited native title');
+ await page.locator('[data-editor-property="text"]:enabled').waitFor();await page.locator('#preview').dblclick({position:{x:10,y:10}});await page.getByRole('textbox',{name:'Edit text in composition'}).fill('Inline native title');await page.locator('.motion-inline-text button[type=submit]').click();await page.locator('#revision').filter({hasText:'revision 6'}).waitFor().catch(async error=>{throw new Error('Inline native save: '+await page.locator('#error').textContent()+' / '+await page.locator('#revision').textContent());});
+ await page.reload();await page.locator('.ef-shell').waitFor();await page.locator('#projects').evaluate(select=>{const details=select.closest('details');if(details)details.open=true;});await page.locator('#projects').selectOption(id);await page.locator('[data-editor-property="text"]').filter({hasText:''}).waitFor();assert.equal(await page.locator('[data-editor-property="text"]').inputValue(),'Inline native title');
+ await page.locator('#textEdit [name=content]').evaluate(el=>{for(let n=el;n;n=n.parentElement)if(n.tagName==='DETAILS')n.open=true;});await page.locator('#textEdit [name=content]').fill('Prepared native caption for AI');await proveUnavailableAssistant(page,'motion-studio','motion-editor',id,7);saved=readProject(parseNative(await(await fetch(f.origin+'/api/motion-studio/projects/'+id)).text()).project);assert.equal(Object.values(saved.document.items).find(i=>i.kind.type==='Comp').kind.layers[0].props.children.find(p=>p.match==='text').children.find(p=>p.match==='sourceText').value.v.text,'Prepared native caption for AI');
+ assert.ok((await page.locator('#preview').getAttribute('src')).startsWith('data:image/png;base64,'));
+ if(process.env.EDITOR_REVIEW_SCREENSHOT_DIR){await mkdir(process.env.EDITOR_REVIEW_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:join(process.env.EDITOR_REVIEW_SCREENSHOT_DIR,'motion-desktop.png'),fullPage:true});}
+ await page.setViewportSize({width:412,height:915});if(!await page.locator('.ef-inspector').isVisible())await page.getByRole('button',{name:'Properties',exact:true}).click();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.locator('.ef-inspector').waitFor({state:'visible'});
+ if(process.env.EDITOR_REVIEW_SCREENSHOT_DIR)await page.screenshot({path:join(process.env.EDITOR_REVIEW_SCREENSHOT_DIR,'motion-phone.png'),fullPage:true});
+ assert.deepEqual(errors,[]);
+});
+
+// The unavailable provider is an explicit boundary seam; saving and document context use genuine app routes.
+async function proveUnavailableAssistant(page,app,bot,recordId,revision){
+ const requests=[];await page.route('**/api/swarm/bots/'+bot+'/ask',async route=>{requests.push(route.request().postDataJSON());await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'AI provider unavailable in this isolated review fixture. Your document is kept.'})});});
+ if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();await page.getByRole('textbox',{name:'Message to concierge'}).fill('Adjust the selected object.');await page.locator('.ef-assistant-form').getByRole('button',{name:'Send',exact:true}).click();await page.locator('.ef-assistant-notice').filter({hasText:'AI provider unavailable in this isolated review fixture. Your document is kept.'}).waitFor();
+ assert.equal(requests.length,1);const context=requests[0].context;assert.equal(context.app,app);assert.equal(context.recordId,recordId);assert.equal(context.fields.revision,revision);assert.equal(context.selection.ids.length,1);assert.ok(context.selection.kind);assert.equal(await page.locator('.ef-assistant-reply,.ef-assistant-cards').count(),0);await page.getByRole('button',{name:'Properties',exact:true}).click();
+}

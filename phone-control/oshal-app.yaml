@@ -1,0 +1,276 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# OSHAL app package — phone-control ("Phone & Device Control")
+# Control your Android phone (adb over Wi-Fi: its screen, taps, keys, typing and
+# apps) and your iPhone (as a Bluetooth keyboard and pointer) through your own
+# computer running OSHAL Node, and see your computers' screens.
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.0.0 as delivered on 2026-11-05.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0, every control real or removed (Roger, 2026-11-06: "phone control fix it place"): the page drives each phone through the person's own computer with the kernel's /api/computers (ADR-205), and installs the phone bridge there itself. Removed tools and routes: the control contract, enrol device, apply actions, the keyword concierge, verify mirror key, the screenshot import and the artifacts list. The concierge reads; it does not act.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: the design standard as measured on production: solid controls with crisp edges, a view switch that is a selection, one primary per screen, and an empty screen that is one card with Set up a computer instead of an empty phone frame. No route, tool or permission changed.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: the rail labels keep their caption size and hide while empty; the setup table says once when it was read. No route, tool or permission changed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: phone-control
+suite: ai-productivity
+runtime: process
+lastingStorage: true
+rating:
+  memoryMb: { low: 48, high: 192, basis: declared }
+  features:
+    - id: phone-control-action
+      unit: device control operation
+      tier: T1
+      generation: none
+      degrade: disable
+
+displayName: Phone & Device Control
+description: >-
+  Control your Android phone over Wi-Fi (its live screen, taps, swipes, keys,
+  typing, apps and the words on screen) and type, press keys, open apps and move
+  the pointer on your iPhone as a Bluetooth keyboard, through your own computer
+  running OSHAL Node. Also shows your computers' screens. iPhone screens cannot
+  be shown.
+version: 1.1.2
+status: active
+scope: person
+chatBot: device-concierge
+theme: light-blue
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: phone-control
+  ref: main
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/phone-control/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+uses:
+  - storage
+  - app-dependencies
+  - test-catalog
+  - application-authorization
+  - experience-roles
+
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: admin
+      version: 1
+      label: Device Control Administrator
+      members:
+        - { app: phone-control, role: admin }
+    - id: operator
+      version: 1
+      label: Device Operator
+      members:
+        - { app: phone-control, role: operator }
+    - id: viewer
+      version: 1
+      label: Screen Viewer
+      members:
+        - { app: phone-control, role: reader }
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+bots:
+  - agentId: f518c3e9-92a4-47d6-85c1-d827a93c1058
+    name: device-concierge
+    persona: personas/device-concierge.yaml
+    posture: inline
+    role: operations/device-concierge
+    capabilities:
+      - phone-device-inspection
+    selectorDescriptor: >-
+      Select to explain the person's phones and computers in Phone & Device Control: which are
+      connected, what was last sent and whether it worked. It reads; it does not press anything.
+    routingKeywords:
+      - phone control
+      - connect your phone
+      - android phone control
+      - iphone keyboard
+      - device concierge
+
+migrations:
+  - migrations/001_initial_phone_control.sql
+  - migrations/native/001-phone-control.sql
+
+nativeMigrations:
+  - id: migrations/001_initial_phone_control.sql
+    native: skip
+    reason: >-
+      Native tables and constraints are in migrations/native/001-phone-control.sql;
+      PostgreSQL alone applies the forced-RLS policy loop.
+
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/phone-control/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/phone-control-routes.js
+    factory: createPhoneControlRoutes
+    mountPath: /api/phone-control
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+ui:
+  static:
+    - toolName: phone-control-execution
+      label: Phone & Device Control
+      icon: codicon codicon-device-mobile
+      iframeUrl: /api/phone-control/ui
+      section: top
+    - toolName: phone-control-config
+      label: Connect a device
+      icon: codicon codicon-plug
+      iframeUrl: /api/phone-control/config/ui
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - terminal
+    - tasks
+    - problems
+    - debug
+    - ports
+  hideChatPanel: false
+  hideStatusBar: true
+  defaultView: phone-control-execution
+
+surface:
+  ops: [context, notify]
+
+summary:
+  path: /api/phone-control/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+tools:
+  - name: phone-control-list-devices
+    displayName: List My Phones
+    type: api
+    category: operations
+    description: List this person's phones in Phone & Device Control, each with the computer it connects through and whether control is allowed.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/phone-control/devices
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: Choose a phone returned here; never guess a phone id.
+    routingTags:
+      - operations
+      - phone-control
+      - devices
+    skills:
+      - phone-device-control
+    tags:
+      - route-backed
+
+  - name: phone-control-read-device
+    displayName: Read One Phone
+    type: api
+    category: operations
+    description: Read one of this person's phones and the last things sent to it with whether each worked.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/phone-control/devices/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 3
+          maxLength: 64
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: Use an id from the phone list.
+    routingTags:
+      - operations
+      - phone-control
+      - devices
+    skills:
+      - phone-device-control
+    tags:
+      - route-backed
+
+  - name: phone-control-hardware-status
+    displayName: Read My Computers' Phone Tools
+    type: api
+    category: operations
+    description: The last report each of this person's computers gave about its phone tools (Bluetooth, the iPhone keyboard, adb and its phones), with the time it was read.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/phone-control/computers/reports
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: Say when each report was read; it is what the computer said then, not now.
+    routingTags:
+      - operations
+      - phone-control
+      - configuration
+    skills:
+      - phone-device-control
+    tags:
+      - route-backed
+
+  - name: phone-control-history
+    displayName: Read What Was Sent
+    type: api
+    category: operations
+    description: The person's recent Phone & Device Control history - what the page sent to a phone or computer and what the computer answered.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/phone-control/history
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: Report failures in the words recorded; never claim something worked that the history says failed.
+    routingTags:
+      - operations
+      - phone-control
+      - history
+    skills:
+      - phone-device-control
+    tags:
+      - route-backed

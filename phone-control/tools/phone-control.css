@@ -1,0 +1,188 @@
+/* CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Minimal screen-specific layout rules for Phone & Device Control (docs/ux/screen-standard.md); all colours, glass surfaces, typography, controls, pills and tables inherit from /shared/ui/css/surface-themes.css and /ui/kernel/screen.css.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: shaped like a phone-control app - a device rail, the phone's screen in a device frame with its controls under it, and a side column for the words on screen and the history. On a phone the rail becomes a strip above the screen and every control is at least 44 px tall. Only theme tokens; a hex colour appears only as a var() fallback.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1, the design standard as measured on production (design_standard_browser.cjs): controls are solid with a 1px edge at 3:1, no gradient, glow or hover lift; the view switch is a selection, not a primary; disabled is solid, not faded; radii on the 10/14/20 scale; text on the 12/14/16/18/24 scale and inputs 16px; the page contains its own overscroll. Scoped to .pc-page, so the kernel kit is untouched.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: the rail's Phones and Computers labels keep their 12px caption size (1.1.1's heading size reached them) and are hidden while their list is empty.
+ */
+
+.ks-page.pc-page { max-width: 1320px; --ks-radius-sm: 10px; }
+html, body { overscroll-behavior-y: contain; }
+
+/* Solid, crisp controls: one opaque fill, a 1px edge at 3:1, no glass, glow or lift. */
+.pc-page :is(button:not(.ks-sort), .ks-btn, input:not([type="checkbox"]), select) {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--text-secondary, #475569) 70%, var(--bg-primary, #ffffff));
+  border-radius: 10px;
+  box-shadow: none;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.pc-page :is(button, .ks-btn):hover:not(:disabled) { transform: none; }
+.pc-page :is(button:not(.ks-sort), .ks-btn):hover:not(:disabled) { border-color: var(--accent-primary, #2563eb); }
+.pc-page :is(button, .ks-btn).ks-btn-primary {
+  background: var(--accent-primary, #2563eb);
+  border-color: var(--accent-primary, #2563eb);
+  color: var(--text-on-accent, #ffffff);
+}
+.pc-page :is(button, .ks-btn).ks-btn-primary:hover:not(:disabled) { background: var(--accent-primary-hover, var(--accent-primary, #2563eb)); }
+.pc-page :is(button, .ks-btn).ks-btn-danger { border-color: var(--status-error, #dc2626); color: var(--status-error, #dc2626); }
+.pc-page button:not(.ks-sort):disabled { opacity: 1; background: var(--bg-primary, #ffffff); color: var(--text-secondary, #475569); border-style: dashed; cursor: default; }
+.pc-page .pc-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent-primary, #2563eb) 14%, var(--bg-primary, #ffffff));
+  border: 2px solid var(--accent-primary, #2563eb);
+  color: var(--text-primary, #0f172a);
+}
+.pc-page input { font-size: 16px; }
+.pc-page h1 { font-size: 24px; }
+.pc-page h2 { font-size: 18px; }
+.pc-page :is(.ks-help, .ks-btn-sm, th, td) { font-size: 14px; }
+.pc-page .ks-lede { font-size: 16px; }
+.pc-empty { display: grid; gap: 12px; justify-items: start; padding: 4px; }
+.pc-empty .ks-help { margin: 0; }
+
+.pc-workspace {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) minmax(280px, 360px);
+  gap: var(--ks-gap, 16px);
+  align-items: start;
+}
+
+.pc-workspace > .ks-card, .pc-side > .ks-card, .pc-connect-grid > .ks-card { margin: 0; min-width: 0; }
+.pc-workspace > * { min-width: 0; }
+.ks-card form + form { margin-top: 16px; }
+.pc-page td { overflow-wrap: anywhere; }
+.pc-side { display: grid; gap: var(--ks-gap, 16px); min-width: 0; }
+
+.pc-rail { padding: 12px; }
+.pc-page .pc-rail-title {
+  margin: 8px 4px 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #475569);
+}
+.pc-rail-title:has(+ .pc-rail-list:empty) { display: none; }
+.pc-rail-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.pc-rail-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ks-radius-sm, 10px);
+  background: transparent;
+  color: var(--text-primary, #0f172a);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.pc-rail-item:hover { border-color: var(--border-color, #cbd5e1); }
+.pc-page .pc-rail-item.is-selected {
+  border-color: var(--accent-primary, #2563eb);
+  background: color-mix(in srgb, var(--accent-primary, #2563eb) 12%, transparent);
+}
+.pc-rail-name { display: grid; min-width: 0; }
+.pc-rail-name small { color: var(--text-secondary, #475569); overflow-wrap: anywhere; }
+.pc-dot { flex: 0 0 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--status-warning, #d97706); }
+.pc-dot.tone-ok { background: var(--status-success, #16a34a); }
+
+.pc-stage-card { min-width: 0; }
+.pc-stage { display: flex; justify-content: center; padding: 8px 0 4px; }
+
+.pc-device {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 300px);
+  aspect-ratio: 9 / 19.5;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: color-mix(in srgb, var(--text-primary, #0f172a) 88%, var(--bg-primary, #ffffff));
+  box-shadow: var(--card-shadow, 0 18px 40px rgba(15, 23, 42, 0.25));
+  overflow: hidden;
+}
+.pc-device[data-kind="computer"] { width: 100%; max-width: 640px; aspect-ratio: 16 / 10; border-radius: 14px; padding: 10px; }
+.pc-device[data-kind="none"] { opacity: 0.85; }
+
+.pc-screen {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 14px;
+  user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+.pc-device[data-kind="computer"] .pc-screen { border-radius: 10px; cursor: default; }
+
+.pc-screen-note {
+  margin: 0;
+  padding: 0 18px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--bg-primary, #ffffff);
+}
+.pc-screen:not([hidden]) + .pc-screen-note:empty { display: none; }
+.pc-screen:not([hidden]) + .pc-screen-note:not(:empty) {
+  position: absolute;
+  inset: auto 16px 18px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-primary, #0f172a) 70%, transparent);
+}
+
+.pc-stage-status { min-height: 1.4em; text-align: center; }
+
+.pc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+.pc-controls .ks-btn { min-height: 44px; }
+
+.pc-row-form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; margin-top: 8px; }
+.pc-row-form .ks-btn { min-height: 44px; }
+
+.pc-pointer { margin-top: 12px; text-align: center; }
+.pc-pointer-grid {
+  display: inline-grid;
+  grid-template-columns: repeat(3, 88px);
+  gap: 8px;
+}
+.pc-pointer-grid .ks-btn { min-height: 44px; }
+
+.pc-connect-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ks-gap, 16px);
+  margin-top: var(--ks-gap, 16px);
+}
+
+tr.pc-row-selected td { background: color-mix(in srgb, var(--accent-primary, #2563eb) 12%, transparent); }
+
+@media (max-width: 1100px) {
+  .pc-workspace { grid-template-columns: 220px minmax(0, 1fr); }
+  .pc-side { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .pc-page .ks-btn { min-height: 44px; }
+  .pc-page table.stack-on-phone td::before { font-size: 12px; }
+  .pc-workspace { grid-template-columns: 1fr; }
+  .pc-side, .pc-connect-grid { grid-template-columns: 1fr; }
+  .pc-rail { display: flex; gap: 8px; overflow-x: auto; padding: 8px; }
+  .pc-rail-title { display: none; }
+  .pc-rail-list { display: flex; margin: 0; }
+  .pc-rail-item { min-width: 170px; }
+  .pc-device { width: min(100%, 260px); }
+  .pc-row-form { grid-template-columns: 1fr; }
+  .pc-row-form input { font-size: 16px; }
+  .pc-pointer-grid { grid-template-columns: repeat(3, minmax(72px, 1fr)); }
+}

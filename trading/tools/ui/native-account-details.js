@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Make inherited render guards explicit while retaining request, detached-host and selected-holding fences.
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -33,13 +34,13 @@ async function loadNativeAccountDetails(model,token){
  notice.textContent='Updating account details…';
  try{
   const answer=await api('/portfolio/account-details?'+new URLSearchParams({accountId:model.accountId,connectionKey:model.connectionKey,period,compare}));
-  if(!current())return;
+  if(stale(token)||!current())return;
   if(!sameNativeAccount(answer.account,model))throw Error('The response did not match this account and connection.');
   paintNativeAccountDetails(host,answer);
   notice.textContent='';
   const positions=answer.account.holdings||answer.account.positions||[],held=positions.slice().sort((a,b)=>(b.marketValue||0)-(a.marketValue||0));
   if(!positions.some(p=>p.symbol===host.dataset.stock))host.dataset.stock=held[0]?.symbol||compare;
-  const chart=()=>loadNativeStockComparison(host,model,host.dataset.stock,compare,period,current);
+  const chart=()=>loadNativeStockComparison(host,model,host.dataset.stock,compare,period,current,token);
   host.querySelectorAll('[data-details-symbol]').forEach(button=>button.onclick=()=>{host.dataset.stock=button.dataset.detailsSymbol;chart();host.querySelector('[data-details-stock]').scrollIntoView({block:'nearest'});});
   chart();
  }catch(e){if(current()){notice.className='native-attention';notice.textContent=e.message;}}
@@ -67,14 +68,15 @@ function detailsCloses(answer,symbol,days){
 }
 /** @description Chart one holding's price change against the comparison symbol on matching trading days.
  * @param {HTMLElement} host Page. @param {object} model Account. @param {string} stock Holding. @param {string} compare Comparison.
- * @param {string} period Window key. @param {Function} current Whether this request is still current. @returns {Promise<void>} */
-async function loadNativeStockComparison(host,model,stock,compare,period,current){
+ * @param {string} period Window key. @param {Function} current Whether this request is still current.
+ * @param {number} token Parent render token. @returns {Promise<void>} */
+async function loadNativeStockComparison(host,model,stock,compare,period,current,token){
  const target=host.querySelector('[data-details-stock]');if(!target||!stock)return;
  target.innerHTML='<h3>'+esc(stock)+' vs. '+esc(compare)+'</h3><div class="details-empty"><strong>Reading daily prices…</strong></div>';
  try{
   const read=s=>api('/bars?'+new URLSearchParams({symbol:s,timeframe:'1Day',connection:model.connectionKey}));
   const [mine,other]=await Promise.all([read(stock),stock===compare?null:read(compare)]);
-  if(!current()||host.dataset.stock!==stock)return;
+  if(stale(token)||!current()||host.dataset.stock!==stock)return;
   const days=DETAIL_DAYS[period]||31,a=detailsCloses(mine,stock,days),b=other?detailsCloses(other,compare,days):a;
   const theirs=new Map(b.map(r=>[r.date,r.close])),rows=a.filter(r=>theirs.has(r.date));
   if(rows.length<2)throw Error('Not enough matching trading days for '+stock+' and '+compare+' in this period.');

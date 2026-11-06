@@ -19,6 +19,7 @@ exports.createLoraIngestRoutes = createLoraIngestRoutes;
  * requires the catalog permission bound to the route and runs this router as that owner under forced
  * RLS. Every route also checks `requireAdmittedGrant`, so none can run without a verified grant.
  */
+const lora_caption_editor_1 = require("./lora-caption-editor");
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const scorecard_1 = require("./scorecard");
@@ -143,6 +144,13 @@ async function scopedCharacter(ctx, res, grant, kind, key) {
         res.status(403).json({ error: characterRefusal });
         return null;
     }
+    try {
+        await (0, lora_caption_editor_1.assertEditorCharacterOwner)(ctx, character.id);
+    }
+    catch (error) {
+        res.status(403).json({ error: 'original_character_owner_required', message: error.message });
+        return null;
+    }
     return character;
 }
 /** POST /cell-image — store one bounded thumbnail for the grant's own character. */
@@ -263,20 +271,29 @@ async function ingestCallback(ctx, req, res) {
         return;
     }
     const kind = String(b.kind || '').trim();
-    if (!['training', 'score', 'review', 'dataset'].includes(kind)) {
-        res.status(400).json({ error: 'character and kind (training|score|review|dataset) required' });
+    if (!['training', 'score', 'review', 'dataset', 'caption', 'dataset-state'].includes(kind)) {
+        res.status(400).json({ error: 'character and kind (training|score|review|dataset|caption|dataset-state) required' });
         return;
     }
     const character = await scopedCharacter(ctx, res, grant, kind, String(b.character || b.subject || '').trim());
     if (!character)
         return;
+    if (kind === 'dataset-state') {
+        await (0, lora_caption_editor_1.datasetStateCallback)(ctx, res, character);
+        return;
+    }
+    if (kind === 'caption') {
+        if (await (0, lora_caption_editor_1.captionStateCallback)(ctx, res, character, grant, b))
+            await (0, lora_callback_grants_1.revokeCallbackGrant)(ctx.pool, grant.id);
+        return;
+    }
     if (kind === 'review') {
         await parkReview(ctx, res, grant, character, b);
         return;
     }
     if (kind === 'dataset') {
         // The import's last word: its grant has nothing left to report once the receipt is settled.
-        if (await (0, lora_dataset_ingest_1.recordDatasetCallback)(ctx, res, character, b))
+        if (await (0, lora_dataset_ingest_1.recordDatasetCallback)(ctx, res, character, b, grant))
             await (0, lora_callback_grants_1.revokeCallbackGrant)(ctx.pool, grant.id);
         return;
     }
@@ -329,4 +346,3 @@ function createLoraIngestRoutes(ctx) {
     });
     return router;
 }
-//# sourceMappingURL=lora-ingest-routes.js.map

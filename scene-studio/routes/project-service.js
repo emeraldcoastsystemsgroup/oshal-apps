@@ -11,6 +11,7 @@
  *                     |                             | keep-window are pruned with their artifacts. Preview, export and
  *                     |                             | run are read-only and are recorded against the revision they
  *                     |                             | rendered. The engine is reached only through EngineClient.
+ * 2026-11-04 | maintainer@emeraldcoastsystemsgroup.com | Keep typed native object inspection and edits under the existing owner lock and mandatory source CAS.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -20,6 +21,7 @@ exports.RequestError = exports.ConflictError = exports.NotFoundError = exports.B
 exports.withProjectLock = withProjectLock;
 exports.loadFiles = loadFiles;
 exports.createProject = createProject;
+exports.callObjectTool = callObjectTool;
 exports.callProjectTool = callProjectTool;
 exports.blenderDocs = blenderDocs;
 exports.writeTextFile = writeTextFile;
@@ -34,6 +36,7 @@ exports.removeProjectFiles = removeProjectFiles;
 exports.artifactUrl = artifactUrl;
 exports.previewView = previewView;
 const node_fs_1 = __importDefault(require("node:fs"));
+const object_operations_1 = require("./object-operations");
 const node_path_1 = __importDefault(require("node:path"));
 const logger_1 = require("@/shared/logger");
 const data_dir_1 = require("./data-dir");
@@ -141,12 +144,42 @@ async function createProject(deps, sub, input) {
         files: started.files, action: 'create', detail: { template: input.template }, engineBuild: deps.engineBuild,
     }));
 }
+/** Closed object changes use fresh native metadata under the existing original-owner lock and CAS. */
+async function callObjectTool(deps, sub, projectId, patch, input) {
+    const { expectedRevision, fields } = (0, object_operations_1.objectBody)(patch, input);
+    return mutate(deps, sub, projectId, async (project, files) => {
+        expectRevision(project, expectedRevision);
+        requireKind(project, 'blender', 'Native object editing');
+        const reply = await deps.engine.request(patch ? 'object_patch' : 'object_inspect', { ...fields, files }, 45_000);
+        if (reply.isError)
+            throw new RequestError(clip(reply.text, 600), 'operationJson');
+        if (!patch && reply.changed)
+            throw new RequestError('Inspection unexpectedly changed native files', 'objectName');
+        let inspection;
+        try {
+            inspection = JSON.parse(reply.text);
+        }
+        catch {
+            throw new RequestError('Invalid native object inspection', 'objectName');
+        }
+        if (!inspection || typeof inspection !== 'object' || !Array.isArray(inspection.objects) || inspection.objects.length > 24 || !Number.isSafeInteger(inspection.total))
+            throw new RequestError('Invalid native object inspection', 'objectName');
+        if (fields.objectName !== undefined && (!inspection.selected || typeof inspection.selected !== 'object' || inspection.selected.id !== fields.objectName))
+            throw new RequestError('The selected native object is unavailable', 'objectName');
+        if (patch && reply.changed && !Array.isArray(reply.files))
+            throw new RequestError('Missing edited native files', 'operationJson');
+        return { files: patch && reply.changed ? reply.files : undefined, action: patch ? 'blender:object-edit' : 'blender:object-inspect',
+            detail: { objectName: fields.objectName, frame: fields.frame, delta: reply.delta }, engineBuild: deps.engineBuild,
+            extra: { inspection, delta: reply.delta } };
+    });
+}
 /**
  * @description Call one allowlisted tool of godot-mcp (Godot project) or the Blender Lab MCP
  * (Blender project) on the project; a change lands as a new revision.
  */
 async function callProjectTool(deps, sub, projectId, call) {
     return mutate(deps, sub, projectId, async (project, files) => {
+        expectRevision(project, call.expectedRevision);
         requireKind(project, call.server, `the ${call.server} ${call.tool} tool`);
         const reply = (await deps.engine.request('mcp_call', {
             server: call.server, tool: call.tool, arguments: call.args, files, file: call.file, save: call.save, timeoutSec: TOOL_SECONDS,
@@ -165,15 +198,25 @@ async function blenderDocs(deps, tool, args) {
     const reply = (await deps.engine.request('mcp_call', { server: 'blender', tool, arguments: args, files: [], timeoutSec: 60 }, 90_000));
     return { text: clip(reply.text, 9000), isError: reply.isError };
 }
+/** Refuse a typed inspector edit against a different native revision under the existing project write lock. */
+function expectRevision(project, expected) {
+    if (expected === undefined)
+        return;
+    if (!Number.isSafeInteger(expected) || Number(expected) < 1)
+        throw new RequestError('expectedRevision must be a positive integer', 'expectedRevision');
+    if (project.revision !== expected)
+        throw new ConflictError('The native scene changed. Refresh the selected object before editing.');
+}
 /** @description Write (create or replace) one UTF-8 text file. */
-async function writeTextFile(deps, sub, projectId, filePath, text) {
+async function writeTextFile(deps, sub, projectId, filePath, text, expectedRevision) {
     const p = refuseDerived((0, project_files_1.validatePath)(filePath));
     const bytes = Buffer.from(text, 'utf8');
     if (bytes.length > project_files_1.FILE_LIMITS.maxTextWriteBytes)
         throw new project_files_1.FileError(`a text write is at most ${project_files_1.FILE_LIMITS.maxTextWriteBytes} bytes; upload larger files`, 'text', 413);
-    return mutate(deps, sub, projectId, async (_project, files) => ({
-        files: (0, project_files_1.withFile)(files, p, bytes), action: 'write-file', detail: { path: p, bytes: bytes.length }, engineBuild: null,
-    }));
+    return mutate(deps, sub, projectId, async (project, files) => {
+        expectRevision(project, expectedRevision);
+        return { files: (0, project_files_1.withFile)(files, p, bytes), action: 'write-file', detail: { path: p, bytes: bytes.length }, engineBuild: null };
+    });
 }
 /** @description Store one uploaded file (any bytes). */
 async function uploadFile(deps, sub, projectId, filePath, bytes) {

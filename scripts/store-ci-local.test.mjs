@@ -6,10 +6,11 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the exit-code contract of scripts/store-ci-local.mjs. The first cut of that runner printed "Never treat SKIPPED as green" and then exited 0 anyway, so on any layout where the TypeScript compiler could not be resolved - which is every fresh clone - the little-monsters SECURITY suite, kalshi and career-hunter were all skipped and the run still reported success. A hook and a human both read `$?`, not the prose, so the skip has to reach the exit code. These two cases hold that: a prerequisite-missing run is non-zero, and --allow-skips is the deliberate opt-out that returns zero while still NAMING what did not run. Driven over a disposable fixture store through STORE_CI_LOCAL_ROOT rather than the real 45-check tree, so the guard stays fast and cannot be perturbed by the repository's own state.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Pin the two guards that keep a hung suite from holding a push: a step whose workflow names a service address fails in seconds, before its suite starts, when the variable is unset or nothing answers there (and --allow-skips does not accept it); and a suite that never exits fails at the deadline with no process of it left running. Two pushes on 2026-11-03 waited 15,214 s and 8,377 s on exactly that shape.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin which skips block: a LEGACY step or a suite's own LEGACY cases pass the push and stay printed, and a skipped case with any other reason still blocks it.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Preserve a middle-of-suite failed assertion and complete private failure evidence while retaining the original nonzero verdict.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -88,7 +89,7 @@ function runRunner(root, args = [], extra = {}) {
   // and exits 0 regardless, which would make both assertions below pass vacuously.
   const {
     OSHAL_ROOT: _r, OSHAL_CORE_DIR: _c, NODE_TEST_CONTEXT: _n, STORE_CI_TOOLCHAIN: _t,
-    OSHAL_TEST_POSTGRES: _p, OSHAL_TEST_SEARCH: _s, STORE_CI_CHECK_DEADLINE_SECONDS: _d, ...env
+    OSHAL_TEST_POSTGRES: _p, OSHAL_TEST_SEARCH: _s, STORE_CI_CHECK_DEADLINE_SECONDS: _d, STORE_CI_FAILURE_LOG_DIR: _e, ...env
   } = process.env;
   const result = spawnSync(process.execPath, [RUNNER, ...args], {
     env: { ...env, ...extra, STORE_CI_LOCAL_ROOT: root },
@@ -426,6 +427,71 @@ test('a suite that never exits fails at the deadline and leaves no process behin
       try { process.kill(pid, 0); await pause(100); } catch (error) { assert.equal(error.code, 'ESRCH'); alive = false; }
     }
     assert.equal(alive, false, `the hung test process ${pid} outlived the gate`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** A failed assertion surrounded by enough successes to disappear from head/tail reporting. */
+function buildMiddleFailureFixture() {
+  const root = buildFixture();
+  writeFileSync(join(root, '.github', 'workflows', 'store-ci.yml'), WORKFLOW.split('  needs-compiler:')[0]);
+  const suite = ["import test from 'node:test';", "import assert from 'node:assert/strict';"];
+  for (let index = 0; index < 40; index += 1) suite.push(`test('before-${index}', () => {});`);
+  suite.push("test('the actual middle failure', () => { assert.fail('middle assertion cause'); });");
+  for (let index = 0; index < 40; index += 1) suite.push(`test('after-${index}', () => {});`);
+  writeFileSync(join(root, 'pkg', 'tests', 'a.test.js'), suite.join('\n'));
+  return root;
+}
+
+test('a failed assertion in the middle of a long suite is visible and still refuses the gate', () => {
+  const root = buildMiddleFailureFixture();
+  try {
+    const { status, output } = runRunner(root);
+    assert.notEqual(status, 0, output);
+    assert.match(output, /not ok 41 - the actual middle failure/);
+    assert.match(output, /middle assertion cause/);
+    assert.match(output, /80 passed|# pass 80/);
+    assert.match(output, /store-ci-local FAILED/);
+    assert.ok(output.split('\n').length < 160, 'the console excerpt stays bounded');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('opt-in failure evidence preserves the full output in a new private directory', () => {
+  const root = buildMiddleFailureFixture();
+  const evidence = join(root, 'failure-evidence');
+  try {
+    const { status, output } = runRunner(root, [], { STORE_CI_FAILURE_LOG_DIR: evidence });
+    assert.notEqual(status, 0, output);
+    assert.match(output, /Full failed-check output:/);
+    const file = join(evidence, 'check-001.log');
+    const raw = readFileSync(file, 'utf8');
+    assert.match(raw, /ok 1 - before-0/);
+    assert.match(raw, /not ok 41 - the actual middle failure/);
+    assert.match(raw, /middle assertion cause/);
+    assert.match(raw, /ok 81 - after-39/);
+    assert.match(raw, /# tests 81/);
+    if (process.platform !== 'win32') {
+      assert.equal(statSync(evidence).mode & 0o777, 0o700);
+      assert.equal(statSync(file).mode & 0o777, 0o600);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an existing failure-evidence directory is refused without overwriting its records', () => {
+  const root = buildMiddleFailureFixture();
+  const evidence = join(root, 'failure-evidence');
+  mkdirSync(evidence);
+  writeFileSync(join(evidence, 'check-001.log'), 'retained original evidence');
+  try {
+    const { status, output } = runRunner(root, [], { STORE_CI_FAILURE_LOG_DIR: evidence });
+    assert.notEqual(status, 0, output);
+    assert.match(output, /EEXIST/);
+    assert.equal(readFileSync(join(evidence, 'check-001.log'), 'utf8'), 'retained original evidence');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

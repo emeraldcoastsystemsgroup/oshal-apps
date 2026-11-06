@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Email and Storage tabs inside Little Monsters: lm-email opens the standard email viewer (Intelligent Communication's inbox) and lm-storage the core personal file browser; every school template carries email-summarizer so the tab opens; Little Monsters' own connector lists stay empty (the mailbox is connected in the email application).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The tabs keep the Little Monsters top bar: lm-email and lm-storage open /api/education/email and /api/education/storage (tools/standard-view.html), which show the standard viewer below the frame; every top tab opens a Little Monsters page, both pages are served and bound. Linking /api/files directly replaced the frame and a student had no way back.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve the email membership and minimum template revision when later editor additions advance a school template.
  * -----------------------------------------------------------------------------
  *
  * Dependency-free node:test over the shipped manifest.
@@ -56,7 +57,7 @@ test('the email and storage pages are served and bound to opening the applicatio
 test('every school template carries the email application so the Email tab opens for the person', () => {
   for (const template of manifest.authorization.roleTemplates) {
     assert.ok(template.members.some((m) => m.app === 'email-summarizer' && m.role === '@app-admin'), template.id);
-    assert.equal(template.version, 2, `${template.id} moved to version 2 with the new member`);
+    assert.ok(Number.isSafeInteger(template.version) && template.version >= 2, `${template.id} retains at least version 2, which introduced the email member`);
   }
   assert.ok(manifest.dependencies.required.apps.includes('email-summarizer'));
   assert.deepEqual(manifest.dependencies.required.connectors, []);

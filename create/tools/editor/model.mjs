@@ -11,7 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Duplicate isolated nested groups with independent IDs, clipped targets and unchanged owned source assets.
  */
-import { demand, identifier, objectKeys, LIMITS, validateProject } from './model-validation.mjs';
+import { demand, identifier, objectKeys, LIMITS, validateProject, appearanceV4 } from './model-validation.mjs';
 import { parentGroup, throughGroup, groupFrame, worldLayer } from './group-geometry.mjs';
 export { LIMITS, IMAGE_FILTERS, validateProject } from './model-validation.mjs';
 
@@ -171,6 +171,7 @@ function ungroup(project, operation) {
   objectKeys(operation, ['type', 'id'], 'Ungroup operation');
   const index = layerIndex(project, operation.id), group = project.layers[index];
   demand(group.type === 'group', 'Select a group'); editable(worldLayer(project, group));
+  demand(!group.shadow, 'Remove the group shadow before ungrouping to preserve isolated appearance');
   demand(group.opacity === 1, 'Set group opacity to 1 before ungrouping to preserve isolated blending');
   const parent = parentGroup(project, group.id);
   for (const id of group.children) {
@@ -227,7 +228,8 @@ export function applyOperation(project, operation) {
   demand(operation && Object.hasOwn(handlers, operation.type), 'Unsupported project operation');
   handlers[operation.type](next, operation);
   if (next.layers.some(layer => layer.mask != null)) next.version = Math.max(next.version, 2);
-  if (next.layers.some(layer => layer.mask?.operations?.length || ['adjustment', 'group', 'path'].includes(layer.type))) next.version = 3;
+  if (next.layers.some(layer => layer.mask?.operations?.length || ['adjustment', 'group', 'path'].includes(layer.type))) next.version = Math.max(next.version, 3);
+  if (next.layers.some(appearanceV4)) next.version = 4;
   return validateProject(next);
 }
 

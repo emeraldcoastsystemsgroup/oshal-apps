@@ -1,30 +1,40 @@
 # Creative Studio (creative-studio) — OSHAL app package
 
+1.3.4 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
+
+
+1.3.3 keeps source editing independent of Vids. The existing `creative-story`
+workflow now belongs to this package's distinct `creative-producer` coordinator,
+using the existing admin-only production permission and tool approval modes.
+The `story-editor` concierge and its source grants are unchanged. Vids remains
+optional; rendering still requires its own authorization and an available worker.
+
 1.2.3 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 The creative bot that just cycles: it produces short, kid-safe videos from a
 rotating public-domain library (Aesop fables, classic fairytales, famous
 sayings/idioms), animating each ~100-word story across ~10 continuous Google Vids
 scenes via the EXTEND button (ADR-080), downloading the finished MP4, and saving
-it to the content folder + the operator's Google Drive. The **vids-operator** bot
-owns the content library + production; a `creative-story` ticket (manual or
-scheduled — `workflow:creative-story` cron) dispatches `content.next` /
-`content.produce` to the registered remote Vids worker.
+it to the content folder + the operator's Google Drive. The **vids-operator** worker
+continues to own the content library and rendering. Creative Studio's own
+**creative-producer** coordinates `creative-story` tickets (manual or
+scheduled through `workflow:creative-story`). The existing production tools
+dispatch `content.next` or `content.produce` to the registered remote Vids worker.
 
 Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
 this app never had a route of its own):
 
 - **In this package:** the app manifest (ticketType `creative-story` + the graph
   workflow), the three `creative_*` CLI tools, the Creative Studio ribbon tile
-  (the review and editable brief at `/api/creative-studio/review`), and a package copy of the
-  vids-operator persona for the registrar.
+  (the review and editable brief at `/api/creative-studio/review`), the source-editing
+  concierge and the distinct production-coordinator persona.
 - **Stays in the OSHAL kernel:** the SHARED **vids-operator remote-client desktop
   worker** (`packages/oshal-vids-operator` → `npx oshal-vids worker`) with its
   registry entries in BOTH `swarm-bot-registry` blocks (all four vids-family apps
   reference it), `scripts/oshal-vids.js` (the CLI the `creative_*` tools shell
   to), and the ADR-080 Extend-story content library + production engine (it lives
   in the desktop worker package's `content.*` tools).
-- **Owned by the `vids` app (declared dependency):** the `/api/vids` dispatch
+- **Owned by the optional `vids` app:** the `/api/vids` dispatch
   surface + the `vids_jobs` ledger (migration 059) this app's tile reads.
 
 ## Surfaces
@@ -40,8 +50,9 @@ node scripts/oshal-app.js install creative-studio
 ```
 
 The package owns its review, Home summary and readiness routes; it adds no migrations.
-Production requires the `vids` app (resolved npm-style at install) and a running
-Vids worker on a machine with a screen:
+Source editing does not require the optional Vids integration. Production requires
+the `vids` app, the caller's destination authorization and a running Vids worker
+on a machine with a screen:
 
 ```bash
 npx @oshal/vids-operator chrome   # debug Chrome on a dedicated profile
@@ -116,3 +127,11 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 |---|---|---|---|---|---|---|
 | story-video | story video | T2 | hosted | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Editable source workspace
+
+The shared editor keeps navigation, the open source, selectable objects, Properties and the AI partner in the same layout. Changes use this package’s owned operations and current permissions. A saved source is separate from generated or published output.
+
+Save source and Saved source projects persist the brief, source link and ordered storyboard scenes with stable IDs. Select a scene to edit its title, text and duration; add, duplicate, remove or reorder scenes and undo/redo local changes. Saved revisions are immutable, with compare-and-swap conflict handling.
+
+The package owns a distinct story-editor bot and source contract/read/edit tools. The AI pane saves actual source and uses native approval cards; concurrent local changes stay in the browser. Routes /source-projects, /source-projects/contract and /source-projects/:id/edits retain legacy @app-admin admission and recheck the same original principal. The Vids generation worker remains the declared separate dependency. Connected episode/document actions open a separate text draft within the 2,000-character receiving contract; they do not claim to transfer the original scene objects.

@@ -24,6 +24,7 @@
   8   | maintainer@emeraldcoastsystemsgroup.com     | Add the Edit video card: it opens Video Studio's own manual timeline editor through the create-video-editor rail tile (CREATE-EDIT-05d); the existing Short video card still opens generation.
   9   | maintainer@emeraldcoastsystemsgroup.com     | 1.9.3: the family audience view and its company alias for the whole-portal shells (ADR-164 D6): the kit and one builder over the package's own home-summary follow the theme bootstrap; the page's start (render, the per-studio access checks and the AI Office starter read) runs only when no view is active.
   10  | maintainer@emeraldcoastsystemsgroup.com     | Add the Brand intro clip card in Video; it opens the brand-graphics package's own review page.
+  11  | maintainer@emeraldcoastsystemsgroup.com     | Add CAD parts and LoRA character workspaces so New covers all fourteen modules; retain locked-studio navigation checks without assigning access.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -47,7 +48,7 @@
   var STUDIOS = [
     ['AI Office', 'Presentations, documents and spreadsheets'], ['Portrait Studio', 'Headshots and character portraits'],
     ['Video Studio', 'Short videos and the manual timeline editor'], ['Vids Studio', 'Clips rendered on your own worker'],
-    ['Stories', 'Kid-safe animated episodes'], ['3D Scan-to-Print', 'Printable objects from photos'], ['Image editor', 'Layered image designs']
+    ['Stories', 'Kid-safe animated episodes'], ['3D Scan-to-Print', 'Printable objects from photos'], ['CAD Studio', 'Parametric parts and editable dimensions'], ['LoRA Studio', 'Characters, training images and captions'], ['Image editor', 'Layered image designs']
   ];
   var REFUSALS = { 401: 'Sign in to see your projects.', 403: 'Create is not available to this account.' };
   function read() {
@@ -173,6 +174,19 @@
   .t-peach { background: var(--peach); } .t-lilac { background: var(--lilac); } .t-sky { background: var(--sky); }
   .t-mint { background: var(--mint); } .t-lemon { background: var(--lemon); } .t-rose { background: var(--rose); }
 
+  /* Keep template previews subordinate to their names on a phone. */
+  @media (max-width: 600px) {
+    .grid { gap: 10px; }
+    .card { display: grid; grid-template-columns: 76px minmax(0, 1fr); column-gap: 12px; padding: 10px; border-radius: 12px; align-content: start; }
+    .card .pv { grid-column: 1; grid-row: 1 / 4; height: 90px; padding: 24px 7px 0; align-self: start; }
+    .card .name { grid-column: 2; font-size: 14px; margin: 5px 0; }
+    .card .for { grid-column: 2; font-size: 12px; margin: 0; }
+    .card .pv .badge { left: 5px; top: 5px; font-size: 8px; padding: 2px 5px; }
+    .card .pv .icon { display: none; }
+    .card .pv .lock { font-size: 9px; left: 3px; bottom: 3px; padding: 3px; max-width: calc(100% - 6px); }
+    .cat { min-height: 44px; }
+  }
+
   /* Drawn previews: a page, a slide, a sheet — with the starter's real section titles as strips. */
   .mock { background: #fff; border-radius: 10px 10px 0 0; box-shadow: 0 10px 24px rgba(23,18,54,.14); overflow: hidden; }
   .mock.page { width: 112px; height: 112px; padding: 14px 12px; }
@@ -232,9 +246,9 @@
   /* ── Which rail tile owns which kind of thing. Pinned to the manifest by the package tests. ── */
   var STUDIO = {
     editor:   { tool: 'create-editor', app: 'create', name: 'Image editor', url: '/api/create/editor' },
-    office:   { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       url: '/api/presentations/sections/ui' },
+    office:   { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       url: '/api/presentations/editor/app' },
     portrait: { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', url: '/api/portrait-studio/app' },
-    video:    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    url: '/api/video/ui' },
+    video:    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    url: '/api/video/editor' },
     videoEditor: { tool: 'create-video-editor', app: 'video',     name: 'Video editor',    url: '/api/video/editor' },
     vids:     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     url: '/api/vids/app' },
     story:    { tool: 'create-story',    app: 'creative-studio', name: 'Stories',         url: '/api/creative-studio/review' },
@@ -243,7 +257,9 @@
     motion:   { tool: 'create-motion-studio', app: 'motion-studio', name: 'Motion Studio', url: '/api/motion-studio/app' },
     publishing: { tool: 'create-publishing-studio', app: 'publishing-studio', name: 'Publishing Studio', url: '/api/publishing-studio/app' },
     pdf:      { tool: 'create-pdf-workbench', app: 'pdf-workbench', name: 'PDF Workbench', url: '/api/pdf-workbench/app' },
-    scene:    { tool: 'create-scene-studio', app: 'scene-studio', name: 'Scene Studio', url: '/api/scene-studio/app' }
+    scene:    { tool: 'create-scene-studio', app: 'scene-studio', name: 'Scene Studio', url: '/api/scene-studio/app' },
+    cad:      { tool: 'create-cad-studio', app: 'cad-studio', name: 'CAD Studio', url: '/api/cad-studio/app' },
+    lora:     { tool: 'create-lora', app: 'lora', name: 'LoRA Studio', url: '/api/lora/ui' }
   };
 
   /* ── Categories (the left rail). Office kinds carry the catalog's own groups once loaded. ── */
@@ -256,9 +272,10 @@
     { id: 'portrait', name: 'Portraits',      tint: 'sky',   mark: 'portrait' },
     { id: 'video',    name: 'Video',          tint: 'rose',  mark: 'video' },
     { id: 'story',    name: 'Stories',        tint: 'lemon', mark: 'film' },
+    { id: 'training', name: 'LoRA characters', tint: 'mint', mark: 'portrait' },
     { id: '3d',       name: '3D & print',     tint: 'mint',  mark: 'cube' }
   ];
-  var TINT = { image: 'lilac', pptx: 'peach', docx: 'lilac', xlsx: 'mint', portrait: 'sky', video: 'rose', story: 'lemon', '3d': 'mint' };
+  var TINT = { image: 'lilac', pptx: 'peach', docx: 'lilac', xlsx: 'mint', portrait: 'sky', video: 'rose', story: 'lemon', training: 'mint', '3d': 'mint' };
   var SWATCH = { story: '#ff8a5b', explain: '#7d2ae8', meeting: '#2f9bff', sell: '#ffb020', career: '#7d2ae8', marketing: '#ff5c8a', writing: '#2f9bff', reports: '#10b981', money: '#10b981', plans: '#2f9bff', tracking: '#ffb020', sales: '#ff8a5b', portrait: '#7d2ae8', video: '#2f9bff', story2: '#ffb020' };
 
   /* ── Cards that are not Office starters: the other studios' shapes. ── */
@@ -277,7 +294,9 @@
     { id: 'brand-intro', cat: 'video', group: 'brand', groupLabel: 'Brand', studio: 'brand', name: 'Brand intro clip', desc: 'An on-brand oshal motion graphic from a short brief, made in Google Vids on your signed-in Chrome.', preview: 'phone' },
     { id: 'episode',   cat: 'story',    group: 'episodes',     groupLabel: 'Episodes',     studio: 'story',    name: 'Story episode',      desc: 'A kid-safe animated episode from the rotating story library, produced on a schedule.', preview: 'phone' },
     { id: 'scan-to-print', cat: '3d', group: 'objects', groupLabel: 'Objects', studio: 'scan', name: '3D scan to print', desc: 'Capture photos or upload views, review the model and prepare a 3D print.', preview: 'cube' },
-    { id: 'scene-3d',  cat: '3d',       group: 'scenes',       groupLabel: '3D scenes & models', studio: 'scene', name: '3D scene & model', desc: 'Build 3D scenes and games in Godot or models in Blender with Cycles previews.', preview: 'cube' }
+    { id: 'scene-3d',  cat: '3d',       group: 'scenes',       groupLabel: '3D scenes & models', studio: 'scene', name: '3D scene & model', desc: 'Build 3D scenes and games in Godot or models in Blender with Cycles previews.', preview: 'cube' },
+    { id: 'cad-model', cat: '3d', group: 'cad', groupLabel: 'CAD parts', studio: 'cad', name: 'CAD model', desc: 'Design parametric parts with editable dimensions and feature history.', preview: 'cube' },
+    { id: 'lora-character', cat: 'training', group: 'characters', groupLabel: 'Characters', studio: 'lora', name: 'LoRA character', desc: 'Organize training images, captions and character settings in your own workspace.', preview: 'photo' }
   ];
 
   /* ── Access: what the signed-in person may open, from the authorization service (ADR-149) ──
@@ -324,6 +343,7 @@
   function go(studio, query) {
     var s = STUDIO[studio]; if (!s) return;
     if (s.app === 'create' && ACCESS.create !== 'open') { toast('Image editor access could not be confirmed. Refresh this page or review Access.'); return; }
+    if (ACCESS[s.app] === 'locked') { toast(s.name + ' is not assigned to you — an administrator grants it in Access.'); return; }
     if (embedded) {
       var msg = { type: 'app-navigate', tool: s.tool };
       if (query) msg.query = query;
@@ -383,6 +403,13 @@
   /* Every card, normalised: office starters + the other studios' shapes. */
   function allCards() {
     var out = STARTERS.map(function (st) { return { id: 'office-' + st.id, cat: st.kind, group: st.group, groupLabel: groupLabel(st.kind, st.group), name: st.name, desc: st.desc, icon: st.icon, badge: '.' + st.kind, tint: TINT[st.kind], studio: 'office', app: STUDIO.office.app, st: st }; });
+    // Blank editable documents do not depend on access to the legacy generation catalog.
+    [['pptx', 'Blank presentation'], ['docx', 'Blank Word document'], ['xlsx', 'Blank spreadsheet']].forEach(function (entry) {
+      if (STARTERS.some(function (starter) { return starter.kind === entry[0]; })) return;
+      out.push({ id: 'blank-' + entry[0], cat: entry[0], group: 'blank', groupLabel: 'Blank document',
+        name: entry[1], desc: 'Start an editable document, or open your own file in Office.', badge: '.' + entry[0],
+        tint: TINT[entry[0]], studio: 'office', app: STUDIO.office.app, other: { preview: 'design', query: 'kind=' + entry[0] } });
+    });
     OTHER.forEach(function (o) { out.push({ id: 'other-' + o.id, cat: o.cat, group: o.group, groupLabel: o.groupLabel, name: o.name, desc: o.desc, badge: STUDIO[o.studio].name, tint: TINT[o.cat], studio: o.studio, app: STUDIO[o.studio].app, other: o }); });
     return out;
   }

@@ -11,8 +11,8 @@ const { execFileSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { createRequire } = require('node:module');
 const { Pool, Client } = createRequire(path.resolve(__dirname, '../../scripts/toolchain/package.json'))('pg');
-const video = require('../routes/paper/report-video');
-const film = require('../routes/paper/report-film');
+const video = require('../routes/reports/report-video');
+const film = require('../routes/reports/report-film');
 const root = path.resolve(__dirname, '..');
 
 const SESSION = '2026-11-02';

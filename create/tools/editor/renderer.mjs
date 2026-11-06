@@ -11,7 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
 import { demand, number, validateProject, IMAGE_FILTERS } from './model-validation.mjs';
-import { traceVector } from './vector-geometry.mjs';
+import { traceVector, traceShape } from './vector-geometry.mjs';
 import { parentGroup } from './group-geometry.mjs';
 import { loadProjectImages } from './image-assets.mjs';
 export { hitTest, worldToLayer } from './hit-test.mjs';
@@ -19,8 +19,8 @@ export { loadProjectImages, makePortableProject } from './image-assets.mjs';
 
 function shape(ctx, layer) {
   ctx.beginPath();
-  if (layer.type === 'ellipse') ctx.ellipse(layer.w / 2, layer.h / 2, layer.w / 2, layer.h / 2, 0, 0, Math.PI * 2);
-  else ctx.rect(0, 0, layer.w, layer.h);
+  traceShape(ctx,layer);
+  ctx.setLineDash(layer.dash??[]);ctx.lineCap=layer.cap??'butt';ctx.lineJoin=layer.join??'miter';
   ctx.fillStyle = layer.fill; ctx.fill();
   if (layer.strokeWidth > 0) { ctx.strokeStyle = layer.stroke; ctx.lineWidth = layer.strokeWidth; ctx.stroke(); }
 }
@@ -66,7 +66,7 @@ function textLayer(ctx, layer) {
 }
 
 function freehand(ctx, layer) {
-  ctx.strokeStyle = layer.stroke; ctx.fillStyle = layer.stroke; ctx.lineWidth = layer.strokeWidth; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = layer.stroke; ctx.fillStyle = layer.stroke; ctx.lineWidth = layer.strokeWidth; ctx.lineCap = layer.cap??'round'; ctx.lineJoin = layer.join??'round';ctx.setLineDash(layer.dash??[]);
   ctx.beginPath(); const first = layer.points[0]; ctx.moveTo(first.x * layer.w, first.y * layer.h);
   for (const point of layer.points.slice(1)) ctx.lineTo(point.x * layer.w, point.y * layer.h);
   if (layer.points.length > 1) ctx.stroke();
@@ -184,6 +184,11 @@ function paintStack(ctx, project, images, parent = null) {
 }
 
 function drawLayer(ctx, layer, project, images) {
+  if (layer.shadow) {
+    const shadow=layer.shadow,padding=Math.ceil(Math.max(Math.abs(shadow.offsetX),Math.abs(shadow.offsetY))+3*shadow.blur+2),isolated=scratch(ctx.canvas.width+2*padding,ctx.canvas.height+2*padding);
+    isolated.ctx.translate(padding,padding);drawLayer(isolated.ctx,{...layer,shadow:null},project,images);
+    const hex=shadow.color;ctx.save();try{ctx.shadowColor=`rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${shadow.opacity})`;ctx.shadowBlur=shadow.blur;ctx.shadowOffsetX=shadow.offsetX;ctx.shadowOffsetY=shadow.offsetY;ctx.drawImage(isolated.canvas,-padding,-padding);}finally{ctx.restore();}return;
+  }
   ctx.save();
   try {
     ctx.globalAlpha = layer.opacity; ctx.translate(layer.x + layer.w / 2, layer.y + layer.h / 2);
@@ -210,7 +215,7 @@ export function renderProject(ctx, project, options = {}) {
   if (ctx.canvas.height !== normalized.height) ctx.canvas.height = normalized.height;
   ctx.save();
   try {
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
     ctx.clearRect(0, 0, normalized.width, normalized.height);
     ctx.fillStyle = normalized.background; ctx.fillRect(0, 0, normalized.width, normalized.height);
     paintStack(ctx, normalized, options.images);

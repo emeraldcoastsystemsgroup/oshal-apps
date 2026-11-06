@@ -28,9 +28,9 @@ export const IMAGE_FILTERS = Object.freeze({
   blur: Object.freeze({ min: 0, max: 64, neutral: 0, unit: 'px' }),
 });
 const TYPES = new Set(['image', 'text', 'rect', 'ellipse', 'freehand', 'adjustment', 'group', 'path']);
-export const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'opacity', 'visible', 'locked'];
+export const COMMON = ['id', 'type', 'name', 'x', 'y', 'w', 'h', 'rotation', 'opacity', 'visible', 'locked', 'shadow'];
 export const FIELDS = { path: ['contours', 'fill', 'stroke', 'strokeWidth', 'fillRule', 'cap', 'join', 'dash', 'gradient', 'clip', 'sourceIds'], group: ['children', 'baseWidth', 'baseHeight'], adjustment: ['scope', 'targetId', 'exposure', 'black', 'white', 'gamma', 'saturation', 'curve'], image: ['mask', 'assetId', 'brightness', 'contrast', 'crop', ...Object.keys(IMAGE_FILTERS)], text: ['text', 'fontFamily', 'fontSize', 'fontWeight', 'fill', 'align'],
-  rect: ['fill', 'stroke', 'strokeWidth'], ellipse: ['fill', 'stroke', 'strokeWidth'], freehand: ['points', 'stroke', 'strokeWidth'] };
+  rect: ['fill', 'stroke', 'strokeWidth', 'shape', 'radius', 'dash', 'cap', 'join'], ellipse: ['fill', 'stroke', 'strokeWidth', 'shape', 'radius', 'dash', 'cap', 'join'], freehand: ['points', 'stroke', 'strokeWidth', 'dash', 'cap', 'join'] };
 
 /** @description Reject invalid input with a stable, user-readable boundary error.
  * @param {boolean} condition Required condition.
@@ -85,9 +85,25 @@ function color(value, fallback) {
   return result.toLowerCase();
 }
 
+export const SHAPES = ['rectangle', 'rounded-rectangle', 'ellipse', 'triangle', 'diamond'];
+export function appearanceV4(layer) { return layer.shadow != null || (['rect','ellipse'].includes(layer.type) && ['shape','radius','dash','cap','join'].some(key => Object.hasOwn(layer,key))) || (layer.type === 'freehand' && ['dash','cap','join'].some(key => Object.hasOwn(layer,key))); }
+function outlineFields(layer) {
+  const result = {};
+  if (layer.dash !== undefined) { demand(Array.isArray(layer.dash) && layer.dash.length <= 16, 'Stroke dash is too long'); result.dash = layer.dash.map(value => number(value,.1,512,'Dash length')); }
+  if (layer.cap !== undefined) { demand(['butt','round','square'].includes(layer.cap),'Unsupported stroke cap'); result.cap = layer.cap; }
+  if (layer.join !== undefined) { demand(['miter','round','bevel'].includes(layer.join),'Unsupported stroke join'); result.join = layer.join; }
+  return result;
+}
+function shadowFields(value) {
+  objectKeys(value,['color','opacity','blur','offsetX','offsetY'],'Shadow');
+  demand(typeof value.color === 'string' && /^#[a-f0-9]{6}$/i.test(value.color),'Shadow needs a six-digit hex color');
+  return { color:value.color.toLowerCase(), opacity:number(value.opacity,0,1,'Shadow opacity'),blur:number(value.blur,0,64,'Shadow blur'),offsetX:number(value.offsetX,-512,512,'Shadow X'),offsetY:number(value.offsetY,-512,512,'Shadow Y') };
+}
 function shapeFields(layer) {
   return { fill: color(layer.fill, '#3b82f6'), stroke: color(layer.stroke, 'transparent'),
-    strokeWidth: number(layer.strokeWidth ?? 0, 0, 512, 'Stroke width') };
+    strokeWidth: number(layer.strokeWidth ?? 0, 0, 512, 'Stroke width'), ...outlineFields(layer),
+    ...(layer.shape === undefined ? {} : (demand(SHAPES.includes(layer.shape),'Unsupported shape'),{shape:layer.shape})),
+    ...(layer.radius === undefined ? {} : {radius:number(layer.radius,0,4096,'Corner radius')}) };
 }
 
 function textFields(layer) {
@@ -105,7 +121,7 @@ function freehandFields(layer) {
     objectKeys(point, ['x', 'y'], 'Stroke point');
     return { x: number(point.x, 0, 1, 'Point x'), y: number(point.y, 0, 1, 'Point y') };
   });
-  return { points, stroke: color(layer.stroke, '#111827'), strokeWidth: number(layer.strokeWidth ?? 4, 0.1, 512, 'Stroke width') };
+  return { points, stroke: color(layer.stroke, '#111827'), strokeWidth: number(layer.strokeWidth ?? 4, 0.1, 512, 'Stroke width'), ...outlineFields(layer) };
 }
 
 function cropRectangle(value = { x: 0, y: 0, w: 1, h: 1 }) {
@@ -252,7 +268,8 @@ export function normalizeLayer(layer) {
     x: number(layer.x ?? 0, -32768, 32768, 'Layer x'), y: number(layer.y ?? 0, -32768, 32768, 'Layer y'),
     w: number(layer.w ?? 100, 0.1, 32768, 'Layer width'), h: number(layer.h ?? 100, 0.1, 32768, 'Layer height'),
     rotation: ((rotation % 360) + 540) % 360 - 180, opacity: number(layer.opacity ?? 1, 0, 1, 'Opacity'),
-    visible: boolean(layer.visible, true, 'Visibility'), locked: boolean(layer.locked, false, 'Lock') };
+    visible: boolean(layer.visible, true, 'Visibility'), locked: boolean(layer.locked, false, 'Lock'), ...(layer.shadow == null ? {} : {shadow:shadowFields(layer.shadow)}) };
+  demand(layer.type !== 'adjustment' || layer.shadow == null,'Adjustment layers cannot have shadows');
   if (layer.type === 'image') return { ...result, assetId: identifier(layer.assetId), crop: cropRectangle(layer.crop),
     brightness: number(layer.brightness ?? 100, 0, 300, 'Brightness'), contrast: number(layer.contrast ?? 100, 0, 300, 'Contrast'),
     ...imageFilterFields(layer), ...(layer.mask == null ? {} : { mask: imageMask(layer.mask) }) };
@@ -298,17 +315,19 @@ function normalizeImages(images, assetMode) {
 export function validateProject(project, options = {}) {
   demand(['portable', 'reference'].includes(options.assetMode ?? 'portable'), 'Unsupported asset mode');
   objectKeys(project, ['version', 'name', 'width', 'height', 'background', 'layers', 'images'], 'Project');
-  demand([1, 2, 3].includes(project.version), 'Unsupported project version');
+  demand([1, 2, 3, 4].includes(project.version), 'Unsupported project version');
   demand(project.version !== 1 || !project.layers?.some(layer => layer?.mask != null), 'Image masks require project version 2');
   demand(project.version >= 3 || !project.layers?.some(layer => layer?.mask?.operations?.length || ['adjustment', 'group', 'path'].includes(layer?.type)), 'Mask edits require project version 3');
+  demand(project.version >= 4 || !project.layers?.some(appearanceV4), 'Shape appearance and shadows require project version 4');
   const width = number(project.width, 1, LIMITS.dimension, 'Canvas width'), height = number(project.height, 1, LIMITS.dimension, 'Canvas height');
   demand(Number.isInteger(width) && Number.isInteger(height) && width * height <= LIMITS.pixels, 'Canvas dimensions are too large');
   demand(Array.isArray(project.layers) && project.layers.length <= LIMITS.layers, 'Too many layers');
   demand(!project.layers.some(layer => ['adjustment', 'group'].includes(layer.type)) || width * height <= 4194304, 'Adjustment canvases are limited to 4 megapixels');
   const images = normalizeImages(project.images ?? {}, options.assetMode), layers = project.layers.map(normalizeLayer), ids = new Set();
   const parents = validateGroups(layers);
-  let points = 0;
+  let points = 0, shadowPixels = 0, shadows = 0;
   for (const layer of layers) {
+    if (layer.shadow) { const parent = layers.find(item => item.id === parents.get(layer.id)), frameWidth = parent?.baseWidth ?? width, frameHeight = parent?.baseHeight ?? height; const padding = Math.ceil(Math.max(Math.abs(layer.shadow.offsetX),Math.abs(layer.shadow.offsetY)) + 3*layer.shadow.blur + 2); shadowPixels += (frameWidth+2*padding)*(frameHeight+2*padding); demand(++shadows <= 16 && shadowPixels <= 33554432,'Shadow rendering exceeds the bounded pixel budget'); }
     demand(!ids.has(layer.id), 'Layer IDs must be unique'); ids.add(layer.id);
     demand(layer.type !== 'image' || Object.hasOwn(images, layer.assetId), 'An image layer references a missing asset');
     if (layer.type === 'adjustment' && layer.scope === 'layer') {

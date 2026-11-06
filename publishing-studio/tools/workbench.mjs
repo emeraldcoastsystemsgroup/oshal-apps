@@ -2,9 +2,14 @@
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve unapplied inspector buffers and pin asynchronous operations to their saved document context.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply and save inspector drafts before concierge reads; refresh the same native publication while retaining concurrent drafts and selection.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep full-model undo across saves and same-document assistant refresh, retaining dirty and switched-document guards.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Use the shared pinned concierge and native approval presenter with the same saved selection and history.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7, touch (the round-2 trial check, 2026-11-06: a swipe over the page dragged the story frame and never scrolled): a finger scrolls the page and a tap selects a frame; only the chosen frame's Move handle drags it by touch, as in the reference editors (Canva's selected element, Acrobat's deliberate grab); a mouse still drags outlines directly. Previews are asked for only when the opened revision was rendered (no 409 per page).
  */
+import {bindPublishingFoundation,publishingSelection} from './editor-foundation-adapter.mjs';
+let editorFoundation;
 const $=id=>document.getElementById(id),base='/api/publishing-studio',copy=value=>structuredClone(value),uid=prefix=>prefix+'_'+crypto.randomUUID().replaceAll('-','');
-const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,assets:[],previews:new Map(),busy:false,chatBusy:false,renderStarting:false,job:null,session:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null};
+const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,assets:[],previews:new Map(),busy:false,renderStarting:false,job:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null};
 
 // Inspector fields are a separate draft from applied model operations. Applying one
 // form must not erase text still being composed in a different form.
@@ -26,7 +31,7 @@ function rememberField(node){
   else node.value=pendingFields.get(node.id);
  }
 }
-function hasDraft(){return state.ops.length>0||pendingFields.size>0;}
+function hasDraft(){return state.ops.length>0||pendingFields.size>0||Boolean(editorFoundation?.hasPending());}
 function requireAppliedFields(){if(pendingFields.size)throw new Error('Apply or discard the field edits before continuing.');}
 function clearFieldBuffers(){
  for(const id of pendingFields.keys())if(fieldBaselines.has(id))$(id).value=fieldBaselines.get(id);
@@ -34,6 +39,7 @@ function clearFieldBuffers(){
 }
 function discardFields(){clearFieldBuffers();paint();}
 function guardFields(){
+ if(editorFoundation?.hasPending())throw new Error('Apply or discard the selected property draft before changing the selection.');
  if(state.busy)throw new Error('Wait for the current save or open to finish.');
  if(pendingFields.size&&!confirm('Discard unapplied field edits before changing the selection?'))return false;
  clearFieldBuffers();return true;
@@ -58,7 +64,7 @@ async function locked(work){
  try{return await work();}finally{state.busy=false;controls();workspaceIdle=null;release();}
 }
 
-function status(message,error=false){$('status').textContent=message;$('status').dataset.error=String(error);}
+function status(message,error=false){$('status').textContent=message;$('status').dataset.error=String(error);editorFoundation?.refresh();}
 function headers(json=false){const out={};if(json)out['Content-Type']='application/json';const token=sessionStorage.getItem('oshal.token');if(token)out.Authorization='Bearer '+token;return out;}
 async function request(path,{method='GET',body,blob=false,native=false}={}){const response=await fetch(native?path:base+path,{method,headers:headers(body!==undefined&&!(body instanceof FormData)),credentials:'same-origin',...(body!==undefined?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});if(!response.ok){let value;try{value=await response.json();}catch{}const error=new Error(value?.error??`Request failed (${response.status})`);error.details=value?.details;throw error;}return blob?response.blob():response.json();}
 function action(fn){return async event=>{event?.preventDefault();try{await fn(event);}catch(error){status(error.message,true);if(error.details)$('preflight').textContent=JSON.stringify(error.details,null,2);}};}
@@ -75,12 +81,15 @@ function option(select,values,current){
 function value(id,v){$(id).value=v??'';rememberField($(id));}
 function number(id){const v=Number($(id).value);if(!Number.isFinite(v))throw new Error('Enter finite numeric geometry.');return v;}
 const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)),hex=color=>'#'+color.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
-function localApply(model,op){const m=copy(model),p=m.pages.find(p=>p.id===op.page);switch(op.op){case'set-frame':Object.assign(m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame),op.values);break;case'set-link':m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame).nextFrame=op.nextFrame;break;case'replace-story':m.stories.find(s=>s.id===op.story).paragraphs=copy(op.paragraphs);break;case'set-character-style':m.characterStyles[op.name]=copy(op.values);break;case'set-paragraph-style':m.paragraphStyles[op.name]=copy(op.values);break;case'set-page':Object.assign(p,copy(op.values));break;case'set-object':Object.assign(p.objects.find(o=>o.id===op.object),copy(op.values));break;case'set-master':m.masters.find(x=>x.id===op.master).objects=copy(op.objects);break;case'set-view':m.pageView=op.pageView;break;case'replace-layout':for(const k of ['pages','masters','stories','assets'])m[k]=copy(op[k]);break;default:throw new Error('Unsupported draft operation');}return m;}
+function localApply(model,op){if(op.op==='replace-model')return copy(op.model);const m=copy(model),p=m.pages.find(p=>p.id===op.page);switch(op.op){case'set-frame':Object.assign(m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame),op.values);break;case'set-link':m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame).nextFrame=op.nextFrame;break;case'replace-story':m.stories.find(s=>s.id===op.story).paragraphs=copy(op.paragraphs);break;case'set-character-style':m.characterStyles[op.name]=copy(op.values);break;case'set-paragraph-style':m.paragraphStyles[op.name]=copy(op.values);break;case'set-page':Object.assign(p,copy(op.values));break;case'set-object':Object.assign(p.objects.find(o=>o.id===op.object),copy(op.values));break;case'set-master':m.masters.find(x=>x.id===op.master).objects=copy(op.objects);break;case'set-view':m.pageView=op.pageView;break;case'replace-layout':for(const k of ['pages','masters','stories','assets'])m[k]=copy(op[k]);break;default:throw new Error('Unsupported draft operation');}return m;}
+function rememberHistory(stack,model){stack.push({model});if(stack.length>100)stack.shift();}
+const modelJSON=model=>JSON.stringify(model,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);
+function operationsFor(model){return modelJSON(model)===modelJSON(state.document.model)?[]:[{op:'replace-model',model:copy(model)}];}
 function edit(op,consumed=[]){
  editable();if(state.ops.length>=64)throw new Error('Save this revision before making more edits.');
  const model=localApply(state.model,op);
  for(const id of consumed){pendingFields.delete(id);fieldBaselines.set(id,$(id).value);}
- state.undo.push({model:state.model,ops:state.ops});state.model=model;
+ rememberHistory(state.undo,state.model);state.model=model;
  state.ops=[...state.ops,op];state.redo=[];state.saveKey=null;paint();
  status('Unsaved draft. Save validates the complete layout; render checks text flow.');
 }
@@ -90,14 +99,16 @@ function dirtyPrompt(){return !hasDraft()||confirm('Discard the unsaved draft an
 async function loadDocument(id,revision,retained={}){
  const result=retained.result??await request('/documents/'+id+(revision?'?revision='+revision:''));
  // Only callers holding the workspace lock adopt an HTTP response.
+ // Callers have confirmed replacement; failed reads retain the current field draft.
+ editorFoundation?.discardPending();
  clearPreviews();retireRender();state.viewGeneration++;clearFieldBuffers();
- state.document=result.document;state.model=copy(result.document.model);
- state.ops=[];state.undo=[];state.redo=[];state.saveKey=null;
+ if(retained.keepHistory){if(modelJSON(state.model)!==modelJSON(result.document.model)){rememberHistory(state.undo,state.model);state.redo=[];}}else{state.undo=[];state.redo=[];}
+ state.document=result.document;state.model=copy(result.document.model);state.ops=[];state.saveKey=null;
  state.page=Math.max(0,state.model.pages.findIndex(page=>page.id===retained.pageId));
  state.item=[...state.model.pages[state.page].frames,...state.model.pages[state.page].objects].some(item=>item.id===retained.item)?retained.item:null;
  $('preflight').textContent='';
  option($('history'),result.history.map(v=>[v.revision,`Revision ${v.revision}`]),result.document.revision);
- paint();status('Opened saved revision '+result.document.revision);await previews(viewSnapshot());
+ paint();status('Opened saved revision '+result.document.revision);if(result.rendered)await previews(viewSnapshot());
 }
 async function open(id,revision){
  if(state.busy)throw new Error('Wait for the current save or open to finish.');
@@ -106,21 +117,37 @@ async function open(id,revision){
 }
 async function refresh(){const [docs,assets]=await Promise.all([request('/documents'),request('/assets')]);state.assets=assets.assets;$('documents').replaceChildren(...docs.documents.map(d=>{const b=document.createElement('button');b.textContent=d.title;b.onclick=action(()=>open(d.id));return b;}));$('asset-list').replaceChildren(...state.assets.map(a=>{const row=document.createElement('p');row.textContent=`${a.title} · ${a.bytes} bytes `;const remove=document.createElement('button');remove.textContent='Delete';remove.onclick=action(async()=>{if(confirm('Delete this unused asset? Saved revisions keep their asset references.')){await request('/assets/'+a.id,{method:'DELETE',body:{}});await refresh();}});row.append(remove);return row;}));option($('object-asset'),state.assets.map(a=>[a.id,a.title]),$('object-asset').value);}
 async function save({preserveFields=false}={}){
+ await editorFoundation?.flushPending();
  const d=editable();if(!preserveFields)requireAppliedFields();if(!state.ops.length)return;
  state.saveKey??=crypto.randomUUID();
  const body={baseRevision:d.revision,requestKey:state.saveKey,operations:copy(state.ops)};
  return locked(async()=>{
   const result=await request(`/documents/${d.id}/revisions`,{method:'POST',body});
   state.document=result.document;state.model=copy(result.document.model);state.ops=[];
-  state.undo=[];state.redo=[];state.saveKey=null;state.viewGeneration++;retireRender();clearPreviews();
+  state.saveKey=null;state.viewGeneration++;retireRender();clearPreviews();
   $('preflight').textContent='';paint();status('Saved revision '+state.document.revision);
   await refresh();const saved=await request('/documents/'+d.id);
   option($('history'),saved.history.map(v=>[v.revision,`Revision ${v.revision}`]),state.document.revision);
  });
 }
 function svg(name,attributes={}){const node=document.createElementNS('http://www.w3.org/2000/svg',name);for(const[k,v]of Object.entries(attributes))node.setAttribute(k,v);return node;}
-function boards(){const target=$('spread');target.replaceChildren();if(!state.model){const p=document.createElement('p');p.className='empty';p.textContent='Create a publication, then edit its individual pages.';target.append(p);return;}const indexes=state.model.pageView==='facing'?[state.page-state.page%2,state.page-state.page%2+1].filter(i=>i<state.model.pages.length):[state.page];for(const i of indexes){const p=state.model.pages[i],pad=p.bleed+12,section=document.createElement('div');section.className='page-board'+(indexes.length>1?' facing':'');const canvas=svg('svg',{viewBox:`${-pad} ${-pad} ${p.width+2*pad} ${p.height+2*pad}`,role:'img','aria-label':`Page ${i+1} editable geometry`});if(!state.ops.length&&state.previews.has(i+1))canvas.append(svg('image',{href:state.previews.get(i+1),x:-pad,y:-pad,width:p.width+2*pad,height:p.height+2*pad}));canvas.append(svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'trim-line'}),svg('rect',{x:p.margin,y:p.margin,width:Math.max(0,p.width-2*p.margin),height:Math.max(0,p.height-2*p.margin),class:'margin-line'}));for(const x of p.guides.x)canvas.append(svg('line',{x1:x,y1:0,x2:x,y2:p.height,class:'guide-line'}));for(const y of p.guides.y)canvas.append(svg('line',{x1:0,y1:y,x2:p.width,y2:y,class:'guide-line'}));for(const item of [...p.objects,...p.frames]){const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':i===state.page&&item.id===state.item,'data-item':item.id,tabindex:0,'aria-label':item.id});rect.addEventListener('keydown',action(e=>{if(e.key==='Enter')selectPage(i,item.id);}));rect.addEventListener('click',event=>event.stopPropagation());rect.addEventListener('pointerdown',action(event=>drag(event,canvas,rect,item,i)));canvas.append(rect);if(state.ops.length||!state.previews.has(i+1)){const label=svg('text',{x:item.x+3,y:item.y+11,class:'object-label'});label.textContent=item.storyId?`Frame: ${item.storyId}`:item.kind;canvas.append(label);}}canvas.addEventListener('click',()=>{if(state.page!==i)selectPage(i);});const label=document.createElement('div');label.className='page-label';label.textContent=`Page ${i+1} · ${p.width} × ${p.height} pt · ${state.ops.length||!state.previews.has(i+1)?'geometry draft':'rendered PDF + editing guides'}`;section.append(canvas,label);target.append(section);}}
-function drag(event,canvas,rect,item,index){
+// Rebuilding the boards removes the outline that holds focus (a tap or a click focuses it). Removing a focused node makes the
+// browser lay the page out while #spread is empty, which clamped the editor's scroll to the top on every tap (the round-2
+// trial check, 2026-11-06). Blur first, rebuild, then give the same outline its focus back without scrolling.
+function boards(){const target=$('spread'),held=document.activeElement?.closest?.('#spread [data-item]')?.dataset.item;if(held)document.activeElement.blur();target.replaceChildren();if(held)queueMicrotask(()=>target.querySelector(`[data-item="${CSS.escape(held)}"]`)?.focus({preventScroll:true}));if(!state.model){const p=document.createElement('p');p.className='empty';p.textContent='Create a publication, then edit its individual pages.';target.append(p);return;}const indexes=state.model.pageView==='facing'?[state.page-state.page%2,state.page-state.page%2+1].filter(i=>i<state.model.pages.length):[state.page];for(const i of indexes){const p=state.model.pages[i],pad=p.bleed+12,section=document.createElement('div');let chosen=null;section.className='page-board'+(indexes.length>1?' facing':'');const canvas=svg('svg',{viewBox:`${-pad} ${-pad} ${p.width+2*pad} ${p.height+2*pad}`,role:'img','aria-label':`Page ${i+1} editable geometry`});if(!state.ops.length&&state.previews.has(i+1))canvas.append(svg('image',{href:state.previews.get(i+1),x:-pad,y:-pad,width:p.width+2*pad,height:p.height+2*pad}));canvas.append(svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'trim-line'}),svg('rect',{x:p.margin,y:p.margin,width:Math.max(0,p.width-2*p.margin),height:Math.max(0,p.height-2*p.margin),class:'margin-line'}));for(const x of p.guides.x)canvas.append(svg('line',{x1:x,y1:0,x2:x,y2:p.height,class:'guide-line'}));for(const y of p.guides.y)canvas.append(svg('line',{x1:0,y1:y,x2:p.width,y2:y,class:'guide-line'}));for(const item of [...p.objects,...p.frames]){const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':i===state.page&&item.id===state.item,'data-item':item.id,tabindex:0,'aria-label':item.id});rect.addEventListener('keydown',action(e=>{if(e.key==='Enter')selectPage(i,item.id);}));rect.addEventListener('click',action(event=>{event.stopPropagation();if(state.page!==i||state.item!==item.id)selectPage(i,item.id);}));const grab=action(event=>drag(event,canvas,rect,item,i));rect.addEventListener('pointerdown',event=>{if(event.pointerType!=='touch')grab(event);});if(i===state.page&&item.id===state.item)chosen={item,rect};canvas.append(rect);if(state.ops.length||!state.previews.has(i+1)){const label=svg('text',{x:item.x+3,y:item.y+11,class:'object-label'});label.textContent=item.storyId?`Frame: ${item.storyId}`:item.kind;canvas.append(label);}}canvas.addEventListener('click',()=>{if(state.page!==i)selectPage(i);});const label=document.createElement('div');label.className='page-label';label.textContent=`Page ${i+1} · ${p.width} × ${p.height} pt · ${state.ops.length||!state.previews.has(i+1)?'geometry draft':'rendered PDF + editing guides'}`;section.append(canvas,label);if(chosen)section.append(moveHandle(canvas,chosen,p,i));target.append(section);}}
+// Touch scrolls the page (the page's touch-action is manipulation; a finger on a frame only selects it on tap).
+// The chosen frame or object carries one finger-sized Move handle: grabbing it on purpose is what drags.
+// A mouse still drags any outline directly (desktop behaviour unchanged).
+function placeHandle(handle,p,x,y){const pad=p.bleed+12;handle.style.left=(x+pad)/(p.width+2*pad)*100+'%';handle.style.top=(y+pad)/(p.height+2*pad)*100+'%';}
+function moveHandle(canvas,{item,rect},p,index){
+ const pad=p.bleed+12,overlay=document.createElement('div'),handle=document.createElement('button'),name=item.storyId?'frame '+item.id:item.kind+' '+item.id;
+ overlay.className='page-overlay';overlay.style.aspectRatio=`${p.width+2*pad} / ${p.height+2*pad}`;
+ handle.type='button';handle.className='frame-handle';handle.setAttribute('aria-label','Move '+name);handle.title='Drag to move '+name;
+ placeHandle(handle,p,item.x,item.y);handle.disabled=state.busy||!state.document||state.document.revision!==state.document.currentRevision;
+ handle.addEventListener('pointerdown',action(event=>drag(event,canvas,rect,item,index,(x,y)=>placeHandle(handle,p,x,y))));
+ overlay.append(handle);return overlay;
+}
+function drag(event,canvas,rect,item,index,follow){
  if(event.button!==0||state.busy)return;
  editable();event.stopPropagation();
  if((state.page!==index||state.item!==item.id)&&!guardFields())return;
@@ -137,7 +164,7 @@ function drag(event,canvas,rect,item,index){
  function move(e){
   if(!current()||!canvas.isConnected){cancel();return;}
   const now=point(e);x=Math.round((item.x+now.x-start.x)*10)/10;y=Math.round((item.y+now.y-start.y)*10)/10;
-  rect.setAttribute('x',x);rect.setAttribute('y',y);
+  rect.setAttribute('x',x);rect.setAttribute('y',y);follow?.(x,y);
  }
  const finish=action(()=>{
   removeListeners();if(!current()){boards();return;}
@@ -161,14 +188,14 @@ function controls(){
  for(const form of ['new','asset-upload'])for(const control of $(form).elements)control.disabled=state.busy;
  for(const node of document.querySelectorAll('#documents button,#page-rail button'))node.disabled=state.busy;
  for(const id of ['reopen','open-history','restore-history','delete-document','history'])$(id).disabled=state.busy||!d;
- $('save').disabled=blocked||!state.ops.length||!!pendingFields.size;
+ $('save').disabled=blocked||(!state.ops.length&&!editorFoundation?.hasPending())||!!pendingFields.size;
  $('undo').disabled=state.busy||!state.undo.length;$('redo').disabled=state.busy||!state.redo.length;
  $('render').disabled=blocked||hasDraft()||!!state.job||state.renderStarting;
  $('cancel-render').disabled=state.busy||!state.job;
- $('chat-send').disabled=state.busy||state.chatBusy;
  $('export-pdf').disabled=state.busy||!d||hasDraft();$('export-layout').disabled=state.busy||!d||hasDraft();
  $('discard-fields').disabled=state.busy||!pendingFields.size;
  $('field-edits').textContent=pendingFields.size?'Unapplied field edits. Apply their form or discard field edits before saving.':'';
+ editorFoundation?.refresh();
  $('chat-context').textContent=d?`Saved revision ${d.revision} · page ${state.page+1}${hasDraft()?' · Apply fields and save your draft before asking for changes.':''}`:'Open a saved publication to share its current selection.';
 }
 function paint(){const d=state.document;$('document-title').textContent=d?.title??'Create or open a publication';$('revision').textContent=d?`Revision ${d.revision}${d.revision!==d.currentRevision?' · historical':''}${state.ops.length?' · unsaved':''}`:'';if(state.model){state.page=Math.min(state.page,state.model.pages.length-1);value('page-view',state.model.pageView);$('page-rail').replaceChildren(...state.model.pages.map((p,i)=>{const b=document.createElement('button');b.setAttribute('aria-current',String(i===state.page));b.textContent=`Page ${i+1}`;const mini=document.createElement('span');mini.className='page-mini';mini.textContent=`${p.frames.length} frames`;b.append(mini);b.onclick=action(()=>selectPage(i));return b;}));inspect();}boards();controls();}
@@ -222,20 +249,6 @@ async function download(kind){
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${d.title.replace(/[^A-Za-z0-9_-]/g,'_')}.${kind==='pdf'?'pdf':'json'}`;
  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('Downloaded saved revision '+d.revision);
 }
-function chatLine(text,kind=''){const p=document.createElement('p');p.className=kind;p.textContent=text;$('chat-log').append(p);p.scrollIntoView({block:'nearest'});}
-async function heldCard(ref){const id=typeof ref==='string'?ref:ref?.id??ref?.proposalId;if(typeof id!=='string')return;const card=await request('/api/jarvis/package-tools/proposals/'+encodeURIComponent(id),{native:true});const proposal=card.proposal??card;if(proposal.app!=='publishing-studio')return;const section=document.createElement('div');section.className='approval';const title=document.createElement('strong');title.textContent=proposal.toolName??proposal.tool??'Proposed Publishing action';const pre=document.createElement('pre');pre.textContent=JSON.stringify(proposal,null,2);section.append(title,pre);for(const approve of [true,false]){const b=document.createElement('button');b.textContent=approve?'Approve action':'Decline';b.onclick=action(async()=>{requireDocument();requireAppliedFields();if(state.ops.length)throw new Error('Save or discard the local draft before acting on an assistant proposal.');const view=viewSnapshot();const fresh=await request('/api/jarvis/package-tools/proposals/'+encodeURIComponent(id),{native:true});if(!sameView(view)||state.busy||hasDraft())throw new Error('The workspace changed while reviewing the proposal. Review it again.');if(JSON.stringify(fresh.proposal??fresh)!==JSON.stringify(proposal))throw new Error('Proposal changed. Ask again to review a fresh card.');const response=await fetch('/api/jarvis/package-tools/'+(approve?'execute':'decline'),{method:'POST',credentials:'same-origin',headers:{...headers(true),'x-oshal-package-tool':'1'},body:JSON.stringify({proposalId:id})});const result=await response.json();if(!response.ok)throw new Error(result.error??'Proposal action failed');section.replaceChildren(document.createTextNode((approve?'Action result: ':'Declined: ')+JSON.stringify(result)));if(approve&&sameView(view)&&!state.busy&&!hasDraft()){await open(view.id);await refresh();}});section.append(b);}$('chat-log').append(section);}
-bind('chat-form','submit',async()=>{
- const text=$('chat-message').value.trim();if(!text)return;
- if(state.chatBusy)throw new Error('Wait for the assistant to finish this turn.');
- const context=await prepareDocumentHandoff(),view=viewSnapshot();
- chatLine(text,'chat-you');$('chat-message').value='';state.chatBusy=true;controls();
- try{
-  const result=await request('/api/swarm/bots/publishing-editor/ask',{native:true,method:'POST',body:{message:text+'\nCurrent saved selection: '+JSON.stringify(context),...(state.session?{sessionId:state.session}:{}),context}});
-  if(!sameView(view)){chatLine('The assistant replied for a previous saved publication. Return to that publication to review its actions.');return;}
-  state.session=result.sessionId??state.session;chatLine(result.reply??result.error??'The assistant returned no text.');
-  for(const ref of (Array.isArray(result.packageToolProposals)?result.packageToolProposals:[result.packageToolProposal]).filter(Boolean))await heldCard(ref);
- }finally{state.chatBusy=false;controls();await refreshDocumentHandoff(context);}
-});
 bind('new','submit',async()=>{
  if(state.busy)throw new Error('Wait for the current save or open to finish.');if(!dirtyPrompt())return;
  const input={title:$('new-title').value,pageCount:number('new-pages')},signature=JSON.stringify(input);
@@ -252,7 +265,7 @@ bind('cancel-render','click',async()=>{
  if(!sameView(view)||state.renderGeneration!==generation||state.job!==id)return;
  retireRender();controls();status('Render cancelled.');
 });
-for(const[id,from,to]of [['undo','undo','redo'],['redo','redo','undo']])bind(id,'click',()=>{editable();if(!guardFields())return;const prior=state[from].pop();if(!prior)return;state[to].push({model:state.model,ops:state.ops});state.model=prior.model;state.ops=prior.ops;state.saveKey=null;paint();});
+for(const[id,from,to]of [['undo','undo','redo'],['redo','redo','undo']])bind(id,'click',()=>{editable();if(!guardFields())return;const prior=state[from].pop();if(!prior)return;rememberHistory(state[to],state.model);state.model=prior.model;state.ops=operationsFor(prior.model);state.saveKey=null;paint();});
 bind('page-view','change',()=>edit({op:'set-view',pageView:$('page-view').value}));bind('item','change',()=>changeSelection('item',()=>{state.item=$('item').value;inspect();boards();}));bind('story','change',()=>changeSelection('story',()=>{const s=state.model.stories.find(s=>s.id===$('story').value);value('story-text',s?.paragraphs.map(p=>p.runs.map(r=>r.text).join('')).join('\n'));value('story-paragraph-style',s?.paragraphs[0]?.style);value('story-character-style',s?.paragraphs[0]?.runs[0]?.style??Object.keys(state.model.characterStyles)[0]);}));bind('character-style','change',()=>changeSelection('character-style',typography));bind('paragraph-style','change',()=>changeSelection('paragraph-style',typography));
 bind('geometry','submit',()=>{const item=selected();if(!item)throw new Error('Select an item.');const values=Object.fromEntries(['x','y','width','height'].map(k=>[k,number(k)]));edit(item.storyId?{op:'set-frame',frame:item.id,values}:{op:'set-object',page:page().id,object:item.id,values},fields.geometry);});
 bind('link-frame','click',()=>{const item=selected();if(!item?.storyId)throw new Error('Select a text frame.');edit({op:'set-link',frame:item.id,nextFrame:$('next-frame').value||null},fields.link);});
@@ -308,10 +321,12 @@ for(const id of trackedFields){
 }
 bind('discard-fields','click',discardFields);
 
+document.body.addEventListener('editor-foundation:draft',controls);
 window.addEventListener('beforeunload',event=>{if(hasDraft()){event.preventDefault();event.returnValue='';}});
 paint();action(async()=>{await refresh();const id=new URL(location.href).searchParams.get('document');if(id)await open(id);else status('Create a publication or choose one of your saved files.');})();
 
 async function prepareDocumentHandoff(){
+ await editorFoundation?.flushPending();
  if(workspaceIdle)await workspaceIdle;
  if(!state.document)return{app:'publishing-studio',screen:'surface',surface:'publishing-workbench'};
  document.activeElement?.blur?.();if(hasDraft())editable();
@@ -326,21 +341,28 @@ async function prepareDocumentHandoff(){
  if(hasDraft())throw new Error('The current publication draft could not be saved.');
  const d=requireDocument();
  return{app:'publishing-studio',screen:'surface',surface:'publishing-workbench',recordId:d.id,title:d.title,
-  documentId:d.id,revision:d.revision,selectedPage:page().id,selectedFrame:selected()?.storyId?state.item:null,
-  fields:{revision:d.revision,draft:false,readOnly:d.revision!==d.currentRevision,pageId:page().id,...(state.item?{itemId:state.item}:{})}};
+  documentId:d.id,revision:d.revision,selection:publishingSelection(d,page(),selected()),selectedPage:page().id,selectedFrame:selected()?.storyId?state.item:null,
+  fields:{revision:d.revision,workspaceGeneration:state.viewGeneration,draft:false,readOnly:d.revision!==d.currentRevision,pageId:page().id,...(state.item?{itemId:state.item}:{})}};
 }
 async function refreshDocumentHandoff(expected){
  if(workspaceIdle)await workspaceIdle;
  const d=state.document;if(!d||(expected?.recordId&&expected.recordId!==d.id))return;
+ if(expected?.fields?.revision!==undefined&&expected.fields.revision!==d.revision)return;
+ if(expected?.fields?.workspaceGeneration!==undefined&&expected.fields.workspaceGeneration!==state.viewGeneration)return;
  if(expected?.fields?.readOnly&&d.revision!==d.currentRevision)return;
  const view=viewSnapshot(),result=await request('/documents/'+d.id);
  if(!sameView(view)||result.document.revision<=d.revision)return;
  document.activeElement?.blur?.();
  if(hasDraft())throw new Error('The concierge saved an update while you were editing. Your publication draft is still here. Save a copy or choose the saved revision to decide which to keep.');
- const retained={result,pageId:page().id,item:state.item};
+ const retained={result,pageId:page().id,item:state.item,keepHistory:true};
  await locked(()=>loadDocument(d.id,undefined,retained));
 }
 void import('/shared/ui/js/document-handoff.js').then(({registerDocumentSession})=>registerDocumentSession({
  app:'publishing-studio',prepare:async()=>{try{return await prepareDocumentHandoff();}catch(error){status(error.message,true);throw error;}},
  refresh:async expected=>{try{await refreshDocumentHandoff(expected);}catch(error){status(error.message,true);throw error;}}
 })).catch(error=>status('The concierge cannot synchronize this document: '+error.message,true));
+
+void bindPublishingFoundation({state,selected,page,hasDraft,requireAppliedFields,edit,prepare:prepareDocumentHandoff,refreshDocument:refreshDocumentHandoff,actions:{
+ undo:()=>boundActions.get('undo:click')(),redo:()=>boundActions.get('redo:click')(),
+ save:()=>save(),export:()=>download('layout'),
+}}).then(value=>{editorFoundation=value;value.refresh();}).catch(error=>status('Shared editor unavailable: '+error.message,true));

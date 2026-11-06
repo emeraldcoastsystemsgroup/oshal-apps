@@ -1,5 +1,8 @@
 # Portrait Studio — an OSHAL app package
 
+1.16.3 returns a fresh server-generated `requestKey` on every editing-contract read. Copy it unchanged for one new edit and retain the exact key and body for an uncertain retry. Edit tool schemas enforce the existing backend UUID rules before proposing an action. Contract responses remain private and uncached; saved models and authorization stay unchanged. Installed acceptance for this release is pending.
+
+
 1.15.4 follows the same image rule as Create (core ADR-130 amendment 2026-10-02: the render bot's own harness picks the image rail). When the kernel resolves the operator-only `antigravity-cli` rail and it reports itself available for the caller, portraits render on it; anyone the kernel has no provider for, or whose provider is not available to them, gets `portrait_provider_unavailable` (503 before a row is queued, configured:false on `GET /provider`, a failed row in a queued run) and no other provider is tried. `codex-cli` stays refused by name. Proven by `tests/authorization.spec.ts` (Test Lab case `application-permission-http`).
 
 1.15.3 adds the company audience view beside the family one (ADR-164 D6): Studio, Orbit and Commons (the Business shells) open this package's first surface with `?audience=company`, and the shared kit paints the same account-scoped card in the company grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
@@ -315,3 +318,11 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 |---|---|---|---|---|---|---|
 | portrait-generation | portrait | T0 | hosted | disable | not yet measured | none recorded |
 <!-- oshal-rating:end -->
+
+## Editable source workspace
+
+The shared editor keeps navigation, the open source, selectable objects, Properties and the AI partner in the same layout. Changes use this package’s owned operations and current permissions. A saved source is separate from generated or published output.
+
+Save source, Save copy and Saved photo sources retain exact original PNG/JPEG/WebP bytes, stable photo/crop IDs, crop geometry, preset/settings and notes in owned SQL revisions. Sources reopen from protected assets; changing a generated portrait does not rewrite its original photo. Each saved original is bounded to 4 MiB/16 megapixels; the existing composer can still open larger local photos, but source persistence reports this limit and keeps the current draft. Source history is immutable, capped at 100 revisions.
+
+The source routes are /source-projects, /source-projects/:id, /source-projects/:id/edits and /source-assets. They use the existing portrait.view/read/create/change/delete grants and four-part original-owner keys; asset upload for an existing source has a separate change-gated route. Agent contract/read/edit tools use the same model and grants. The Portrait source AI partner saves before reading and preserves concurrent crop/note edits. A finished portrait remains a single raster image when sent to an image editor.

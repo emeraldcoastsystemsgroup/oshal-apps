@@ -13,8 +13,10 @@
  *                     |                             | a whole project, so lines are assembled in linear time and
  *                     |                             | bounded. The socket factory is injectable for the specs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Reuse the client through admitted native RPC without adding process network access.
+ * 2026-11-04 | maintainer@emeraldcoastsystemsgroup.com | Lower typed object operations locally while native requests keep their closed operation for original-caller admission.
  */
 
+import { lowerObjectRequest } from './object-operations';
 import net from 'node:net';
 import { createChildLogger } from '@/shared/logger';
 
@@ -135,6 +137,10 @@ export class EngineClient {
    */
   request(op: string, fields: Record<string, unknown> = {}, timeoutMs?: number): Promise<unknown> {
     if (this.opts.nativeRequest) return this.requestNative(op, fields, timeoutMs);
+    if (op === 'object_inspect' || op === 'object_patch') {
+      const lowered = lowerObjectRequest(op, fields);
+      return this.request(lowered.op, lowered.fields, timeoutMs);
+    }
     const max = this.opts.maxQueue ?? 8;
     if (this.queue.length >= max) return Promise.reject(new EngineFailure('engine_busy', `engine queue is full (${max} waiting)`));
     return new Promise<unknown>((resolve, reject) => {

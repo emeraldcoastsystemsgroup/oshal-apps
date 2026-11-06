@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Opening capabilities requests admitted native readiness, allowing lazy download and honest progress without a model write.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -30,11 +31,11 @@ import { createModelRoutes, UPLOAD_LIMITS } from './model-routes';
 import { DEFAULT_SETTINGS, EXPORT_VIEWS } from './rebuild-service';
 
 const logger = createChildLogger({ module: 'cad-studio-routes' });
-const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js'] as const;
+const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js', 'editor-foundation-adapter.mjs'] as const;
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** The native kernel restores the caller's files here for each request and checkpoints them after a write. */
 export const NATIVE_DATA_ROOT = '/tmp/cad-store';
-const NATIVE_INSTALL_HINT = 'on the kernel host run cad-studio/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES';
+const NATIVE_INSTALL_HINT = 'This application prepares its engine automatically when opened or used.';
 
 /** @description True inside the native kernel's sandbox: its pool is the kernel's scoped document store. */
 export function nativeContext(ctx: AppContext): boolean {
@@ -45,8 +46,12 @@ export function nativeContext(ctx: AppContext): boolean {
 function engineClient(ctx: AppContext, env: Record<string, string | undefined>, expectedBuildHash: string | null): EngineClient {
   const addr = parseEngineAddr(env.CAD_STUDIO_ENGINE_ADDR || DEFAULT_ENGINE_ADDR);
   if (!nativeContext(ctx)) return new EngineClient({ host: addr.host, port: addr.port, expectedBuildHash, installHint: installHint(env) });
-  const intent = ctx.intent as ((name: string, input: unknown) => Promise<unknown>) | undefined;
+  const intent = (ctx as AppContext & { intent?: (name: string, input: unknown) => Promise<unknown> }).intent;
   return new EngineClient({ host: addr.host, port: addr.port, expectedBuildHash: null, installHint: NATIVE_INSTALL_HINT,
+    readStatus: async () => {
+      if (typeof intent !== 'function') throw new Error('the kernel intent port is unavailable');
+      return intent('engine.status', {});
+    },
     exchange: async (request, timeoutMs) => {
       if (typeof intent !== 'function') throw new Error('the kernel intent port is unavailable');
       return (await intent('engine.exchange', { request, timeoutMs })) as NativeExchange;
@@ -120,12 +125,15 @@ export function createCadStudioRoutes(ctx: AppContext, opts: CadStudioRouteOpts 
   for (const file of SURFACE_SCRIPTS) assets.get(`/${file}`, serveFile(packageFile(appPackageDir, 'tools', file), 'application/javascript'));
   router.use('/assets', assets);
 
-  router.get('/capabilities', (_req: Request, res: Response) => {
-    res.json({
-      app: 'cad-studio', kernel: 'OCCT via CadQuery (engine container)', contract: describeContract(), featureInputSchema: FEATURE_INPUT_SCHEMA,
-      exports: { formats: ['step', 'stl', 'svg', 'report'], views: EXPORT_VIEWS }, defaults: DEFAULT_SETTINGS, upload: UPLOAD_LIMITS,
-      engine: engine.status(),
-    });
+  router.get('/capabilities', async (_req: Request, res: Response) => {
+    try {
+      const readiness = await engine.refreshStatus();
+      res.json({
+        app: 'cad-studio', kernel: 'OCCT via CadQuery (engine container)', contract: describeContract(), featureInputSchema: FEATURE_INPUT_SCHEMA,
+        exports: { formats: ['step', 'stl', 'svg', 'report'], views: EXPORT_VIEWS }, defaults: DEFAULT_SETTINGS, upload: UPLOAD_LIMITS,
+        engine: readiness,
+      });
+    } catch (_error) { res.status(503).json({ error: 'engine_status_unavailable', message: 'Engine readiness is unavailable. Try again shortly.' }); }
   });
 
   // Natively the build a revision records is the one the engine reported, since the sandbox holds no engine sources.

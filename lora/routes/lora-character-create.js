@@ -1,6 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createLoraCharacter = createLoraCharacter;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Validate character command fields before persistence and serialize each owner's creation check/insert in a bounded transaction, preventing concurrent identity reuse without changing existing rows.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Open the transaction with plain BEGIN. The native kernel's SQL bridge accepts only BEGIN, BEGIN READ ONLY, START TRANSACTION [READ ONLY], COMMIT, END and ROLLBACK as transaction control; "BEGIN ISOLATION LEVEL READ COMMITTED" went to its SQL parser and was refused "unsupported SQL statement", so every character creation answered 502. READ COMMITTED is PostgreSQL's default, so plain BEGIN keeps the same isolation there; the transaction-local lock_timeout and the owner advisory lock are unchanged.
+ */
+const lora_caption_editor_1 = require("./lora-caption-editor");
 const logger_1 = require("@/shared/logger");
 const lora_train_dispatch_1 = require("./lora-train-dispatch");
 const logger = (0, logger_1.createChildLogger)({ module: 'lora-character-create' });
@@ -32,7 +41,7 @@ function parseFields(body) {
     fields.baseModel ||= 'v1-5-pruned-emaonly-fp16.safetensors';
     return fields;
 }
-async function insertCharacter(client, owner, fields) {
+async function insertCharacter(client, owner, fields, ctx, original) {
     const clash = (await client.query(`SELECT subject FROM oshal_lora_characters
       WHERE owner_sub = $1 AND (hero_image = $2 OR ident_prompt = $3) LIMIT 1`, [owner, fields.heroImage, fields.identPrompt])).rows[0];
     if (clash)
@@ -42,10 +51,12 @@ async function insertCharacter(client, owner, fields) {
        (subject, display_name, trigger_word, hero_image, base_model, ident_prompt,
         negative_prompt, identity_structure, identity_violation, owner_sub)
      VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), $10)
-     ON CONFLICT (owner_sub, subject) DO NOTHING RETURNING subject`, [fields.subject, fields.displayName, fields.triggerWord, fields.heroImage, fields.baseModel,
+     ON CONFLICT (owner_sub, subject) DO NOTHING RETURNING id,subject`, [fields.subject, fields.displayName, fields.triggerWord, fields.heroImage, fields.baseModel,
         fields.identPrompt, fields.negativePrompt, fields.identityStructure, fields.identityViolation, owner]);
     if (!inserted.rowCount)
         return { status: 409, body: { error: 'character already exists', subject: fields.subject } };
+    if (inserted.rows[0]?.id)
+        await (0, lora_caption_editor_1.bindNewCharacterEditor)(ctx, client, String(inserted.rows[0].id), original);
     return { status: 201, body: { ok: true, subject: fields.subject,
             message: 'Character saved. No training was started. Prepare its owned dataset and compatible GPU worker before training.' } };
 }
@@ -60,13 +71,16 @@ async function createLoraCharacter(ctx, owner, body) {
     const fields = parseFields(body);
     if ('status' in fields)
         return fields;
+    const rawActor = ctx.authorization?.currentActor(), original = (rawActor?.principalId || rawActor?.tenantIds) ? await (0, lora_caption_editor_1.editorAccess)(ctx, 'lora.configure') : undefined;
+    if (original && original.sub !== owner)
+        return { status: 401, body: { error: 'original_owner_changed' } };
     const client = await ctx.pool.connect();
     let destroy = false;
     try {
         await client.query('BEGIN');
         await client.query("SET LOCAL lock_timeout = '5s'");
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`lora-character-create:${owner}`]);
-        const outcome = await insertCharacter(client, owner, fields);
+        const outcome = await insertCharacter(client, owner, fields, ctx, original);
         await client.query('COMMIT');
         return outcome;
     }
@@ -88,4 +102,3 @@ async function createLoraCharacter(ctx, owner, body) {
         client.release(destroy);
     }
 }
-//# sourceMappingURL=lora-character-create.js.map

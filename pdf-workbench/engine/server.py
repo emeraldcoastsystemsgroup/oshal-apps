@@ -15,9 +15,9 @@ SLOTS = asyncio.Semaphore(2)
 
 def identity():
     digest = hashlib.sha256()
-    for name in ("worker.py", "server.py", "requirements.txt"):
+    for name in ("worker.py", "server.py", "page_content.py", "requirements.txt"):
         digest.update(name.encode() + b"\0" + (ROOT / name).read_bytes() + b"\0")
-    return {"protocol": 1, "buildHash": digest.hexdigest(), "upstream": "pypdf/6.20.1"}
+    return {"protocol": 1, "buildHash": digest.hexdigest(), "upstream": "pypdf/6.20.1+pypdfium2/5.14.0+Pillow/13.0.0"}
 
 
 async def serve(reader, writer):

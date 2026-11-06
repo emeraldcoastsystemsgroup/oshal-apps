@@ -54,7 +54,7 @@ before(async () => {
   const app = express();
   app.use((req, _res, next) => { req.oidc = { user: { sub: 'handoff-owner' }, isAuthenticated: () => true }; next(); });
   app.use(express.json({ limit: '1mb' }));
-  app.use('/shared/ui', express.static(path.join(PLATFORM, 'src/shared/ui')));
+  app.use('/shared/ui', express.static(path.join(PLATFORM, 'src/shared/ui')));app.use('/cockpit/css/themes',express.static(path.join(PLATFORM,'src/pages/cockpit/css/themes')));
   app.use('/api/scene-studio', createSceneStudioRoutes({ pool: fakePool(), appPackageDir: PKG }, { dataRoot, env: { SCENE_STUDIO_ENGINE_ADDR: `127.0.0.1:${engine.port}` }, engineBuild: HASH }));
   server = app.listen(0, '127.0.0.1'); await new Promise((resolve) => server.once('listening', resolve));
   origin = `http://127.0.0.1:${server.address().port}`;
@@ -87,6 +87,7 @@ beforeEach(async () => {
   await page.addInitScript(() => { const original = window.setInterval; window.setInterval = (fn, delay, ...rest) => original(fn, delay >= 4000 ? 3600000 : delay, ...rest); });
   await page.goto(`${origin}/api/scene-studio/app?project=${id}`);
   await page.waitForFunction(() => window.__oshalDocumentSession && /revision \d/.test(document.querySelector('#project-rev').textContent));
+  await page.locator('.ef-shell').waitFor();await page.locator('.ef-shell details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));
   await page.locator('#file-list .path', { hasText: 'main.tscn' }).click();
   await page.waitForFunction(() => document.querySelector('#file-text').value.includes('gd_scene'));
 });

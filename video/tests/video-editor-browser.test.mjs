@@ -12,8 +12,10 @@ import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startPostgres, resetPostgres } from './video-editor-postgres.fixture.mjs';
 import { mediaBytes, clipProbe, bedProbe } from './video-editor.fixture.mjs';
-import { chromium, openEditor, PALETTES } from './video-editor-browser.fixture.mjs';
+import { chromium, openEditor as openSourceEditor, PALETTES } from './video-editor-browser.fixture.mjs';
 
+// Existing detailed workflows deliberately expand the grouped tools they exercise.
+async function openEditor(...args){const value=await openSourceEditor(...args);await value.page.locator('details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));return value;}
 let database, cleanup, browser;
 before(async () => { database = await startPostgres(callback => { cleanup = callback; }); browser = await chromium.launch({ headless: true }); });
 after(async () => { await browser?.close(); await cleanup?.(); });
@@ -70,11 +72,11 @@ test('import, trim, split, reorder, title, volume, undo, save, reopen and export
   const saved = (await api.call(`/editor/projects/${id}`)).body.project.document;
   assert.deepEqual(saved.segments.map(s => [s.source, s.in, s.out, s.volume]), [['v2', 0, 60, 150], ['v1', 15, 45, 100], ['v1', 45, 75, 100]]);
   assert.deepEqual([saved.name, saved.titles.map(title => [title.text, title.start, title.end, title.position]), saved.audioBed], ['Holiday cut', [['Hello', 0, 30, 'top']], { source: 'm1', volume: 30 }]);
-  await page.reload(); await page.locator('html[data-editor-ready="true"]').waitFor();
+  await page.reload(); await page.locator('html[data-editor-ready="true"]').waitFor();await page.locator('details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));
   await status(page, 'Saved · revision 1');
   assert.deepEqual(await segments(page), ['Street.mp4 · 0:02.00', 'Beach.mp4 · 0:01.00', 'Beach.mp4 · 0:01.00'], 'reopened exactly');
   assert.equal(await page.locator('#projectName').inputValue(), 'Holiday cut');
-  await page.locator('#exportMp4').click();
+  await page.locator('#exportMp4').evaluate(node=>{for(let p=node;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;});await page.locator('#exportMp4').click();
   await page.locator('#exportStatus').filter({ hasText: 'Export ready.' }).waitFor();
   const href = await page.locator('#downloadExport').getAttribute('href');
   const download = await page.request.get(api.origin + href);
@@ -105,7 +107,7 @@ test('the unsaved draft survives a theme change, a failed save, a reload and a c
   await key(page, 'Control+s');
   await status(page, 'Not saved. Your edits are still here.');
   assert.equal(await page.locator('#projectName').inputValue(), 'Draft name', 'a failed save keeps the draft');
-  await page.reload(); await page.locator('html[data-editor-ready="true"]').waitFor();
+  await page.reload(); await page.locator('html[data-editor-ready="true"]').waitFor();await page.locator('details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));
   await status(page, 'Restored your unsaved edits.');
   assert.equal(await page.locator('#projectName').inputValue(), 'Draft name', 'a reload restores the draft from this browser');
   const id = new URL(page.url()).searchParams.get('project');
@@ -156,10 +158,11 @@ test('every portal palette and a phone-width layout keep the editor readable and
   await narrow.page.locator('#addClip').setInputFiles(file('Beach.mp4', 'video', clipProbe({ seconds: 3 })));
   await narrow.page.locator('#status').filter({ hasText: 'Beach.mp4 added.' }).waitFor();
   for (const selector of ['#saveProject', '#play', '#track .segment', '#playhead', '#addTitle', '#exportMp4']) {
+    if(['#addTitle'].includes(selector))await narrow.page.getByRole('button',{name:'Properties',exact:true}).click();
     const box = await narrow.page.locator(selector).first().boundingBox();
     assert.ok(box && box.x >= 0 && box.x + box.width <= 391, `${selector} fits the phone width`);
   }
-  await narrow.page.locator('#track .segment').first().click();
+  await narrow.page.getByRole('button',{name:'Close inspector'}).click();await narrow.page.locator('#track .segment').first().click();
   assert.equal(await narrow.page.locator('#segmentControls').isVisible(), true);
 });
 
@@ -224,7 +227,7 @@ test('multitrack controls upgrade, edit effects and linked audio, save/reopen an
   assert.equal(row.document.version, 2); assert.equal(row.document.tracks.length, 3); assert.equal(row.document.captions[0].text, 'Multitrack caption');
   assert.equal(row.document.tracks[0].clips[0].audioEnabled, false);
   assert.ok(row.document.tracks[1].clips.some(clip => clip.link));
-  await page.reload(); await status(page, 'Saved · revision 1'); await page.locator('#multitrackEditor').waitFor();
-  await page.locator('#exportMp4').click(); await page.locator('#exportStatus').filter({ hasText: 'Export ready' }).waitFor();
+  await page.reload(); await page.locator('html[data-editor-ready="true"]').waitFor();await status(page, 'Saved · revision 1');await page.locator('#multiTracks').waitFor();
+  await page.locator('#exportMp4').evaluate(node=>{for(let p=node;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;});await page.locator('#exportMp4').click(); await page.locator('#exportStatus').filter({ hasText: 'Export ready' }).waitFor();
   assert.deepEqual(value.errors, []); assert.deepEqual(value.external, []);
 });

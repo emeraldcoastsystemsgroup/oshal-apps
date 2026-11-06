@@ -100,7 +100,29 @@
   #status.ok { color: var(--ss-ok); }
   .new-form { border: 1px solid var(--ss-accent); }
   @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--ss-line); max-height: 220px; } .preview-grid { grid-template-columns: 1fr; } }
+
+body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-primary)}
+.scene-foundation .ef-navigation,.scene-foundation .ef-inspector,.scene-foundation .scene-viewport {padding:12px;min-width:0}
+.scene-foundation button,.scene-foundation select,.scene-foundation summary {min-height:44px}
+.scene-foundation summary {display:flex;align-items:center;font-weight:600;cursor:pointer}
+.scene-foundation details {padding:8px 0}
+.scene-foundation .scene-object-tree button,.scene-foundation .scene-frame-tools button,.scene-foundation header button:not(.primary),.scene-foundation .ef-navigation>button,.scene-foundation .ef-navigation>div>button {font:inherit;border:1px solid var(--border-color);border-radius:8px;padding:10px;background:var(--bg-secondary);color:var(--text-primary)}
+.scene-foundation .scene-object-tree {display:grid;gap:8px}
+.scene-foundation .scene-object-tree button {text-align:left;width:100%;white-space:normal;overflow-wrap:anywhere}
+.scene-foundation .scene-object-tree [aria-pressed=true] {border-color:var(--accent-primary);background:var(--bg-tertiary)}
+.scene-foundation .ef-inspector .step {padding:0;border:0}.scene-foundation .ef-inspector textarea {max-width:100%;min-width:0}
+.scene-foundation .preview-grid {grid-template-columns:1fr}.scene-foundation #viewer {height:320px}
+.scene-foundation #preview-img {width:100%;height:48vh;max-height:600px;object-fit:contain;background:var(--bg-secondary)}
+.scene-foundation .scene-frame-tools {display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px}
+.scene-foundation .scene-frame-tools p {width:100%;font-size:12px;margin:0;color:var(--text-secondary)}
+.scene-foundation .scene-frame-tools input {width:90px;min-height:44px}.scene-foundation .scene-timeline details {padding:8px 12px}
+.scene-foundation .scene-timeline .revisions {max-height:120px;overflow:auto}
+.scene-foundation .ef-navigation>div:has(>button+button) {display:flex;gap:8px;flex-wrap:wrap}
+.scene-foundation header details {position:relative}.scene-foundation header details[open] {z-index:20}
+.scene-foundation header details button {display:block;width:100%}
+@media(max-width:800px){.scene-foundation header {flex-wrap:wrap}.scene-foundation header>span.small {display:none}.scene-foundation .ef-navigation,.scene-foundation .ef-inspector {max-height:none;border:0}.scene-foundation #preview-img {max-height:50vh}}
 </style>
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />
 </head>
 <body>
 <header>
@@ -120,7 +142,8 @@
       <div id="engine-reason" class="small"></div>
       <div class="small muted">Install or rebuild it from the host: <code id="engine-hint"></code></div>
     </div>
-    <div id="status" class="small"></div>
+    <p id="execution-access" class="small" hidden>Source editing is available. Running project code, Godot tools, model import and rendering require execution access.</p>
+<div id="status" class="small"></div>
     <section id="new-form" class="step new-form" hidden>
       <h2>New project</h2>
       <div class="row">

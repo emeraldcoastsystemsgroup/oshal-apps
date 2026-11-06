@@ -70,6 +70,8 @@
 # 60 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs codex-packer's persona-template guard (the Forge never re-asks an answered step, sweep 10) and life's home-summary guard (Life's Home summary says which parts work without a connection, sweep 10); neither suite ran in the gate before.
 # 61 | maintainer@emeraldcoastsystemsgroup.com | Run the design-studio package's process-model suite (ADR-203): the phase vocabulary, the proposal from a brief's requirement lines, the validations including the missing_evidence refusal, the spider example bound by name and the body contract from bound reads, against the COMPILED modules with no framework import. GLOB: tests/*-*.test.js keeps the framework-coupled routes.core suite and the Chromium proof out of this bare checkout; both are registered in tests/test-lab.yaml.
 # 62 | maintainer@emeraldcoastsystemsgroup.com | Job `game-show` also runs its browser guards: tests/solo-night.test.js (one press starts a game against the computer, a reload keeps the seat, every control reads under a light theme) and tests/play-phone-layout.test.js. They ran nowhere before, so a broken stage could stay green here.
+# 63 | maintainer@emeraldcoastsystemsgroup.com | Job `store-ci-local` also runs scripts/revert-guard.test.mjs: the .githooks/commit-msg revert guard refuses a commit or merge that puts a file back to an older committed version of itself, proved with real git commands in a throwaway repository whose core.hooksPath is this .githooks.
+# 64 | maintainer@emeraldcoastsystemsgroup.com | Job `phone-control` (1.1.0, every control real or removed): its routes over real HTTP and SQLite, the honesty guard that goes red if a fake returns, the computer link's commands run by real bash and python3 in a throwaway home, and the bridge itself on a computer with no Bluetooth. The kernel-runner, real-adb and whole-chain proofs need a kernel checkout, a network or the OSHAL Node app and are registered in phone-control/tests/test-lab.yaml.
 
 name: store-ci
 
@@ -448,6 +450,11 @@ jobs:
       # returns zero while still naming what did not run.
       - name: Pin the local gate's skip and exit-code contract
         run: node --test scripts/store-ci-local.test.mjs
+      # .githooks/commit-msg refuses a commit or merge that puts a file back to an older committed
+      # version of itself: the stale-copy revert a checkout that fell behind main produces. These cases
+      # run real git in a throwaway repository whose core.hooksPath is this .githooks.
+      - name: Refuse a commit that reverts a file to an older committed version
+        run: node --test scripts/revert-guard.test.mjs
 
   little-monsters:
     name: little-monsters security suites
@@ -1343,3 +1350,21 @@ jobs:
       - name: Require genuine Publishing renderer SQL HTTP and browser proofs
         working-directory: publishing-studio
         run: node --test "tests/*.test.mjs"
+
+  phone-control:
+    name: phone-control routes, honesty guard, computer link and bridge
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Run the phone-control routes and honesty guard
+        working-directory: phone-control
+        run: node --test "tests/phone-control-*.test.cjs"
+      - name: Run the phone-control computer link and bridge suites
+        working-directory: phone-control
+        run: node --test "tests/phone-control-*.test.mjs"

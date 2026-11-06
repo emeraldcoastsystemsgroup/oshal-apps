@@ -107,10 +107,15 @@ function folded(lines, key) {
   return body.join(' ');
 }
 
-test('every manifest tool is an in-process package tool: builtin/package exactly, auto, one auth group, no route', () => {
+test('legacy manifest tools retain in-process package transport, and safe typed object tools use declared API transport', () => {
   const tools = manifestTools();
-  assert.equal(tools.size, 22);
+  assert.equal(tools.size, 24);
   for (const [name, lines] of tools) {
+    if (['scene-inspect-object','scene-edit-object'].includes(name)) {
+      assert.equal(field(lines,'type'),'api');
+      assert.equal(field(lines,'requiresApproval'),name==='scene-edit-object'?'true':'false');
+      continue;
+    }
     assert.equal(field(lines, 'executor'), '{ executorType: builtin, builtinKey: package }', `${name}: executor`);
     assert.equal(field(lines, 'defaultAuthMode'), 'auto', `${name}: defaultAuthMode`);
     assert.equal(field(lines, 'requiresApproval'), 'false', `${name}: requiresApproval`);
@@ -128,7 +133,7 @@ test('every manifest tool is an in-process package tool: builtin/package exactly
 });
 
 test("the handlers' specs name exactly the manifest's tools, in manifest order", () => {
-  assert.deepEqual(SCENE_TOOL_SPECS.map((spec) => spec.name), [...manifestTools().keys()]);
+  assert.deepEqual(SCENE_TOOL_SPECS.map((spec) => spec.name), [...manifestTools().keys()].filter(name=>!['scene-inspect-object','scene-edit-object'].includes(name)));
   for (const spec of SCENE_TOOL_SPECS) {
     for (const key of spec.required) assert.ok(spec.keys.includes(key), `${spec.name}: required ${key} is an accepted key`);
     for (const forbidden of ['userSub', 'tenantId', 'arguments', 'projectPath', 'blend_file']) assert.equal(spec.keys.includes(forbidden), false, `${spec.name} must not accept ${forbidden}`);
@@ -163,7 +168,7 @@ function personaAuthorizations() {
 test("the director's persona authorizes exactly the manifest's tools, and nothing generic", () => {
   const auth = personaAuthorizations();
   const manifest = [...manifestTools().keys()].sort();
-  assert.deepEqual(Object.keys(auth).filter((t) => auth[t] === 'auto').sort(), manifest, 'every manifest tool, auto — and only those');
+  assert.deepEqual(Object.keys(auth).filter((t) => ['auto','ask'].includes(auth[t])).sort(), manifest, 'every manifest tool has its declared mode — and only those');
   assert.equal(auth.bash, 'off');
   assert.equal(auth.write_file, 'off');
 });
@@ -180,7 +185,7 @@ test("the director's perspective names only tools it is authorized for, with no 
   const named = [...personaPerspective().matchAll(/`((?:scene|godot|blender)-[a-z0-9-]+)`/g)].map(([, name]) => name);
   assert.ok(named.length >= 22, 'the perspective names its tools');
   for (const name of named) {
-    assert.equal(auth[name], 'auto', `${name} is named in the perspective but not authorized auto`);
+    assert.equal(auth[name], name==='scene-edit-object'?'ask':'auto', `${name} must keep its declared mode`);
     assert.ok(manifest.has(name), `${name} is not a manifest tool`);
   }
   const perspective = personaPerspective();

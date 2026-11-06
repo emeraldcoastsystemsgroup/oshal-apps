@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: ensure the default portfolio research window spans at least 252 NYSE sessions within the 370-day bound without altering orderAuthority modules.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose daily research presets and validation while enforcing account class before historical studies.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Retain owner-bound account observations and register the separate read-only account detail surface.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The research read names each account's assigned strategy, so the concierge can compare a new strategy with the one an account runs.
@@ -20,6 +21,14 @@ const trading_native_management_1 = require("./trading-native-management");
 const trading_portfolio_calendar_1 = require("./trading-portfolio-calendar");
 const running = new Set();
 const accountValues = require('./trading-account-values');
+function portfolioWindow(now) {
+    const w = (0, trading_portfolio_calendar_1.portfolioResearchWindow)(now);
+    if (!w.available || !w.latestCompletedSession || !w.suggestedStart)
+        return w;
+    const earliest = new Date(Math.max(Date.parse('2024-01-01T00:00:00Z'), Date.parse(w.latestCompletedSession + 'T00:00:00Z') - 370 * 86400000)).toISOString().slice(0, 10);
+    const days = (0, trading_portfolio_calendar_1.sessionDates)(earliest, w.latestCompletedSession), min252 = days.length >= 252 ? days[days.length - 252] : (days[0] || w.suggestedStart);
+    return { ...w, suggestedStart: w.suggestedStart <= min252 && w.suggestedStart >= earliest ? w.suggestedStart : min252 };
+}
 function label(value, name = 'Name') {
     if (typeof value !== 'string' || !value.trim() || value.trim().length > 120)
         throw new trading_portfolio_model_1.PortfolioError(400, 'name_invalid', `${name} must contain 1 to 120 characters.`);
@@ -43,7 +52,7 @@ async function portfolioSnapshot(ctx, owner, now = new Date()) {
     if (!Array.isArray(native.accounts) || !Array.isArray(native.errors) || typeof native.readAt !== 'string')
         throw new trading_portfolio_model_1.PortfolioError(502, 'account_read_invalid', 'The account roster could not be verified.');
     const rows = [...native.accounts.map(a => ({ ...a, nativeReadOnly: true })), ...outside.map(a => a.account)];
-    return { native, profiles, rows, report: { ...(0, trading_portfolio_model_1.buildPortfolio)(rows, profiles, watch.rows.map(row => String(row.symbol)), native.errors, now), readAt: native.readAt, nativePortfolio: true, researchWindow: (0, trading_portfolio_calendar_1.portfolioResearchWindow)(now), outsideSources: outside.map(row => ({ id: row.id, asOf: row.asOf, provider: row.provider, accountId: row.account.accountId, label: row.account.label })),
+    return { native, profiles, rows, report: { ...(0, trading_portfolio_model_1.buildPortfolio)(rows, profiles, watch.rows.map(row => String(row.symbol)), native.errors, now), readAt: native.readAt, nativePortfolio: true, researchWindow: portfolioWindow(now), outsideSources: outside.map(row => ({ id: row.id, asOf: row.asOf, provider: row.provider, accountId: row.account.accountId, label: row.account.label })),
             caveat: 'Outside snapshots are owner-entered and may be stale or overlap connected accounts. Coverage does not certify net worth or active portfolio management.' } };
 }
 async function selected(ctx, owner, body, now = new Date()) {

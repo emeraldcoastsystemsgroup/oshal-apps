@@ -1,3 +1,4 @@
+# 1.0.6 | maintainer@emeraldcoastsystemsgroup.com | Preserve reviewed Office app-admin authority through the declared admin role; all other workspace grants are unchanged.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ                 | AUTHOR                      | DESCRIPTION
@@ -13,7 +14,7 @@ name: home-experience
 displayName: Home
 description: Your schedule, shopping list, household updates and explicitly connected applications in the established
   Home layout.
-version: 1.0.5
+version: 1.0.6
 status: active
 suite: ai-home
 rating:
@@ -137,7 +138,7 @@ experience:
       audience: family
   roleTemplates:
     - id: adult
-      version: 3
+      version: 4
       label: Household adult
       members:
         - app: home-experience
@@ -157,7 +158,7 @@ experience:
         - app: travel
           role: '@app-admin'
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: calendar
           role: '@app-admin'
         - app: circuit-lab
@@ -165,7 +166,7 @@ experience:
         - app: email-summarizer
           role: '@app-admin'
     - id: child
-      version: 3
+      version: 4
       label: Household child
       members:
         - app: home-experience
@@ -185,7 +186,7 @@ experience:
         - app: travel
           role: '@app-admin'
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: calendar
           role: '@app-admin'
         - app: circuit-lab
@@ -193,7 +194,7 @@ experience:
         - app: email-summarizer
           role: '@app-admin'
     - id: guest
-      version: 3
+      version: 4
       label: Household guest
       members:
         - app: home-experience
@@ -213,7 +214,7 @@ experience:
         - app: travel
           role: '@app-admin'
         - app: presentations
-          role: '@app-admin'
+          role: 'admin'
         - app: calendar
           role: '@app-admin'
         - app: circuit-lab

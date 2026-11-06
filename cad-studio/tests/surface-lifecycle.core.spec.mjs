@@ -32,7 +32,7 @@ beforeEach(async () => {
     const read = Response.prototype.arrayBuffer; window.cadFixtureByteReads = [];
     Response.prototype.arrayBuffer = function () { window.cadFixtureByteReads.push(this.url); return read.call(this); };
   });
-  await page.goto(f.origin + '/api/cad-studio/app'); await page.locator('.model-item').filter({ hasText: 'Beta part' }).waitFor();
+  await page.goto(f.origin + '/api/cad-studio/app'); await page.locator('.model-item').filter({ hasText: 'Beta part' }).waitFor();await page.locator('.ef-shell details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));
 });
 afterEach(async () => { await context.close(); await f.close(); });
 

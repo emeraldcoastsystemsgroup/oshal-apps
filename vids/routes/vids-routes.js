@@ -388,12 +388,13 @@ function createVidsRoutes(ctx) {
 // Follows the swarm theme by reading the parent document's data-theme when embedded.
 // With ?audience=family the shared audience-view kit paints the Home shell's read-only family view instead.
 const SURFACE_HTML = `<!doctype html>
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="light-blue">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Vids Studio</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN saved
      videos (clips, story videos and brand graphics in the vids_jobs ledger: how many are waiting or being made, finished
@@ -537,6 +538,15 @@ const SURFACE_HTML = `<!doctype html>
     th,td{padding:8px 4px}
     .idea{max-width:none;overflow-wrap:anywhere}
   }
+
+.ef-editor .vids-source-actions{display:flex;align-items:end;flex-wrap:wrap;gap:8px;margin-top:10px}.ef-editor .vids-source-actions label{display:flex;flex-direction:column;gap:4px;flex:1 1 240px}.ef-editor .vids-source-actions input{min-height:44px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);border-radius:8px;padding:8px 12px;font:inherit}.ef-editor .vids-source-actions button,.ef-editor .vids-brief-library button{min-height:44px}.ef-editor .vids-brief-library button{width:100%;text-align:left;margin-bottom:8px}.ef-editor .vids-brief-library h2{font-size:16px}
+.wrap.ef-editor{max-width:none;padding:0;margin:0}.ef-editor .ef-header-slot>header{padding:12px 16px}.ef-editor .ef-header-slot h1{font-size:20px}.ef-editor .ef-header-slot>.sub{display:none}
+.ef-editor .vids-navigation,.ef-editor .vids-viewport,.ef-editor .vids-inspector{padding:14px;min-width:0;overflow:auto}.ef-editor .card{padding:0;margin:0;border:0;border-radius:0;background:transparent}
+.ef-editor .ef-navigation th:nth-child(n+3),.ef-editor .ef-navigation td:nth-child(n+3){display:none}.ef-editor .ef-navigation .idea{max-width:none;overflow-wrap:anywhere}.ef-editor .ef-navigation table{table-layout:fixed}.ef-editor .ef-navigation th:first-child{width:70px}
+.ef-editor #selectedPreview{min-height:180px;display:grid;place-items:center;margin-bottom:20px}.ef-editor #selectedPreview video{width:100%;max-height:50dvh;background:var(--bg-primary)}
+.ef-editor #selectedExportActions{display:flex;flex-direction:column;gap:10px}.ef-editor #vidsStatus{padding:8px 14px;margin:0;font-size:13px}.ef-editor #prompt{min-height:160px}.ef-editor button{min-height:40px}
+@media(max-width:800px){.ef-editor #selectedExportActions a{display:inline-flex;align-items:center;min-height:44px;padding:8px;border:1px solid var(--border-color);border-radius:8px}.ef-editor button,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor textarea,.ef-editor input,.ef-editor select{font-size:16px}}
+
 </style>
 </head>
 <body>
@@ -562,24 +572,71 @@ const SURFACE_HTML = `<!doctype html>
   // Follow the parent swarm theme when embedded in the cockpit.
   try { var pt = window.parent && window.parent.document && window.parent.document.documentElement.getAttribute('data-theme'); if (pt) document.documentElement.setAttribute('data-theme', pt); } catch(e){}
   var go = document.getElementById('go');
+
+  var vidsEditor, vidsSource, selectedJob=null, listedJobs=[], listedArtifacts=[], exportActions={}, dispatching=false;
+  var vidsDraft='video-brief:'+crypto.randomUUID();
+  function vidsState(){if(vidsSource)return vidsSource.getState();return{documentId:vidsDraft,revision:null,title:'Next clip brief',dirty:Boolean(document.getElementById('prompt').value)||Boolean(vidsEditor?.hasPending()),readOnly:false,busy:dispatching,status:'Generation brief · finished exports are separate media'};}
+  function vidsProperties(){if(vidsSource)return vidsSource.getProperties();return[{key:'prompt',label:'Next clip brief',type:'textarea',value:document.getElementById('prompt').value,group:'Generation source'},...['orientation','insertMode'].map(function(key){var field=document.getElementById(key);return{key:key,label:key==='orientation'?'Orientation':'Placement',type:'select',value:field.value,options:[...field.options].map(function(option){return{value:option.value,label:option.textContent};}),group:'Generation settings'};})];}
+  function applyVidsProperty(key,value,expected){
+    if(vidsSource)return vidsSource.applyProperty(key,value,expected);
+    if(expected.documentId!==vidsState().documentId||!['prompt','orientation','insertMode'].includes(key))throw Error('The selected video changed.');
+    var field=document.getElementById(key);if(field.tagName==='SELECT'&&![...field.options].some(function(option){return option.value===value;}))throw Error('Choose a generation setting from the list.');
+    field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  function vidsStatus(text){var node=document.getElementById('vidsStatus');if(node)node.textContent=text;}
+  async function sendSelectedClip(button){
+    var index=listedJobs.findIndex(function(job){return job.job_id===selectedJob;}),record=listedArtifacts[index],artifact=record&&record.artifact;
+    if(!artifact||artifact.previewUrl!=='/api/vids/jobs/'+encodeURIComponent(selectedJob)+'/artifact/video.mp4'){vidsStatus('Select a finished export whose private media is available.');return;}
+    try{
+      if(!window.oshalSendTo)await new Promise(function(resolve,reject){var script=document.createElement('script');script.src='/api/artifacts/send-to.js';script.onload=resolve;script.onerror=reject;document.head.append(script);});
+      if(!window.oshalSendTo)throw Error('The image and video handoff is unavailable here.');
+      window.oshalSendTo({type:'video/mp4',name:'vids-'+selectedJob+'.mp4',source:artifact.previewUrl},button);
+    }catch(error){vidsStatus(error.message||'The clip could not be opened in another editor.');}
+  }
+  function showSelectedJob(){
+    var preview=document.getElementById('selectedPreview'),actions=document.getElementById('selectedExportActions');if(!preview||!actions)return;
+    var index=listedJobs.findIndex(function(job){return job.job_id===selectedJob;}),job=listedJobs[index],record=listedArtifacts[index],artifact=record&&record.artifact;
+    actions.innerHTML=job?(exportActions[job.job_id]||'No finished export attached.'):'Select a job to review its output.';
+    if(artifact&&artifact.previewUrl==='/api/vids/jobs/'+encodeURIComponent(job.job_id)+'/artifact/video.mp4'){
+      var video=preview.querySelector('video');if(!video||video.getAttribute('src')!==artifact.previewUrl||video.dataset.sourceSha!==String(artifact.sha256||'')){preview.replaceChildren();video=document.createElement('video');video.controls=true;video.preload='metadata';video.src=artifact.previewUrl;video.dataset.sourceSha=String(artifact.sha256||'');video.setAttribute('aria-label','Selected rendered video');video.onerror=function(){vidsStatus('This browser cannot play the finished export. Download it or open it in the Video editor.');};preview.append(video);}
+      var edit=document.createElement('button');edit.type='button';edit.textContent='Edit or send clip…';edit.onclick=function(){void sendSelectedClip(edit);};actions.append(edit);
+    }else{preview.replaceChildren();var note=document.createElement('p');note.textContent=job?'This job has no private finished export available to preview.':'Select a recorded job, or write the next clip brief.';preview.append(note);}
+    vidsEditor?.refresh();
+  }
+  async function mountVidsWorkspace(){
+    var shared=await import('/shared/ui/js/editor-foundation.js'),root=document.querySelector('.wrap'),cards=[...root.querySelectorAll(':scope>.card')];
+    var header=document.createElement('header');header.append(root.querySelector('h1'),root.querySelector(':scope>.sub'));
+    var navigation=document.createElement('section');navigation.className='vids-navigation';navigation.append(cards[1]);
+    var viewport=document.createElement('section');viewport.className='vids-viewport';var preview=document.createElement('div');preview.id='selectedPreview';viewport.append(preview,cards[0]);
+    var inspector=document.createElement('section');inspector.className='vids-inspector';var title=document.createElement('h2');title.textContent='Selected export';var exports=document.createElement('div');exports.id='selectedExportActions';
+    var note=document.createElement('p');note.className='sub';note.textContent='A finished video imports into an editor as a clip. Its generated scene objects are not separate layers.';inspector.append(title,exports,note);
+    var status=document.createElement('p');status.id='vidsStatus';status.setAttribute('role','status');root.append(header,navigation,viewport,inspector,status);
+    try{var source=await import('/api/vids/source-project-editor.mjs');vidsSource=source.createVidsSourceEditor({root:root,header:header,navigation:navigation,getFoundation:function(){return vidsEditor;},status:vidsStatus,getBusy:function(){return dispatching;}});}catch(error){vidsStatus('Saved brief editing is unavailable here. Your generation draft is still usable.');}
+    vidsEditor=shared.createEditorFoundation({root:root,navigation:navigation,viewport:viewport,inspector:inspector,header:header,status:status,ai:vidsSource&&vidsSource.ai,actions:vidsSource?vidsSource.actions:{},getState:vidsState,getSelection:function(){return vidsSource?vidsSource.getSelection():{kind:'video brief',ids:[vidsDraft]};},getProperties:vidsProperties,applyProperty:applyVidsProperty});
+    root.addEventListener('input',function(){vidsEditor.refresh();});root.addEventListener('change',function(){vidsEditor.refresh();});
+    root.addEventListener('click',function(event){var button=event.target.closest('[data-select-job]');if(button){selectedJob=button.dataset.selectJob;showSelectedJob();}});
+    showSelectedJob();window.addEventListener('pagehide',function(event){if(!event.persisted){vidsSource?.destroy();vidsEditor.destroy();}},{once:true});
+  }
   function fmt(ts){ try { return new Date(ts).toLocaleTimeString(); } catch(e){ return ts; } }
   function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function statusKey(v){ return ['done','failed','running','queued'].indexOf(v)>=0?v:'unknown'; }
   async function refresh(){
     try{
       var r = await fetch('/api/vids/jobs'); var d = await r.json();
-      var w = (d.workers||[]).find(function(x){return x.status==='online'||x.healthy;}) || (d.workers||[])[0];
+      var w = (d.workers||[]).find(function(x){return x.status==='online'||x.healthy;});
       var dot = document.getElementById('wdot'), txt = document.getElementById('wtxt');
-      if (w){ dot.className='dot on'; txt.textContent = (w.name||w.clientId)+' · online'; go.disabled=false; }
+      if (w){ dot.className='dot on'; txt.textContent = (w.name||w.clientId)+' · online'; go.disabled=dispatching; }
       else { dot.className='dot'; txt.textContent='no worker registered'; go.disabled=true; }
       // Say what a worker is and who starts one, instead of a lone "no worker registered" beside a dead button.
       document.getElementById('whint').hidden = !!w;
       var tb = document.getElementById('rows');
-      if (!d.jobs || !d.jobs.length){ tb.innerHTML='<tr><td colspan="6" class="empty">No jobs yet.</td></tr>'; return; }
+      if (!d.jobs || !d.jobs.length){ listedJobs=[];listedArtifacts=[];selectedJob=null;exportActions={};tb.innerHTML='<tr><td colspan="6" class="empty">No jobs yet.</td></tr>';showSelectedJob();return; }
       var artifacts = await Promise.all(d.jobs.map(async function(j){
         if (j.status !== 'done') return null;
         try { var ar=await fetch('/api/vids/jobs/'+encodeURIComponent(j.job_id)+'/artifact'); return ar.ok?(await ar.json()):null; } catch(e){ return null; }
       }));
+      listedJobs=d.jobs;listedArtifacts=artifacts;exportActions={};
+      if(!listedJobs.some(function(job){return job.job_id===selectedJob;}))selectedJob=listedJobs[0]?.job_id||null;
       tb.innerHTML = d.jobs.map(function(j,index){
         var status=statusKey(j.status);
         var rec=artifacts[index], a=rec&&rec.artifact, attach=rec&&rec.attach, artifact='—';
@@ -589,28 +646,32 @@ const SURFACE_HTML = `<!doctype html>
             (a.publicUrl ? '<a href="'+esc(a.publicUrl)+'" target="_blank" rel="noreferrer">Public link</a><button data-artifact="unpublish" data-job="'+esc(j.job_id)+'">Revoke</button>' : '<button data-artifact="publish" data-job="'+esc(j.job_id)+'">Publish</button>')+
             '<button data-artifact="remove" data-job="'+esc(j.job_id)+'">Remove</button>'
           : '<input type="file" accept="video/mp4" data-artifact="attach" data-job="'+esc(j.job_id)+'" aria-label="Attach finished MP4">';
-        return '<tr><td><span class="st '+status+'">'+esc(j.status)+'</span></td>'+
+        exportActions[j.job_id]=artifact;
+        return '<tr><td><button data-select-job="'+esc(j.job_id)+'" title="Review this recorded video">Open</button><span class="st '+status+'">'+esc(j.status)+'</span></td>'+
           '<td class="idea">'+esc(j.idea)+'</td>'+
           '<td>'+esc(j.orientation)+'</td>'+
           '<td>'+esc(j.client_id)+'</td>'+
           '<td>'+esc(fmt(j.created_at))+'</td><td class="artifact">'+artifact+'</td></tr>';
-      }).join('');
-    }catch(e){}
+      }).join('');showSelectedJob();
+    }catch(e){vidsStatus('Saved video jobs could not be refreshed.');}
   }
   // The full page only: under an audience view (ADR-164 D6) the shared kit paints instead (see the head script), so no
   // control is bound, the job list is not read and nothing polls; without the kit or an audience the page starts as before.
   if (!window.AppView || !AppView.active()) {
     go.onclick = async function(){
-      var prompt = document.getElementById('prompt').value.trim(); if(!prompt) return;
-      go.disabled=true; var old=go.textContent; go.textContent='Dispatching…';
+      try{await vidsEditor?.flushPending();}catch(error){vidsStatus(error.message);return;}
+      var prompt = document.getElementById('prompt').value.trim(); if(!prompt){vidsStatus('Write the next clip brief first.');return;}
+      var savedBrief;try{savedBrief=vidsSource?await vidsSource.prepareGeneration():{prompt:prompt,orientation:document.getElementById('orientation').value,insertMode:document.getElementById('insertMode').value};}catch(error){vidsStatus(error.message);return;}prompt=savedBrief.prompt.trim();
+      if(dispatching)return;dispatching=true;go.disabled=true;vidsEditor?.refresh();var old=go.textContent;go.textContent='Dispatching…';
       try{
-        await fetch('/api/vids/jobs',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({prompt:prompt,orientation:document.getElementById('orientation').value,insertMode:document.getElementById('insertMode').value})});
-        document.getElementById('prompt').value='';
-      }catch(e){}
-      go.textContent=old; refresh();
+        var response=await fetch('/api/vids/jobs',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({prompt:prompt,orientation:savedBrief.orientation,insertMode:savedBrief.insertMode})});
+        var result=await response.json().catch(function(){return {};});if(!response.ok)throw Error(result.message||result.error||'The clip could not be queued. Your brief is still here.');
+        vidsStatus('Clip queued. Its saved source brief remains editable; select the job to review the completed export.');
+      }catch(e){vidsStatus(e.message||'The clip could not be queued. Your brief is still here.');}
+      dispatching=false;go.textContent=old;vidsEditor?.refresh();refresh();
     };
-    document.getElementById('rows').onclick = async function(event){
+    document.body.addEventListener('click',async function(event){
       var target=event.target.closest('[data-artifact]'); if(!target || target.tagName==='INPUT') return;
       var action=target.getAttribute('data-artifact'), job=target.getAttribute('data-job');
       if(!job || !window.confirm(action==='publish'?'Publish this finished export publicly?':action==='unpublish'?'Revoke its public link?':'Remove this private export?')) return;
@@ -623,13 +684,14 @@ const SURFACE_HTML = `<!doctype html>
         if(!r.ok) throw new Error((await r.json()).error||'artifact action failed');
         refresh();
       }catch(e){ window.alert(e.message||'artifact action failed'); }
-    };
-    document.getElementById('rows').onchange = async function(event){
+    });
+    document.body.addEventListener('change',async function(event){
       var input=event.target; if(input.getAttribute('data-artifact')!=='attach' || !input.files[0]) return;
       try{ var form=new FormData(); form.append('file',input.files[0]); var r=await fetch('/api/vids/jobs/'+encodeURIComponent(input.getAttribute('data-job'))+'/artifact',{method:'POST',body:form}); if(!r.ok){ var failed=await r.json().catch(function(){ return {}; }); throw new Error(failed.detail||failed.error||'export attach failed'); } refresh(); }
       catch(e){ window.alert(e.message||'export attach failed'); }
-    };
-    refresh(); setInterval(refresh, 4000);
+    });
+    void mountVidsWorkspace().catch(function(error){vidsStatus('The shared editor could not open: '+error.message);});
+    refresh(); setInterval(refresh, 4000);window.addEventListener('beforeunload',function(event){if(vidsState().dirty){event.preventDefault();event.returnValue='';}});
   }
 </script>
 

@@ -32,6 +32,7 @@ function run(fields) {
   };
   const calls = [];
   const sandbox = {
+    loraEditor: null,
     $: (id) => els[id],
     creationResult: (kind, msg) => { els.createResult.className = 'result ' + kind; els.createResult.textContent = msg; },
     api: async (p, init) => { calls.push([p, init]); return { ok: true, j: { subject: 'hero', message: 'Character saved. No training was started.' } }; },

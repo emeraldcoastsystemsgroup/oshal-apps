@@ -45,6 +45,7 @@ declare module '@/app/composition/app-context' {
     /** Core PackageAuthorizationContext: the package's bound authorization port (ADR-149). */
     authorization?: {
       registerResource(resource: string, adapter: { authorize(input: { actor: { isActive: boolean } }): Promise<boolean> }): void;
+      authorize(input: { permission: string }): Promise<{ allowed: boolean }>;
       currentActor(): { sub: string; issuer: string; isActive: boolean } | undefined;
     };
     [key: string]: unknown;

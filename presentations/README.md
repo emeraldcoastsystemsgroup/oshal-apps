@@ -1,11 +1,8 @@
 # AI Office (presentations) — OSHAL app package
 
-One outline, three artifacts (ADR-103): a themed **PowerPoint deck**, **Word document**,
-or **live Excel workbook** — ten shared themes, twenty layouts, real editable Office
-structure. AI drafts the outline from a topic (comms bot), the deck-builder agent guides
-and drives the editor, and artifacts save to whichever office world you live in
-(Dropbox / Google Drive / OneDrive / GitHub / OSHAL local, ADR-108).
+AI Office provides direct editable **PowerPoint**, **Word** and **Excel** documents in the shared editor foundation: selectable objects/text/ranges, real properties, undo/redo, durable original-owned revisions, actual Office import/export and the shared AI partner operating on the same saved revision. See [the structured editor contract and supported fidelity](EDITOR.md).
 
+The existing outline generator, ten themes, twenty generated layouts, brand rendering and delivery to Dropbox / Google Drive / OneDrive / GitHub / OSHAL local remain available under **Generation & delivery** (`/api/presentations/sections/ui?legacy=1`).
 Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2). This is a **"skill with a
 surface"** carve — only the surface layer ships here:
 
@@ -36,9 +33,9 @@ surface"** carve — only the surface layer ships here:
 
 The normal route opens the authoring workspace directly. Select a format, add a slide,
 section or sheet, or open a file. File actions remain above the editor. The slide rail
-scrolls independently, and the phone **AI partner** button opens chat with keyboard
-focus and a **Back to editor** control. **Walkthrough** explicitly opens the optional
-artifact/look/starter flow; audience views retain their separate shell behavior.
+scrolls independently, and the phone **AI** inspector opens the shared assistant. The legacy **Walkthrough** remains in Generation & delivery; audience views retain their separate shell behavior.
+
+The following generation, storage and brand sections describe the retained **Generation & delivery** studio. Structured editing persists its own revisions and exports the actual edited document.
 
 ## Where your file goes (ADR-043 item A)
 
@@ -85,9 +82,7 @@ studio keeps the nearest built-in look as in 2.12.
 node scripts/oshal-app.js install presentations
 ```
 
-No migrations — `oshal_presentations` is lazy DDL carried by the packaged route
-(CREATE + owner RLS at the chokepoint). The table stays in place across
-install/toggle; uninstall never touches data.
+Structured editing declares `migrations/002-office-editor.sql` and its native companion for documents, immutable revisions, sealed retries and retained originals. The legacy `oshal_presentations` generator table remains lazy DDL. Installation/toggling preserves existing data; the new catalog does not silently assign roles. See [EDITOR.md](EDITOR.md).
 
 ## Test Lab catalog (2.12.5)
 

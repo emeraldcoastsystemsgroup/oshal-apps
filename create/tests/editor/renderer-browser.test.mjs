@@ -87,8 +87,9 @@ test('human group Duplicate works on a narrow screen and saves/reopens as one hi
       {id:'g',type:'group',name:'Composition',x:20,y:20,w:40,h:20,baseWidth:40,baseHeight:20,children:['a','b']}] };
   const record = fixture.seed(document);
   await page.goto(`${fixture.origin}/api/create/editor?project=${record.id}`);
+  await page.locator('.ef-shell').waitFor();await page.locator('.ef-tools').getByRole('button',{name:'Navigation',exact:true}).click();
   await page.locator('[data-layer-id="g"] .layer-select').click();
-  await page.locator('#duplicateLayer').click();
+  await page.locator('#duplicateLayer').click();await page.getByRole('button',{name:'Close navigation',exact:true}).click();
   assert.equal(await page.locator('[data-layer-id]').count(), 6);
   await page.locator('#undo').click(); assert.equal(await page.locator('[data-layer-id]').count(), 3);
   await page.locator('#redo').click(); assert.equal(await page.locator('[data-layer-id]').count(), 6);
@@ -98,7 +99,7 @@ test('human group Duplicate works on a narrow screen and saves/reopens as one hi
   assert.equal(saved.layers.length, 6); assert.equal(saved.layers.filter(layer => layer.type === 'group').length, 2);
   assert.deepEqual(saved.layers.find(layer => layer.id === 'g').children, ['a','b']);
   await page.reload();
-  await page.waitForSelector('[data-layer-id="g"]');
+  await page.waitForSelector('[data-layer-id="g"]',{state:'attached'});
   assert.equal(await page.locator('[data-layer-id]').count(), 6);
   assert.deepEqual(errors, []);
 });

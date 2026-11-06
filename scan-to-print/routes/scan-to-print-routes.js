@@ -37,6 +37,8 @@
  *                     |                             | kernel every per-file byte ceiling is its 10 MiB file cap and
  *                     |                             | `requestBytes` bounds one request (upload-limits.ts); it used
  *                     |                             | to advertise a 200 MiB .ply the kernel refuses at 10 MiB.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Calibration source tools use actual route-backed native held approvals; keep package-handler registration limited to in-process print tools.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Register real original-owned calibration tools and pass the bound context to source and output guards.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -117,7 +119,7 @@ function nativeSlicer(ctx, options) {
 function printDeps(ctx, opts) {
     const env = opts.env ?? process.env;
     return {
-        pool: ctx.pool, dataRoot: opts.dataRoot ?? (0, data_dir_1.resolveDataRoot)(env), env, callerSub, execFile: opts.execFile, fetchImpl: opts.fetchImpl,
+        context: ctx.authorization ? ctx : undefined, pool: ctx.pool, dataRoot: opts.dataRoot ?? (0, data_dir_1.resolveDataRoot)(env), env, callerSub, execFile: opts.execFile, fetchImpl: opts.fetchImpl,
         slicer: nativeSlicer(ctx, slicerEngineOptions(ctx.appPackageDir ?? '', env, opts.slicerConnect)), bambuIo: opts.bambuIo,
     };
 }

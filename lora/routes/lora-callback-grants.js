@@ -90,11 +90,12 @@ exports.CALLBACK_GRANT_TTL_HOURS = boundedSetting(process.env.LORA_CALLBACK_GRAN
 /** Allowed distance between the worker's timestamp and the controller clock (LORA_CALLBACK_SKEW_SECONDS). */
 exports.CALLBACK_SKEW_SECONDS = boundedSetting(process.env.LORA_CALLBACK_SKEW_SECONDS, 300, 30, 900);
 const KINDS_BY_DISPATCH = {
-    train: ['training'],
+    train: ['training', 'dataset-state'],
     validate: ['score', 'cell-image'],
-    improve: ['training'],
-    overnight: ['training', 'score', 'cell-image', 'review'],
+    improve: ['training', 'dataset-state'],
+    overnight: ['training', 'score', 'cell-image', 'review', 'dataset-state'],
     'dataset-import': ['dataset-download', 'dataset'],
+    'caption-write': ['caption'],
 };
 /** Grants the verifier admitted, keyed by the request object itself so no header can forge one. */
 const admitted = new WeakMap();
@@ -134,7 +135,7 @@ function callbackGrantSchemaStatements() {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         character_id UUID NOT NULL REFERENCES oshal_lora_characters(id) ON DELETE CASCADE,
         owner_sub TEXT NOT NULL, ticket_id TEXT,
-        dispatch_kind TEXT NOT NULL CHECK (dispatch_kind IN ('train', 'validate', 'improve', 'overnight', 'dataset-import')),
+        dispatch_kind TEXT NOT NULL CHECK (dispatch_kind IN ('train', 'validate', 'improve', 'overnight', 'dataset-import', 'caption-write')),
         callback_kinds TEXT[] NOT NULL CHECK (cardinality(callback_kinds) > 0),
         signing_key TEXT NOT NULL CHECK (signing_key ~ '^[0-9a-f]{64}$'),
         expires_at TIMESTAMPTZ NOT NULL, revoked_at TIMESTAMPTZ,
@@ -373,4 +374,3 @@ function grantRefusal(grant, kind, characterId) {
         return 'callback_character_not_granted';
     return null;
 }
-//# sourceMappingURL=lora-callback-grants.js.map

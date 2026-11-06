@@ -11,6 +11,7 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Save all retained inspector drafts automatically through native commands before concierge reads; refresh the same editable composition while preserving selection, historical views and concurrent fields.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Requests refused only because the project storage lock was busy are retried (busy-retry.mjs) instead of losing the edit: a manual edit right after a concierge change failed with "Your project storage is busy. Retry shortly." (installed handoff run, 2026-10-29).
  */
+import {bindMotionFoundation} from './editor-foundation-adapter.mjs';
 import {createInspectorDrafts} from './editor-handoff.mjs';
 import {valueChange} from './value-patch.mjs';
 import {RenderClient} from './render-client.mjs';
@@ -19,7 +20,7 @@ import {BundleClient} from './bundle-client.mjs';
 import {parseNative,stringifyNative,readProject} from './native-json.mjs';
 const $=id=>document.getElementById(id),base='/api/motion-studio';
 const state={project:null,historical:false,comp:null,layer:null,time:0,epoch:0,previewEpoch:0,busy:false,busyLease:0,ticks:0,ready:false,permissions:{},catalog:[],checked:new Set(),timingFields:{},effects:[],effect:null,effectInputs:[],fullEffectIntent:null,effectInfo:null,effectStamp:null,effectRenderedStamp:null,effectPending:null,effectEpoch:0,effectAbort:null,keyInfo:null,keyRef:null,keyEpoch:0,keyInitial:{},previewTick:null,workFields:{},playing:false,playEpoch:0,playAbort:null,playTask:Promise.resolve(),fonts:[],textInfo:null,textStamp:null,textEpoch:0,textAbort:null,textInitial:{},textColors:{},mask:null,maskVertex:0,maskInitial:{},maskVertexInitial:{},maskInfo:null,maskStamp:null,maskEpoch:0,maskAbort:null,featherIndex:0,featherInitial:{},propertiesInfo:null,propertiesStamp:null,propertiesEpoch:0,propertiesAbort:null,propertiesPending:null,propertiesInitial:{},sceneInputs:[]};
-let handoffBusy=false, collectedEdits=null;
+let handoffBusy=false, collectedEdits=null, editorFoundation=null;
 function inspectorContext(){return {projectId:state.project?.id??null,comp:state.comp==null?null:String(state.comp),layer:state.layer==null?null:String(state.layer),time:state.time,tick:state.previewTick,mask:state.mask==null?null:String(state.mask),effect:state.effect==null?null:String(state.effect),vertex:state.maskVertex,feather:state.featherIndex,key:state.keyRef?{...state.keyRef}:null};}
 const inspectorDrafts=createInspectorDrafts({context:inspectorContext,revision:()=>state.project?.revision,
  captureExtra:form=>form==='effectParams'?state.effectInputs.filter(field=>field.capture&&field.changed()).map(field=>({prop:String(field.prop),...field.capture()})):[],
@@ -60,6 +61,7 @@ function controls(){const edit=Boolean(state.project&&state.permissions.change&&
   if(state.textInfo&&!state.playing&&!state.busy&&state.permissions.read){$('textEdit').elements.content.disabled=false;$('textEdit').elements.content.readOnly=!textEdit;}
   $('comps').disabled=handoffBusy;for(const button of document.querySelectorAll('#layers button,#timeline .keyButton'))button.disabled=handoffBusy;
   if(handoffBusy)for(const id of ['time','play','previousFrame','nextFrame','loop','savedMasks','maskVertices','featherPoints','layerEffects'])$(id).disabled=true;
+  editorFoundation?.refresh();
 }
 function show(){return inspectorDrafts.paint(['layerSettings', 'layerTiming', 'workArea'],()=>showNow());}
 function showNow(){const items=state.project?.document.items??{},comps=Object.values(items).filter(item=>item.kind.type==='Comp');if(!comps.some(item=>item.id===state.comp))state.comp=comps[0]?.id;
@@ -293,10 +295,11 @@ $('refreshText').onclick=guard(()=>refreshText(true));
 $('textEdit').elements.selection.onchange=guard(()=>{const form=$('textEdit').elements;if(form.content.value!==textDisplay(state.textInfo.value.text))throw new Error('Save content before selecting a character range.');showTextFields();});
 $('textEdit').elements.content.onselect=guard(()=>{if($('textEdit').elements.selection.checked)showTextFields();});
 $('textEdit').elements.font.onchange=()=>{const form=$('textEdit').elements;form.style.replaceChildren(...textFontStyles(form.font.value,null).map(style=>new Option(style,style)));};
+function textReplacementCommand(info,next){const old=[...textDisplay(info.value.text)],updated=[...next];let start=0,oldEnd=old.length,newEnd=updated.length;while(start<oldEnd&&start<newEnd&&old[start]===updated[start])start++;while(oldEnd>start&&newEnd>start&&old[oldEnd-1]===updated[newEnd-1]){oldEnd--;newEnd--;}if(start===oldEnd&&start===newEnd)return null;return{command:'text.patchAt',params:{layer:info.layer,compTimeTicks:info.compTimeTicks,range:[nativeTextOffset(info.value.text,start),nativeTextOffset(info.value.text,oldEnd)],attributes:{text:updated.slice(start,newEnd).join('')}}};}
 $('textEdit').onsubmit=guard(async()=>{
  const info=state.textInfo;if(!info||state.textStamp!==textStamp())throw new Error('Refresh text at the current time before editing.');const form=$('textEdit').elements,attributes={},range=form.selection.checked?selectedTextRange():undefined;
  if(range){if(form.content.value!==textDisplay(info.value.text))throw new Error('Save content before selecting a character range.');if(range[0]===range[1]&&!form.replace.checked)throw new Error('Select characters to format.');if(form.replace.checked)attributes.text=form.replacement.value;}
- const commands=[];if(!range&&form.content.value!==state.textInitial.content){const old=[...textDisplay(info.value.text)],updated=[...form.content.value];let start=0,oldEnd=old.length,newEnd=updated.length;while(start<oldEnd&&start<newEnd&&old[start]===updated[start])start++;while(oldEnd>start&&newEnd>start&&old[oldEnd-1]===updated[newEnd-1]){oldEnd--;newEnd--;}commands.push({command:'text.patchAt',params:{layer:info.layer,compTimeTicks:info.compTimeTicks,range:[nativeTextOffset(info.value.text,start),nativeTextOffset(info.value.text,oldEnd)],attributes:{text:updated.slice(start,newEnd).join('')}}});}
+ const commands=[];if(!range&&form.content.value!==state.textInitial.content){const changed=textReplacementCommand(info,form.content.value);if(changed)commands.push(changed);}
  for(const name of Object.keys(textFields)){const v=textFlags.has(name)?form[name].checked:form[name].value;if(v===state.textInitial[name])continue;if(textFlags.has(name)||['font','style','justify','direction'].includes(name))attributes[name]=v;else if(name==='leading'&&v.trim().toLowerCase()==='auto')attributes[name]='auto';else{if(!String(v).trim()||!Number.isFinite(Number(v)))throw new Error('Enter finite typography values.');attributes[name]=Number(v);}}
  for(const name of ['fill','stroke'])if(form[name].value!==state.textInitial[name]||form[name+'Alpha'].value!==state.textInitial[name+'Alpha']){const rgb=form[name].value===state.textInitial[name]?state.textColors[name].slice(0,3):form[name].value.slice(1).match(/../g).map(v=>parseInt(v,16)/255),alpha=Number(form[name+'Alpha'].value);if(!form[name+'Alpha'].value||!Number.isFinite(alpha)||alpha<0||alpha>1)throw new Error('Enter alpha between 0 and 1.');attributes[name]=[...rgb,alpha];}
  if(form.paragraph.checked!==state.textInitial.paragraph||form.paragraph.checked&&['boxX','boxY','boxWidth','boxHeight'].some(name=>form[name].value!==state.textInitial[name])){attributes.box=form.paragraph.checked?['boxX','boxY','boxWidth','boxHeight'].map(name=>{const v=Number(form[name].value);if(!form[name].value||!Number.isFinite(v))throw new Error('Enter finite paragraph box values.');return v;}):null;if(attributes.box&&(attributes.box[2]<1||attributes.box[3]<1))throw new Error('Paragraph box dimensions must be positive.');}
@@ -452,6 +455,9 @@ $('renderRefresh').onclick=guard(()=>renders.status());$('renderCancel').onclick
 $('renderDownload').onclick=guard(async()=>{const blob=await renders.download();const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='motion-render.'+(renders.record.format==='mp4'?'mp4':'tar');a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 $('renderSaveFile').onclick=guard(async()=>{const ext=renders.record.format==='mp4'?'mp4':'tar';const handle=await window.showSaveFilePicker({suggestedName:'motion-render.'+ext});await renders.download({writable:await handle.createWritable()});});
 setInterval(()=>{if((renders.pendingId||renders.record&&['queued','rendering'].includes(renders.record.state))&&state.permissions.export)void renders.status().catch(error=>{$('renderStatus').textContent=error.message;});},2000);
+// The native workbench keeps its exact model, immediate revisions and draft ledger.
+try{editorFoundation=await bindMotionFoundation({state,layer,comp,apply,patchProperties,tick:currentTick,propertiesCurrent:()=>state.propertiesStamp===propertiesStamp(),textCurrent:()=>state.textStamp===textStamp(),text:()=>document.getElementById('textEdit').elements.content.value,textCommand:value=>textReplacementCommand(state.textInfo,value),hasDraft:()=>!!state.project&&inspectorDrafts.has(state.project.id),prepare:prepareDocumentHandoff,problem});controls();}catch(error){problem(error);}
+
 await guard(async()=>{state.permissions=(await api('/permissions')).permissions;const contract=await api('/editing-contract');state.ticks=contract.engine.ticksPerSecond;if(!Number.isSafeInteger(state.ticks)||state.ticks<=0)throw new Error('The engine returned an invalid timeline unit.');state.ready=true;state.catalog=contract.engine.commands;state.effects=contract.engine.effects;state.fonts=contract.engine.fonts;effectChoices();$('commands').replaceChildren(...state.catalog.map(entry=>new Option(entry.label||entry.id,entry.id)));commandFields();show();await refresh();const project=new URLSearchParams(location.search).get('project');if(project){await open(project,new URLSearchParams(location.search).get('revision'));const requested=new URLSearchParams(location.search).get('compId');if(requested){const chosen=Object.values(state.project.document.items).find(item=>item.kind.type==='Comp'&&String(item.id)===requested);if(!chosen)throw new Error('The source composition is unavailable.');state.comp=chosen.id;state.layer=null;show();await preview();}}const job=new URLSearchParams(location.search).get('renderJob');if(job)await renders.status(job);const prepared=new URLSearchParams(location.search).get('bundleTransfer');if(prepared){const transfer=await bundles.useExport(prepared);bundleKind='export';bundleReceipt(transfer);$('bundleDownload').hidden=false;$('bundleStatus').textContent='Prepared bundle ready to download.';bundleControls();}})();// Bootstrap is access-gated and never assumes a provisioned engine.
 
 // Exact native inspection supplies evaluated geometry; the same native commands edit at the supplied Tick.
@@ -565,7 +571,7 @@ async function applyCollectedEdits(edits,current){
  await flush();
 }
 async function prepareDocumentHandoff(){
- document.activeElement?.blur?.();stopPlayback();
+ document.activeElement?.blur?.();await editorFoundation?.flushPending();stopPlayback();
  const epoch=state.epoch,initialId=state.project?.id;
  await inspectorDrafts.idle();
  const current=()=>{if(state.epoch!==epoch||(initialId&&state.project?.id!==initialId))throw new Error('The open composition changed during the handoff. Ask again from the document you want to edit.');};current();

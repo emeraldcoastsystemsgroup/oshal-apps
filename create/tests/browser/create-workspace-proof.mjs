@@ -174,3 +174,20 @@ test('standalone New preserves its category link and returns to the real Home UR
   await page.waitForURL(`${fixture.origin}/api/create/home`);
   assert.equal(await page.locator('h1').count(), 1);
 });
+
+
+test('unavailable generation starters retain all three blank Office editor choices on a phone', async t => {
+  const local = await startFixture({ respond: path => path === '/api/presentations/sections/starters'
+    ? { status: 403, body: { error: 'fixture_generation_access_denied' } } : undefined });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  t.after(async () => { await context.close(); await local.close(); });
+  const page = await context.newPage();
+  await page.goto(local.origin + '/api/create/new');
+  for (const label of ['Blank presentation', 'Blank Word document', 'Blank spreadsheet']) {
+    const card = page.getByRole('button', { name: new RegExp('^' + label + ' —') });
+    await card.waitFor(); assert.equal(await card.getAttribute('aria-disabled'), null);
+  }
+  await page.getByRole('button', { name: /^Blank Word document —/ }).click();
+  await page.waitForURL(local.origin + '/api/presentations/editor/app?kind=docx');
+  assert.deepEqual(local.requests.filter(request => !['GET', 'HEAD'].includes(request.method)), []);
+});

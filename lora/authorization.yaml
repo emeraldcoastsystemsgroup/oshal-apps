@@ -1,3 +1,4 @@
+# Editing-only source role; privileged generation, training and sending remain separately bound.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
@@ -21,6 +22,7 @@ permissions:
   app.open: { resource: lora, effect: read, minimumTier: viewer }
   lora.read: { resource: lora, effect: read, minimumTier: viewer }
   lora.configure: { resource: lora, effect: write, minimumTier: editor }
+  lora.source.change: { resource: lora, effect: write, minimumTier: editor }
   lora.execute: { resource: lora, effect: execute, minimumTier: editor }
 roles:
   viewer:
@@ -34,7 +36,14 @@ roles:
       - { permission: app.open, scope: own }
       - { permission: lora.read, scope: own }
       - { permission: lora.configure, scope: own }
+      - { permission: lora.source.change, scope: own }
       - { permission: lora.execute, scope: own }
+  source-editor:
+    tier: editor
+    grants:
+      - { permission: app.open, scope: own }
+      - { permission: lora.read, scope: own }
+      - { permission: lora.source.change, scope: own }
 bindings:
   http:
     - { id: studio, method: GET, path: /ui, allOf: [app.open] }
@@ -43,11 +52,17 @@ bindings:
     - { id: models-read, method: GET, path: /models, allOf: [lora.read] }
     - { id: scorecard-read, method: GET, path: /scorecard, allOf: [lora.read] }
     - { id: cell-image-read, method: GET, path: /cell-image, allOf: [lora.read] }
+    - { id: editor-contract, method: GET, path: /editor-contract, allOf: [lora.read] }
+    - { id: editor-character-read, method: GET, path: /characters/:subject/editor, allOf: [lora.read] }
+    - { id: editor-character-write, method: PATCH, path: /characters/:subject/editor, allOf: [lora.source.change] }
+    - { id: editor-caption-read, method: GET, path: /dataset/:imageId/caption, allOf: [lora.read] }
+    - { id: editor-caption-write, method: PATCH, path: /dataset/:imageId/caption, allOf: [lora.source.change] }
+    - { id: editor-caption-retry, method: POST, path: /dataset/:imageId/caption/retry, allOf: [lora.source.change] }
     - { id: dataset-read, method: GET, path: /dataset, allOf: [lora.read] }
-    - { id: characters-create, method: POST, path: /characters, allOf: [lora.configure] }
-    - { id: characters-starter, method: POST, path: /characters/starter, allOf: [lora.configure] }
-    - { id: character-delete, method: DELETE, path: /characters/:subject, allOf: [lora.configure] }
-    - { id: autonomous, method: POST, path: /characters/:subject/autonomous, allOf: [lora.configure] }
+    - { id: characters-create, method: POST, path: /characters, allOf: [lora.source.change] }
+    - { id: characters-starter, method: POST, path: /characters/starter, allOf: [lora.source.change] }
+    - { id: character-delete, method: DELETE, path: /characters/:subject, allOf: [lora.source.change] }
+    - { id: autonomous, method: POST, path: /characters/:subject/autonomous, allOf: [lora.execute] }
     - { id: active-version, method: POST, path: /characters/:subject/active, allOf: [lora.configure] }
     - { id: model-delete, method: DELETE, path: /models/:subject/:version, allOf: [lora.configure] }
     - { id: dataset-import, method: POST, path: /dataset/import, allOf: [lora.configure] }
@@ -59,7 +74,13 @@ bindings:
     - { id: worker-cell-image, method: POST, path: /cell-image, allOf: [lora.execute] }
     - { id: worker-dataset-download, method: POST, path: /dataset-download/:imageId, allOf: [lora.execute] }
   bots:
-    - { id: a0000000-0000-0000-0000-000000000065, allOf: [lora.execute] }
+    - { id: a0000000-0000-0000-0000-000000000065, allOf: [lora.read] }
   tools:
     - { id: lora-characters, allOf: [lora.read] }
     - { id: lora-models, allOf: [lora.read] }
+    - { id: lora-editor-contract, allOf: [lora.read] }
+    - { id: lora-editor-character, allOf: [lora.read] }
+    - { id: lora-editor-caption, allOf: [lora.read] }
+    - { id: lora-editor-character-edit, allOf: [lora.source.change] }
+    - { id: lora-editor-caption-edit, allOf: [lora.source.change] }
+    - { id: lora-editor-caption-retry, allOf: [lora.source.change] }

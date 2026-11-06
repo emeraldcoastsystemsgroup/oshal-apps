@@ -29,7 +29,7 @@ test('each named application role includes the whole bundle without component se
   const bundles = roleBlock.split(/    - id: /).slice(1);
   assert.deepEqual(bundles.map(row => row.split(/\r?\n/)[0]), ["learner", "teacher", "administrator"]);
   for (const bundle of bundles) {
-    assert.match(bundle, /      version: 3/);
+    assert.match(bundle, /      version: 4/);
     const apps = [...bundle.matchAll(/        - app: ([a-z0-9-]+)/g)].map(match => match[1]);
     assert.deepEqual(apps, ['classroom-experience', ...required]);
     assert.equal(new Set(apps).size, apps.length);
@@ -75,7 +75,7 @@ test('every template maps the real transitive dependency closure including perso
     const mapped = members.map(member => member[1]);
     assert.deepEqual([...mapped].sort(), [...required].sort(), `${name} maps every actual required application exactly once`);
     assert.equal(members.find(member => member[1] === 'email-summarizer')?.[2], '@app-admin', `${name} reviews Email's existing package role`);
-    assert.match(template, /      version: 3\b/, `${name} advances the changed role contract`);
+    assert.match(template, /      version: 4\b/, `${name} advances the changed role contract`);
   }
 });
 

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Daily reviews use the same completed-session cache, holdings and persisted stop anchors as scheduled decisions; monthly research is unchanged.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Monthly previews use only the completed-month signal history; current quotes, holdings, funding and orders are still independently verified.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Original-owner strategy review retains exact research, current holdings/debt and a read-only initial transition. No watcher tick or broker effect occurs while preparing the review.
  */
@@ -25,7 +26,13 @@ async function strategyReview(ctx,owner,watch,study,capitalCents,scope,{host,sel
   const latest=lastCompletedSession(at),evidenceThrough=portfolioSignalHistoryEnd(config,latest),start=new Date(Date.parse(latest+'T00:00:00Z')-110*86400000).toISOString().slice(0,10),bound={connection:fresh.account.connectionKey,accountId:fresh.account.accountId};
   const [history,quotes,balance,orders,tickets]=await Promise.all([portfolioHistory(ctx,bound.connection,config,start,evidenceThrough,at),readPlanQuotes(ctx,bound.connection,planSymbols(fresh.account,config)),host(ctx,'balance',bound),host(ctx,'list',bound),host(ctx,'tickets',bound)]);
   if(!Array.isArray(orders.orders)||!Array.isArray(tickets.tickets))throw new PortfolioError(503,'review_orders_unavailable','Complete current broker orders and retained attempts are required.');
-  const signal={...portfolioNextTargets(config,history.series,latest),evidenceThrough};
+  const cached=watch.signal;
+  const decision=config.modelVersion===3
+   ?cached&&cached.signalAsOf===latest&&cached.evidenceThrough===evidenceThrough&&cached.strategyFingerprint===fingerprint(config)
+    ?cached
+    :require('../strategy/signals').signal(config,history.series,latest,{holdings:fresh.account.positions,riskState:cached?.riskState||{}})
+   :portfolioNextTargets(config,history.series,latest);
+  const signal={...decision,evidenceThrough};
   const plan=allocationPlan(fresh,config,signal,quotes.quotes,capitalCents,scope==='whole-account'?'whole-account':'preserve-other-holdings',at,balance.cashBudgetUsd);
   if(tickets.tickets.some(t=>['attempting','unknown'].includes(t.status)))plan.blockers.push({code:'uncertain_order',message:'An uncertain broker attempt must be reconciled before approval.'});
   const working=orders.orders.filter(o=>!TERMINAL.has(o.status));

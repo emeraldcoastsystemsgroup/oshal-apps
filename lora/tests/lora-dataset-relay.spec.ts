@@ -14,6 +14,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { chromium, type Browser } from 'playwright';
@@ -159,7 +160,7 @@ beforeAll(async () => {
   await fixture.start();
   for (let pass = 0; pass < 2; pass++) for (const name of ['058-lora-studio.sql', '100-lora-owner-rls.sql', '101-lora-cell-images.sql',
     '102-lora-character-identity.sql', '103-lora-dataset-images.sql', '104-lora-dataset-staging.sql', '105-lora-callback-grants.sql',
-    '106-lora-callback-identity.sql']) {
+    '106-lora-callback-identity.sql','107-lora-editor-captions.sql']) {
     await fixture.pool.query(readFileSync(resolve(pkg, 'migrations', name), 'utf8'));
   }
   await fixture.pool.query('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dataset_a, dataset_b');
@@ -181,6 +182,11 @@ beforeEach(async () => {
   await fixture.pool.query('TRUNCATE oshal_lora_characters CASCADE');
   await fixture.pool.query(`INSERT INTO oshal_lora_characters(id, subject, display_name, trigger_word, owner_sub)
     VALUES ($1, 'tin-drummer', 'Tin drummer', 'tindrummer', 'dataset_a'), ($2, 'tin-drummer', 'Other drummer', 'tindrummer', 'dataset_b')`, [CHAR_A, CHAR_B]);
+  // Trusted fixture provenance; production never adopts an unbound legacy character.
+  for (const [id, sub] of [[CHAR_A, 'dataset_a'], [CHAR_B, 'dataset_b']]) {
+    const key = createHash('sha256').update(JSON.stringify({ issuer: ISSUER, sub, principalId: 'fixture:' + sub, tenant: 'lora-branch-fixture' })).digest('hex');
+    await fixture.pool.query('INSERT INTO oshal_lora_character_editor (character_id, owner_key, revision) VALUES ($1, $2, 0)', [id, key]);
+  }
   recorded.commands.length = 0; recorded.tickets.length = 0; recorded.online = true; sourceHits.length = 0;
 });
 

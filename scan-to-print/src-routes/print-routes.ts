@@ -41,6 +41,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | Await `@/features/personal-data` encryptField (asynchronous on the
  *                     |                             | native kernel, which holds the key, PDATA-01) before checking the
  *                     |                             | printer key ciphertext.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owner checks and the existing independent print.send permission before sending current models.
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -57,6 +58,7 @@ import { type BambuIo } from './printing/bambu-lan';
 import { type SlicerEngineOptions, SlicerEngineError, slicerRequest } from './printing/slicer-engine';
 import { type ExecFileLike, resolveSlicerConfig, sliceStl } from './engine/print/slicer';
 import { sanitizeSolidName } from './engine/geometry/export-stl';
+import {assertCalibrationOwner,calibrationAccess} from './calibration-editor';
 import { type JobRequest, requireCurrentOutput, withCurrentJob } from './job-outputs';
 import { randomBytes } from 'node:crypto';
 import { type PrintOutcome, type PrintServiceDeps, type StartDecision, evaluateStart, loadPrinter, printerState, recordAttempt, sendToBambu, sendToHttpPrinter, PrinterKeyUnreadable } from './print-service';
@@ -67,6 +69,7 @@ const execFile = promisify(execFileCb);
 
 /** @description What the print router needs from its host. */
 export interface PrintRouteDeps {
+  context?: import('@/app/composition/app-context').AppContext;
   /** The GUC-stamped pool. */
   pool: QueryablePool;
   /** Root directory for job files. */
@@ -274,6 +277,7 @@ async function bambuJobOutcome(deps: PrintRouteDeps, sub: string, job: JobRow, p
  * @returns HTTP status and body.
  */
 export async function printJob(deps: PrintRouteDeps, sub: string, job: JobRow, body: Record<string, unknown>, start: StartDecision, requestedBy: 'person' | 'service'): Promise<{ status: number; body: Record<string, unknown> }> {
+  if(deps.context)await assertCalibrationOwner(deps.context,job.job_id,await calibrationAccess(deps.context,'print.send'));
   const printer = await loadPrinter(deps.pool, sub, requireUuid(body.printerId));
   if (!printer) return { status: 404, body: { error: 'printer_not_found' } };
   const result = printer.row.kind === BAMBU_KIND
@@ -302,7 +306,7 @@ function registerPrint(router: Router, deps: PrintRouteDeps): void {
       if (error instanceof PrinterKeyUnreadable) { res.status(409).json({ error: 'printer_key_unreadable', message: error.message }); return; }
       logger.error({ err: error, jobId: job?.job_id }, 'Print submission failed'); res.status(500).json({ error: 'print_failed' });
     }
-  }));
+  },'write','print.send'));
 }
 
 /**

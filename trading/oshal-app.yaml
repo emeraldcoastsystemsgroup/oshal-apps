@@ -1,3 +1,6 @@
+# CHANGE LOG: 47 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: admit validated daily strategies on connected account pages, guarantee a 252-session research window default without changing orderAuthority, default monthly presets to whole shares, and add saved-strategy assignment controls on local paper accounts.
+# CHANGE LOG: 46 | maintainer@emeraldcoastsystemsgroup.com | 1.53.4: refuse delayed Quant paints and further manual passes after navigation; retain account detail render, request and selected-holding guards.
+# CHANGE LOG: 45 | maintainer@emeraldcoastsystemsgroup.com | Teach strategy tools the actual daily presets, separate account classes and passing-validation requirement; allow the bounded historical read to finish.
 # CHANGE LOG: 44 | maintainer@emeraldcoastsystemsgroup.com | 1.53.0: saved selected-stock daily Quant model, shared price factors for replay and runtime, bounded extended history, desktop/phone persistence; matching native daily mandate release required.
 # CHANGE LOG
 # 42 | maintainer@emeraldcoastsystemsgroup.com | 1.52.0: database-persisted daily ETF models separate taxable margin from cash retirement accounts. Share completed-session signals across replay and execution, require exact-capital full/held-out/stressed validation, reject monthly authority and retain fractional remnants. Failed validation remains blocked; account metadata retains saved assignments and cannot replace an active strategy. No automatic account assignment or activation.
@@ -139,7 +142,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.53.0
+version: 1.53.5
 lastingStorage: true
 status: active
 
@@ -579,7 +582,8 @@ tools:
     description: >-
       The caller's saved portfolio strategies (id, name, model and assets), their completed account
       backtests (total return, max drawdown, the SPY return over the same days and the excess return),
-      and each account's assigned strategy (accountId, connectionKey, label, strategyId). Read-only and
+      the versioned strategyPresets for saving a new model, and each account's assigned strategy
+      (accountId, connectionKey, label, strategyId). Read-only and
       owner-scoped. Input: {}.
     executor: { executorType: api, apiEndpoint: "GET /api/trading/portfolio/research" }
     defaultAuthMode: auto
@@ -597,13 +601,15 @@ tools:
     type: api
     category: trading
     description: >-
-      Save a new research strategy for the caller. It is immutable and research-only: saving never assigns
-      it to an account and never trades. A strategy live accounts can run uses modelVersion 2, kind
-      "monthly-trend" (any 1-20 assets, weights totalling 100, topN equal to the asset count) or
-      "quarterly-rotation" (at least 3 equally weighted assets, topN 3), lookbackSessions 63,
-      rebalanceSessions 20, grossExposurePct 100, transactionCostBps 0-100, marginAprPct null,
-      maintenancePct null, fractionalShares false, and never BIL as an asset (BIL is the separate cash
-      fund). The reply carries the saved strategy's id; an invalid configuration comes back with the reason.
+      Save a new research strategy for the caller. Saving never assigns it to an account or trades.
+      First read trading_strategies and copy the exact config from its strategyPresets. Daily models use
+      modelVersion 3: quant-stock-daily for confirmed taxable margin accounts, with 1-20 explicitly
+      selected equity symbols and rankBy momentum; retirement-defensive-daily is the separate cash-funded
+      retirement model. Preserve each preset's fixed fields and accountClass. A stock universe is saved
+      in config.assets as [{symbol, weightPct}]; weights are normalized and the daily model determines sizing.
+      Older modelVersion 2 monthly-trend and quarterly-rotation strategies remain supported. The reply
+      carries the saved id; invalid settings return the reason. New daily live execution requires the
+      matching native service and passing exact-account, exact-capital historical validation.
     executor: { executorType: api, apiEndpoint: "POST /api/trading/portfolio/strategies" }
     defaultAuthMode: auto
     requiresApproval: false
@@ -630,11 +636,12 @@ tools:
       is the starting capital) for a window of at most one year that ends no later than the last completed
       session. Returns the run with total return, max drawdown, the SPY return over the same days and the
       excess return, or a failed run with the reason. Research only; no order and no assignment. A completed
-      run is what Strategies → Change strategy → Save strategy requires for that account.
+      run is not proof of passing daily validation. For daily models, inspect result.validation.passed
+      and its reasons; never describe a failed or missing validation as eligible for live execution.
     executor: { executorType: api, apiEndpoint: "POST /api/trading/portfolio/backtest" }
     defaultAuthMode: auto
     requiresApproval: false
-    timeoutMs: 60000
+    timeoutMs: 120000
     inputSchema:
       type: object
       required: [strategyId, accountId, connectionKey, startDate, endDate]
@@ -733,10 +740,11 @@ tools:
     description: >-
       Put a saved strategy into use on one of the caller's paper accounts and start the account. From the next
       scheduled pass of a regular US session, the account is rebalanced in whole shares to the strategy's current
-      targets (the same targets a live account would get), and again each time the strategy makes a new monthly
-      decision. Send no strategyId to stop running a strategy (the account returns to its posture engine).
+      targets from the saved model. Daily models reassess each completed session using saved stops, costed
+      turnover and retirement settlement; older models keep their monthly decisions. Send no strategyId to stop running a strategy (the account returns to its posture engine).
       Simulated only; never a broker order.
     executor: { executorType: api, apiEndpoint: "POST /api/trading/paper/books/{input.ref}/strategy" }
+    timeoutMs: 120000
     defaultAuthMode: auto
     requiresApproval: false
     inputSchema:
@@ -1015,7 +1023,7 @@ schedules:
     method: POST
     body: {}
     timeoutSeconds: 120
-    description: Check approved watcher trailing exits every minute; reconcile monthly account strategies every five minutes under their separate authorities.
+    description: Check approved watcher trailing exits every minute; reconcile approved daily or monthly account strategies every five minutes under their separate authorities.
     offer: Monitor moving stops every minute, including outside regular hours; submit only orders covered by my exact activated account policies.
   - id: paper-autopilot
     cron: "*/5 9-15 * * 1-5"

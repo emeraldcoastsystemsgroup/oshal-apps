@@ -32,7 +32,7 @@ const ACTORS = Object.freeze({
   carol: { sub: 'carol-no-role', issuer: ISSUER, isActive: true, isSwarmAdmin: false },
   dana: { sub: 'dana-former-admin', issuer: ISSUER, isActive: true, isSwarmAdmin: false },
 });
-const READ_ONLY_TOOLS = ['blender-docs', 'blender-file-summary', 'godot-get-uid', 'godot-project-info', 'scene-capabilities', 'scene-get-project', 'scene-list-projects', 'scene-read-file'];
+const READ_ONLY_TOOLS = ['blender-docs', 'blender-file-summary', 'scene-capabilities', 'scene-get-project', 'scene-inspect-object', 'scene-list-projects', 'scene-read-file'];
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'scene-tools-core-'));
 Object.assign(process.env, { APP_PACKAGE_DYNAMIC_ROUTES: 'true', OSHAL_APPLICATION_AUTHORIZATION_MODE: 'enforce', SCENE_STUDIO_DATA_DIR: dataRoot });
 

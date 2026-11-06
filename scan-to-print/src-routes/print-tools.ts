@@ -20,11 +20,13 @@
  *                     |                             | (Review: the computed ok/status are written after the print body,
  *                     |                             | so nothing in a reply can override them.)
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A saved printer access code sealed by the earlier platform (personal_data_reentry_required) answers 409 credential_reentry_required saying to re-enter it, instead of a thrown tool_failed the kernel reports as insufficient_tier: Jarvis told the person their printer status was refused for insufficient permissions. Guard: tests/print-tools-reentry.test.js.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify original-owner provenance through fresh print authority without requiring calibration edit permission.
  */
 
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
 import { requireUuid } from './data-dir';
+import {assertCalibrationOwner,calibrationAccess} from './calibration-editor';
 import { claimJobOperation, currentOutputRefusal } from './job-outputs';
 import { getJob, listJobs, listPrinters } from './job-store';
 import { type PrintRouteDeps, printJob, serviceDepsOf } from './print-routes';
@@ -109,6 +111,7 @@ async function print(deps: PrintToolDeps, sub: string, input: Record<string, str
   try {
     const job = await getJob(deps.pool, sub, jobId);
     if (!job) return { ok: false, status: 404, error: 'job_not_found' };
+    if(deps.context)await assertCalibrationOwner(deps.context,jobId,await calibrationAccess(deps.context,'print.send'));
     const refusal = currentOutputRefusal(job, true);
     if (refusal) return { ok: false, status: refusal.status, ...refusal.body };
     const chosen = await choosePrinter(deps, sub, input.printerId);

@@ -1,0 +1,329 @@
+# Original-owned structured Office editing; exact mount paths avoid legacy/editor operation ambiguity.
+version: 1
+resources:
+  documents:
+    scopes:
+      - own
+permissions:
+  document.view:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+  document.read:
+    resource: documents
+    effect: read
+    minimumTier: viewer
+  document.create:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.change:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.delete:
+    resource: documents
+    effect: write
+    minimumTier: editor
+  document.export:
+    resource: documents
+    effect: export
+    minimumTier: editor
+  legacy.access:
+    resource: documents
+    effect: write
+    minimumTier: editor
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+  editor:
+    tier: editor
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.create
+        scope: own
+      - permission: document.change
+        scope: own
+      - permission: document.export
+        scope: own
+      - permission: legacy.access
+        scope: own
+  admin:
+    tier: admin
+    grants:
+      - permission: document.view
+        scope: own
+      - permission: document.read
+        scope: own
+      - permission: document.create
+        scope: own
+      - permission: document.change
+        scope: own
+      - permission: document.delete
+        scope: own
+      - permission: document.export
+        scope: own
+      - permission: legacy.access
+        scope: own
+bindings:
+  http:
+    - id: office-route-0
+      method: GET
+      path: /api/presentations/editor/app
+      allOf:
+        - document.view
+    - id: office-route-1
+      method: GET
+      path: /api/presentations/editor/assets/:name
+      allOf:
+        - document.view
+    - id: office-route-2
+      method: GET
+      path: /api/presentations/editor/permissions
+      allOf:
+        - document.view
+    - id: office-route-3
+      method: GET
+      path: /api/presentations/editor/editing-contract
+      allOf:
+        - document.view
+    - id: office-route-4
+      method: GET
+      path: /api/presentations/editor/documents
+      allOf:
+        - document.view
+        - document.read
+    - id: office-route-5
+      method: POST
+      path: /api/presentations/editor/documents
+      allOf:
+        - document.view
+        - document.create
+    - id: office-route-6
+      method: GET
+      path: /api/presentations/editor/documents/:id
+      allOf:
+        - document.view
+        - document.read
+    - id: office-route-7
+      method: GET
+      path: /api/presentations/editor/documents/:id/model-part
+      allOf:
+        - document.view
+        - document.read
+    - id: office-route-8
+      method: POST
+      path: /api/presentations/editor/documents/:id/revisions
+      allOf:
+        - document.view
+        - document.change
+        - document.read
+    - id: office-route-9
+      method: POST
+      path: /api/presentations/editor/documents/:id/edits
+      allOf:
+        - document.view
+        - document.change
+        - document.read
+    - id: office-route-10
+      method: DELETE
+      path: /api/presentations/editor/documents/:id
+      allOf:
+        - document.view
+        - document.delete
+        - document.read
+    - id: office-route-11
+      method: POST
+      path: /api/presentations/editor/import/inspect
+      allOf:
+        - document.view
+        - document.read
+    - id: office-route-12
+      method: POST
+      path: /api/presentations/editor/import
+      allOf:
+        - document.view
+        - document.create
+    - id: office-route-13
+      method: GET
+      path: /api/presentations/editor/documents/:id/original
+      allOf:
+        - document.view
+        - document.export
+        - document.read
+    - id: office-route-14
+      method: GET
+      path: /api/presentations/editor/documents/:id/revisions/:revision/content
+      allOf:
+        - document.view
+        - document.export
+        - document.read
+    - id: office-route-15
+      method: GET
+      path: /api/presentations/editor/documents/:id/export
+      allOf:
+        - document.view
+        - document.export
+        - document.read
+    - id: office-route-16
+      method: GET
+      path: /api/presentations/sections/ui
+      allOf:
+        - document.view
+    - id: office-route-17
+      method: GET
+      path: /api/presentations/sections/themes
+      allOf:
+        - document.view
+    - id: office-route-18
+      method: GET
+      path: /api/presentations/sections/starters
+      allOf:
+        - document.view
+    - id: office-route-19
+      method: GET
+      path: /api/presentations/sections/destination
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-20
+      method: GET
+      path: /api/presentations/sections/list
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-21
+      method: POST
+      path: /api/presentations/sections/brand-look
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-22
+      method: POST
+      path: /api/presentations/sections/guide
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-23
+      method: POST
+      path: /api/presentations/sections/pptx
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-24
+      method: POST
+      path: /api/presentations/sections/docx
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-25
+      method: POST
+      path: /api/presentations/sections/xlsx
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-26
+      method: POST
+      path: /api/presentations/sections/import
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-27
+      method: DELETE
+      path: /api/presentations/sections/file
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-28
+      method: POST
+      path: /api/presentations/sections/email
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-29
+      method: POST
+      path: /api/presentations/sections/slack
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-30
+      method: POST
+      path: /api/presentations/sections/generate
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-route-31
+      method: GET
+      path: /api/presentations/home-summary
+      allOf:
+        - document.view
+    - id: office-legacy-assets
+      method: GET
+      path: /api/presentations/sections/assets/:name
+      allOf:
+        - document.view
+    - id: office-package-smoke
+      method: GET
+      path: /api/presentations/_smoke
+      allOf:
+        - document.view
+    - id: office-selection-read
+      method: GET
+      path: /api/presentations/editor/documents/:id/selection-part
+      allOf: [document.view, document.read]
+    - id: office-owned-legacy-download
+      method: GET
+      path: /api/applications/presentations/storage/download
+      allOf: [document.view, document.read, document.export]
+  tools:
+    - id: presentations-list
+      allOf:
+        - document.view
+        - legacy.access
+    - id: presentations-create-deck
+      allOf:
+        - document.view
+        - legacy.access
+    - id: presentations-create-document
+      allOf:
+        - document.view
+        - legacy.access
+    - id: office-editing-contract
+      allOf:
+        - document.view
+    - id: office-list-documents
+      allOf:
+        - document.view
+        - document.read
+    - id: office-read-model-part
+      allOf:
+        - document.view
+        - document.read
+    - id: office-create-document
+      allOf:
+        - document.view
+        - document.create
+    - id: office-apply-edits
+      allOf:
+        - document.view
+        - document.change
+        - document.read
+    - id: office-export-document
+      allOf:
+        - document.view
+        - document.export
+        - document.read
+    - id: office-read-selection-part
+      allOf: [document.view, document.read]
+  bots:
+    - id: a0000000-0000-0000-0000-000000000042
+      allOf:
+        - document.view

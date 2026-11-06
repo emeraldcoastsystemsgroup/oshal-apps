@@ -21,6 +21,7 @@
  *                     |                             | (Review: the computed ok/status are written after the print body,
  *                     |                             | so nothing in a reply can override them.)
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A saved printer access code sealed by the earlier platform (personal_data_reentry_required) answers 409 credential_reentry_required saying to re-enter it, instead of a thrown tool_failed the kernel reports as insufficient_tier: Jarvis told the person their printer status was refused for insufficient permissions. Guard: tests/print-tools-reentry.test.js.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify original-owner provenance through fresh print authority without requiring calibration edit permission.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PRINT_TOOL_SPECS = exports.PrintToolError = void 0;
@@ -29,6 +30,7 @@ exports.createPrintToolHandlers = createPrintToolHandlers;
 exports.registerPrintTools = registerPrintTools;
 const logger_1 = require("@/shared/logger");
 const data_dir_1 = require("./data-dir");
+const calibration_editor_1 = require("./calibration-editor");
 const job_outputs_1 = require("./job-outputs");
 const job_store_1 = require("./job-store");
 const print_routes_1 = require("./print-routes");
@@ -104,6 +106,8 @@ async function print(deps, sub, input) {
         const job = await (0, job_store_1.getJob)(deps.pool, sub, jobId);
         if (!job)
             return { ok: false, status: 404, error: 'job_not_found' };
+        if (deps.context)
+            await (0, calibration_editor_1.assertCalibrationOwner)(deps.context, jobId, await (0, calibration_editor_1.calibrationAccess)(deps.context, 'print.send'));
         const refusal = (0, job_outputs_1.currentOutputRefusal)(job, true);
         if (refusal)
             return { ok: false, status: refusal.status, ...refusal.body };

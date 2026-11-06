@@ -1,0 +1,182 @@
+# Named owned-source roles. Rendering/generation and mutating CLI dispatch stay admin-only.
+# Existing @app-admin assignments require an explicit reviewed Replace to admin; never auto-map or reactivate revoked rows.
+# 1.3.3: the owned production coordinator uses the existing admin-only execute permission.
+version: 1
+resources:
+  sources:
+    scopes:
+    - own
+  legacy:
+    scopes:
+    - own
+permissions:
+  app.open:
+    resource: sources
+    effect: read
+    minimumTier: viewer
+  source.read:
+    resource: sources
+    effect: read
+    minimumTier: viewer
+  source.create:
+    resource: sources
+    effect: write
+    minimumTier: editor
+  source.change:
+    resource: sources
+    effect: write
+    minimumTier: editor
+  source.delete:
+    resource: sources
+    effect: write
+    minimumTier: editor
+  legacy.read:
+    resource: legacy
+    effect: read
+    minimumTier: viewer
+  legacy.execute:
+    resource: legacy
+    effect: execute
+    minimumTier: editor
+roles:
+  reader:
+    tier: viewer
+    grants:
+    - permission: app.open
+      scope: own
+    - permission: source.read
+      scope: own
+    - permission: legacy.read
+      scope: own
+  source-editor:
+    tier: editor
+    grants:
+    - permission: app.open
+      scope: own
+    - permission: source.read
+      scope: own
+    - permission: source.create
+      scope: own
+    - permission: source.change
+      scope: own
+    - permission: source.delete
+      scope: own
+    - permission: legacy.read
+      scope: own
+  admin:
+    tier: admin
+    grants:
+    - permission: app.open
+      scope: own
+    - permission: source.read
+      scope: own
+    - permission: source.create
+      scope: own
+    - permission: source.change
+      scope: own
+    - permission: source.delete
+      scope: own
+    - permission: legacy.read
+      scope: own
+    - permission: legacy.execute
+      scope: own
+bindings:
+  http:
+  - id: source-surface
+    method: GET
+    path: /review
+    allOf:
+    - app.open
+  - id: source-module
+    method: GET
+    path: /source-project-editor.mjs
+    allOf:
+    - app.open
+  - id: source-list
+    method: GET
+    path: /source-projects
+    allOf:
+    - app.open
+    - source.read
+  - id: source-read
+    method: GET
+    path: /source-projects/:id
+    allOf:
+    - app.open
+    - source.read
+  - id: source-create
+    method: POST
+    path: /source-projects
+    allOf:
+    - app.open
+    - source.read
+    - source.create
+  - id: source-change
+    method: POST
+    path: /source-projects/:id/edits
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: source-delete
+    method: DELETE
+    path: /source-projects/:id
+    allOf:
+    - app.open
+    - source.read
+    - source.delete
+  - id: home-summary
+    method: GET
+    path: /home-summary
+    allOf:
+    - app.open
+    - legacy.read
+  - id: package-smoke
+    method: GET
+    path: /_smoke
+    allOf:
+    - app.open
+  tools:
+  - id: creative-studio-source-list
+    allOf:
+    - app.open
+    - source.read
+  - id: creative-studio-source-contract
+    allOf:
+    - app.open
+    - source.read
+  - id: creative-studio-source-read
+    allOf:
+    - app.open
+    - source.read
+  - id: creative-studio-source-edits
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: creative_produce_next
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: creative_produce
+    allOf:
+    - app.open
+    - legacy.execute
+  - id: creative_list
+    allOf:
+    - app.open
+    - legacy.read
+  bots:
+  - id: f0e5b11c-3d1a-42be-899c-90afcb22b536
+    allOf:
+    - app.open
+    - source.read
+  - id: 5fb9f7fe-5327-4564-9608-d177ecf60598
+    allOf:
+    - app.open
+    - legacy.execute
+  jobs:
+  - id: creative-story
+    allOf:
+    - app.open
+    - legacy.execute

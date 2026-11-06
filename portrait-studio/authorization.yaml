@@ -1,3 +1,4 @@
+# Editing-only source role; privileged generation, training and sending remain separately bound.
 # Explicit application permissions; ownership remains issuer + subject and grants are own-only.
 version: 1
 resources:
@@ -6,6 +7,7 @@ resources:
 permissions:
   portrait.view: { resource: portraits, effect: read, minimumTier: viewer }
   portrait.read: { resource: portraits, effect: read, minimumTier: viewer }
+  portrait.source.create: { resource: portraits, effect: write, minimumTier: editor }
   portrait.create: { resource: portraits, effect: write, minimumTier: editor }
   portrait.change: { resource: portraits, effect: write, minimumTier: editor }
   portrait.delete: { resource: portraits, effect: write, minimumTier: editor }
@@ -28,6 +30,7 @@ roles:
       - { permission: portrait.view, scope: own }
       - { permission: portrait.read, scope: own }
       - { permission: portrait.create, scope: own }
+      - { permission: portrait.source.create, scope: own }
   editor:
     tier: editor
     grants:
@@ -64,11 +67,20 @@ roles:
       - { permission: portrait.view, scope: own }
       - { permission: portrait.read, scope: own }
       - { permission: portrait.create, scope: own }
+      - { permission: portrait.source.create, scope: own }
       - { permission: portrait.change, scope: own }
       - { permission: portrait.delete, scope: own }
       - { permission: portrait.export, scope: own }
       - { permission: portrait.email, scope: own }
       - { permission: portrait.artist, scope: own }
+  source-editor:
+    tier: editor
+    grants:
+      - { permission: portrait.view, scope: own }
+      - { permission: portrait.read, scope: own }
+      - { permission: portrait.source.create, scope: own }
+      - { permission: portrait.change, scope: own }
+      - { permission: portrait.export, scope: own }
 bindings:
   http:
     - id: surface
@@ -143,9 +155,24 @@ bindings:
       method: GET
       path: /
       allOf: [portrait.view]
+    - { id: source-list, method: GET, path: /source-projects, allOf: [portrait.view, portrait.read] }
+    - { id: source-read, method: GET, path: /source-projects/:id, allOf: [portrait.view, portrait.read] }
+    - { id: source-create, method: POST, path: /source-projects, allOf: [portrait.view, portrait.source.create] }
+    - { id: source-edits, method: POST, path: /source-projects/:id/edits, allOf: [portrait.view, portrait.read, portrait.change] }
+    - { id: source-delete, method: DELETE, path: /source-projects/:id, allOf: [portrait.view, portrait.read, portrait.delete] }
+    - { id: source-asset-create, method: POST, path: /source-assets, allOf: [portrait.view, portrait.source.create] }
+    - { id: source-asset-change, method: POST, path: /source-assets/for-edit/:project, allOf: [portrait.view, portrait.read, portrait.change] }
+    - { id: source-asset-read, method: GET, path: /source-assets/:id, allOf: [portrait.view, portrait.read] }
+    - { id: source-asset-content, method: GET, path: /source-assets/:id/content, allOf: [portrait.view, portrait.read] }
+    - { id: source-asset-delete, method: DELETE, path: /source-assets/:id, allOf: [portrait.view, portrait.read, portrait.delete] }
+  tools:
+    - { id: portrait-studio-source-list, allOf: [portrait.view, portrait.read] }
+    - { id: portrait-studio-source-read, allOf: [portrait.view, portrait.read] }
+    - { id: portrait-studio-source-contract, allOf: [portrait.view, portrait.read] }
+    - { id: portrait-studio-source-edits, allOf: [portrait.view, portrait.read, portrait.change] }
   bots:
     - id: b0100000-0000-0000-0000-000000000001
-      allOf: [portrait.view, portrait.artist]
+      allOf: [portrait.view]
   artifactActions:
     - id: restyle
       allOf: [portrait.view, portrait.create]

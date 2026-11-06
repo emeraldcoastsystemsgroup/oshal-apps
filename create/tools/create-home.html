@@ -29,6 +29,7 @@
   10  | maintainer@emeraldcoastsystemsgroup.com     | Your brand band: the saved brand kit's swatches, fonts and logo (or a setup prompt), read only after Create access is open.
   11  | maintainer@emeraldcoastsystemsgroup.com     | Add Video Studio's manual timeline editor as its own studio card and an Edit video quick start (CREATE-EDIT-05d). It shares Video Studio's access answer and summary, so its catalog entry is marked summary: false and is never probed twice.
   12  | maintainer@emeraldcoastsystemsgroup.com     | Add Brand Graphics as a studio card and a Brand intro clip quick start; both open the brand-graphics package's own review page, behind the same access check as every studio.
+  13  | maintainer@emeraldcoastsystemsgroup.com     | Add the existing CAD editor, parametric-model quick start and owner summary behind the studio access checks.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -177,6 +178,23 @@
   .brand-band .sws { display: flex; gap: 6px; margin-top: 8px; }
   .brand-band .sws span { width: 22px; height: 22px; border-radius: 7px; border: 1px solid var(--line); }
   @media (max-width: 600px) { .brand-band { flex-wrap: wrap; } .brand-band .btn { width: 100%; } }
+  /* Phone launchers keep every document format in a compact, readable grid. */
+  @media (max-width: 600px) {
+    .hero { padding: 16px; margin-bottom: 18px; }
+    .hero-heading { gap: 12px; margin-bottom: 14px; }
+    .hero h1 { font-size: 25px; }
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .tile { min-height: 112px; padding: 48px 12px 12px; border-radius: 12px; }
+    .tile .art { top: 10px; right: 12px; width: 42px; height: 32px; }
+    .tile b { font-size: 13px; line-height: 1.35; }
+    .tile span { line-height: 1.4; }
+    .tile .lock { font-size: 9px; padding: 2px 6px; }
+    .chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .chips button { flex: 0 0 auto; min-height: 44px; }
+    .seg { width: 100%; }
+    .seg button { flex: 1; min-height: 44px; padding: 8px; }
+    .studio { padding: 14px; }
+  }
   @media (prefers-reduced-motion: reduce) { .tile, .card, .btn, .tile .art { transition: none; } }
 </style>
 </head>
@@ -251,9 +269,9 @@
      manifest so this list can never drift from the rail. */
   var STUDIOS = [
     { tool: 'create-editor', app: 'create', name: 'Image editor', swatch: '#7c3aed', tint: 'lilac', art: 'portrait', url: '/api/create/editor', blurb: 'Layer images, text and shapes. Save, reopen and export your design.' },
-    { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       swatch: '#ff8a5b', tint: 'peach', art: 'deck',      url: '/api/presentations/sections/ui', blurb: 'Decks, documents and live workbooks from one outline.' },
+    { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       swatch: '#ff8a5b', tint: 'peach', art: 'deck',      url: '/api/presentations/editor/app', blurb: 'Decks, documents and live workbooks from one outline.' },
     { tool: 'create-portrait', app: 'portrait-studio', name: 'Portrait Studio', swatch: '#7d2ae8', tint: 'lilac', art: 'portrait',  url: '/api/portrait-studio/app',      blurb: 'Headshots, characters and group scenes from a photo.' },
-    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    swatch: '#2f9bff', tint: 'sky',   art: 'video',     url: '/api/video/ui',                 blurb: 'Short-form video from a storyboard.' },
+    { tool: 'create-video',    app: 'video',           name: 'Video Studio',    swatch: '#2f9bff', tint: 'sky',   art: 'video',     url: '/api/video/editor',                 blurb: 'Short-form video from a storyboard.' },
     { tool: 'create-video-editor', app: 'video',       name: 'Video editor',    swatch: '#ff5c8a', tint: 'rose',  art: 'clip',      url: '/api/video/editor',             blurb: 'Trim, split and join your own clips, add a title and music, export an MP4.', summary: false },
     { tool: 'create-lora',     app: 'lora',            name: 'LoRA Studio',     swatch: '#10b981', tint: 'mint',  art: 'nodes',     url: '/api/lora/ui',                  blurb: 'Train and score your own characters.' },
     { tool: 'create-vids',     app: 'vids',            name: 'Vids Studio',     swatch: '#00b8c4', tint: 'sky',   art: 'clip',      url: '/api/vids/app',                 blurb: 'The render queue for clips and episodes.' },
@@ -263,7 +281,8 @@
     { tool: 'create-motion-studio', app: 'motion-studio', name: 'Motion Studio', swatch: '#8b5cf6', tint: 'lilac', art: 'clip', url: '/api/motion-studio/app', blurb: 'Keyframe animations, motion graphics and visual effects on a layered timeline.' },
     { tool: 'create-publishing-studio', app: 'publishing-studio', name: 'Publishing Studio', swatch: '#e11d48', tint: 'rose', art: 'doc', url: '/api/publishing-studio/app', blurb: 'Multi-page brochures, reports, booklets and print-ready publications.' },
     { tool: 'create-pdf-workbench', app: 'pdf-workbench', name: 'PDF Workbench', swatch: '#dc2626', tint: 'peach', art: 'doc', url: '/api/pdf-workbench/app', blurb: 'Inspect, reorder, merge, redact, OCR and export PDF documents.' },
-    { tool: 'create-scene-studio', app: 'scene-studio', name: 'Scene Studio', swatch: '#0284c7', tint: 'sky', art: 'cube', url: '/api/scene-studio/app', blurb: '3D scenes and games in Godot and models in Blender with live previews.', summary: false }
+    { tool: 'create-scene-studio', app: 'scene-studio', name: 'Scene Studio', swatch: '#0284c7', tint: 'sky', art: 'cube', url: '/api/scene-studio/app', blurb: '3D scenes and games in Godot and models in Blender with live previews.', summary: false },
+    { tool: 'create-cad-studio', app: 'cad-studio', name: 'CAD Studio', swatch: '#0d9488', tint: 'mint', art: 'cube', url: '/api/cad-studio/app', blurb: 'Design parametric parts with editable dimensions and feature history.' }
   ];
   var byTool = {}; STUDIOS.forEach(function (s) { byTool[s.tool] = s; });
   byTool['create-new'] = { tool: 'create-new', name: 'Create', url: '/api/create/new' };
@@ -288,7 +307,8 @@
     { id: 'episode',   label: 'Story episode',      hint: 'Kid-safe animation',   cat: 'story',     tool: 'create-story',    tint: 'peach', art: 'film' },
     { id: 'lora',      label: 'LoRA character',     hint: 'Train your own look',  cat: 'training',  tool: 'create-lora',     tint: 'mint',  art: 'nodes' },
     { id: 'scan-to-print', label: '3D scan to print', hint: 'Photos to a 3D model', cat: '3d', tool: 'create-scan-to-print', tint: 'mint', art: 'cube' },
-    { id: 'scene-3d',  label: '3D scene & model',   hint: 'Godot scene or Blender mesh', cat: '3d', tool: 'create-scene-studio', tint: 'sky', art: 'cube' }
+    { id: 'scene-3d',  label: '3D scene & model',   hint: 'Godot scene or Blender mesh', cat: '3d', tool: 'create-scene-studio', tint: 'sky', art: 'cube' },
+    { id: 'cad-model', label: 'CAD model', hint: 'Parametric parts & dimensions', cat: '3d', tool: 'create-cad-studio', tint: 'mint', art: 'cube' }
   ];
 
   /* ── Tiny illustrations (static markup, no user data) ────────────────────── */

@@ -1,5 +1,7 @@
 # Scene Studio
 
+Restricted Blender object editing requires native `object_inspect` and `object_patch` admission and transport. Older kernels refuse those operations. Qualify the paired native implementation before delivering this editor; the `editor` role never grants arbitrary Python or project-run authority.
+
 Godot games and 3-D scenes, and Blender models, that you build by hand or by asking the **Scene
 Studio Director** in the chat. The director drives Godot and Blender through their own MCP
 servers — [Coding-Solo/godot-mcp](https://github.com/Coding-Solo/godot-mcp) and the official

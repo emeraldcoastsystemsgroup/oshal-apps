@@ -240,7 +240,7 @@ test('the home asks access first, locks a studio that is not provisioned, and ne
 test('Edit video opens Video Studio\'s own editor and never reads Video\'s summary twice', () => {
   const source = html(), urls = railUrls(manifest());
   assert.equal(urls.get('create-video-editor'), '/api/video/editor', 'the rail tile is the Video-owned editor');
-  assert.equal(urls.get('create-video'), '/api/video/ui', 'the generation studio keeps its own tile');
+  assert.equal(urls.get('create-video'), '/api/video/editor', 'the default studio opens the editable timeline');
   const editor = surfaceStudios(source).find((s) => s.tool === 'create-video-editor');
   assert.deepEqual([editor.app, editor.url, editor.summary], ['video', '/api/video/editor', false]);
   assert.deepEqual(JSON.parse(JSON.stringify(surfaceStarters(source).filter((s) => s.tool === 'create-video-editor').map((s) => [s.id, s.cat]))), [['edit-video', 'video']]);

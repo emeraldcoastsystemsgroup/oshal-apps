@@ -433,3 +433,5 @@ or Reload. Existing original-owner read/change routes and revision guards still 
 `tests/video-document-handoff.test.mjs` uses the actual editor, project operations and
 a disposable PostgreSQL role with row security to verify repeated handoffs, editable
 clip timing, failed saves and concurrent focused fields. Installed acceptance is pending.
+
+The manual timeline opens with the Video creator/editor/exporter roles alone. Vids remains an optional generation integration; generation role templates retain explicit Vids access.

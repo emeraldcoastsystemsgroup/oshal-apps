@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Close owned fixture HTTP connections before awaiting server shutdown, preserving failed browser assertions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Drive dedicated Congress tab through source-bound basket save and actual monthly backtest routes on desktop/phone.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive the real Trading shell and navigation on desktop/phone: portfolio and existing Futures research coexist, old Tuning bookmarks still work, and opening native research neither calls the unavailable legacy optimizer nor writes any schedule/account. API/provider/storage and cockpit handoff fixtures are explicit seams.
  */
@@ -33,7 +34,7 @@ async function host(t,native=true,congress=false){
  app.get(/^\/shared\/.*\.css$/,(_req,res)=>res.type('css').send(''));
  app.get('/cockpit/js/app-handoff.js',(_req,res)=>res.type('js').send('export function receiveHandoff() {}'));
  app.get('/cockpit/js/app-workflows.js',(_req,res)=>res.type('js').send('export async function mountConnectedActions() {}'));
- const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});t.after(()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();}));
  return 'http://127.0.0.1:'+server.address().port;
 }
 test('native Portfolio and Futures research remain reachable through buttons and legacy Tuning bookmarks',async t=>{

@@ -19,6 +19,7 @@
     ".|node --test scripts/build-store-public.test.mjs",
     ".|node --test scripts/check-no-public-secret-fallback.test.mjs email-summarizer/tests/digest-seal.test.cjs finance/tests/session-crypto.test.mjs youtube-kids/tests/session-crypto.test.mjs",
     ".|node --test scripts/store-ci-local.test.mjs",
+    ".|node --test scripts/revert-guard.test.mjs",
     ".|node --test scripts/run-trading-specs.test.mjs",
     "animatronics|node --test \"tests/*-*.test.js\"",
     "bake-off|node --test \"tests/*.test.js\"",
@@ -73,6 +74,8 @@
     ".|node --test presentations/tests/office-assets.test.mjs presentations/tests/office-assistant.test.mjs presentations/tests/office-workspace-browser.test.mjs presentations/tests/presentations-slide-workspace.test.mjs presentations/tests/presentations-slide-workspace-browser.test.mjs presentations/tests/presentations-sheet-workspace.test.mjs presentations/tests/presentations-sheet-workspace-browser.test.mjs presentations/tests/presentations-guide.test.mjs presentations/tests/presentations-surface-parse.test.js presentations/tests/presentations-record-before-answer.test.cjs",
     "trading|node --test \"tests/*native*.test.js\"",
     "game-show|node --test tests/solo-night.test.js",
-    "game-show|node --test tests/play-phone-layout.test.js"
+    "game-show|node --test tests/play-phone-layout.test.js",
+    "phone-control|node --test \"tests/phone-control-*.test.cjs\"",
+    "phone-control|node --test \"tests/phone-control-*.test.mjs\""
   ]
 }

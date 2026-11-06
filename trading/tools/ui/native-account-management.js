@@ -1,4 +1,5 @@
 /* CHANGE LOG
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: prefer passing and latest-session studies when resolving an account study, and pass the research window to account strategy controls.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Identify daily account models beside their measured whole-share, cash-funded authority.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Show the exact account's execution outcome and confirmed broker fills beside its saved authority; authorization alone does not mean a strategy is trading.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Activating live trading also starts the watcher job it depends on.
@@ -47,7 +48,7 @@ async function loadNativeAccountManagement(model,token){
  if(!account){host.innerHTML='<p class="err">Account strategy evidence is unavailable for this exact connection. Refresh before reviewing actions.</p>';return;}
  const strategy=research?.strategies?.find(s=>s.id===account.strategyId),watch=management?.watches?.find(w=>sameNativeAccount(w,account));
  const studies=(research?.runs||[]).filter(r=>sameNativeAccount(r,account)&&r.strategyId===account.strategyId&&r.status==='completed');
- const study=studies.find(r=>r.id===watch?.runId)||studies.sort((a,b)=>(b.window?.sessions||0)-(a.window?.sessions||0))[0];
+ const study=studies.find(r=>r.id===watch?.runId)||studies.sort((a,b)=>((b.validation?.passed===true?1:0)-(a.validation?.passed===true?1:0))||String(b.endDate||'').localeCompare(String(a.endDate||''))||(b.window?.sessions||0)-(a.window?.sessions||0))[0];
  const state=backstops?.accounts?.find(a=>sameNativeAccount(a,account)),policy=backstops?.policies?.find(a=>sameNativeAccount(a,account));
  const summaryTerms=watch?.authority?.active?watch?.mandate?.terms:saved?.strategy?.mandate?.terms||watch?.mandate?.terms;
  host.innerHTML='<section class="panel native-account-summary" aria-label="Account totals">'+nativeAccountMetric('Account value',accountValue(account.equity))+nativeAccountMetric('Cash',accountValue(account.cash))+nativeAccountMetric(watch?.authority?.active?'Active capital cap':'Reviewed capital cap',accountValue(summaryTerms?.capitalCents!=null?summaryTerms.capitalCents/100:null))+nativeAccountMetric('Account type',account.constraints?.group||'Unclassified')+'</section>'+nativeScheduleControls(schedule)+nativeStrategyPanel(account,strategy,study,watch,research,management,schedule,saved?.strategy,!!saved,portfolio?.researchWindow)+(typeof nativeBrokerProtectionPanel==='function'?nativeBrokerProtectionPanel(account,policy,backstops):'')+'<details class="panel native-secondary"><summary>Strategy research &amp; backtests</summary>'+nativeCombinedPanel(account,combined)+'</details><details class="panel native-secondary"><summary>Position floors &amp; stop research</summary>'+nativeBackstopPanel(account,state,policy,backstops)+'</details><details class="panel native-secondary"><summary>Expected incoming funds</summary>'+nativeExpectedFundingPanel(funding)+'</details>';
@@ -55,7 +56,7 @@ async function loadNativeAccountManagement(model,token){
  if(saved?.strategy)nativeAccountStrategyReviews.set(host,saved.strategy);
  if(saved?.protection&&!(policy?.automatedWatcherExits||policy?.automatedBrokerProtection)&&typeof nativeProtectionReviews!=='undefined'){nativeProtectionReviews.set(host,saved.protection);host.querySelector('[data-native-protection-review]').innerHTML=nativeProtectionReviewHtml(saved.protection,account);}
  host.querySelectorAll('details').forEach(d=>{if(expanded.has(d.querySelector('summary')?.textContent))d.open=true;});
- host.onclick=event=>{const button=event.target.closest('[data-native-management]');if(button&&host.contains(button))nativeAccountManagementAction(button,host,{account,model,token,policy,backstops,watch,management,research});};
+ host.onclick=event=>{const button=event.target.closest('[data-native-management]');if(button&&host.contains(button))nativeAccountManagementAction(button,host,{account,model,token,policy,backstops,watch,management,research,researchWindow:portfolio?.researchWindow});};
 }
 function nativeAccountMetric(label,value){return'<div class="kpi"><div class="l">'+esc(label)+'</div><div class="n">'+esc(value)+'</div></div>';}
 /** Account-bound retained broker evidence; never infer a fill from an approval or a submitted ticket. */

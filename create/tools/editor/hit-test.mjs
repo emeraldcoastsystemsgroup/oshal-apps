@@ -8,7 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  */
-import { traceVector } from './vector-geometry.mjs';
+import { traceVector, traceShape } from './vector-geometry.mjs';
 import { parentGroup } from './group-geometry.mjs';
 import { number, validateProject } from './model-validation.mjs';
 
@@ -59,17 +59,24 @@ function vectorHit(layer, point, tolerance) {
   return painted(layer.stroke) && layer.strokeWidth > 0 && ctx.isPointInStroke(path, point.x, point.y);
 }
 
+function primitiveHit(layer, point, tolerance) {
+  if (typeof Path2D === 'function') {
+    const canvas=typeof OffscreenCanvas==='function'?new OffscreenCanvas(1,1):globalThis.document?.createElement('canvas'),ctx=canvas?.getContext('2d');
+    if(ctx){const path=new Path2D();traceShape(path,layer);if(painted(layer.fill)&&ctx.isPointInPath(path,point.x,point.y))return true;ctx.lineWidth=layer.strokeWidth+2*tolerance;ctx.lineCap=layer.cap??'butt';ctx.lineJoin=layer.join??'miter';ctx.setLineDash(layer.dash??[]);return painted(layer.stroke)&&layer.strokeWidth>0&&ctx.isPointInStroke(path,point.x,point.y);}
+  }
+  const kind=layer.shape??(layer.type==='ellipse'?'ellipse':'rectangle'),x=point.x/layer.w,y=point.y/layer.h;
+  if(kind==='triangle'||kind==='diamond'){const vertices=kind==='triangle'?[{x:layer.w/2,y:0},{x:layer.w,y:layer.h},{x:0,y:layer.h}]:[{x:layer.w/2,y:0},{x:layer.w,y:layer.h/2},{x:layer.w/2,y:layer.h},{x:0,y:layer.h/2}];const inside=kind==='triangle'?y>=0&&y<=1&&Math.abs(x-.5)<=y/2:Math.abs(x-.5)+Math.abs(y-.5)<=.5;if(painted(layer.fill)&&inside)return true;return painted(layer.stroke)&&layer.strokeWidth>0&&vertices.some((v,i)=>segmentDistance(point,v,vertices[(i+1)%vertices.length])<=layer.strokeWidth/2+tolerance);}
+  if(kind==='rounded-rectangle'){const r=Math.min(layer.radius??12,layer.w/2,layer.h/2),distance=Math.hypot(Math.max(r-point.x,0,point.x-(layer.w-r)),Math.max(r-point.y,0,point.y-(layer.h-r)));if(painted(layer.fill)&&distance<=r&&rectangle(point,layer.w,layer.h,0))return true;return painted(layer.stroke)&&layer.strokeWidth>0&&distance<=r+layer.strokeWidth/2+tolerance&&(!rectangle(point,layer.w,layer.h,-layer.strokeWidth/2-tolerance)||distance>=r-layer.strokeWidth/2-tolerance);}
+  const shape=kind==='ellipse'?ellipse:rectangle;if(painted(layer.fill)&&shape(point,layer.w,layer.h,tolerance))return true;const padding=layer.strokeWidth/2+tolerance;return painted(layer.stroke)&&layer.strokeWidth>0&&shape(point,layer.w,layer.h,padding)&&!shape(point,layer.w,layer.h,-padding);
+}
+
 function contains(layer, point, tolerance) {
   if (layer.type === 'freehand') return strokeHit(layer, point, tolerance);
   if (layer.type === 'path') return vectorHit(layer, point, tolerance);
   if (layer.type === 'group') return rectangle(point, layer.w, layer.h, tolerance);
   if (layer.type === 'image') return rectangle(point, layer.w, layer.h, tolerance);
   if (layer.type === 'text') return painted(layer.fill) && rectangle(point, layer.w, layer.h, tolerance);
-  const shape = layer.type === 'ellipse' ? ellipse : rectangle;
-  if (painted(layer.fill) && shape(point, layer.w, layer.h, tolerance)) return true;
-  const padding = layer.strokeWidth / 2 + tolerance;
-  return painted(layer.stroke) && layer.strokeWidth > 0 && shape(point, layer.w, layer.h, padding)
-    && !shape(point, layer.w, layer.h, -padding);
+  return primitiveHit(layer,point,tolerance);
 }
 
 /** @description Pick the uppermost painted layer; hidden, transparent and locked layers do not intercept editing.

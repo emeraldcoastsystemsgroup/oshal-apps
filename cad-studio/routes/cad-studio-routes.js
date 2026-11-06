@@ -1,6 +1,7 @@
 "use strict";
 /**
  * CHANGE LOG
+ * 2026-11-05 | maintainer@emeraldcoastsystemsgroup.com | Opening capabilities requests admitted native readiness, allowing lazy download and honest progress without a model write.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
@@ -37,11 +38,11 @@ const data_dir_1 = require("./data-dir");
 const model_routes_1 = require("./model-routes");
 const rebuild_service_1 = require("./rebuild-service");
 const logger = (0, logger_1.createChildLogger)({ module: 'cad-studio-routes' });
-const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js'];
+const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js', 'editor-foundation-adapter.mjs'];
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** The native kernel restores the caller's files here for each request and checkpoints them after a write. */
 exports.NATIVE_DATA_ROOT = '/tmp/cad-store';
-const NATIVE_INSTALL_HINT = 'on the kernel host run cad-studio/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES';
+const NATIVE_INSTALL_HINT = 'This application prepares its engine automatically when opened or used.';
 /** @description True inside the native kernel's sandbox: its pool is the kernel's scoped document store. */
 function nativeContext(ctx) {
     return ctx.pool.storageModel === 'kernel-scoped-documents';
@@ -53,6 +54,11 @@ function engineClient(ctx, env, expectedBuildHash) {
         return new engine_client_1.EngineClient({ host: addr.host, port: addr.port, expectedBuildHash, installHint: installHint(env) });
     const intent = ctx.intent;
     return new engine_client_1.EngineClient({ host: addr.host, port: addr.port, expectedBuildHash: null, installHint: NATIVE_INSTALL_HINT,
+        readStatus: async () => {
+            if (typeof intent !== 'function')
+                throw new Error('the kernel intent port is unavailable');
+            return intent('engine.status', {});
+        },
         exchange: async (request, timeoutMs) => {
             if (typeof intent !== 'function')
                 throw new Error('the kernel intent port is unavailable');
@@ -112,12 +118,18 @@ function createCadStudioRoutes(ctx, opts = {}) {
     for (const file of SURFACE_SCRIPTS)
         assets.get(`/${file}`, serveFile(packageFile(appPackageDir, 'tools', file), 'application/javascript'));
     router.use('/assets', assets);
-    router.get('/capabilities', (_req, res) => {
-        res.json({
-            app: 'cad-studio', kernel: 'OCCT via CadQuery (engine container)', contract: (0, feature_contract_1.describeContract)(), featureInputSchema: feature_contract_1.FEATURE_INPUT_SCHEMA,
-            exports: { formats: ['step', 'stl', 'svg', 'report'], views: rebuild_service_1.EXPORT_VIEWS }, defaults: rebuild_service_1.DEFAULT_SETTINGS, upload: model_routes_1.UPLOAD_LIMITS,
-            engine: engine.status(),
-        });
+    router.get('/capabilities', async (_req, res) => {
+        try {
+            const readiness = await engine.refreshStatus();
+            res.json({
+                app: 'cad-studio', kernel: 'OCCT via CadQuery (engine container)', contract: (0, feature_contract_1.describeContract)(), featureInputSchema: feature_contract_1.FEATURE_INPUT_SCHEMA,
+                exports: { formats: ['step', 'stl', 'svg', 'report'], views: rebuild_service_1.EXPORT_VIEWS }, defaults: rebuild_service_1.DEFAULT_SETTINGS, upload: model_routes_1.UPLOAD_LIMITS,
+                engine: readiness,
+            });
+        }
+        catch (_error) {
+            res.status(503).json({ error: 'engine_status_unavailable', message: 'Engine readiness is unavailable. Try again shortly.' });
+        }
     });
     // Natively the build a revision records is the one the engine reported, since the sandbox holds no engine sources.
     router.use((0, model_routes_1.createModelRoutes)({ pool: ctx.pool, engine, dataRoot, get engineBuild() { return packageBuild ?? engine.status().buildHash; }, callerSub, timeoutMs: opts.rebuildTimeoutMs }));

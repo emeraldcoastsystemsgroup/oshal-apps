@@ -1,0 +1,10 @@
+/** Original-person authority is refreshed before every Office persistence and export boundary. */
+import{createHash}from'node:crypto';
+import{fail}from'../../tools/office/model.mjs';
+import{legacyAccess}from'../office-authorization.js';
+export{legacyAccess};
+export const ACTIONS=['view','read','create','change','delete','export'];
+export function actor(ctx){const value=ctx.authorization?.currentActor();if(value?.isActive!==true||[value.issuer,value.sub,value.principalId].some(part=>typeof part!=='string'||!part.trim()||part.length>4096)||!Array.isArray(value.tenantIds)||value.tenantIds.length!==1||typeof value.tenantIds[0]!=='string'||!value.tenantIds[0].trim())fail('office_original_actor_required','An active original person is required.',401);return{issuer:value.issuer,sub:value.sub,principalId:value.principalId,tenant:value.tenantIds[0]};}
+export const ownerKey=value=>createHash('sha256').update(JSON.stringify([value.issuer,value.sub,value.principalId,value.tenant])).digest('hex');
+export async function access(ctx,action,expected){if(!ACTIONS.includes(action))fail('office_permission_denied','This Office action is unavailable.',403);const original=actor(ctx);if(expected&&JSON.stringify(expected)!==JSON.stringify(original))fail('office_identity_changed','The original person changed.',401);const permissions=['document.view','document.'+action];if(['change','delete','export'].includes(action))permissions.push('document.read');for(const permission of new Set(permissions)){if((await ctx.authorization.authorize({permission})).allowed!==true)fail('office_permission_denied','Your current role does not allow this action.',403);if(JSON.stringify(actor(ctx))!==JSON.stringify(original))fail('office_identity_changed','The original person changed.',401);}return original;}
+export async function permissions(ctx){const value={};for(const action of ACTIONS)try{await access(ctx,action);value[action]=true;}catch{value[action]=false;}value.legacyAccess=await legacyAccess(ctx);return value;}

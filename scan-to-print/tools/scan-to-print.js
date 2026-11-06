@@ -68,19 +68,83 @@
  *                     |                             | and skipped. Guard: tests/surface-upload-limits.test.js.
  * 14 | maintainer@emeraldcoastsystemsgroup.com   | K4: a refused point-cloud import left the report on 'Processing the new point cloud. Previous outputs are unavailable.' indefinitely, the reason only a passing toast. The catch now reloads the object as the server holds it and keeps the refusal in the report (role alert), saying the earlier outputs were retired when the import started.
  * 15 | maintainer@emeraldcoastsystemsgroup.com   | Demo sweep 1: a failed Open in CAD Studio toasted CAD Studio's build.reason, which carries the kernel's failure and the host's install command ('on the kernel host run cad-studio/engine/install-engine.sh ...'). cadRefusal says the CAD engine is not answering on this installation instead; any other refusal is CAD Studio's own sentence.
+ * 16 | maintainer@emeraldcoastsystemsgroup.com | Save durable calibration before native AI reading and preserve failed, invalid, concurrent and switched-object source drafts.
+ * 17 | maintainer@emeraldcoastsystemsgroup.com | 0.8.5, phones (Roger, trial.oswarm.ai, 2026-11-06, F2/F3: "I can't use it due to the page layout"): one primary action, Take photos (it creates the object with a default name when none is open and opens the guided camera, or the phone's photo picker, which offers its camera, when the live camera is refused), then Make 3D model once Front, Top and Right are placed, then Download STL; a three-slot checklist with thumbnails sits directly under it with the photo grid; video, .ply, silhouettes and frame suggestions move under a closed Advanced; Take photos names the object for today without a prompt (New object still asks, prefilled), and the name is edited in place; Make 3D model starts the same reconstruction as the Properties step; a seat without scan.edit (canReconstruct false) is not offered Make 3D model, a video or a .ply; the camera reveals itself inside the editor viewport only, never by scrolling the page that frames it.
+ * 18 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7, the trial check (2026-11-06): Make 3D model was offered before the ruler measurement it needs and its first press answered 422 in developer words ("knownDimensions must be a list of 1 to 3 {axis, mm} entries"), because the measurement field sat only in the Properties sheet on a phone. Once Front, Top and Right are placed, a "2 · Measure" field (the width, written to the same Width X calibration field) shows directly above Make 3D model, which stays disabled until a width is entered or saved; that refusal now reads as a sentence. A reload reopens the object that was open in that tab (sessionStorage); removing a photo asks first; the name and tagline are not repeated on a phone (data-ef-phone="brand"), where the app bar names the open object instead.
  */
 (function () {
   'use strict';
   const BASE = '/api/scan-to-print';
   const $ = (id) => document.getElementById(id);
   const state = { jobs: [], job: null, detail: null, capabilities: null, printers: [], profiles: null, viewer: null, showMask: false,
-    outputEpoch: 0, outputsFresh: false, scaleDirty: false, suggestions: [] };
+    outputEpoch: 0, outputsFresh: false, scaleDirty: false, suggestions: [], calibration: null, sourceError: null, viewGeneration: 0, loadGeneration: 0, savingCalibration: false };
+
+  let scanEditor, scanAssistant;
+  const calibrationKeys=['dim-x','dim-y','dim-z','res','smooth'];
+  const calibrationSignature=()=>JSON.stringify(calibrationKeys.map(key=>$(key).value));
+  const sourceRevision=()=>state.calibration?state.calibration.sourceSha+':'+state.viewGeneration:null;
+  const sourceSelection=()=>({kind:'scan-calibration',ids:state.job?[state.job.job_id]:[]});
+  function calibrationDraft(){
+    const knownDimensions=[];for(const axis of ['x','y','z']){const raw=$('dim-'+axis).value;if(raw==='')continue;const mm=Number(raw);if(!Number.isFinite(mm)||mm<=0||mm>100000)throw Error('Measured dimensions must be positive and at most 100000 mm.');knownDimensions.push({axis,mm});}
+    const settings={resolution:Number($('res').value),smoothIterations:Number($('smooth').value)};
+    for(const [key,id]of [['resolution','res'],['smoothIterations','smooth']])if(!$(id).checkValidity()||!Number.isInteger(settings[key]))throw Error('Enter valid whole-number reconstruction settings.');
+    return{knownDimensions,settings};
+  }
+  function sourceDirty(){if(!state.calibration)return state.scaleDirty;try{const draft=calibrationDraft();return JSON.stringify(draft.knownDimensions)!==JSON.stringify(state.calibration.knownDimensions)||JSON.stringify(draft.settings)!==JSON.stringify(state.calibration.settings);}catch{return true;}}
+  const sourceState=()=>({documentId:state.job?.job_id??null,revision:sourceRevision(),title:state.job?.title??'Scan to Print',readOnly:!state.calibration?.canEdit,busy:state.savingCalibration,dirty:sourceDirty()||Boolean(scanEditor?.hasPending()),selection:sourceSelection(),status:state.sourceError||(state.outputsFresh?'Current reconstructed output':'Calibration source saved separately; reconstruct for output')});
+  async function prepareScanSource(){await scanEditor?.flushPending();if(state.savingCalibration)throw Error('Wait for the current calibration save.');if(!state.job||!state.calibration)throw Error(state.sourceError||'Open an owned scan calibration first.');if(sourceDirty())await saveDimensions();if(sourceDirty()||scanEditor?.hasPending())throw Error('Your calibration draft is still here. Finish it before asking.');return{app:'scan-to-print',screen:'calibration',surface:'scan-editor',recordId:state.job.job_id,title:state.job.title,selection:sourceSelection(),fields:{revision:sourceRevision(),sourceSha:state.calibration.sourceSha,readOnly:!state.calibration.canEdit,sourceKind:state.job.source_kind},digest:'Actual saved measured dimensions and bounded reconstruction settings. Calibration edits retire outputs; they never reconstruct, slice or print.'};}
+  async function refreshScanSource(expected){
+    if(!state.job)return;
+    if(expected?.recordId!==undefined&&expected.recordId!==state.job.job_id)return;
+    if(expected?.fields?.revision!==undefined&&expected.fields.revision!==sourceRevision())return;
+    const id=state.job.job_id,generation=state.viewGeneration,signature=calibrationSignature();
+    const [detail,calibration]=await Promise.all([api('/jobs/'+id),api('/jobs/'+id+'/calibration')]);
+    if(state.job?.job_id!==id||state.viewGeneration!==generation)return;
+    if(sourceDirty()||scanEditor?.hasPending()||signature!==calibrationSignature())throw Error('Your concurrent calibration draft is still here. Reopen the saved object to choose which source to keep.');
+    if(calibration.sourceSha===state.calibration.sourceSha&&JSON.stringify(detail.job)===JSON.stringify(state.job))return;
+    clearOutputs('Reading the actual saved scan update.');state.detail=detail;state.job=detail.job;state.calibration=calibration;state.sourceError=null;state.viewGeneration++;renderJob();scanAssistant?.refresh();
+  }
+
+
+  function scanProperties() {
+    if (!state.job) return [];
+    return (state.job.source_kind==='pointcloud'?['smooth']:['dim-x','dim-y','dim-z','res','smooth']).map(key => {
+      const field = $(key), dimensions = key.startsWith('dim-');
+      return { key, label: ({'dim-x':'Width X','dim-y':'Depth Y','dim-z':'Height Z',res:'Resolution',smooth:'Smoothing'})[key],
+        type: 'number', value: field.value === '' ? '' : Number(field.value), min: dimensions ? .1 : Number(field.min),
+        disabled:!state.calibration?.canEdit||(state.job.source_kind==='pointcloud'&&key!=='smooth'), max: dimensions ? 100000 : Number(field.max), step: dimensions ? .1 : 1, unit: dimensions ? 'mm' : key === 'res' ? 'voxels' : 'passes', group: dimensions ? 'Measured scale' : 'Reconstruction' };
+    });
+  }
+  function applyScanProperty(key, value, expected) {
+    if (!state.calibration?.canEdit || !state.job || expected.documentId !== state.job.job_id || expected.revision!==sourceRevision() || !scanProperties().some(field => field.key === key)) throw Error('Select the current scan object before editing.');
+    const field = $(key), previous = field.value; field.value = String(value);
+    if (!field.checkValidity()) { field.value = previous; throw Error('Enter a valid measurement or reconstruction setting.'); }
+    field.dispatchEvent(new Event('input', { bubbles: true })); field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  async function mountScanWorkspace() {
+    const { createEditorFoundation } = await import('/shared/ui/js/editor-foundation.js');
+    const root = document.querySelector('body>.layout'), inspector = document.createElement('section');
+    inspector.id = 'scan-inspector'; inspector.className = 'scan-inspector'; inspector.hidden = !state.job;
+    for (const key of ['scale-step','reconstruct-controls','print-step']) inspector.append($(key));
+    root.append(inspector);
+    const {createEditorAssistant}=await import('/shared/ui/js/editor-assistant.js');
+    scanAssistant=createEditorAssistant({app:'scan-to-print',bot:'scan-to-print-operator',title:'Scan to Print AI partner',root,getState:sourceState,prepare:prepareScanSource,refresh:refreshScanSource});
+    const {registerDocumentSession}=await import('/shared/ui/js/document-handoff.js');registerDocumentSession({app:'scan-to-print',prepare:prepareScanSource,refresh:refreshScanSource});
+    const start = { when: () => !state.job, lede: 'Photograph an object from the front, top and right, and get a 3D model you can print.', label: 'Take photos', run: () => takePhotos(), replaces: $('empty-panel') };
+    scanEditor = createEditorFoundation({ root, navigationLabel: 'Objects', start, navigation: root.querySelector('aside'), viewport: root.querySelector('main'), inspector, header: document.querySelector('body>header'),
+      ai:scanAssistant.element,getState:sourceState,
+      getSelection: () => ({ kind: 'scan object', ids: state.job ? [state.job.job_id] : [] }), getProperties: scanProperties, applyProperty: applyScanProperty,
+      actions: { save: saveDimensions } });
+    root.addEventListener('input', () => {scanEditor.refresh();scanAssistant.refresh();}); root.addEventListener('change', () => {scanEditor.refresh();scanAssistant.refresh();});
+    window.addEventListener('pagehide', event => { if (!event.persisted) scanEditor.destroy(); }, { once: true });
+  }
 
   /** Codes a server may answer with no message, in words (the code stays in brackets for support). */
   const READABLE = Object.freeze({
     application_route_failed: 'The server could not finish this request, so nothing was saved. Try again; if it repeats, lower the resolution.',
     native_executor_unavailable: 'This installation cannot run that step.',
     reconstruction_failed: 'Reconstruction failed on the server, so nothing was saved.',
+    measure_first: 'Measure the object first: enter its width in millimetres under 2 · Measure, then press Make 3D model.',
   });
 
   /**
@@ -91,6 +155,7 @@
    * @returns {string} The toast text.
    */
   function failureText(body, status) {
+    if (body && typeof body.message === 'string' && /knownDimensions/.test(body.message)) return READABLE.measure_first;
     if (body && typeof body.message === 'string' && body.message) return body.message;
     const code = body && typeof body.error === 'string' ? body.error : '';
     if (body && typeof body.detail === 'string' && body.detail) return body.detail + (code ? ' (' + code + ')' : '');
@@ -191,44 +256,56 @@
     list.replaceChildren();
     if (!state.jobs.length) list.appendChild(el('p', { class: 'muted', text: 'No objects yet. Create one to begin.' }));
     state.jobs.forEach((job) => {
-      const item = el('button', { class: 'job-item' + (state.job && state.job.job_id === job.job_id ? ' active' : ''), onclick: () => openJob(job.job_id) }, [
+      // A choice puts the object in view: on a phone the Objects sheet closes, even when it is the object already open.
+      const item = el('button', { class: 'job-item' + (state.job && state.job.job_id === job.job_id ? ' active' : ''), onclick: () => { scanEditor?.showPanel(null); void openJob(job.job_id).catch(e=>toast(e.message,'error')); } }, [
         el('span', { class: 'job-title', text: job.title }),
         el('span', { class: 'badge ' + job.state, text: job.state }),
       ]);
       list.appendChild(item);
     });
   }
-  async function createJob() {
-    const title = window.prompt('Name the object (e.g. "phone stand")');
+  async function createJob(ask) {
+    const named = 'Object · ' + new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    const title = ask ? window.prompt('Name the object (e.g. "phone stand")', named) : named;
     if (!title || !title.trim()) return;
     const { job } = await api('/jobs', { method: 'POST', json: { title: title.trim() } });
     await loadJobs();
     await openJob(job.job_id);
   }
   async function openJob(jobId) {
-    clearOutputs('Loading the object and its current outputs.');
-    const epoch = state.outputEpoch;
-    const detail = await api('/jobs/' + jobId);
-    if (epoch !== state.outputEpoch) return;
-    state.detail = detail;
-    state.job = detail.job;
-    renderJob();
-    await loadJobs();
+    if(state.savingCalibration){toast('Wait for the calibration save.','error');return;}
+    if((sourceDirty()||scanEditor?.hasPending())&&!window.confirm('Discard the unsaved calibration and open the saved object?'))return;
+    const generation=++state.loadGeneration,signature=calibrationSignature();
+    const [detail,source]=await Promise.all([api('/jobs/'+jobId),api('/jobs/'+jobId+'/calibration').then(value=>({value}),error=>({error}))]);
+    if(generation!==state.loadGeneration)return;
+    if(signature!==calibrationSignature()){toast('Your calibration changed while opening. Its draft is kept.','error');return;}
+    try { sessionStorage.setItem(OPEN_KEY, jobId); } catch { /* storage off: a reload starts from the list */ }
+    scanEditor?.discardPending();clearOutputs('Loading the actual saved object.');state.detail=detail;state.job=detail.job;state.calibration=source.value??null;state.sourceError=source.error?.message??null;state.viewGeneration++;renderJob();scanAssistant?.refresh();await loadJobs();
   }
+
   async function deleteJob() {
     if (!state.job || !window.confirm('Delete "' + state.job.title + '" and all its files?')) return;
     closeCamera();
     await api('/jobs/' + state.job.job_id, { method: 'DELETE' });
-    state.job = null; state.detail = null;
-    $('job-panel').hidden = true; $('empty-panel').hidden = false;
+    state.job = null; state.detail = null;state.calibration=null;state.sourceError=null;state.viewGeneration++;state.loadGeneration++;
+    try { sessionStorage.removeItem(OPEN_KEY); } catch { /* storage off */ }
+    $('job-panel').hidden = true; $('empty-panel').hidden = false; $('header-title').textContent = '';
+    if ($('scan-inspector')) $('scan-inspector').hidden = true; scanEditor?.refresh();
     await loadJobs();
   }
 
+  /** The object's name is edited in place in its heading (no prompt). */
+  async function renameJob() {
+    const title = $('job-heading').textContent.trim();
+    if (!state.job || !title || title === state.job.title) { if (state.job) $('job-heading').textContent = state.job.title; return; }
+    const { job } = await api('/jobs/' + state.job.job_id, { method: 'PATCH', json: { title: title.slice(0, 120) } });
+    state.job = { ...state.job, ...(job || { title }) }; $('header-title').textContent = state.job.title; await loadJobs();
+  }
   // ── Job panel ──────────────────────────────────────────────────────────────
   function renderJob() {
     const { job, images, artifacts } = state.detail;
     $('empty-panel').hidden = true; $('job-panel').hidden = false;
-    $('job-heading').textContent = job.title;
+    $('job-heading').textContent = job.title; $('header-title').textContent = job.title; $('job-heading').contentEditable = state.calibration?.canEdit ? 'plaintext-only' : 'false';
     $('job-state').textContent = job.state + ' · ' + job.source_kind;
     $('job-state').className = 'badge ' + job.state;
     renderImages(images);
@@ -236,7 +313,11 @@
     renderSettings(job);
     renderReport(job.report, artifacts);
     renderPrint(artifacts);
+    for(const key of calibrationKeys)$(key).disabled=!state.calibration?.canEdit||(state.job.source_kind==='pointcloud'&&key!=='smooth');
+    $('save-dims').disabled=!state.calibration?.canEdit;$('reconstruct').disabled=!state.calibration?.canEdit||state.job.source_kind==='pointcloud';$('reconstruct').title=state.job.source_kind==='pointcloud'?'Reimport the original point cloud to rebuild this capture lane.':'';$('scale-step').hidden=state.job.source_kind==='pointcloud';
+    if(state.sourceError)toast(state.sourceError,'error');
     loadSubmissions();
+    if ($('scan-inspector')) $('scan-inspector').hidden = false; scanEditor?.refresh();
   }
 
   function renderImages(images) {
@@ -259,11 +340,62 @@
         warnings.length ? el('ul', { class: 'warnings small' }, warnings.map((w) => el('li', { text: w }))) : el('span'),
       ]));
     });
-    $('assigned-summary').textContent = 'Assigned: ' + (images.filter((i) => i.view).map((i) => i.view).join(', ') || 'none') + '. Minimum for a solid: front, top and right.';
+    $('assigned-summary').textContent = 'Placed: ' + (images.filter((i) => i.view).map((i) => i.view).join(', ') || 'none') + '. A solid needs front, top and right; back, left and bottom are optional.';
+    renderChecklist(images);
     $('suggest-panel').hidden = !images.some((i) => /^frame-\d{3}\.png$/.test(i.file_name));
     $('suggest-list').replaceChildren();
     $('suggest-all').hidden = true;
     $('suggest-note').textContent = '';
+  }
+  /** Front, Top and Right as three tiles (a thumbnail once placed, a dashed tap-to-take tile until then), and the one primary action that follows. */
+  function renderChecklist(images) {
+    const tiles = ['front', 'top', 'right'].map((view) => {
+      const img = images.find((i) => i.view === view), label = view[0].toUpperCase() + view.slice(1);
+      if (!img) return el('button', { class: 'view-slot missing', role: 'listitem', text: label + ' · tap to take', onclick: () => takeView(view).catch((e) => toast(e.message, 'error')) });
+      const src = BASE + '/jobs/' + state.job.job_id + '/images/' + img.image_id + '/file?kind=source&t=' + Date.parse(img.created_at);
+      return el('div', { class: 'view-slot', role: 'listitem' }, [el('img', { src, alt: label + ' photo' }), el('b', { text: label + ' ✓' })]);
+    });
+    $('view-checklist').replaceChildren(...tiles);
+    const complete = ['front', 'top', 'right'].every((v) => images.some((i) => i.view === v)), may = state.calibration?.canReconstruct !== false;
+    const stl = state.detail?.artifacts?.stl && state.job.state === 'reconstructed';
+    $('make-model').hidden = !complete || !may || stl || state.job.source_kind === 'pointcloud';
+    $('measure-step').hidden = !complete || !may || state.job.source_kind === 'pointcloud';
+    syncMeasure();
+    $('download-stl').hidden = !stl; if (stl) $('download-stl').href = BASE + '/jobs/' + state.job.job_id + '/artifacts/stl?download';
+    $('take-photos').className = complete ? 'ghost' : 'primary'; $('take-photos').textContent = complete ? 'Take more photos' : 'Take photos';
+    for (const id of ['video-pick', 'pointcloud-row', 'reconstruct']) if ($(id)) $(id).hidden = !may;
+  }
+  const OPEN_KEY = 'scan-to-print:open-object';
+  /** True when the scale has one positive measurement, typed now or saved with the object. */
+  function measured() {
+    const typed = Number($('dim-x').value || $('dim-y').value || $('dim-z').value);
+    return (Number.isFinite(typed) && typed > 0) || Boolean(state.job && (state.job.known_dimensions || []).length);
+  }
+  /** The visible width field mirrors Width X; Make 3D model waits for a measurement. */
+  function syncMeasure() {
+    if (document.activeElement !== $('measure-width')) $('measure-width').value = $('dim-x').value;
+    $('measure-width').disabled = !state.calibration?.canEdit;
+    $('make-model').disabled = !measured();
+    $('measure-step').classList.remove('needed');
+  }
+  function makeModel() {
+    if (!measured()) { $('measure-step').classList.add('needed'); $('measure-width').focus({ preventScroll: true }); reveal($('measure-step')); toast(READABLE.measure_first, 'error'); return; }
+    $('reconstruct').click();
+  }
+  /** The phone's one first step: an object (named for today when none is open), then the guided camera, or the phone camera app. */
+  async function takePhotos() {
+    if (!state.job) await createJob();
+    if (!state.job) return;
+    if (!camAvailable()) { $('photos').click(); return; }
+    await openCamera();
+    if ($('camera-panel').hidden) $('photos').click();
+  }
+  async function takeView(view) { await takePhotos(); if (!$('camera-panel').hidden) selectCamView(view); }
+  /** Bring an element into the editor's own viewport without scrolling any page around it. */
+  function reveal(node) {
+    const port = node.closest('.ef-viewport') || node.closest('main'); if (!port) return;
+    const box = node.getBoundingClientRect(), frame = port.getBoundingClientRect();
+    if (box.top < frame.top || box.bottom > frame.bottom) port.scrollTop += box.top - frame.top - 8;
   }
   // Frame suggestion (B12): the server proposes, the person confirms each assignment.
   async function suggestViews() {
@@ -299,6 +431,7 @@
     try { await api('/jobs/' + state.job.job_id + '/images/' + imageId, { method: 'PATCH', json: { view: view || null } }); await openJob(state.job.job_id); } catch (e) { toast(e.message, 'error'); }
   }
   async function removeImage(imageId) {
+    if (!window.confirm('Remove this photo from "' + state.job.title + '"?')) return;
     clearOutputs('Photos changed. Reconstruct to refresh the model and downloads.');
     try { await api('/jobs/' + state.job.job_id + '/images/' + imageId, { method: 'DELETE' }); await openJob(state.job.job_id); } catch (e) { toast(e.message, 'error'); }
   }
@@ -360,12 +493,13 @@
     const dims = { x: '', y: '', z: '' };
     (job.known_dimensions || []).forEach((d) => { dims[d.axis] = d.mm; });
     $('dim-x').value = dims.x; $('dim-y').value = dims.y; $('dim-z').value = dims.z;
+    syncMeasure();
   }
   async function saveDimensions() {
-    const known = ['x', 'y', 'z'].map((a) => ({ axis: a, mm: Number($('dim-' + a).value) })).filter((d) => d.mm > 0);
-    if (!known.length) { toast('Enter at least one measurement in millimetres.', 'error'); return; }
-    clearOutputs('Saving scale. Reconstruct to refresh the model and downloads.');
-    try { await api('/jobs/' + state.job.job_id, { method: 'PATCH', json: { knownDimensions: known } }); await openJob(state.job.job_id); toast('Scale saved.'); } catch (e) { toast(e.message, 'error'); }
+    await scanEditor?.flushPending();if(!state.job||!state.calibration?.canEdit)throw Error(state.sourceError||'Current calibration editing permission is required.');if(state.savingCalibration)throw Error('Wait for the current calibration save.');
+    const id=state.job.job_id,generation=state.viewGeneration,draft=calibrationDraft(),signature=calibrationSignature();if(!sourceDirty())return;
+    state.savingCalibration=true;scanEditor?.refresh();
+    try{const result=await api('/jobs/'+id+'/calibration',{method:'PATCH',json:{expectedSourceSha:state.calibration.sourceSha,...draft}});if(state.job?.job_id!==id||state.viewGeneration!==generation||signature!==calibrationSignature())throw Error('The earlier calibration was saved. Your newer visible draft is kept; reopen the saved object to continue.');clearOutputs('Calibration saved. Reconstruct with the original capture lane to refresh geometry.');state.job=result.job;state.detail.job=result.job;state.calibration=result.calibration;state.viewGeneration++;renderJob();toast('Calibration saved; outputs require reconstruction.');}finally{state.savingCalibration=false;scanEditor?.refresh();scanAssistant?.refresh();}
   }
   function renderSettings(job) {
     const s = job.settings || {};
@@ -375,14 +509,13 @@
     $('res-label').textContent = $('res').value; $('smooth-label').textContent = $('smooth').value;
   }
   async function reconstruct() {
-    if (state.scaleDirty) { toast('Save the scale before reconstructing.', 'error'); return; }
+    try { await saveDimensions(); } catch (e) { toast(e.message, 'error'); return; }
     const settings = { resolution: Number($('res').value), smoothIterations: Number($('smooth').value) };
     const jobId = state.job.job_id;
     clearOutputs('Reconstructing. Previous outputs are unavailable.');
     const epoch = state.outputEpoch;
     try {
       $('reconstruct').disabled = true; toast('Carving the visual hull…');
-      await api('/jobs/' + jobId, { method: 'PATCH', json: { settings } });
       const out = await api('/jobs/' + jobId + '/reconstruct', { method: 'POST', json: settings });
       if (epoch !== state.outputEpoch || jobId !== state.job.job_id) return;
       await openJob(jobId);
@@ -640,7 +773,7 @@
       $('cam-info').textContent = (info.label || 'camera') + (info.width ? ' · ' + info.width + '×' + info.height : '');
     } catch (e) { toast('Camera unavailable: ' + e.message, 'error'); closeCamera(); return; }
     selectCamView(cam.lib.nextView(assignedViews()) || 'front');
-    $('cam-video').scrollIntoView({ block: 'nearest' });
+    reveal($('camera-panel'));
   }
   function closeCamera() {
     if (cam.seq) { cam.seq.stop(); cam.seq = null; }
@@ -719,14 +852,20 @@
 
   // ── Boot ───────────────────────────────────────────────────────────────────
   async function boot() {
+    await mountScanWorkspace().catch(e => toast('The shared editor could not open: ' + e.message, 'error'));
     try { state.capabilities = await api('/capabilities'); } catch (e) { toast('Capabilities unavailable: ' + e.message, 'error'); }
     if (state.capabilities && state.capabilities.video && !state.capabilities.video.configured) $('video-note').textContent = 'Frame extraction is not configured: ' + state.capabilities.video.error;
     $('upload-note').textContent = uploadNote(uploadLimits());
-    $('new-job').addEventListener('click', () => createJob().catch((e) => toast(e.message, 'error')));
+    $('new-job').addEventListener('click', () => createJob(true).catch((e) => toast(e.message, 'error')));
     $('delete-job').addEventListener('click', () => deleteJob().catch((e) => toast(e.message, 'error')));
     $('photos').addEventListener('change', (ev) => { uploadPhotos(ev.target.files); ev.target.value = ''; });
     $('photo-capture').addEventListener('change', (ev) => { uploadPhotos(ev.target.files); ev.target.value = ''; });
     $('open-camera').addEventListener('click', () => openCamera().catch((e) => toast(e.message, 'error')));
+    $('take-photos').addEventListener('click', () => takePhotos().catch((e) => toast(e.message, 'error')));
+    $('make-model').addEventListener('click', makeModel);
+    $('measure-width').addEventListener('input', () => { $('dim-x').value = $('measure-width').value; $('dim-x').dispatchEvent(new Event('input', { bubbles: true })); $('make-model').disabled = !measured(); $('measure-step').classList.remove('needed'); });
+    $('job-heading').addEventListener('blur', () => renameJob().catch((e) => toast(e.message, 'error')));
+    $('job-heading').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } });
     $('cam-shutter').addEventListener('click', shutter);
     $('cam-auto').addEventListener('click', toggleSequence);
     $('cam-skip').addEventListener('click', () => { if (cam.seq) cam.seq.skip(); });
@@ -739,9 +878,11 @@
     $('suggest-all').addEventListener('click', () => assignAllSuggested().catch((e) => toast(e.message, 'error')));
     $('pointcloud').addEventListener('change', (ev) => { uploadPointCloud(ev.target.files[0]); ev.target.value = ''; });
     $('toggle-mask').addEventListener('click', () => { state.showMask = !state.showMask; $('toggle-mask').textContent = state.showMask ? 'show photos' : 'show silhouettes'; renderImages(state.detail.images); });
-    $('save-dims').addEventListener('click', saveDimensions);
+    $('save-dims').textContent='Save calibration';$('save-dims').addEventListener('click',()=>void saveDimensions().catch(e=>toast(e.message,'error')));
     ['dim-x', 'dim-y', 'dim-z'].forEach((id) => $(id).addEventListener('input', () => {
       state.scaleDirty = true; clearOutputs('Scale changed. Save the scale, then reconstruct.');
+      if (document.activeElement !== $('measure-width')) $('measure-width').value = $('dim-x').value;
+      $('make-model').disabled = !measured();
     }));
     $('res').addEventListener('input', () => { $('res-label').textContent = $('res').value; clearOutputs('Settings changed. Reconstruct to refresh the model and downloads.'); });
     $('smooth').addEventListener('input', () => { $('smooth-label').textContent = $('smooth').value; clearOutputs('Settings changed. Reconstruct to refresh the model and downloads.'); });
@@ -754,10 +895,16 @@
     kindChosen();   // a browser may restore the selected kind without firing 'change'
     $('printer').addEventListener('change', printerChosen);
     $('send').addEventListener('click', sendToPrinter);
+    const untouched = state.loadGeneration;
     await loadJobs().catch((e) => toast(e.message, 'error'));
     loadPrinters().catch((e) => toast(e.message, 'error'));
     const ref = new URLSearchParams(location.search).get('artifact');
     if (ref) await intakeArtifact(ref);
+    // A reload comes back to the object that was open in this tab, unless the person already chose one.
+    else {
+      let open = null; try { open = sessionStorage.getItem(OPEN_KEY); } catch { /* storage off: start from the list */ }
+      if (open && !state.job && state.loadGeneration === untouched && (state.jobs || []).some((job) => job.job_id === open)) await openJob(open).catch((e) => toast(e.message, 'error'));
+    }
   }
   // The full page only: under an audience view (?audience=company) the shared kit paints instead (see the page's head
   // script), so no capability or object read, no listener, no camera and no ?artifact intake (which creates an object) starts.

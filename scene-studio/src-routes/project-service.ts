@@ -10,9 +10,11 @@
  *                     |                             | keep-window are pruned with their artifacts. Preview, export and
  *                     |                             | run are read-only and are recorded against the revision they
  *                     |                             | rendered. The engine is reached only through EngineClient.
+ * 2026-11-04 | maintainer@emeraldcoastsystemsgroup.com | Keep typed native object inspection and edits under the existing owner lock and mandatory source CAS.
  */
 
 import fs from 'node:fs';
+import { objectBody } from './object-operations';
 import path from 'node:path';
 import { createChildLogger } from '@/shared/logger';
 import type { EngineClient } from './engine-client';
@@ -136,12 +138,35 @@ export async function createProject(deps: ServiceDeps, sub: string, input: { tit
 
 interface McpReply { text: string; isError: boolean; changed: boolean; delta: Record<string, string[]>; files?: WireFile[] }
 
+/** Closed object changes use fresh native metadata under the existing original-owner lock and CAS. */
+export async function callObjectTool(deps: ServiceDeps, sub: string, projectId: string, patch: boolean, input: unknown): Promise<MutationOutcome> {
+  const {expectedRevision, fields} = objectBody(patch, input);
+  return mutate(deps, sub, projectId, async (project, files) => {
+    expectRevision(project, expectedRevision);
+    requireKind(project, 'blender', 'Native object editing');
+    const reply = await deps.engine.request(patch ? 'object_patch' : 'object_inspect', {...fields, files}, 45_000) as McpReply;
+    if (reply.isError) throw new RequestError(clip(reply.text, 600), 'operationJson');
+    if (!patch && reply.changed) throw new RequestError('Inspection unexpectedly changed native files', 'objectName');
+    let inspection: Record<string,unknown>;
+    try { inspection = JSON.parse(reply.text); } catch { throw new RequestError('Invalid native object inspection', 'objectName'); }
+    if (!inspection || typeof inspection !== 'object' || !Array.isArray(inspection.objects) || inspection.objects.length > 24 || !Number.isSafeInteger(inspection.total))
+      throw new RequestError('Invalid native object inspection', 'objectName');
+    if (fields.objectName !== undefined && (!inspection.selected || typeof inspection.selected !== 'object' || (inspection.selected as Record<string,unknown>).id !== fields.objectName))
+      throw new RequestError('The selected native object is unavailable', 'objectName');
+    if (patch && reply.changed && !Array.isArray(reply.files)) throw new RequestError('Missing edited native files', 'operationJson');
+    return {files:patch && reply.changed ? reply.files : undefined, action:patch?'blender:object-edit':'blender:object-inspect',
+      detail:{objectName:fields.objectName,frame:fields.frame,delta:reply.delta},engineBuild:deps.engineBuild,
+      extra:{inspection,delta:reply.delta}};
+  });
+}
+
 /**
  * @description Call one allowlisted tool of godot-mcp (Godot project) or the Blender Lab MCP
  * (Blender project) on the project; a change lands as a new revision.
  */
-export async function callProjectTool(deps: ServiceDeps, sub: string, projectId: string, call: { server: ProjectKind; tool: string; args: Record<string, unknown>; file?: string; save?: boolean }): Promise<MutationOutcome> {
+export async function callProjectTool(deps: ServiceDeps, sub: string, projectId: string, call: { server: ProjectKind; tool: string; args: Record<string, unknown>; file?: string; save?: boolean; expectedRevision?: unknown }): Promise<MutationOutcome> {
   return mutate(deps, sub, projectId, async (project, files) => {
+    expectRevision(project, call.expectedRevision);
     requireKind(project, call.server, `the ${call.server} ${call.tool} tool`);
     const reply = (await deps.engine.request('mcp_call', {
       server: call.server, tool: call.tool, arguments: call.args, files, file: call.file, save: call.save, timeoutSec: TOOL_SECONDS,
@@ -162,14 +187,22 @@ export async function blenderDocs(deps: ServiceDeps, tool: string, args: Record<
   return { text: clip(reply.text, 9000), isError: reply.isError };
 }
 
+/** Refuse a typed inspector edit against a different native revision under the existing project write lock. */
+function expectRevision(project: ProjectRow, expected: unknown): void {
+  if (expected === undefined) return;
+  if (!Number.isSafeInteger(expected) || Number(expected) < 1) throw new RequestError('expectedRevision must be a positive integer', 'expectedRevision');
+  if (project.revision !== expected) throw new ConflictError('The native scene changed. Refresh the selected object before editing.');
+}
+
 /** @description Write (create or replace) one UTF-8 text file. */
-export async function writeTextFile(deps: ServiceDeps, sub: string, projectId: string, filePath: string, text: string): Promise<MutationOutcome> {
+export async function writeTextFile(deps: ServiceDeps, sub: string, projectId: string, filePath: string, text: string, expectedRevision?: unknown): Promise<MutationOutcome> {
   const p = refuseDerived(validatePath(filePath));
   const bytes = Buffer.from(text, 'utf8');
   if (bytes.length > FILE_LIMITS.maxTextWriteBytes) throw new FileError(`a text write is at most ${FILE_LIMITS.maxTextWriteBytes} bytes; upload larger files`, 'text', 413);
-  return mutate(deps, sub, projectId, async (_project, files) => ({
-    files: withFile(files, p, bytes), action: 'write-file', detail: { path: p, bytes: bytes.length }, engineBuild: null,
-  }));
+  return mutate(deps, sub, projectId, async (project, files) => {
+    expectRevision(project, expectedRevision);
+    return {files: withFile(files, p, bytes), action: 'write-file', detail: { path: p, bytes: bytes.length }, engineBuild: null};
+  });
 }
 
 /** @description Store one uploaded file (any bytes). */
