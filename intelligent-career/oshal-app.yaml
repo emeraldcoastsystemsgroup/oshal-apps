@@ -3,6 +3,8 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Hide the framework Tickets workbench and open directly on Search Jobs instead of falling back to an unfiltered global queue.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: Rebuilt on main together with Career 1.47.3; no change to the toolbar, setup or ribbon.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7: the Social Signals tile is merged into Social's Workspace · Engage (UX audit 2026-11-06, social--social-signals): its tile is removed here and the signals setup step opens the Workspace.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: Prepare & submit, Application status and Approvals are stages of the Job Board (career-hunter 1.48.0, UX audit 2026-11-06), so their tiles left this toolbar.
 #
 # A group carries NO code. It binds four installed applications into one front
 # door with one toolbar and a setup dashboard:
@@ -38,7 +40,7 @@ description: >-
   tools, your profile picture, your LinkedIn and Facebook presence, and the
   documents you print into the swarm — with a setup page that shows what is
   connected and what still needs you.
-version: 1.1.6
+version: 1.1.8
 status: active
 scope: public
 theme: daylight
@@ -83,12 +85,11 @@ dependencies:
 # `group:` bands render in first-appearance order; `section: bottom` is the pinned
 # base tray (ungrouped by the renderer). The kernel prepends its Setup tile.
 toolbar:
+  # UX audit 2026-11-06: Prepare & submit, Application status and Approvals are stages of the
+  # Job Board (career-hunter 1.48.0), so they left this toolbar with the member's menu.
   - { app: career-hunter,   surface: career-search,         group: Job Search }
   - { app: career-hunter,   surface: career-board,          group: Job Search }
-  - { app: career-hunter,   surface: career-submissions,    group: Job Search }
-  - { app: career-hunter,   surface: career-application-status, group: Job Search }
   - { app: career-hunter,   surface: career-recruiters,     group: Connections }
-  - { app: career-hunter,   surface: career-approvals,      group: Review }
   - { app: career-hunter,   surface: career-insights,       group: Review }
   - { app: career-hunter,   surface: career-resume-studio,  group: Resume }
   - { app: career-hunter,   surface: career-experience-library, group: Resume }
@@ -97,7 +98,6 @@ toolbar:
   - { app: portrait-studio, surface: portrait-studio,       group: Presence }
   - { app: social,          surface: linkedin-assistant,    group: Presence }
   - { app: social,          surface: social-workspace,      group: Presence }
-  - { app: social,          surface: social-signals,        group: Presence }
   - { app: print-ingest,    surface: print-ingest,          group: Documents }
   - { app: career-hunter,   surface: career-submission-activity, group: Activity }
   - { app: social,          surface: social-accounts,       section: bottom }
@@ -111,7 +111,7 @@ setup:
   - { label: Upload your resume,                          app: career-hunter,   readiness: resume,       fix: career-resume-studio }
   - { label: Take or upload a profile picture,            app: portrait-studio, readiness: portrait,     fix: portrait-studio }
   - { label: Connect Facebook,                            app: social,          readiness: facebook,     fix: social-accounts }
-  - { label: Pick the articles you want to comment on,    app: social,          readiness: signals,      fix: social-signals }
+  - { label: Pick the articles you want to comment on,    app: social,          readiness: signals,      fix: social-workspace }
   - { label: Review your resume story by story,           app: career-hunter,   readiness: stories,      fix: career-strengthen }
   - { label: Add performance reports and other documents, app: career-hunter,   readiness: materials,    fix: career-settings }
   - { label: Subscribe to the print service,              app: print-ingest,    readiness: subscription, fix: print-ingest }

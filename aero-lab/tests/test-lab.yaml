@@ -12,6 +12,7 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register aero-engine-down-words: with no engine the page says, in words, that the engine is not answering on this installation, never the host's install command (demo sweep 1).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register aero-brief-verdict: in Chromium the brief's Verdict line separates each tile after a real energy-loop render (demo sweep 2: the tiles ran together).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register design-tool-schema: the design tools name the route's design fields, each optional.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register aero-layout (two views, one primary run, closed design groups with Reset to preset, field decimals, one-line presets, the engine popover, the phone bottom bar).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -507,6 +508,28 @@ cases:
     - Schema fields equal DEFAULT_DESIGN; {} validates to the baseline.
     prerequisites:
     - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: aero-layout
+    name: Aero Lab sizing and build package views with one primary run
+    purpose: Read the shipped tools/aero-lab.html and aero-lab.js and run their display helpers in a VM - no browser, server or engine.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/aero-layout.test.cjs
+    expected:
+      - Sizing & flight envelope is the default view; Vehicle record & build package holds the record and Export Build Files.
+      - Run 24 h Energy Loop is the one primary; the design vector is closed groups with Reset to preset and one Site & season.
+      - Number fields show the field's decimals and the full value on focus; presets read one line without script or file names.
+      - The engine block is a popover on its badge; the hand-off sits in the page flow; a phone gets Design · Results · Verdict · More.
+    prerequisites:
+      - runner:node-test
     sideEffects: none
     isolation:
       mode: none

@@ -10,11 +10,12 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | The Home concierge is the required member purchasing's shopping-concierge (imported under dependencies.required.bots), which reads the person's own shopping lists and cart through purchasing's route-backed tools, instead of the platform general-bot, which answered "I cannot access your personal data, including information from a specific Home app" while the list showed an item. No member, role or authorization change. Guarded by scripts/check-store-bots.mjs (no general-bot concierge).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Map Little Monsters required Email component explicitly in every version-3 template; existing assignments require reviewed replacement.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Declare Email directly as required so the existing version-3 role member satisfies native import.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.0.7 (UX audit 2026-11-05, purchasing shop-concierge MERGE and shop-browse/shop-deals HIDE): Shopping is one List screen (purchasing 1.4.0), so Home composes only shop-lists. The Assistant, Browse and Deals surfaces it also required are no longer declared by purchasing, and a required surface that is missing makes Home unavailable (component_unavailable) for everyone holding it.
 name: home-experience
 displayName: Home
 description: Your schedule, shopping list, household updates and explicitly connected applications in the established
   Home layout.
-version: 1.0.6
+version: 1.0.7
 status: active
 suite: ai-home
 rating:
@@ -71,16 +72,7 @@ experience:
       surface: home-dashboard
       audience: family
     - app: purchasing
-      surface: shop-concierge
-      audience: family
-    - app: purchasing
-      surface: shop-browse
-      audience: family
-    - app: purchasing
       surface: shop-lists
-      audience: family
-    - app: purchasing
-      surface: shop-deals
       audience: family
     - app: finance
       surface: finance-home

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 8: asked where the STL is, the concierge answered 'look for the option to view or download the STL/OBJ model' while the STL link was on screen. The served persona names the screen's controls, and each name it uses is one the served page renders (so a renamed control turns this red).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0, the design standard: 3 · Model (was Reconstruct), Take a photo, the viewer's Export and the Object menu's Printers… are named by the persona and rendered by the page.
  */
 'use strict';
 const test = require('node:test');
@@ -29,5 +30,5 @@ test('every control the persona names is one the served page renders', () => {
   assert.ok(kinds, 'the report renders its download links as the upper-cased artifact kinds');
   for (const label of ['STL', 'OBJ', 'SVG', 'REPORT', 'GCODE']) assert.ok(kinds.includes(`'${label.toLowerCase()}'`), label);
   assert.match(js, /text: 'Open in CAD Studio →'/);
-  for (const heading of ['3 · Reconstruct', '4 · Print', '>3D model<', '>Send to printer…<']) assert.ok(html.includes(heading), heading);
+  for (const heading of ['3 · Model', '4 · Print', '>3D model<', '>Send to printer…<', '>Take a photo<', '>Export<', '>Printers…<']) assert.ok(html.includes(heading), heading);
 });

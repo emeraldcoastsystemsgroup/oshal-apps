@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Storage company audience view (ADR-164 D6): the assistant page (the package's first surface), its declared URL, synthetic read-only answers shaped like GET /api/storage/home-summary (routes/home-summary.js: the two saved-target metrics mirrored as tiles, the preferences item whose detail is 'Saved <iso>', the closing honesty note), GET /api/storage/prefs (the kernel resolver's effective targets plus the caller's connected providers as oshal_connections names them) and GET /api/storage/local/list (top-level files of the caller's oshal-local store: name and size), and what the company view must show. POST /assistant is deliberately absent: the harness answers every non-GET with 405 and records it, so a view that chatted on open would fail. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family audience (ADR-164 D6) expects the same card as the company one: the harness paints it in the family grammar over the same synthetic reads.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (storage--storage-assistant MERGE): Storage Settings (/api/storage) is now ui.static[0] and carries the same audience-view block while /api/storage/assistant/ui stays mounted by address.
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -27,7 +28,7 @@ function homeSummary(iso) {
 
 /** @param {{ iso: (hours: number) => string }} h Helpers from the harness. @returns {object} The page entry. */
 module.exports = ({ iso }) => ({
-  app: 'storage', file: 'storage/tools/storage-assistant.html', url: '/api/storage/assistant/ui', fullMarker: '#log .msg.bot',
+  app: 'storage', file: 'storage/tools/storage-settings.html', url: '/api/storage', fullMarker: '#body',
   reads: {
     '/api/storage/home-summary': homeSummary(iso),
     '/api/storage/prefs': { prefs: { code: { provider: 'github', repo: 'synthetic/oshal-demo', folder: '' }, files: { provider: 'dropbox', folder: '/' } }, connected: ['github', 'dropbox', 'slack'] },

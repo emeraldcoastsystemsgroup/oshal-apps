@@ -1,9 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.completeReplay = completeReplay;
+exports.preflightReplay = preflightReplay;
+exports.discardReplay = discardReplay;
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve a verified replay receipt from owned immutable decisions, scans and packets, never client-supplied success counts. */
+/** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | A sample replay is all or nothing (UX audit 2026-11-06: its one button failed with HTTP 503 at publishing rules and left its test source and telemetry behind). preflightReplay publishes the scenario's rule generation to the detection engine before anything is saved, so an engine that cannot create the rule index (the 2026-11-05 audit ran while the host disk held OpenSearch's index-create block) refuses with nothing written; discardReplay removes what a failed run saved: only explicitly synthetic replay sources, their telemetry banks and configuration, rule binding and topology scans, and the source records themselves (marked discarded, so every read drops them). */
 // @ts-nocheck
 const intake_1 = require("./intake");
+const pipeline_1 = require("./pipeline");
 const topology_model_1 = require("./topology-model");
 const fail = (status, message) => { throw Object.assign(Error(message), { status }); };
 const valid = id => typeof id === 'string' && /^[a-f0-9]{64}$/.test(id);
@@ -53,4 +57,54 @@ async function completeReplay(ctx, owner, input) {
     const record = { ...body, sha256: (0, intake_1.hash)(body) };
     await ctx.store.put('replays', id, record);
     return record;
+}
+/** Publish the scenario's rule generation to the detection engine before the run saves anything. The same revision is published again, idempotently, when the run binds it to its sources. */
+async function preflightReplay(engine, owner, input) {
+    if (typeof owner !== 'string' || !owner.trim())
+        fail(401, 'A verified caller is required.');
+    if (!input || Object.keys(input).some(k => k !== 'policy'))
+        fail(400, 'Submit the scenario policy only.');
+    const policy = (0, pipeline_1.policyDefinition)(input.policy);
+    const receipt = await engine('publish', owner, { revision: policy.id, rules: policy.rules.map(({ id, enabled, query }) => ({ id, enabled, query })) });
+    if (receipt.revision !== policy.id || receipt.sealed !== true || receipt.count !== policy.rules.length)
+        fail(503, 'The detection engine did not confirm the scenario rules.');
+    return { ready: true, revision: policy.id };
+}
+const synthetic = s => typeof s?.environment === 'string' && s.environment.startsWith('replay-') && typeof s.source === 'string' && s.source.startsWith('urn:triagenorth:replay:');
+/** Remove what a failed sample replay saved. Only explicitly synthetic replay sources qualify, so a person's real sources can never be discarded here. */
+async function discardReplay(ctx, owner, input) {
+    if (typeof owner !== 'string' || !owner.trim())
+        fail(401, 'A verified caller is required.');
+    const ids = input?.sourceIds;
+    if (!input || Object.keys(input).some(k => k !== 'sourceIds') || !Array.isArray(ids) || !ids.length || ids.length > 8 || new Set(ids).size !== ids.length || ids.some(id => !valid(id)))
+        fail(400, 'Choose 1–8 distinct replay sources to discard.');
+    const saved = await ctx.store.query('sources'), sources = ids.map(id => saved.find(s => s.id === id));
+    if (sources.some(s => !s))
+        fail(404, 'A replay source is unavailable in your scope.');
+    if (sources.some(s => !synthetic(s)))
+        fail(400, 'Only synthetic replay sources can be discarded.');
+    const c = await ctx.pool.connect();
+    try {
+        await c.query('BEGIN');
+        for (const s of sources) {
+            await c.query('DELETE FROM operations_streams WHERE user_sub=$1 AND id=$2', [owner, s.id]);
+            for (const bank of ['operations_telemetry_0', 'operations_telemetry_1', 'operations_telemetry_2'])
+                await c.query('DELETE FROM ' + bank + ' WHERE user_sub=$1 AND source_id=$2', [owner, s.id]);
+            await c.query('DELETE FROM operations_policy_bindings WHERE user_sub=$1 AND id=$2', [owner, s.id]);
+            await c.query('DELETE FROM operations_topology_scans WHERE user_sub=$1 AND source_uri=$2', [owner, s.source]);
+        }
+        await c.query('COMMIT');
+    }
+    catch (error) {
+        await c.query('ROLLBACK').catch(() => { });
+        throw error;
+    }
+    finally {
+        await c.release();
+    }
+    const discardedAt = new Date().toISOString();
+    for (const s of sources)
+        if (!s.discardedAt)
+            await ctx.store.put('sources', s.id, { ...s, discardedAt });
+    return { discarded: sources.length, sourceIds: ids };
 }

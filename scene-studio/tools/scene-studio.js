@@ -25,12 +25,32 @@
  *                     |                             | saves an unsaved file edit through the existing PUT /files, then hands over the project
  *                     |                             | id and revision; refresh() re-reads the project and the open file and redraws them,
  *                     |                             | keeping text the person is still editing and saying so in the status line.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (scene-studio--scene-studio). Render preview, Run, Run Blender,
+ *                     |                             | Call (godot-mcp) and Import are disabled while no project is open as well as for a
+ *                     |                             | refused role, and that gating re-runs whenever a project opens or closes (gateActions);
+ *                     |                             | renderPreview refuses a missing project instead of posting /projects/null/preview. The
+ *                     |                             | first screen is the three types (3D scene, Godot game, Blender model) with nothing saved,
+ *                     |                             | and the projects newest first with one New at the bottom right once there are some; a
+ *                     |                             | type creates an untitled project at once and renders its first preview, so a new scene
+ *                     |                             | never shows "No preview yet". The navigation shows the project selector with full names.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.2 (Roger, trial, 2026-11-06, F13): the concierge answers with nothing open (kernel
+ *                     |                             | editor-assistant.js 4), so the director can make the project the person asks for from the
+ *                     |                             | start card or the list. A turn that began with no project open lists the projects again when
+ *                     |                             | it returns and opens the one project that turn made; with none or several made it only lists.
  */
 (function () {
   'use strict';
   const BASE = '/api/scene-studio';
   const $ = (id) => document.getElementById(id);
-  const state = { projects: [], project: null, detail: null, caps: null, viewer: null, filePath: '', epoch: 0, pollTimer: null, busy: false, acting: null, previewShown: '', fileBaseline: '' };
+  const state = { projects: [], project: null, detail: null, caps: null, viewer: null, filePath: '', epoch: 0, pollTimer: null, busy: false, acting: null, previewShown: '', fileBaseline: '', listed: false, pendingFirst: null };
+  /** The three things New makes; each opens untitled and ready, with its first preview. */
+  const TYPES = [
+    { key: 'scene3d', label: '3D scene', note: 'Ground, sun and camera, ready to build on', icon: 'scene', kind: 'godot', template: '3d', title: 'Untitled scene' },
+    { key: 'game', label: 'Godot game', note: 'A 2-D Godot game with its camera', icon: 'game', kind: 'godot', template: '2d', title: 'Untitled game' },
+    { key: 'model', label: 'Blender model', note: 'A cube, a camera and a light', icon: 'mesh', kind: 'blender', template: 'default', title: 'Untitled model' },
+  ];
+  /** The adapter's icon drawer (an empty node until the editor is bound). */
+  let sceneIcon = () => document.createTextNode('');
 
   /** One call to the package's routes; a non-2xx reply throws with the server's message. */
   async function api(method, path, body) {
@@ -101,14 +121,23 @@
     renderEngine();
   }
 
-  function renderEngine() {
-    const caps = state.caps || {};
-    const refused = caps.access?.execute === false;
+  const refusedRun = () => (state.caps || {}).access?.execute === false;
+
+  /** The engine actions need an open project and execution access; re-run whenever either changes. */
+  function gateActions() {
+    const refused = refusedRun(), none = !state.project;
     for (const id of ['run-godot-tool', 'run-blender', 'import-model', 'run-project', 'render-preview']) {
       const button = $(id);
-      button.disabled = refused;
-      button.title = refused ? 'Your current role permits source editing but does not permit running project code.' : '';
+      button.disabled = refused || none;
+      button.title = refused ? 'Your current role permits source editing but does not permit running project code.' : none ? 'Open or create a project first.' : '';
     }
+    editorFoundation?.refresh();
+  }
+
+  function renderEngine() {
+    const caps = state.caps || {};
+    const refused = refusedRun();
+    gateActions();
     $('execution-access').hidden = !refused;
     const live = !!caps.capabilities;
     const pill = $('engine-pill');
@@ -137,23 +166,63 @@
   async function loadProjects() {
     const out = await api('GET', '/projects');
     state.projects = out.projects || [];
+    state.listed = true;
     renderProjectList();
   }
 
+  const opener = (projectId) => () => openProject(projectId).catch((e) => status(e.message, 'bad'));
+
+  /** The navigation's project selector (full names, newest first) while a project is open; the first screen otherwise. */
   function renderProjectList() {
     const list = $('project-list');
-    list.replaceChildren();
-    if (!state.projects.length) { list.appendChild(el('p', { className: 'muted small', text: 'No projects yet.' })); }
-    state.projects.forEach((p) => {
-      const active = state.project && state.project.projectId === p.projectId;
-      list.appendChild(el('button', { className: 'project-item' + (active ? ' active' : ''), onclick: () => openProject(p.projectId) }, [
-        el('span', { className: 'project-title', text: p.title, title: p.title }),
-        el('span', { className: 'badge ' + p.kind, text: kindLabel(p.kind) + ' · r' + p.revision }),
-      ]));
-    });
+    list.className = 'scene-projects';
+    list.hidden = !state.project;
+    list.replaceChildren(el('button', { type: 'button', className: 'scene-secondary', text: '‹ All projects', onclick: goHome }), ...state.projects.map((p) => {
+      const props = { type: 'button', onclick: opener(p.projectId) };
+      if (state.project && state.project.projectId === p.projectId) props['aria-current'] = 'true';
+      return el('button', props, [el('span', { text: p.title }), el('span', { className: 'badge ' + p.kind, text: kindLabel(p.kind) + ' · r' + p.revision })]);
+    }));
+    renderHome();
     const blenders = state.projects.filter((p) => p.kind === 'blender');
     const from = $('import-from');
     from.replaceChildren(...blenders.map((p) => el('option', { value: p.projectId, text: p.title })));
+  }
+
+  /** The first screen: the three types with nothing saved, else the projects newest first with one New. */
+  function renderHome() {
+    const open = !!state.project, none = !state.projects.length;
+    $('home').hidden = open || !state.listed;
+    $('home-types').hidden = open || !none;
+    $('home-list').hidden = open || none;
+    $('new-project').hidden = !open;
+    if (open || none) return;
+    $('home-cards').replaceChildren(...state.projects.map((p) => el('button', { type: 'button', className: 'scene-card', onclick: opener(p.projectId) }, [
+      p.preview && p.preview.png ? el('img', { className: 'scene-card-thumb', alt: '', src: p.preview.png + '&t=' + encodeURIComponent(p.preview.at) }) : null,
+      el('span', { className: 'scene-card-title', text: p.title }),
+      el('span', { className: 'badge ' + p.kind, text: p.kind === 'godot' ? 'Godot game' : 'Blender model' }),
+      el('span', { className: 'scene-card-meta', text: 'revision ' + p.revision + ' · ' + new Date(p.updatedAt).toLocaleString() }),
+    ].filter(Boolean))));
+  }
+
+  /** Close the open project and show the first screen. */
+  function goHome() {
+    stopPoll();
+    state.project = null;
+    state.detail = null;
+    state.epoch += 1;
+    clearPreview();
+    $('project-panel').hidden = true;
+    history.replaceState(null, '', location.pathname);
+    renderProjectList();
+    gateActions();
+  }
+
+  function renderTypes() {
+    document.querySelectorAll('[data-scene-types]').forEach((host) => host.replaceChildren(...TYPES.map((t) => el('button', { type: 'button', 'data-scene-type': t.key, onclick: () => createProject(t) }, [
+      el('span', { className: 'scene-type-icon', 'aria-hidden': 'true' }, [sceneIcon(t.icon)]),
+      el('span', { className: 'scene-type-label', text: t.label }),
+      el('span', { className: 'scene-type-note', text: t.note }),
+    ]))));
   }
 
   async function openProject(projectId) {
@@ -198,7 +267,6 @@
   function renderDetail(detail) {
     const p = detail.project;
     state.detail = detail;
-    $('empty-panel').hidden = true;
     $('project-panel').hidden = false;
     $('project-heading').textContent = p.title;
     $('project-kind').textContent = p.kind === 'godot' ? 'Godot game' : 'Blender model';
@@ -212,7 +280,9 @@
     renderRevisions(detail.revisions || []);
     renderRun(p.lastRun);
     renderExportFormats(p.kind);
-    showPreview(p.preview);editorFoundation?.refresh();
+    showPreview(p.preview);
+    renderHome();
+    gateActions();
   }
 
   function renderFiles(detail) {
@@ -264,7 +334,12 @@
   }
 
   async function showPreview(preview) {
-    if (!preview) { clearPreview(); $('preview-info').textContent = 'No preview yet — render one.'; return; }
+    if (!preview) {
+      clearPreview();
+      const first = state.project && state.pendingFirst === state.project.projectId;
+      $('preview-info').textContent = first ? 'Rendering the first preview…' : refusedRun() ? 'Previews need execution access.' : 'No preview yet — render one.';
+      return;
+    }
     const info = preview.info || {};
     const stale = state.project && preview.revision !== state.project.revision ? ' (older revision — render again)' : '';
     $('preview-info').textContent = 'revision ' + preview.revision + stale + ' · ' + (info.polygons || 0) + ' polygons · camera ' + (info.camera || '?') + (info.autoCamera ? ' (framed automatically)' : '') + ' · ' + (info.seconds || 0) + ' s';
@@ -296,13 +371,27 @@
 
   async function renderPreview() {
     const intent = selection();
-    await act('Rendering the preview', async () => {
-      const out = await api('POST', '/projects/' + intent.projectId + '/preview', { samples: Number($('preview-samples').value) });
-      if (!current(intent)) return;
-      state.project = out.project;
-      await showPreview(out.preview);
-      status('Preview rendered.', 'ok');
-    });
+    if (!intent.projectId) { status('Open or create a project first.', 'bad'); return; }
+    await act('Rendering the preview', () => renderNow(intent));
+  }
+
+  async function renderNow(intent, doneText) {
+    const out = await api('POST', '/projects/' + encodeURIComponent(intent.projectId) + '/preview', { samples: Number($('preview-samples').value) });
+    if (!current(intent)) return;
+    state.project = out.project;
+    await showPreview(out.preview);
+    status(doneText || 'Preview rendered.', 'ok');
+  }
+
+  /** A new project renders its first preview at once, so its viewport never asks for one. */
+  async function firstPreview(created) {
+    const intent = selection();
+    const done = 'Created "' + created.title + '". Ask the Scene Studio director in the chat to build it, or edit it here.';
+    if (intent.projectId !== created.projectId) { state.pendingFirst = null; return; }
+    if ($('render-preview').disabled) { state.pendingFirst = null; status(done, 'ok'); showPreview(null); return; }
+    await act('Rendering the first preview', () => renderNow(intent, done));
+    state.pendingFirst = null;
+    if (current(intent) && !(state.project && state.project.preview)) $('preview-info').textContent = 'The first preview could not be rendered. Render preview tries again.';
   }
 
   // ── Run, tools, files ───────────────────────────────────────────────────
@@ -464,28 +553,25 @@
     });
   }
 
-  function showNewForm(show) {
-    $('new-form').hidden = !show;
-    if (show) { renderTemplates(); $('new-title').focus(); }
+  function showNewSheet(show) {
+    const sheet = $('new-sheet');
+    if (show && !sheet.open) sheet.showModal();
+    if (!show && sheet.open) sheet.close();
   }
 
-  function renderTemplates() {
-    const kind = document.querySelector('input[name=kind]:checked').value;
-    const templates = ((state.caps || {}).templates || {})[kind] || (kind === 'godot' ? ['3d', '2d', 'empty'] : ['default', 'empty']);
-    const names = { '3d': '3-D scene (ground, sun, camera)', '2d': '2-D scene', empty: 'empty', default: 'default scene (cube, camera, light)' };
-    $('new-template').replaceChildren(...templates.map((t) => el('option', { value: t, text: names[t] || t })));
-  }
-
-  async function createProject() {
-    const kind = document.querySelector('input[name=kind]:checked').value;
+  /** New: one press makes an untitled project of the chosen type, opens it and renders its first preview. */
+  async function createProject(type) {
+    showNewSheet(false);
+    let created = null;
     await act('Creating the project', async () => {
-      const out = await api('POST', '/projects', { kind, title: $('new-title').value.trim(), template: $('new-template').value });
-      showNewForm(false);
-      $('new-title').value = '';
+      const out = await api('POST', '/projects', { kind: type.kind, title: type.title, template: type.template });
+      state.pendingFirst = out.project.projectId;
       await loadProjects();
       await openProject(out.project.projectId);
-      status('Created "' + out.project.title + '". Ask the Scene Studio director in the chat to build it, or edit it here.', 'ok');
+      created = out.project;
     });
+    if (created) await firstPreview(created);
+    else state.pendingFirst = null;
   }
 
   async function renameProject() {
@@ -502,12 +588,7 @@
     if (!confirm('Delete "' + p.title + '" and every revision of it? This cannot be undone.')) return;
     await act('Deleting', async () => {
       await api('DELETE', '/projects/' + p.projectId, { confirm: true });
-      stopPoll();
-      state.project = null;
-      state.epoch += 1;editorFoundation?.refresh();
-      $('project-panel').hidden = true;
-      $('empty-panel').hidden = false;
-      history.replaceState(null, '', location.pathname);
+      goHome();
       await loadProjects();
       status('Deleted "' + p.title + '".', 'ok');
     });
@@ -536,7 +617,8 @@
     await editorFoundation?.flushPending();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     await settleActions();
-    if (!state.project) return null;
+    if (!state.project) { if (!state.listed) await loadProjects(); state.askedWithout = new Set(state.projects.map((p) => p.projectId)); return null; }
+    state.askedWithout = null;
     const id = state.project.projectId, path = $('file-path').value.trim();
     if (fileDraft()) {
       await saveFile(); await settleActions();
@@ -550,12 +632,23 @@
   async function refreshDocumentHandoff(expected) {
     await settleActions();
     const p = state.project;
-    if (!p || (expected && expected.recordId && expected.recordId !== p.projectId)) return;
+    if (!p) return openMadeProject();
+    if (expected && expected.recordId && expected.recordId !== p.projectId) return;
     const intent = selection();
     await refreshProject(false);
     if (!current(intent) || !state.filePath) return;
     if (fileDraft()) { status('The project is at revision ' + state.project.revision + '. Your unsaved edit to ' + state.filePath + ' is kept; Save file writes it on top.', 'bad'); return; }
     if ((state.detail.files || []).some((f) => f.path === state.filePath)) await openFile(state.filePath);
+  }
+
+  /** After a concierge turn that began with no project open: list the projects again and open the one that turn made. */
+  async function openMadeProject() {
+    const before = state.askedWithout;
+    state.askedWithout = null;
+    if (!before) return;
+    await loadProjects();
+    const made = state.projects.filter((p) => !before.has(p.projectId));
+    if (made.length === 1 && !state.project) await openProject(made[0].projectId);
   }
 
   function registerDocumentHandoff() {
@@ -584,10 +677,9 @@
   }
 
   function wire() {
-    $('new-project').addEventListener('click', () => showNewForm(true));
-    $('cancel-new').addEventListener('click', () => showNewForm(false));
-    document.querySelectorAll('input[name=kind]').forEach((r) => r.addEventListener('change', renderTemplates));
-    $('create-project').addEventListener('click', createProject);
+    $('new-project').addEventListener('click', () => showNewSheet(true));
+    $('home-new').addEventListener('click', () => showNewSheet(true));
+    $('cancel-new').addEventListener('click', () => showNewSheet(false));
     $('rename-project').addEventListener('click', renameProject);
     $('delete-project').addEventListener('click', deleteProject);
     $('render-preview').addEventListener('click', renderPreview);
@@ -607,9 +699,12 @@
 
   let editorFoundation=null;
   async function boot() {
-    const {bindSceneFoundation}=await import('/api/scene-studio/assets/editor-foundation-adapter.mjs');
+    const {bindSceneFoundation,sceneIcon:icon}=await import('/api/scene-studio/assets/editor-foundation-adapter.mjs');
+    sceneIcon=icon;
     editorFoundation=await bindSceneFoundation({state,api,fileDraft,prepare:prepareDocumentHandoff,refresh:async force=>{await refreshProject(force);if(state.filePath&&!fileDraft())await openFile(state.filePath);},undo:async()=>{const previous=(state.detail?.revisions||[]).find(r=>r.revision<state.project?.revision);if(previous)await restore(previous.revision);},notice:text=>status(text,'ok'),problem:error=>status(error.message||String(error),'bad')});
     wire();
+    renderTypes();
+    gateActions();
     registerDocumentHandoff();
     await loadCapabilities();
     await loadProjects().catch((e) => status(e.message, 'bad'));

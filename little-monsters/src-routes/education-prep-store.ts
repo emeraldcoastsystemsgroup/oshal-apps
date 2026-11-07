@@ -1,12 +1,13 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owner/tenant-scoped durable test-prep state with optimistic concurrency.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retry rolled-back native collection conflicts from fresh reads; keep completed saves immutable and idempotent.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Allow learner profile lesson completion for both SAT/ACT lessons and the 168-topic video curriculum.
  */
 import { randomUUID } from 'crypto';
 import type { Pool, PoolClient } from 'pg';
 import type { AuthedStudent } from './education-access';
 import { schoolTransaction, isNativeSchoolStore } from './education-transactions';
-import { catalog, PrepError, createSession, changeSession, type Session, type Question, type Exam } from './education-prep-model';
+import { catalog, curriculumVideos, PrepError, createSession, changeSession, type Session, type Question, type Exam } from './education-prep-model';
 import { summarize, type StoredSession } from './education-prep-progress';
 const scope = 'student_id = $1 AND tenant_id = $2';
 function params(actor: AuthedStudent): string[] { return [actor.studentId, actor.tenantId]; }
@@ -121,7 +122,9 @@ export async function saveProfile(pool: Pool, actor: AuthedStudent, input: any):
     if (!isNativeSchoolStore(pool)) await client.query('SELECT student_id FROM lm_students WHERE student_id = $1 AND tenant_id = $2 FOR UPDATE', params(actor));
     const profile = await readProfile(client as unknown as Pool, actor);
     if (input.action === 'lesson') {
-      if (!catalog.lessons.some(l => l.id === input.lessonId)) throw new PrepError('Unknown lesson.');
+      const knownLesson = catalog.lessons.some(l => l.id === input.lessonId)
+        || curriculumVideos.topics.some(t => t.id === input.lessonId);
+      if (!knownLesson) throw new PrepError('Unknown lesson.');
       profile.lessons[input.lessonId] = { completedAt: Date.now(), version: catalog.version };
     } else {
       if (!['SAT', 'ACT'].includes(input.exam) || ![10, 15, 20, 30].includes(input.dailyMinutes)) throw new PrepError('Choose an exam and daily study budget.');

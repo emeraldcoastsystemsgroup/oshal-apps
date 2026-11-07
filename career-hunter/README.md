@@ -155,6 +155,11 @@ ungrouped bottom tray. The `group:` key that drives this, and the rules a cross-
 follow, are written up in
 [docs/ribbon-groups-adr-085-addendum.md](docs/ribbon-groups-adr-085-addendum.md).
 
+**Resume Studio's master resume is a Word document** (1.49.0): it opens in AI Office's own editor with
+AI Office's standard Concierge beside it, and **Save to master resume** writes it back through the
+whitelisted `resume base-save`. The heading contract and the rules each assistant follows are in
+[docs/career-and-office.md](docs/career-and-office.md).
+
 Version 1.27.3 serves the native board at the package root and keeps generated routes aligned
 with their TypeScript sources. Board summaries expose actual `applied` and `interviewing` counts
 (the latter counts the existing `interview` status). Resume state retains its observed ingest and

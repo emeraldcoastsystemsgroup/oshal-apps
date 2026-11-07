@@ -2,6 +2,9 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register unit/acceptance and host-process bridge dev-shim test cases for Phone & Device Control (phone-control).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: every case crosses its real boundary. The 1.0.0 cases asserted the made-up key handshake with Bluetooth switched off and are deleted. Locally tested and live-proven are kept apart: routes, honesty, computer link and bridge run in store-ci; the kernel runner, real adb and the whole chain run on a computer that has them; the Bluetooth takeover and the Android phone are live and need the operator's own computer and phones.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: the live installation proof (tests/live/production-proof.cjs), run as the operator at 390x844 with touch and at 1440x900: with no computer nothing says connected, removed routes answer as routes that never existed, no fake text, no console error; on the operator's own computer Set up this computer, Replace the earlier test keyboard, Pair with a dead address, the computer's picture; with that computer's app closed it reads Not connected.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: browser regression case for Use this computer, busy Connect, non-admin 403 and TV remote (tests/phone-control-connect-ui.test.cjs), plus two-admin disposable-kernel isolation proof (tests/live/isolation-proof.sh).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register Batch-7 UX + UxPlay AirPlay mirroring regression guard (tests/phone-control-ux-batch7.test.cjs), update readiness to 1.3.0, and cover mirrored iPhone isolation in phone-control-isolation.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: ship RP-PHC-01..13 session features, Phone & TV Concierge, learnable BLE pointer calibration, 1-step Fire TV Load oshal TV, and RDP setup/probe; register phone-control-rp-features and phone-control-rp-browser.
 version: 1
 cases:
   - id: package-readiness
@@ -12,7 +15,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.1.2 with its store open.
+      - The installed phone-control package answers its identity and version 1.4.0 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -68,6 +71,76 @@ cases:
     installation: never
     regressionTests:
       - { level: unit, file: tests/phone-control-honesty.test.cjs }
+
+  - id: phone-control-ux-batch7
+    name: Merged Connect sheet, full-frame session sheet UX, and real UxPlay mirroring guard
+    purpose: Verify single ui.static tile, Connect sheet ordering and 5s/2m auto-poll, full-frame session with 48px Session sheet handle, RP-PHC-01..13 backlog controls, real Start mirroring replacing RP-PHC-14, explicit Bluetooth peripheral pairing guidance, and lowercase oshal Node.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-ux-batch7.test.cjs
+    expected:
+      - phone-control-config is merged into phone-control-execution while /config/ui opens the Connect sheet.
+      - RP-PHC-14 and RP-PHC-01..13 ship as live controls with zero planned placeholders.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
+    installation: never
+    regressionTests:
+      - { level: unit, file: tests/phone-control-ux-batch7.test.cjs }
+
+  - id: phone-control-rp-features
+    name: Session preferences, captures, transfers, chat, whiteboard, and concierge turn planner
+    purpose: Verify owner-isolated SQLite persistence and binary payload storage under OSHAL_PACKAGE_DATA_DIR for RP-PHC-01..13 session routes and editor handoff snapshots.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-rp-features.test.cjs
+    expected:
+      - Preferences, chat, whiteboard overlays, captures, and transfers validate inputs and enforce owner 404 isolation.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-rp-features.test.cjs }
+
+  - id: phone-control-rp-browser
+    name: Chromium proof for RP-PHC-01..13, Phone & TV Concierge, Fire TV 1-step loader, and RDP setup
+    purpose: Verify in headless Chromium at 1440x900 and 412x743 that computer session tools, Phone & TV Concierge, BLE calibration, 1-step Fire TV Load oshal TV, and RDP setup/probe operate with zero console errors or 404s.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-rp-browser.test.cjs
+    expected:
+      - Computer session dispatches desktop.control, monitor enumeration, captures, transfers, clipboard, chat, and whiteboard saves.
+      - Phone & TV Concierge execute bounded actions, Load oshal TV polls unauthorized to device and installs APK, and RDP probe verifies X.224.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/phone-control-rp-browser.test.cjs }
 
   - id: phone-control-link
     name: Computer link commands run by real bash and python3
@@ -139,6 +212,56 @@ cases:
     installation: never
     regressionTests:
       - { level: integration, file: tests/live/phone-control-runner.test.cjs }
+
+  - id: phone-control-connect-ui
+    name: Every Connect press answers, non-admin card, and TV remote in Chromium
+    purpose: Prove in Chromium that Use this computer answers on offline, control-off and Windows rows, busy Connect answers in its own card, 403 shows the not-allowed card, and a TV shows its remote and refuses screen taps.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-connect-ui.test.cjs
+    expected:
+      - Offline, control-off and Windows computer rows write guidance in #computersStatus and keep #setupCard hidden.
+      - A second press while a step runs writes busy text in the pressed card; 403 shows #notAllowed; a TV shows #tvRemote.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/phone-control-connect-ui.test.cjs }
+
+  - id: phone-control-isolation
+    name: Two-administrator and non-admin isolation on a disposable kernel
+    purpose: Boot a disposable Postgres and oshald with two phone-control administrators and one non-admin, proving zero cross-person visibility or command delivery and 403 non-admin refusal.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/live/isolation-proof.sh
+        - tests/live/isolation-proof.cjs
+    expected:
+      - Person B gets empty lists and 404 on Person A's TV and mirrored iPhone, history, reports, computer run, mirror-frame and screen, with zero commands delivered to Person A's computer.
+      - Person C gets 200 on /api/phone-control/ui and 403 on /api/phone-control/devices.
+    prerequisites:
+      - service:docker
+      - fixture:oshald-binary
+    sideEffects: disposable
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 300000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/live/isolation-proof.cjs }
 
   - id: phone-control-adb-host
     name: Real adb on a Linux computer, no root and no phone

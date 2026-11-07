@@ -17,6 +17,7 @@
  * ---------------------------------------------------------------------------
  * (1.0 to 1.3.6: the Uber Eats provider helper, the curated catalog, the menu-priced cart and the confirmation-gated
  * deep link; see git history.)
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: a diner's first POST /profile failed with "NOT NULL constraint failed": the insert sent NULL for dietary and favorite_cuisines (NOT NULL, default '{}'), so the first saved delivery address (or Use location) never stuck and every open came up with the address empty (UX audit 2026-11-06). The proposed row always carries lists (NOT NULL is checked before ON CONFLICT, so a second save failed the same way); the update keeps the saved lists unless the body names new ones. Guard: tests/eats-address-saved.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the place cache (./place-cache, migration 041). Address resolutions, searches and restaurant cards are saved per person for Google's 30-day limit; a saved search younger than a day is served without asking Google, Refresh asks again, and at Google's quota (or with Google unreachable) the saved answer within 30 days is served with its saved time and the reason. The search is a POST (the page, the chat and the Jarvis tool), because the native kernel admits no write on a GET; GET /search still answers, reading the cache but never writing it. Guards: tests/eats-routes.test.js (the cache cases), tests/eats-place-cache.test.js.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: coordinates (Use location, sent as lat/lng or as the "lat, lng" address text) resolve through the Geocoding API's reverse lookup instead of a Places text search, which refuses them live. Guard: tests/eats-routes.test.js (the coordinates case), tests/places-client.test.js.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: real restaurants. The curated five-restaurant catalog, the menu and the cart are gone: search resolves the delivery address and lists the restaurants Google Places finds around it (rating, price level, open now, delivery, distance, photo); POST /order records a hand-off and answers the Uber Eats search link at that address for the chosen restaurant; the chat turn offers those restaurants by place id and an "order" choice becomes a confirm proposal; /config names the rail; a Places refusal (key not configured, API not enabled, quota) is answered in words, never as an empty result. Guards: tests/eats-routes.test.js, tests/places-client.test.js, tests/uber-link.test.js, tests/eats-places-unavailable.test.js.
@@ -691,20 +692,23 @@ export function createEatsRoutes(ctx: AppContext): Router {
 
   router.post('/profile', diner(async (req, res, sub) => {
     const b = req.body || {};
+    // dietary and favorite_cuisines are NOT NULL, and the proposed row is checked before ON CONFLICT: the row always
+    // carries a list ($3/$4, empty when the body names none), and the update keeps the saved one unless the body named
+    // one ($9/$10, NULL when it did not).
     const r = await pool.query(
       `INSERT INTO eats_profile (user_sub, display_name, dietary, favorite_cuisines, default_address, budget_per_order, notes, onboarded, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,COALESCE($8,false),NOW())
        ON CONFLICT (user_sub) DO UPDATE SET
          display_name=COALESCE(EXCLUDED.display_name, eats_profile.display_name),
-         dietary=COALESCE(EXCLUDED.dietary, eats_profile.dietary),
-         favorite_cuisines=COALESCE(EXCLUDED.favorite_cuisines, eats_profile.favorite_cuisines),
+         dietary=COALESCE($9, eats_profile.dietary),
+         favorite_cuisines=COALESCE($10, eats_profile.favorite_cuisines),
          default_address=COALESCE(EXCLUDED.default_address, eats_profile.default_address),
          budget_per_order=COALESCE(EXCLUDED.budget_per_order, eats_profile.budget_per_order),
          notes=COALESCE(EXCLUDED.notes, eats_profile.notes),
          onboarded=(EXCLUDED.onboarded OR eats_profile.onboarded), updated_at=NOW()
        RETURNING *`,
-      [sub, b.displayName ?? null, b.dietary ?? null, b.favoriteCuisines ?? null, b.defaultAddress ?? null,
-       b.budgetPerOrder ?? null, b.notes ?? null, b.onboarded ?? null]);
+      [sub, b.displayName ?? null, b.dietary ?? [], b.favoriteCuisines ?? [], b.defaultAddress ?? null,
+       b.budgetPerOrder ?? null, b.notes ?? null, b.onboarded ?? null, b.dietary ?? null, b.favoriteCuisines ?? null]);
     res.json({ profile: r.rows[0] });
   }));
 

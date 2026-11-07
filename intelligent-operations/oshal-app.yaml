@@ -1,3 +1,8 @@
+# CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4, UX audit 2026-11-06 P1 (operations-commands): add a row ⋯ menu (Copy, Run again) on each recorded command history row.
+# CHANGE LOG: 38 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3, UX audit 2026-11-06 P1: Runbooks is its own screen (split from RCA library).
+# CHANGE LOG: 37 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2, UX audit 2026-11-06 P1: Topology is the Graph view of Systems (its tile leaves the rail), the imports move to Sources.
+# CHANGE LOG: 36 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1, UX audit 2026-11-06 P1: Swarm hand-off (Inbox and Sent tabs, a Send sheet), Git explorer (one empty state until a connection exists, cluster links first), Cloud & SSH commands (two columns, one primary, one scope field per tool, history search and filter).
+# CHANGE LOG: 35 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0, UX audit 2026-11-06: Scenario lab becomes the Replay a sample sheet on Data pipeline (all or nothing, steps shown, a failure named with its fix, the test data removed) and its tile leaves the rail; Credentials & access merges into Connections & access, the one settings screen; Live context loads its detector on open.
 # CHANGE LOG: 34 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: only the existing personal recorded-alerts schedule starts on first admitted writer use; processing/discovery/evidence/investigation remain explicit opt-ins, and native owner stops are preserved.
 # CHANGE LOG: 33 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1, what a fifth review proved (2026-11-04). A blank list holds, an unjudgeable one too, and Prometheus must be seen moving, so a restart past the lookback, a full disk or a heartbeat repeated after Prometheus died says nothing false. A resolve evaluated ahead of its firing is still told. The newest undecided rows are named during an outage. An outage clears the attempt count, stops adding attempt rows after three failures and shows on attention. A failed read of the phone mark no longer blanks it.
 # CHANGE LOG: 32 | maintainer@emeraldcoastsystemsgroup.com | Describe monitored installations and recorded server health, and explicitly route the reordered degraded-systems question, monitored installations and stopped reporting; shared health/check words stay out of routing to preserve other applications.
@@ -67,7 +72,7 @@ description: >-
   generated response (remediate.sh, verify.sh, rollback.md, verify.md) can be approved as exact
   artifacts for one exec on one observed pod through that same personal connection, then verified
   against a resolved signal before the canonical ticket is updated.
-version: 1.2.2
+version: 1.3.4
 status: active
 scope: public
 theme: light-blue
@@ -175,30 +180,22 @@ ui:
       icon: codicon codicon-plug
       iframeUrl: /api/intelligent-operations/app#sources
       section: top
-    - toolName: operations-topology
-      label: Topology
-      icon: codicon codicon-type-hierarchy
-      iframeUrl: /api/intelligent-operations/app#estate
-      section: top
+    # UX audit 2026-11-06: Topology is the Graph view of Systems (List | Graph), so its tile is off the rail; the old
+    # ?screen=operations-topology address opens the default screen, Systems. To bring it back, restore: toolName
+    # operations-topology, label Topology, icon codicon-type-hierarchy, iframeUrl /api/intelligent-operations/app#estate.
     - toolName: operations-streams
       label: Live context
       icon: codicon codicon-pulse
       iframeUrl: /api/intelligent-operations/app#streams
       section: top
-    - toolName: operations-replay
-      label: Scenario lab
-      icon: codicon codicon-beaker
-      iframeUrl: /api/intelligent-operations/app#replay
-      section: top
+    # UX audit 2026-11-06: Scenario lab is the Replay a sample sheet on Data pipeline and Credentials & access merged into
+    # Connections & access; their tiles are off the rail (the addresses #replay and #credentials still lead there). To bring
+    # one back, restore its entry: toolName operations-replay, label Scenario lab, icon codicon-beaker, iframeUrl
+    # /api/intelligent-operations/app#replay (or operations-credentials, Credentials & access, codicon-key, #credentials).
     - toolName: operations-connections
-      label: Connections
+      label: Connections & access
       icon: codicon codicon-plug
       iframeUrl: /api/intelligent-operations/app#connections
-      section: top
-    - toolName: operations-credentials
-      label: Credentials & access
-      icon: codicon codicon-key
-      iframeUrl: /api/intelligent-operations/app#credentials
       section: top
     - toolName: operations-commands
       label: Command helper
@@ -224,6 +221,11 @@ ui:
       label: RCA library
       icon: codicon codicon-book
       iframeUrl: /api/intelligent-operations/app#library
+      section: top
+    - toolName: operations-runbooks
+      label: Runbooks
+      icon: codicon codicon-notebook
+      iframeUrl: /api/intelligent-operations/app#runbooks
       section: top
     - toolName: operations-files
       label: Files

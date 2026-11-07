@@ -12,7 +12,10 @@
 <!-- CHANGE LOG
      1 | maintainer@emeraldcoastsystemsgroup.com | A variant the comms bot declined (failed:'bot_declined') draws an empty
        editor with the bot's words as a warning, and Regenerate keeps the editor when the redraft is declined: the bot's
-       refusals were written into the editable post text before. -->
+       refusals were written into the editable post text before.
+     2 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (switchboard--switchboard-stage merge): fold Stage into Compose
+       with a 44px Same text everywhere switch and a confirmed Send to all chosen networks fan-out bar posting to
+       /api/switchboard/stage/broadcast. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -43,7 +46,9 @@
     --text2:   var(--text-secondary,  var(--sb-text2));
     --muted:   var(--text-muted,      var(--sb-muted));
     --accent:  var(--accent-primary,  var(--sb-accent));
-    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    /* Solid accent, no gradient or glow (UX audit 2026-11-06; the themes' --accent-gradient is still a gradient). */
+    --accent-grad: var(--ds-accent, var(--accent));
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
     --ok:      var(--status-success,  var(--sb-ok));
     --warn:    var(--status-warning,  var(--sb-warn));
     --err:     var(--status-error,    var(--sb-err));
@@ -65,7 +70,7 @@
   html,body { height:100%; }
   body {
     margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+    font-family:var(--ds-font, system-ui, sans-serif);
     -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
   }
   .tnum { font-variant-numeric:tabular-nums; }
@@ -129,8 +134,10 @@
   }
   .plat .sw { width:9px; height:9px; border-radius:3px; }
   .plat .dot { width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.5; }
-  .plat.on { border-color:var(--accent); color:var(--text); background:color-mix(in srgb,var(--accent) 12%,transparent); }
-  .plat.on .dot { background:var(--ok); opacity:1; }
+  /* Selected is an inverted fill, not a thin outline (§4.1 Selected). */
+  .plat.on { border-color:transparent; color:var(--on-accent); background:var(--accent); }
+  .plat.on .dot { background:var(--on-accent); opacity:1; }
+  .plat.on .nc { color:var(--on-accent); opacity:.85; }
   .plat.off { opacity:.55; }
   .plat:hover { border-color:var(--lineh); }
   .plat .nc { font-size:10.5px; color:var(--muted); font-weight:600; }
@@ -144,9 +151,40 @@
   }
   .btn svg { width:16px; height:16px; }
   .btn:hover { border-color:var(--accent); color:var(--accent); }
-  .btn:disabled { opacity:.5; cursor:not-allowed; }
-  .btn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 10px 26px rgba(0,0,0,.18); }
-  .btn.primary:hover { filter:brightness(1.07); color:#fff; transform:translateY(-1px); }
+  .btn:disabled { opacity:1; background:var(--ds-surface-2, var(--surface)); color:var(--ds-ink-disabled, var(--muted)); cursor:not-allowed; }
+  .btn.primary { background:var(--accent-grad); border-color:transparent; color:var(--on-accent); }
+  .btn.primary:hover { filter:brightness(1.07); color:var(--on-accent); }
+  /* Disabled stays solid and says why beside it (design standard §4.1). */
+  .btn.primary:disabled { opacity:1; background:color-mix(in srgb,var(--accent) 35%,var(--surface)); color:var(--text2); }
+  .genhint { font-size:12.5px; color:var(--muted); }
+  .switchrow {
+    appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--text);
+    font:inherit; font-size:13.5px; font-weight:560; min-height:44px; padding:8px 14px; border-radius:var(--r-sm);
+    cursor:pointer; display:inline-flex; align-items:center; gap:12px; margin-top:14px;
+  }
+  .switchrow:hover { border-color:var(--lineh); }
+  .switchtrack {
+    width:36px; height:20px; border-radius:var(--pill); background:var(--line); position:relative;
+    display:inline-block; flex-shrink:0; transition:background var(--ease) .15s;
+  }
+  .switchthumb {
+    width:16px; height:16px; border-radius:50%; background:var(--text); position:absolute; top:2px; left:2px;
+    transition:transform var(--ease) .15s;
+  }
+  .switchrow[aria-checked="true"] { border-color:var(--accent); }
+  .switchrow[aria-checked="true"] .switchtrack { background:var(--accent); }
+  .switchrow[aria-checked="true"] .switchthumb { background:var(--on-accent); transform:translateX(16px); }
+  .broadcastbar {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:18px;
+    background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); padding:16px 20px;
+  }
+  .broadcastbar[hidden] { display:none; }
+  .broadcastbar .note { color:var(--muted); font-size:12.5px; flex:1; min-width:200px; }
+  .broadcastbar .sendbtn { min-height:44px; }
+  .broadcastbar .sendbtn.hide { display:none; }
+  .sumline { font-size:12.5px; margin-top:12px; color:var(--muted); }
+  .sumline[hidden] { display:none; }
+  .sumline b.okc { color:var(--ok); } .sumline b.errc { color:var(--err); }
   .btn.sm { font-size:12.5px; padding:8px 14px; }
   .btn .spin { animation:spin 1s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
@@ -206,11 +244,11 @@
 
   /* states */
   .hero { text-align:center; padding:52px 32px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); margin-top:8px; }
-  .hero .badge { width:64px; height:64px; border-radius:19px; background:var(--accent-grad); display:grid; place-items:center; margin:0 auto 18px; box-shadow:0 12px 30px rgba(0,0,0,.2); }
-  .hero .badge svg { width:32px; height:32px; color:#fff; }
+  .hero .badge { width:64px; height:64px; border-radius:19px; background:var(--accent-grad); display:grid; place-items:center; margin:0 auto 18px; }
+  .hero .badge svg { width:32px; height:32px; color:var(--on-accent); }
   .hero h2 { font-size:22px; font-weight:680; letter-spacing:-.02em; margin:0 0 8px; }
   .hero p { color:var(--muted); font-size:14.5px; max-width:46ch; margin:0 auto 22px; line-height:1.55; }
-  .cta { appearance:none; border:0; cursor:pointer; font:inherit; font-size:14.5px; font-weight:620; background:var(--accent-grad); color:#fff; padding:12px 26px; border-radius:var(--pill); display:inline-flex; align-items:center; gap:9px; box-shadow:0 10px 26px rgba(0,0,0,.18); }
+  .cta { appearance:none; border:0; cursor:pointer; font:inherit; font-size:14.5px; font-weight:620; background:var(--accent-grad); color:var(--on-accent); padding:12px 26px; border-radius:var(--pill); display:inline-flex; align-items:center; gap:9px; }
   .cta:hover { filter:brightness(1.06); }
   .cta svg { width:16px; height:16px; }
   .emptyv { text-align:center; padding:34px 20px; color:var(--muted); font-size:13.5px; }
@@ -281,8 +319,16 @@
 
     <div class="plats" id="plats"><!-- platform chips injected --></div>
 
+    <div>
+      <button type="button" class="switchrow" id="sameTextSwitch" role="switch" aria-checked="false">
+        <span class="switchlbl">Same text everywhere</span>
+        <span class="switchtrack" aria-hidden="true"><span class="switchthumb"></span></span>
+      </button>
+    </div>
+
     <div class="actions">
-      <button class="btn primary" id="genBtn"><svg><use href="#i-spark"/></svg> Write variants</button>
+      <button class="btn primary" id="genBtn" aria-describedby="genHint"><svg><use href="#i-spark"/></svg> Write variants</button>
+      <span class="genhint" id="genHint" role="status"></span>
       <button class="btn" id="imgToggle"><svg><use href="#i-image"/></svg> Add an image</button>
     </div>
   </section>
@@ -298,7 +344,7 @@
       <div class="fld">
         <textarea id="imgPrompt" placeholder="Describe the image — e.g. “a clean isometric illustration of a switchboard routing glowing lines onto one board, soft gradient, no text”"></textarea>
       </div>
-      <button class="btn primary" id="imgBtn"><svg><use href="#i-spark"/></svg> Generate</button>
+      <button class="btn" id="imgBtn"><svg><use href="#i-spark"/></svg> Generate</button>
     </div>
     <div class="imgnote" id="imgNote"></div>
     <div class="preview" id="imgPreview">
@@ -313,7 +359,19 @@
   <!-- variants -->
   <div id="variantsWrap"></div>
 
-  <div class="footnote"><svg><use href="#i-bot"/></svg> Variants drafted on the communications bot · publishing sends the exact text you approve, and never without a confirm.</div>
+  <!-- confirmed multi-network fan-out (Stage merged into Compose) -->
+  <div class="broadcastbar" id="broadcastBar" hidden>
+    <span class="note" id="broadcastNote">Review each network's text above — sends only to connected networks.</span>
+    <button type="button" class="btn sendbtn" id="broadcastBtn"><svg><use href="#i-send"/></svg> Send to all chosen networks</button>
+    <div class="confirmwrap" id="broadcastConfirm">
+      <span class="warnpub" id="broadcastConfirmLbl">Post to 0 networks now?</span>
+      <button type="button" class="btn sm primary" id="doBroadcastConfirm"><svg><use href="#i-check"/></svg> Confirm</button>
+      <button type="button" class="btn sm" id="cancelBroadcastConfirm" aria-label="Cancel"><svg><use href="#i-x"/></svg> Cancel</button>
+    </div>
+  </div>
+  <div class="sumline" id="broadcastSummary" role="status" hidden></div>
+
+  <div class="footnote"><svg><use href="#i-bot"/></svg> Publishing sends the exact text you approve, and never without a confirm.</div>
 </div>
 
 <script>
@@ -330,7 +388,7 @@
     threads:  { label:"Threads",   v:"--threads", icon:"#i-at" }
   };
 
-  var state = { workspace:"", targets:[], selected:{}, preview:false };
+  var state = { workspace:"", targets:[], selected:{}, preview:false, sameText:false, sending:false };
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
@@ -340,6 +398,7 @@
   // ── source char count ──────────────────────────────────────────────────────
   $("src").addEventListener("input", function(){
     var n=$("src").value.length; $("srccc").textContent=n+" character"+(n===1?"":"s");
+    if(state.sameText && $("src").value.trim() && selectedList().length){ renderAsIsVariants(selectedList()); }
   });
 
   // ── platform chips ───────────────────────────────────────────────────────────
@@ -349,15 +408,28 @@
       var b=BRAND[t.platform]||{label:t.platform,v:"--muted"};
       var on = state.selected[t.platform];
       var el=document.createElement("button");
+      el.type="button";
       el.className="plat"+(on?" on":"")+(t.connected?"":" off");
       var nc = t.publishable ? (t.connected ? "" : "not connected") : "variant only";
       el.innerHTML='<span class="sw" style="background:var('+b.v+')"></span>'
         + '<span class="dot"></span>'+esc(b.label)
         + (nc?'<span class="nc">· '+nc+'</span>':'');
-      el.title = t.connected ? "" : (t.publishable ? "Connect "+b.label+" at /utilities to publish" : "Draft a variant (publishing "+b.label+" is not wired yet)");
-      el.addEventListener("click", function(){ state.selected[t.platform]=!state.selected[t.platform]; renderPlats(); });
+      el.title = t.connected ? "" : (t.publishable ? "Connect "+b.label+" in Connections to publish" : "Draft a variant (publishing "+b.label+" is not wired yet)");
+      el.setAttribute("aria-pressed", on?"true":"false");
+      el.addEventListener("click", function(){
+        state.selected[t.platform]=!state.selected[t.platform];
+        renderPlats();
+        if(state.sameText && $("src").value.trim() && selectedList().length){ renderAsIsVariants(selectedList()); }
+      });
       host.appendChild(el);
     });
+    syncGenerate();
+  }
+  // Write variants waits for a network, and says so beside the button rather than below the fold.
+  function syncGenerate(){
+    var none=!selectedList().length, btn=$("genBtn"), hint=$("genHint");
+    if(btn && !btn.dataset.busy) btn.disabled=none;
+    if(hint) hint.textContent=none?"Pick a network to write variants for.":"";
   }
   function selectedList(){ return state.targets.map(function(t){return t.platform;}).filter(function(p){return state.selected[p];}); }
 
@@ -416,7 +488,10 @@
   function variantCard(v){
     var b=BRAND[v.platform]||{label:v.platform,v:"--muted",icon:"#i-at"};
     var card=document.createElement("article");
-    card.className="vcard"+(v.publishable?"":" notpub");
+    // A network this installation cannot post to (variant only, or not connected) gets Copy, never Publish or Schedule.
+    var tgt=(state.targets.filter(function(x){ return x.platform===v.platform; })[0])||null;
+    var canPost=!!v.publishable && (!tgt || tgt.connected!==false);
+    card.className="vcard"+(canPost?"":" notpub");
     card.dataset.platform=v.platform; card.dataset.limit=v.limit;
     var m=meterOf((v.text||"").length, v.limit);
     // A declined variant has no post text: the editor starts empty and the bot's words show as a warning.
@@ -432,7 +507,7 @@
       + '<div class="vbar">'
       +   '<button class="btn sm regen"><svg><use href="#i-refresh"/></svg> Regenerate</button>'
       +   '<span class="grow"></span>'
-      +   (v.publishable
+      +   (canPost
             ? '<div class="pubwrap">'
               + '<input type="datetime-local" class="schedat" title="Schedule for later" style="background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--text);font:inherit;font-size:11px;padding:5px 7px;max-width:158px;" />'
               + '<button class="btn sm schedbtn"><svg><use href="#i-clock"/></svg> Schedule</button>'
@@ -441,7 +516,7 @@
               + '<button class="btn sm primary doconfirm"><svg><use href="#i-check"/></svg> Confirm</button>'
               + '<button class="btn sm cancelconfirm"><svg><use href="#i-x"/></svg></button></div>'
               + '</div>'
-            : '<span class="warnpub">Publishing '+esc(b.label)+' not wired yet — copy &amp; post</span>')
+            : '<span class="warnpub">'+esc(b.label)+(v.publishable?' is not connected':' posts by hand')+'</span><button class="btn sm copybtn"><svg><use href="#i-check"/></svg> Copy</button>')
       + '</div>';
     wireCard(card, v.platform, v.limit);
     if(declined) showRes(card, false, declinedMessage(b.label, v.notice));
@@ -466,6 +541,14 @@
     }
     var sched=card.querySelector(".schedbtn");
     if(sched) sched.addEventListener("click", function(){ scheduleOne(card, platform); });
+    var copy=card.querySelector(".copybtn");
+    if(copy) copy.addEventListener("click", function(){ copyVariant(card, ta); });
+  }
+  function copyVariant(card, ta){
+    var text=ta.value;
+    var done=function(){ showRes(card,true,"Copied. Paste it into the network to post."); };
+    try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,function(){ ta.select(); showRes(card,false,"Copy was refused here: the text is selected, press Ctrl+C."); }); return; } }catch(e){}
+    ta.select(); showRes(card,false,"Copy is not available here: the text is selected, press Ctrl+C.");
   }
   function showRes(card, ok, msg){
     var r=card.querySelector(".res"); r.className="res show "+(ok?"ok":"err");
@@ -499,24 +582,37 @@
     if(!text){ renderVariantsError("Write your message above first — the variants are tailored from it."); $("src").focus(); return; }
     var platforms=selectedList();
     if(!platforms.length){ renderVariantsError("Pick at least one network above — tap a network chip to include it."); return; }
+    if(state.sameText){ renderAsIsVariants(platforms); return; }
     if(state.preview){ renderPreviewVariants(platforms); return; }
-    var btn=$("genBtn"); btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Writing…';
+    var btn=$("genBtn"); btn.disabled=true; btn.dataset.busy="1"; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Writing…';
     requestVariants(platforms).then(function(res){
       if(!res.ok){ renderVariantsError(res.j&&res.j.error||"Could not draft variants"); return; }
       renderVariants(res.j.variants||[]);
     }).catch(function(){ renderVariantsError("The composer is offline right now."); })
-    .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> Write variants'; });
+    .finally(function(){ delete btn.dataset.busy; btn.innerHTML='<svg><use href="#i-spark"/></svg> Write variants'; syncGenerate(); });
+  }
+
+  function renderAsIsVariants(platforms){
+    var src=$("src").value.trim();
+    var list=platforms.map(function(p){
+      var t=(state.targets.filter(function(x){return x.platform===p;})[0])||{limit:280,publishable:true,label:p};
+      return { platform:p, label:t.label, limit:t.limit, publishable:t.publishable, text:src };
+    });
+    renderVariants(list);
   }
 
   function renderVariants(list){
     var wrap=$("variantsWrap"); wrap.innerHTML='<div class="grouplbl">Per-network variants</div>';
-    if(!list.length){ wrap.innerHTML+='<div class="emptyv">No variants came back — try again.</div>'; return; }
+    if(!list.length){ wrap.innerHTML+='<div class="emptyv">No variants came back — try again.</div>'; refreshBroadcastBar(); return; }
     var grid=document.createElement("div"); grid.className="vgrid";
     list.forEach(function(v,i){ var c=variantCard(v); c.style.animationDelay=(i*45)+"ms"; grid.appendChild(c); });
     wrap.appendChild(grid);
+    var sum=$("broadcastSummary"); if(sum) sum.hidden=true;
+    refreshBroadcastBar();
   }
   function renderVariantsError(msg){
     $("variantsWrap").innerHTML='<div class="grouplbl">Per-network variants</div><div class="emptyv"><svg style="width:20px;height:20px;color:var(--err);vertical-align:-4px"><use href="#i-warn"/></svg> '+esc(msg)+'</div>';
+    refreshBroadcastBar();
   }
   function renderPreviewVariants(platforms){
     var src=$("src").value.trim();
@@ -586,7 +682,72 @@
       .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> Generate'; });
   });
 
+  // ── confirmed multi-network fan-out (merged from Stage) ─────────────────────
+  function publishableCards(){
+    return Array.prototype.slice.call(document.querySelectorAll("#variantsWrap .vcard:not(.notpub)"));
+  }
+  function hideBroadcastConfirm(){
+    var cw=$("broadcastConfirm"), btn=$("broadcastBtn");
+    if(cw) cw.classList.remove("show");
+    if(btn) btn.classList.remove("hide");
+  }
+  function refreshBroadcastBar(){
+    var bar=$("broadcastBar"), lbl=$("broadcastConfirmLbl");
+    var n=publishableCards().length;
+    hideBroadcastConfirm();
+    if(bar) bar.hidden = n===0;
+    if(lbl) lbl.textContent = "Post to "+n+" network"+(n===1?"":"s")+" now?";
+  }
+  function doBroadcast(){
+    if(state.sending) return;
+    var cs=publishableCards();
+    var posts=cs.map(function(c){ return { platform:c.dataset.platform, text:c.querySelector("textarea").value.trim() }; })
+      .filter(function(p){ return !!p.text; });
+    var sum=$("broadcastSummary");
+    if(!posts.length){
+      if(sum){ sum.hidden=false; sum.textContent="Write text in at least one connected network card before sending."; }
+      hideBroadcastConfirm(); return;
+    }
+    if(state.preview){
+      cs.forEach(function(c){ showRes(c, true, "Preview — would send to "+(BRAND[c.dataset.platform]?BRAND[c.dataset.platform].label:c.dataset.platform)); });
+      hideBroadcastConfirm(); return;
+    }
+    state.sending=true;
+    var doc=$("doBroadcastConfirm"); doc.disabled=true; doc.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Sending…';
+    fetch("/api/switchboard/stage/broadcast",{ method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/json" },
+      body:JSON.stringify({ posts:posts, workspaceId:state.workspace||null, confirm:true }) })
+      .then(function(r){ return r.json().then(function(j){ return { status:r.status, j:j }; }); })
+      .then(function(res){
+        var results=(res.j&&res.j.results)||[], byP={};
+        results.forEach(function(x){ byP[x.platform]=x; });
+        cs.forEach(function(c){
+          var p=c.dataset.platform, x=byP[p]||byP[p==="twitter"?"x":p];
+          if(x){ showRes(c, !!x.ok, x.ok ? "Sent" : (x.message||x.error||"Failed")); }
+          else if(res.j&&res.j.error){ showRes(c, false, res.j.message||res.j.error); }
+        });
+        var s=res.j&&res.j.summary;
+        if(s && sum){
+          sum.hidden=false;
+          sum.innerHTML='Broadcast finished — <b class="okc">'+s.sent+' sent</b>'+(s.failed?' · <b class="errc">'+s.failed+' failed</b> (the rest went out anyway)':'')+' of '+s.total+'.';
+        }
+      })
+      .catch(function(){ cs.forEach(function(c){ showRes(c,false,"Broadcast request failed"); }); })
+      .finally(function(){ state.sending=false; doc.disabled=false; doc.innerHTML='<svg><use href="#i-check"/></svg> Confirm'; hideBroadcastConfirm(); });
+  }
+
   // ── wiring ─────────────────────────────────────────────────────────────────────
+  $("sameTextSwitch").addEventListener("click", function(){
+    state.sameText=!state.sameText;
+    $("sameTextSwitch").setAttribute("aria-checked", state.sameText?"true":"false");
+    if(state.sameText && $("src").value.trim() && selectedList().length){ renderAsIsVariants(selectedList()); }
+  });
+  $("broadcastBtn").addEventListener("click", function(){
+    var n=publishableCards().length; if(!n) return;
+    $("broadcastConfirmLbl").textContent="Post to "+n+" network"+(n===1?"":"s")+" now?";
+    $("broadcastBtn").classList.add("hide"); $("broadcastConfirm").classList.add("show");
+  });
+  $("cancelBroadcastConfirm").addEventListener("click", hideBroadcastConfirm);
+  $("doBroadcastConfirm").addEventListener("click", doBroadcast);
   $("genBtn").addEventListener("click", generate);
   $("wsel").addEventListener("change", function(){ state.workspace=$("wsel").value; try{ localStorage.setItem("switchboard.ws",state.workspace||""); }catch(e){} loadTargets(); });
 

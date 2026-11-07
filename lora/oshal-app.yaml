@@ -8,6 +8,9 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-lora.sql (every LoRA table and index in final shape, with 102's identity columns, 106's issuer columns and 101's model foreign key folded in) and skip 058 and 100-106 natively: 058 seeds a character owned by system:seed:lora, which the native owner-field check refuses, sets NOT NULL by ALTER and installs RLS policies, and 102's comment carries an escaped quote; the declared migrations stayed pending for every person. PostgreSQL still applies 058-106 and the native file is a no-op there.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.7.5: declare lora-director as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: the director gets read tools lora-characters and lora-models (bound to lora.read in authorization.yaml). Asked from Jarvis what LoRA models were trained, it answered that it could not list trained models, while the studio showed them. Guarded by lora/tests/lora-read-tools.test.cjs.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Remove `theme: indigo`: it is not a theme id (design standard §2.8, DS-34), so the studio wears the person's own theme (light-blue by default) (UX audit 2026-11-06).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0, UX audit 2026-11-06: the studio opens on New character step 1, one creation form, a 1 Identity to 4 Scorecards stepper, the character list first on a phone, and Train/Validate/Improve/Overnight withheld unless GET /api/lora/worker reports a GPU worker (read-only, bound to lora.read); inline Concierge column retired.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.9.1: + New character carries data-ef-floating (kernel PR #197) so the shell orb rests above it on a phone.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — lora ("LoRA Studio")
@@ -65,11 +68,8 @@ description: >-
   matrix, and improve it by regenerating data aimed at its weak spots and retraining — with every
   version scored objectively so "better" is a number. Generation/validation run free on your GPU box;
   paid escalation never happens without an approval gate.
-version: 1.8.3
+version: 1.9.1
 status: active
-
-# Per-app skin — indigo so the model-lab reads distinct from the sakura Video Studio.
-theme: indigo
 
 source:
   type: git-subdir

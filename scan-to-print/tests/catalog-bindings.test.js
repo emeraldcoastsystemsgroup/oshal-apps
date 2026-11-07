@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | 0.7.0: the ADR-149 catalog covers the package exactly. Every literal route under every manifest mount (plus GET /assets/<surface script>) matches exactly ONE http binding under the kernel's segment rule (an unbound route is denied authorization_operation_unbound and two matches deny too; oshal-app validate reads the catalog alone and cannot see a forgotten route), and every binding serves a route; the person's routes and the print service share their common paths through one binding; every manifest tool has exactly one tools binding; the bots binding is the operator bot; the photo intake is the one artifact action; exactly the five read tools are read-only and the print tool needs print.send; and every bound permission exists and is granted by the maker role at scope own. Plain Node: it runs in the bare store CI.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | 0.7.0 review: the operator persona's authorizations name exactly the manifest's five tools (the four reads auto, print-to-3d-printer ask) plus bash and write_file off, so the install seeds the printer bot's agent_tools rows; without the block every call is refused as unregistered.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify added calibration routes, source tool bindings and actual operator auto/ask policies.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: verify HTTP bindings for scan-to-print-tools.js, 3D mesh crop/transform/undo/reset, and revocable read-only share links.
  */
 'use strict';
 const test = require('node:test');
@@ -23,13 +24,13 @@ test('every literal route under every manifest mount matches exactly one http bi
   assert.deepEqual(mounts, MOUNTS);
   const rows = mountedRoutes().map((row) => ({ ...row, relative: relativeToMount(row.request, mounts) }))
     .map((row) => ({ ...row, matches: matchBindings(catalog.http, row.method, row.relative) }));
-  assert.equal(rows.length, 38, 'six print service routes, Home, the smoke, the app, three scripts, capabilities, 15 object routes and 8 printer routes');
+  assert.equal(rows.length, 49, 'six print service routes, Home, the smoke, the app, four scripts, capabilities, 25 object/share routes and 8 printer routes');
   const describe = (row) => `${row.method} ${row.request} (${row.file} "${row.pattern}") -> ${row.relative}`;
   assert.deepEqual(rows.filter((row) => row.matches.length === 0).map(describe), [], 'an unbound route is denied authorization_operation_unbound');
   assert.deepEqual(rows.filter((row) => row.matches.length > 1).map(describe), [], 'two matching bindings deny the request');
   const used = new Set(rows.map((row) => row.matches[0].id));
   assert.deepEqual(catalog.http.filter((binding) => !used.has(binding.id)).map((binding) => binding.id), [], 'a binding no route serves is a typo');
-  assert.equal(catalog.http.length, 34);
+  assert.equal(catalog.http.length, 45);
   const root = rows.filter((row) => row.relative === '/');
   assert.deepEqual(root.map((row) => row.mount).sort(), ['/api/scan-to-print/_smoke', '/api/scan-to-print/home-summary']);
   const shared = rows.filter((row) => row.mount === '/api/scan-to-print/service' && rows.some((other) => other.mount === '/api/scan-to-print' && other.method === row.method && other.relative === row.relative));
@@ -44,6 +45,12 @@ test('opening needs app.open, source changes scan.source.change, reconstruction 
   const id = '00000000-0000-4000-8000-000000000000';
   assert.deepEqual(need('GET', '/api/scan-to-print/app'), ['app.open']);
   assert.deepEqual(need('GET', '/api/scan-to-print/assets/scan-to-print-camera.js'), ['app.open']);
+  assert.deepEqual(need('GET', '/api/scan-to-print/assets/scan-to-print-tools.js'), ['app.open']);
+  assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/mesh/crop`), ['scan.edit']);
+  assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/mesh/transform`), ['scan.edit']);
+  assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/shares`), ['scan.edit']);
+  assert.deepEqual(need('DELETE', `/api/scan-to-print/jobs/${id}/shares/${id}`), ['scan.edit']);
+  assert.deepEqual(need('GET', '/api/scan-to-print/shared/tok_123456789012345678901234'), ['app.open']);
   assert.deepEqual(need('POST', '/api/scan-to-print/jobs'), ['scan.source.change']);
   assert.deepEqual(need('PATCH', `/api/scan-to-print/jobs/${id}/calibration`), ['scan.read+scan.source.change']);
   assert.deepEqual(need('POST', `/api/scan-to-print/jobs/${id}/reconstruct`), ['scan.edit']);

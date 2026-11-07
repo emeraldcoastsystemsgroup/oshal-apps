@@ -1,36 +1,300 @@
-/* Structured Office editing surfaces share the portal editor foundation. */
-*{box-sizing:border-box}body{margin:0;background:var(--bg-primary);color:var(--text-primary);font:13px/1.45 system-ui,sans-serif}button,input,select,textarea{font:inherit}button{min-height:36px;padding:7px 10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary);cursor:pointer}button:disabled{opacity:.45;cursor:default}input,textarea,select{min-width:0;max-width:100%;padding:7px;border:1px solid var(--border-color);border-radius:5px;color:var(--text-primary);background:var(--bg-primary)}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent-primary);outline-offset:2px}label{display:flex;flex-direction:column;gap:4px;margin:8px 0;color:var(--text-muted)}h2{font-size:13px;margin:12px 0 8px}#office-header{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;background:var(--bg-card)}#document-title{width:min(260px,45vw);font-weight:650}#save-state{color:var(--text-muted);font-size:12px}.office-file-actions{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}.office-back{color:var(--accent-primary);text-decoration:none}.ef-navigation>#office-navigation{padding:12px}#office-navigation button{display:block;width:100%;text-align:left;margin-bottom:6px;overflow-wrap:anywhere}#office-navigation select{width:100%}#office-navigation [aria-current=true],#office-navigation [aria-pressed=true]{border-color:var(--accent-primary);color:var(--accent-primary)}#office-navigation a{display:block;margin:12px 0;color:var(--accent-primary)}.office-page-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px}.office-page-actions button{font-size:11px}.danger{color:var(--status-error)}#office-viewport{display:flex;flex-direction:column;overflow:hidden;min-height:0}#insert-toolbar{display:flex;align-items:center;gap:6px;padding:8px;flex-wrap:wrap;border-bottom:1px solid var(--border-color);background:var(--bg-card)}#insert-toolbar label{flex-direction:row;align-items:center;margin:0 0 0 auto}#insert-toolbar button{font-size:12px}#document-canvas{position:relative;flex:1;min-height:100px;overflow:auto;padding:24px;background:var(--bg-secondary);outline:none;overscroll-behavior:contain}.office-slide{position:relative;flex:none;margin:auto;overflow:hidden;box-shadow:0 3px 20px var(--border-color);color:#172033}.office-object{position:absolute;touch-action:none;box-sizing:border-box;cursor:move;outline:0 solid transparent}.office-object.selected{outline:2px solid var(--accent-primary);outline-offset:3px}.office-object>.office-rich-text{height:100%;width:100%;overflow:hidden}.office-object>img{display:block;width:100%;height:100%;object-fit:fill;pointer-events:none}.office-rich-text{white-space:pre-wrap;overflow-wrap:break-word;outline:none;min-height:1.4em;cursor:text;tab-size:4}.office-handle{position:absolute;min-height:0;width:12px;height:12px;padding:0;border-radius:2px;border:1px solid var(--accent-primary);background:var(--bg-primary);z-index:3;touch-action:none}.office-handle.nw{top:-9px;left:-9px;cursor:nwse-resize}.office-handle.ne{top:-9px;right:-9px;cursor:nesw-resize}.office-handle.sw{bottom:-9px;left:-9px;cursor:nesw-resize}.office-handle.se{bottom:-9px;right:-9px;cursor:nwse-resize}.office-handle.rotate{top:-32px;left:calc(50% - 6px);border-radius:50%;cursor:grab}.office-word-page{position:relative;margin:auto;background:#fff;color:#172033;box-shadow:0 3px 20px var(--border-color);overflow:visible}.office-block{position:relative;min-height:1em}.office-block.selected{outline:1px dashed var(--accent-primary);outline-offset:4px}.office-block>img{display:block;max-width:100%;object-fit:contain}.office-inline-list{padding-left:24px;margin:0}.office-word-header,.office-word-footer{position:absolute;left:54px;right:54px;font:12px Arial;color:#64748b;white-space:pre-wrap}.office-word-header{top:20px}.office-word-footer{bottom:20px}.office-content-table{width:100%;height:100%;border-collapse:collapse;table-layout:fixed;background:transparent}.office-content-table td{border:1px solid #94a3b8;padding:4px;vertical-align:top;min-width:20px}.office-content-table .office-rich-text{min-width:20px}#canvas-help{padding:7px 12px;color:var(--text-muted);font-size:11px;border-top:1px solid var(--border-color);background:var(--bg-card)}#office-status{margin:0;padding:8px 12px;font-size:12px;min-height:32px;overflow-wrap:anywhere}#office-status[data-error=true]{color:var(--status-error)}#office-inspector label,#office-inspector input,#office-inspector select{width:100%}#office-inspector h2{margin-top:0}#sheet-formula{display:flex;gap:8px;align-items:center;padding:8px;background:var(--bg-card);border-bottom:1px solid var(--border-color)}#cell-address{min-width:65px;font-weight:600}#cell-value{flex:1}#sheet-window{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:6px;background:var(--bg-card)}#window-position{font-size:11px;color:var(--text-muted)}.office-grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13px Arial;background:#fff;color:#172033}.office-grid th{background:#edf1f6;position:sticky;top:0;z-index:2;color:#475569;font-weight:400}.office-grid th:first-child{left:0;z-index:3;min-width:45px}.office-grid td,.office-grid th{border-right:1px solid #dce2eb;border-bottom:1px solid #dce2eb;padding:0 6px;min-width:0;max-width:600px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.office-grid td{cursor:cell}.office-grid td.range-selected{box-shadow:inset 0 0 0 2px var(--accent-primary);background:color-mix(in srgb,var(--accent-primary) 8%,#fff)}.office-grid td:focus{outline:2px solid var(--accent-primary);outline-offset:-2px}#office-ai{min-width:0}#ai-log{max-height:45vh;overflow:auto}#ai-log p{white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid var(--border-color);padding-bottom:10px}#ai-message{width:100%;resize:vertical}.office-proposal{border:1px solid var(--accent-primary);padding:8px;border-radius:6px}.office-proposal pre{max-height:180px;overflow:auto;white-space:pre-wrap;font-size:11px}.office-proposal button{margin:4px}dialog{max-width:min(680px,calc(100vw - 32px));max-height:85dvh;overflow:auto;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-primary);color:var(--text-primary);padding:24px}dialog::backdrop{background:#0008}dialog li{margin:9px 0}dialog label{flex-direction:row;align-items:flex-start}dialog input[type=checkbox]{width:20px;flex:none}#format-note{font-size:11px;color:var(--text-muted)}[hidden]{display:none!important}@media(max-width:800px){button,input,select,textarea{min-height:44px}input,select,textarea{font-size:16px}#office-header{padding:8px}.office-file-actions{flex-wrap:nowrap;overflow:auto;width:100%;margin:0}.office-file-actions>*{flex-shrink:0}#insert-toolbar{flex-wrap:nowrap;overflow:auto;min-height:60px}#insert-toolbar>*{flex-shrink:0}#document-canvas{padding:16px}#sheet-window button{font-size:11px;padding:6px}.office-handle{min-height:0;width:16px;height:16px}#canvas-help{font-size:10px}.office-page-actions button{font-size:12px}}
-/* Deliberate command menus keep the document open and avoid action-button piles. */
-.office-command-menu{position:relative;flex:none}.office-command-menu>summary{display:flex;align-items:center;justify-content:center;gap:8px;list-style:none;min-height:44px;box-sizing:border-box;padding:10px 14px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-card);font:inherit;cursor:pointer}.office-command-menu>summary::-webkit-details-marker{display:none}.office-command-menu>summary:after{content:'▾';font-size:12px}.office-command-menu[open]>summary{border-color:var(--accent-primary)}.office-command-menu>summary:focus-visible{outline:2px solid var(--accent-primary);outline-offset:2px}.office-menu-popover{position:absolute;top:calc(100% + 6px);left:0;z-index:30;display:flex;flex-direction:column;gap:6px;min-width:210px;max-width:calc(100vw - 32px);max-height:60dvh;overflow:auto;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-primary);box-shadow:0 6px 18px #0002}.office-menu-end{left:auto;right:0}.office-menu-popover button,.office-menu-popover select{width:100%;min-height:44px;text-align:left;font:inherit}.office-menu-popover label{display:flex;flex-direction:column;gap:6px}.office-menu-popover button{padding:10px 12px}.office-file-actions{gap:8px;align-items:center;overflow:visible}.office-file-actions>button{min-height:44px;padding:10px 14px;font:inherit}.office-file-actions>.office-icon-action{min-width:44px;padding:8px;font-size:22px;line-height:1}.office-page-actions{display:flex;flex-direction:column;gap:8px}.office-page-actions>button{min-height:44px;font:inherit}.office-page-actions>.office-command-menu>summary{justify-content:space-between}#insert-toolbar{overflow:visible;align-items:center;gap:10px;padding:10px}#insert-toolbar>button{min-height:44px;font:inherit}#office-navigation button{min-height:44px}#canvas-help{font-size:13px;line-height:1.45}#office-header #document-title{font-size:16px;min-height:44px}#office-header #save-state{font-size:13px}@media(max-width:800px){.office-file-actions{flex-wrap:wrap;overflow:visible;width:100%;margin:0}#insert-toolbar{flex-wrap:wrap;overflow:visible;min-height:0}.office-menu-popover{max-height:52dvh}#canvas-help{font-size:12px}.office-page-actions button{font-size:14px}}
+/* Structured Office editing surfaces share the portal editor foundation.
+ * CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Structured Office editing over the shared editor foundation: page, slide and workbook surfaces, menus and the phone layout.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4): every chrome colour, line, radius, size and space comes from the --ds-* tokens; controls are solid with a 3:1 edge (no translucent fill, gradient, lift or fade), one 2px focus ring, radii 6/10/14/20, the type scale with nothing under 12px, 44px targets on touch; one app row; the phone's bottom bar and opaque top-layer sheets and menus; on a desktop a 240px Slides pane, the canvas and one docked 320px Format | Concierge pane; the page stays white paper in every theme (N7). The document's own rendering (slides, Word pages, the grid) keeps its fonts and colours inside [data-ds-work].
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): styles for anchored comment highlights, tracked insertion/deletion marks, Find & Replace hit markers, Mobile reflow view, and Comment/Suggest/Share thread sheets.
+ */
+*{box-sizing:border-box}
+html,body{margin:0;overscroll-behavior:contain;background:var(--ds-page,var(--bg-primary));color:var(--ds-ink,var(--text-primary));font:var(--ds-text-body,400 16px/24px system-ui,sans-serif)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{min-height:44px;padding:0 16px;border:1px solid var(--ds-line-control,var(--border-color));border-radius:10px;background:var(--ds-surface-2,var(--bg-secondary));color:var(--ds-ink,var(--text-primary));font-weight:600;cursor:pointer;box-shadow:none;transform:none;transition:background-color var(--ds-dur-fast,120ms) var(--ds-ease,ease)}
+button:hover:not(:disabled):not([data-ds-not-yet]){background:var(--ds-surface-3,var(--bg-secondary))}
+button.primary{background:var(--ds-accent,var(--accent-primary));border-color:var(--ds-accent,var(--accent-primary));color:var(--ds-on-accent,var(--text-on-accent,#fff))}
+button.primary:hover:not(:disabled){background:var(--ds-accent,var(--accent-primary));box-shadow:inset 0 0 0 1px var(--ds-on-accent,#fff)}
+button:disabled{opacity:1;color:var(--ds-ink-disabled,#8a94a6);background:var(--ds-surface-2,var(--bg-secondary));border-color:var(--ds-hairline,var(--border-color));cursor:not-allowed}
+input,select,textarea{min-width:0;max-width:100%;min-height:44px;padding:0 12px;border:1px solid var(--ds-line-control,var(--border-color));border-radius:10px;background:var(--ds-surface,var(--bg-primary));color:var(--ds-ink,var(--text-primary));font-size:16px}
+textarea{padding:8px 12px}
+input[type=checkbox]{appearance:none;flex:none;min-height:0;width:20px;height:20px;padding:0;border:1px solid var(--ds-line-control,var(--border-color));border-radius:6px;background:var(--ds-surface,var(--bg-primary));cursor:pointer}
+input[type=checkbox]:checked{border-color:var(--ds-accent,var(--accent-primary));background:var(--ds-accent,var(--accent-primary)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3L15 6.5' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
+input[type=color]{padding:4px}
+:focus-visible{outline:2px solid var(--ds-focus,var(--accent-primary));outline-offset:2px}
+label{display:flex;flex-direction:column;gap:4px;margin:0;font:600 14px/20px var(--ds-font,system-ui);color:var(--ds-ink,var(--text-primary))}
+h2{margin:0;font:var(--ds-text-heading,600 18px/24px system-ui)}
+h3{margin:0;font:600 16px/24px var(--ds-font,system-ui)}
+[hidden]{display:none!important}
+.danger,.ds-danger{color:var(--ds-bad,var(--status-error))}
+.office-sr-only{position:absolute!important;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 
-/* Keep format creation and same-document AI visible at phone widths. */
-.office-new-document{display:flex;align-items:center;gap:6px}.office-new-document label{margin:0;flex-direction:row;align-items:center;font-size:12px}.office-new-document select{min-height:44px;max-width:160px}.office-new-document button{min-height:44px}#document-kind{color:var(--text-muted);font-size:12px;white-space:nowrap}#office-previous-files{margin-top:12px}#previous-files-list>div{padding:8px 0;border-bottom:1px solid var(--border-color)}#previous-files-status{font-size:12px;overflow-wrap:anywhere}@media(max-width:800px){#office-header #document-title{flex:1;width:auto;min-width:160px;max-width:100%}.office-new-document{flex:1;min-width:200px}.office-new-document select{max-width:150px}#generate-document{flex:1}#document-kind{font-size:11px}}
+/* ── The app row (§3.1): Back, the name and its menu, Undo, Redo, the tools on a desktop, Save and Export. */
+#office-root .ef-header-slot{border-bottom:1px solid var(--ds-hairline,var(--border-color));background:var(--ds-page,var(--bg-primary))}
+#office-header{display:flex;align-items:center;gap:8px;min-height:56px;padding:4px 12px;background:var(--ds-page,var(--bg-primary));flex-wrap:nowrap}
+.office-icon-action{min-width:44px;padding:0;border-color:transparent;background:transparent;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.office-icon-action:hover:not(:disabled){background:var(--ds-surface-3,var(--bg-secondary))}
+.office-icon-action:disabled{border-color:transparent;background:transparent}
+.office-name{display:flex;flex-direction:column;justify-content:center;min-width:0;flex:0 1 auto}
+#document-name{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:0;min-width:0;max-width:100%;padding:0 8px;border-color:transparent;background:transparent;font:var(--ds-text-heading,600 18px/24px system-ui);text-align:left}
+.office-name-line{display:flex;align-items:center;gap:4px;min-width:0;max-width:100%}
+#document-name:hover{background:var(--ds-surface-3,var(--bg-secondary))}
+#document-name-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.office-caret{flex:none;font-size:12px;color:var(--ds-ink-2,var(--text-secondary))}
+#save-state{max-width:100%;font:var(--ds-text-meta,400 12px/16px system-ui);color:var(--ds-ink-2,var(--text-secondary));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#save-state:empty{display:none}
+.office-desktop-tools{display:flex;align-items:center;gap:8px;min-width:0;margin-left:8px;padding-left:16px;border-left:1px solid var(--ds-hairline,var(--border-color))}
+.office-tool{min-height:36px;padding:0 12px}
+.office-zoom{flex-direction:row;align-items:center}
+.office-zoom select{min-height:36px;font-size:15px}
+.office-finish{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+#office-root .ef-tools{display:none!important}
+#office-root :is(.ef-close-drawer,.ef-pane-heading,.ef-more-button,.ef-empty),.ds-layer :is(.ef-close-drawer,.ef-pane-heading,.ef-empty){display:none!important}
+:is(#office-root,.ds-layer) .ef-more-tools{margin:0;padding:0;border:0}
+:is(#office-root,.ds-layer) .ef-more-tools>summary{display:none!important}
+#office-root .ef-status-slot{border-top:1px solid var(--ds-hairline,var(--border-color))}
+#office-root .ef-error{font:var(--ds-text-help,400 14px/20px system-ui);color:var(--ds-bad,var(--status-error))}
 
-/* The established Office workspace: a large page, a small page rail and one Concierge. */
-#office-root .ef-header-slot{background:var(--bg-primary)}#office-header{gap:10px 14px;padding:14px 18px;background:linear-gradient(120deg,color-mix(in srgb,var(--accent-primary) 7%,transparent),transparent)}.office-title-field{margin:0;gap:3px;flex:1;min-width:180px;max-width:360px}.office-title-field>span{text-transform:uppercase;font-size:10px;letter-spacing:.06em;font-weight:600}#office-header #document-title{width:100%;max-width:100%;background:transparent;border-color:transparent;padding:4px 0;min-height:30px;font-size:18px}#office-header #document-title:focus{background:var(--bg-primary);border-color:var(--border-color);padding-inline:7px}#office-header #generate-document{background:var(--accent-primary);color:var(--button-primary-text,#fff);border-color:var(--accent-primary)}
-#office-root .office-context-tools{gap:8px;padding:8px 16px;background:color-mix(in srgb,var(--bg-card) 85%,var(--bg-primary));min-height:54px}#office-root .office-context-tools #insert-toolbar{display:contents}#office-root .office-context-tools button,#office-root .office-context-tools .office-command-menu>summary{min-height:36px;padding:7px 12px}#office-root .office-context-tools .office-icon-action{font-size:20px;min-width:36px;padding:4px}#office-root .office-context-tools .ef-selection{font-size:11px}#office-root .office-context-tools #insert-toolbar>label{margin:0;gap:6px}#office-root .office-context-tools #zoom{padding:6px}
-#office-root #office-navigation{padding:14px 10px}#office-root #office-navigation>details{padding:10px 0;border-bottom:1px solid var(--border-color)}#office-root #office-navigation summary{cursor:pointer;color:var(--text-muted);font-size:12px;font-weight:600}#office-root #page-list-title{margin:18px 2px 10px}#office-root #page-list{display:flex;flex-direction:column;gap:10px}#office-root #page-list .office-page-card{padding:6px;border:1px solid transparent;border-radius:10px;background:transparent;margin:0}#office-root #page-list .office-page-card[aria-current=true]{border-color:var(--accent-primary);background:color-mix(in srgb,var(--accent-primary) 8%,transparent)}.office-page-thumbnail{display:block;width:100%;aspect-ratio:16/9;border-radius:4px;box-shadow:0 2px 9px #17203316;pointer-events:none}.office-page-label{display:block;font-size:11px;line-height:1.4;margin-top:5px;overflow-wrap:anywhere}#office-root .office-page-actions{margin:12px 0}#office-root #document-canvas{padding:28px;background:color-mix(in srgb,var(--bg-secondary) 78%,var(--bg-primary));display:flex;align-items:flex-start}#office-root .office-slide,#office-root .office-word-page{box-shadow:0 10px 36px #17203318;border-radius:5px;margin:8px auto}#office-root #canvas-help{padding:9px 14px;font-size:12px;color:var(--text-muted)}
-@media(min-width:801px){
- #office-root.ef-editor .ef-body{position:relative;grid-template-columns:160px minmax(0,1fr)}
- #office-root.ef-editor[data-editor-concierge=open] .ef-body{grid-template-columns:160px minmax(0,1fr) clamp(300px,24vw,350px)}
- #office-root.ef-editor .ef-navigation{display:block;position:static;width:auto;box-shadow:none}
- #office-root.ef-editor .ef-navigation>.ef-close-drawer{display:none}
- #office-root.ef-editor .ef-inspector{display:none;position:absolute;inset:0 0 0 auto;width:280px;max-width:calc(100% - 160px);z-index:12;box-shadow:-8px 0 25px #17203318;background:var(--bg-primary)}
- #office-root.ef-editor[data-editor-concierge=open] .ef-inspector{right:clamp(300px,24vw,350px)}
- #office-root.ef-editor[data-editor-panel=properties] .ef-inspector{display:block}
- #office-root.ef-editor .ef-inspector>.ef-close-drawer{display:block;margin:10px}
-}
+/* ── The work: the document on its canvas; the page is paper in every theme (N7). */
+#office-viewport{display:flex;flex-direction:column;min-height:0;overflow:hidden}
+#document-canvas{position:relative;display:flex;align-items:flex-start;flex:1;min-height:100px;overflow:auto;padding:24px;background:var(--ds-surface-2,var(--bg-secondary));outline:none;overscroll-behavior:contain}
+/* The document keeps its own type: the chrome's fixed 24px line height would clip a 40pt slide title inside its box. */
+#document-canvas{font:13px/1.45 system-ui,sans-serif}
+#document-canvas:focus-visible{outline:2px solid var(--ds-focus,var(--accent-primary));outline-offset:-2px}
+.office-slide{position:relative;flex:none;margin:8px auto;overflow:hidden;border:1px solid var(--ds-hairline,var(--border-color));border-radius:6px;color:#172033}
+.office-object{position:absolute;touch-action:none;box-sizing:border-box;cursor:move;outline:0 solid transparent}
+.office-object.selected{outline:2px solid var(--ds-accent,var(--accent-primary));outline-offset:3px}
+.office-object:focus-visible{outline:2px solid var(--ds-focus,var(--accent-primary));outline-offset:3px}
+.office-object>.office-rich-text{height:100%;width:100%;overflow:hidden}
+.office-object>img{display:block;width:100%;height:100%;object-fit:fill;pointer-events:none}
+.office-rich-text{white-space:pre-wrap;overflow-wrap:break-word;outline:none;min-height:1.4em;cursor:text;tab-size:4}
+html[data-office-keyboard] .office-rich-text:focus{outline:2px solid var(--ds-focus,var(--accent-primary));outline-offset:2px}
+.office-handle{position:absolute;min-height:0;width:12px;height:12px;padding:0;border-radius:2px;border:1px solid var(--ds-accent,var(--accent-primary));background:#fff;z-index:3;touch-action:none}
+.office-handle.nw{top:-9px;left:-9px;cursor:nwse-resize}.office-handle.ne{top:-9px;right:-9px;cursor:nesw-resize}.office-handle.sw{bottom:-9px;left:-9px;cursor:nesw-resize}.office-handle.se{bottom:-9px;right:-9px;cursor:nwse-resize}.office-handle.rotate{top:-32px;left:calc(50% - 6px);border-radius:50%;cursor:grab}
+.office-word-page{position:relative;margin:8px auto;background:#fff;color:#172033;border:1px solid var(--ds-hairline,var(--border-color));border-radius:6px;overflow:visible}
+.office-block{position:relative;min-height:1em}
+.office-block.selected:has(>img),.office-block.selected:has(>.office-content-table){outline:2px solid var(--ds-accent,var(--accent-primary));outline-offset:4px}
+.office-block>img{display:block;max-width:100%;object-fit:contain}
+.office-inline-list{padding-left:24px;margin:0}
+.office-word-header,.office-word-footer{position:absolute;left:54px;right:54px;font:12px Arial;color:#64748b;white-space:pre-wrap}.office-word-header{top:20px}.office-word-footer{bottom:20px}
+.office-content-table{width:100%;height:100%;border-collapse:collapse;table-layout:fixed;background:transparent}
+.office-content-table td{border:1px solid #94a3b8;padding:4px;vertical-align:top;min-width:20px}
+.office-content-table .office-rich-text{min-width:20px}
+.office-word-page .office-rich-text[data-office-empty]:not(:focus)::before{content:'Start writing';color:#6b7280;pointer-events:none}
+#sheet-formula{display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--ds-page,var(--bg-primary));border-bottom:1px solid var(--ds-hairline,var(--border-color))}
+#cell-address{min-width:64px;font-weight:600}#cell-value{flex:1}
+#sheet-window{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:var(--ds-page,var(--bg-primary))}
+#window-position{font:var(--ds-text-meta,400 12px/16px system-ui);color:var(--ds-ink-2,var(--text-secondary))}
+.office-grid{border-collapse:separate;border-spacing:0;table-layout:fixed;font:13px Arial;background:#fff;color:#172033}
+.office-grid th{background:#edf1f6;position:sticky;top:0;z-index:2;color:#475569;font-weight:400}
+.office-grid th:first-child{left:0;z-index:3;min-width:45px}
+.office-grid td,.office-grid th{border-right:1px solid #dce2eb;border-bottom:1px solid #dce2eb;padding:0 6px;min-width:0;max-width:600px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.office-grid td{cursor:cell}
+.office-grid td.range-selected{box-shadow:inset 0 0 0 2px var(--ds-accent,var(--accent-primary));background:color-mix(in srgb,var(--ds-accent,var(--accent-primary)) 8%,#fff)}
+.office-grid td:focus{outline:2px solid var(--ds-accent,var(--accent-primary));outline-offset:-2px}
+
+/* ── Your documents (N2): thumbnails newest first, one New at the bottom right. */
+#office-home{position:relative;flex:1;min-height:0;overflow:auto;padding:16px 16px 96px;background:var(--ds-page,var(--bg-primary))}
+#office-home-title{margin:0 0 16px}
+.office-home-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
+.office-doc-card{display:flex;flex-direction:column;align-items:stretch;gap:4px;height:auto;min-height:0;padding:0;border:0;background:transparent;text-align:left;font-weight:400}
+.office-doc-card:hover:not(:disabled){background:transparent}
+.office-doc-card:hover .office-doc-paper{border-color:var(--ds-line-control,var(--border-color))}
+.office-doc-paper{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1.294;margin-bottom:4px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:6px;background:#fff;color:#5b6473;font:700 24px/32px var(--ds-font,system-ui)}
+.office-doc-pptx{aspect-ratio:16/9}.office-doc-xlsx{aspect-ratio:1/1.294}
+.office-doc-title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font:600 16px/24px var(--ds-font,system-ui);color:var(--ds-ink,var(--text-primary))}
+.office-doc-meta{font:var(--ds-text-meta,400 12px/16px system-ui);color:var(--ds-ink-2,var(--text-secondary))}
+.office-home-empty{color:var(--ds-ink-2,var(--text-secondary))}
+.office-home-new{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;min-height:52px;padding:0 20px}
+#office-root[data-office-view=home] :is(.ef-navigation,.ef-inspector,.ef-concierge,.office-pane-tabs){display:none!important}
+#office-root[data-office-view=home] .ef-header-slot{display:none!important}
+html[data-office-view=home] .office-bottom-bar{display:none!important}
+
+/* ── Panes: the Slides list, the Format pane and its tabs, the document's own properties. */
+#office-navigation{padding:0 12px 16px}
+.office-pane-head{display:flex;align-items:center;min-height:48px}
+#page-list{display:flex;flex-direction:column;gap:8px}
+#page-list button{display:block;width:100%;height:auto;min-height:44px;padding:8px;text-align:left;border:1px solid transparent;border-radius:10px;background:transparent;font-weight:400}
+#page-list button[aria-current=true]{border-color:var(--ds-ink,var(--text-primary));background:var(--ds-surface-3,var(--bg-secondary))}
+.office-page-thumbnail{display:block;width:100%;aspect-ratio:16/9;border:1px solid var(--ds-hairline,var(--border-color));border-radius:6px;pointer-events:none}
+.office-page-label{display:block;margin-top:4px;font:var(--ds-text-meta,400 12px/16px system-ui);overflow-wrap:anywhere}
+.office-page-actions{display:flex;gap:8px;margin-top:12px}.office-page-actions>#add-page{flex:1}
+:is(#office-root,.ds-layer) .ef-properties{padding:16px;display:grid;gap:16px}
+:is(#office-root,.ds-layer) .ef-property-list{display:grid;gap:16px}
+:is(#office-root,.ds-layer) .ef-property-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0;padding:0;border:0;min-width:0}
+:is(#office-root,.ds-layer) .ef-property-group>legend{padding:0;margin-bottom:8px;font:600 14px/20px var(--ds-font,system-ui);color:var(--ds-ink,var(--text-primary))}
+:is(#office-root,.ds-layer) .ef-property{display:flex;flex-direction:column;gap:4px;margin:0;min-width:0;font:600 14px/20px var(--ds-font,system-ui);color:var(--ds-ink,var(--text-primary))}
+:is(#office-root,.ds-layer) .ef-property>:is(input,textarea,select){box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:44px;margin:0;padding:0 12px;border:1px solid var(--ds-line-control,var(--border-color));border-radius:10px;background:var(--ds-surface,var(--bg-primary));color:var(--ds-ink,var(--text-primary));font-size:16px}
+:is(#office-root,.ds-layer) .ef-property>input[type=color]{padding:4px}
+:is(#office-root,.ds-layer) .ef-property>input[type=checkbox]{appearance:none;width:20px;height:20px;min-height:20px;padding:0;border:1px solid var(--ds-line-control,var(--border-color));border-radius:6px;background:var(--ds-surface,var(--bg-primary))}
+:is(#office-root,.ds-layer) .ef-property>input[type=checkbox]:checked{border-color:var(--ds-accent,var(--accent-primary));background:var(--ds-accent,var(--accent-primary)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3L15 6.5' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat}
+:is(#office-root,.ds-layer) :is(.ef-field-status,.ef-selection){font:var(--ds-text-help,400 14px/20px system-ui);color:var(--ds-ink-2,var(--text-secondary))}
+:is(#office-root,.ds-layer) .ef-field-status:empty{display:none}
+:is(#office-root,.ds-layer) .ef-discard{min-height:44px;border-radius:10px;border-color:var(--ds-line-control,var(--border-color));font-size:16px}
+.office-format-tabs{display:flex;gap:4px;padding:4px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:10px;background:var(--ds-surface-2,var(--bg-secondary))}
+.office-format-tab{flex:1;min-height:36px;border:0;border-radius:6px;background:transparent}
+.office-format-tab[aria-selected=true]{background:var(--ds-ink,var(--text-primary));color:var(--ds-page,var(--bg-primary))}
+.office-format-tab[aria-selected=true]:hover{background:var(--ds-ink,var(--text-primary))}
+.office-planned-field{justify-self:start;min-height:44px}
+#office-doc-summary{display:grid;gap:8px}
+#office-root[data-office-selected] #office-doc-summary{display:none}
+#office-doc-facts{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font:var(--ds-text-help,400 14px/20px system-ui)}
+#office-doc-facts dt{color:var(--ds-ink-2,var(--text-secondary))}#office-doc-facts dd{margin:0;color:var(--ds-ink,var(--text-primary))}
+#open-page-setup{justify-self:start}
+.office-pane-tabs{display:flex;align-items:flex-end;gap:16px;padding:0 16px;border-left:1px solid var(--ds-edge,var(--border-color));border-bottom:1px solid var(--ds-hairline,var(--border-color));background:var(--ds-surface,var(--bg-primary))}
+.office-pane-tab{min-height:48px;padding:0 4px;border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent}
+.office-pane-tab:hover:not(:disabled){background:transparent;color:var(--ds-ink,var(--text-primary))}
+.office-pane-tab[aria-selected=true]{border-bottom-color:var(--ds-accent,var(--accent-primary))}
+
+/* ── The concierge: one entry; the composer keeps its solid look; a faded disabled icon is not allowed (DS-27). */
+#office-root .ef-concierge,#office-root .ef-assistant,.ds-layer .ef-assistant{background:var(--ds-surface,var(--bg-primary));border-color:var(--ds-edge,var(--border-color))}
+:is(#office-root,.ds-layer) .ef-assistant-header{min-height:56px;padding:8px 16px;border-color:var(--ds-hairline,var(--border-color))}
+:is(#office-root,.ds-layer) .ef-assistant-header h2{font:var(--ds-text-heading,600 18px/24px system-ui)}
+:is(#office-root,.ds-layer) .ef-assistant-help{font:var(--ds-text-help,400 14px/20px system-ui);color:var(--ds-ink-2,var(--text-secondary))}
+:is(#office-root,.ds-layer) .ef-assistant-composer{border-radius:14px;border-color:var(--ds-line-control,var(--border-color));background:var(--ds-surface,var(--bg-primary))}
+:is(#office-root,.ds-layer) .ef-assistant-icon{border-radius:10px;font-size:18px!important}
+:is(#office-root,.ds-layer) .ef-assistant button:disabled{opacity:1;color:var(--ds-ink-disabled,#8a94a6)}
+:is(#office-root,.ds-layer) .ef-assistant-controls>.ef-assistant-send{border-radius:10px;font-size:14px!important}
+:is(#office-root,.ds-layer) :is(.ef-assistant-speaker,.ef-assistant-notice){font-size:12px}
+:is(#office-root,.ds-layer) .ef-assistant-form textarea{font-size:16px}
+.office-prompts{display:flex;gap:8px;margin:0 12px;padding:0 0 8px;overflow-x:auto}
+.office-chip{flex:none;min-height:44px;padding:0 16px;border-radius:999px}
+
+/* ── Menus and sheets (§4.3, §4.4): modal top-layer dialogs, opaque, one float elevation, a plain scrim. */
+.ds-layer{margin:auto;padding:0;width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 32px);border:1px solid var(--ds-hairline,var(--border-color));border-radius:20px;background:var(--ds-surface,var(--bg-primary));color:var(--ds-ink,var(--text-primary));box-shadow:var(--ds-elev-float,0 12px 32px rgb(0 0 0 / .16));overflow:auto;font:var(--ds-text-body,400 16px/24px system-ui)}
+.ds-layer::backdrop{background:var(--ds-scrim,rgb(0 0 0 / .4))}
+.ds-layer.ds-menu{width:auto;min-width:240px;max-width:min(360px,calc(100vw - 32px))}
+.ds-layer.ds-menu::backdrop{background:transparent}
+.ds-layer.ds-anchored{position:fixed;margin:0;inset:auto;border-radius:14px}
+.ds-layer-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:56px;padding:0 8px 0 16px;background:var(--ds-surface,var(--bg-primary));border-bottom:1px solid var(--ds-hairline,var(--border-color))}
+.ds-layer-title{margin:0;font:var(--ds-text-heading,600 18px/24px system-ui);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-layer-done{border-color:transparent!important;background:transparent!important;color:var(--ds-accent-ink,var(--accent-primary))!important}
+.ds-confirm .ds-layer-done{display:none}
+.ds-layer-body{padding:16px;display:grid;gap:12px}
+.ds-layer.ds-menu .ds-layer-body{padding:8px 0}
+.ds-layer #office-navigation,.ds-layer #office-ai{padding:0}
+.ds-layer .ef-inspector{display:block!important;position:static!important;width:auto!important;max-height:none!important;border:0!important;box-shadow:none!important;background:transparent!important}
+.ds-layer .ef-inspector .ef-properties{padding:0}
+.ds-layer #office-ai .ef-assistant{height:min(60dvh,520px);min-height:360px}
+.ds-layer #office-ai .ef-assistant-header{display:none}
+.ds-layer #page-settings,.ds-layer #sheet-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ds-layer #page-settings>button,.ds-layer #sheet-settings>button,.ds-layer #word-settings{grid-column:1/-1}
+.ds-layer #word-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ds-layer #office-revisions{display:grid;gap:12px}
+.ds-layer #object-list,.ds-layer #previous-files-list{display:grid;gap:8px}
+.ds-layer #object-list button,.ds-layer #previous-files-list button{width:100%;text-align:left;font-weight:400}
+.ds-menu-list{display:flex;flex-direction:column;background:var(--ds-surface,var(--bg-primary))}
+.ds-menu-row{justify-content:flex-start!important;width:100%!important;min-height:44px;padding:0 16px!important;border:0!important;border-radius:0!important;background:transparent!important;font-weight:400!important;text-align:left;display:flex;align-items:center;gap:8px}
+.ds-menu-row:hover:not(:disabled):not([data-ds-not-yet]){background:var(--ds-surface-3,var(--bg-secondary))!important}
+.ds-menu-row.ds-danger{color:var(--ds-bad,var(--status-error))!important}
+.ds-menu-row:disabled,.ds-menu-row[data-ds-not-yet]{background:transparent!important}
+.ds-menu-sep{margin:4px 0;border:0;border-top:1px solid var(--ds-hairline,var(--border-color))}
+.office-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.ds-danger-fill{background:var(--ds-bad,var(--status-error))!important;border-color:var(--ds-bad,var(--status-error))!important;color:var(--ds-page,var(--bg-primary))!important}
+.office-confirm-text,.office-help{margin:0;font:var(--ds-text-body,400 16px/24px system-ui)}
+.office-field{display:grid;gap:4px}
+.office-export-rows{display:grid}
+.office-export-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;border-bottom:1px solid var(--ds-hairline,var(--border-color))}
+.office-export-name{font:var(--ds-text-body,400 16px/24px system-ui)}
+dialog#import-review{max-width:min(680px,calc(100vw - 32px));max-height:85dvh;overflow:auto;padding:24px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:20px;background:var(--ds-surface,var(--bg-primary));color:var(--ds-ink,var(--text-primary));box-shadow:var(--ds-elev-float,0 12px 32px rgb(0 0 0 / .16))}
+dialog#import-review::backdrop{background:var(--ds-scrim,rgb(0 0 0 / .4))}
+dialog#import-review li{margin:8px 0}
+dialog#import-review label{flex-direction:row;align-items:flex-start;gap:8px;font-weight:400}
+
+/* ── The selection bar (N4): a small opaque float at the selection. */
+.office-selection-bar{position:fixed;inset:auto;margin:0;display:none;gap:4px;padding:4px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:14px;background:var(--ds-surface,var(--bg-primary));box-shadow:var(--ds-elev-float,0 12px 32px rgb(0 0 0 / .16))}
+.office-selection-bar:popover-open{display:flex}
+.office-sel{min-height:44px;padding:0 12px;border-color:transparent;background:transparent}
+.office-sel:hover:not(:disabled):not([data-ds-not-yet]){background:var(--ds-surface-3,var(--bg-secondary))}
+
+/* ── The phone's bottom bar (§3.1): five labelled items at most, the bar layer, the safe area. */
+.office-bottom-bar{display:none}
 @media(max-width:800px){
- #office-header{padding:10px 12px;gap:6px 10px}.office-title-field{max-width:none;min-width:180px}#office-header #document-title{font-size:16px;min-height:30px}#office-header #save-state{font-size:11px}.office-file-actions{gap:6px}#office-header .office-new-document{flex:1;min-width:180px}#office-header .office-new-document select{max-width:130px}#office-header .office-file-actions>button,#office-header .office-command-menu>summary{min-height:38px;padding:8px 10px}
- #office-root .office-context-tools{flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:6px 10px;min-height:46px}#office-root .office-context-tools>*{flex-shrink:0}#office-root .office-context-tools .ef-selection{display:none}#office-root .office-context-tools .office-command-menu>summary,#office-root .office-context-tools button{white-space:nowrap}#office-root #document-canvas{padding:16px 12px}#office-root .office-slide,#office-root .office-word-page{margin:0 auto}#office-root #canvas-help{font-size:11px;padding:7px 10px}
- .office-menu-popover{position:fixed;left:12px;right:12px;top:var(--office-menu-top,160px);width:auto;max-height:45dvh}
+ #office-root .ef-shell{padding-bottom:calc(61px + env(safe-area-inset-bottom,0px))}
+ #office-root .ef-panes{display:none!important}
+ #office-root .ef-viewport{padding-bottom:0}
+ .office-bottom-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:stretch;gap:4px;min-height:60px;padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--ds-hairline,var(--border-color));background:var(--ds-page,var(--bg-primary))}
+ html[data-office-reading] .office-bottom-bar{display:none}
+ html[data-office-reading] #office-root .ef-shell{padding-bottom:0}
+ .office-bar-item{flex:1;min-width:0;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 4px;border:0;border-radius:10px;background:transparent}
+ .office-bar-label{font:600 12px/16px var(--ds-font,system-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+ .office-bar-item[data-ds-not-yet] .ds-not-yet-name{font:600 12px/16px var(--ds-font,system-ui)}
+ #office-header{gap:4px;padding:4px 8px;min-height:56px}
+ #office-header .office-name{flex:1 1 auto}
+ #document-name{font:600 16px/24px var(--ds-font,system-ui);padding:0 4px}
+ .office-desktop-tools{display:none!important}
+ #office-header:has(#save-document:not([hidden])) #save-state{display:none}
+ .office-finish{gap:4px}
+ .office-finish>button{padding:0 12px}
+ #document-canvas{padding:16px 12px}
+ .office-slide,.office-word-page{margin:0 auto}
+ #office-root .ef-navigation,#office-root .ef-inspector,#office-root .ef-concierge,.office-pane-tabs{display:none!important}
+ .ds-layer.ds-sheet{margin:auto 0 0;width:100%;max-width:none;max-height:calc(100dvh - 56px);border-radius:20px 20px 0 0;border-bottom:0}
+ .ds-layer.ds-sheet.ds-half{max-height:60dvh}
+ .ds-layer.ds-sheet.ds-half::backdrop{background:rgb(0 0 0 / .2)}
+ .ds-layer.ds-sheet::before{content:'';display:block;width:36px;height:5px;margin:8px auto 0;border-radius:999px;background:var(--ds-ink-disabled,#8a94a6)}
+ .office-home-new{bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+ .office-home-list{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
-@media(max-width:800px){#office-header .office-new-document{flex:0 0 auto;min-width:0;width:auto;max-width:100%}#office-header .office-new-document label{flex:0 0 auto}#office-header .office-new-document button{flex:0 0 auto;min-width:44px}#office-header #generate-document{flex:0 0 auto}#office-header .office-new-document select{width:126px}#office-root .office-word-page img{max-width:100%;height:auto!important}}
+/* ── Desktop (§3.3): Slides 240 | the canvas | one 320px pane with Format and Concierge tabs. Nothing floats over the page. */
+@media(min-width:801px){
+ #office-root.ef-editor .ef-body,#office-root.ef-editor.ef-has-concierge[data-editor-concierge=open] .ef-body{position:relative;display:grid;grid-template-columns:240px minmax(0,1fr) 320px;grid-template-rows:48px minmax(0,1fr)}
+ #office-root.ef-editor[data-office-rail=off] .ef-body{grid-template-columns:0 minmax(0,1fr) 320px}
+ #office-root.ef-editor[data-office-rail=off] .ef-navigation{display:none!important}
+ #office-root.ef-editor .ef-navigation{grid-column:1;grid-row:1/3;display:block;position:static;width:auto;box-shadow:none;background:var(--ds-surface,var(--bg-primary));border-right:1px solid var(--ds-edge,var(--border-color))}
+ #office-root.ef-editor .ef-viewport{grid-column:2;grid-row:1/3}
+ .office-pane-tabs{grid-column:3;grid-row:1}
+ #office-root.ef-editor .ef-inspector{grid-column:3;grid-row:2;display:block!important;position:static!important;inset:auto;width:auto;max-width:none;box-shadow:none;z-index:auto;background:var(--ds-surface,var(--bg-primary));border-left:1px solid var(--ds-edge,var(--border-color))}
+ #office-root.ef-editor .ef-concierge{grid-column:3;grid-row:2;border-left:1px solid var(--ds-edge,var(--border-color))}
+ #office-root.ef-editor[data-office-pane=concierge] .ef-inspector{display:none!important}
+ #office-root.ef-editor[data-office-pane=format] .ef-concierge{display:none!important}
+ #office-header{min-height:48px}
+ #office-header button:not(.office-bar-item),#office-header select{min-height:36px}
+ #office-header .office-icon-action{min-width:36px}
+ #document-name{flex-direction:row;align-items:center;gap:8px;max-width:420px}
+ .office-name-line{flex:0 1 auto}
+ #save-state{flex:none}
+ :is(#office-root,.ds-layer) button,.ds-layer select,.ds-layer input:not([type=checkbox]){font-size:15px}
+}
+@media(min-width:801px) and (max-width:1039px){
+ #office-root.ef-editor .ef-body,#office-root.ef-editor.ef-has-concierge[data-editor-concierge=open] .ef-body{grid-template-columns:180px minmax(0,1fr) 280px}
+ #office-root.ef-editor[data-office-rail=off] .ef-body{grid-template-columns:0 minmax(0,1fr) 280px}
+}
+@media print{
+ #office-root .ef-header-slot,#office-root .ef-status-slot,#office-root .ef-navigation,#office-root .ef-inspector,#office-root .ef-concierge,.office-pane-tabs,.office-bottom-bar,.office-selection-bar{display:none!important}
+ #office-root .ef-shell{height:auto;padding:0}#office-root .ef-body{display:block!important}#document-canvas{overflow:visible;padding:0;background:#fff}
+}
 
-/* A new Word document's empty first paragraph shows where to type (model.mjs blank). */
-.office-word-page .office-rich-text:is(:empty,:has(> :only-child:empty)):not(:focus)::before{content:'Start writing';color:var(--text-muted,#6b7280);pointer-events:none}
-/* Menu choices retain touch targets even when their toolbar trigger is compact. */
-#office-root .office-context-tools .office-menu-popover button{min-height:44px;padding:10px 12px}
-/* 2.18.7, phones (the trial check, 2026-11-06): one app bar row, the title, Save and the shell's More (controller.mjs marks the rest for More, where Office's menus open in place). */
-@media(max-width:800px){#office-header{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"title actions" "state actions";column-gap:8px;row-gap:0;align-items:center;padding:4px 10px;background:var(--bg-card)}#office-header .office-title-field{grid-area:title;min-width:0;max-width:none;margin:0}#office-header #save-state{grid-area:state;font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#office-header #document-title-label,#office-header #document-kind{display:none}#office-header #document-title{min-height:44px;font-size:16px;padding:2px 0;text-overflow:ellipsis}#office-header .office-file-actions{grid-area:actions;width:auto;margin:0;flex-wrap:nowrap}#office-root .office-context-tools{min-height:0;padding:0}#office-root .ef-sheet #insert-toolbar{display:flex;flex-wrap:wrap;gap:8px}#office-root .ef-sheet .office-new-document{display:flex;flex-wrap:wrap}}
+/* A platform without the shared planned-control helper (design.mjs's fallback) greys the same markup the same way. */
+button[data-ds-not-yet]{color:var(--ds-ink-disabled,#8a94a6);background:var(--ds-surface-2,var(--bg-secondary));border-color:var(--ds-hairline,var(--border-color));cursor:not-allowed;opacity:1}
+[data-ds-not-yet] .ds-not-yet-note{margin-left:auto;font:400 12px/16px var(--ds-font,system-ui);color:var(--ds-ink-disabled,#8a94a6)}
+
+/* ── Collaboration, Find & Replace, and Mobile reflow (2.20.0, RP-OFF-02..07). */
+.office-comment-mark{background:#fef3c7;border-bottom:2px solid #d97706}
+.office-comment-pin{display:inline-block;margin:0 2px;font-size:12px;line-height:1;cursor:pointer;user-select:none}
+.office-change-ins{background:#dcfce7;color:#14532d;text-decoration:underline;text-decoration-color:#16a34a}
+.office-change-del{display:inline;margin:0 2px;padding:0 2px;background:#fee2e2;color:#991b1b;text-decoration:line-through;user-select:none}
+.office-find-hit{background:#fef08a;color:inherit;padding:0;border-radius:2px}
+.office-find-hit.office-find-active{background:#f59e0b;color:#111827;outline:2px solid #b45309}
+#office-root[data-office-mobile-view] #document-canvas{padding:0;background:#fff}
+#office-root[data-office-mobile-view] .office-word-page{margin:0;width:100%!important;max-width:none;border-left:0;border-right:0;border-radius:0}
+#office-root[data-office-mobile-view] .office-word-header,#office-root[data-office-mobile-view] .office-word-footer{position:static;margin:8px 0}
+.office-thread-list,.office-audit-list{display:grid;gap:12px}
+.office-thread-card{display:grid;gap:8px;padding:12px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:14px;background:var(--ds-surface-2,var(--bg-secondary))}
+.office-thread-card.is-resolved{border-style:dashed}
+.office-thread-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font:600 14px/20px var(--ds-font,system-ui)}
+.office-thread-meta{margin:0;font:var(--ds-text-meta,400 12px/16px system-ui);color:var(--ds-ink-2,var(--text-secondary))}
+.office-thread-quote{justify-self:start;min-height:36px;padding:0 12px;border-radius:6px;font:400 14px/20px var(--ds-font,system-ui);text-align:left}
+.office-thread-body{margin:0;font:var(--ds-text-body,400 16px/24px system-ui);overflow-wrap:anywhere}
+.office-thread-reply{display:grid;gap:2px;padding-left:12px;border-left:2px solid var(--ds-hairline,var(--border-color))}
+.office-thread-actions,.office-find-actions{display:flex;flex-wrap:wrap;gap:8px}
+.office-reply-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.office-comment-form,.office-share-form{display:grid;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--ds-hairline,var(--border-color))}
+.office-check-row{display:flex;flex-direction:row;align-items:center;gap:8px;min-height:44px;font:400 16px/24px var(--ds-font,system-ui);cursor:pointer}
+.office-find-count{margin:0;font:600 14px/20px var(--ds-font,system-ui);color:var(--ds-ink-2,var(--text-secondary))}
+.office-change-preview-ins,.office-change-preview-del{margin:0;padding:6px 10px;border-radius:6px;font:400 14px/20px var(--ds-font,system-ui)}
+.office-change-preview-ins{background:#dcfce7;color:#14532d}
+.office-change-preview-del{background:#fee2e2;color:#991b1b;text-decoration:line-through}
+.office-share-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:10px;background:var(--ds-surface-2,var(--bg-secondary))}
+.office-audit-row{font:var(--ds-text-meta,400 12px/16px system-ui);color:var(--ds-ink-2,var(--text-secondary));padding:4px 0;border-bottom:1px solid var(--ds-hairline,var(--border-color))}
+@media(min-width:801px){
+ .ds-layer.ds-find-sheet{position:fixed;top:56px;right:24px;left:auto;bottom:auto;margin:0;width:360px}
+ .ds-layer.ds-find-sheet::backdrop{background:transparent}
+}

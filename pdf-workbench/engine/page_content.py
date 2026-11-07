@@ -1,5 +1,6 @@
 """Native PDF page objects, kept separate from annotations and owner authority.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Inspect and modify real PDFium objects with stable original ordinals.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Add vector check/cross marks, blank page synthesis and word-box extraction.
 """
 import base64
 import hashlib
@@ -272,9 +273,63 @@ def fit_rect(obj, rect, crop):
     obj.transform(pdfium.PdfMatrix(a=sx, d=sy, e=rect[0] - old[0] * sx, f=rect[1] - old[1] * sy))
 
 
+def _new_shape_object(document, kind):
+    if kind == "rectangle":
+        return pdfium.PdfObject(raw.FPDFPageObj_CreateNewRect(0, 0, 100, 100), pdf=document)
+    if kind == "ellipse":
+        handle = raw.FPDFPageObj_CreateNewPath(100, 50)
+        require(handle)
+        obj = pdfium.PdfObject(handle, pdf=document)
+        k = 27.6142374915
+        for values in ((100, 50 + k, 50 + k, 100, 50, 100), (50 - k, 100, 0, 50 + k, 0, 50),
+                       (0, 50 - k, 50 - k, 0, 50, 0), (50 + k, 0, 100, 50 - k, 100, 50)):
+            require(raw.FPDFPath_BezierTo(obj, *values))
+        require(raw.FPDFPath_Close(obj))
+        return obj
+    if kind == "check":
+        handle = raw.FPDFPageObj_CreateNewPath(8, 48)
+        require(handle)
+        obj = pdfium.PdfObject(handle, pdf=document)
+        require(raw.FPDFPath_LineTo(obj, 38, 14) and raw.FPDFPath_LineTo(obj, 92, 86))
+        return obj
+    handle = raw.FPDFPageObj_CreateNewPath(12, 12)
+    require(handle)
+    obj = pdfium.PdfObject(handle, pdf=document)
+    require(raw.FPDFPath_LineTo(obj, 88, 88) and raw.FPDFPath_MoveTo(obj, 12, 88) and raw.FPDFPath_LineTo(obj, 88, 12))
+    return obj
+
+
+def _new_image_object(document, item, keepers):
+    encoded = item.get("image")
+    require(isinstance(encoded, str) and len(encoded) <= 1398104, "pdf_content_image_limit")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError):
+        raise ContentRefused("pdf_content_image_unsupported") from None
+    require(base64.b64encode(data).decode() == encoded, "pdf_content_image_unsupported")
+    obj = pdfium.PdfImage.new(document)
+    if item.get("imageType", "image/jpeg") == "image/png":
+        require(data.startswith(b"\x89PNG\r\n\x1a\n"), "pdf_content_image_unsupported")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data), formats=["PNG"]) as image:
+                require(image.width > 0 and image.height > 0 and image.width * image.height <= 16777216, "pdf_content_image_limit")
+                image.load()
+                with image.convert("RGBA") as rgba:
+                    bitmap = pdfium.PdfBitmap.from_pil(rgba)
+                keepers.append(bitmap)
+                obj.set_bitmap(bitmap)
+    else:
+        require(item.get("imageType", "image/jpeg") == "image/jpeg" and data.startswith(b"\xff\xd8\xff"), "pdf_content_image_unsupported")
+        obj.load_jpeg(io.BytesIO(data))
+    width, height = obj.get_px_size()
+    require(width > 0 and height > 0 and width * height <= 16777216, "pdf_content_image_limit")
+    return obj
+
+
 def create_object(document, page, item, crop, keepers):
     kind, rect = item.get("kind"), item.get("rect")
-    require(kind in ("text", "rectangle", "ellipse", "image"))
+    require(kind in ("text", "rectangle", "ellipse", "image", "check", "cross"))
     if kind == "text":
         font, size = item.get("font", "Helvetica"), item.get("fontSize", 16)
         require(font in FONTS and isinstance(size, (int, float)) and not isinstance(size, bool) and 1 <= size <= 256)
@@ -282,48 +337,79 @@ def create_object(document, page, item, crop, keepers):
         require(handle)
         obj = pdfium.PdfObject(handle, pdf=document)
         set_text(obj, item.get("text"))
-    elif kind == "rectangle":
-        obj = pdfium.PdfObject(raw.FPDFPageObj_CreateNewRect(0, 0, 100, 100), pdf=document)
-    elif kind == "ellipse":
-        # Four cubic segments, in our own normalized coordinate system.
-        handle = raw.FPDFPageObj_CreateNewPath(100, 50)
-        require(handle)
-        obj = pdfium.PdfObject(handle, pdf=document)
-        k = 27.6142374915
-        for values in ((100, 50+k, 50+k, 100, 50, 100), (50-k, 100, 0, 50+k, 0, 50), (0, 50-k, 50-k, 0, 50, 0), (50+k, 0, 100, 50-k, 100, 50)):
-            require(raw.FPDFPath_BezierTo(obj, *values))
-        require(raw.FPDFPath_Close(obj))
+    elif kind in ("rectangle", "ellipse", "check", "cross"):
+        obj = _new_shape_object(document, kind)
     else:
-        encoded = item.get("image")
-        require(isinstance(encoded, str) and len(encoded) <= 1398104, "pdf_content_image_limit")
-        try:
-            data = base64.b64decode(encoded, validate=True)
-        except (ValueError, TypeError):
-            raise ContentRefused("pdf_content_image_unsupported") from None
-        require(base64.b64encode(data).decode() == encoded, "pdf_content_image_unsupported")
-        obj = pdfium.PdfImage.new(document)
-        if item.get("imageType", "image/jpeg") == "image/png":
-            require(data.startswith(b"\x89PNG\r\n\x1a\n"), "pdf_content_image_unsupported")
-            with warnings.catch_warnings():
-                warnings.simplefilter("error", Image.DecompressionBombWarning)
-                with Image.open(io.BytesIO(data), formats=["PNG"]) as image:
-                    require(image.width > 0 and image.height > 0 and image.width * image.height <= 16777216, "pdf_content_image_limit")
-                    image.load()
-                    with image.convert("RGBA") as rgba:
-                        bitmap = pdfium.PdfBitmap.from_pil(rgba)
-                    keepers.append(bitmap)
-                    obj.set_bitmap(bitmap)
-        else:
-            require(item.get("imageType", "image/jpeg") == "image/jpeg" and data.startswith(b"\xff\xd8\xff"), "pdf_content_image_unsupported")
-            obj.load_jpeg(io.BytesIO(data))
-        width, height = obj.get_px_size()
-        require(width > 0 and height > 0 and width * height <= 16777216, "pdf_content_image_limit")
+        obj = _new_image_object(document, item, keepers)
     if kind in ("rectangle", "ellipse"):
         require(raw.FPDFPath_SetDrawMode(obj, raw.FPDF_FILLMODE_WINDING, True))
+    elif kind in ("check", "cross"):
+        require(raw.FPDFPath_SetDrawMode(obj, raw.FPDF_FILLMODE_NONE, True))
     page.insert_obj(obj)
-    set_style(obj, {"fill": "000000" if kind == "text" else "dbeafe", **{key: item[key] for key in ("fill", "stroke", "strokeWidth", "opacity") if key in item}} if kind != "image" else {key:item[key] for key in ("opacity",) if key in item})
+    if kind == "image":
+        style = {key: item[key] for key in ("opacity",) if key in item}
+    elif kind in ("check", "cross"):
+        style = {"stroke": item.get("stroke", "111827"), "strokeWidth": item.get("strokeWidth", 2.2),
+                 **{key: item[key] for key in ("opacity",) if key in item}}
+    else:
+        style = {"fill": "000000" if kind == "text" else "dbeafe",
+                 **{key: item[key] for key in ("fill", "stroke", "strokeWidth", "opacity") if key in item}}
+    set_style(obj, style)
     fit_rect(obj, rect, crop)
     return obj
+
+
+def _replace_text_obj(document, page, obj, info, properties, ordinal):
+    require(obj.type == raw.FPDF_PAGEOBJ_TEXT)
+    size = properties.get("fontSize", info["fontSize"])
+    require(isinstance(size, (int, float)) and not isinstance(size, bool) and 1 <= size <= 256)
+    if "font" in properties:
+        require(properties["font"] in FONTS, "pdf_content_font_unsupported")
+        handle = raw.FPDFPageObj_NewTextObj(document, properties["font"].encode(), size)
+    else:
+        handle = raw.FPDFPageObj_CreateTextObj(document, obj.get_font(), size)
+    require(handle)
+    replacement = pdfium.PdfObject(handle, pdf=document)
+    set_text(replacement, properties.get("text", info["text"]))
+    replacement.set_matrix(obj.get_matrix())
+    require(raw.FPDFTextObj_SetTextRenderMode(replacement, info["renderMode"]))
+    set_style(replacement, {key: info[key] for key in ("strokeWidth",) if key in info}, preserve_draw_mode=True)
+    for stroked, setter in ((False, raw.FPDFPageObj_SetFillColor), (True, raw.FPDFPageObj_SetStrokeColor)):
+        color, alpha = color_of(obj, stroked)
+        if color is not None:
+            require(setter(replacement, *(int(color[i:i+2], 16) for i in (0, 2, 4)), round(alpha * 255)))
+    page.remove_obj(obj)
+    require(raw.FPDFPage_InsertObjectAtIndex(page, replacement, ordinal))
+    replacement._detach_finalizer()
+    replacement.page, replacement.pdf = page, document
+    obj.close()
+    return replacement
+
+
+def _apply_object_edit(document, page, objects, metadata, edit, seen, crop):
+    key = edit.get("object")
+    require(isinstance(key, str) and re.fullmatch(r"o(?:0|[1-9][0-9]{0,4})", key) and key not in seen)
+    seen.add(key)
+    ordinal = int(key[1:])
+    require(ordinal < len(objects), "pdf_content_object_unavailable")
+    obj, info = objects[ordinal], metadata[ordinal]
+    require(info["editable"], "pdf_content_object_unsupported")
+    if edit.get("deleted") is True:
+        page.remove_obj(obj)
+        obj.close()
+        return
+    properties = edit.get("properties")
+    require(isinstance(properties, dict) and properties and not set(properties) - {"rect", "text", "font", "fontSize", "fill", "stroke", "strokeWidth", "opacity"})
+    if obj.type == raw.FPDF_PAGEOBJ_TEXT:
+        validate_text_change(info, properties)
+    if "font" in properties or "fontSize" in properties:
+        obj = _replace_text_obj(document, page, obj, info, properties, ordinal)
+    elif "text" in properties:
+        require(obj.type == raw.FPDF_PAGEOBJ_TEXT)
+        set_text(obj, properties["text"])
+    set_style(obj, properties)
+    if "rect" in properties:
+        fit_rect(obj, properties["rect"], crop)
 
 
 def edit_page(data, index, edits, additions, crop):
@@ -348,52 +434,7 @@ def edit_page(data, index, edits, additions, crop):
             seen = set()
             # Reverse order keeps replacement insertion positions stable after deletions.
             for edit in sorted(edits, key=lambda e: int(str(e.get("object", "o-1"))[1:]), reverse=True):
-                key = edit.get("object")
-                require(isinstance(key, str) and re.fullmatch(r"o(?:0|[1-9][0-9]{0,4})", key) and key not in seen)
-                seen.add(key)
-                ordinal = int(key[1:])
-                require(ordinal < len(objects), "pdf_content_object_unavailable")
-                obj, info = objects[ordinal], metadata[ordinal]
-                require(info["editable"], "pdf_content_object_unsupported")
-                if edit.get("deleted") is True:
-                    page.remove_obj(obj)
-                    obj.close()
-                    continue
-                properties = edit.get("properties")
-                require(isinstance(properties, dict) and properties and not set(properties) - {"rect", "text", "font", "fontSize", "fill", "stroke", "strokeWidth", "opacity"})
-                if obj.type == raw.FPDF_PAGEOBJ_TEXT:
-                    validate_text_change(info, properties)
-                if "font" in properties or "fontSize" in properties:
-                    require(obj.type == raw.FPDF_PAGEOBJ_TEXT)
-                    size = properties.get("fontSize", info["fontSize"])
-                    require(isinstance(size, (int, float)) and not isinstance(size, bool) and 1 <= size <= 256)
-                    if "font" in properties:
-                        require(properties["font"] in FONTS, "pdf_content_font_unsupported")
-                        handle = raw.FPDFPageObj_NewTextObj(document, properties["font"].encode(), size)
-                    else:
-                        handle = raw.FPDFPageObj_CreateTextObj(document, obj.get_font(), size)
-                    require(handle)
-                    replacement = pdfium.PdfObject(handle, pdf=document)
-                    set_text(replacement, properties.get("text", info["text"]))
-                    replacement.set_matrix(obj.get_matrix())
-                    require(raw.FPDFTextObj_SetTextRenderMode(replacement, info["renderMode"]))
-                    set_style(replacement, {key: info[key] for key in ("strokeWidth",) if key in info}, preserve_draw_mode=True)
-                    for stroked, setter in ((False, raw.FPDFPageObj_SetFillColor), (True, raw.FPDFPageObj_SetStrokeColor)):
-                        color, alpha = color_of(obj, stroked)
-                        if color is not None:
-                            require(setter(replacement, *(int(color[i:i+2], 16) for i in (0, 2, 4)), round(alpha * 255)))
-                    page.remove_obj(obj)
-                    require(raw.FPDFPage_InsertObjectAtIndex(page, replacement, ordinal))
-                    replacement._detach_finalizer()
-                    replacement.page, replacement.pdf = page, document
-                    obj.close()
-                    obj = replacement
-                elif "text" in properties:
-                    require(obj.type == raw.FPDF_PAGEOBJ_TEXT)
-                    set_text(obj, properties["text"])
-                set_style(obj, properties)
-                if "rect" in properties:
-                    fit_rect(obj, properties["rect"], crop)
+                _apply_object_edit(document, page, objects, metadata, edit, seen, crop)
             for item in additions:
                 create_object(document, page, item, crop, keepers)
             page.gen_content()
@@ -402,6 +443,22 @@ def edit_page(data, index, edits, additions, crop):
         for bitmap in keepers:
             bitmap.close()
         return image_alpha_states(output.getvalue())
+
+
+def _wrap_alpha_do(operands, operator, stack, states, alphas):
+    alpha = next(value for value in reversed(stack) if value is not None)
+    if alpha not in alphas:
+        ordinal = len(states)
+        while NameObject("/OSHALImageAlpha" + str(ordinal)) in states:
+            ordinal += 1
+        name = NameObject("/OSHALImageAlpha" + str(ordinal))
+        states[name] = DictionaryObject({
+            NameObject("/Type"): NameObject("/ExtGState"),
+            NameObject("/ca"): FloatObject(alpha),
+            NameObject("/CA"): FloatObject(alpha),
+        })
+        alphas[alpha] = name
+    return [([], b"q"), ([alphas[alpha]], b"gs"), (operands, operator), ([], b"Q")]
 
 
 def image_alpha_states(data):
@@ -431,19 +488,10 @@ def image_alpha_states(data):
                     changed = True
                     continue
                 stack.append(None)
-            elif operator == b"EMC":
-                if stack and stack.pop() is not None:
-                    continue
+            elif operator == b"EMC" and stack and stack.pop() is not None:
+                continue
             if operator == b"Do" and any(value is not None for value in stack):
-                alpha = next(value for value in reversed(stack) if value is not None)
-                if alpha not in alphas:
-                    ordinal = len(states)
-                    while NameObject("/OSHALImageAlpha" + str(ordinal)) in states:
-                        ordinal += 1
-                    name = NameObject("/OSHALImageAlpha" + str(ordinal))
-                    states[name] = DictionaryObject({NameObject("/Type"): NameObject("/ExtGState"), NameObject("/ca"): FloatObject(alpha), NameObject("/CA"): FloatObject(alpha)})
-                    alphas[alpha] = name
-                operations.extend([([], b"q"), ([alphas[alpha]], b"gs"), (operands, operator), ([], b"Q")])
+                operations.extend(_wrap_alpha_do(operands, operator, stack, states, alphas))
             else:
                 operations.append((operands, operator))
         require(not stack, "pdf_content_mark_balance")
@@ -456,3 +504,47 @@ def image_alpha_states(data):
     result = io.BytesIO()
     writer.write(result)
     return result.getvalue()
+
+
+def blank_page_bytes(crop):
+    require(isinstance(crop, list) and len(crop) == 4 and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in crop))
+    width, height = float(crop[2] - crop[0]), float(crop[3] - crop[1])
+    require(0 < width <= 2000 and 0 < height <= 2000, "pdf_content_geometry")
+    writer = PdfWriter()
+    writer.add_blank_page(width=width, height=height)
+    output = io.BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
+def extract_page_words(data, page_number):
+    with pdfium.PdfDocument(data) as document:
+        require(isinstance(page_number, int) and not isinstance(page_number, bool) and 0 <= page_number < len(document))
+        with closing(document[page_number]) as page:
+            with closing(page.get_textpage()) as textpage:
+                total = min(textpage.count_chars(), 20000)
+                words, chars, box = [], [], None
+                for idx in range(total):
+                    ch = textpage.get_text_range(idx, 1)
+                    if not ch or ch.isspace() or ord(ch[0]) < 32:
+                        if chars and box:
+                            words.append({"text": "".join(chars), "rect": [round(v, 2) for v in box]})
+                        chars, box = [], None
+                        continue
+                    cbox = textpage.get_charbox(idx, loose=True)
+                    if not all(math.isfinite(v) for v in cbox) or cbox[2] <= cbox[0] or cbox[3] <= cbox[1]:
+                        continue
+                    if box is not None:
+                        same_line = min(box[3], cbox[3]) - max(box[1], cbox[1]) > 0.25 * max(1.0, box[3] - box[1])
+                        close = 0 <= cbox[0] - box[2] <= max(8.0, (box[3] - box[1]) * 0.75)
+                        if not (same_line and close) or len(chars) >= 120:
+                            words.append({"text": "".join(chars), "rect": [round(v, 2) for v in box]})
+                            chars, box = [], None
+                    chars.append(ch)
+                    box = list(cbox) if box is None else [min(box[0], cbox[0]), min(box[1], cbox[1]), max(box[2], cbox[2]), max(box[3], cbox[3])]
+                    if len(words) >= 2048:
+                        break
+                if chars and box and len(words) < 2048:
+                    words.append({"text": "".join(chars), "rect": [round(v, 2) for v in box]})
+                return words
+

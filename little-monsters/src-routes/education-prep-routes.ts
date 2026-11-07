@@ -1,12 +1,13 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Authenticated SAT/ACT curriculum, practice, progress and lesson endpoints.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Publish curriculumVideos in GET /prep/catalog for the 168-topic video curriculum.
  */
 import { Router, type Request, type Response } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
 import { resolveAuthedStudent } from './education-access';
 import { sendStudyError } from './education-study-errors';
-import { catalog, examOf, PrepError, publicSession, FORMATS, research, officialPractice } from './education-prep-model';
+import { catalog, curriculumVideos, examOf, PrepError, publicSession, FORMATS, research, officialPractice } from './education-prep-model';
 import { summarize } from './education-prep-progress';
 import * as store from './education-prep-store';
 import * as training from './education-prep-training';
@@ -27,7 +28,7 @@ export function createEducationPrepRoutes(ctx: AppContext): Router {
       }
     });
   }
-  endpoint('get', '/prep/catalog', async () => ({ version: catalog.version, lessons: catalog.lessons, formats: FORMATS, research, officialPractice }));
+  endpoint('get', '/prep/catalog', async () => ({ version: catalog.version, lessons: catalog.lessons, curriculumVideos, formats: FORMATS, research, officialPractice }));
   endpoint('get', '/prep/topics', async req => ({ topics: training.topics(examOf(req.query.exam || 'SAT'), typeof req.query.query === 'string' ? req.query.query : ''), studyUrl: '/api/education/test-prep' }));
   endpoint('get', '/prep/progress', async (req, actor) => {
     const exam = examOf(req.query.exam || 'SAT');

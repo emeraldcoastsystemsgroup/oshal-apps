@@ -19,6 +19,8 @@
   8   | maintainer@emeraldcoastsystemsgroup.com   | The greeting read 'Up late?. Little Monsters is ...': greetLine() ends 'Up late' with a question mark and every other part with a full stop, with or without a name.
   9   | maintainer@emeraldcoastsystemsgroup.com | Topic Study Pack and Textbook library (79 OpenStax, DK and training books) on the dashboard, and an optional library textbook when creating a class.
   10  | maintainer@emeraldcoastsystemsgroup.com | Load the neural read-aloud helper (lm-voice.js): the textbook reader and Topic Study Pack notes always fell back to the browser's robotic speechSynthesis (the page never loaded lmSpeak, and the study pack called a nonexistent LMVoice.speak).
+  11  | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-dashboard): the reason to open it comes first: Coming up (the next 3 due items as rows), then My classes with '+ Create a class' as the one primary (Class bank, Textbook library, Topic Study Pack secondary) and a ⋯ menu on each class card (Open; rename and archive stay in the class's own Manage tab, because this page does not know who owns a class), then the stat tiles, 2 per row on a phone. The XP card is one line under the title ('Level 1 · 45 / 100 XP', a waiting box beside it) that opens My Monsters. The 9-card 'What would you like to do?' launcher is gone: it repeated the navigation, which the phone bottom bar now carries. 'practice', not 'practise'.
+  12  | maintainer@emeraldcoastsystemsgroup.com | Add ?view=guardian parent and guardian progress summary view with email invite, daily/weekly cadence preference, link removal, and single-learner read-only summary cards (RP-LM-01).
   ---------------------------------------------------------------------------
 -->
 <script>
@@ -128,6 +130,18 @@
 <style>
   /* Page-specific: the lecture card link row and the join chip. Everything else is the design system. */
   .lecture-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .lm-xp-line { display: block; padding: 4px 0 0; font-size: 15px; text-align: left; }
+  .lm-xp-line.hide { display: none; }
+  .class-card { position: relative; }
+  .class-card > .lm-card { width: 100%; height: 100%; text-align: left; padding-right: 56px; }
+  .class-menu { position: absolute; top: 8px; right: 8px; }
+  .class-menu summary { list-style: none; width: var(--lm-touch); height: var(--lm-touch); display: grid; place-items: center; border-radius: 12px; cursor: pointer; font-size: 20px; color: var(--lm-ink-2); }
+  .class-menu summary::-webkit-details-marker { display: none; }
+  .class-menu summary:hover, .class-menu[open] summary { background: var(--lm-accent-wash); }
+  .class-menu .lm-more-menu { min-width: 160px; }
+  .class-menu .lm-more-menu button { display: block; width: 100%; text-align: left; padding: 10px 12px; border: 0; border-radius: 10px; background: none; font-weight: 600; font-size: 14px; cursor: pointer; }
+  .class-menu .lm-more-menu button:hover { background: var(--lm-accent-wash); }
+  @media (max-width: 720px) { .lm-stat-grid { grid-template-columns: 1fr 1fr; } .lm-xp-line { order: 1; flex-basis: 100%; padding: 0; } }
   .onboard-step { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
   .onboard-step .lm-avatar { flex-basis: 32px; width: 32px; height: 32px; font-size: 13px; }
   .celebrate-card { text-align: center; max-width: 360px; animation: lm-pop 0.4s ease; }
@@ -138,32 +152,54 @@
 <main class="lm-page">
 
   <!-- ── Hero ── -->
-  <header class="lm-hero">
+  <header class="lm-hero is-mascot">
     <div>
       <div class="lm-eyebrow" id="heroEyebrow">Your classroom</div>
       <h1 class="lm-display" id="greeting">Hello.</h1>
+      <button type="button" class="lm-text-button lm-xp-line hide" id="xpLine" data-go="monsters"><span id="xpLevel">Level 1</span> · <span id="xpCount">0 / 100 XP</span><span id="xpBoxes"></span></button>
       <p class="lm-lead" id="greetingSub">Little Monsters, your study companion.</p>
       <div class="lm-hero-actions" id="heroActions"></div>
     </div>
     <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
   </header>
 
-  <!-- ── Learner progress ── -->
-  <section class="lm-section hide" id="progressSection">
-    <div class="lm-card is-feature">
-      <div class="lm-card-kicker">Your progress</div>
-      <div class="lm-row is-between is-wrap">
-        <h2 class="lm-display" id="xpLevel">Level 1</h2>
-        <span class="lm-pill" id="xpCount">0 / 100 XP</span>
-      </div>
-      <div class="lm-progress lm-mt-md" role="progressbar" aria-labelledby="xpLevel"><span id="xpBar" style="width:0%"></span></div>
-      <div class="lm-row is-wrap lm-mt-md" id="progressActions"></div>
+  <!-- ── Coming up ── -->
+  <section class="lm-section" id="upcomingSection">
+    <div class="lm-section-head"><h2>Coming up</h2><button type="button" class="lm-text-button" data-nav="myday">Open My Day</button></div>
+    <ul class="lm-list" id="upcomingList"><li class="lm-loading">Loading what is due…</li></ul>
+  </section>
+
+  <!-- ── Recent lectures ── -->
+  <section class="lm-section hide" id="recentSection">
+    <div class="lm-section-head"><h2 id="recentTitle">Recent lectures</h2></div>
+    <div class="lm-grid" id="recentRow" style="--min:230px"></div>
+  </section>
+
+  <!-- ── Open classes invite ── -->
+  <section class="lm-section hide" id="demoStrip">
+    <div class="lm-card is-accent">
+      <div class="lm-section-head"><h2>Open classes you can join</h2><button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="showCatalog()">See all</button></div>
+      <div class="lm-grid is-tight" id="demoStripChips" style="--min:230px"></div>
     </div>
+  </section>
+
+  <!-- ── My classes ── -->
+  <section class="lm-section" id="classesSection">
+    <div class="lm-section-head">
+      <h2 id="classesHeading">My classes</h2>
+      <div class="lm-row is-wrap">
+        <button type="button" class="lm-btn lm-btn-primary lm-btn-sm" onclick="showAddClass()">+ Create a class</button>
+        <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" onclick="showCatalog()">📚 Class bank</button>
+        <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" onclick="showTextbookLibrary()">📖 Textbook library</button>
+        <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" onclick="showTopicStudyPack()">✨ Topic Study Pack</button>
+      </div>
+    </div>
+    <div class="lm-grid" id="classList" style="--min:250px"><div class="lm-skeleton"></div><div class="lm-skeleton"></div><div class="lm-skeleton"></div></div>
   </section>
 
   <!-- ── Learner stats ── -->
   <section class="lm-section hide" id="statsSection">
-    <div class="lm-grid is-tight is-fit" style="--min:150px">
+    <div class="lm-grid is-tight is-fit lm-stat-grid" style="--min:150px">
       <div class="lm-stat is-info"><div class="lm-stat-icon">🃏</div><div class="lm-stat-value" id="flashcardCount">—</div><div class="lm-stat-label">Cards reviewed</div></div>
       <div class="lm-stat is-success"><div class="lm-stat-icon">🎯</div><div class="lm-stat-value" id="quizAvg">—</div><div class="lm-stat-label">Quiz average</div></div>
       <div class="lm-stat is-accent"><div class="lm-stat-icon">🎤</div><div class="lm-stat-value" id="lectureCount">—</div><div class="lm-stat-label">Lectures</div></div>
@@ -184,45 +220,41 @@
     </div>
   </section>
 
-  <!-- ── Quick actions ── -->
-  <section class="lm-section">
-    <div class="lm-section-head"><h2 id="actionsHeading">What would you like to do?</h2></div>
-    <div class="lm-grid" id="actions" style="--min:210px"></div>
-  </section>
-
-  <!-- ── Coming up ── -->
-  <section class="lm-section">
-    <div class="lm-section-head"><h2>Coming up</h2><button type="button" class="lm-text-button" data-nav="myday">Open My Day</button></div>
-    <ul class="lm-list" id="upcomingList"><li class="lm-loading">Loading what is due…</li></ul>
-  </section>
-
-  <!-- ── Recent lectures ── -->
-  <section class="lm-section hide" id="recentSection">
-    <div class="lm-section-head"><h2 id="recentTitle">Recent lectures</h2></div>
-    <div class="lm-grid" id="recentRow" style="--min:230px"></div>
-  </section>
-
-  <!-- ── Open classes invite ── -->
-  <section class="lm-section hide" id="demoStrip">
-    <div class="lm-card is-accent">
-      <div class="lm-section-head"><h2>Open classes you can join</h2><button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="showCatalog()">See all</button></div>
-      <div class="lm-grid is-tight" id="demoStripChips" style="--min:230px"></div>
-    </div>
-  </section>
-
-  <!-- ── My classes ── -->
-  <section class="lm-section">
-    <div class="lm-section-head">
-      <h2 id="classesHeading">My classes</h2>
-      <div class="lm-row is-wrap">
-        <button type="button" class="lm-btn lm-btn-primary lm-btn-sm" onclick="showTopicStudyPack()">✨ Topic Study Pack</button>
-        <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="showTextbookLibrary()">📖 Textbook library</button>
-        <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="showCatalog()">📚 Class bank</button>
-        <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" onclick="showAddClass()">+ Create a class</button>
+  <!-- ── Parent / guardian progress summary (RP-LM-01) ── -->
+  <section class="lm-section hide" id="guardianSummarySection" aria-labelledby="guardianHeading">
+    <div id="guardianLinkedLearners" class="lm-stack lm-mb-md hide"></div>
+    <div class="lm-columns">
+      <div class="lm-card">
+        <div class="lm-section-head"><h2 id="guardianHeading">Invite a parent or guardian</h2></div>
+        <p class="lm-subtle lm-small lm-mb-md">They see a read-only summary of your due and missing work, recent study, and level — never any other student.</p>
+        <form id="guardianInviteForm" novalidate>
+          <div class="lm-field">
+            <label for="guardianEmailInput">Parent or guardian email</label>
+            <input type="email" id="guardianEmailInput" class="lm-input" placeholder="parent@example.org" autocomplete="email">
+          </div>
+          <div class="lm-field">
+            <label for="guardianCadenceSelect">Summary cadence</label>
+            <select id="guardianCadenceSelect" class="lm-input">
+              <option value="weekly">Weekly summary</option>
+              <option value="daily">Daily summary</option>
+            </select>
+          </div>
+          <div class="lm-row is-wrap">
+            <button type="submit" class="lm-btn lm-btn-primary" id="guardianInviteBtn">Share progress summary</button>
+          </div>
+          <div id="guardianStatus" class="lm-status lm-mt-sm" role="status" aria-live="polite"></div>
+        </form>
+        <div class="lm-mt-md">
+          <h3 class="lm-mb-sm">Shared with</h3>
+          <ul class="lm-list" id="guardianLinksList"><li class="lm-loading">Loading shared links…</li></ul>
+        </div>
+      </div>
+      <div class="lm-card" id="guardianOwnPreview">
+        <div class="lm-loading">Loading your summary preview…</div>
       </div>
     </div>
-    <div class="lm-grid" id="classList" style="--min:250px"><div class="lm-skeleton"></div><div class="lm-skeleton"></div><div class="lm-skeleton"></div></div>
   </section>
+
 
   <!-- ── First-run onboarding ── -->
   <div id="onboardOverlay" class="lm-modal" role="dialog" aria-modal="true" aria-labelledby="onboardTitle">
@@ -443,45 +475,14 @@ function paintHero() {
   var name = firstName(), teacher = isTeacher();
   $('heroEyebrow').textContent = teacher ? 'Teacher · your classroom' : 'Your classroom';
   $('greeting').textContent = teacher ? greetLine(daypart(), name) : (name ? 'Ready to explore, ' + name + '?' : 'Ready to explore?');
-  $('greetingSub').textContent = teacher ? 'Your classes, their progress and what needs you today.' : greetLine(daypart(), '') + ' Little Monsters is your study companion: ask, practise, play, grow.';
+  $('greetingSub').textContent = teacher ? 'Your classes, their progress and what needs you today.' : greetLine(daypart(), '') + ' Little Monsters is your study companion: ask, practice, play, grow.';
   var count = ME && typeof ME.classCount === 'number' ? ME.classCount : null;
   $('heroActions').innerHTML = ME ? '<span class="lm-pill">' + (teacher ? (ME.role === 'admin' ? 'Admin' : 'Teacher') : 'Student') + (count !== null ? ' · ' + count + (count === 1 ? ' class' : ' classes') : '') + '</span>' : '';
-  $('actionsHeading').textContent = teacher ? 'What needs doing?' : 'What would you like to do?';
   $('classesHeading').textContent = teacher ? 'Classes you teach' : 'My classes';
   $('addClassHint').textContent = teacher ? 'Create a class for your students. Publish it so they can find it in the class bank.' : 'A private class just for you, such as homeroom or self-study. Only you can see it unless you share it.';
-  show('progressSection', !teacher); show('statsSection', !teacher); show('teacherSection', teacher);
+  show('xpLine', !teacher); show('statsSection', !teacher); show('teacherSection', teacher);
 }
 
-/** Quick actions differ by role because lecture writes and flashcard generation are teacher-only on the server. */
-function paintActions() {
-  // SAT/ACT opens the student's saved diagnostics, lessons and progress.
-  var learner = [
-    ['test-prep', '🎓', 'is-info', 'SAT & ACT', 'Practice, learn shortcuts and track your progress'],
-    ['topicpack', '✨', 'is-accent', 'Topic Study Pack', 'Summary, PowerPoint & flashcards on any topic'],
-    ['tutor', '💬', '', 'Ask the tutor', 'Help with a topic, grounded in your class'],
-    ['flashcards', '🃏', 'is-info', 'Study flashcards', 'Review what is due today'],
-    ['quiz', '🎯', 'is-success', 'Practice quiz', 'Pick a class and test yourself'],
-    ['textbooks', '📖', 'is-accent', 'Textbook library', '79 OpenStax, DK & training books'],
-    ['myday', '📅', 'is-gold', 'My Day', 'Due dates, calendar and reflection'],
-    ['arcade', '🕹️', 'is-warning', 'Games', 'Warm up your brain, then play'],
-    ['monsters', '🐾', 'is-danger', 'My Monsters', 'Open boxes, collect and equip']
-  ];
-  var teacher = [
-    ['test-prep', '🎓', 'is-info', 'SAT & ACT', 'Practice, lessons and saved personal progress'],
-    ['topicpack', '✨', 'is-accent', 'Topic Study Pack', 'Make a Summary, PowerPoint & Flashcards on any topic'],
-    ['recorder', '🎤', 'is-danger', 'Record a lecture', 'Captions now, replay, cards and notes after'],
-    ['teacher', '📊', '', 'Teacher view', 'Rosters, quiz averages and activity'],
-    ['create', '➕', 'is-success', 'Create a class', 'Publish it to the class bank'],
-    ['textbooks', '📖', 'is-accent', 'Textbook library', '79 OpenStax, DK & training books'],
-    ['flashcards', '🃏', 'is-info', 'Flashcards', 'Build sets from class material'],
-    ['quiz', '🎯', 'is-success', 'Practice quiz', 'Test any class with AI quizzes'],
-    ['presentations', '📽️', 'is-gold', 'Presentations', 'Replay a lecture as slides'],
-    ['myday', '📅', 'is-warning', 'My Day', 'Class calendar and assignments']
-  ];
-  $('actions').innerHTML = (isTeacher() ? teacher : learner).map(function (a) {
-    return '<button type="button" class="lm-tile" data-go="' + a[0] + '"><span class="lm-tile-icon ' + a[2] + '" aria-hidden="true">' + a[1] + '</span><span><strong>' + a[3] + '</strong><small>' + a[4] + '</small></span></button>';
-  }).join('');
-}
 function go(view) {
   if (view === 'topicpack') return showTopicStudyPack();
   if (view === 'create') return showAddClass();
@@ -490,6 +491,7 @@ function go(view) {
   LM.navigate(view);
 }
 document.addEventListener('click', function (e) {
+  document.querySelectorAll('.class-menu[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
   var t = e.target.closest('[data-go],[data-nav]'); if (!t) return;
   go(t.dataset.go || t.dataset.nav);
 });
@@ -501,14 +503,12 @@ function updateXP(xp, level) {
   var pct = Math.min(100, Math.round((xpInLevel / xpForLevel) * 100));
   $('xpLevel').textContent = 'Level ' + (level || 1);
   $('xpCount').textContent = xpInLevel + ' / ' + xpForLevel + ' XP';
-  $('xpBar').style.width = pct + '%';
+  $('xpLine').setAttribute('aria-label', 'Level ' + (level || 1) + ', ' + xpInLevel + ' of ' + xpForLevel + ' XP (' + pct + '%). Open My Monsters');
 }
+/** A waiting mystery box rides on the XP line; My Monsters opens it. */
 function paintProgressActions(rewards) {
   var boxes = rewards && typeof rewards.boxes === 'number' ? rewards.boxes : 0;
-  $('progressActions').innerHTML = (boxes > 0
-    ? '<button type="button" class="lm-btn lm-btn-primary" data-go="monsters">🎁 Open ' + (boxes === 1 ? 'your mystery box' : boxes + ' mystery boxes') + '</button>'
-    : '<button type="button" class="lm-btn lm-btn-soft" data-go="monsters">🐾 Visit My Monsters</button>') +
-    '<span class="lm-subtle lm-small">Studying, quizzes and games earn XP. Every level drops a box.</span>';
+  $('xpBoxes').textContent = boxes > 0 ? ' · 🎁 ' + (boxes === 1 ? '1 box to open' : boxes + ' boxes to open') : '';
 }
 function countUp(elId, target, suffix) {
   var el = $(elId); if (!el) return;
@@ -579,28 +579,175 @@ function renderClasses(classes) {
     if (cls.studentCount != null) facts.push(cls.studentCount + (cls.studentCount === 1 ? ' student' : ' students'));
     facts.push((cls.lectureCount || 0) + ' lectures');
     facts.push((cls.flashcardCount || 0) + ' cards');
-    return '<button type="button" class="lm-card is-clickable lm-card-stripe" data-class="' + esc(cls.id) + '"><h3>' + esc(cls.name) + '</h3><div class="lm-card-meta">' + esc(cls.teacher || cls.subject || '') + '</div><div class="lm-row is-wrap lm-mt-md">' + facts.map(function (f) { return '<span class="lm-pill is-neutral">' + esc(f) + '</span>'; }).join('') + (cls.quizAverage != null ? '<span class="lm-pill is-success">' + esc(cls.quizAverage) + '% quiz avg</span>' : '') + '</div></button>';
+    var card = '<button type="button" class="lm-card is-clickable lm-card-stripe" data-class="' + esc(cls.id) + '"><h3>' + esc(cls.name) + '</h3><div class="lm-card-meta">' + esc(cls.teacher || cls.subject || '') + '</div><div class="lm-row is-wrap lm-mt-md">' + facts.map(function (f) { return '<span class="lm-pill is-neutral">' + esc(f) + '</span>'; }).join('') + (cls.quizAverage != null ? '<span class="lm-pill is-success">' + esc(cls.quizAverage) + '% quiz avg</span>' : '') + '</div></button>';
+    var menu = '<details class="class-menu"><summary aria-label="' + esc('Actions for ' + cls.name) + '">⋯</summary><div class="lm-more-menu"><button type="button" data-class="' + esc(cls.id) + '">Open</button></div></details>';
+    return '<div class="class-card">' + card + menu + '</div>';
   }).join('');
   container.querySelectorAll('[data-class]').forEach(function (b) { b.addEventListener('click', function () { openClass(b.dataset.class); }); });
+
 }
 function renderUpcoming(items) {
   var container = $('upcomingList');
   if (!items || items.length === 0) { container.innerHTML = '<li class="lm-empty"><strong>Nothing due soon.</strong>When a teacher publishes an assignment it appears here with its date.</li>'; return; }
-  container.innerHTML = items.map(function (item) {
+  container.innerHTML = items.slice(0, 3).map(function (item) {
     var date = new Date(item.dueDate), valid = !isNaN(date.getTime());
     return '<li class="lm-item"><span class="lm-date">' + (valid ? '<b>' + date.getDate() + '</b>' + esc(date.toLocaleString('en-US', { month: 'short' })) : '<b>?</b>') + '</span><span class="lm-item-body"><strong>' + esc(item.title) + '</strong><small>' + esc(item.className || '') + '</small></span></li>';
   }).join('');
 }
 
 /* ── Identity and first run ────────────────────────────────────────────── */
+function isGuardianMode() {
+  return new URLSearchParams(window.location.search).get('view') === 'guardian';
+}
 async function loadMe() {
   try {
     ME = await LM.me();
     if (ME && ME.studentId) localStorage.setItem('lm-student-id', ME.studentId);
-    paintHero(); paintActions();
-    if (ME && ME.isNew && localStorage.getItem('lm-onboarded') !== '1') showOnboard();
+    if (!isGuardianMode()) paintHero();
+    if (!isGuardianMode() && ME && ME.isNew && localStorage.getItem('lm-onboarded') !== '1') showOnboard();
     return ME;
-  } catch (e) { paintHero(); paintActions(); return null; }
+  } catch (e) { if (!isGuardianMode()) paintHero(); return null; }
+}
+function formatShortDate(iso) {
+  if (!iso) return 'No due date';
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? 'Scheduled' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function renderSummaryRows(rows, emptyCopy, rowFn) {
+  if (!rows || !rows.length) return '<li class="lm-subtle lm-small">' + esc(emptyCopy) + '</li>';
+  return rows.map(rowFn).join('');
+}
+function renderGuardianSummaryCard(summary, opts) {
+  var s = summary || { learnerName: 'Student', level: 1, xp: 0, due: [], missing: [], recentStudy: [] };
+  var o = opts || {};
+  var kicker = o.isPreview ? 'Preview · what your guardian sees' : 'Read-only learner summary';
+  var cadenceCtl = o.linkId
+    ? '<label class="lm-small lm-subtle" for="cad-' + esc(o.linkId) + '">Summary cadence</label>' +
+      '<select id="cad-' + esc(o.linkId) + '" class="lm-input" style="width:auto;min-width:150px" data-link-cadence="' + esc(o.linkId) + '">' +
+      '<option value="weekly"' + (o.cadence !== 'daily' ? ' selected' : '') + '>Weekly summary</option>' +
+      '<option value="daily"' + (o.cadence === 'daily' ? ' selected' : '') + '>Daily summary</option></select>'
+    : '<span class="lm-pill is-neutral">Read-only</span>';
+  var dueHtml = renderSummaryRows(s.due, 'Nothing due right now.', function (it) {
+    return '<li class="lm-item"><span class="lm-item-body"><strong>' + esc(it.title) + '</strong><small>' + esc(it.className) + ' · Due ' + esc(formatShortDate(it.dueAt)) + '</small></span></li>';
+  });
+  var missingHtml = renderSummaryRows(s.missing, 'No missing work.', function (it) {
+    return '<li class="lm-item"><span class="lm-item-body"><strong>' + esc(it.title) + '</strong><small>' + esc(it.className) + ' · Past due ' + esc(formatShortDate(it.dueAt)) + '</small></span></li>';
+  });
+  var studyHtml = renderSummaryRows(s.recentStudy, 'No recent quiz or flashcard sessions yet.', function (it) {
+    return '<li class="lm-item"><span class="lm-item-body"><strong>' + esc(it.kind) + '</strong><small>' + esc(it.detail) + '</small></span></li>';
+  });
+  return '<div class="lm-card-kicker">' + esc(kicker) + '</div>' +
+    '<div class="lm-row is-between is-wrap lm-mb-md"><h2 style="margin:0">' + esc(s.learnerName || 'Student') + '</h2><div class="lm-row is-wrap">' +
+    '<span class="lm-pill is-info">Level ' + esc(s.level || 1) + ' · ' + esc(s.xp || 0) + ' XP</span>' + cadenceCtl + '</div></div>' +
+    '<div class="lm-stack">' +
+      '<div><h3 class="lm-mb-sm">Due soon</h3><ul class="lm-list">' + dueHtml + '</ul></div>' +
+      '<div><h3 class="lm-mb-sm">Missing work</h3><ul class="lm-list">' + missingHtml + '</ul></div>' +
+      '<div><h3 class="lm-mb-sm">Recent study</h3><ul class="lm-list">' + studyHtml + '</ul></div>' +
+    '</div>';
+}
+function renderGuardianLinks(links) {
+  var list = $('guardianLinksList');
+  if (!links || !links.length) {
+    list.innerHTML = '<li class="lm-empty"><strong>Not shared yet.</strong>Invite a parent or guardian above; you can remove access any time.</li>';
+    return;
+  }
+  list.innerHTML = links.map(function (lnk) {
+    return '<li class="lm-item" data-link-row="' + esc(lnk.linkId) + '">' +
+      '<span class="lm-item-body"><strong>' + esc(lnk.guardianEmail) + '</strong><small>Read-only summary</small></span>' +
+      '<div class="lm-row is-wrap" style="gap:6px">' +
+        '<select class="lm-input" style="width:auto;min-width:136px" aria-label="Summary cadence for ' + esc(lnk.guardianEmail) + '" data-link-cadence="' + esc(lnk.linkId) + '">' +
+          '<option value="weekly"' + (lnk.cadence !== 'daily' ? ' selected' : '') + '>Weekly</option>' +
+          '<option value="daily"' + (lnk.cadence === 'daily' ? ' selected' : '') + '>Daily</option>' +
+        '</select>' +
+        '<button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" data-link-remove="' + esc(lnk.linkId) + '">Remove</button>' +
+      '</div></li>';
+  }).join('');
+}
+function setGuardianStatus(msg, isError) {
+  var el = $('guardianStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'lm-status lm-mt-sm' + (msg ? (isError ? ' is-error' : ' is-success') : '');
+}
+async function loadGuardianSummary() {
+  try {
+    var resp = await fetch('/api/education/student/guardian-summary/dashboard');
+    var data = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    $('guardianOwnPreview').innerHTML = renderGuardianSummaryCard(data.ownSummary, { isPreview: true });
+    renderGuardianLinks(data.guardians || []);
+    var linked = data.linkedLearners || [];
+    var host = $('guardianLinkedLearners');
+    show('guardianLinkedLearners', linked.length > 0);
+    host.innerHTML = linked.map(function (entry) {
+      return '<article class="lm-card is-feature" data-linked-learner="' + esc(entry.linkId) + '">' +
+        renderGuardianSummaryCard(entry.summary, { linkId: entry.linkId, cadence: entry.cadence }) + '</article>';
+    }).join('');
+  } catch (e) {
+    $('guardianOwnPreview').innerHTML = '<div class="lm-callout is-warning">Could not load the progress summary (' + esc(e.message) + ').</div>';
+    $('guardianLinksList').innerHTML = '';
+  }
+}
+async function submitGuardianInvite(e) {
+  if (e) e.preventDefault();
+  var email = $('guardianEmailInput').value.trim();
+  var cadence = $('guardianCadenceSelect').value || 'weekly';
+  if (!email) { setGuardianStatus('Enter a parent or guardian email address.', true); $('guardianEmailInput').focus(); return; }
+  $('guardianInviteBtn').disabled = true;
+  setGuardianStatus('Saving progress summary link…', false);
+  try {
+    var resp = await fetch('/api/education/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ guardianAction: 'invite', guardianEmail: email, cadence: cadence }),
+    });
+    var body = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(body.error || 'Could not save guardian link.');
+    $('guardianEmailInput').value = '';
+    setGuardianStatus('Shared with ' + (body.guardianEmail || email) + ' (' + (body.cadence || cadence) + ').', false);
+    await loadGuardianSummary();
+  } catch (err) {
+    setGuardianStatus(err.message, true);
+  } finally {
+    $('guardianInviteBtn').disabled = false;
+  }
+}
+async function updateGuardianLink(payload, okMsg) {
+  try {
+    var resp = await fetch('/api/education/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    var body = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(body.error || 'Update failed.');
+    setGuardianStatus(okMsg, false);
+    await loadGuardianSummary();
+  } catch (err) {
+    setGuardianStatus(err.message, true);
+  }
+}
+async function initGuardianSummary() {
+  ['upcomingSection', 'recentSection', 'demoStrip', 'classesSection', 'statsSection', 'teacherSection', 'xpLine'].forEach(function (id) { show(id, false); });
+  show('guardianSummarySection', true);
+  $('heroEyebrow').textContent = 'Family · progress summary';
+  $('greeting').textContent = 'Parent summary.';
+  $('greetingSub').textContent = 'Read-only progress summary: due and missing work, recent study, and level for one learner.';
+  $('heroActions').innerHTML = '<a class="lm-btn lm-btn-ghost lm-btn-sm" href="/api/education/dashboard">← Back to Home</a>';
+  var form = $('guardianInviteForm');
+  if (form && !form.dataset.bound) {
+    form.dataset.bound = '1';
+    form.addEventListener('submit', submitGuardianInvite);
+    $('guardianSummarySection').addEventListener('change', function (ev) {
+      var sel = ev.target.closest('[data-link-cadence]');
+      if (sel) updateGuardianLink({ guardianAction: 'cadence', linkId: sel.dataset.linkCadence, cadence: sel.value }, 'Summary cadence updated to ' + sel.value + '.');
+    });
+    $('guardianSummarySection').addEventListener('click', function (ev) {
+      var btn = ev.target.closest('[data-link-remove]');
+      if (btn) updateGuardianLink({ guardianAction: 'remove', linkId: btn.dataset.linkRemove }, 'Removed parent summary access.');
+    });
+  }
+  await loadGuardianSummary();
 }
 function showOnboard() {
   var teacher = isTeacher(), name = firstName();
@@ -622,6 +769,10 @@ function hideOnboard(remember) { $('onboardOverlay').classList.remove('is-open')
 /* ── Boot ───────────────────────────────────────────────────────────────── */
 async function init() {
   await loadMe();
+  if (isGuardianMode()) {
+    await initGuardianSummary();
+    return;
+  }
   loadRecentLectures();
   fetchOpenClasses().then(renderDemoStrip);
   if (typeof LMMascot !== 'undefined' && !mascot) { mascot = new LMMascot($('mascot-container')); mascot.setMood('happy'); }
@@ -1104,6 +1255,7 @@ async function loadClassList() {
 
 /* ── Level-up celebration: the first home visit after a level-up throws confetti and points at the box. ── */
 (function levelUpCelebration() {
+  if (isGuardianMode()) return;
   try {
     var ov = $('levelUp');
     $('levelUpClose').onclick = function () { ov.classList.remove('is-open'); };

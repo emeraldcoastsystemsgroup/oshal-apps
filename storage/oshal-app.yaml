@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: storage-save-note's text says only ** bold is taken out of a .txt note and everything else is saved exactly as sent (routes/local-notes.js no longer rewrites #, *, _, ticks or links, which changed approved code and commands). Words only; no schema type, permission or binding change. Guarded by storage/tests/notes.test.cjs.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: the approval-held note tools declare `cardText`, the people-facing sentence the kernel's approval card shows under its heading (the delete card read 'Delete note' then 'Remove Note', one action named twice in different words). Words only; no route, schema or binding change. Guarded by storage/tests/notes.test.cjs.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: the person's connected shares are sources for the shared OSHAL file picker (ADR-139), which Jarvis's "+ Add" opens. artifacts.provides declares Dropbox, Google Drive, GitHub and OSHAL-local, each a read-only listing with folder browsing and a `q` search under /api/storage/sources (routes/file-sources.js); egress adds *.dropboxusercontent.com with no credential (a Dropbox file's temporary link, since the Dropbox credential goes only to api.dropboxapi.com) and www.googleapis.com (Drive, under the person's google-drive grant). Guarded by storage/tests/file-sources.test.cjs.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1: UX audit 2026-11-06 (storage--storage-assistant MERGE, storage--storage-settings FIX-LAYOUT): declare storage-assistant as chatBot so the shell's one concierge button opens the route-backed storage assistant; open Storage on storage-files (/api/files) via ribbon.defaultView while keeping Storage Settings as ui.static[0] (carrying the Business/Home audience view, disabled unconnected backends, and save-on-change) and /api/storage/assistant/ui live by address. Guarded by storage/tests/storage-ux-batch7.test.cjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — storage (Storage hub: targets + assistant)
@@ -42,7 +43,7 @@ description: >-
   Your storage hub: choose where OSHAL saves generated code vs files (GitHub / Dropbox /
   OSHAL-local), and browse your files. Generators (e.g. Presentations) save to the target you
   set here.
-version: 1.3.0
+version: 1.3.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -90,7 +91,11 @@ dependencies:
 # Per-app skin (approved palette) — graphite so the storage hub reads distinct.
 theme: graphite
 
-# The app's right-rail chat agent. The storage-assistant NODE (storage-bot container +
+# The app's right-rail chat agent. Suggested prompts (N9, RP-ALL-01):
+# Where do my files save? · List my files · Save my files to Dropbox · Make a GitHub repo.
+chatBot: storage-assistant
+
+# The storage-assistant NODE (storage-bot container +
 # static registry block) is framework-resident (ADR-093); the persona here is a package
 # COPY for the registrar — the container keeps using /app/ai-lab. The Storage Assistant
 # *surface* NLU runs on the comms bot via executeBotOrInline (see routes).
@@ -217,11 +222,9 @@ tools:
 
 ui:
   static:
-    - toolName: storage-assistant
-      label: Assistant
-      icon: codicon codicon-comment-discussion
-      iframeUrl: /api/storage/assistant/ui
-      section: top
+    # UX audit 2026-11-06 (storage--storage-assistant MERGE): the Assistant tile is merged into the
+    # app's chatBot (storage-assistant); /api/storage/assistant/ui stays mounted by address. To bring
+    # the tile back, restore storage-assistant (iframeUrl: /api/storage/assistant/ui) here.
     - toolName: storage-settings
       label: Storage Settings
       icon: codicon codicon-settings-gear
@@ -308,7 +311,7 @@ ribbon:
     - addressbook
     - dashboard
     - operations
-  defaultView: storage-assistant
+  defaultView: storage-files
 
 summary:
   path: /api/storage/home-summary

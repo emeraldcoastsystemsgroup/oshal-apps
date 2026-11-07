@@ -283,6 +283,22 @@ bindings:
       method: GET
       path: /api/applications/presentations/storage/download
       allOf: [document.view, document.read, document.export]
+    - id: office-collaborate
+      method: POST
+      path: /api/presentations/editor/documents/:id/collaborate
+      allOf: [document.view, document.read]
+    - id: office-shares-list
+      method: GET
+      path: /api/presentations/editor/documents/:id/shares
+      allOf: [document.view, document.read]
+    - id: office-shares-grant
+      method: POST
+      path: /api/presentations/editor/documents/:id/shares
+      allOf: [document.view, document.read, document.change]
+    - id: office-shares-revoke
+      method: DELETE
+      path: /api/presentations/editor/documents/:id/shares/:shareId
+      allOf: [document.view, document.read, document.change]
   tools:
     - id: presentations-list
       allOf:
@@ -323,6 +339,14 @@ bindings:
         - document.read
     - id: office-read-selection-part
       allOf: [document.view, document.read]
+    - id: office-collaborate-document
+      allOf: [document.view, document.read]
+    - id: office-list-shares
+      allOf: [document.view, document.read]
+    - id: office-share-document
+      allOf: [document.view, document.read, document.change]
+    - id: office-revoke-share
+      allOf: [document.view, document.read, document.change]
   bots:
     - id: a0000000-0000-0000-0000-000000000042
       allOf:

@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve both actual Create surfaces and the real shared theme manager with isolated synthetic read-only responses.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Allow bounded synthetic catalog/access responses and capture real iframe navigation messages for workspace layout proof.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the catalog-compatible theme namespace while retaining read-only fixture behavior.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Serve the image editor's own browser modules (GET /api/create/editor/<module>), so Home's picture cards draw a saved image with the real renderer; the parent declares a device-width viewport like the cockpit, so a phone context lays the frame out at phone width.
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +21,7 @@ export const themes = ['midnight', 'daylight', 'ocean', 'sakura', 'forest', 'gra
 
 /** Real shared theme code controls an otherwise inert parent; the application document is never replaced. */
 function parentHtml(screen) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
     <style>body{margin:0;background:var(--bg-primary);color:var(--text-primary)}iframe{width:100%;height:94vh;border:0}</style>
     </head><body><button id="workspace">Workspace</button><button id="midnight">Midnight</button>
@@ -56,6 +57,8 @@ export async function startFixture(options = {}) {
   });
   for (const screen of ['home', 'new']) app.get(`/api/create/${screen}`, (_req, res) => res.sendFile(resolve(packageRoot, `tools/create-${screen}.html`)));
   app.get('/api/create/theme/create.css', (_req, res) => res.sendFile(resolve(packageRoot, 'ui/create.css')));
+  app.get('/api/create/editor/:file', (req, res) => /^[a-z0-9-]+\.mjs$/.test(req.params.file)
+    ? res.type('text/javascript').sendFile(resolve(packageRoot, 'tools/editor', req.params.file)) : res.sendStatus(404));
   app.get('/fixture/:screen', (req, res) => ['home', 'new'].includes(req.params.screen) ? res.type('html').send(parentHtml(req.params.screen)) : res.sendStatus(404));
   app.use('/shared/ui/css', express.static(resolve(coreRoot, 'src/shared/ui/css')));
   app.use('/shared/ui/js', express.static(resolve(coreRoot, 'src/shared/ui/js')));

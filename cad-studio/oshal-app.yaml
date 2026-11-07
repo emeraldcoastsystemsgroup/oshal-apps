@@ -1,3 +1,5 @@
+# 0.5.0 | maintainer@emeraldcoastsystemsgroup.com | Reference-product parity (RP-CAD-01 to -05): live point/edge/face/bounds Measure tool in mm or in, interactive 3D View Cube with Top/Bottom/Front/Back/Left/Right/Iso and Fit to view, Wavefront OBJ + MTL and 3MF OPC ZIP exports, iOS USDZ Quick Look + Android GLB Scene Viewer + QR View in AR, and honest Send to printer handoff (Scan to Print, OctoPrint, Moonraker, PrusaLink, or local slicer 3MF/STL) with zero planned-control placeholders remaining.
+# 0.4.0 | maintainer@emeraldcoastsystemsgroup.com | The design standard (kernel docs/ux/design-standard.md; Roger, 2026-11-06, F9, F10, F12; Shapr3D, Onshape and Tinkercad, CONVENTIONS.md §5.9): the studio declares its contract (studio, tap, its work marked); the empty canvas opens on New part, which opens a ready Untitled part on a 60 x 40 x 30 mm box with no prompt; the part is renamed in place, deleted and restored through in-page questions; the app row is the Part ▾ menu and Export (its own sheet of the part's files); a tool strip under the canvas; the reference functions CAD Studio lacks are greyed Not available yet controls (RP-CAD-01 to -05). No route, migration or engine change.
 # 0.3.2 | maintainer@emeraldcoastsystemsgroup.com | Phones (F9 and the trial check, 2026-11-06): the Project menu and Rebuild wait in More and the app's name is not repeated, so the app bar is one row.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — cad-studio ("CAD Studio")
@@ -35,6 +37,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.2.5: on the native kernel the engine link counts as connected until a request through it fails. Status read "engine not connected" before the first drawing, so Jarvis refused every CAD request.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 0.2.6: the open part saves its unsaved feature form and density before Jarvis or the concierge reads it, and redraws the saved part when their change returns (shared document handoff), keeping a field the person is still typing.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: live CAD Measure (mm/in), 3D View Cube + Fit to view, OBJ/MTL + 3MF + GLB + USDZ exports, View in AR, and confirmed printer handoff (RP-CAD-01..05).
 name: cad-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -49,7 +52,7 @@ rating:
       degrade: disable
 displayName: CAD Studio
 description: "Build parametric CAD parts with selectable base and feature properties, native geometry rebuilds and STEP exports."
-version: 0.3.2
+version: 0.5.0
 status: active
 scope: person
 

@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-07-22 03:02:00 | roger.murphy@emeraldcoastsystemsgroup.com  | The clock and the fire exit: a live countdown every surface renders from the server's deadline, and the host desk's stuck-game recovery panel. Show-agnostic — the countdown reads state.timer and the override buttons are gated by what the server accepts, never by a hard-coded phase list.
+ * 2026-11-06 08:55:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06 (Host Desk): every select in the fixes panel carries its label (Answer to reveal, Give the board to, Podium to remove).
  */
 
 /* global window, document, setInterval */
@@ -112,7 +113,7 @@
     var hidden = [];
     answers.forEach(function (a, i) { if (!a.revealed) hidden.push({ a: a, i: i }); });
     if (!hidden.length) return null;
-    var sel = GS.el('select', { class: 'gs-input', style: 'max-width:220px' });
+    var sel = GS.el('select', { class: 'gs-input', style: 'max-width:220px', 'aria-label': 'Answer to reveal' });
     hidden.forEach(function (h) { sel.appendChild(GS.el('option', { value: String(h.i) }, (h.i + 1) + '. ' + h.a.text)); });
     return GS.el('div', { class: 'gs-row' },
       GS.el('span', { class: 'gs-muted' }, 'Force reveal:'), sel,
@@ -127,7 +128,7 @@
         btn('Team A', 'setControl', { team: 'A' }), btn('Team B', 'setControl', { team: 'B' }),
         btn('Clear a strike', 'clearStrike'));
     }
-    var sel = GS.el('select', { class: 'gs-input', style: 'max-width:200px' });
+    var sel = GS.el('select', { class: 'gs-input', style: 'max-width:200px', 'aria-label': 'Give the board to' });
     GS.players().forEach(function (s) { sel.appendChild(GS.el('option', { value: s.seatId }, s.name)); });
     return GS.el('div', { class: 'gs-row' },
       GS.el('span', { class: 'gs-muted' }, 'Give the board to:'), sel,
@@ -138,7 +139,7 @@
   function removeRow() {
     var players = GS.players();
     if (!players.length) return null;
-    var sel = GS.el('select', { class: 'gs-input', style: 'max-width:200px' });
+    var sel = GS.el('select', { class: 'gs-input', style: 'max-width:200px', 'aria-label': 'Podium to remove' });
     players.forEach(function (s) { sel.appendChild(GS.el('option', { value: s.seatId }, s.name)); });
     return GS.el('div', { class: 'gs-row' },
       GS.el('span', { class: 'gs-muted' }, 'Podium:'), sel,

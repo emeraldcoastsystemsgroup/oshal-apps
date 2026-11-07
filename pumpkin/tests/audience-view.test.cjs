@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family view asserted as behaviour over the package's REAL routes: routes/home-summary.js run with only express stubbed and a stub pool, and GET /responses from the REAL compiled routes/pumpkin-routes.js router (kernel aliases and express shimmed, a stub pool), so the view is fed what the routes actually serialize. Proven: the two reads on open (never a write, never the live rooms, the projector stream, a speak, replay, pin or save, never the connected-actions plan) and that both routes run only owner-scoped SELECTs; the counts as plain stats; the pinned favourites as tiles and the other saved lines as a list with plain face and source words, AppView.when timestamps and playlist sends; the newest-only caps; nothing saved yet; an empty list beside a summary that counts saved lines named as a failed read (the list route answers an empty list when its query fails) with the summary's newest lines shown instead; a count the summary could not check; signed out, refused, every source failed, a non-JSON failure and an unreachable server. The page's module script (top-level await, run as an async function body) mounts no connected actions, binds no Refresh handler and reads nothing under the view, while the full page still runs every start step.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the review page gates its brief on a mounted action (actionHost.querySelector, hasActions), so the stubs carry them.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): Refresh evidence is removed from tools/review.html (zero bound listeners on start), and Pumpkin (tools/pumpkin-app.html), now the first tile in ui.static, carries the identical audience-view block and gates its start on !AppView.active().
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -279,7 +281,7 @@ test('signed out, refused, every source failed, a non-JSON failure and an unreac
 });
 
 /** @returns {object} A stub element with the members the page's module script touches on start; it counts bound listeners. */
-function node(bound) { return { value: '', textContent: '', className: '', append() {}, replaceChildren() {}, addEventListener() { bound.count++; } }; }
+function node(bound) { return { value: '', textContent: '', className: '', hidden: false, append() {}, replaceChildren() {}, querySelector() { return null; }, addEventListener() { bound.count++; } }; }
 
 /**
  * @description Run the page's module script (imports stripped) against stub modules, a stub DOM and a stub fetch. The
@@ -302,5 +304,18 @@ async function runModule(activeView) {
 
 test('under the family view the page\x27s module script mounts nothing, binds nothing and reads nothing; the full page still runs every start step', async () => {
   assert.deepEqual(await runModule('family'), { handoffs: 0, mounted: 0, listeners: 0, reads: [] });
-  assert.deepEqual(await runModule(null), { handoffs: 0, mounted: 1, listeners: 1, reads: ['GET ' + H] });
+  assert.deepEqual(await runModule(null), { handoffs: 0, mounted: 1, listeners: 0, reads: ['GET ' + H] });
+});
+
+test('Pumpkin (pumpkin-app.html), now the first tile, carries the same family view and starts the control page only without one', () => {
+  const control = fs.readFileSync(path.join(ROOT, 'tools/pumpkin-app.html'), 'utf8');
+  const at = control.indexOf('<script src="/shared/ui/js/app-view.js"></script>');
+  assert.ok(at > control.indexOf('<script src="/shared/ui/js/surface-theme.js"></script>'), 'the kit follows the theme bootstrap');
+  assert.ok(control.indexOf('<link rel="stylesheet" href="/shared/ui/css/app-view.css" />') < at, 'its stylesheet comes first');
+  const s = control.indexOf('<script>', at), e = control.indexOf('</script>', s);
+  assert.equal(control.slice(s + 8, e), block, 'the same head block as the review page');
+  assert.match(control, /if \(!window\.AppView \|\| !AppView\.active\(\)\)/, 'control boot is gated on !AppView.active()');
+  const manifest = fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8');
+  const first = manifest.slice(manifest.indexOf('  static:')).match(/^\s*-\s*\{?\s*toolName:\s*([\w-]+)/m)[1];
+  assert.equal(first, 'pumpkin-control', 'Pumpkin is the first tile the shell opens');
 });

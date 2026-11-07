@@ -21,6 +21,10 @@
  *                     |                             | and its files are removed and the reply carries the build
  *                     |                             | outcome with `model: null`, so a stopped engine no longer
  *                     |                             | fills the list with empty failed parts.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.0: synthesize Wavefront OBJ + MTL, 3MF OPC ZIP, glTF 2.0 GLB,
+ *                     |                             | and Apple USDZ mesh artifacts from each built revision's STL
+ *                     |                             | alongside STEP, STL, hidden-line SVGs and the kernel report
+ *                     |                             | (RP-CAD-03, RP-CAD-04).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -37,14 +41,54 @@ const feature_contract_1 = require("./feature-contract");
 const data_dir_1 = require("./data-dir");
 const model_store_1 = require("./model-store");
 const rebuild_service_1 = require("./rebuild-service");
+const mesh_formats_1 = require("./mesh-formats");
 const logger = (0, logger_1.createChildLogger)({ module: 'cad-studio-model-routes' });
 exports.UPLOAD_LIMITS = Object.freeze({ meshBytes: 64 * 1024 * 1024 });
 const BASE = '/api/cad-studio';
+const DERIVED_MESH_TYPES = Object.freeze({
+    obj: 'model/obj; charset=utf-8',
+    mtl: 'model/mtl; charset=utf-8',
+    '3mf': 'model/3mf',
+    glb: 'model/gltf-binary',
+    usdz: 'model/vnd.usdz+zip',
+});
 /** @description The model as the API returns it (a mesh base never carries its bytes). */
 function publicModel(model) {
     const base = model.base.kind === 'mesh' ? { kind: 'mesh', bytes: model.base.bytes, sha256: model.base.sha256 } : model.base;
-    const artifacts = model.revision > 0 ? Object.fromEntries(['step', 'stl', 'svg-front', 'svg-top', 'svg-right', 'svg-iso', 'report'].map((k) => [k, `${BASE}/models/${model.model_id}/artifacts/${k}?revision=${model.revision}`])) : {};
+    const keys = ['step', 'stl', 'obj', 'mtl', '3mf', 'glb', 'usdz', 'svg-front', 'svg-top', 'svg-right', 'svg-iso', 'report'];
+    const artifacts = model.revision > 0 ? Object.fromEntries(keys.map((k) => [k, `${BASE}/models/${model.model_id}/artifacts/${k}?revision=${model.revision}`])) : {};
     return { ...model, base, artifacts };
+}
+function sendDerivedMeshArtifact(res, stlFile, model, revision, key, download) {
+    if (!node_fs_1.default.existsSync(stlFile)) {
+        res.status(404).json({ error: 'artifact_not_found' });
+        return;
+    }
+    const safeBase = model.title.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 60) || 'model';
+    const fileStem = `${safeBase}-r${revision}`;
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.type(DERIVED_MESH_TYPES[key]);
+    if (download || key === 'usdz') {
+        res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileStem}.${key}"`);
+    }
+    if (key === 'mtl') {
+        res.send((0, mesh_formats_1.toMtl)('cad_part_mat'));
+        return;
+    }
+    const mesh = (0, mesh_formats_1.fromStl)(new Uint8Array(node_fs_1.default.readFileSync(stlFile)));
+    if (key === 'obj') {
+        res.send((0, mesh_formats_1.toObj)(mesh, safeBase, `${fileStem}.mtl`));
+        return;
+    }
+    if (key === '3mf') {
+        res.send(Buffer.from((0, mesh_formats_1.to3mf)(mesh, model.title)));
+        return;
+    }
+    if (key === 'glb') {
+        res.send(Buffer.from((0, mesh_formats_1.toGlb)(mesh, safeBase)));
+        return;
+    }
+    res.send(Buffer.from((0, mesh_formats_1.toUsdz)(mesh, safeBase)));
 }
 function refuse(res, error) {
     if (error instanceof feature_contract_1.ContractError) {
@@ -372,7 +416,8 @@ function createModelRoutes(deps) {
     router.get('/models/:modelId/artifacts/:key', (req, res) => {
         const model = req.cadModel;
         const key = req.params.key;
-        if (!(0, data_dir_1.isArtifactKey)(key)) {
+        const derived = Object.prototype.hasOwnProperty.call(DERIVED_MESH_TYPES, key);
+        if (!(0, data_dir_1.isArtifactKey)(key) && !derived) {
             res.status(404).json({ error: 'unknown_artifact' });
             return;
         }
@@ -381,7 +426,12 @@ function createModelRoutes(deps) {
             res.status(404).json({ error: 'revision_not_found' });
             return;
         }
-        const file = (0, data_dir_1.artifactPath)((0, data_dir_1.revisionDir)(deps.dataRoot, req.cadSub, model.model_id, revision), key);
+        const revDir = (0, data_dir_1.revisionDir)(deps.dataRoot, req.cadSub, model.model_id, revision);
+        if (derived) {
+            sendDerivedMeshArtifact(res, (0, data_dir_1.artifactPath)(revDir, 'stl'), model, revision, key, req.query.download !== undefined);
+            return;
+        }
+        const file = (0, data_dir_1.artifactPath)(revDir, key);
         if (!node_fs_1.default.existsSync(file)) {
             res.status(404).json({ error: 'artifact_not_found' });
             return;

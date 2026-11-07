@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Email and Storage tabs inside Little Monsters: lm-email opens the standard email viewer (Intelligent Communication's inbox) and lm-storage the core personal file browser; every school template carries email-summarizer so the tab opens; Little Monsters' own connector lists stay empty (the mailbox is connected in the email application).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The tabs keep the Little Monsters top bar: lm-email and lm-storage open /api/education/email and /api/education/storage (tools/standard-view.html), which show the standard viewer below the frame; every top tab opens a Little Monsters page, both pages are served and bound. Linking /api/files directly replaced the frame and a student had no way back.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve the email membership and minimum template revision when later editor additions advance a school template.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-storage MERGE into lm-files): the lm-storage tile leaves ui.static so My Files is the single files tile, while /api/education/storage stays served and bound and opens /api/education/files?view=saved.
  * -----------------------------------------------------------------------------
  *
  * Dependency-free node:test over the shipped manifest.
@@ -22,13 +23,14 @@ const yaml = require(require.resolve('js-yaml', { paths: [path.resolve(PKG, '../
 const manifest = yaml.load(fs.readFileSync(path.join(PKG, 'oshal-app.yaml'), 'utf8'));
 const tile = (name) => manifest.ui.static.find((entry) => entry.toolName === name);
 
-test('the Email and Storage tabs open the standard email viewer and the core file browser below the top bar', () => {
+test('the Email tab opens the standard email viewer below the top bar and /api/education/storage leads to My Files -> Saved', () => {
   assert.equal(tile('lm-email').iframeUrl, '/api/education/email');
   assert.equal(tile('lm-email').label, 'Email');
-  assert.equal(tile('lm-storage').iframeUrl, '/api/education/storage');
-  assert.equal(tile('lm-storage').label, 'Storage');
+  assert.equal(tile('lm-storage'), undefined, 'lm-storage merged into lm-files (?view=saved)');
+  assert.equal(tile('lm-files').iframeUrl, '/api/education/files');
   const page = fs.readFileSync(path.join(PKG, 'tools', 'standard-view.html'), 'utf8');
   assert.match(page, /<script src="\/api\/education\/mascot\.js/, 'the page mounts the Little Monsters frame');
+  assert.match(page, /location\.replace\('\/api\/education\/files\?view=saved'/, 'the old /api/education/storage address leads to My Files -> Saved');
   const views = Function(`${page.match(/var STANDARD_VIEWS = \{[\s\S]*?\};/)[0]} return STANDARD_VIEWS;`)();
   assert.deepEqual(views['/api/education/email'], { src: '/api/email/inbox', title: 'Email' });
   assert.deepEqual(views['/api/education/storage'], { src: '/api/files', title: 'Storage' });

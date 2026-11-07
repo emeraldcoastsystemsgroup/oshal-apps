@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The shipped Stripe panel says the mode Stripe reported: not connected / key rejected point to the Connections page and offer no payment form; a test key shows TEST MODE; a live or unknown key shows LIVE and asks twice, the second time naming LIVE, and only then sends confirmLive. Runs the page's own functions in a VM.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The not-connected panel opens Connections in a new tab and offers to check again in place; it replaced the whole tab (target=_top) while saying 'Then reload this page'.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: before a key the panel shows the payment-link form disabled with 'Connect Stripe first' (it showed none), never the working form.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -37,7 +38,7 @@ function page(answers = []) {
     confirm: (q) => { asked.push(q); return answers.length ? answers.shift() : true; },
   };
   const modes = html.slice(html.indexOf('const STRIPE_MODE = {'), html.indexOf('};', html.indexOf('const STRIPE_MODE = {')) + 2);
-  vm.runInNewContext(`${modes}\n${['stripeTabState', 'stripeLive', 'stripePanel', 'stripeConfirm', 'recheckControl'].map(extract).join('\n')}
+  vm.runInNewContext(`${modes}\n${['stripeTabState', 'stripeLive', 'stripePanel', 'stripeConfirm', 'recheckControl', 'stripePreviewForm'].map(extract).join('\n')}
     this.api = {stripeTabState, stripeLive, stripePanel, stripeConfirm};`, ctx);
   return { ...ctx.api, asked };
 }
@@ -51,7 +52,9 @@ test('not connected and a rejected key point to Connections and offer no payment
     assert.doesNotMatch(out, /target="_top"|Then reload this page/);
     assert.match(out, /id="recheckBtn"/);
     assert.match(out, /restricted key/);
-    assert.doesNotMatch(out, /id="sCreate"/, 'no payment form without a key');
+    assert.doesNotMatch(out, /id="sCreate"/, 'no working payment form without a key');
+    assert.match(out, /<fieldset class="preview" disabled/, 'the form shows what the app makes, disabled');
+    assert.match(out, /Connect Stripe first\./);
     assert.doesNotMatch(out, /<b>'?$|reason <b>/, 'the reason is escaped');
   }
   assert.equal(stripeTabState({ connected: false, mode: 'not_connected' }), '○ not connected');

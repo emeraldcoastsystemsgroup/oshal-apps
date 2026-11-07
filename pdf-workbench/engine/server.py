@@ -1,5 +1,6 @@
 """One pure, memory/time-bounded child per framed PDF request; no database or owner inputs.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Pin source identity and close children on client cancellation.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Include pdf_transforms and ooxml_export modules in engine buildHash.
 """
 import asyncio
 import hashlib
@@ -15,63 +16,67 @@ SLOTS = asyncio.Semaphore(2)
 
 def identity():
     digest = hashlib.sha256()
-    for name in ("worker.py", "server.py", "page_content.py", "requirements.txt"):
+    for name in ("worker.py", "server.py", "page_content.py", "pdf_transforms.py", "ooxml_export.py", "requirements.txt"):
         digest.update(name.encode() + b"\0" + (ROOT / name).read_bytes() + b"\0")
     return {"protocol": 1, "buildHash": digest.hexdigest(), "upstream": "pypdf/6.20.1+pypdfium2/5.14.0+Pillow/13.0.0"}
 
 
+async def _send_frame(writer, value):
+    raw = json.dumps(value, separators=(",", ":")).encode() + b"\n"
+    if len(raw) > MAX:
+        raise ValueError("response limit")
+    writer.write(raw)
+    await writer.drain()
+
+
+async def _run_worker(reader, args):
+    child = await asyncio.create_subprocess_exec(
+        sys.executable, str(ROOT / "worker.py"),
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    work = asyncio.create_task(child.communicate(json.dumps(args).encode()))
+    disconnected = asyncio.create_task(reader.read(1))
+    try:
+        done, _ = await asyncio.wait((work, disconnected), timeout=45, return_when=asyncio.FIRST_COMPLETED)
+        if work not in done:
+            raise TimeoutError("client closed or deadline")
+        output, _ = work.result()
+        if child.returncode != 0 or len(output) > MAX - 1024:
+            raise ValueError("worker refused")
+        return json.loads(output)
+    finally:
+        disconnected.cancel()
+        if child.returncode is None:
+            child.kill()
+            await child.wait()
+        await asyncio.gather(work, disconnected, return_exceptions=True)
+
+
 async def serve(reader, writer):
-    child = None
     slot = False
     build = identity()
-    async def send(value):
-        raw = json.dumps(value, separators=(",", ":")).encode() + b"\n"
-        if len(raw) > MAX:
-            raise ValueError("response limit")
-        writer.write(raw)
-        await writer.drain()
     try:
         if SLOTS.locked():
-            await send({"error": "pdf_engine_busy"})
+            await _send_frame(writer, {"error": "pdf_engine_busy"})
             return
         await SLOTS.acquire()
         slot = True
-        await send({"bridge": build})
+        await _send_frame(writer, {"bridge": build})
         raw = await asyncio.wait_for(reader.readline(), 10)
         if not raw.endswith(b"\n") or len(raw) > MAX:
             raise ValueError("frame limit")
         value = json.loads(raw)
         if set(value) != {"id", "cmd", "args"} or value["id"] != 1 or value["cmd"] != "pdf":
             raise ValueError("closed request")
-        child = await asyncio.create_subprocess_exec(sys.executable, str(ROOT / "worker.py"),
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-            env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8", "PYTHONDONTWRITEBYTECODE": "1"})
-        work = asyncio.create_task(child.communicate(json.dumps(value["args"]).encode()))
-        disconnected = asyncio.create_task(reader.read(1))
-        try:
-            done, _ = await asyncio.wait((work, disconnected), timeout=45, return_when=asyncio.FIRST_COMPLETED)
-            if work not in done:
-                raise TimeoutError("client closed or deadline")
-            output, _ = work.result()
-            if child.returncode != 0 or len(output) > MAX - 1024:
-                raise ValueError("worker refused")
-            answer = json.loads(output)
-            await send({"id": 1, "buildHash": build["buildHash"], **answer})
-        finally:
-            disconnected.cancel()
-            if child.returncode is None:
-                child.kill()
-                await child.wait()
-            await asyncio.gather(work, disconnected, return_exceptions=True)
+        answer = await _run_worker(reader, value["args"])
+        await _send_frame(writer, {"id": 1, "buildHash": build["buildHash"], **answer})
     except (Exception, asyncio.CancelledError):
         try:
-            await send({"id": 1, "buildHash": build["buildHash"], "ok": False, "error": "pdf_engine_failed"})
+            await _send_frame(writer, {"id": 1, "buildHash": build["buildHash"], "ok": False, "error": "pdf_engine_failed"})
         except Exception:
             pass
     finally:
-        if child is not None and child.returncode is None:
-            child.kill()
-            await child.wait()
         if slot:
             SLOTS.release()
         writer.close()

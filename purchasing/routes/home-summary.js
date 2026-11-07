@@ -27,13 +27,13 @@ function createHomeSummaryRoutes(ctx) {
         const results = await Promise.allSettled(queries.map(text => ctx.pool.query({ text, values: [String(sub), now], query_timeout: 1800 })));
         const metrics = definitions.map(([index, key, id, label]) => { const result = results[index]; return { id, label, value: result.status === 'fulfilled' ? String(result.value.rows[0]?.[key] ?? '0') : 'Unavailable', tone: 'neutral' }; });
         const recent = results[1];
-        const items = recent.status === 'fulfilled' ? recent.value.rows.map(item).filter(Boolean).slice(0, 3).map(({ context, ...entry }) => ({ ...entry, tone: 'neutral', fix: "shop-concierge", actions: ["plan-meal"].map(integration => ({ integration, context })) })) : [];
+        const items = recent.status === 'fulfilled' ? recent.value.rows.map(item).filter(Boolean).slice(0, 3).map(({ context, ...entry }) => ({ ...entry, tone: 'neutral', fix: "shop-lists", actions: ["plan-meal"].map(integration => ({ integration, context })) })) : [];
         const failed = results.filter(r => r.status === 'rejected').length;
         if (failed)
-            items.push({ text: 'Some saved data cannot be checked.', tone: 'warn', fix: "shop-concierge" });
+            items.push({ text: 'Some saved data cannot be checked.', tone: 'warn', fix: "shop-lists" });
         else if (!items.length)
-            items.push({ text: "No saved preparation items to review yet.", tone: 'neutral', fix: "shop-concierge" });
-        items.push({ text: "Saved active lists and pending items. Checkout handoffs are not confirmed purchases.", tone: 'neutral', fix: "shop-concierge" });
+            items.push({ text: "No saved preparation items to review yet.", tone: 'neutral', fix: "shop-lists" });
+        items.push({ text: "Saved active lists and pending items. Checkout handoffs are not confirmed purchases.", tone: 'neutral', fix: "shop-lists" });
         res.status(failed === results.length ? 503 : 200).json({ metrics, tiles: metrics.slice(0, 4), items, asOf: now.toISOString(), partial: failed > 0 });
     });
     return router;

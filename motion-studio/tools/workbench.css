@@ -47,3 +47,171 @@
 /* 0.2.3, phones (the trial check, 2026-11-06): one app bar row, the status and the shell's More. */
 @media(max-width:800px){.motion-foundation header{flex-wrap:nowrap;gap:8px;padding:6px 10px}.motion-foundation header #status{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 /* CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4 (the round-2 trial check, 2026-11-06): the two rules that give every input, select, textarea and button Motion's full-width filled look skip the shared Concierge (.ef-assistant), whose own stylesheet sizes its + and speaker icons and its Send; the full-width + had pushed Read latest reply aloud and Send off the right edge on phones and at 1440 px. :where() keeps each rule's specificity exactly as before, so nothing else in Motion changes. */
+
+/* CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.2, §3.3, §4; Alight Motion and Node Video, REFP CONVENTIONS §5.4): every colour, line, radius, size and space from the --ds-* tokens of the dark category look (graphite); solid controls with a 3:1 edge, no translucent fill, fade or lift; one 2px focus ring; radii 6/10/14/20; the type scale with nothing under 12px and 16px inputs on touch; 44px targets on touch; the stage fixed on top with the transport and the layer timeline under it; the stage wide on a desktop beside the 320px docked panel (the layers are the timeline's rows, and the Layers sheet holds the layer tree); the app row of name, Undo, Redo, Saved and Render; the tool row as the phone's bottom bar; opaque top-layer sheets and menus; the composition list with one + New at the bottom right. The shared editor's own pane switcher, More button and "No object selected" heading are not drawn: this layout carries them. */
+html,body{overscroll-behavior:contain}
+.motion-foundation{--m-bg:var(--ds-page,var(--bg-primary));--m-panel:var(--ds-surface,var(--bg-card));--m-panel-2:var(--ds-surface-2,var(--bg-secondary));--m-ink:var(--ds-ink,var(--text-primary));--m-muted:var(--ds-ink-2,var(--text-secondary));--m-line:var(--ds-edge,var(--border-color));--m-accent:var(--ds-accent,var(--accent-primary));background:var(--m-bg);color:var(--m-ink);font:var(--ds-text-body,400 16px/24px system-ui,sans-serif)}
+.motion-foundation h1{margin:0;font:var(--ds-text-heading,600 18px/24px system-ui)}
+.motion-foundation h2{margin:12px 0 8px;font:var(--ds-text-heading,600 18px/24px system-ui)}
+.motion-foundation h3{margin:8px 0;font:600 16px/24px var(--ds-font,system-ui)}
+.motion-foundation :where(p,small,label,output,dt,dd,legend,.keys,#status,#playbackStatus,#propertiesStatus,#keySummary,#curveCaption,#maskNote,#fontNote,#textRange,#textStatus,#effectStatus,#bundleStatus,#renderStatus){font:var(--ds-text-help,400 14px/20px system-ui);color:var(--m-muted)}
+.motion-foundation :where(label){color:var(--m-ink);font-weight:600}
+.motion-foundation.motion-foundation :where(button,select,textarea,input:not([type=checkbox],[type=radio],[type=range],[type=color])):where(:not(.ef-assistant *)){min-height:44px;border:1px solid var(--ds-line-control);border-radius:10px;background:var(--m-panel-2);color:var(--m-ink);box-shadow:none;transform:none;font:400 16px/24px var(--ds-font,system-ui);transition:background-color var(--ds-dur-fast,120ms) var(--ds-ease,ease)}
+.motion-foundation.motion-foundation :where(button):where(:not(.ef-assistant *)){width:auto;font-weight:600;padding:0 16px;cursor:pointer}
+.motion-foundation.motion-foundation :where(input[type=color]):where(:not(.ef-assistant *)){min-height:44px;border:1px solid var(--ds-line-control);border-radius:10px;background:var(--m-panel-2);padding:4px}
+.motion-foundation.motion-foundation :where(button):where(:not(.ef-assistant *)):hover:not(:disabled){background:var(--ds-surface-3)}
+.motion-foundation.motion-foundation :where(button,select,input,textarea):where(:not(.ef-assistant *)):disabled{opacity:1;color:var(--ds-ink-disabled);background:var(--m-panel-2);border-color:var(--ds-hairline);cursor:not-allowed}
+.motion-foundation.motion-foundation button.primary:where(:not(.ef-assistant *)){background:var(--m-accent);border-color:var(--m-accent);color:var(--ds-on-accent,var(--text-on-accent))}
+.motion-foundation.motion-foundation button.primary:where(:not(.ef-assistant *)):hover:not(:disabled){background:var(--m-accent);box-shadow:inset 0 0 0 1px var(--ds-on-accent)}
+.motion-foundation.motion-foundation button.primary:where(:not(.ef-assistant *)):disabled{background:var(--m-panel-2);border-color:var(--ds-hairline);color:var(--ds-ink-disabled)}
+.motion-foundation :focus-visible{outline:2px solid var(--ds-focus,var(--m-accent));outline-offset:2px}
+.motion-foundation summary{min-height:44px;display:flex;align-items:center;padding:0 12px;border:1px solid var(--ds-line-control);border-radius:10px;font:600 16px/24px var(--ds-font,system-ui);color:var(--m-ink)}
+.motion-foundation details{margin:8px 0}
+.motion-foundation :where(.track,#workArea,#keyEditor,#textPanel,#maskPanel,#effectsPanel,#renderPanel,#bundlePanel,#effectFields fieldset,#scenePropertyFields fieldset,#keyEditor fieldset,#spatialFields,.motion-inline-text){border-radius:14px;border-color:var(--m-line)}
+.motion-foundation :where(#keyCurve,#motionPath,#maskPath){border-radius:10px;border-color:var(--m-line);background:var(--m-panel-2)}
+.motion-foundation #error{border-radius:14px;border:1px solid var(--ds-bad,var(--status-error));background:var(--m-panel);color:var(--m-ink);font:var(--ds-text-help)}
+.motion-foundation .pair{gap:8px}
+.motion-sr{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0);white-space:nowrap;margin:0!important;padding:0!important}
+.motion-hold,.motion-hold[hidden]{display:none!important}
+/* The shared editor's own switcher, More and empty headings: this layout carries them (one entry each). */
+.motion-foundation :is(.ef-tools,.ef-panes,.ef-more-button,.ef-close-drawer,.ef-pane-heading,.ef-selection,.ef-more-tools>summary,.ef-common-properties .ef-empty){display:none!important}
+.motion-foundation .ef-more-tools{margin:0;padding:0;border:0}
+.motion-foundation .ef-shell{background:var(--m-bg)}
+.motion-foundation :is(.ef-navigation,.ef-inspector){background:var(--m-panel);border-color:var(--m-line)}
+.motion-foundation .ef-navigation>aside,.motion-foundation .ef-more-tools>aside{padding:0 16px 16px}
+.motion-foundation .ef-properties{padding:0 16px}
+.motion-foundation .ef-property{font:600 14px/20px var(--ds-font,system-ui);color:var(--m-ink)}
+.motion-foundation .ef-property>:is(input,textarea,select){min-height:44px;border-radius:10px;border:1px solid var(--ds-line-control);background:var(--m-panel-2);color:var(--m-ink);font-size:16px}
+.motion-foundation .ef-property-group>legend{font:600 14px/20px var(--ds-font,system-ui);color:var(--m-ink)}
+.motion-foundation :is(.ef-field-status,.ef-error){font:var(--ds-text-help)}
+.motion-foundation .motion-keyed-row{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:end;gap:4px}
+.motion-foundation .motion-keyed-row>span{grid-column:1/-1}
+.motion-foundation .motion-diamond{grid-column:2;grid-row:2;color:var(--m-ink)}
+/* The app row (§3.1): the name and its menu, Undo, Redo, the tool row on a desktop, Saved, Render. */
+.motion-foundation header{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;min-height:56px;padding:6px 16px;background:var(--m-bg);border-bottom:1px solid var(--ds-hairline)}
+.motion-foundation header h1{margin:0}
+.motion-foundation .motion-doc{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:min(36vw,280px);padding:0 8px;border-color:transparent;background:transparent}
+.motion-doc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.motion-caret{flex:none;font-size:14px}
+.motion-foundation .motion-icon{min-width:44px;width:44px;padding:0;border-color:transparent;background:transparent;font-size:18px;line-height:1}
+.motion-foundation .motion-icon:disabled{background:transparent;border-color:transparent}
+.motion-foundation .motion-saved{margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto}
+.motion-foundation .motion-render{flex:none}
+.motion-foundation .motion-render[hidden]{display:none}
+.motion-toolrow{display:flex;align-items:center;gap:8px;min-width:0;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
+.motion-foundation .motion-tool{flex:none;display:inline-flex;align-items:center;gap:8px;padding:0 12px}
+.motion-glyph{font-size:16px;line-height:1}
+/* The stage on top, the transport and the time slider (C-MOT-1, §3.2). */
+.motion-foundation .ef-viewport>.center{display:flex;flex-direction:column;gap:8px;padding:8px 16px;min-height:0;height:100%;box-sizing:border-box}
+.motion-foundation #stage{position:relative;flex:1 1 auto;min-height:160px;height:auto;display:flex;align-items:center;justify-content:center;background:#000;background-image:none;border:1px solid var(--m-line);border-radius:10px;overflow:hidden}
+.motion-start{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.motion-start>button{pointer-events:auto;min-width:160px}
+.motion-start[hidden]{display:none}
+.motion-transport{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:nowrap;flex:none}
+.motion-foundation .playback{display:flex;gap:4px;margin:0}
+.motion-foundation .playback #play{min-width:132px}
+.motion-foundation .motion-transport .check{margin:0;gap:8px;min-height:44px}
+.motion-foundation .center>label{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:8px;margin:0;flex:none}
+.motion-foundation .center>label>input[type=range]{width:100%;min-height:44px;margin:0;accent-color:var(--m-accent)}
+.motion-foundation[data-motion-empty] :is(.motion-transport,.center>label,.ef-timeline-slot){display:none}
+/* The layer timeline: a row per layer and a lane of keyframe diamonds per animated property (C-MOT-3). */
+.motion-foundation .motion-timeline{padding:8px 16px;max-height:28dvh;overflow:auto}
+.motion-foundation #timeline{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.motion-foundation .track{margin:0;padding:4px 0;border:0;border-bottom:1px solid var(--ds-hairline);border-radius:0;background:transparent}
+.motion-row{display:grid;grid-template-columns:minmax(96px,160px) minmax(0,1fr);align-items:center;gap:8px;min-height:44px}
+.motion-foundation .motion-row-name{width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border-color:transparent;background:transparent}
+.motion-foundation .motion-row-name[aria-pressed=true]{background:var(--ds-ink);border-color:var(--ds-ink);color:var(--ds-page)}
+.motion-lane{position:relative;height:44px;border-radius:6px;background:var(--m-panel-2)}
+.motion-span{position:absolute;top:16px;bottom:16px;border-radius:6px;background:var(--ds-line-control)}
+.motion-prop-name{padding-left:16px;font:var(--ds-text-meta,400 12px/16px system-ui);color:var(--m-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.motion-foundation .keys{display:grid;gap:0;margin:0}
+.motion-foundation .keyButton{position:absolute;top:0;width:44px;min-width:44px;height:44px;margin:0 0 0 -22px;padding:0;border:0;background:transparent;color:var(--m-ink);font-size:14px}
+/* The docked panel: the composition's settings, the layer's head and its tools. */
+.motion-foundation .motion-comp-settings[hidden],.motion-foundation .motion-layer-tools[hidden],.motion-foundation .motion-layer-head[hidden],.motion-foundation #new[hidden],.motion-foundation #workArea[hidden],.motion-foundation .motion-facts[hidden]{display:none}
+.motion-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;margin:0 0 12px}
+.motion-facts dd{margin:0;color:var(--m-ink);display:flex;align-items:center;gap:8px}
+.motion-swatch{width:16px;height:16px;border-radius:6px;border:1px solid var(--ds-line-control);flex:none}
+.motion-foundation #workArea{padding:12px;margin:12px 0}
+.motion-foundation #workArea h2{margin:0 0 8px;font:600 16px/24px var(--ds-font,system-ui)}
+.motion-layer-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:56px}
+.motion-layer-name{margin:0;font:var(--ds-text-heading,600 18px/24px system-ui)!important;color:var(--m-ink)!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.motion-planned-row{width:100%}
+.motion-layer-tree h2{margin-top:16px}
+.motion-foundation .motion-comp-row{width:100%;justify-content:flex-start;text-align:left;margin:8px 0}
+.motion-foundation .motion-comp-row[aria-pressed=true],.motion-foundation #layers button[aria-selected=true]{background:var(--ds-ink);border-color:var(--ds-ink);color:var(--ds-page);box-shadow:none}
+.motion-foundation #layers li{gap:8px;min-height:44px}
+.motion-foundation #layers li>input[type=checkbox]{width:24px;height:24px}
+.motion-foundation #layers button{flex:1;margin:2px 0}
+.motion-help-text p{margin:0 0 12px;color:var(--m-ink)}
+.motion-prompts{display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto}
+.motion-foundation .motion-chip,.ds-layer .motion-chip{min-height:44px;padding:0 16px;border-radius:10px;font:600 14px/20px var(--ds-font,system-ui)}
+.motion-foundation .motion-position-handle{border-radius:999px;border:1px solid var(--m-accent);background:var(--m-panel);color:var(--m-ink)}
+.motion-foundation .motion-inline-text{border:1px solid var(--m-line);background:var(--m-panel);box-shadow:var(--ds-elev-float)}
+/* The composition list (N2): newest first, one + New at the bottom right. */
+.motion-home{display:flex;flex-direction:column;gap:8px;padding:16px;box-sizing:border-box;min-height:100%}
+.motion-home[hidden]{display:none}
+.motion-home-list{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));padding-bottom:96px}
+.motion-foundation .motion-home-row{width:100%;min-height:56px;justify-content:flex-start;text-align:left;font:600 16px/24px var(--ds-font,system-ui)}
+.motion-home-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.motion-foundation .motion-new{position:fixed;right:24px;bottom:24px;z-index:25}
+.motion-foundation[data-motion-home] :is(.ef-viewport>.center,.ef-timeline-slot,.motion-doc,#undo,#redo,.motion-render,.motion-tool[data-tool=layers],.motion-tool[data-tool=add],.motion-tool[data-tool=properties]){display:none!important}
+/* Menus and sheets (§4.3, §4.4): modal top-layer dialogs, opaque, one float elevation, a plain scrim. */
+.ds-layer{margin:auto;padding:0;max-width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 32px);border:1px solid var(--ds-hairline);border-radius:20px;background:var(--ds-surface);color:var(--ds-ink);box-shadow:var(--ds-elev-float);overflow:auto;font:var(--ds-text-body)}
+.ds-layer::backdrop{background:var(--ds-scrim,rgb(0 0 0 / .4))}
+.ds-layer.ds-menu::backdrop{background:transparent}
+.ds-layer.ds-anchored{position:fixed;margin:0;inset:auto;min-width:240px;border-radius:14px}
+.ds-layer-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:56px;padding:0 8px 0 16px;background:var(--ds-surface);border-bottom:1px solid var(--ds-hairline)}
+.ds-layer-title{margin:0;font:var(--ds-text-heading)}
+.ds-layer .ds-layer-done{min-height:44px;padding:0 16px;border:0;background:transparent;color:var(--ds-accent-ink);font:600 16px/24px var(--ds-font,system-ui);cursor:pointer}
+.ds-layer-body{padding:16px;display:grid;gap:12px}
+.ds-layer.ds-menu .ds-layer-body{padding:8px 0}
+.ds-layer :is(.panel,section,form){border:0;padding:0;margin:0;background:transparent}
+.ds-layer .ef-inspector{display:block!important;position:static!important;width:auto;max-height:none;border:0;box-shadow:none;background:transparent}
+.ds-layer .ef-navigation{display:block!important;position:static!important;width:auto;max-height:none;border:0;box-shadow:none;background:transparent}
+.ds-layer .ef-assistant{height:min(60dvh,520px);min-height:360px}
+.ds-menu-list{display:flex;flex-direction:column;background:var(--ds-surface)}
+.ds-layer .ds-menu-row,.motion-foundation .ds-menu-row{display:flex;align-items:center;justify-content:flex-start;width:100%;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:var(--ds-ink);font:400 16px/24px var(--ds-font,system-ui);text-align:left;cursor:pointer}
+.ds-layer .ds-menu-row:hover:not(:disabled){background:var(--ds-surface-3)}
+.ds-layer .ds-menu-row:disabled{color:var(--ds-ink-disabled);cursor:not-allowed}
+.ds-layer .ds-menu-row.ds-danger{color:var(--ds-bad,var(--status-error))}
+.ds-layer .ds-menu-row[data-ds-not-yet],.motion-foundation .ds-menu-row[data-ds-not-yet]{background:transparent;gap:8px}
+.ds-menu-sep{margin:4px 0;border:0;border-top:1px solid var(--ds-hairline)}
+.ds-confirm-actions{display:flex;justify-content:flex-end;gap:8px}
+.ds-layer .ds-danger-fill{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--ds-bad,var(--status-error));background:var(--ds-bad,var(--status-error));color:var(--ds-page);font:600 16px/24px var(--ds-font,system-ui);cursor:pointer}
+.ds-layer.ds-layer :where(button,select,textarea,input:not([type=checkbox],[type=radio],[type=range],[type=color])):where(:not(.ef-assistant *):not(.ds-menu-row):not(.ds-layer-done):not(.ds-danger-fill)){min-height:44px;border:1px solid var(--ds-line-control);border-radius:10px;background:var(--ds-surface-2);color:var(--ds-ink);font:400 16px/24px var(--ds-font,system-ui)}
+.ds-layer.ds-layer :where(button):where(:not(.ef-assistant *):not(.ds-menu-row):not(.ds-layer-done):not(.ds-danger-fill)){font-weight:600;padding:0 16px;width:auto}
+.ds-layer.ds-layer :where(button,select,input,textarea):disabled{opacity:1;color:var(--ds-ink-disabled);border-color:var(--ds-hairline)}
+.ds-layer :where(p,small,output,label){font:var(--ds-text-help)}
+.ds-layer h2:not(.ds-layer-title),.ds-layer h3{font:600 16px/24px var(--ds-font,system-ui);margin:8px 0}
+/* Desktop (§3.3): Layers 240px, the stage, the 320px panel; the concierge a fourth column while open. */
+@media (min-width:801px){
+ .motion-foundation .ef-body{grid-template-columns:minmax(0,1fr) 320px!important}
+ .motion-foundation .ef-navigation{display:none!important}
+ .motion-foundation.ef-has-concierge[data-editor-concierge=open] .ef-body{grid-template-columns:minmax(0,1fr) 320px 360px!important}
+ .motion-foundation[data-motion-home] .ef-body{grid-template-columns:minmax(0,1fr)!important}
+ .motion-foundation[data-motion-home] :is(.ef-navigation,.ef-inspector){display:none!important}
+ .motion-foundation .motion-phone-only{display:none!important}
+ .motion-foundation header :is(button,select){min-height:36px}
+ .motion-foundation .motion-icon{min-width:36px;width:36px}
+ .motion-toolrow .motion-tool{min-height:36px}
+}
+/* Phone (§3.1): one app row, the stage fixed on top, the tool row as the bottom bar, sheets from the bottom. */
+@media (max-width:800px){
+ .motion-foundation header{padding:4px 8px;gap:4px;min-height:52px}
+ .motion-foundation .motion-doc{max-width:34vw}
+ .motion-foundation .ef-shell{padding-bottom:calc(56px + env(safe-area-inset-bottom,0px));box-sizing:border-box}
+ .motion-foundation .ef-viewport>.center{padding:8px}
+ .motion-foundation #stage{min-height:140px}
+ .motion-foundation .motion-transport .check{display:none}
+ .motion-foundation .motion-timeline{max-height:26dvh;padding:4px 8px}
+ .motion-toolrow{position:fixed;left:0;right:0;bottom:0;z-index:30;height:calc(56px + env(safe-area-inset-bottom,0px));gap:0;padding:0 4px env(safe-area-inset-bottom,0px);justify-content:space-around;background:var(--m-bg);border-top:1px solid var(--ds-hairline);overflow:hidden}
+ .motion-toolrow .motion-tool{flex-direction:column;gap:0;height:52px;min-width:64px;padding:0 8px;border:0;background:transparent;font:600 12px/16px var(--ds-font,system-ui)}
+ .motion-toolrow .motion-glyph{font-size:18px}
+ .motion-foundation .motion-new{right:16px;bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+ .ds-layer:not(.ds-anchored){width:100%;max-width:none;margin:auto 0 calc(56px + env(safe-area-inset-bottom,0px));max-height:min(80dvh,calc(100dvh - 112px));border-radius:20px 20px 0 0}
+ .ds-layer.ds-half{max-height:56dvh}
+ .ds-layer .ef-assistant{height:min(64dvh,560px)}
+}
+@media (prefers-reduced-motion:reduce){.motion-foundation button{transition:none}}
+.motion-foundation header h1{font:var(--ds-text-heading,600 18px/24px system-ui)}
+.motion-foundation .playback button{font-size:16px;padding:0 12px}

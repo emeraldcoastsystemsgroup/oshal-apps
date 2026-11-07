@@ -1,3 +1,5 @@
+# CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Register account-values-upsert: the five-minute account observation upsert keeps EXCLUDED inside DO UPDATE SET and updates only on newer timestamps.
+# CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Register design-standard-landing: the Accounts landing's design-standard rules (contract, real-capital hero only for real accounts, tile as card, roster in Settings, scales, phone bottom bar).
 # CHANGE LOG: 25 | maintainer@emeraldcoastsystemsgroup.com | Register delayed Quant and native account navigation regressions against shipped browser code.
 # CHANGE LOG
 # -----------------------------------------------------------------------------
@@ -1747,5 +1749,38 @@ cases:
     prerequisites: [runner:node-test]
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Discard named synthetic SQL and broker records. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: design-standard-landing
+    name: The Accounts landing follows the design standard without touching order code
+    purpose: The landing's shipped UI files, read and run in a sandbox, keep the design-standard rules of UX audit decision intelligent-trades--intelligent-trades-home; nothing in the orderAuthority closure is involved.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/native-design-standard.test.js] }
+    expected:
+      - The page declares a dashboard contract (category dashboard, first action none) and the account tiles are its declared work.
+      - The real-capital hero is drawn only for a connected real account or a failed read, never for paper money alone, and keeps its honest text.
+      - An account tile is a card whose own buttons are the controls, never a button around buttons.
+      - The connected-login roster and Discover accounts are hidden on the landing and shown in Settings.
+      - A loading spinner is marked as progress and the watchlist Remove is a full 44px target.
+      - The page paints no wash, its font sizes and radii sit on the design standard's scales, and on a phone the four sections are one bottom bar.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 30000 }
+    installation: never
+
+  - id: account-values-upsert
+    name: Five-minute account value observations upsert without referencing EXCLUDED in WHERE
+    purpose: Prove recordAccountValue and watch/tick five-minute sampling keep EXCLUDED strictly inside DO UPDATE SET, succeed against native package SQL rules and disposable PostgreSQL, and leave orderAuthority declarations untouched.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/native-account-values-upsert.test.js] }
+    expected:
+      - No route SQL statement in trading references EXCLUDED outside an ON CONFLICT DO UPDATE SET assignment list.
+      - Repeated same-day five-minute observations insert once, update when observed_at advances, and ignore older or equal timestamps across ISO timezone formats.
+      - Order authority declarations in oshal-app.yaml remain anchored to routes/trading-native-management.js and routes/live/management.js.
+    prerequisites: [runner:node-test]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Roll back disposable PostgreSQL transaction or discard isolated records. }
     limits: { timeoutMs: 30000 }
     installation: never

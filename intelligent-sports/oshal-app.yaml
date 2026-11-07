@@ -26,7 +26,7 @@ description: >-
   One front door for sport: manage your own fantasy football team, and follow a team's next game
   with an odds maker that is graded on closing-line value before it may stake anything. Each
   destination remains owned by its member app.
-version: 1.0.1
+version: 1.0.2
 status: active
 scope: public
 theme: light-blue
@@ -58,7 +58,7 @@ dependencies:
 toolbar:
   - { app: fantasy-football, surface: fantasy-football }
   - { app: sports-edge,      surface: sports-edge-home,   group: Odds }
-  - { app: sports-edge,      surface: sports-edge-review, section: bottom }
+  # UX audit 2026-11-06: Sports Edge Review left the menu (a dead brief form); its route stays for hand-offs.
 
 ribbon:
   defaultView: fantasy-football

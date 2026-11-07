@@ -243,3 +243,24 @@ cases:
       timeoutMs: 180000
       maxMemoryMb: 1024
     installation: never
+  - id: ux-words
+    name: Design Studio says failures in words and shows one primary per product page
+    purpose: >-
+      UX audit 2026-11-06: the shipped stages and screens modules in a sandbox: absent and failed reads carry no route path, a reasoned phase is Mark done by hand, and onePrimary keeps one primary.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ux-words.test.js
+    expected:
+      - Absent reads say the engine is not installed or not answering here; failed reads name the engine and what to do.
+      - Only the next open phase keeps btn-primary.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

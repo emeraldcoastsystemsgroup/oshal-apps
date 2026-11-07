@@ -13,6 +13,7 @@
  * 2026-10-11 00:00:01 | maintainer@emeraldcoastsystemsgroup.com    | A host override that ends the game (endGame) also sets the room's status to 'ended' through the same setStatus the lobby's End uses (scores snapshotted, camera stills dropped).
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | GET /sync only reads; POST /sync {roomId, rev, seq} resolves a lapsed round clock and the due NPC beat, then answers the same payload. On the native kernel a GET is a reader admission, so the clock's write made every poll after a show started answer 500.
  * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | handleAction tells the show whether the caller owns the room, because the host may now play at their own seat.
+ * 2026-11-06 09:00:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06: two surface scripts join the inline order, gs-sheets.js (Help, You and the in-page confirm) after gs-play.js, and gs-host-desk.js (the Host Desk and its Show setup sheet) after gs-surfaces.js, matching stage.html.
  */
 
 'use strict';
@@ -34,7 +35,7 @@ const FALLBACK_ROOT = process.env.OSHAL_APP_PACKAGE_DIR || path.resolve(__dirnam
 const UI_SCRIPTS = [
   'gs-core.js', 'gs-presence.js', 'gs-controls.js', 'gs-cutaways.js', 'gs-shows.js',
   'gs-show-feud.js', 'gs-show-jeopardy.js', 'gs-show-wheel.js', 'gs-show-whammy.js',
-  'gs-play.js', 'gs-surfaces.js', 'gs-app.js',
+  'gs-play.js', 'gs-sheets.js', 'gs-surfaces.js', 'gs-host-desk.js', 'gs-app.js',
 ];
 // The shared sheet, the broadcast chrome sheet, and one set sheet per show.
 const UI_STYLES = [

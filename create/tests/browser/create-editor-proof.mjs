@@ -12,13 +12,14 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Prove brush masks, mask combination and editable adjustment persistence with actual rendered pixels and UI gestures.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: reach New, My projects, Save a copy, the name and Save automatically through the document menu, edit layer and canvas values in the one Format inspector (the duplicate form is gone), open Insert with Add on a phone and let automatic saving save where a test no longer presses Save.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createProject, applyOperation } from '../../tools/editor/model.mjs';
-import { chromium, startEditorFixture, syntheticImage } from './create-editor-fixture.mjs';
+import { chromium, startEditorFixture, syntheticImage, inMenu, rename, manualSaving, field } from './create-editor-fixture.mjs';
 let browser;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 after(async () => { await browser?.close(); });
@@ -41,7 +42,8 @@ async function open(t, options = {}) {
 }
 
 async function change(surface, selector, value) { await surface.locator(selector).fill(String(value)); await surface.locator(selector).press('Tab'); }
-async function noAutosave(value) { await value.surface.locator('#autosave').uncheck(); }
+async function noAutosave(value) { await manualSaving(value.surface); }
+const press = async (value, id) => (await inMenu(value.surface ?? value, id)).click();
 async function saved(value, revision = 1) { await value.surface.locator('#saveStatus').filter({ hasText: `Saved · revision ${revision}` }).waitFor(); }
 function clean(value) { assert.deepEqual(value.errors, []); assert.deepEqual(value.external, []); }
 
@@ -58,10 +60,10 @@ async function download(value, button) {
 }
 
 async function composition(value) {
-  const { surface } = value; await noAutosave(value); await change(surface, '#projectName', 'Synthetic cover');
-  await surface.locator('#canvasWidth').fill('320'); await surface.locator('#canvasHeight').fill('240'); await surface.locator('#applyCanvas').click();
-  await surface.locator('#addRectangle').click(); await change(surface, '#layerName', 'Backdrop');
-  await surface.locator('#addText').click(); await change(surface, '#layerText', 'Synthetic headline');
+  const { surface } = value; await noAutosave(value); await rename(surface, 'Synthetic cover');
+  await change(surface, '[data-editor-property="width"]', 320); await change(surface, '[data-editor-property="height"]', 240);
+  await surface.locator('#addRectangle').click(); await change(surface, '[data-editor-property="name"]', 'Backdrop');
+  await surface.locator('#addText').click(); await change(surface, '[data-editor-property="text"]', 'Synthetic headline');
   await surface.locator('#imageFile').setInputFiles({ name: 'synthetic-red-blue.png', mimeType: 'image/png', buffer: await syntheticImage() });
   await surface.locator('#imageProperties').waitFor(); await surface.locator('#cropX').fill('50'); await surface.locator('#cropW').fill('50'); await surface.locator('#applyCrop').click();
   await surface.locator('#artboard').evaluate(canvas => new Promise((resolve, reject) => {
@@ -77,14 +79,14 @@ test('real editor creates shape, text and cropped image layers, saves/reopens th
   assert.equal(record.title, 'Synthetic cover'); assert.equal(document.width, 320); assert.equal(document.height, 240);
   assert.deepEqual(document.layers.map(layer => layer.type), ['rect', 'text', 'image']); assert.equal(document.layers[1].text, 'Synthetic headline');
   assert.deepEqual(document.layers[2].crop, { x: .5, y: 0, w: .5, h: 1 }); assert.ok(Object.values(document.images)[0].src.startsWith('/api/create/project-assets/'));
-  await value.surface.locator('#newProject').click(); assert.equal(await value.surface.locator('#layerCount').innerText(), '0');
-  await value.surface.locator('#openProjects').click(); await value.surface.locator(`[data-project-id="${record.id}"]`).getByRole('button', { name: 'Open', exact: true }).click(); await saved(value);
+  await press(value, '#newProject'); assert.equal(await value.surface.locator('#layerCount').innerText(), '0');
+  await press(value, '#openProjects'); await value.surface.locator(`[data-project-id="${record.id}"]`).getByRole('button', { name: 'Open', exact: true }).click(); await saved(value);
   assert.equal(await value.surface.locator('#projectName').inputValue(), 'Synthetic cover'); assert.equal(await value.surface.locator('#layerCount').innerText(), '3');
   const png = await download(value, '#exportPng'); assert.equal(png.name, 'Synthetic cover.png'); assert.deepEqual([...png.bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   const portable = await download(value, '#exportJson'), decoded = JSON.parse(portable.bytes.toString());
   assert.equal(portable.name, 'Synthetic cover.create.json'); assert.deepEqual(decoded.layers, document.layers); assert.ok(Object.values(decoded.images)[0].src.startsWith('data:image/png;base64,'));
   assert.equal(value.fixture.state.successfulWrites, 1); await screenshot(value, 'desktop-composition-workspace');
-  await value.surface.locator('#newProject').click(); await value.surface.locator('#projectFile').setInputFiles({ name: portable.name, mimeType: 'application/json', buffer: portable.bytes });
+  await press(value, '#newProject'); await value.surface.locator('#projectFile').setInputFiles({ name: portable.name, mimeType: 'application/json', buffer: portable.bytes });
   await value.surface.locator('#layerCount').filter({ hasText: '3' }).waitFor(); await value.surface.locator('#saveProject').click(); await saved(value);
   const imported = [...value.fixture.state.projects.values()].at(-1).document;
   assert.deepEqual(imported.layers, document.layers); assert.notEqual(Object.values(imported.images)[0].src, Object.values(document.images)[0].src);
@@ -99,10 +101,10 @@ const artboardPixel = (surface, x, y) => surface.locator('#artboard').evaluate((
 test('image filter looks and sliders edit the selected image, save, reopen and export the filtered canvas', async t => {
   const value = await open(t); await noAutosave(value); const { surface } = value;
   await surface.locator('#imageFile').setInputFiles({ name: 'synthetic-filter.png', mimeType: 'image/png', buffer: await syntheticImage() });
-  await surface.locator('#imageProperties').waitFor(); const filtered = await surface.locator('#layerName').inputValue();
+  await surface.locator('#imageProperties').waitFor(); const filtered = await surface.locator('[data-editor-property="name"]').inputValue();
   await surface.locator('#artboard').evaluate(canvas => new Promise((resolve, reject) => { const deadline = Date.now() + 3000;
     const check = () => { if (canvas.getContext('2d').getImageData(5, 5, 1, 1).data[3] === 255) resolve(); else if (Date.now() > deadline) reject(new Error('image not painted')); else requestAnimationFrame(check); }; check(); }));
-  const at = { x: Math.round(Number(await surface.locator('#layerX').inputValue()) + 5), y: Math.round(Number(await surface.locator('#layerY').inputValue()) + 5) };
+  const at = { x: Math.round(Number(await surface.locator('[data-editor-property="x"]').inputValue()) + 5), y: Math.round(Number(await surface.locator('[data-editor-property="y"]').inputValue()) + 5) };
   const original = await artboardPixel(surface, at.x, at.y);
   await surface.locator('#filterLook').selectOption('mono');
   assert.equal(await surface.locator('#grayscale').inputValue(), '100'); assert.equal(await surface.locator('#filterLook').inputValue(), '');
@@ -116,7 +118,7 @@ test('image filter looks and sliders edit the selected image, save, reopen and e
   const record = [...value.fixture.state.projects.values()][0], [first, second] = record.document.layers;
   assert.deepEqual({ grayscale: first.grayscale, sepia: first.sepia, blur: first.blur, saturation: first.saturation }, { grayscale: 100, sepia: 50, blur: 1.5, saturation: undefined });
   assert.equal(['grayscale', 'sepia', 'blur', 'saturation'].some(key => Object.hasOwn(second, key)), false);
-  await surface.locator('#newProject').click(); await surface.locator('#openProjects').click();
+  await press(surface, '#newProject'); await press(surface, '#openProjects');
   await surface.locator(`[data-project-id="${record.id}"]`).getByRole('button', { name: 'Open', exact: true }).click(); await saved(value);
   await surface.getByRole('button', { name: `Select ${filtered}`, exact: true }).click();
   assert.equal(await surface.locator('#grayscale').inputValue(), '100'); assert.equal(await surface.locator('#sepia').inputValue(), '50'); assert.equal(await surface.locator('#blur').inputValue(), '1.5');
@@ -131,35 +133,35 @@ test('image filter looks and sliders edit the selected image, save, reopen and e
 
 test('real pointer movement and undo/redo commit one completed gesture and retain keyboard edits', async t => {
   const value = await open(t); await noAutosave(value); const { surface, page } = value;
-  await surface.locator('#addRectangle').click(); const beforeX = Number(await surface.locator('#layerX').inputValue());
+  await surface.locator('#addRectangle').click(); const beforeX = Number(await surface.locator('[data-editor-property="x"]').inputValue());
   const box = await surface.locator('#artboard').boundingBox(), x = box.x + box.width * .4, y = box.y + box.height * .325;
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 30, y + 20, { steps: 5 }); await page.mouse.up();
-  assert.ok(Number(await surface.locator('#layerX').inputValue()) > beforeX);
-  await surface.locator('#undo').click(); assert.equal(Number(await surface.locator('#layerX').inputValue()), beforeX);
-  await surface.locator('#redo').click(); const moved = Number(await surface.locator('#layerX').inputValue()); assert.ok(moved > beforeX);
+  assert.ok(Number(await surface.locator('[data-editor-property="x"]').inputValue()) > beforeX);
+  await surface.locator('#undo').click(); assert.equal(Number(await surface.locator('[data-editor-property="x"]').inputValue()), beforeX);
+  await surface.locator('#redo').click(); const moved = Number(await surface.locator('[data-editor-property="x"]').inputValue()); assert.ok(moved > beforeX);
   await surface.locator('#artboard').focus(); await surface.locator('#artboard').press('Shift+ArrowRight');
-  assert.equal(Number(await surface.locator('#layerX').inputValue()), moved + 10); clean(value);
+  assert.equal(Number(await surface.locator('[data-editor-property="x"]').inputValue()), moved + 10); clean(value);
 });
 
 test('a stale save preserves the draft, pauses overwrite attempts and saves an explicit copy', async t => {
   const value = await open(t); await noAutosave(value); await value.surface.locator('#addRectangle').click();
   await value.surface.locator('#saveProject').click(); await saved(value); const original = [...value.fixture.state.projects.values()][0];
-  await change(value.surface, '#projectName', 'My preserved conflict draft'); value.fixture.state.staleOnce = true;
+  await rename(value.surface, 'My preserved conflict draft'); value.fixture.state.staleOnce = true;
   await value.surface.locator('#saveProject').click(); await value.surface.locator('#editorError').filter({ hasText: /newer revision/ }).waitFor();
   assert.equal(await value.surface.locator('#projectName').inputValue(), 'My preserved conflict draft'); assert.equal(await value.surface.locator('#saveProject').isDisabled(), true);
   assert.equal(value.fixture.state.projects.get(original.id).title, original.title); assert.equal(value.fixture.state.successfulWrites, 1);
-  await value.surface.locator('#saveCopy').click(); await saved(value); assert.equal(value.fixture.state.projects.size, 2);
+  await press(value, '#saveCopy'); await saved(value); assert.equal(value.fixture.state.projects.size, 2);
   assert.ok([...value.fixture.state.projects.values()].some(row => row.title === 'My preserved conflict draft')); clean(value);
 });
 
 test('a revision quota 409 preserves edits and reports the limit without claiming another tab saved them', async t => {
   const value = await open(t); await noAutosave(value); await value.surface.locator('#addRectangle').click();
   await value.surface.locator('#saveProject').click(); await saved(value); const original = [...value.fixture.state.projects.values()][0];
-  await change(value.surface, '#projectName', 'Synthetic quota draft'); value.fixture.state.revisionFailure = 409; value.fixture.state.revisionError = 'project_revision_limit_reached';
+  await rename(value.surface, 'Synthetic quota draft'); value.fixture.state.revisionFailure = 409; value.fixture.state.revisionError = 'project_revision_limit_reached';
   await value.surface.locator('#saveProject').click(); await value.surface.locator('#editorError').waitFor();
   const message = await value.surface.locator('#editorError').innerText(); assert.match(message, /limit/i); assert.doesNotMatch(message, /newer revision|elsewhere/i);
   assert.equal(await value.surface.locator('#projectName').inputValue(), 'Synthetic quota draft'); assert.equal(await value.surface.locator('#saveProject').isDisabled(), false);
-  assert.deepEqual(value.fixture.state.projects.get(original.id), original); await value.surface.locator('#saveCopy').click(); await saved(value);
+  assert.deepEqual(value.fixture.state.projects.get(original.id), original); await press(value, '#saveCopy'); await saved(value);
   assert.equal(value.fixture.state.projects.size, 2); assert.equal(value.fixture.state.successfulWrites, 2); clean(value);
 });
 
@@ -181,7 +183,7 @@ test('read-only users can reopen and export their saved canvas while every editi
 });
 
 test('fresh export denial produces no download and leaves the saved canvas intact', async t => {
-  const value = await open(t); await value.surface.locator('#addRectangle').click(); await value.surface.locator('#saveProject').click(); await saved(value);
+  const value = await open(t); await value.surface.locator('#addRectangle').click(); await saved(value);
   const record = clone([...value.fixture.state.projects.values()][0]); value.fixture.state.permissions.export = false;
   await value.surface.locator('#exportMenu summary').click(); await value.surface.locator('#exportPng').click();
   await value.surface.locator('#editorError').filter({ hasText: /permission_denied/ }).waitFor();
@@ -202,22 +204,20 @@ test('live global and optional Create palettes preserve the actual editor docume
 
 for (const width of [390, 768]) test(`actual ${width}px editor controls and canvas stay within the viewport`, async t => {
   const value = await open(t, { width, height: 900 }); const { surface } = value;
-  await surface.locator('.ef-tools').getByRole('button', { name: 'Navigation', exact: true }).click();
-  await surface.locator('#addText').click();
-  await surface.getByRole('button', { name: 'Close navigation', exact: true }).click();
+  await surface.locator('#addPrimary').click(); await surface.locator('#addText').click();
   await surface.locator('.ef-tools').getByRole('button', { name: 'Properties', exact: true }).click();
-  await change(surface, '#layerText', 'Synthetic narrow title');
+  await change(surface, '[data-editor-property="text"]', 'Synthetic narrow title');
   const geometry = await surface.locator('html').evaluate(root => ({ width: innerWidth, scroll: root.scrollWidth })); assert.ok(geometry.scroll <= geometry.width + 1);
-  for (const selector of ['#projectName', '#saveProject', '#layerText', '#artboard']) {
-    const box = await surface.locator(selector).evaluate(node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, width: innerWidth }; });
-    assert.ok(box.left >= -1 && box.right <= box.width + 1, selector);
+  for (const selector of ['#documentMenu', '#undo', '#saveStatus', '#addPrimary', '[data-editor-property="text"]', '#artboard']) {
+    const box = await surface.locator(selector).evaluate(node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, width: innerWidth, height: r.height }; });
+    assert.ok(box.height > 0 && box.left >= -1 && box.right <= box.width + 1, selector);
   }
   await surface.getByRole('button', { name: 'Close inspector', exact: true }).click();
-  await surface.locator('.ef-tools').getByRole('button', { name: 'Navigation', exact: true }).click();
-  if (width <= 720) await surface.locator('#canvasOptions summary').click();
-  assert.equal(await surface.locator('#canvasWidth').isVisible(), true, 'Canvas dimensions must remain available on narrow screens');
-  await surface.locator('#canvasWidth').fill('640'); await surface.locator('#applyCanvas').click();
-  await surface.getByRole('button', { name: 'Close navigation', exact: true }).click();
+  const art = await surface.locator('#artboard').boundingBox(); await value.page.mouse.click(art.x + art.width - 4, art.y + art.height - 4);
+  await surface.locator('.ef-tools').getByRole('button', { name: 'Properties', exact: true }).click();
+  assert.equal(await surface.locator('[data-editor-property="width"]').isVisible(), true, 'Canvas dimensions must remain available on narrow screens');
+  await change(surface, '[data-editor-property="width"]', 640);
+  await surface.getByRole('button', { name: 'Close inspector', exact: true }).click();
   assert.equal(await surface.locator('#artboard').getAttribute('width'), '640');
   await screenshot(value, `editor-${width}-workspace`); clean(value);
 });
@@ -254,22 +254,22 @@ test('a pending image decode preserves existing painted layers without a missing
 
 test('failed autosave stops retrying until an explicit Save and preserves the draft', async t => {
   const value = await open(t); await value.page.clock.install(); await value.surface.locator('#addText').click();
-  await value.surface.locator('#saveProject').click(); await saved(value); value.fixture.state.revisionFailure = 503;
-  await change(value.surface, '#layerText', 'Keep this unsaved title');
+  await value.page.clock.runFor(1600); await saved(value); value.fixture.state.revisionFailure = 503;
+  await change(value.surface, '[data-editor-property="text"]', 'Keep this unsaved title');
   const failed = value.page.waitForResponse(response => response.url().endsWith('/revisions') && response.status() === 503);
   await value.page.clock.runFor(1600); await failed; await value.surface.locator('#editorError').filter({ hasText: /save_unavailable/ }).waitFor();
   const writes = () => value.fixture.state.requests.filter(row => row.method === 'POST' && row.path.endsWith('/revisions')).length;
   assert.equal(writes(), 1); await value.page.clock.runFor(10000); assert.equal(writes(), 1);
-  assert.equal(await value.surface.locator('#layerText').inputValue(), 'Keep this unsaved title');
+  assert.equal(await value.surface.locator('[data-editor-property="text"]').inputValue(), 'Keep this unsaved title');
   value.fixture.state.revisionFailure = null; await value.surface.locator('#saveProject').click(); await saved(value, 2);
   assert.equal(writes(), 2); assert.equal([...value.fixture.state.projects.values()][0].document.layers[0].text, 'Keep this unsaved title'); clean(value);
 });
 
 test('restoring a held older revision blocks competing edits and saves the restored layers as the next revision', async t => {
   const value = await open(t); await noAutosave(value); await value.surface.locator('#addText').click();
-  await change(value.surface, '#layerText', 'Original title'); await value.surface.locator('#saveProject').click(); await saved(value);
-  await change(value.surface, '#layerText', 'Updated title'); await value.surface.locator('#saveProject').click(); await saved(value, 2);
-  const record = [...value.fixture.state.projects.values()][0]; await value.surface.locator('#openProjects').click();
+  await change(value.surface, '[data-editor-property="text"]', 'Original title'); await value.surface.locator('#saveProject').click(); await saved(value);
+  await change(value.surface, '[data-editor-property="text"]', 'Updated title'); await value.surface.locator('#saveProject').click(); await saved(value, 2);
+  const record = [...value.fixture.state.projects.values()][0]; await press(value, '#openProjects');
   const row = value.surface.locator(`[data-project-id="${record.id}"]`); await row.getByRole('button', { name: 'Revisions', exact: true }).click();
   await row.locator('select').selectOption('1'); value.fixture.state.holdReads = true;
   const held = new Promise(resolve => { value.fixture.state.onHeldRead = resolve; }); await row.getByRole('button', { name: 'Restore', exact: true }).click(); await held;
@@ -313,15 +313,15 @@ for (const valid of [true, false]) test(`a deferred ${valid ? 'valid' : 'malform
 
 for (const status of [502, 200]) test(`My projects reports a readable error for an HTML ${status} response and retries without losing the canvas`, { timeout: 20000 }, async t => {
   const value = await open(t); await noAutosave(value); await value.surface.locator('#addText').click();
-  await change(value.surface, '#projectName', 'Synthetic preserved gateway draft');
+  await rename(value.surface, 'Synthetic preserved gateway draft');
   value.fixture.state.listReply = { status, body: '<!DOCTYPE html><html><body>Synthetic gateway page</body></html>' };
-  await value.surface.locator('#openProjects').click();
+  await press(value, '#openProjects');
   await value.surface.locator('#projectList').filter({ hasNotText: 'Loading your projects' }).waitFor();
   const message = await value.surface.locator('#projectList').innerText();
   assert.match(message, status === 502 ? /server.*502.*try again/i : /unreadable response.*try again/i);
   assert.doesNotMatch(message, /Unexpected token|DOCTYPE|JSON\.parse|<html/i);
   assert.equal(await value.surface.locator('#projectName').inputValue(), 'Synthetic preserved gateway draft'); assert.equal(await value.surface.locator('#layerCount').innerText(), '1');
-  value.fixture.state.listReply = null; await value.surface.locator('#closeProjects').click(); await value.surface.locator('#openProjects').click();
+  value.fixture.state.listReply = null; await value.surface.locator('#closeProjects').click(); await press(value, '#openProjects');
   await value.surface.locator('#projectList').filter({ hasText: 'No image projects yet' }).waitFor();
   assert.equal(value.fixture.state.successfulWrites, 0); assert.equal(value.fixture.state.uploads, 0); clean(value);
 });
@@ -336,7 +336,8 @@ test('a held export times out at20seconds with readable guidance and explicit re
   await value.page.clock.runFor(1); await value.surface.locator('#editorError').waitFor();
   const message = await value.surface.locator('#editorError').innerText(); assert.match(message, /took too long.*try again/i); assert.doesNotMatch(message, /signal|AbortError|aborted/i);
   assert.equal(await value.surface.locator('#projectName').inputValue(), seed.name); assert.deepEqual(value.fixture.state.projects.get(value.record.id).document, seed);
-  value.fixture.state.holdExports = false; const downloaded = value.page.waitForEvent('download'); await value.surface.locator('#exportPng').click();
+  value.fixture.state.holdExports = false; const downloaded = value.page.waitForEvent('download');
+  await value.surface.locator('#exportMenu summary').click(); await value.surface.locator('#exportPng').click();
   const file = await downloaded; assert.equal(file.suggestedFilename(), seed.name + '.png'); const stream = await file.createReadStream(), chunks = [];
   for await (const chunk of stream) chunks.push(chunk); assert.deepEqual([...Buffer.concat(chunks).subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.equal(value.fixture.state.successfulWrites, 0); assert.equal(value.fixture.state.uploads, 0); clean(value);
@@ -372,12 +373,12 @@ async function opaqueScene(value, locator) {
 for (const theme of ['daylight', 'midnight']) for (const kind of ['dialog', 'menu']) test(`${theme} ${kind} is opaque above changing canvas content`, { timeout: 20000 }, async t => {
   const value = await open(t, { theme });
   await value.surface.locator(`html[data-theme="${theme}"]`).waitFor(); assert.equal(await value.page.locator('html').getAttribute('data-theme'), theme);
-  await value.surface.locator('#addText').click(); await change(value.surface, '#layerText', 'Synthetic content behind disclosures'); await noAutosave(value);
+  await value.surface.locator('#addText').click(); await change(value.surface, '[data-editor-property="text"]', 'Synthetic content behind disclosures'); await noAutosave(value);
   if (kind === 'dialog') {
-    await value.surface.locator('#openProjects').click(); await value.surface.locator('#projectList').filter({ hasText: 'No image projects yet' }).waitFor();
+    await press(value, '#openProjects'); await value.surface.locator('#projectList').filter({ hasText: 'No image projects yet' }).waitFor();
   } else await value.surface.locator('#exportMenu summary').click();
   await opaqueScene(value, value.surface.locator(kind === 'dialog' ? '#projectDialog' : '#exportMenu .popover'));
-  assert.equal(await value.surface.locator('#layerText').inputValue(), 'Synthetic content behind disclosures');
+  assert.equal(await value.surface.locator('[data-editor-property="text"]').inputValue(), 'Synthetic content behind disclosures');
   assert.equal(value.fixture.state.successfulWrites, 0); assert.equal(value.fixture.state.uploads, 0); clean(value);
 });
 
@@ -387,7 +388,7 @@ test('image mask controls persist a v2 project and undo, reopen, invert and disa
   await noAutosave(value);
   await surface.locator('#imageFile').setInputFiles({ name: 'mask-source.png', mimeType: 'image/png', buffer: await syntheticImage() });
   await surface.locator('#imageProperties').waitFor();
-  await surface.locator('#selectWholeImage').click(); await surface.locator('#maskFromRegion').click();
+  await surface.locator('#regionMode').click(); await surface.locator('#selectWholeImage').click(); await surface.locator('#maskFromRegion').click();
   await surface.locator('#maskStatus').filter({ hasText: 'Enabled' }).waitFor();
   await change(surface, '#maskFeather', 3);
   await surface.locator('#invertMask').click();
@@ -416,7 +417,7 @@ test('image mask controls persist a v2 project and undo, reopen, invert and disa
 
 test('mask brush gestures and adjustment properties save, reopen and preserve real pixels', async t => {
   const value = await open(t), { surface, page } = value; await noAutosave(value);
-  await surface.locator('#canvasWidth').fill('80'); await surface.locator('#canvasHeight').fill('60'); await surface.locator('#applyCanvas').click();
+  await change(surface, '[data-editor-property="width"]', 80); await change(surface, '[data-editor-property="height"]', 60);
   await surface.locator('#imageFile').setInputFiles({ name: 'brush-source.png', mimeType: 'image/png', buffer: await syntheticImage() });
   await surface.locator('#imageProperties').waitFor();
   await surface.locator('#maskBrush').selectOption('subtract'); await surface.locator('#maskBrushSize').fill('8');
@@ -449,18 +450,18 @@ test('mask brush gestures and adjustment properties save, reopen and preserve re
 
 test('group controls retain isolated opacity and child identity through save/reopen and ungroup', async t => {
   const value = await open(t), { surface, page } = value; await noAutosave(value);
-  await surface.locator('#addRectangle').click(); await change(surface, '#layerName', 'First child');
-  await surface.locator('#addEllipse').click(); await change(surface, '#layerName', 'Second child');
-  await surface.locator('#layerArrange summary').click(); await surface.locator('#groupBelow').click(); await change(surface, '#layerName', 'My group');
-  await change(surface, '#layerOpacity', .5);
+  await surface.locator('#addRectangle').click(); await change(surface, '[data-editor-property="name"]', 'First child');
+  await surface.locator('#addEllipse').click(); await change(surface, '[data-editor-property="name"]', 'Second child');
+  await surface.locator('#layerArrange summary').click(); await surface.locator('#groupBelow').click(); await change(surface, '[data-editor-property="name"]', 'My group');
+  await change(surface, '[data-editor-property="opacity"]', 50);
   await surface.locator('#saveProject').click(); await saved(value);
   const record = [...value.fixture.state.projects.values()][0];
   assert.equal(record.document.layers.at(-1).type, 'group'); assert.equal(record.document.layers.at(-1).children.length, 2);
   await page.goto(value.fixture.origin + '/fixture?project=' + record.id);
   await surface.locator('#saveStatus').filter({ hasText: 'Saved' }).waitFor();
   await surface.locator('.layer-select').filter({ hasText: 'My group' }).click();
-  assert.equal(await surface.locator('#layerOpacity').inputValue(), '0.5');
-  await noAutosave(value); await change(surface, '#layerOpacity', 1); await surface.locator('#layerArrange summary').click(); await surface.locator('#ungroupLayer').click();
+  assert.equal(await surface.locator('[data-editor-property="opacity"]').inputValue(), '50');
+  await noAutosave(value); await change(surface, '[data-editor-property="opacity"]', 100); await surface.locator('#layerArrange summary').click(); await surface.locator('#ungroupLayer').click();
   await surface.locator('#layerCount').filter({ hasText: '2' }).waitFor();
   await surface.locator('#saveProject').click(); await saved(value, 2);
   assert.equal(value.fixture.state.projects.get(record.id).document.layers.length, 2); clean(value);
@@ -469,15 +470,15 @@ test('group controls retain isolated opacity and child identity through save/reo
 
 test('vector pen, cubic node edits and timed-worker booleans produce saved editable geometry', async t => {
   const value = await open(t), { surface, page } = value; await noAutosave(value);
-  await surface.locator('#canvasWidth').fill('100'); await surface.locator('#canvasHeight').fill('100'); await surface.locator('#applyCanvas').click();
+  await change(surface, '[data-editor-property="width"]', 100); await change(surface, '[data-editor-property="height"]', 100);
   const box = await surface.locator('#artboard').boundingBox();
   const pen = async points => {
     await surface.locator('#vectorPen').click();
     for (const [x, y] of points) await page.mouse.click(box.x + x, box.y + y);
     await surface.locator('#finishVector').click(); await surface.locator('#vectorProperties').waitFor();
   };
-  await pen([[10, 10], [60, 10], [60, 60], [10, 60]]); await change(surface, '#layerName', 'Outer path');
-  await pen([[25, 25], [45, 25], [45, 45], [25, 45]]); await change(surface, '#layerName', 'Inner path');
+  await pen([[10, 10], [60, 10], [60, 60], [10, 60]]); await change(surface, '[data-editor-property="name"]', 'Outer path');
+  await pen([[25, 25], [45, 25], [45, 45], [25, 45]]); await change(surface, '[data-editor-property="name"]', 'Inner path');
   await surface.locator('.layer-select').filter({ hasText: 'Outer path' }).click();
   await surface.locator('#vectorOperand').selectOption({ label: 'Inner path' }); await surface.locator('#vectorBoolean').selectOption('difference');
   await surface.locator('#applyVectorBoolean').click(); await surface.locator('.layer-select').filter({ hasText: 'difference result' }).waitFor();

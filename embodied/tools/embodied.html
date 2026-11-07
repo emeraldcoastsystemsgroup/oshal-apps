@@ -6,6 +6,14 @@
   and every framework token is consumed READ-ONLY with a local fallback so the page renders in any
   skin. Everything shown is a SIMULATION and says so; the 3-D view draws the DISCOVERED map, never
   the hidden scene. (.html is exempt from the CHANGE LOG header.)
+  UX audit 2026-11-06 (embodied--embodied, SPLIT): three views, one job each. Mission console (the default): the 3-D
+  map with the cameras as a toggle over it, Explore the room, the task planner and the command log, with the manual
+  pad beside the map on desktop and as a bottom-bar sheet on a phone that opens when Take command succeeds. Hardware
+  sizing: the drone and arm fits as collapsible assemblies whose parts open in CAD Studio from a row menu, and the
+  policy registry. Physics & medium lab: the hull drop, with the physics engine's state as one quiet chip there
+  only. Headings lose their essay subtitles (a Help dialog holds them); a phone's top bar is one row (mode, Take or
+  Release command, Setup, E-STOP) and the sensor, room, truth and controller choices sit in a Setup sheet. Every
+  control keeps its id, and no request or command changed.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -175,6 +183,7 @@
   .controls h3 { font-size: 12px; margin: 0 0 6px; color: var(--em-muted); }
   .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--em-panel2); border: 1px solid var(--em-line); max-width: 460px; z-index: 5; }
   .toast.error { border-color: var(--em-danger); } .toast.ok { border-color: var(--em-ok); }
+  .toast { background: var(--em-bg); box-shadow: 0 8px 24px rgba(0,0,0,.35); } /* opaque: nothing shows through it (UX audit 2026-11-06) */
   .watermark { position: absolute; left: 10px; top: 8px; font-size: 11px; color: var(--em-warn); letter-spacing: .08em; }
   .rel { position: relative; }
   .legend { font-size: 11px; color: var(--em-muted); display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
@@ -193,6 +202,62 @@
     header label { max-width: 100%; }
     header select { max-width: 100%; }
   }
+
+  /* UX audit 2026-11-06: three views, the setup row/sheet, the cameras over the map, sheets on a phone, Help. */
+  .view-bar { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--em-line); background: var(--em-panel); }
+  .view-tab { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--em-muted); font-weight: 600; cursor: pointer; }
+  .view-tab[aria-selected="true"], .view-tab[aria-expanded="true"] { color: var(--em-text); border-bottom-color: var(--em-accent); }
+  .view-tab .short { display: none; }
+  .view[hidden] { display: none !important; }
+  .layout.one { grid-template-columns: minmax(0, 900px); }
+  .phone-only { display: none !important; }
+  .setup { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 6px 16px; border-bottom: 1px solid var(--em-line); background: var(--em-panel); }
+  .panel-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .panel-head h2 { margin: 0; }
+  .panel-head .spacer { flex: 1; }
+  .cams { position: absolute; top: 8px; right: 8px; width: min(46%, 340px); padding: 6px; border-radius: 8px; background: var(--em-panel); border: 1px solid var(--em-line); }
+  .cams[hidden] { display: none; }
+  .chip { display: inline-block; padding: 2px 10px; border: 1px solid var(--em-line); border-radius: 999px; max-width: 100%; }
+  details.assembly > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  details.assembly > summary::before { content: '\25B8'; color: var(--em-muted); }
+  details.assembly[open] > summary::before { content: '\25BE'; }
+  details.assembly > summary h2 { margin: 0; }
+  #drop-result, #drop-result * { overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
+  button.row-menu { background: var(--em-panel2); border: 1px solid var(--em-line); border-radius: 8px; min-width: 44px; min-height: 36px; cursor: pointer; }
+  .menu[popover] { margin: 0; padding: 4px; min-width: 200px; border: 1px solid var(--em-line); border-radius: 10px; background: var(--em-panel); color: var(--em-text); box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .menu[popover] button { display: block; width: 100%; min-height: 44px; text-align: left; padding: 0 12px; background: none; border: 0; border-radius: 6px; cursor: pointer; }
+  .menu[popover] button:hover { background: var(--em-panel2); }
+  dialog#help { max-width: 560px; width: calc(100% - 32px); border: 1px solid var(--em-line); border-radius: 12px; background: var(--em-panel); color: var(--em-text); padding: 0 16px 16px; }
+  dialog#help::backdrop { background: rgba(0,0,0,.5); }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 56px; }
+  .sheet-head .link { min-height: 44px; font-weight: 600; }
+  dl.help { grid-template-columns: 1fr; } dl.help dt { color: var(--em-text); font-weight: 600; margin-top: 8px; } dl.help dd { color: var(--em-muted); }
+  @media (max-width: 640px) {
+    .phone-only { display: inline-flex !important; } .desk-only { display: none !important; }
+    header { flex-wrap: nowrap; gap: 8px; padding: 8px 10px; }
+    header h1, header .badge.sim, header #holder { display: none; }
+    header button { min-height: 44px; white-space: nowrap; padding: 0 10px; font-size: 13px; }
+    .sheet-head.phone-only { display: flex !important; }
+    .view-bar:has([aria-expanded="true"]) [aria-selected="true"] { border-top-color: transparent; color: var(--em-muted); }
+    .view-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 72px env(safe-area-inset-bottom, 0px) 4px; border-top: 1px solid var(--em-line); border-bottom: 0; }
+    .view-tab { flex: 1; justify-content: center; min-height: 56px; padding: 0 2px; font-size: 12px; border-bottom: 0; border-top: 2px solid transparent; }
+    .view-tab[aria-selected="true"], .view-tab[aria-expanded="true"] { border-top-color: var(--em-accent); }
+    .view-tab .long { display: none; } .view-tab .short { display: inline; }
+    .layout { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    .sheet:not(.open) { display: none !important; }
+    .sheet.open { display: block; position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 35; max-height: 62vh; overflow: auto;
+      margin: 0; padding: 0 14px 14px; border-radius: 16px 16px 0 0; border: 1px solid var(--em-line); background: var(--em-panel); box-shadow: 0 -10px 30px rgba(0,0,0,.35); }
+    .sheet.open > h2 { display: none; }
+    .setup.open label { display: block; margin: 8px 0; } .setup.open label select { width: 100%; min-height: 44px; }
+    .setup.open > button { min-height: 44px; margin: 6px 8px 0 0; }
+    .cams { width: 62%; }
+    .toast { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 84px; z-index: 45; }
+    button.jog { min-height: 44px; }
+  }
+  /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
+     sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
+  .view-bar, .setup, .cams, .menu[popover], dialog#help, .toast { background: linear-gradient(var(--em-panel), var(--em-panel)), var(--em-bg); }
+  @media (max-width: 640px) { .sheet.open { background: linear-gradient(var(--em-panel), var(--em-panel)), var(--em-bg); } }
 </style>
 </head>
 <body>
@@ -202,31 +267,50 @@
   <span id="mode" class="badge">idle</span>
   <span id="holder" class="muted small"></span>
   <span class="spacer"></span>
-  <button id="explore" class="primary">Explore the room</button>
   <button id="take" class="ghost">Take command</button>
   <button id="release" class="ghost" hidden>Release command</button>
   <button id="reset-estop" class="ghost" hidden>Reset e-stop</button>
+  <button id="setup-open" class="ghost phone-only" type="button" aria-controls="setup" aria-expanded="false">Setup</button>
+  <button id="help-open" class="ghost desk-only" type="button" aria-haspopup="dialog">Help</button>
+  <button id="estop" class="danger">E-STOP</button>
+</header>
+<!-- Setup: what the next Reset world builds. A row under the header on desktop; a sheet on a phone. -->
+<div id="setup" class="setup sheet" aria-label="Setup">
+  <div class="sheet-head phone-only"><strong>Setup</strong><button type="button" class="link" data-close-sheet="setup">Done</button></div>
   <label class="small muted" title="What the drone carries. The 2-D ring is the drone we print; the 3-D LiDAR is the one we would buy. Applied on Reset world.">Drone sensors <select id="sensor-set"><option value="recon-3d">3-D LiDAR (Mid-360 class)</option><option value="recon-mini">2-D ring + ToF (the printed drone)</option></select></label>
   <label class="small muted" title="The hidden room the machine starts in knowing nothing: every scene is plain data; the discovery reads only the map. Applied on Reset world.">Room <select id="scenario"><option value="kitchen">Kitchen</option><option value="studio">Studio</option></select></label>
   <label class="small muted" title="What moves the drone's TRUE pose. Kinematic: the odometry drift model. Physics: the MuJoCo engine container flies the printed drone's parts model under gusts, with real contacts; every guard, the map and the registration are unchanged. A rail node: the same physics on a node that joined the swarm by heartbeat (the engine container as a drone node, or a real one later). Applied on Reset world."><select id="backend"><option value="kinematic">kinematic truth</option><option value="physics">physics (MuJoCo)</option></select></label>
   <label class="small muted" title="What flies the physics plant: its own cascaded controller, or a trained policy that has passed THIS world's certification gate (Policies panel)."><select id="controller"><option value="pid">flown by PID</option></select></label>
   <button id="reset-world" class="ghost">Reset world</button>
-  <span id="physics-status" class="small muted"></span>
-  <button id="estop" class="danger">E-STOP</button>
-</header>
-<div class="layout">
+  <button id="help-open-2" class="ghost phone-only" type="button" aria-haspopup="dialog">Help</button>
+</div>
+<!-- Three views, one job each (UX audit 2026-11-06, SPLIT). Desktop: a tab row. Phone: the bottom bar, where Task and
+     Pad open the planner and the manual pad as sheets over the console. -->
+<nav class="view-bar" role="tablist" aria-label="Embodied Swarm views">
+  <button type="button" class="view-tab" role="tab" id="tab-console" data-view="console" aria-controls="view-console" aria-selected="true"><span class="long">Mission console</span><span class="short">Map</span></button>
+  <button type="button" class="view-tab phone-only" id="tab-task" data-sheet="task-panel" aria-controls="task-panel" aria-expanded="false"><span class="short">Task</span></button>
+  <button type="button" class="view-tab phone-only" id="tab-pad" data-sheet="pad-panel" aria-controls="pad-panel" aria-expanded="false"><span class="short">Pad</span></button>
+  <button type="button" class="view-tab" role="tab" id="tab-sizing" data-view="sizing" aria-controls="view-sizing" aria-selected="false"><span class="long">Hardware sizing</span><span class="short">Sizing</span></button>
+  <button type="button" class="view-tab" role="tab" id="tab-lab" data-view="lab" aria-controls="view-lab" aria-selected="false"><span class="long">Physics &amp; medium lab</span><span class="short">Lab</span></button>
+</nav>
+<div class="layout view" id="view-console" role="tabpanel" aria-labelledby="tab-console">
   <div class="stack">
-    <section class="panel rel">
-      <h2>Discovered world — 3-D <small class="muted">only what LiDAR sweeps and depth pictures have mapped · drag to orbit · wheel to zoom</small></h2>
+    <section class="panel rel" id="map-panel">
+      <div class="panel-head"><h2>Discovered world — 3-D</h2><span class="spacer"></span><button id="cams-toggle" class="ghost" type="button" aria-controls="cams" aria-pressed="true">Cameras</button><button id="explore" class="primary">Explore the room</button></div>
       <!-- The watermark is pinned to the canvas, not to a guessed offset below the heading: the caption wraps to
-           two lines on a phone and the old top:34px label sat on it. -->
+           two lines on a phone and the old top:34px label sat on it. The cameras are a toggle over the map. -->
       <div class="rel"><canvas id="view3d" width="960" height="600"></canvas>
-      <span class="watermark">SIMULATED · DISCOVERED MAP</span></div>
+      <span class="watermark">SIMULATED · DISCOVERED MAP</span>
+      <div id="cams" class="cams pictures" aria-label="Cameras">
+        <figure style="margin:0"><canvas id="pic-drone" width="160" height="120"></canvas><figcaption id="cap-drone">drone camera</figcaption></figure>
+        <figure style="margin:0"><canvas id="pic-wrist" width="160" height="120"></canvas><figcaption id="cap-wrist">wrist camera</figcaption></figure>
+      </div></div>
       <div class="legend"><span><i style="background:#6b7a99"></i>mapped voxels (by height)</span><span><i style="background:#3fb950"></i>discovered surface</span><span><i style="background:#f6c177"></i>discovered object</span><span><i style="background:#4f8cff"></i>rover + arm</span><span><i style="background:#c792ea"></i>drone (believed pose)</span><span><i style="background:#5a4470"></i>drone true pose (sim only)</span><span><i style="background:#ffffff"></i>last sweep</span></div>
       <div id="world-stats" class="small muted" style="margin-top:6px">No scans yet — the map is entirely unknown.</div>
     </section>
-    <section class="panel">
-      <h2>Task <small class="muted">explore first · then draft against discovered ids · rehearse on a clone · you execute · every step re-validated live</small></h2>
+    <section class="panel sheet" id="task-panel" aria-label="Task">
+      <div class="sheet-head phone-only"><strong>Task</strong><button type="button" class="link" data-close-sheet="task-panel">Done</button></div>
+      <h2>Task</h2>
       <div class="row">
         <label class="small">Task <select id="task"><option value="explore">Explore the room</option><option value="clear-surface">Clear a discovered surface</option><option value="fetch-from-appliance">Fetch from the fridge (taught door)</option></select></label>
         <label class="small" data-task="explore">Scans <input id="max-scans" type="number" min="1" max="30" value="12" style="width:64px" /></label>
@@ -243,73 +327,14 @@
       <ol id="steps"></ol>
     </section>
     <section class="panel">
-      <h2>Top view <small class="muted">discovered surfaces and objects · the room outline and the taught fridge door are the only given geometry</small></h2>
-      <svg id="map" viewBox="0 0 500 400" preserveAspectRatio="xMidYMid meet"></svg>
-    </section>
-    <section class="panel">
-      <h2>Command log <small class="muted">every command, every actor, every outcome</small></h2>
+      <h2>Command log</h2>
       <ul id="log"></ul>
     </section>
   </div>
   <div class="stack">
-    <section class="panel">
-      <h2>Pictures <small class="muted">what the cameras see right now (simulated depth pictures)</small></h2>
-      <div class="pictures">
-        <figure style="margin:0"><canvas id="pic-drone" width="160" height="120"></canvas><figcaption id="cap-drone">drone camera</figcaption></figure>
-        <figure style="margin:0"><canvas id="pic-wrist" width="160" height="120"></canvas><figcaption id="cap-wrist">wrist camera</figcaption></figure>
-      </div>
-    </section>
-    <section class="panel">
-      <h2>Medium &mdash; drop the explorer hull <small class="muted">the medium is a parameter, not a property of this lab &middot; one solid from the study's published 300&nbsp;mm envelope &middot; simulated</small></h2>
-      <div class="row">
-        <label class="small" title="Choose what the scene runs in. The plant takes ONLY the gravity vector from a medium: no density and no viscosity are written into the model, so no fluid model runs.">Medium <select id="medium"></select></label>
-        <label class="small" title="Height of the hull's underside above the floor at release.">Drop from <input id="drop-height" type="number" min="0.1" max="99" step="0.5" value="2" style="width:72px" />&nbsp;m</label>
-        <button id="drop-hull" class="primary">Drop the hull</button>
-        <a id="hull-mjcf" class="small" href="#" target="_blank" rel="noopener">scene as MJCF</a>
-      </div>
-      <div id="medium-summary" class="small muted" style="margin-top:6px">Loading the media&hellip;</div>
-      <svg id="fall" viewBox="0 0 320 128" preserveAspectRatio="xMidYMid meet" style="width:100%;height:132px;margin-top:8px;background:var(--em-panel2);border:1px solid var(--em-line);border-radius:8px"></svg>
-      <div id="drop-result" class="small" style="margin-top:6px"></div>
-    </section>
-    <section class="panel">
-      <h2>Build the drone <small class="muted">the parts model behind the sim · sizing by momentum theory · every part a CAD Studio program</small></h2>
-      <div class="row"><label class="small">Fit <select id="build-fit"><option value="recon-mini">Recon-mini — 2-D ring + ToF (print this one)</option><option value="recon-3d">Recon-3D — the 3-D LiDAR fit, in reserve</option></select></label> <a id="build-md" class="small" href="#" target="_blank" rel="noopener">design as markdown</a></div>
-      <div id="build-summary" class="small muted" style="margin-top:6px">Loading the design…</div>
-      <table class="world" id="build-parts" style="margin-top:8px"><thead><tr><th>part</th><th>qty</th><th>base</th><th>features</th><th>material</th><th>mass</th><th></th></tr></thead><tbody></tbody></table>
-      <div id="build-bought" class="small muted" style="margin-top:6px"></div>
-      <h3 style="margin-top:14px">Build the arm <small class="muted">the hands: six axes on serial-bus servos, sized from the same parts model</small></h3>
-      <div class="row"><label class="small">Fit <select id="arm-fit"><option value="desk-6">Desk-6 &mdash; the arm we print first</option></select></label> <a id="arm-md" class="small" href="#" target="_blank" rel="noopener">design document</a> <button id="arm-check" class="jog build" title="The engine container holds the payload in each joint's worst pose and runs the taught pick-and-place, then reports what it measured against what the design expects.">Check on physics</button></div>
-      <div id="arm-summary" class="small muted" style="margin-top:6px">Loading the design&hellip;</div>
-      <table class="world" id="arm-joints" style="margin-top:8px"><thead><tr><th>joint</th><th>holds</th><th>needs</th><th>drive</th><th>continuous</th><th>margin</th><th>measured</th></tr></thead><tbody></tbody></table>
-      <table class="world" id="arm-parts" style="margin-top:8px"><thead><tr><th>part</th><th>qty</th><th>material</th><th>mass</th><th></th></tr></thead><tbody></tbody></table>
-      <div id="arm-bought" class="small muted" style="margin-top:6px"></div>
-      <h3 style="margin-top:14px">Policies (trained in the engine container)</h3>
-      <div id="policies-note" class="small muted">A policy may fly the plant only after its recorded flight passes this world's guards — explore first, then certify.</div>
-      <table class="world" id="policies" style="margin-top:8px"><thead><tr><th>report</th><th>mode</th><th>steps</th><th>baseline hold / leg</th><th>policy hold / leg</th><th>beats</th><th>gate</th><th></th></tr></thead><tbody></tbody></table>
-    </section>
-    <section class="panel">
-      <h2>Discovered surfaces &amp; objects <small class="muted">ids are what plans take · label what you recognise</small></h2>
-      <table class="world" id="surfaces"><thead><tr><th>surface</th><th>height</th><th>area</th><th>label</th></tr></thead><tbody></tbody></table>
-      <table class="world" id="objects" style="margin-top:8px"><thead><tr><th>object</th><th>guess</th><th>at</th><th>on</th><th>label</th></tr></thead><tbody></tbody></table>
-    </section>
-    <section class="panel">
-      <h2>Nodes</h2>
-      <div class="controls">
-        <div>
-          <h3>rover-arm-1 · mobile manipulator · class 2</h3>
-          <dl id="unit"></dl>
-          <div class="small muted" style="margin-top:6px">Tip budget vs the 60 N fridge pull</div>
-          <div id="tip-gauge" class="gauge"><div style="width:0%"></div></div>
-          <div id="tip-text" class="small"></div>
-        </div>
-        <div>
-          <h3>mini-drone-1 · drone · class 2</h3>
-          <dl id="drone"></dl>
-        </div>
-      </div>
-    </section>
-    <section class="panel">
-      <h2>Manual control <small class="muted">take command first · the same guards apply to you · unknown space blocks everyone</small></h2>
+    <section class="panel sheet" id="pad-panel" aria-label="Manual control">
+      <div class="sheet-head phone-only"><strong>Manual control</strong><button type="button" class="link" data-close-sheet="pad-panel">Done</button></div>
+      <h2>Manual control</h2>
       <div class="controls">
         <div>
           <h3>Sensors</h3>
@@ -335,8 +360,130 @@
         </div>
       </div>
     </section>
+    <section class="panel">
+      <h2>Top view</h2>
+      <svg id="map" viewBox="0 0 500 400" preserveAspectRatio="xMidYMid meet"></svg>
+    </section>
+    <section class="panel">
+      <h2>Discovered surfaces &amp; objects</h2>
+      <table class="world" id="surfaces"><thead><tr><th>surface</th><th>height</th><th>area</th><th>label</th></tr></thead><tbody></tbody></table>
+      <table class="world" id="objects" style="margin-top:8px"><thead><tr><th>object</th><th>guess</th><th>at</th><th>on</th><th>label</th></tr></thead><tbody></tbody></table>
+    </section>
+    <section class="panel">
+      <h2>Nodes</h2>
+      <div class="controls">
+        <div>
+          <h3>rover-arm-1 · mobile manipulator · class 2</h3>
+          <dl id="unit"></dl>
+          <div class="small muted" style="margin-top:6px">Tip budget vs the 60 N fridge pull</div>
+          <div id="tip-gauge" class="gauge"><div style="width:0%"></div></div>
+          <div id="tip-text" class="small"></div>
+        </div>
+        <div>
+          <h3>mini-drone-1 · drone · class 2</h3>
+          <dl id="drone"></dl>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
+<div class="layout view" id="view-sizing" role="tabpanel" aria-labelledby="tab-sizing" hidden>
+  <div class="stack">
+    <details class="panel assembly" open>
+      <summary><h2>Build the drone</h2></summary>
+      <div class="row"><label class="small">Fit <select id="build-fit"><option value="recon-mini">Recon-mini — 2-D ring + ToF (print this one)</option><option value="recon-3d">Recon-3D — the 3-D LiDAR fit, in reserve</option></select></label> <a id="build-md" class="small" href="#" target="_blank" rel="noopener">design as markdown</a></div>
+      <div id="build-summary" class="small muted" style="margin-top:6px">Loading the design…</div>
+      <table class="world" id="build-parts" style="margin-top:8px"><thead><tr><th>part</th><th>qty</th><th>base</th><th>features</th><th>material</th><th>mass</th><th></th></tr></thead><tbody></tbody></table>
+      <div id="build-bought" class="small muted" style="margin-top:6px"></div>
+    </details>
+    <details class="panel assembly" open>
+      <summary><h2>Build the arm</h2></summary>
+      <div class="row"><label class="small">Fit <select id="arm-fit"><option value="desk-6">Desk-6 &mdash; the arm we print first</option></select></label> <a id="arm-md" class="small" href="#" target="_blank" rel="noopener">design document</a> <button id="arm-check" class="jog build" title="The engine container holds the payload in each joint's worst pose and runs the taught pick-and-place, then reports what it measured against what the design expects.">Check on physics</button></div>
+      <div id="arm-summary" class="small muted" style="margin-top:6px">Loading the design&hellip;</div>
+      <table class="world" id="arm-joints" style="margin-top:8px"><thead><tr><th>joint</th><th>holds</th><th>needs</th><th>drive</th><th>continuous</th><th>margin</th><th>measured</th></tr></thead><tbody></tbody></table>
+      <table class="world" id="arm-parts" style="margin-top:8px"><thead><tr><th>part</th><th>qty</th><th>material</th><th>mass</th><th></th></tr></thead><tbody></tbody></table>
+      <div id="arm-bought" class="small muted" style="margin-top:6px"></div>
+    </details>
+  </div>
+  <div class="stack">
+    <section class="panel">
+      <h2>Policies</h2>
+      <div id="policies-note" class="small muted">A policy may fly the plant only after its recorded flight passes this world's guards — explore first, then certify.</div>
+      <table class="world" id="policies" style="margin-top:8px"><thead><tr><th>report</th><th>mode</th><th>steps</th><th>baseline hold / leg</th><th>policy hold / leg</th><th>beats</th><th>gate</th><th></th></tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+</div>
+<div class="layout view one" id="view-lab" role="tabpanel" aria-labelledby="tab-lab" hidden>
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-head"><h2>Medium — drop the explorer hull</h2><span class="spacer"></span><span id="physics-status" class="chip small muted"></span></div>
+      <div class="row">
+        <label class="small" title="Choose what the scene runs in. The plant takes ONLY the gravity vector from a medium: no density and no viscosity are written into the model, so no fluid model runs.">Medium <select id="medium"></select></label>
+        <label class="small" title="Height of the hull's underside above the floor at release.">Drop from <input id="drop-height" type="number" min="0.1" max="99" step="0.5" value="2" style="width:72px" />&nbsp;m</label>
+        <button id="drop-hull" class="primary">Drop the hull</button>
+        <a id="hull-mjcf" class="small" href="#" target="_blank" rel="noopener">scene as MJCF</a>
+      </div>
+      <div id="medium-summary" class="small muted" style="margin-top:6px">Loading the media&hellip;</div>
+      <svg id="fall" viewBox="0 0 320 128" preserveAspectRatio="xMidYMid meet" style="width:100%;height:132px;margin-top:8px;background:var(--em-panel2);border:1px solid var(--em-line);border-radius:8px"></svg>
+      <div id="drop-result" class="small" style="margin-top:6px"></div>
+    </section>
+  </div>
+</div>
+<dialog id="help" aria-labelledby="help-title">
+  <div class="sheet-head"><strong id="help-title">How Embodied Swarm works</strong><button type="button" class="link" id="help-close">Done</button></div>
+  <dl class="help">
+    <dt>Discovered world</dt><dd>Only what the LiDAR sweeps and depth pictures have mapped. Drag to orbit, use the wheel to zoom.</dd>
+    <dt>Task</dt><dd>Explore first, then draft against the discovered ids. Every plan is rehearsed on a clone, you execute it, and every step is checked again live.</dd>
+    <dt>Top view</dt><dd>Discovered surfaces and objects. The room outline and the taught fridge door are the only given geometry.</dd>
+    <dt>Command log</dt><dd>Every command, every actor, every outcome.</dd>
+    <dt>Cameras</dt><dd>What the cameras see right now (simulated depth pictures).</dd>
+    <dt>Manual control</dt><dd>Take command first. The same guards apply to you, and unknown space blocks everyone.</dd>
+    <dt>Discovered surfaces &amp; objects</dt><dd>The ids are what plans take. Label what you recognise.</dd>
+    <dt>Build the drone</dt><dd>The parts model behind the simulation, sized by momentum theory. Every part is a CAD Studio program.</dd>
+    <dt>Build the arm</dt><dd>Six axes on serial-bus servos, sized from the same parts model.</dd>
+    <dt>Policies</dt><dd>Trained in the engine container. A policy may fly the plant only after its recorded flight passes this world's guards.</dd>
+    <dt>Medium</dt><dd>The medium is a parameter, not a property of this lab. One solid from the study's published 300&nbsp;mm envelope, simulated.</dd>
+  </dl>
+</dialog>
+<script>
+// Views, sheets and Help (UX audit 2026-11-06). Only where things are shown changes: every control keeps its id, and
+// embodied.js still owns every request, command and poll.
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var phone = function () { return window.matchMedia('(max-width: 640px)').matches; };
+  var SHEETS = ['setup', 'task-panel', 'pad-panel'];
+  function closeSheets(except) {
+    SHEETS.forEach(function (id) { if (id !== except) $(id).classList.remove('open'); });
+    $('setup-open').setAttribute('aria-expanded', String(except === 'setup'));
+    $('tab-task').setAttribute('aria-expanded', String(except === 'task-panel'));
+    $('tab-pad').setAttribute('aria-expanded', String(except === 'pad-panel'));
+  }
+  function openSheet(id) { if (id !== 'setup') setView('console'); closeSheets(id); $(id).classList.add('open'); }
+  function setView(view) {
+    var v = ['console', 'sizing', 'lab'].indexOf(view) >= 0 ? view : 'console';
+    ['console', 'sizing', 'lab'].forEach(function (id) { $('view-' + id).hidden = id !== v; $('tab-' + id).setAttribute('aria-selected', String(id === v)); });
+    closeSheets(null);
+    history.replaceState(null, '', location.pathname + location.search + (v === 'console' ? '' : '#view=' + v));
+  }
+  function toggleSheet(id) { if ($(id).classList.contains('open')) closeSheets(null); else openSheet(id); }
+  document.querySelectorAll('.view-tab[data-view]').forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
+  document.querySelectorAll('.view-tab[data-sheet]').forEach(function (b) { b.addEventListener('click', function () { toggleSheet(b.dataset.sheet); }); });
+  document.querySelectorAll('[data-close-sheet]').forEach(function (b) { b.addEventListener('click', function () { closeSheets(null); }); });
+  $('setup-open').addEventListener('click', function () { toggleSheet('setup'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheets(null); });
+  // The cameras: shown over the map on desktop, a toggle that starts closed on a phone.
+  function showCams(on) { $('cams').hidden = !on; $('cams-toggle').setAttribute('aria-pressed', String(on)); }
+  $('cams-toggle').addEventListener('click', function () { showCams($('cams').hidden); });
+  showCams(!phone());
+  // The manual pad opens on a phone the moment Take command succeeds (embodied.js shows Release command then).
+  new MutationObserver(function () { if (!$('release').hidden && phone()) openSheet('pad-panel'); }).observe($('release'), { attributes: true, attributeFilter: ['hidden'] });
+  function openHelp() { closeSheets(null); var d = $('help'); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }
+  $('help-open').addEventListener('click', openHelp); $('help-open-2').addEventListener('click', openHelp);
+  $('help-close').addEventListener('click', function () { $('help').close(); });
+  var m = /(?:^|[#&])view=(sizing|lab)\b/.exec(location.hash);
+  setView(m ? m[1] : 'console');
+})();
+</script>
 <script src="/api/embodied/assets/embodied.js"></script>
 </body>
 </html>

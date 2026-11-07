@@ -37,6 +37,8 @@
  *                     |                             | feature and settings routes, then hands over the part id, revision and updated time;
  *                     |                             | refresh() re-reads the part and redraws it when it is newer. A density the person is
  *                     |                             | still typing survives any redraw (the 3 s poll too) and the toast says the draft is kept.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.0, the design standard (kernel docs/ux/design-standard.md; Roger, 2026-11-06, F9, F10, F12; the reference products Shapr3D, Onshape and Tinkercad, CONVENTIONS.md §5.9). No native prompt or confirm (DS-30): New part opens a ready "Untitled part" on a 60 × 40 × 30 mm base box at once (its sizes are edited in Properties), the name is edited in place in the part's heading (Rename puts the caret there), and Delete and restoring a revision ask in an in-page sheet. The empty canvas shows New part as its one centred first action instead of a create-or-open paragraph; a part's app row is the Part ▾ menu (New part, Rename, Rebuild, Delete part; ⋯ More on a phone) and Export, the finishing action, which opens its own sheet of the part's files (STEP, STL, the drawing views, the report) with one Export at its bottom. Under the canvas a tool strip holds Add feature and Report; the reference functions CAD Studio lacks are greyed "Not available yet" controls in their places: Measure in the strip, the view cube in the canvas's top-right corner, AR on its right edge, OBJ, 3MF and Send to printer in the Export sheet (DS-45, RP-CAD-01 to -05).
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | 0.5.0: live Measure (mm/in), 7-orientation 3D View Cube + Fit to view, Wavefront OBJ + MTL and 3MF exports, View in AR (USDZ + GLB + QR), and honest Send to printer handoff with zero planned placeholders remaining (RP-CAD-01 to -05).
  */
 (function () {
   'use strict';
@@ -64,7 +66,7 @@
     state.selection += 1; stopPoll(); clearPreview();
     state.model = null; state.revisions = []; state.lastSeen = ''; state.densityShown = null;
     $('model-panel').hidden = true; $('features-panel').hidden = true; $('empty-panel').hidden = false;
-    $('feature-submit').disabled = false;
+    $('feature-submit').disabled = false; $('header-title').textContent = ''; renderPartControls(false);
     endEdit(); renderStop();
     return selection();
   }
@@ -136,12 +138,15 @@
     const transportError = engine.lastError && (!phase || phase === 'pinned');
     const pill = $('engine-pill');
     const labels = { 'not-prepared': 'Preparing engine…', preparing: 'Downloading engine…', ready: 'Ready', running: 'Running', failed: 'Preparation failed', none: 'Unavailable', pinned: 'Ready to connect' };
-    pill.textContent = phase ? labels[phase] : (engine.connected ? 'Connected' : engine.lastError ? 'Connection unavailable' : 'Not contacted');
-    pill.className = 'badge ' + (engine.connected || phase === 'ready' || phase === 'running' ? 'built' : failed || transportError ? 'failed' : '');
+    const pillText = phase ? labels[phase] : (engine.connected ? 'Connected' : engine.lastError ? 'Connection unavailable' : 'Not contacted');
+    const pillClass = 'badge ' + (engine.connected || phase === 'ready' || phase === 'running' ? 'built' : failed || transportError ? 'failed' : '');
+    // The 3 s poll redraws this pill: write only what changed, so an unchanged engine leaves the page untouched.
+    if (pill.textContent !== pillText) pill.textContent = pillText;
+    if (pill.className !== pillClass) pill.className = pillClass;
     $('engine-banner').hidden = !(preparing || failed || transportError);
     let message = preparing ? 'The engine is being prepared automatically. You can keep editing while it downloads.' : failed ? 'The engine could not be prepared. Try again shortly.' : transportError ? ENGINE_DOWN : '';
     if (preparing && Number.isSafeInteger(lifecycle.doneBytes) && Number.isSafeInteger(lifecycle.totalBytes) && lifecycle.totalBytes > 0) message += ' ' + Math.min(100, Math.floor(100 * lifecycle.doneBytes / lifecycle.totalBytes)) + '% downloaded.';
-    $('engine-reason').textContent = message;
+    if ($('engine-reason').textContent !== message) $('engine-reason').textContent = message;
     clearTimeout(enginePoll); enginePoll = null;
     if (preparing && !enginePollStopped) {
       if (!enginePollUntil) enginePollUntil = Date.now() + 600000;
@@ -216,28 +221,34 @@
     if (!selected(intent) || state.model !== model || out.model.model_id !== model.model_id || out.model.revision !== model.revision || olderModel(out.model)) return;
     state.revisions = out.revisions || []; renderEngine(out.engine); renderRevisions();
   }
+  /** The base box a new part starts from, in mm; the person changes it in Properties once the part is open. */
+  const NEW_PART = { title: 'Untitled part', base: { kind: 'box', sizeX: 60, sizeY: 40, sizeZ: 30 } };
+  /** New part opens a ready part at once: no prompt (DS-30); its name is edited in place and its base in Properties. */
   async function createModel() {
     const intent = selection();
-    const title = window.prompt('Name the part (e.g. "bracket")');
-    if (!title || !title.trim()) return;
-    const sx = Number(window.prompt('Base box — width X (mm)', '60')), sy = Number(window.prompt('depth Y (mm)', '40')), sz = Number(window.prompt('height Z (mm)', '30'));
-    if (!(sx > 0 && sy > 0 && sz > 0)) { toast('Enter three positive sizes.', 'error'); return; }
     try {
-      const out = await api('/models', { method: 'POST', json: { title: title.trim(), base: { kind: 'box', sizeX: sx, sizeY: sy, sizeZ: sz } } });
+      const out = await api('/models', { method: 'POST', json: { title: NEW_PART.title, base: Object.assign({}, NEW_PART.base) } });
       if (!applyResponse(out, intent, true)) return;
       await loadModels(); if (!selected(intent)) return;
-      startPoll(); toast('Part created and built.', 'ok');
+      startPoll(); // the part opening on the canvas is the confirmation; no toast (§4.8)
     } catch (e) { if (!selected(intent)) return; if (e.body && e.body.model) applyResponse(e.body, intent, true); if (e.body && e.body.build) showBuild(e.body.build); else toast(e.message, 'error'); }
   }
+  /** Rename puts the caret in the part's heading, where the name is edited in place (no prompt). */
+  function startRename() {
+    const heading = $('model-heading'); if (!state.model) return;
+    heading.focus();
+    const range = document.createRange(); range.selectNodeContents(heading);
+    const pick = window.getSelection(); pick.removeAllRanges(); pick.addRange(range);
+  }
+  /** The heading lost focus: save the name it now holds, or put back the saved one when it is empty. */
   async function renameModel() {
     if (!state.model) return;
-    const intent = selection();
-    const title = window.prompt('New name', state.model.title);
-    if (!title || !title.trim()) return;
-    try { applyResponse(await api('/models/' + intent.modelId, { method: 'PATCH', json: { title: title.trim() } }), intent); } catch (e) { if (selected(intent)) toast(e.message, 'error'); }
+    const intent = selection(), title = $('model-heading').textContent.trim().slice(0, 120);
+    if (!title || title === state.model.title) { $('model-heading').textContent = state.model.title; return; }
+    try { applyResponse(await api('/models/' + intent.modelId, { method: 'PATCH', json: { title } }), intent); } catch (e) { if (selected(intent)) { $('model-heading').textContent = state.model.title; toast(e.message, 'error'); } }
   }
   async function deleteModel() {
-    if (!state.model || !window.confirm('Delete "' + state.model.title + '" and every revision?')) return;
+    if (!state.model || !(await ask('Delete "' + state.model.title + '" and every revision?', { yes: 'Delete', danger: true }))) return;
     const model = state.model, revisions = state.revisions, intent = clearSelection();
     try { await api('/models/' + model.model_id, { method: 'DELETE' }); await loadModels(); }
     catch (e) { if (selected(intent)) { state.model = model; state.revisions = revisions; renderModel(); startPoll(); toast(e.message, 'error'); } }
@@ -253,7 +264,8 @@
   function renderModel() {
     const m = state.model;
     $('empty-panel').hidden = true; $('model-panel').hidden = false; $('features-panel').hidden = false;
-    $('model-heading').textContent = m.title;
+    if (document.activeElement !== $('model-heading')) $('model-heading').textContent = m.title;
+    $('model-heading').contentEditable = 'plaintext-only'; $('header-title').textContent = m.title; renderPartControls(true); renderExport(m);
     $('model-state').textContent = m.state + ' · revision ' + m.revision; $('model-state').className = 'badge ' + m.state;
     $('model-source').textContent = m.source && m.source.kind === 'scan' ? 'from Scan to Print job "' + (m.source.title || m.source.jobId) + '"' : '';
     if (m.state === 'failed' && m.failure_reason) toast(m.failure_reason, 'error');
@@ -287,7 +299,7 @@
     card.appendChild(el('dl', {}, rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })])));
     if (m.failure_reason) card.appendChild(el('p', { class: 'feature-error', text: 'Last rebuild failed: ' + m.failure_reason + ' (showing revision ' + m.revision + ')' }));
     const links = $('downloads'); links.replaceChildren();
-    ['step', 'stl', 'svg-front', 'svg-top', 'svg-right', 'svg-iso', 'report'].forEach((k) => { if (m.artifacts && m.artifacts[k]) links.appendChild(el('a', { href: m.artifacts[k] + '&download', text: k.toUpperCase() })); });
+    ['step', 'stl', 'obj', '3mf', 'svg-front', 'svg-top', 'svg-right', 'svg-iso', 'report'].forEach((k) => { const u = exportUrl(m, k); if (u) links.appendChild(el('a', { href: u + '&download', text: k.toUpperCase() })); });
   }
   function renderViews(m) {
     const wrap = $('views'); wrap.replaceChildren();
@@ -300,13 +312,14 @@
     const current = () => selected(intent) && state.model === m && state.previewRequest === request;
     $('viewer-info').textContent = 'Loading preview…';
     try {
-      if (!state.viewer) state.viewer = window.CadStudioViewer.mount($('viewer'));
+      if (!state.viewer) { state.viewer = (window.CadStudioGl || window.CadStudioViewer).mount($('viewer')); viewportTools?.attachViewer(state.viewer); }
       const res = await fetch(m.artifacts.stl, { credentials: 'same-origin' });
       if (!current()) return;
       if (!res.ok) throw new Error('STL fetch failed');
       const bytes = await res.arrayBuffer();
       if (!current()) return;
       const info = state.viewer.load(bytes);
+      viewportTools?.onModelLoaded();
       $('viewer-info').textContent = info.triangles + ' facets · ' + fmt(info.size[0]) + ' × ' + fmt(info.size[1]) + ' × ' + fmt(info.size[2]) + ' mm · revision ' + m.revision;
     } catch (e) { if (current()) $('viewer-info').textContent = e.message; }
   }
@@ -447,7 +460,7 @@
   }
   async function restoreRevision(revision) {
     if (!state.model) return; const intent = selection();
-    if (!window.confirm('Restore the feature list of revision ' + revision + '? (This creates a new revision; nothing is lost.)')) return;
+    if (!(await ask('Restore the feature list of revision ' + revision + '? This creates a new revision; nothing is lost.', { yes: 'Restore' }))) return;
     try { if (applyResponse(await api('/models/' + intent.modelId + '/restore', { method: 'POST', json: { revision }, rebuilds: intent.modelId }), intent)) toast('Restored revision ' + revision + '.', 'ok'); } catch (e) { if (!selected(intent)) return; if (e.body && e.body.model) applyResponse(e.body, intent); toast(e.message, 'error'); }
   }
   async function uploadMesh(file) {
@@ -475,11 +488,16 @@
   }
 
   // ── Live refresh while the concierge edits from the chat rail ──────────────
+  // A redraw or a request under a pressing finger can lose the press (the review of kernel PR #183, B1): the poll skips a
+  // tick while a press is in progress and for 1.5 s after it. Registered on the window's capture phase from the start, so
+  // it also sees presses that a planned control keeps from the page's own handlers.
+  let pressedUntil = 0;
+  if (typeof window.addEventListener === 'function') window.addEventListener('pointerdown', () => { pressedUntil = Date.now() + 1500; }, true);
   function startPoll() {
     stopPoll();
     state.lastSeen = state.model ? state.model.updated_at : '';
     state.pollTimer = setInterval(async () => {
-      if (!state.model || document.hidden) return;
+      if (!state.model || document.hidden || Date.now() < pressedUntil) return;
       const intent = selection(), model = state.model;
       try {
         const out = await api('/models/' + model.model_id);
@@ -571,22 +589,105 @@
     } catch (e) { if (!selected(intent)) return; if (e.body && e.body.model) applyResponse(e.body, intent, true); toast(e.message, 'error'); }
   }
 
+  // ── The Part menu, Export and in-page questions (no native dialogs, DS-30) ─────────────────────
+  /** A part's own commands are offered only while a part is open; Export, the finishing action, is the app row's primary. */
+  function renderPartControls(open) {
+    for (const id of ['rename-model', 'rebuild-model', 'delete-model']) $(id).disabled = !open;
+    $('export-model').hidden = !open;
+  }
+  const EXPORTS = [['step', 'STEP', 'the solid, for other CAD'], ['stl', 'STL', 'the mesh, for a slicer'], ['obj', 'OBJ', 'Wavefront mesh, for DCC and renderers'], ['mtl', 'MTL', 'companion material library for OBJ'], ['3mf', '3MF', 'packaged mesh and metadata, for slicers'], ['svg-front', 'Front view (SVG)', 'hidden-line drawing'], ['svg-top', 'Top view (SVG)', 'hidden-line drawing'],
+    ['svg-right', 'Right view (SVG)', 'hidden-line drawing'], ['svg-iso', 'Isometric view (SVG)', 'hidden-line drawing'], ['report', 'Report', 'extents, volume, mass']];
+  function exportUrl(m, key) {
+    if (!m || !m.artifacts) return null;
+    if (m.artifacts[key]) return m.artifacts[key];
+    if (m.artifacts.stl && (key === 'obj' || key === 'mtl' || key === '3mf' || key === 'glb' || key === 'usdz')) {
+      return m.artifacts.stl.replace('/artifacts/stl', '/artifacts/' + key);
+    }
+    return null;
+  }
+  /** The saved file's name: the part's title made safe, then its kind's extension (the native kernel sends no Content-Disposition). */
+  function fileName(title, key) { return (String(title || '').replace(/[^A-Za-z0-9_.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'part') + '.' + (key === 'report' ? 'json' : key.startsWith('svg-') ? key.slice(4) + '.svg' : key); }
+  /** The Export sheet lists the files this revision has, the first one chosen. */
+  function renderExport(m) {
+    const list = $('export-list'); if (!list) return;
+    const rows = EXPORTS.filter(([key]) => Boolean(exportUrl(m, key))).map(([key, label, note], index) => el('label', { class: 'export-row' }, [
+      el('input', Object.assign({ type: 'radio', name: 'export-kind', value: key }, index === 0 ? { checked: '' } : {})), el('span', { text: label }), el('small', { text: note })]));
+    list.replaceChildren(...rows);
+    $('export-go').disabled = !rows.length;
+  }
+  function openExport() { closeMenu(); if (state.model && !$('export-sheet').open) $('export-sheet').showModal(); }
+  function exportChosen() {
+    const chosen = document.querySelector('input[name="export-kind"]:checked');
+    const url = chosen ? exportUrl(state.model, chosen.value) : null;
+    if (!state.model || !chosen || !url) return;
+    const link = el('a', { href: url + '&download', download: fileName(state.model.title, chosen.value) });
+    document.body.appendChild(link); link.click(); link.remove();
+    $('export-sheet').close();
+  }
+  let asking = null;
+  /**
+   * @description Ask the person in the page, never with window.confirm: a modal sheet with the question, Cancel and the
+   * action named. Resolves true for the action, false for Cancel, Escape or a tap outside.
+   * @param {string} message - The question.
+   * @param {{yes?: string, danger?: boolean}} [options] - The action's words, and whether it destroys something.
+   * @returns {Promise<boolean>} The answer.
+   */
+  function ask(message, options) {
+    const opts = options || {}, sheet = $('ask-sheet');
+    if (asking) settleAsk(false);
+    $('ask-text').textContent = message; $('ask-yes').textContent = opts.yes || 'Continue';
+    $('ask-yes').className = opts.danger ? 'ghost danger-action' : 'ghost';
+    return new Promise((resolve) => { asking = resolve; sheet.showModal(); $('ask-no').focus(); });
+  }
+  function settleAsk(answer) {
+    const resolve = asking; asking = null;
+    const sheet = $('ask-sheet'); if (sheet.open) sheet.close();
+    if (resolve) resolve(answer);
+  }
+  function closeMenu() { const menu = $('part-menu-items'); if (menu && typeof menu.hidePopover === 'function' && menu.matches(':popover-open')) menu.hidePopover(); }
+  /** The Part menu opens under its trigger, its right edge on the trigger's, kept on screen. */
+  function placeMenu(ev) {
+    const menu = $('part-menu-items'), trigger = $('part-menu'), open = ev.newState === 'open';
+    trigger.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const box = trigger.getBoundingClientRect(), width = menu.offsetWidth;
+    menu.style.top = Math.round(box.bottom + 4) + 'px';
+    menu.style.left = Math.round(Math.max(8, Math.min(box.right - width, window.innerWidth - width - 8))) + 'px';
+  }
+  function wireSheets() {
+    for (const sheet of [$('export-sheet')]) sheet.addEventListener('click', (ev) => { if (ev.target === sheet || (ev.target && ev.target.closest && ev.target.closest('[data-cs-close]'))) sheet.close(); });
+    $('ask-yes').addEventListener('click', () => settleAsk(true));
+    $('ask-no').addEventListener('click', () => settleAsk(false));
+    $('ask-sheet').addEventListener('cancel', (ev) => { ev.preventDefault(); settleAsk(false); });
+    $('export-go').addEventListener('click', exportChosen);
+    $('export-model').addEventListener('click', openExport);
+    $('part-menu-items').addEventListener('toggle', placeMenu);
+    $('model-heading').addEventListener('blur', () => renameModel().catch((e) => toast(e.message, 'error')));
+    $('model-heading').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } if (ev.key === 'Escape' && state.model) { ev.target.textContent = state.model.title; ev.target.blur(); } });
+    $('tool-add').addEventListener('click', () => { if (featureDraft() && state.editing) return toast('Save or cancel the feature you are editing first.', 'error'); endEdit(); editorFoundation?.showFeatureForm(); });
+    $('tool-report').addEventListener('click', () => editorFoundation?.showReport());
+  }
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   let editorFoundation = null;
+  let viewportTools = null;
+  window.CadStudioApp = { getState: () => state, getModel: () => state.model, getViewer: () => state.viewer, api, toast };
   async function boot() {
     window.addEventListener('pagehide', stopEnginePoll);
     const {bindCadFoundation}=await import('/api/cad-studio/assets/editor-foundation-adapter.mjs');
-    editorFoundation=await bindCadFoundation({state,dirty:()=>featureDraft()||densityDirty(),prepare:prepareDocumentHandoff,selectBase:()=>{if(featureDraft())return toast('Save or cancel the feature form before selecting the base.','error');endEdit();editorFoundation.refresh();},changeProperty:async(key,value)=>{
+    editorFoundation=await bindCadFoundation({state,createPart:()=>createModel(),dirty:()=>featureDraft()||densityDirty(),prepare:prepareDocumentHandoff,selectBase:()=>{if(featureDraft())return toast('Save or cancel the feature form before selecting the base.','error');endEdit();editorFoundation.refresh();},changeProperty:async(key,value)=>{
       const intent=selection(),m=state.model,feature=m.features.find(f=>f.id===state.editing);let path='/models/'+m.model_id,body;
       if(feature){body=key==='label'?{label:value}:key==='enabled'?{enabled:value}:{params:{[key.slice(6)]:typeof feature.params[key.slice(6)]==='object'?JSON.parse(value):value}};path+='/features/'+feature.id;}
       else body=key==='title'?{title:value}:key==='density'?{settings:{densityGcm3:value}}:{base:{...m.base,[key.slice(5)]:value}};
       const out=await api(path,{method:'PATCH',json:body,rebuilds:intent.modelId});if(!applyResponse(out,intent))throw new Error('The part changed while rebuilding.');if(out.build&&out.build.ok===false)throw new Error(buildWords(out.build));if(feature){const latest=state.model.features.find(f=>f.id===feature.id);if(latest)beginEdit(latest);}
     }});
+    viewportTools = window.CadViewportTools ? window.CadViewportTools.initCadViewportTools(window.CadStudioApp) : null;
     try { state.caps = await api('/capabilities'); renderEngine(state.caps.engine); renderTypeOptions(); } catch (e) { toast('Capabilities unavailable: ' + e.message, 'error'); }
-    $('new-model').addEventListener('click', () => createModel().catch((e) => toast(e.message, 'error')));
-    $('rename-model').addEventListener('click', renameModel);
-    $('delete-model').addEventListener('click', deleteModel);
-    $('rebuild-model').addEventListener('click', rebuildModel);
+    $('new-model').addEventListener('click', () => { closeMenu(); createModel().catch((e) => toast(e.message, 'error')); });
+    $('rename-model').addEventListener('click', () => { closeMenu(); startRename(); });
+    $('delete-model').addEventListener('click', () => { closeMenu(); deleteModel(); });
+    $('rebuild-model').addEventListener('click', () => { closeMenu(); rebuildModel(); });
+    wireSheets();
     $('cancel-rebuild').addEventListener('click', cancelRebuild);
     $('feature-type').addEventListener('change', () => renderParamsForm({}));
     $('feature-submit').addEventListener('click', submitFeature);

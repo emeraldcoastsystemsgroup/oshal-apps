@@ -1,8 +1,9 @@
 <!doctype html>
 <!-- CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | The manual video editor screen (CREATE-EDIT-05d): media, preview, timeline, selected-segment, title, music and export panels over the shared theme tokens, with every control labelled and a keyboard equivalent for every timeline action.
+2 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §5.0, §5.1): the page declares its contract (an editor whose first action is adding a video), the package stylesheet loads after the shared editor's so the standard's tokens win, and the keyboard list leaves the timeline for More > Keyboard shortcuts.
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="graphite" data-ds-category="editor" data-ds-first-action="file:video">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,8 +11,8 @@
   <!-- Framework theme tokens and the bootstrap that follows the portal theme live; the default above keeps tokens present. -->
   <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
   <script src="/shared/ui/js/surface-theme.js"></script>
-  <link rel="stylesheet" href="/api/video/editor/assets/editor.css">
   <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
+  <link rel="stylesheet" href="/api/video/editor/assets/editor.css">
 </head>
 <body>
   <header class="bar">
@@ -71,7 +72,6 @@
       <div id="track" class="track" role="listbox" aria-label="Segments in playback order"></div>
       <label class="playhead"><span class="sr-only">Playhead in frames</span><input id="playhead" type="range" min="0" max="0" step="1" value="0"></label>
       <div id="titleTrack" class="title-track" aria-label="Titles on the timeline"></div>
-      <p class="muted small">Keys: Space play · ←/→ one frame (Shift: one second) · S split at the playhead · [ and ] move · Delete remove · Ctrl+Z undo · Ctrl+S save</p>
     </section>
     <section class="panel inspector" aria-labelledby="inspectorHeading">
       <h2 id="inspectorHeading">Selected segment</h2>

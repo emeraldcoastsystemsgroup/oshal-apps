@@ -41,7 +41,8 @@ description: >-
   description, see recent payments and refund one; a test key runs in Stripe test mode, a live
   key is shown as LIVE and every money action asks you to confirm. Square runs a card payment,
   PayPal sends the customer an invoice.
-version: 1.1.4
+# 1.1.5: UX audit (payments--payments-home), layout only: no title card or repeated key copy; before Stripe is connected one card with one primary Connect Stripe, Check again with its answer, and the payment-link form shown disabled with Connect Stripe first; a solid primary with no underline; 8px between actions; a status filter on Recent payments. No money action changed.
+version: 1.1.5
 testing:
   version: 1
   catalog: tests/test-lab.yaml

@@ -16,6 +16,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register automatic document handoffs, save failures, concurrent drafts and delayed-save project switching.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register the phone first-step proof (Add a clip from the empty project, one-row app bar, no forced theme) with real touch.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | The phone case also proves no band above the app bar and content within 74 px of the frame.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard: register video-editor-design (tests/video-editor-design.test.mjs) at 412x743 with touch and 1440x900, and update the phone case: Add a clip in the empty timeline as the one primary, Export as the one primary with a clip, one tool row ending in More with greyed inert planned controls and the clip tools, sheets the browser's Back closes, an in-page delete confirm and the graphite dark category look.
 version: 1
 cases:
   - id: package-readiness
@@ -597,8 +598,9 @@ cases:
     name: Video editor on a phone adds a clip from the empty project
     purpose: >-
       At 390x844 with touch, an empty project shows Add a clip on the first screen; a tap opens the real picker and the clip
-      lands in the timeline; the app bar is one row with More; the manifest forces no theme. Real compiled routes, disposable
-      PostgreSQL, the kernel's shared editor from OSHAL_PLATFORM_ROOT.
+      lands in the timeline; the app bar is one row; Undo is in the transport and the bottom bar is the tool row ending in More;
+      the manifest declares the graphite dark category look. Real compiled routes, disposable PostgreSQL, the kernel's shared
+      editor from OSHAL_PLATFORM_ROOT.
     level: browser
     runner:
       kind: external
@@ -606,7 +608,7 @@ cases:
       files:
         - tests/video-editor-phone.test.mjs
     expected:
-      - Add a clip is hit-testable on the first screen, one tap adds the clip, Undo waits in More, and Video declares no theme.
+      - Add a clip is hit-testable on the first screen, one tap adds the clip, Undo is in the transport, the tool row is the bottom bar with More last, and Video declares graphite.
       - The shell starts at the top of the frame (no band from the emptied workspace) and content starts within 74 px of it.
     prerequisites:
       - runner:node
@@ -619,4 +621,35 @@ cases:
     installation: never
     limits:
       timeoutMs: 180000
+      maxMemoryMb: 1024
+  - id: video-editor-design
+    name: Video editor meets the oshal design standard at phone and desktop size
+    purpose: >-
+      docs/ux/design-standard.md §3.1, §4.4, §4.10, §5.1 with the CapCut and InShot conventions (REFP CONVENTIONS §5.3), at
+      412x743 with real touch and at 1440x900: the contract is declared; the empty timeline holds the one primary, Add a clip,
+      which opens the real picker; with a clip Export is the one primary and Save never is; one tool row (data-ds-toolrow) ends
+      in More, its planned Stickers and Filters are aria-disabled, say Not available yet, link RP-VID-03/04 and change nothing
+      when tapped; a tapped clip shows Split and the planned Speed, Effects, Chroma key, Remove background and Stabilize;
+      a tool opens an opaque modal sheet the browser's Back closes inside the editor; Delete project asks in the page; the
+      manifest declares graphite.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/video-editor-design.test.mjs
+    expected:
+      - One primary at every step (Add a clip, then Export), More last in the tool row, every planned control inert, Back closes the open sheet, no native dialog.
+      - Red on store main cb09e961 (Video 1.12.4, 0 of 8), green on 1.13.0 (8 of 8).
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - service:docker
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's disposable PostgreSQL container, browser context and temporary paths.
+    installation: never
+    limits:
+      timeoutMs: 240000
       maxMemoryMb: 1024

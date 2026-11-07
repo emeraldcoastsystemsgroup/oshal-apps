@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Shared bounded PDF content operations use immutable source object identities.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Support blank-page content objects and stroked vector check/cross marks.
  */
 export const PDF_FONTS=Object.freeze(['Helvetica','Helvetica-Bold','Helvetica-Oblique','Helvetica-BoldOblique','Times-Roman','Times-Bold','Times-Italic','Times-BoldItalic','Courier','Courier-Bold','Courier-Oblique','Courier-BoldOblique']);
 const refuse=(status,code)=>{throw Object.assign(new Error(code),{status,code});};
@@ -17,7 +18,8 @@ export function validateContentProperties(properties,kind,box,fail=refuse,target
  if(properties.font!==undefined&&!PDF_FONTS.includes(properties.font))fail(400,'pdf_content_font_unsupported');
  if(properties.text!==undefined&&(kind!=='text'||typeof properties.text!=='string'||!properties.text.length||properties.text.length>4000||! /^[\x20-\x7e\u00a0-\u00ff]+$/.test(properties.text)))fail(400,'pdf_content_text_unsupported');
  if(kind!=='text'&&['font','fontSize','text'].some(key=>properties[key]!==undefined))fail(400,'pdf_content_property_unsupported');
- if(!['text','path','rectangle','ellipse'].includes(kind)&&['fill','stroke','strokeWidth'].some(key=>properties[key]!==undefined))fail(400,'pdf_content_property_unsupported');
+ if(!['text','path','rectangle','ellipse'].includes(kind)&&properties.fill!==undefined)fail(400,'pdf_content_property_unsupported');
+ if(!['text','path','rectangle','ellipse','check','cross'].includes(kind)&&['stroke','strokeWidth'].some(key=>properties[key]!==undefined))fail(400,'pdf_content_property_unsupported');
  if(kind==='text'&&target){const capabilities=textCapabilities(target);if(properties.font!==undefined){if(!printablePdfText(properties.text??target.text))fail(400,'pdf_content_text_unsupported');}else if(properties.text!==undefined&&(!capabilities.text||!printablePdfText(properties.text,capabilities.encoding))||properties.fontSize!==undefined&&!capabilities.size)fail(400,'pdf_content_font_reencoding_unsupported');}
  return properties;
 }
@@ -31,7 +33,7 @@ export function contentObjects(sourcePage,model,page,renderedPage){
   return edit?.deleted?null:{...item,...current,...edit?.properties,...policy,editable:item.editable!==false&&current?.editable!==false,id:item.id,page,original:true,fontExplicit:PDF_FONTS.includes(edit?.properties?.font)};
  }).filter(Boolean);
  return [...originals,...(model.objects??[]).filter(item=>item.page===page).map((item,index)=>{
-  const current=renderedPage?.objects?.find(o=>o.id==='o'+((sourcePage.objectCount??sourcePage.objects?.length??0)-deleted.length+index));
+  const current=renderedPage?.objects?.find(o=>o.id==='o'+((sourcePage?.objectCount??sourcePage?.objects?.length??0)-deleted.length+index));
   return {...item,...current,id:item.id,kind:item.kind,page,original:false,editable:true};
  })];
 }
@@ -39,14 +41,14 @@ export function applyContent(model,operation,sources,fail=refuse,assets=[]){
  closed(operation,operation.op==='add-object'?['op','page','item']:operation.op==='delete-object'?['op','page','object']:['op','page','object','properties'],fail);
  const page=model.pages.find(p=>p.id===operation.page);
  if(!page)fail(400,'pdf_invalid_page_selection');
- const sourcePage=sources.find(s=>s.id===page.source)?.pages[page.index],box=sourcePage?.cropBox;
+ const sourcePage=page.blank?{cropBox:page.cropBox,rotation:0,contentEditable:true,objects:[],objectCount:0}:sources.find(s=>s.id===page.source)?.pages[page.index],box=sourcePage?.cropBox;
  if(!Array.isArray(box)||box.length!==4)fail(503,'pdf_page_geometry_unavailable');
  if(sourcePage.contentEditable===false)fail(400,'pdf_content_page_unsupported');
  model.contentEdits??=[];model.objects??=[];
  if(operation.op==='add-object'){
   const object=operation.item;
   closed(object,['id','kind','rect','text','font','fontSize','fill','stroke','strokeWidth','opacity','asset'],fail);
-  if(!uuid(object.id)||![...model.objects,...model.annotations].every(item=>item.id!==object.id)||!['text','rectangle','ellipse','image'].includes(object.kind))fail(400,'pdf_invalid_content_object');
+  if(!uuid(object.id)||![...model.objects,...model.annotations].every(item=>item.id!==object.id)||!['text','rectangle','ellipse','image','check','cross'].includes(object.kind))fail(400,'pdf_invalid_content_object');
   const {id,kind,asset,...properties}=object;validateContentProperties(properties,kind,box,fail);
   if(!validRect(object.rect,box)||kind==='text'&&!object.text)fail(400,'pdf_invalid_content_object');
   if(kind==='image'){

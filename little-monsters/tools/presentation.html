@@ -13,6 +13,7 @@
   2026-06-17     | roger.murphy@emeraldcoastsystemsgroup.com | Export to PowerPoint: a topbar button POSTs /lectures/:lectureId/pptx (the presentation generator) and downloads the saved .pptx.
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; the bar, arrows, progress and end-of-deck actions use the system's buttons and progress with tokens only (the hard-coded gradient and white-on-dark assumptions are gone); the lecture picker is a real list with an honest, role-aware empty state; Close returns to the class (or the dashboard) through the page frame instead of the teacher-only recorder; toasts replace alerts
   2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | Make a PowerPoint, summary and flashcards on any topic for a chosen class through /process-transcript.
+  2026-11-06     | maintainer@emeraldcoastsystemsgroup.com | UX audit (F): the class picker never filled, because the empty-list and error branches rewrote the whole card after the select was filled, so Generate always said 'Please select a class first.' The card is drawn once and only the list under it is replaced; a failed class read is logged and offers Retry. Card 'New presentation' with one sentence of help, one 'Generate deck' primary that wraps and is full width on a phone, no Close on the picker (not a modal), the student empty state says 'Make your first deck above'.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -30,7 +31,8 @@
 
   .deck-stage { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 24px 72px; cursor: pointer; user-select: none; overflow: hidden; }
   .deck.is-browsing .deck-stage { cursor: default; user-select: auto; align-items: flex-start; overflow-y: auto; padding: clamp(16px, 2.5vw, 28px) var(--lm-gutter) 40px; }
-  .deck.is-browsing .deck-arrow, .deck.is-browsing .deck-hint, .deck.is-browsing .deck-foot { display: none; }
+  .deck.is-browsing .deck-arrow, .deck.is-browsing .deck-hint, .deck.is-browsing .deck-foot, .deck.is-browsing #closeBtn { display: none; }
+  .pres-gen-btn { white-space: normal; text-align: center; margin-top: 4px; }
   .pickerbox { width: 100%; max-width: 640px; margin: 0 auto; }
   a.lm-item { text-decoration: none; color: inherit; }
 
@@ -66,6 +68,7 @@
     .deck-arrow.prev { left: 6px; }
     .deck-arrow.next { right: 6px; }
     .deck-foot { padding: 8px 12px 12px; }
+    .pres-gen-btn { width: 100%; }
   }
 </style>
 </head>
@@ -76,7 +79,7 @@
     <span class="deck-title" id="deckTitle">Presentations</span>
     <div class="deck-actions">
       <button type="button" class="lm-btn lm-btn-ghost hide" id="pptxBtn" onclick="exportPptx()">⬇ PowerPoint</button>
-      <button type="button" class="lm-btn lm-btn-quiet" onclick="goBack()">✕ Close</button>
+      <button type="button" class="lm-btn lm-btn-quiet" id="closeBtn" onclick="goBack()">✕ Close</button>
     </div>
   </header>
 
@@ -212,18 +215,19 @@ function showError(msg) {
   stage.insertBefore(el, document.getElementById('navHint'));
 }
 
-/** The empty state is honest about who makes presentations: a teacher can go record one,
- *  a learner is told the replay arrives with the lecture, and an unknown identity gets neither claim. */
+/** The empty state is honest about who makes presentations: anyone can make a deck in the card above;
+ *  a teacher can also record a lecture, whose replay lands here on its own. */
 function emptyPicker(who) {
   var role = who && who.role;
   var teacher = role === 'teacher' || role === 'admin';
-  var text = teacher ? 'Record a lecture and its replay presentation appears here automatically.'
-    : role === 'student' ? 'When your teacher records a lecture, its replay appears here with the flashcards and notes.'
-    : 'Recorded lectures with a replay appear here.';
+  var text = teacher ? 'Make your first deck above, or record a lecture and its replay appears here.'
+    : 'Make your first deck above.';
   return '<div class="lm-empty"><div class="lm-empty-icon">🎬</div><strong>No presentations yet.</strong>' + text +
-    '<div><button type="button" class="lm-btn lm-btn-primary" id="emptyCta" data-view="' + (teacher ? 'recorder' : 'dashboard') + '">' +
-    (teacher ? '🎤 Record a lecture' : 'Back to my dashboard') + '</button></div></div>';
+    (teacher ? '<div><button type="button" class="lm-btn lm-btn-ghost" id="emptyCta" data-view="recorder">🎤 Record a lecture</button></div>' : '') +
+    '</div>';
 }
+
+var GEN_LABEL = '✨ Generate deck';
 
 /** Build a new presentation, PowerPoint (.pptx), summary, and flashcards on any topic. */
 async function createTopicPresentation(ev) {
@@ -232,17 +236,12 @@ async function createTopicPresentation(ev) {
   var topic = ((document.getElementById('presTopic') || {}).value || '').trim();
   var statusEl = document.getElementById('presGenStatus');
   var btn = document.getElementById('presGenBtn');
-  if (!classId) {
-    if (statusEl) { statusEl.className = 'lm-status is-error lm-mt-sm'; statusEl.textContent = 'Please select a class first.'; }
-    return;
-  }
-  if (topic.length < 3) {
-    if (statusEl) { statusEl.className = 'lm-status is-error lm-mt-sm'; statusEl.textContent = 'Please enter a topic (at least 3 characters).'; }
-    return;
-  }
+  function fail(text) { if (statusEl) { statusEl.className = 'lm-status is-error lm-mt-sm'; statusEl.textContent = text; } }
+  if (!classId) return fail('Please select a class first.');
+  if (topic.length < 3) return fail('Please enter a topic (at least 3 characters).');
   btn.disabled = true;
-  btn.textContent = '⏳ Generating Slide Deck, PowerPoint, Summary & Flashcards…';
-  if (statusEl) { statusEl.className = 'lm-status lm-mt-sm'; statusEl.textContent = 'Building slides, PowerPoint (.pptx), summary notes, and flashcards for "' + topic + '"…'; }
+  btn.textContent = '⏳ Making your deck…';
+  if (statusEl) { statusEl.className = 'lm-status lm-mt-sm'; statusEl.textContent = 'Building slides, a PowerPoint (.pptx), summary notes and flashcards for "' + topic + '"…'; }
   try {
     var resp = await fetch('/api/education/process-transcript', {
       method: 'POST',
@@ -263,42 +262,67 @@ async function createTopicPresentation(ev) {
     }
     showPicker();
   } catch (e) {
-    if (statusEl) { statusEl.className = 'lm-status is-error lm-mt-sm'; statusEl.textContent = 'Could not generate presentation: ' + e.message; }
+    fail('Could not generate presentation: ' + e.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = '✨ Generate Slide Deck, PowerPoint (.pptx), Summary & Flashcards';
+    btn.textContent = GEN_LABEL;
   }
 }
 
-/** Standalone entry: list the caller's lectures that have a generated deck so
- *  they can open one. Our own presentation creator — no external service. */
+/** The "New presentation" card: drawn ONCE per picker; later steps fill its select or replace the list below it. */
+function generatorCard() {
+  return '<div class="lm-card is-accent lm-mb-lg pres-gen" onclick="event.stopPropagation()">' +
+    '<h3 style="margin:2px 0 6px">New presentation</h3>' +
+    '<p class="lm-subtle lm-small lm-mb-md">Pick a class and a topic; Little Monsters makes the slides, a PowerPoint, summary notes and flashcards.</p>' +
+    '<div class="lm-grid is-tight" style="--min:200px">' +
+      '<div class="lm-field"><label for="presClass">Class</label><select id="presClass" class="lm-input"><option value="">Loading classes…</option></select></div>' +
+      '<div class="lm-field"><label for="presTopic">Topic</label><input id="presTopic" type="text" class="lm-input" placeholder="e.g. Photosynthesis"></div>' +
+    '</div>' +
+    '<div id="presClassProblem" class="lm-status is-error lm-mt-sm hide" role="alert"><span>Couldn’t load your classes.</span> <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" id="presClassRetry">Retry</button></div>' +
+    '<button type="button" class="lm-btn lm-btn-primary pres-gen-btn" id="presGenBtn" onclick="createTopicPresentation(event)">' + GEN_LABEL + '</button>' +
+    '<div id="presGenStatus" class="lm-status" aria-live="polite"></div>' +
+  '</div>';
+}
+
+/** Fill the class picker from the caller's classes. A failed read is logged and offers Retry, never a silent "Loading…". */
+function loadClassOptions() {
+  var problem = document.getElementById('presClassProblem');
+  if (problem) problem.classList.add('hide');
+  return fetch('/api/education/classes').then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function (cd) {
+    var sel = document.getElementById('presClass');
+    if (!sel) return;
+    var classes = (cd && cd.classes) || [];
+    sel.innerHTML = classes.length
+      ? classes.map(function (c) { return '<option value="' + esc(c.class_id) + '">' + esc(c.name) + (c.subject ? ' (' + esc(c.subject) + ')' : '') + '</option>'; }).join('')
+      : '<option value="">No classes yet — add one on Class dashboard</option>';
+  }).catch(function (err) {
+    console.error('[little-monsters presentations] class list could not be loaded', err);
+    var sel = document.getElementById('presClass');
+    if (sel) sel.innerHTML = '<option value="">Classes unavailable</option>';
+    if (problem) problem.classList.remove('hide');
+  });
+}
+
+/** Replace only the list area under the card (the card and its filled select stay as they are). */
+function setPresentationList(box, html) {
+  var list = box.querySelector('.pres-list');
+  list.innerHTML = html;
+}
+
+/** Standalone entry: the "New presentation" card, then the caller's lectures that have a generated deck. */
 async function showPicker() {
   var stage = clearStage();
   document.getElementById('deck').classList.add('is-browsing');
   var box = document.createElement('div');
   box.className = 'pickerbox';
-  var genCard = '<div class="lm-card is-accent lm-mb-lg" onclick="event.stopPropagation()">' +
-    '<div class="lm-card-kicker">✨ AI Presentation &amp; Study Pack Builder</div>' +
-    '<h3 style="margin:2px 0 6px">Make a PowerPoint, Slide Deck, Summary &amp; Flashcards on Any Topic</h3>' +
-    '<p class="lm-subtle lm-small lm-mb-md">Pick a class and enter a topic. Little Monsters will create a 6–10 slide interactive deck, a downloadable <code>.pptx</code> PowerPoint, Markdown summary notes, and flashcards.</p>' +
-    '<div class="lm-grid is-tight" style="--min:200px">' +
-      '<div class="lm-field"><label for="presClass">Class</label><select id="presClass" class="lm-input"><option value="">Loading classes…</option></select></div>' +
-      '<div class="lm-field"><label for="presTopic">Topic</label><input id="presTopic" type="text" class="lm-input" placeholder="e.g. Solving Linear Equations, Photosynthesis, The Bill of Rights…"></div>' +
-    '</div>' +
-    '<button type="button" class="lm-btn lm-btn-primary" id="presGenBtn" onclick="createTopicPresentation(event)">✨ Generate Slide Deck, PowerPoint (.pptx), Summary &amp; Flashcards</button>' +
-    '<div id="presGenStatus" class="lm-status" aria-live="polite"></div>' +
-  '</div>';
   var head = '<div class="lm-section-head"><h2 class="lm-display">Your presentations</h2><span class="lm-subtle lm-small" id="deckCount"></span></div>';
-  box.innerHTML = genCard + head + '<div class="lm-loading">Loading your presentations…</div>';
+  box.innerHTML = generatorCard() + head + '<div class="pres-list"><div class="lm-loading">Loading your presentations…</div></div>';
   stage.insertBefore(box, document.getElementById('navHint'));
-  fetch('/api/education/classes').then(function (r) { return r.ok ? r.json() : { classes: [] }; }).then(function (cd) {
-    var sel = document.getElementById('presClass');
-    if (!sel) return;
-    var classes = cd.classes || [];
-    sel.innerHTML = classes.length
-      ? classes.map(function (c) { return '<option value="' + esc(c.class_id) + '">' + esc(c.name) + (c.subject ? ' (' + esc(c.subject) + ')' : '') + '</option>'; }).join('')
-      : '<option value="">No classes available</option>';
-  }).catch(function () {});
+  document.getElementById('presClassRetry').addEventListener('click', function (e) { e.stopPropagation(); loadClassOptions(); });
+  var classesReady = loadClassOptions();
   try {
     var resp = await fetch('/api/education/lectures/recent?limit=30');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -307,25 +331,28 @@ async function showPicker() {
     if (!withSlides.length) {
       var who = null;
       try { who = await window.LM.me(); } catch (_e) { who = null; }
-      box.innerHTML = genCard + head + emptyPicker(who);
+      setPresentationList(box, emptyPicker(who));
       var cta = document.getElementById('emptyCta');
       if (cta) cta.addEventListener('click', function (e) { e.stopPropagation(); window.LM.navigate(cta.getAttribute('data-view')); });
-      return;
+      return classesReady;
     }
-    var listEl = box.querySelector('.lm-loading');
-    var listHtml = '<ul class="lm-list">' + withSlides.map(function (l) {
-      var date = String(l.lecture_date || '').slice(0, 10);
-      var href = '?lectureId=' + encodeURIComponent(l.lecture_id) + (l.class_id ? '&classId=' + encodeURIComponent(l.class_id) : '');
-      return '<li><a class="lm-item is-clickable" href="' + href + '">' +
-        '<span class="lm-tile-icon" aria-hidden="true">▶</span>' +
-        '<span class="lm-item-body"><strong>' + esc(l.class_name || 'Lecture') + '</strong>' + (date ? '<small>' + esc(date) + '</small>' : '') + '</span>' +
-        '</a></li>';
-    }).join('') + '</ul>';
-    if (listEl) listEl.outerHTML = listHtml;
+    setPresentationList(box, '<ul class="lm-list">' + withSlides.map(lectureRow).join('') + '</ul>');
     document.getElementById('deckCount').textContent = withSlides.length + (withSlides.length === 1 ? ' presentation' : ' presentations');
   } catch (e) {
-    box.innerHTML = genCard + head + '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>Your presentations could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>';
+    console.error('[little-monsters presentations] lecture list could not be loaded', e);
+    setPresentationList(box, '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>Your presentations could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>');
   }
+  return classesReady;
+}
+
+/** One saved deck in the list. */
+function lectureRow(l) {
+  var date = String(l.lecture_date || '').slice(0, 10);
+  var href = '?lectureId=' + encodeURIComponent(l.lecture_id) + (l.class_id ? '&classId=' + encodeURIComponent(l.class_id) : '');
+  return '<li><a class="lm-item is-clickable" href="' + href + '">' +
+    '<span class="lm-tile-icon" aria-hidden="true">▶</span>' +
+    '<span class="lm-item-body"><strong>' + esc(l.class_name || 'Lecture') + '</strong>' + (date ? '<small>' + esc(date) + '</small>' : '') + '</span>' +
+    '</a></li>';
 }
 
 /** Load the deck: freshly-generated (sessionStorage handoff from the recorder)

@@ -14,6 +14,8 @@
  *
  * 5 | maintainer@emeraldcoastsystemsgroup.com | A create whose first build is refused answers 422 with model null and leaves no row and no files. On the native kernel (a scoped-document pool and an intent port) the routes reach the engine only through engine.exchange, carried here by a kernel double that speaks the real wire to the fake bridge, and the revision records the engine's reported build.
  *
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: verify cad-viewport-tools.js serves as a JS asset, OBJ / MTL / 3MF / GLB / USDZ artifacts stream per revision, and unconfigured printer handoff refuses honestly with printing:false.
+ *
  * FRAMEWORK-COUPLED: needs a core checkout for express/multer. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/routes.core.test.js
  */
@@ -208,8 +210,9 @@ const json = (method, body) => ({ method, headers: { 'Content-Type': 'applicatio
 let modelId;
 test('surface, assets and capabilities serve; the caller gate answers 401', async () => {
   const page = await call('/app'); assert.equal(page.status, 200); assert.ok(page.text.includes('<title>CAD Studio</title>'));
-  for (const f of ['cad-studio.js', 'cad-studio-gl.js']) { const js = await call('/assets/' + f); assert.equal(js.status, 200); assert.match(js.headers.get('content-type'), /javascript/); }
+  for (const f of ['cad-studio.js', 'cad-studio-gl.js', 'cad-viewport-tools.js']) { const js = await call('/assets/' + f); assert.equal(js.status, 200); assert.match(js.headers.get('content-type'), /javascript/); }
   const caps = await call('/capabilities');
+  assert.ok(caps.body.exports.formats.includes('3mf') && caps.body.exports.formats.includes('obj'));
   assert.equal(caps.body.contract.features.hole.required.diameter, 'hole diameter, mm');
   assert.match(caps.body.engine.installHint, /docker exec oshal-local-api sh .*cad-studio\/engine\/install-engine\.sh/);
   assert.equal(caps.body.engine.expectedBuildHash, HASH);
@@ -274,6 +277,9 @@ test('owner scoping: a second subject sees nothing; artifacts download by key an
   const old = await call(`/models/${modelId}/artifacts/step?revision=1&download`);
   assert.ok(old.text.includes('volume 72000')); assert.match(old.headers.get('content-disposition'), /bracket-r1\.step/);
   assert.equal((await call(`/models/${modelId}/artifacts/svg-iso`)).status, 200);
+  for (const k of ['obj', 'mtl', '3mf', 'glb', 'usdz']) assert.equal((await call(`/models/${modelId}/artifacts/${k}`)).status, 200, `serves ${k}`);
+  const noPrinter = await call(`/models/${modelId}/print`, json('POST', { confirm: true, printer: { kind: 'octoprint', baseUrl: '' } }));
+  assert.equal(noPrinter.status, 400); assert.equal(noPrinter.body.error, 'printer_not_configured'); assert.equal(noPrinter.body.printing, false);
   assert.equal((await call(`/models/${modelId}/artifacts/gcode`)).status, 404);
   assert.equal((await call(`/models/${modelId}/artifacts/step?revision=999`)).status, 404);
 });

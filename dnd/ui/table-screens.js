@@ -32,6 +32,9 @@
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Intro cards, villain chips and hero cards ask only for bundled art (tokenArtUrl / mapArtUrl); an id without it keeps the plain frame.
  * 2026-10-11 12:00:00 | maintainer@emeraldcoastsystemsgroup.com     | My Games gives the host a Delete Campaign button (with a confirm screen) beside Resume/Playback; players keep Leave Campaign.
  * 2026-10-12 05:30:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: the TV lobby names the campaign the screen joined (showTvLobby in table-dock.js); it named only the scene, so a TV on 'write check' read 'Ambush on the Coast Road' and looked like a game missing from My Games.
+ * 2026-11-06 08:10:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): a My Games row has one action, Resume (or Playback); Delete Campaign and Leave Campaign moved into the row's ⋯ menu and still confirm in the page. No campaign hides End Turn and Move. The row's ⋯ menu also has ⟲ Recap (dnd-review MERGE): it opens the campaign and the DM & Story drawer's recap.
+ * 2026-11-06 09:30:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-help, dnd-party, dnd-tv): How to play is four short sections in upright type (Your turn, Combat, Companions, Playing with friends) with a ✕ and a footer that stays in view, and the copy names DM & Story and TV Mode as they are now. My Characters cards have one action, Use in new game, with Delete in their ⋯ menu; the manual import saves straight away, so its button says Save character (or Add character for a party) instead of Create Import Preview. A TV with more than one running campaign on the account asks once which one to show. A hero card without bundled art shows the hero's initials.
+ * 2026-11-07 01:12:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-party): My Characters card ⋯ menu includes View sheet to inspect stats, spells, actions and inventory read-only before starting a game.
  */
 
 'use strict';
@@ -120,10 +123,10 @@ async function playCatchupRecap(onDone, speakNow = true) {
 
 // ── Screens ──────────────────────────────────────────────────────────────────
 function overlay(html, screen) {
-  $('overlayCard').classList.remove('sheet-wide', 'character-full', 'playback-wide'); $('overlayCard').dataset.screen = screen || '';
+  $('overlayCard').classList.remove('sheet-wide', 'character-full', 'playback-wide', 'help-card'); $('overlayCard').dataset.screen = screen || '';
   $('overlayCard').innerHTML = html; $('overlay').classList.remove('hidden');
 }
-function closeOverlay() { $('overlay').classList.add('hidden'); $('overlayCard').classList.remove('sheet-wide', 'character-full', 'playback-wide'); $('overlayCard').dataset.screen = ''; }
+function closeOverlay() { $('overlay').classList.add('hidden'); $('overlayCard').classList.remove('sheet-wide', 'character-full', 'playback-wide', 'help-card'); $('overlayCard').dataset.screen = ''; }
 function setStoryOpen(open) {
   if (TV) return;
   const next = !!open, story = $('story'), playfield = $('playfield');
@@ -138,7 +141,9 @@ function openStory() { setStoryOpen(true); }
 let partyDraft = [], importedHeroes = [];
 function heroCard(h, extra) {
   const inv = inventoryOf(h), actionNames = (h.actions || []).map((a) => esc(a.name)).join(' · ');
-  return `<div class="herocard"><span class="portrait"${artStyle(tokenArtUrl(h.id))}></span>
+  // A hero with no bundled portrait (an imported one) shows its initials instead of an empty circle.
+  const art = tokenArtUrl(h.id), initials = String(h.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+  return `<div class="herocard">${art ? `<span class="portrait"${artStyle(art)}></span>` : `<span class="portrait initials" aria-hidden="true">${esc(initials)}</span>`}
     <div class="meta"><div class="hn" style="color:${(h.token && h.token.color) || 'var(--amber)'}">${esc(h.name)}</div>
     <div class="hr">${esc(h.race)} ${esc(h.class)} · ❤${h.maxHp} 🛡${h.ac}</div>
     <div class="ha">${actionNames}${inv.items.length ? ` · 🎒 ${inv.items.length}` : ''}</div>${extra || ''}</div></div>`;
@@ -169,6 +174,7 @@ function clearSessionSurface() {
   $('initiative').innerHTML = '<span class="round">My Games<small>No campaign is running on this screen.</small></span>';
   $('turnflag').className = 'hidden'; $('who').innerHTML = '<div class="name">Choose a campaign</div>';
   $('actions').innerHTML = ''; ['endTurn','stayBtn','moveBtn'].forEach((id) => { if ($(id)) $(id).disabled = true; });
+  $('turnctl').classList.add('idle');
   $('log').innerHTML = ''; renderChoices([]); renderGameplayRail(); setStoryOpen(false);
 }
 async function quitToGameMenu() {
@@ -200,19 +206,30 @@ async function showGameMenu() {
   const rows = campaigns.length ? campaigns.map((row) => {
     const role = row.is_owner ? 'Host' : row.my_character ? `Playing ${row.my_character}` : 'Joined';
     const primary = campaignPlaybackOnly(row) ? `<button data-playback="${esc(row.campaign_id)}">Playback</button>` : `<button data-resume="${esc(row.campaign_id)}">Resume</button>`;
-    return `<div class="campaign-row"><div><h2>${esc(row.name || 'Untitled campaign')}<span class="campaign-role">${esc(role)}</span></h2><p>${esc(campaignPlace(row))}${row.player_count ? ` · ${Number(row.player_count)} player${Number(row.player_count) === 1 ? '' : 's'}` : ''}</p></div><div class="campaign-actions">${primary}${row.is_owner ? `<button class="leave" data-delete-campaign="${esc(row.campaign_id)}" data-name="${esc(row.name || 'this campaign')}">Delete Campaign</button>` : `<button class="leave" data-leave="${esc(row.campaign_id)}" data-name="${esc(row.name || 'this campaign')}">Leave Campaign</button>`}</div></div>`;
+    // Resume (or Playback) is the row's one action; the permanent one waits in the row's ⋯ menu, then confirms in the page.
+    const name = esc(row.name || 'this campaign');
+    const permanent = row.is_owner ? `<button class="leave" data-delete-campaign="${esc(row.campaign_id)}" data-name="${name}">Delete Campaign</button>` : `<button class="leave" data-leave="${esc(row.campaign_id)}" data-name="${name}">Leave Campaign</button>`;
+    return `<div class="campaign-row"><div><h2>${esc(row.name || 'Untitled campaign')}<span class="campaign-role">${esc(role)}</span></h2><p>${esc(campaignPlace(row))}${row.player_count ? ` · ${Number(row.player_count)} player${Number(row.player_count) === 1 ? '' : 's'}` : ''}</p></div><div class="campaign-actions">${primary}<details class="row-more"><summary aria-label="More for ${name}" title="More">⋯</summary><div class="row-more-menu" role="menu">${campaignPlaybackOnly(row) ? '' : `<button data-recap="${esc(row.campaign_id)}">⟲ Recap</button>`}${permanent}</div></details></div></div>`;
   }).join('') : '<div class="library-empty">No campaigns yet. Start one, or join a friend with their six-character code.</div>';
   overlay(`<h1>My Games</h1><p style="margin-top:0">Choose what to play. Signing in never drops you into a campaign automatically.</p>
     <div class="campaign-list">${rows}</div>
     <div class="library-actions"><button class="big" id="menuNew">＋ Start New Campaign</button><button class="big ghost" id="menuJoin">Join with Code</button><button class="big ghost" id="menuCharacters">My Characters (${savedCharacters.length})</button><button class="big ghost" id="menuHelp">How to Play</button></div>`, 'game-library');
   document.querySelectorAll('[data-resume]').forEach((button) => { button.onclick = async () => { button.disabled = true; button.textContent = 'Opening…'; if (!(await enterCampaign(button.dataset.resume))) { button.disabled = false; button.textContent = 'Resume'; banner('That campaign could not be opened.'); } }; });
   document.querySelectorAll('[data-playback]').forEach((button) => { button.onclick = () => showCampaignPlayback(button.dataset.playback, { back: showGameMenu, backLabel: 'Back to My Games' }); });
+  document.querySelectorAll('[data-recap]').forEach((button) => { button.onclick = () => void recapCampaign(button); });
   document.querySelectorAll('[data-leave]').forEach((button) => { button.onclick = () => confirmLeaveCampaign(button.dataset.leave, button.dataset.name); });
   document.querySelectorAll('[data-delete-campaign]').forEach((button) => { button.onclick = () => confirmDeleteCampaign(button.dataset.deleteCampaign, button.dataset.name); });
   $('menuNew').onclick = () => { partyDraft = []; importedHeroes = []; showAdventureLibrary(); };
   $('menuJoin').onclick = () => showJoin(''); $('menuCharacters').onclick = showCharacterLibrary; $('menuHelp').onclick = showHelp;
 }
 function showTitle() { void showGameMenu(); }
+/** @description My Games' Recap: open the campaign, then the DM & Story drawer's ⟲ recap (unless its own catch-up recap is already playing). */
+async function recapCampaign(button) {
+  button.disabled = true; button.textContent = 'Opening…';
+  if (!(await enterCampaign(button.dataset.recap))) { button.disabled = false; button.textContent = '⟲ Recap'; banner('That campaign could not be opened.'); return; }
+  setStoryOpen(true);
+  if (!document.querySelector('.intro')) void dmRecap(true, true);
+}
 function confirmDeleteCampaign(campaignId, name) {
   overlay(`<h1>Delete ${esc(name)}?</h1><p>This removes the campaign for everyone at the table: its story, saved checkpoints, heroes seated in it and the board. It cannot be undone. Characters in My Characters are kept.</p><button class="big" id="deleteCampaignConfirm">Delete Campaign</button> <button class="big ghost" id="deleteCampaignCancel">Cancel</button>`);
   $('deleteCampaignCancel').onclick = () => void showGameMenu();
@@ -234,13 +251,15 @@ function confirmLeaveCampaign(campaignId, name) {
   };
 }
 function showCharacterLibrary() {
-  const cards = savedCharacters.length ? savedCharacters.map((row) => heroCard(row.sheet, `<div class="seat-tag mine">Saved character</div><div class="campaign-actions" style="margin-top:7px"><button data-use-character="${esc(row.character_id)}">Use in New Game</button><button class="leave" data-delete-character="${esc(row.character_id)}">Delete</button></div>`)).join('') : '<div class="library-empty">No saved characters yet. Import a D&amp;D Beyond PDF/JSON or enter one by hand.</div>';
+  // One action per card, Use in new game; View sheet and Delete wait in the card's ⋯ menu.
+  const cards = savedCharacters.length ? savedCharacters.map((row) => heroCard(row.sheet, `<div class="seat-tag mine">Saved character</div><div class="campaign-actions" style="margin-top:7px"><button data-use-character="${esc(row.character_id)}">Use in new game</button><details class="row-more"><summary aria-label="More for ${esc(row.sheet.name)}" title="More">⋯</summary><div class="row-more-menu" role="menu"><button data-view-character="${esc(row.character_id)}">View sheet</button><button class="leave" data-delete-character="${esc(row.character_id)}">Delete</button></div></details></div>`)).join('') : '<div class="library-empty">No saved characters yet. Import a D&amp;D Beyond PDF/JSON or enter one by hand.</div>';
   overlay(`<h1>My Characters</h1><p>These belong to your account, not to one campaign. Starting a game copies a character into that campaign, so the saved original remains here.</p><div class="herogrid">${cards}</div><div class="library-actions"><button class="big" id="libraryImport">＋ Import Character</button><button class="big ghost" id="libraryBack">Back to My Games</button></div>`, 'character-library');
   document.querySelectorAll('[data-use-character]').forEach((button) => { button.onclick = () => {
     const row = savedCharacters.find((item) => item.character_id === button.dataset.useCharacter); if (!row) return;
     const defaults = (content.defaultParty || content.heroes.slice(0, 4).map((hero) => hero.id)).filter((id) => id !== row.sheet.id).slice(0, 3);
     partyDraft = defaults.concat(row.sheet.id); importedHeroes = []; showAdventureLibrary();
   }; });
+  document.querySelectorAll('[data-view-character]').forEach((button) => { button.onclick = () => { const row = savedCharacters.find((item) => item.character_id === button.dataset.viewCharacter); if (row) showLibraryCharacterSheet(row, showCharacterLibrary); }; });
   document.querySelectorAll('[data-delete-character]').forEach((button) => { button.onclick = () => confirmDeleteCharacter(button.dataset.deleteCharacter); });
   $('libraryImport').onclick = () => showImportCharacter('library'); $('libraryBack').onclick = () => void showGameMenu();
 }
@@ -336,7 +355,7 @@ function showImportCharacter(destination) {
     <div class="import-drop"><input id="importFile" type="file" accept=".pdf,.json,application/pdf,application/json"><button class="big" id="importUpload">Read Character File</button><small>PDF or JSON · 6 MB maximum · processed on your own OSHAL server</small></div>
     <div class="import-divider"><span>or enter the essentials</span></div>
     <div class="quick-character"><label class="wide">Character name<input id="imp-name" maxlength="60" placeholder="Aria Nightwind"></label><label>Race<input id="imp-race" maxlength="40" placeholder="Elf"></label><label>Class<input id="imp-class" maxlength="50" placeholder="Ranger"></label><label>Level<input id="imp-level" type="number" min="1" max="20" value="1"></label><label>Armor class<input id="imp-ac" type="number" min="1" max="30" value="14"></label><label>Max HP<input id="imp-hp" type="number" min="1" max="999" value="10"></label><label>Speed<input id="imp-speed" type="number" min="5" max="120" step="5" value="30"></label><label class="wide">Starter weapon<select id="imp-weapon"><option value="longsword">Longsword</option><option value="rapier">Rapier</option><option value="mace">Mace</option><option value="shortbow">Shortbow</option><option value="dagger">Dagger</option></select></label><div class="ability-inputs">${abilityInputs}</div></div>
-    <p id="importErr" class="import-error"></p><button class="big" id="importManual">Create Import Preview</button> <button class="big ghost" id="importBack">Back</button>`, 'character-import');
+    <p id="importErr" class="import-error"></p><footer class="sheet-foot"><button class="big" id="importManual">${forLibrary ? 'Save character' : 'Add character'}</button> <button class="big ghost" id="importBack">Back</button></footer>`, 'character-import');
   $('importBack').onclick = forLobby ? showLobby : forLibrary ? showCharacterLibrary : showPartyBuilder;
   $('importUpload').onclick = async () => {
     const file = $('importFile').files && $('importFile').files[0];
@@ -521,17 +540,24 @@ function showVoiceStatus() {
   $('vcDone').onclick = () => closeOverlay();
 }
 function showHelp() {
-  overlay(`<h1>How to play</h1><p class="read">
-    • The green turn row always names the active hero and shows <b>movement left</b>, <b>action status</b>, and who must end the turn.<br>
-    • On your turn, movement and one action unlock together. Every outlined <b>blue tile is a legal destination</b>; its label is the distance cost. You may move, act, then spend remaining movement—or act first and move afterward.<br>
-    • <b>End Turn</b> passes play; monsters and clearly labeled <b>AI Companions</b> act on the host's device.<br>
-    • Enemy attacks telegraph their target first. D&amp;D defense normally compares the attack to <b>Armor Class (AC)</b>, or asks for a listed <b>saving throw</b>; there is not a separate defense roll for every hit.<br>
-    • Tap <b>🎒</b>, a hero on the board, or a portrait in initiative to see inventory, coins, abilities, features, and spells.<br>
-    • <b>🧙 Party</b> shows the join code and character sheets; claims lock when the quest begins.<br>
-    • <b>📜 Story</b> = the log, <b>⟲ recap</b> = "Previously, on…", and you can <b>talk to the DM</b> in your own words.<br>
-    • Friends sign in on their phones and enter the <b>join code</b>. Each person controls only their claimed hero; everyone may inspect AI Companion sheets, but the host automation alone moves and casts for them. New games can import a D&amp;D Beyond PDF. Open with <code>&amp;mode=tv</code> to cast the board to a TV.</p>
-    <button class="big" id="ovClose">Got it</button> <button class="big ghost" id="ovFresh">✦ Start a Fresh Campaign</button>`);
-  $('ovClose').onclick = () => { closeOverlay(); if (!campaign) showTitle(); };
+  // Short sections in upright type; the header's ✕ and the footer's Got it both close it, and the footer stays in view.
+  overlay(`<header class="sheet-bar"><h1>How to play</h1><button type="button" class="sheet-x" id="ovX" aria-label="Close How to play">✕</button></header>
+    <div class="help-body">
+    <h2>Your turn</h2><ul><li>The green turn row names the active hero and shows <b>movement left</b>, <b>action status</b> and who ends the turn.</li>
+    <li>Movement and one action unlock together. Every outlined <b>blue tile</b> is a legal destination; its label is the distance cost. Move, act, then spend what movement is left, or act first and move after.</li>
+    <li><b>End Turn</b> passes play.</li></ul>
+    <h2>Combat</h2><ul><li>Enemy attacks show their target first. An attack is compared with <b>Armor Class (AC)</b>, or asks for a listed <b>saving throw</b>; there is no separate defense roll for every hit.</li>
+    <li>Tap <b>🎒</b>, a hero on the board or a portrait in the initiative row to see inventory, coins, abilities, features and spells.</li>
+    <li><b>💬 DM &amp; Story</b> is the story so far and the Dungeon Master: <b>⟲ recap</b> is "Previously, on…", and you can talk to the DM in your own words.</li></ul>
+    <h2>Companions</h2><ul><li>Monsters and clearly labeled <b>AI Companions</b> act on the host's device. Anyone may open an AI Companion's sheet; only the host's table moves and casts for them.</li></ul>
+    <h2>Playing with friends</h2><ul><li><b>🧙 Party</b> shows the join code and the character sheets; claims lock when the quest begins.</li>
+    <li>Friends sign in on their phones and enter the <b>join code</b>. Each person controls only their claimed hero.</li>
+    <li>New games can import a D&amp;D Beyond PDF. To show the board on a TV, open Dungeon Master's <b>TV Mode</b> there.</li></ul>
+    </div>
+    <footer class="sheet-foot"><button class="big" id="ovClose">Got it</button><button class="big ghost" id="ovFresh">✦ Start a fresh campaign</button></footer>`, 'help');
+  $('overlayCard').classList.add('help-card');
+  const done = () => { closeOverlay(); if (!campaign) showTitle(); };
+  $('ovClose').onclick = done; $('ovX').onclick = done;
   $('ovFresh').onclick = () => { closeOverlay(); recapDone = true; partyDraft = []; importedHeroes = []; showAdventureLibrary(); };
 }
 
@@ -609,9 +635,21 @@ async function enterCampaign(campaignId) {
   } else if (needsCatchup) { recapDone = true; void playCatchupRecap(); }
   return true;
 }
+/** @description With more than one running campaign on the account, the TV asks which one to show (once). */
+async function chooseTvCampaign() {
+  const r = await api('/campaigns').catch(() => null);
+  const running = ((r && r.campaigns) || []).filter((row) => !campaignPlaybackOnly(row));
+  if (running.length < 2) return null;
+  return new Promise((resolve) => {
+    overlay(`<h1>Which game is on this TV?</h1><div class="campaign-list">${running.map((row) => `<button class="big" data-tv-campaign="${esc(row.campaign_id)}">${esc(row.name || 'Untitled campaign')}</button>`).join('')}</div>`, 'tv-choose');
+    document.querySelectorAll('[data-tv-campaign]').forEach((button) => { button.onclick = () => { closeOverlay(); resolve(button.dataset.tvCampaign); }; });
+  });
+}
 async function bootTv() {
   document.body.classList.add('tv');
-  if (!(await enterCampaign(null))) {
+  wireTvBar();
+  const chosen = await chooseTvCampaign();
+  if (!(await enterCampaign(chosen))) {
     overlay(`<h1>Dungeon Master</h1><p class="read">Waiting for a game to start…<br>Start one on any phone — this screen will join by itself.</p><p><span class="spin"></span></p>`);
     const wait = setInterval(async () => { if (await enterCampaign(null)) { clearInterval(wait); closeOverlay(); } }, 5000);
   }

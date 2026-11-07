@@ -16,8 +16,54 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register lm-book-chapters: the chapter finder and the book routes' read rule.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register lm-read-aloud: pages speak through the neural voice (lm-voice.js) with the browser voice only as fallback.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register lm-lesson-videos, lm-lesson-studio and lm-prep-media-route: the monster-taught lesson videos decoded, the lesson scripts on the real stage, and the streaming route with its installer.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Register lm-ux-batch7 for My Files Saved view and Voice Settings student and teacher split.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Register lm-curriculum-videos-and-rp for the 168-topic curriculum video catalog, lasting media streaming, and RP-LM-01 through RP-LM-05 reference features.
 version: 1
 cases:
+  - id: lm-curriculum-videos-and-rp
+    name: Curriculum videos and reference product features
+    purpose: Verify the 168-topic curriculum video catalog, lasting media streaming, and RP-LM-01 through RP-LM-05 owner-scoped backend and UI contracts.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-curriculum-videos-and-rp.test.cjs
+    expected:
+      - All 168 curriculum topics across 8 courses match 338 digest-verified video, poster and caption entries served through lasting storage.
+      - Guardian links, saved tutoring threads, flashcard study preferences and named timelines enforce per-learner isolation and clean native SQL.
+      - Citation lookup resolves ISBN, DOI and public HTTPS metadata over keyless server egress and rejects private network addresses.
+    prerequisites:
+      - runner:node-test
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Temporary media fixture directories are removed after the streaming assertions finish.
+    limits:
+      timeoutMs: 30000
+    installation: never
+  - id: lm-ux-batch7
+    name: My Files Saved view and Voice Settings layout
+    purpose: Verify the lm-storage merge into My Files Saved and the student-safe save-on-change Voice Settings screen.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lm-ux-batch7.test.cjs
+    expected:
+      - The lm-storage tile leaves ui.static while /api/education/storage opens My Files on the Saved view.
+      - Students see no server voice engines or operator CLI guidance and voice preferences save on change without a Save button.
+      - Teachers see voice engine status without an empty Text-to-speech heading when no TTS provider is listed.
+    prerequisites:
+      - runner:node-test
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never
   - id: lm-read-aloud
     name: Read-aloud uses the neural voice
     purpose: Pin that every page that speaks goes through lmSpeak (the server's neural voice) and reaches the browser voice only as its fallback.

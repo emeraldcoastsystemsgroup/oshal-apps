@@ -7,6 +7,7 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   2 | maintainer@emeraldcoastsystemsgroup.com | Show retained per-source attempts, complete pulls, failures, HTTP 304 checks and posting delta counts; unavailable history stays explicit.
   3 | maintainer@emeraldcoastsystemsgroup.com | Show the latest nightly source review above the table: what was repaired, what needs a person, what the pull did and what is still broken.
+  4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): a 450px nightly review and pull telemetry sat between the search box and the table, so a matching row landed under the orb. Two views in this page: Companies (search, chips, then the table at once, with Company, Jobs, Platform and Latest pull sortable, your pending source changes under it, and the explanation under Help) and Source health (the nightly source review and the failed/partial line; the page is administrators only already). The in-page Job Board and Cockpit links are gone (the shell has Apps); chips, buttons, the search field and the attention checkbox are 44px. Guard: tests/career-companies-views.test.mjs.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="companies-admin">
@@ -89,6 +90,20 @@
   }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/api/career-hunter/static/career-kit.css" />
+<style>
+/* UX audit 2026-11-06: two views, 44px controls, sortable columns. */
+html[data-companies-view="companies"] [data-view-of="health"], html[data-companies-view="health"] [data-view-of="companies"] { display: none !important; }
+#companiesViews { margin: 0; padding: 0; }
+.flt, .pg, #companySearch { min-height: 44px; }
+.chk { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; }
+#attn { width: 22px; height: 22px; }
+.urlcell button, .review button { min-height: 44px; }
+th .sorter { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; font: inherit; }
+th[aria-sort="ascending"]::after { content: " ▲"; font-size: 10px; }
+th[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
+details.help > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+</style>
 <style id="career-theme-inline">
   :root[data-career-surface] {
     --career-brand-accent: var(--accent-primary);
@@ -132,14 +147,16 @@
     <div class="head-row">
       <h1>Companies <span class="sub">· admin</span></h1>
       <nav class="top-nav" aria-label="Career navigation">
-        <a href="/api/career-hunter/board-native">← Job Board</a>
-        <a href="/cockpit/">Cockpit</a>
+        <div class="ck-seg" role="tablist" aria-label="Companies views" id="companiesViews">
+          <button type="button" role="tab" data-view="companies" aria-selected="true">Companies</button>
+          <button type="button" role="tab" data-view="health" aria-selected="false">Source health</button>
+        </div>
       </nav>
     </div>
-    <div class="sub" id="companiesIntro">Every company and its detected job board. Paste the real careers / jobs URL and hit
-      <b>Resolve</b> to re-detect the ATS and scrape now. Writes the shared corpus for all users.</div>
+    <details class="help" id="companiesHelp"><summary>Help</summary><div class="sub" id="companiesIntro">Every company and its detected job board. Paste the real careers / jobs URL and hit
+      <b>Resolve</b> to re-detect the ATS and scrape now. Writes the shared corpus for all users.</div></details>
   </header>
-  <div class="bar">
+  <div class="bar" data-view-of="companies">
     <input type="search" id="companySearch" placeholder="Search companies by name, token, or ATS…" aria-label="Search companies" autocomplete="off" />
     <input type="search" id="q" placeholder="search company…" autocomplete="off" hidden aria-hidden="true" />
     <div class="filters" role="group" aria-label="Filter companies by ATS status">
@@ -157,16 +174,18 @@
     </div>
   </div>
   <div class="wrap">
+    <div data-view-of="health">
     <p class="sub" id="healthNote" role="status">Checking source history…</p>
     <p class="sub" id="healthSummary" role="status"></p>
-    <section class="review" id="sourceChanges" aria-labelledby="sourceChangesTitle" hidden></section>
     <section class="review" id="sourceReview" aria-labelledby="sourceReviewTitle" hidden></section>
-    <table>
-      <thead><tr><th>Company</th><th style="text-align:right">Jobs</th><th>Platform</th><th>Latest pull</th>
+    </div>
+    <table data-view-of="companies">
+      <thead><tr><th aria-sort="none"><button type="button" class="sorter" data-sort="name">Company</button></th><th style="text-align:right" aria-sort="none"><button type="button" class="sorter" data-sort="jobs">Jobs</button></th><th aria-sort="none"><button type="button" class="sorter" data-sort="platform">Platform</button></th><th aria-sort="none"><button type="button" class="sorter" data-sort="pull">Latest pull</button></th>
         <th id="urlHeading">Careers / jobs URL — paste the real search URL &amp; Resolve</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
-    <div class="empty" id="empty" hidden></div>
+    <div class="empty" id="empty" data-view-of="companies" hidden></div>
+    <section class="review" id="sourceChanges" data-view-of="companies" aria-labelledby="sourceChangesTitle" hidden></section>
   </div>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -367,6 +386,19 @@ function setStatusFilter(next) {
   render();
 }
 
+let sortKey = '', sortDir = 1;
+const SORTS = {
+  name: c => String(c.name || '').toLowerCase(),
+  jobs: c => Number(c.active_jobs || 0),
+  platform: c => String(c.ats_type || '~').toLowerCase(),
+  pull: c => String(c.pull_health?.last_attempt_at || ''),
+};
+function setView(view) {
+  const v = view === 'health' ? 'health' : 'companies';
+  document.documentElement.dataset.companiesView = v;
+  document.querySelectorAll('#companiesViews [data-view]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+  try { const u = new URL(location.href); if (v === 'health') u.searchParams.set('view', 'health'); else u.searchParams.delete('view'); history.replaceState(null, '', u.pathname + u.search); } catch { /* address is best effort */ }
+}
 function render() {
   updateCounts();
   const q = (($('#companySearch').value || $('#q').value) || '').trim().toLowerCase();
@@ -377,6 +409,7 @@ function render() {
     if (statusFilter === 'needs' || $('#attn').checked) return needsAttention(c);
     return true;
   });
+  if (sortKey) rows.sort((a, b) => { const x = SORTS[sortKey](a), y = SORTS[sortKey](b); return (x < y ? -1 : x > y ? 1 : 0) * sortDir; });
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   if (page > totalPages) page = totalPages;
   if (page < 1) page = 1;
@@ -480,6 +513,13 @@ document.querySelectorAll('button.flt').forEach(b => b.addEventListener('click',
 $('#prevPage').addEventListener('click', () => { if (page > 1) { page--; render(); } });
 $('#nextPage').addEventListener('click', () => { page++; render(); });
 $('#healthReload').addEventListener('click', load);
+document.querySelectorAll('#companiesViews [data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+document.querySelectorAll('th .sorter').forEach(b => b.addEventListener('click', () => {
+  const key = b.dataset.sort; sortDir = sortKey === key ? -sortDir : (key === 'jobs' ? -1 : 1); sortKey = key;
+  document.querySelectorAll('thead th').forEach(th => th.setAttribute('aria-sort', th.contains(b) ? (sortDir > 0 ? 'ascending' : 'descending') : (th.querySelector('.sorter') ? 'none' : th.getAttribute('aria-sort') || 'none')));
+  page = 1; render();
+}));
+setView(new URLSearchParams(location.search).get('view'));
 load();
 </script>
 </body>

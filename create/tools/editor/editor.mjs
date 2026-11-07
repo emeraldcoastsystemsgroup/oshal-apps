@@ -13,6 +13,7 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind the automatic save-before-reading and refresh-on-return document handoff for Concierge and Jarvis.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Bind the Generate an image panel.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | Mount the shared editor shell while preserving existing domain controls and AI handoff.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): a new text, rectangle or ellipse layer lands 16 px down and right of the layer above it instead of on top of it at (180, 160); canvas size and background are edited in the shared Format inspector when nothing is selected (Canvas settings is gone from the tool rail); the app row's menus (the document menu and Export close after a choice, on Escape and on a press outside them; Export… opens Export, a sheet on a phone; the phone's one primary Add opens the Insert tools as a sheet while a desktop keeps them open as the tool rail) are bound here, without a new served module.
  */
 import { $, state, edit, notify, subscribe, handle, api, error, openDocument } from './editor-state.mjs';
 import { render, fitCanvas, paint } from './editor-view.mjs';
@@ -31,9 +32,24 @@ import { resolveSelection, selectionFromLayer } from './region-select.mjs';
 import { bindRegionEditPanel, loadRegionProvider } from './region-edit-panel.mjs';
 import { bindGenerateImagePanel } from './generate-image-panel.mjs';
 
+/**
+ * @description Where a new layer goes: the usual spot on an empty canvas, else 16 px down and right of the layer above,
+ * kept on the canvas, so two new layers never stack exactly on top of each other.
+ * @param {number} w New layer width.
+ * @param {number} h New layer height.
+ * @returns {{x:number,y:number}} Canvas position.
+ */
+export function nextLayerPosition(w, h) {
+  const { width, height, layers } = state.project, last = [...layers].reverse().find(layer => layer.type !== 'adjustment' && layer.visible !== false);
+  if (!last) return { x: width * .15, y: height * .2 };
+  const clamp = (value, size, room) => Math.max(0, Math.min(value, room - size));
+  return { x: clamp(last.x + 16, w, width), y: clamp(last.y + 16, h, height) };
+}
+
 function addLayer(type) {
+  const w = state.project.width * .5, h = state.project.height * .25;
   const layer = { id: crypto.randomUUID(), type, name: type === 'text' ? 'Your title' : type === 'rect' ? 'Rectangle' : 'Ellipse',
-    x: state.project.width * .15, y: state.project.height * .2, w: state.project.width * .5, h: state.project.height * .25,
+    ...nextLayerPosition(w, h), w, h,
     ...(type === 'text' ? { text: 'Your title', fontSize: 64, fontWeight: 700 } : { fill: '#7c3aed' }) };
   edit({ type: 'add', layer }); state.selected = layer.id; notify();
 }
@@ -60,9 +76,6 @@ function bindProperties() {
     if (Object.hasOwn(IMAGE_FILTER_LOOKS, id)) changeSelected({ ...IMAGE_FILTER_LOOKS[id].patch });
   });
   $('projectName').onchange = handle(() => edit({ type: 'project', patch: { name: $('projectName').value || 'Untitled image' } }));
-  $('applyCanvas').onclick = handle(() => edit({ type: 'project', patch: {
-    width: Number($('canvasWidth').value), height: Number($('canvasHeight').value),
-    background: $('transparentBackground').checked ? 'transparent' : $('canvasBackground').value } }));
 }
 
 function reorder(direction) {
@@ -138,9 +151,55 @@ function bindEditing() {
   $('zoom').onchange = resize; new ResizeObserver(resize).observe($('canvasViewport'));
 }
 
+const NARROW = '(max-width:800px)';
+const MENUS = ['documentMenu', 'exportMenu'];
+
+/** Close a desktop popover menu and give focus back to its summary when asked. */
+function close(menu, focus = false) {
+  if (!menu.open) return;
+  menu.open = false;
+  if (focus) menu.querySelector(':scope > summary')?.focus({ preventScroll: true });
+}
+
+/** Desktop menus behave like menus: a choice, Escape or a press elsewhere closes them. On a phone the shell's sheet does this. */
+function bindPopovers() {
+  for (const id of MENUS) {
+    const menu = $(id);
+    menu.addEventListener('click', event => {
+      const item = event.target.closest('button');
+      if (item && !item.disabled && menu.contains(item) && !matchMedia(NARROW).matches) close(menu);
+    });
+    menu.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && menu.open && !matchMedia(NARROW).matches) { event.preventDefault(); event.stopPropagation(); close(menu, true); }
+    });
+  }
+  document.addEventListener('pointerdown', event => {
+    if (matchMedia(NARROW).matches) return;
+    for (const id of MENUS) if (!$(id).contains(event.target)) close($(id));
+  }, true);
+}
+
+/** The Insert tools: a sheet opened by Add on a phone, the always-open tool rail on a desktop. */
+function bindInsert() {
+  const insert = $('insertMenu'), narrow = matchMedia(NARROW);
+  const fit = () => { insert.open = !narrow.matches; };
+  fit(); narrow.addEventListener('change', () => setTimeout(fit, 0));
+  insert.addEventListener('toggle', () => { if (!narrow.matches && !insert.open) insert.open = true; });
+  $('addPrimary').onclick = () => { if (narrow.matches) insert.open = !insert.open; };
+}
+
+/** Bind the app row: document menu, Export and the phone's Add. */
+function bindMenus() {
+  bindPopovers(); bindInsert();
+  $('exportFromMenu').onclick = () => {
+    close($('documentMenu'));
+    // The document menu's sheet closes after this press; Export opens once it has.
+    setTimeout(() => { $('exportMenu').open = true; $('exportMenu').querySelector('button:not(:disabled)')?.focus({ preventScroll: true }); }, 60);
+  };
+}
+
 async function start() {
-  if (matchMedia('(max-width:720px)').matches) $('canvasOptions').open = false;
-  bindEditing(); bindProperties(); bindMasks(); bindAdjustments(); bindProjects(); bindFiles(); bindTemplates(); bindBrand(); bindRegionEditPanel(); bindGenerateImagePanel();
+  bindEditing(); bindMenus(); bindProperties(); bindMasks(); bindAdjustments(); bindProjects(); bindFiles(); bindTemplates(); bindBrand(); bindRegionEditPanel(); bindGenerateImagePanel();
   const brandReady = loadBrand();
   subscribe(render); bindVectors(); bindInteractions(); subscribe(queueAutosave); render();
   void bindEditorFoundation().catch(() => console.warn('[Create] Shared editor layout is unavailable. The existing editor remains available.'));

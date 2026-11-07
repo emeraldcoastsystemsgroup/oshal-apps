@@ -1,3 +1,5 @@
+# CHANGE LOG: 49 | maintainer@emeraldcoastsystemsgroup.com | 1.53.7: compare bound timestamptz parameters in the five-minute account observation upsert predicate so native package SQL never evaluates EXCLUDED outside DO UPDATE SET; orderAuthority and broker execution gates stay untouched.
+# CHANGE LOG: 48 | maintainer@emeraldcoastsystemsgroup.com | 1.53.6: the design standard on the Accounts landing (UX audit decision intelligent-trades--intelligent-trades-home), UI files only and nothing in the orderAuthority closure: the page declares its dashboard contract; the real-capital hero is drawn only once a real account is connected; an account tile is a card, not a button around its buttons; the connected-login roster and Discover accounts open from Settings; sizes and radii on the standard's scales, no wash, no hover lift, 44px controls; on a phone the four sections are one bottom bar.
 # CHANGE LOG: 47 | maintainer@emeraldcoastsystemsgroup.com | 1.53.5: admit validated daily strategies on connected account pages, guarantee a 252-session research window default without changing orderAuthority, default monthly presets to whole shares, and add saved-strategy assignment controls on local paper accounts.
 # CHANGE LOG: 46 | maintainer@emeraldcoastsystemsgroup.com | 1.53.4: refuse delayed Quant paints and further manual passes after navigation; retain account detail render, request and selected-holding guards.
 # CHANGE LOG: 45 | maintainer@emeraldcoastsystemsgroup.com | Teach strategy tools the actual daily presets, separate account classes and passing-validation requirement; allow the bounded historical read to finish.
@@ -142,7 +144,7 @@ description: >-
   Research stocks, track connected brokerage accounts and test strategies in a separate
   paper book, with a decision trail from signals to orders. Trading actions follow the
   connected account's supported controls. Cash equities. No crypto.
-version: 1.53.5
+version: 1.53.7
 lastingStorage: true
 status: active
 

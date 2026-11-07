@@ -50,3 +50,4 @@ row saying a control exists is not proof it works; `pdf-workbench` and the Offic
 
 - **Create 1.15.4:** a concierge's drawing is checked before its card is held.
 - **Create 1.16.0:** a picture from a sentence, on screen and as a tool (`create-generate-image`). The `create` table predates both.
+- **UX audit 2026-11-06 (create--create-editor):** the editor's controls moved (document menu, Insert rail and sheet, one Format inspector, automatic saving); no capability or concierge tool was removed. The `create` table's control references for rows 3, 6, 7, 13 and 37 follow the move.

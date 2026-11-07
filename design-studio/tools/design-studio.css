@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D4, lane @ds-app: the Design Studio sheet. Every colour is a portal theme token with a fallback (the kernel screen standard, docs/ux/screen-standard.md); cards paint with --bg-card so the portal raises them as glass; posters in a grid, one column and a 16px gutter on a phone, 44px controls there. Four screens share one sheet: Products, New product, Product, Settings.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D7, lane @ds-fab: the made set's files as a folded list on the Fabricate poster, the make dialog's per-part states (pending, building, exported, unprintable) in the status tones, the send dialog's confirm row.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | ADR-203 D9, lane @ds-plant: the Mechanism screen's part list, joint rows (a head row and a body of labelled fields), vector inputs in a row; one column on a phone.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.9 (UX audit 2026-11-06): add one-line phase progress stepper above product posters, header overflow menu for Settings and Help, top-left Back link, and bottom-right New product action on Products.
  */
 :root{
   --ds-font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Inter,sans-serif;
@@ -31,6 +32,20 @@ body{margin:0;min-height:100vh;font-family:var(--ds-font);font-size:15px;line-he
 .ds-page{max-width:1200px;margin:0 auto;padding:var(--ds-gutter)}
 .ds-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
 .ds-head>div:first-child{min-width:0;flex:1 1 320px}
+.ds-kicker-row{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.ds-back{min-height:36px;padding:6px 12px}
+.ds-more{position:relative;display:inline-block}
+.ds-more>summary{list-style:none}
+.ds-more>summary::-webkit-details-marker{display:none}
+.ds-more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:12;display:flex;flex-direction:column;gap:6px;padding:8px;min-width:200px;background:var(--ds-well);border:1px solid var(--ds-line-strong);border-radius:var(--ds-radius-sm)}
+.ds-more-menu .btn,.ds-more-menu button{width:100%;justify-content:flex-start}
+#studio[data-screen="products"]{padding-bottom:88px}
+#studio[data-screen="products"] #new-product{position:fixed;right:24px;bottom:24px;z-index:8}
+.phase-stepper{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px;padding:10px 12px;background:var(--ds-card);border:1px solid var(--ds-line);border-radius:var(--ds-radius)}
+.ds-page button.phase-step-pill{min-height:34px;padding:5px 10px;font-size:12.5px;border-radius:999px;background:var(--ds-well);border-color:var(--ds-line)}
+.ds-page button.phase-step-pill[data-state="closed"]{border-color:var(--ds-ok);color:var(--ds-ok)}
+.ds-page button.phase-step-pill[data-state="stale"]{border-color:var(--ds-warn);color:var(--ds-warn)}
+.ds-page button.phase-step-pill[data-state="active"]{background:var(--ds-accent);border-color:var(--ds-accent);color:var(--ds-on-accent);font-weight:700}
 .kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ds-accent);margin:0 0 2px}
 .ds-page h1{margin:0;font-size:28px;line-height:1.15;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere}
 .lede{margin:6px 0 0;font-size:14px;color:var(--ds-soft);max-width:72ch}
@@ -137,10 +152,13 @@ dialog pre{margin:0 0 12px;max-height:60vh;overflow:auto;font-family:var(--ds-mo
 
 @media (max-width:600px){
   .ds-page{padding:16px}
+  #studio[data-screen="products"]{padding-bottom:84px}
+  #studio[data-screen="products"] #new-product{right:16px;bottom:16px}
   .ds-page h1{font-size:24px}
   .chain{grid-template-columns:1fr}
   .figure{font-size:30px}
-  .btn,.ds-page button,.ds-page select,.ds-page input,.ds-page textarea,dialog button,dialog select,dialog input,dialog textarea{min-height:44px;font-size:16px}
+  .btn,.ds-page button,.ds-page select,.ds-page input,.ds-page textarea,dialog button,dialog select,dialog input,dialog textarea,.ds-page button.phase-step-pill{min-height:44px;font-size:16px}
+  .ds-page button.phase-step-pill{font-size:13px;padding:6px 12px}
   .act .btn,.act button{flex:1 1 auto}
   .settings .row{grid-template-columns:1fr}
   .joint-head,.joint-body{grid-template-columns:1fr}

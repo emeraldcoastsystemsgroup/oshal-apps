@@ -34,6 +34,8 @@
 # 29 | maintainer@emeraldcoastsystemsgroup.com | Register the phone capture proofs: Take photos to a filled checklist in the browser, and canReconstruct over the genuine calibration fixture.
 # 30 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6: register scanner-role (the trial visitor's narrow role builds the model and never controls a printer or prints).
 # 31 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7: the phone capture case also proves the measure step before Make 3D model, the model to Download STL, the reload reopen, the self-closing Objects sheet and the photo-removal question.
+# 32 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0: register surface-design-standard (the design standard's contract, one primary, no native dialog, the steps and capture modes, and the six planned controls RP-SCN-01 to -06 in their places); surface-printers now proves the Printers sheet; phone-capture-browser reads Take a photo and asks in the page.
+# 33 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: register rp-mesh-formats and rp-viewer-share-ar proving 3D crop, lay-flat/rotation, raycast measurement, GLB/USDZ binary round-trips, forced-RLS revocable share links, and AR QR/Quick Look/Scene Viewer handoff (RP-SCN-01..06).
 version: 1
 cases:
   - id: package-readiness
@@ -400,7 +402,7 @@ cases:
     installation: never
   - id: surface-printers
     name: Printers with no object open
-    purpose: Prove the packaged page keeps the printer list, the registration form, the Bambu help and the slicer engine note in a never-hidden Printers panel above the object list, outside the print step (hidden until an object is reconstructed), and that its boot, in a Node VM with controlled DOM and HTTP ports, reads and lists the printers without writing anything.
+    purpose: Prove the packaged page keeps the printer list, the registration form, the Bambu help, the slicer engine note and the slice settings in a Printers sheet reached from the Object menu's Printers… (never hidden) and the print step's Manage printers, outside the print step (hidden until an object is reconstructed), with the object list alone in the left pane, and that its boot, in a Node VM with controlled DOM and HTTP ports, reads and lists the printers without writing anything.
     level: unit
     runner:
       kind: node-test
@@ -408,8 +410,36 @@ cases:
       files:
         - tests/surface-printers.test.js
     expected:
-      - The printer list, the registration form, the Bambu help and the slicer engine note are in a Printers panel at the top of the object-list column that is never hidden, not inside the print step.
+      - The printer list, the registration form, the Bambu help, the slicer engine note and the slice settings are in the Printers sheet, reached from a never-hidden Object menu item, not inside the print step; the left pane holds only the object list.
       - With no object open the boot reads GET /printers, lists each printer, and sends no write.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: surface-design-standard
+    name: Scan to Print to the design standard
+    purpose: >-
+      Prove the served page against the design standard: it declares a studio whose first action adds a photo and marks
+      its work; its first screen has one primary (Take a photo; New object is an Object menu item, Reconstruct and Send are
+      secondary); it never opens a native prompt, confirm or alert (New object names the object for today, removing a
+      photo asks in an in-page sheet); an object shows 1 Capture, 2 Scale, 3 Model, 4 Print and a Photos, Video, LiDAR
+      file choice; and the six functions both reference products have (Crop, Rotate, Measure, GLB and USDZ, Share, AR)
+      are greyed planned controls in their places through the shared helper.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-design-standard.test.js
+    expected:
+      - The contract is declared, the markup's primaries are only the capture row's next step and the Export sheet's Export, and the script calls no native dialog.
+      - New object posts an object named for today with no prompt; removing a photo waits for the in-page answer and removes only on Remove.
+      - RP-SCN-01 to -03 follow Export and Print in the viewer row, RP-SCN-04 are GLB and USDZ rows of the Export sheet, RP-SCN-05 is in the viewer bar and RP-SCN-06 on its right edge, none with an id or handler.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -1132,7 +1162,7 @@ cases:
         - tests/phone-capture-browser.test.mjs
     expected:
       - One primary action on the first screen; three thumbnails with naturalWidth > 0; the checklist fills; Make 3D model appears.
-      - 0.8.7: a 2 · Measure width field sits above Make 3D model, which waits for it; one width builds the model to Download STL; the app bar names the object, not the app; a reload reopens the object open in the tab; choosing an object closes the Objects sheet; removing a photo asks first.
+      - "0.8.7 and 0.9.0: a 2 · Scale width field sits above Make 3D model, which waits for it; one width builds the model to Download STL; the app bar names the object, not the app; a reload reopens the object open in the tab; choosing an object closes the Objects sheet; removing a photo asks in an in-page sheet, never a native dialog."
     prerequisites:
       - runner:node
       - runtime:chromium
@@ -1169,3 +1199,45 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 512
+  - id: rp-mesh-formats
+    name: Reference-product 3D crop, lay-flat rotation, raycast measure, and GLB/USDZ exports
+    purpose: Prove STL parsing, 3D bounding-box triangle clipping with bed snap (RP-SCN-01), lay-flat orientation leveling to Z=0 (RP-SCN-02), surface raycast point-to-point millimetre measurement (RP-SCN-03), and binary GLB 2.0 plus 64-byte-aligned uncompressed USDZ round-trips (RP-SCN-04).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rp-mesh-formats.test.js
+    expected:
+      - GLB starts with 0x46546C67 and round-trips vertices and triangles; USDZ uses compression method 0 with 64-byte payload alignment.
+      - Cropping clips cleanly and snaps to Z=0; lay-flat levels tilted parts onto Z=0; raycast measurement computes exact distances and deltas.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: rp-viewer-share-ar
+    name: Reference-product revocable share links, mesh undo/reset routes, and AR QR handoff
+    purpose: Prove forced-RLS share-link SQL, caller-scoped share creation/revocation (410 Gone) and read-only viewer HTML/GLB/USDZ delivery (RP-SCN-05), mesh crop/undo route persistence (RP-SCN-01/02), and ISO/IEC 18004 SVG QR encoding for AR handoff (RP-SCN-06).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rp-viewer-share-ar.test.js
+    expected:
+      - Share links enforce forced two-arm RLS, serve read-only 3D/AR artifacts while active, refuse foreign revocation, and return 410 once revoked.
+      - Mesh crop persists updated extents and Undo restores the prior mesh; QR encoder emits valid SVG finder and data modules.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never

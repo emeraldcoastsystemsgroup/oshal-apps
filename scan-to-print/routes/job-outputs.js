@@ -10,6 +10,16 @@ exports.currentOutputRefusal = currentOutputRefusal;
 exports.requireCurrentOutput = requireCurrentOutput;
 exports.artifactPresence = artifactPresence;
 exports.retireOutput = retireOutput;
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Retire stale geometry before input changes and serialize one job's reads, rebuilds and print preparation in the current single-API process.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: the admission itself is claimJobOperation and the stale/not-printable answer is currentOutputRefusal, so the print package tool (print-tools.ts), which runs without an HTTP request, takes the same per-job lock and gives the same refusals as the routes: a print never prepares files while a rebuild writes them. withCurrentJob and requireCurrentOutput answer exactly as before.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Require original-person ownership on source mutations while preserving independent print.send authority.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Clear mesh edit snapshots (original and undo STL/report) alongside output artifacts when retiring stale geometry.
+ */
 const calibration_editor_1 = require("./calibration-editor");
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
@@ -139,6 +149,9 @@ async function retireOutput(deps, sub, job) {
     const dir = (0, data_dir_1.jobDir)(deps.dataRoot, sub, job.job_id);
     for (const key of Object.keys(data_dir_1.ARTIFACT_FILES))
         node_fs_1.default.rmSync((0, data_dir_1.artifactPath)(dir, key), { force: true });
+    for (const snap of ['mesh-original.stl', 'mesh-undo.stl', 'report-original.json', 'report-undo.json']) {
+        node_fs_1.default.rmSync(node_path_1.default.join(dir, 'artifacts', snap), { force: true });
+    }
     return updated;
 }
 //# sourceMappingURL=job-outputs.js.map

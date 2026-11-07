@@ -1,0 +1,3384 @@
+{
+ "lessons": {
+  "bio-cellular-organelles-endosymbiosis-beginner": {
+   "topicId": "bio-cellular-organelles-endosymbiosis",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 318,
+   "bytes": 74615216,
+   "sha256": "0b37202228a04ddbd4a2880df7360a7fd178e3891c87f9a782f4a9e97b5ef1a7",
+   "posterSha256": "a1f68f5a5316268353a7a150afdb0b74d32fba8601e9cd6c8235f4d926bc8990",
+   "captionsSha256": "514278e6dd0adef8d92e5ea328ad8274641ad4ce5187437baa75a29a80147184"
+  },
+  "bio-cellular-organelles-endosymbiosis-intermediate": {
+   "topicId": "bio-cellular-organelles-endosymbiosis",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 348,
+   "bytes": 81503555,
+   "sha256": "0f1b6e37cfd0c28b53402535bb567cb5bce9bbc573c2170bbbe89f655897931f",
+   "posterSha256": "36bcced14413a3be8c4dc3a616786f0b21bce463ff9f1e51b2ce369fca9c1b5c",
+   "captionsSha256": "96f85437f25cb539ca77f851be2d32ca9c2a945221199cb749551f3b87a170ee"
+  },
+  "bio-cellular-organelles-endosymbiosis-advanced": {
+   "topicId": "bio-cellular-organelles-endosymbiosis",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 454,
+   "bytes": 106865604,
+   "sha256": "b206b4b74df0f71d888539aed573842bb49348f3a88dde9812008717e7a62f6d",
+   "posterSha256": "be8bbd28cdf0f3c9bd6c0c47c58fc4d09a64fe754b5026af6a0225c0ce08d920",
+   "captionsSha256": "27866c30934251646a432a7c66d6b2f8d858300ab78c56b439fe243426d9ec32"
+  },
+  "bio-cellular-transport-osmosis-active-beginner": {
+   "topicId": "bio-cellular-transport-osmosis-active",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 299,
+   "bytes": 70265115,
+   "sha256": "3582c4343c86457cc388fc7efc5a2faa51dbe79d3f3478550715e76d45a8fc11",
+   "posterSha256": "72b3ef9a9500d9a7039b70c8467a288313e44bc6678930d7c6fd6cc00dff1ded",
+   "captionsSha256": "1be51a920309dd87aa4ab47e2274e02773c696c404e17e4f1c13fbf341ace02a"
+  },
+  "bio-cellular-transport-osmosis-active-intermediate": {
+   "topicId": "bio-cellular-transport-osmosis-active",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 333,
+   "bytes": 78283810,
+   "sha256": "1edaf5226f7b5b5c3ed5140e59106a3536ccb4045edd9760b754a35f71a5145f",
+   "posterSha256": "be23552ed0bd85007f9643087754051607f4ca2f16f998c5f938327bf89e340f",
+   "captionsSha256": "7595b6ee0b41826ecec74ad17ad8c0749bf727134b126cf413aa731f71abd77f"
+  },
+  "bio-cellular-transport-osmosis-active-advanced": {
+   "topicId": "bio-cellular-transport-osmosis-active",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 413,
+   "bytes": 96876677,
+   "sha256": "e7716377be569bfa4c0c1e71471a6bfd130db825a13f3651dc4710b16ffe8f53",
+   "posterSha256": "e40a52fae7abac5a7aff6230ab2a96ce75d5653b4a3ea25b9d201d5b830056ba",
+   "captionsSha256": "c1f2b88d13dac2a79a70a412886b3993f936d87af8f4ccdf503c7fbdfd09a04b"
+  },
+  "bio-evolution-endosymbiosis-mitochondria-chloroplasts-margulis-beginner": {
+   "topicId": "bio-evolution-endosymbiosis-mitochondria-chloroplasts-margulis",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 336,
+   "bytes": 78731619,
+   "sha256": "db1b57583366b4b0bbf2a561a904fe4b5c22d5de64d7cc95240691dbd0c4c798",
+   "posterSha256": "aa73c2f31cbcbd8ad06e8a45bd95b2db5ff82195bed2e97a0a561b5d7430b136",
+   "captionsSha256": "b3583bcdbf310ee2480ef0b86e3fef84cc6f11153b9b99151e16185fd40ade16"
+  },
+  "bio-evolution-endosymbiosis-mitochondria-chloroplasts-margulis-intermediate": {
+   "topicId": "bio-evolution-endosymbiosis-mitochondria-chloroplasts-margulis",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 335,
+   "bytes": 78569038,
+   "sha256": "ba400a2b42089c3b6be82920101ace7fb5805915fccfae25946082bb9c8d51e2",
+   "posterSha256": "6d397a4a236f58086fe6761a530378e2549583a4cb73f5e52be5adfea22adb00",
+   "captionsSha256": "330224b1e014a5ba01f5f7a7db478a6469146b6350c337ffc2bc091f9f70f4df"
+  },
+  "bio-evolution-endosymbiosis-mitochondria-chloroplasts-margulis-advanced": {
+   "topicId": "bio-evolution-endosymbiosis-mitochondria-chloroplasts-margulis",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 485,
+   "bytes": 113520065,
+   "sha256": "ba8dc596dca80a3d3a64c16a242eed259de25545884d86ecc38c14ac99b27f9d",
+   "posterSha256": "96e599086499e2fea32d94c5cb2fb45845c30a110510c094a9db8f11076bad91",
+   "captionsSha256": "f1a08eaca0f2c9c1447f604136601bf6f7f536c021b881632fddc84b8edf76b8"
+  },
+  "bio-dna-replication-beginner": {
+   "topicId": "bio-dna-replication",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 272,
+   "bytes": 62640322,
+   "sha256": "7f25000195be8bb1cb780ce1e7eee7e74d275cdb8ca56dd19821ed1298d69dce",
+   "posterSha256": "d92766a540c7b5f1a6bdc39f316f147d32c609e091d3200efadf528d1103e39d",
+   "captionsSha256": "ab2696752cbd106ff9ad9a73227dd637500b438b3ee400093942cde0381b1c76"
+  },
+  "bio-dna-replication-intermediate": {
+   "topicId": "bio-dna-replication",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 294,
+   "bytes": 68035517,
+   "sha256": "cabfc8bd47cd0539e0b0058562dae762f101affda54323d2791c8538dadd99cb",
+   "posterSha256": "1edc6bffb27e749efdf5e8d8c43eee6b47eadbf7b3ba637f47a4799ac2f4aae3",
+   "captionsSha256": "90162d0166d4e8baafc4c6eefdfb7e0f4a65a41905f3a7cbc721e02233262ff7"
+  },
+  "bio-dna-replication-advanced": {
+   "topicId": "bio-dna-replication",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 454,
+   "bytes": 104887843,
+   "sha256": "a778ab30c1ee45c00448ffaabe8c937688a7e3cbe5d487225abf97bdbcb01470",
+   "posterSha256": "37d207527bc15595e38d33d766f79a5759ed05e9426d229fe6b3e17ae262cb18",
+   "captionsSha256": "77962b631ed408300387cccdba6f5bb2f400187b3689bdfe722ebe6e1d557474"
+  },
+  "bio-transcription-translation-beginner": {
+   "topicId": "bio-transcription-translation",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 293,
+   "bytes": 68428231,
+   "sha256": "0a044a8647a6b9aeab7d359d8c0eeee14e32faaadac5dc5b90958f73107bbbc2",
+   "posterSha256": "8c443fdd9fc303d5dd8b32215bf77fa2c6500d167662aecdce56f3e1c2ca7a8b",
+   "captionsSha256": "0c2a09070a66ecfbaa923e10cbaff1e6dfbce3a0fd604e31525a521f48df2d3d"
+  },
+  "bio-transcription-translation-intermediate": {
+   "topicId": "bio-transcription-translation",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 321,
+   "bytes": 74696998,
+   "sha256": "54b783666b4f15fb4b0cd27d46f0fa36719ce19973efa8e3c0413c7fdb145709",
+   "posterSha256": "c40c6dbaa4dadfd9083de21fac6ae2de3415f28c860a48210afb0d177655a61e",
+   "captionsSha256": "3f97b52c55ae5f08a9db31986a002b132b8dc18c1ceefe587493d5858a3a77ba"
+  },
+  "bio-transcription-translation-advanced": {
+   "topicId": "bio-transcription-translation",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 485,
+   "bytes": 113022935,
+   "sha256": "3a909ff50bf932993d90eb7a14a451779ee3c44f26fea4e5780d5d91b7012768",
+   "posterSha256": "16a4bf7c0b52487ffdacb776c33ed0672a397176fed51256224407cd6ab7a065",
+   "captionsSha256": "caf33162a951e014de9577620836977829a6b99f3a48309339be382da8df9736"
+  },
+  "bio-cell-division-mitosis-phases-beginner": {
+   "topicId": "bio-cell-division-mitosis-phases",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 195,
+   "bytes": 45474199,
+   "sha256": "0a2cccc8793671450369f145e11e62dc1ffbe2df7878cd25a3d10b95df86b815",
+   "posterSha256": "40d156ee6090c37a265ca1542f98a6816b51a082a9ab3f4daf2eb1083d5c4918",
+   "captionsSha256": "7591237ea9204d4345baf6106afd2cc7192a6d5f7701f2e3c955729ce732b474"
+  },
+  "bio-cell-division-mitosis-phases-intermediate": {
+   "topicId": "bio-cell-division-mitosis-phases",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 285,
+   "bytes": 66976199,
+   "sha256": "b131cad0ff49726d261435ea8cc3b69246da899c95b9e920607ef58834330a27",
+   "posterSha256": "00781258e2096d7c67ef289a6a46343deabddead5eea39117365575bfaddbcb0",
+   "captionsSha256": "eb4830b81c539e4e9e34e55c553ed76a43f588f7f0b2ed4af84573856ca305a2"
+  },
+  "bio-cell-division-mitosis-phases-advanced": {
+   "topicId": "bio-cell-division-mitosis-phases",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 370,
+   "bytes": 87613006,
+   "sha256": "da2bd73fa8ee9ba3ae615ed883629a31468f37b3dcdcd80bfeaa8745a62c83c4",
+   "posterSha256": "b741ee9d9bd5cb1cb2d70816fca3adcca461f72ec32d2db93a8264f8a2d2c500",
+   "captionsSha256": "365f3e83d51bebf6ddea9287680d3869337a90c55d39405bc916b1c5dc9cd9aa"
+  },
+  "bio-cell-cycle-checkpoints-p53-apoptosis-beginner": {
+   "topicId": "bio-cell-cycle-checkpoints-p53-apoptosis",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 286,
+   "bytes": 66828795,
+   "sha256": "2594d20b0e90d40cfb69cc60b49bf8058f0d6e17f2e992d5a8cfbde4a52d58e6",
+   "posterSha256": "6c54a478c3ab116625719b235b52e953df1709c1c908d7f2bf9288cea3661bdc",
+   "captionsSha256": "15a035dd3c34b9f35f0eaa6ccb2ce540bc73aa5a4e8e1ece07aa43089ffa998a"
+  },
+  "bio-cell-cycle-checkpoints-p53-apoptosis-intermediate": {
+   "topicId": "bio-cell-cycle-checkpoints-p53-apoptosis",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 336,
+   "bytes": 78810424,
+   "sha256": "c9a55119ec0318b69774bd40410c7944a95ad711fecfe1e0621d80c07f6f5e1e",
+   "posterSha256": "2aa6feaefeb0519dee53f56fcaf7a1804c7ce327bd883e9ae5d07560c4a2f26f",
+   "captionsSha256": "8ce60c616f9b3a10f2eae4401fd154d9300287495a6a45d0fe91d64cb95e8c78"
+  },
+  "bio-cell-cycle-checkpoints-p53-apoptosis-advanced": {
+   "topicId": "bio-cell-cycle-checkpoints-p53-apoptosis",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 343,
+   "bytes": 81475928,
+   "sha256": "c0f0e8fe6831b252004cdacd97d7156cb60425025099f9b45b85fc616648b0fe",
+   "posterSha256": "0b140b2c0488a41085d535941c83c824899786d1f414f40babc597d8ed0a0268",
+   "captionsSha256": "2071be21fd6133d268157ac30923f3671baa94d2a7ca78b7639cbaf3817e843e"
+  },
+  "bio-mendelian-genetics-punnett-squares-beginner": {
+   "topicId": "bio-mendelian-genetics-punnett-squares",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 284,
+   "bytes": 65723080,
+   "sha256": "4725fd65f2753b6c5541654c05c69d2f8452b62dcb6476a46f87667a33ac35fb",
+   "posterSha256": "ef1184f129a75ab3546d4a2d50027b7f93ea8aa40beec8b2f0c604cba514f7aa",
+   "captionsSha256": "90f7d86619207ced2f17d360f837de4635a096066b7aaab8c8474356b3b693b0"
+  },
+  "bio-mendelian-genetics-punnett-squares-intermediate": {
+   "topicId": "bio-mendelian-genetics-punnett-squares",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 313,
+   "bytes": 72629980,
+   "sha256": "dd85b23dca9e46ff6f74c1fccbdd0e23ebddf1dc1177862fd1e3a8599c5e92f7",
+   "posterSha256": "34d3b92d51416a8f8f37431306bf011b6fa94984d391a65fe9bda5b25bb8cf2e",
+   "captionsSha256": "e5ec3e965c97c9c220e897d88edc9d0b2a8cf07b33761285b08ed7e38dd1b7f0"
+  },
+  "bio-mendelian-genetics-punnett-squares-advanced": {
+   "topicId": "bio-mendelian-genetics-punnett-squares",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 394,
+   "bytes": 91423809,
+   "sha256": "7255843ea5ef696af8527a899ed7d33a3c4debfced1dec556612881ebbef06ee",
+   "posterSha256": "363d484b1747115183a01cf77b7f75ab552b6aa398f8b47356b964fd78bb016f",
+   "captionsSha256": "437270229e74952f30d9e51716a52f35094aee5b5ac332816e7e91d618737730"
+  },
+  "bio-telomeres-aging-beginner": {
+   "topicId": "bio-telomeres-aging",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 303,
+   "bytes": 70707134,
+   "sha256": "14dfaad0823753869bd6dec8042dcf05f549b62c1aed23cd68fad7b43eacdcbe",
+   "posterSha256": "ceafeae5e84cc9e560ae20c405c30d76f0d9a62a3ea139fef31e0fa2ae0c694f",
+   "captionsSha256": "9ffdba905e9e07b529efad9dadac5d998d0f910618fbed0b0b967102bdb9500a"
+  },
+  "bio-telomeres-aging-intermediate": {
+   "topicId": "bio-telomeres-aging",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 336,
+   "bytes": 78172634,
+   "sha256": "bc863938b6324d8432de90aadc89be957f9381b1e7a6677061fdd075eb313950",
+   "posterSha256": "0e634f01ef0d37b24f807122a4256dff81ca53b9bd97ca4a20ac489f8df57f84",
+   "captionsSha256": "f463e4def9bdfe08abbe48dca4d1a6b82dac5a290038d296d27f04ec4e5f1192"
+  },
+  "bio-telomeres-aging-advanced": {
+   "topicId": "bio-telomeres-aging",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 407,
+   "bytes": 94560876,
+   "sha256": "0da76807530aa5ad27899601d80419cde538f72a204b891df9f2d8ef56184afe",
+   "posterSha256": "323b5e5334271d592126ff0ae9eeeb721ac62d652fead155890df9070a088018",
+   "captionsSha256": "aa9da3bb26d87edd078167ced2d261a00aae77351e968b87e234beb4c2faba39"
+  },
+  "bio-telomeres-aging-telomerase-senescence-beginner": {
+   "topicId": "bio-telomeres-aging-telomerase-senescence",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 312,
+   "bytes": 72767121,
+   "sha256": "a44ae8d2ea94b1af280ca866fd657738f649806da68e20ddd8ceb0db72f76b1f",
+   "posterSha256": "e612d8889447e4266c480ba8fb89bf9dd9e42d7ff9211f7977533453a466aa76",
+   "captionsSha256": "bcabed9a4b7f7d1af8418ae251be20e670e21fa40f236c4aab35cad2fcc57562"
+  },
+  "bio-telomeres-aging-telomerase-senescence-intermediate": {
+   "topicId": "bio-telomeres-aging-telomerase-senescence",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 317,
+   "bytes": 74209700,
+   "sha256": "7a6f185b4b836288f3c5ce49ce64210f5c35edf75a2a67353686ff2621ec72cd",
+   "posterSha256": "cf46d733530b5af654138d8bb5b95c5227c1f2fe6574bc4c076fada11c377b58",
+   "captionsSha256": "f7a7f64dfa1e6e4cf9ca3790a365002985b282350aa6943a57537e89f391b3f7"
+  },
+  "bio-telomeres-aging-telomerase-senescence-advanced": {
+   "topicId": "bio-telomeres-aging-telomerase-senescence",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 404,
+   "bytes": 94908414,
+   "sha256": "19f30a6ba384c38937a2fcb0ef69f85f04969db2b87f674c306a401e47fd198f",
+   "posterSha256": "34b796cf4ba2287a087a9757de7115c30217e83e0b00f03ca66ad2439e0ab1a9",
+   "captionsSha256": "c521e2cd48fea60bd64bf4db5d549a3926f41c87ef01dc83c8546abec3386b3a"
+  },
+  "bio-epigenetics-dna-methylation-histone-acetylation-beginner": {
+   "topicId": "bio-epigenetics-dna-methylation-histone-acetylation",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 293,
+   "bytes": 68779771,
+   "sha256": "788ea0ffd140c2e002ed66f928877ea02f6d453f3b9d9f65d5fe4e4af866ccdd",
+   "posterSha256": "c9268473af80bc040fac8caa83a5810d671501bc4ae4e467f579608ca53ffbc7",
+   "captionsSha256": "6a9eb333257fe7028b5e36390fb7ad6097da1d7e96d0290a834d6160d2490190"
+  },
+  "bio-epigenetics-dna-methylation-histone-acetylation-intermediate": {
+   "topicId": "bio-epigenetics-dna-methylation-histone-acetylation",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 322,
+   "bytes": 75423504,
+   "sha256": "6ad5f517403296ff16016ffffbc818769b77924f39bb57aded32835075bf3288",
+   "posterSha256": "e79dfc9a09d8cdb9d899c58f3306285e648ece77f5e2138c183fa00d4f5c8f8b",
+   "captionsSha256": "353ce033df43aa07a565d383ea5072ea10d1cc5a5c2492a2db2efe98525ce1e6"
+  },
+  "bio-epigenetics-dna-methylation-histone-acetylation-advanced": {
+   "topicId": "bio-epigenetics-dna-methylation-histone-acetylation",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 416,
+   "bytes": 97618149,
+   "sha256": "066235e7ee75e781a00120ede4eebcd2373861bbf11ade251b4f841f0c8e551c",
+   "posterSha256": "c8b263d2e9d41b44326ad832477f95f3714342bf0940725dfcd1b623480aa772",
+   "captionsSha256": "dbc6f934428de93189258fe826e6da901ac43e357ea0d8a2557eed402b0122f8"
+  },
+  "bio-genomics-transposable-elements-jumping-genes-mcclintock-beginner": {
+   "topicId": "bio-genomics-transposable-elements-jumping-genes-mcclintock",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 309,
+   "bytes": 71902402,
+   "sha256": "d54c49dd067fab2811796a4cc74952c4dc22fd14c0b68c867a7b91bd83726844",
+   "posterSha256": "eceb36fd45021607b65d7b2fb3d4b2c26b07b405e7aadd1d27490bd22a058ac2",
+   "captionsSha256": "6d9b1202e5808692c1be2b3d2007fda0eb88524d4c7873f3d3def38cdb48b317"
+  },
+  "bio-genomics-transposable-elements-jumping-genes-mcclintock-intermediate": {
+   "topicId": "bio-genomics-transposable-elements-jumping-genes-mcclintock",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 328,
+   "bytes": 76951078,
+   "sha256": "26477d35ba64e0940cbc80ed75116282bea5595ff169f698c9e5a1c5fa34f744",
+   "posterSha256": "f0de4e34416a1e7b8f11d4aed442de1323986a7c16d949b318cdc22f2ed2b84b",
+   "captionsSha256": "6afa8cbd5e4f81a066e4f3ac35e9c94fdaecb7f7faad130f02ea13379e7a012a"
+  },
+  "bio-genomics-transposable-elements-jumping-genes-mcclintock-advanced": {
+   "topicId": "bio-genomics-transposable-elements-jumping-genes-mcclintock",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 416,
+   "bytes": 97431501,
+   "sha256": "93149125cfb171214265374459996147e7a8f94f1c773aac1964d7846103be9f",
+   "posterSha256": "c0a531922dd975af757e512cad3bcf8917556a3c2ebfdff4c4f27e2778500012",
+   "captionsSha256": "491ffd0d920f6e2cbb6673f4cbcb7d5ac79b11cf2497956c7a878aafaf3ebac7"
+  },
+  "bio-crispr-cas9-beginner": {
+   "topicId": "bio-crispr-cas9",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 293,
+   "bytes": 67544193,
+   "sha256": "e5ee204d045a63869c68e3fb004505c7534b9e0a889ae2fde42b217eeed46159",
+   "posterSha256": "8e9f3df982c10d9ffb05da88f6b042eb8e9c249f0d2efba82b99d09a7ceabf9f",
+   "captionsSha256": "c54dc2656c0432c2a4f27474886191ac902af6067dc67529d38c5cb01d33649b"
+  },
+  "bio-crispr-cas9-intermediate": {
+   "topicId": "bio-crispr-cas9",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 310,
+   "bytes": 71689315,
+   "sha256": "ea5fdc398d73a4868ca66520a9e885680e93b8b50100c8b73daff50ee6573b25",
+   "posterSha256": "0cfd2f3423c59c54d8834772368dce40c32007974efd519020916d98c6414f1c",
+   "captionsSha256": "f26bd5f587195571950e9c09918eb0f8b5a2bbf878e62432cf0a21e5afbf3dac"
+  },
+  "bio-crispr-cas9-advanced": {
+   "topicId": "bio-crispr-cas9",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 406,
+   "bytes": 93233546,
+   "sha256": "e6606d5fbcfb0637151fb5adc0e61c345d3bb5e6709837490b46ed043104e396",
+   "posterSha256": "5c4b484ddebdaa0c56be65b817992903a6b439a383a1a119916cfe9d7f10f19d",
+   "captionsSha256": "481406ccfd4a58c842af574749df8d59a2727e55cc6ceb5647c8048bcc66e6c5"
+  },
+  "bio-crispr-cas9-bacterial-adaptive-immunity-beginner": {
+   "topicId": "bio-crispr-cas9-bacterial-adaptive-immunity",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 307,
+   "bytes": 70686946,
+   "sha256": "b3604dc52ec176975866ddf51b5c62e556f767effd727960e3a2e9d318c97bbd",
+   "posterSha256": "4aa3aa00744ea6fd148d9a96dc3191669addc920373ec7944c3789c7d0dd1834",
+   "captionsSha256": "c7f74ca573b322ec010aabca61decec36f610392208141763e63f3d1af9f8fcd"
+  },
+  "bio-crispr-cas9-bacterial-adaptive-immunity-intermediate": {
+   "topicId": "bio-crispr-cas9-bacterial-adaptive-immunity",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 313,
+   "bytes": 71596643,
+   "sha256": "515916fe6701a7334a27eea250d3dcb32c15643e580a7f61df994d084b8a6a20",
+   "posterSha256": "4d753bcffd8fddf351fb9f21cae361d3e798295c4d1bf2a58389d1a8569a2df6",
+   "captionsSha256": "ff4d8c5a310d3589c4f7ba6936a9c7af59d7f2ceb3c5d5368da7c3508cf7786d"
+  },
+  "bio-crispr-cas9-bacterial-adaptive-immunity-advanced": {
+   "topicId": "bio-crispr-cas9-bacterial-adaptive-immunity",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 471,
+   "bytes": 108843130,
+   "sha256": "bbc3ac3d04c9fa6ee760cd114d9942d5da93622b2edb4565e83266cf7a4cf417",
+   "posterSha256": "0a54eef3de6a16bebcc6bb9b918b78e3e643c9698c433cfb77251db3e53f21c2",
+   "captionsSha256": "f1c04f81059450ed5a5bdf9417cd54f889ce6d4938e3be6c07224e5eb1d715f6"
+  },
+  "bio-enzyme-kinetics-michaelis-menten-beginner": {
+   "topicId": "bio-enzyme-kinetics-michaelis-menten",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 310,
+   "bytes": 72083868,
+   "sha256": "682b04154aa1dcd49c9e794d092c5d4fbcf2fe8fd804123b5839f338ac3455ab",
+   "posterSha256": "9a8bb29053d8a1e5964d0b364b33d544df43fa2b9f39d604cbae40fc8b96c6de",
+   "captionsSha256": "0dd29b1cebc0ef43560d87adcf7b4589d0478f7b3f1e895fb54b9f675d20aa9c"
+  },
+  "bio-enzyme-kinetics-michaelis-menten-intermediate": {
+   "topicId": "bio-enzyme-kinetics-michaelis-menten",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 349,
+   "bytes": 80878679,
+   "sha256": "1eed4014e4e05ac607874e3317af80aacd12d2badb3f3e9786bfa9f01a2bc3f3",
+   "posterSha256": "dc64579f09bcf4351b49e9fc278c7269748b63fecc5f394a3c73bd0ba1e9b18f",
+   "captionsSha256": "055277614e4bd8dc9da85963485fdae785b22ba1cb9f2d32b92c9ab2f1310145"
+  },
+  "bio-enzyme-kinetics-michaelis-menten-advanced": {
+   "topicId": "bio-enzyme-kinetics-michaelis-menten",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 391,
+   "bytes": 91008008,
+   "sha256": "42f4143d921eee3a753bcf9c3360d00d3a41138db853515959108c382722259f",
+   "posterSha256": "cc6ff0d24f24001db396503075323f98267ace4f3d7c999c7ab2994825ba0f72",
+   "captionsSha256": "f7511dfd9bbf4cbe901e2cc8eb26aac962cd8dfb319bf4093aafaee206129bfd"
+  },
+  "bio-photosynthesis-light-reactions-beginner": {
+   "topicId": "bio-photosynthesis-light-reactions",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 323,
+   "bytes": 75569365,
+   "sha256": "8af7d684f4f557933d349593870c49532ec4038308cb908f56fcea3f501876a5",
+   "posterSha256": "e0eefb55407e12ec2002114e453deea30069ea8e0abc75046cc5e16f60de0219",
+   "captionsSha256": "fb36ea4e95d60e72b40733d6e5fd4867b904e06b4a4f7a78959916a6d9ee7857"
+  },
+  "bio-photosynthesis-light-reactions-intermediate": {
+   "topicId": "bio-photosynthesis-light-reactions",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 369,
+   "bytes": 85997452,
+   "sha256": "ac0142a4d34e6687710ffc5085ab961ea878708fef74fd1898e044ebb3c5ed7d",
+   "posterSha256": "0be7017010743da64b54c7c56778e3f7dd7130c30334963618b81d0146295c07",
+   "captionsSha256": "1dfa494dbab8ce8294db41fb3c9613b235402d5f5133f05154384718cb3d6d5d"
+  },
+  "bio-photosynthesis-light-reactions-advanced": {
+   "topicId": "bio-photosynthesis-light-reactions",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 426,
+   "bytes": 99545576,
+   "sha256": "0e249d4a033e7678b57645ec0d7cadac993cbd0dd84edb8da97e50c5e5df101a",
+   "posterSha256": "f4bb5798cea220537e170ed1534477a43b480876ddc359328fba8b85d9d2b4aa",
+   "captionsSha256": "d561ab86e5e25155bdd5c2ee64016b672ddba228affeb7fea81611d9a4a7bfb6"
+  },
+  "bio-photosynthesis-calvin-cycle-beginner": {
+   "topicId": "bio-photosynthesis-calvin-cycle",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 306,
+   "bytes": 71295358,
+   "sha256": "180a4812daf5cc0943233d437a672b3efb555a27615d4c4aa783d1aa1e683a0b",
+   "posterSha256": "b9ec60ddf31dd289c8a64c0f1f8cd04fe7d2fc3aabb66db96185d9dd9050c493",
+   "captionsSha256": "e36c96a403f4eea6855122a861bda22dd152687d351f62d4767ed1b20275b883"
+  },
+  "bio-photosynthesis-calvin-cycle-intermediate": {
+   "topicId": "bio-photosynthesis-calvin-cycle",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 373,
+   "bytes": 86883123,
+   "sha256": "a594d9e1f2af4c12d1f085aa61848fe8c5a867076c1da11649488c5fac5a713d",
+   "posterSha256": "04827f8652e0ab46f35c43f366874cb11dd9af78f7f790bbfbf6a6f3ae89a549",
+   "captionsSha256": "496153b8642e9bb9a227cd8e65535867bd089483005a3c2ab4fd43388b1880e0"
+  },
+  "bio-photosynthesis-calvin-cycle-advanced": {
+   "topicId": "bio-photosynthesis-calvin-cycle",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 409,
+   "bytes": 95115886,
+   "sha256": "cbf3bfd93ff80d1100d0e55c3f313197b799bd8e4c958ccbaa9a3048dea8b9b6",
+   "posterSha256": "efb15b2d2e46a5c21333b295588eaba0f5b9cf8a6dd993128e48a7cca8b03b38",
+   "captionsSha256": "772147ee77b9c58009b0041075a6e18ff04f54e569c21abc0eef071ae7063554"
+  },
+  "bio-photosynthesis-c4-cam-photorespiration-beginner": {
+   "topicId": "bio-photosynthesis-c4-cam-photorespiration",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 331,
+   "bytes": 76676166,
+   "sha256": "6285069aa49ec29e0dfa5d424d71a47bf66658fa6913c0082ffa95ea14d84410",
+   "posterSha256": "7df7fab241869423c24643fdeda517c2b0405e842aa8963496c47210fa349188",
+   "captionsSha256": "066b06e144c51d475aae80e4a094c0a1dd2d0689855297690572e12674da2ba6"
+  },
+  "bio-photosynthesis-c4-cam-photorespiration-intermediate": {
+   "topicId": "bio-photosynthesis-c4-cam-photorespiration",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 360,
+   "bytes": 83269535,
+   "sha256": "a374ed22f0ac5f66565588456eb95641ec308b4e13256893dabb0f1633c4a3ed",
+   "posterSha256": "08476f1343c29ba849b289760d0ec011e37867ca9ef9eaaebbb30c7eaa55a5d2",
+   "captionsSha256": "4a2b40c3a0bf7730c32e107c696fc4fc1d17fbf327817ec1264ec3a4859c515f"
+  },
+  "bio-photosynthesis-c4-cam-photorespiration-advanced": {
+   "topicId": "bio-photosynthesis-c4-cam-photorespiration",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 486,
+   "bytes": 112841780,
+   "sha256": "e8b2544bec7c5cb8a947d7d3d8b42b9cacefc39939f99b45808f4ce6039e4c30",
+   "posterSha256": "3cde4662507a9e196a8c7f903c5ed0ef5eeae9a66ea21f93ddede79c62107f4d",
+   "captionsSha256": "82b1b3e7ba3d704d6c6fdc239d76f008dd2dafb078625d90e10d9fb565247557"
+  },
+  "bio-krebs-cycle-energy-beginner": {
+   "topicId": "bio-krebs-cycle-energy",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 314,
+   "bytes": 72610709,
+   "sha256": "123dbf05439cc9b5929bd30d0c01998314360bb22667262e4950b7a5e980893a",
+   "posterSha256": "27e96764239203dc177c8243002c9043cef2f4c8f243a25ffc99559d0ba7e093",
+   "captionsSha256": "20cbe0db6ccd173efdba1f604efd1830dff4091fa86d9990e7f266f90f98081c"
+  },
+  "bio-krebs-cycle-energy-intermediate": {
+   "topicId": "bio-krebs-cycle-energy",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 396,
+   "bytes": 92351597,
+   "sha256": "ab856ec8d3aa5decf890f451aee27411d26eb963b234ad1a873e818de08ace5c",
+   "posterSha256": "ce9c179146d1811b9db13f8db1b4295a6d065847ac57ceadedb48dfeb68e5ce2",
+   "captionsSha256": "c9a39c787996f99054cc8dfacb38398ec4f0684d7dd8fa80bfab33af0bc1e3c9"
+  },
+  "bio-krebs-cycle-energy-advanced": {
+   "topicId": "bio-krebs-cycle-energy",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 474,
+   "bytes": 110012585,
+   "sha256": "ac3ad05887a12e8a783d1a2c2623f8d86bcd32871bbd1039be3e302285ae40df",
+   "posterSha256": "53f9438391e50eccbf9f94e649fee57f4e19b9eec0c590c70992714d6150056f",
+   "captionsSha256": "dbba28deaba929f4e088e574fe74b21c40db49f08514ed39f56f429c4fda6eb4"
+  },
+  "bio-electron-transport-chain-chemiosmosis-beginner": {
+   "topicId": "bio-electron-transport-chain-chemiosmosis",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 350,
+   "bytes": 81691382,
+   "sha256": "98474e7b2e2e3c2f9ce8f85001068291bc01bc240360407ec05fad2ab0901d8c",
+   "posterSha256": "5562a2f3db58fa8e376d3431d1fa0b4d26cc88c8d30eef82510f807894416119",
+   "captionsSha256": "5ff6a48d1323e074826cc6927fbd3c6ab92d0e3b35449e0191186e89411776f2"
+  },
+  "bio-electron-transport-chain-chemiosmosis-intermediate": {
+   "topicId": "bio-electron-transport-chain-chemiosmosis",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 379,
+   "bytes": 88271948,
+   "sha256": "ab02d10896b1e994628c06be9d6ebde71436230c52f931bec909b47929712d70",
+   "posterSha256": "089c8d0b6934f05f317a04806cbeaa4c4978c4ea6f8416c275991935af636edc",
+   "captionsSha256": "d50b2bc271da63dcf12a02e86200ab79dcb1b51555ae1596a9b51b51463a727c"
+  },
+  "bio-electron-transport-chain-chemiosmosis-advanced": {
+   "topicId": "bio-electron-transport-chain-chemiosmosis",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 434,
+   "bytes": 101367465,
+   "sha256": "45e81d7b012ad283d195b52f74f010c29b01a1d6037bdfb873e50b9a8499c576",
+   "posterSha256": "9efed45a0f756ac14f7282e12176dec5e1e70a49b5f374407e3f8747743f4c69",
+   "captionsSha256": "890732cce677aacb65612ce581c3ed0fdb5483a59bf1c750f690ad6dc4e4534d"
+  },
+  "bio-atp-synthase-beginner": {
+   "topicId": "bio-atp-synthase",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 275,
+   "bytes": 63990964,
+   "sha256": "5d343937feb09485244a14c1816e4531b7674752ed7cbb061d36b96d5aecac54",
+   "posterSha256": "258ada173a49a7aff413ce18eaf17af6a3f61e07659b251548212163e2a8bd72",
+   "captionsSha256": "32bf340a3db7d958da7d7ee1ee176227658f940b5056b18bfff5aa61e5ef08b7"
+  },
+  "bio-atp-synthase-intermediate": {
+   "topicId": "bio-atp-synthase",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 296,
+   "bytes": 69490353,
+   "sha256": "24b67ff793a51858bf1ed0bca80b69fe34237c0b62f3151263735402ca0bcf96",
+   "posterSha256": "76ecea847f078b8dcc34664ffa73be281fa633f6b5b4c45566131c187054084e",
+   "captionsSha256": "30f2e45065a1228f533779256abf8a852d26168b0766aaff45307098d2c9caa9"
+  },
+  "bio-atp-synthase-advanced": {
+   "topicId": "bio-atp-synthase",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 331,
+   "bytes": 79641306,
+   "sha256": "6efce75003b509fc94d2eda3db8f65708de63eb5d834a0b5856307d9b07d7a22",
+   "posterSha256": "02a7e88f6f95e8de9724b69d7fac8bc0e5b44442091d4c01872fd08d46ed180e",
+   "captionsSha256": "635cf430d7afbfea7026d3537ebb599f31366d581b8df7d6c6bc5ad5bb74f901"
+  },
+  "bio-action-potential-beginner": {
+   "topicId": "bio-action-potential",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 262,
+   "bytes": 60823519,
+   "sha256": "22ed98f10ae8ddc162b00e300cbacb8f119840dbc94d05252aff9477b471c829",
+   "posterSha256": "4a62d504c1a17d160d7a087e1da550fa46d73192bd954438f2759da1ef44739d",
+   "captionsSha256": "a3b79723d19eea25a921d6d104e794daba16692f86a7b30c888ca7d9db68dba2"
+  },
+  "bio-action-potential-intermediate": {
+   "topicId": "bio-action-potential",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 274,
+   "bytes": 62547803,
+   "sha256": "d0c8bf5cd7fe6b52a9d2746ddbe1335d5fd8fda2b284b9276c8496935b963462",
+   "posterSha256": "7de7e2faf51b48c9ba279bffe5c1f22c345a7d96d4a1a8e718695daf0b6b86a7",
+   "captionsSha256": "4fe98870dd120d6823a812a2876045ce6cce27a8b9f8d25f31d13559ba0a193a"
+  },
+  "bio-action-potential-advanced": {
+   "topicId": "bio-action-potential",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 307,
+   "bytes": 70964705,
+   "sha256": "5981bc954c6014808412141b0d0df0ad3ba74fc1712c0f1d8acaec5c26222659",
+   "posterSha256": "2d61da197d064094886cd83715fbfa24bb9bcbc703bd3ae30d77c461863ed5a3",
+   "captionsSha256": "ef97221c6a23c1b73fb861e208fbbd6728ec50b90b511539d69ac11655cd5511"
+  },
+  "bio-synapse-neurotransmitters-beginner": {
+   "topicId": "bio-synapse-neurotransmitters",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 342,
+   "bytes": 79874122,
+   "sha256": "07ffb220468590aca13db564b50485d0e5e0f9f71328aa6ad886d1c718bbf9e2",
+   "posterSha256": "56e77a55187a7490799b047bc3643089964db39be42b6b8c4782780f9810dc00",
+   "captionsSha256": "d6271370b0a29c3e80ae900f44e63fd2d863a35260aecc574683336bf070603a"
+  },
+  "bio-synapse-neurotransmitters-intermediate": {
+   "topicId": "bio-synapse-neurotransmitters",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 382,
+   "bytes": 88857609,
+   "sha256": "2a5dbc430aaf7b43365d276f27ca526f75ec5750aee72ccd06c231a9816c8c87",
+   "posterSha256": "9bf8b98b2225ff8e0d74c61b4ea9af1d7bd19dc3e46a4d086690976ab441146e",
+   "captionsSha256": "4f719a50a8d5b1b835cb4a7f6bc678329279d5d90e5f9fa280932070ec5c74f6"
+  },
+  "bio-synapse-neurotransmitters-advanced": {
+   "topicId": "bio-synapse-neurotransmitters",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 433,
+   "bytes": 100253851,
+   "sha256": "0a8d9d7536fd8564c26636420811f66eedd462f6414f442506ca2a4d065b13da",
+   "posterSha256": "f05b5054ecc16af897a74b9329615aaf0e2225a7b8d06ccaa0397707d9d31619",
+   "captionsSha256": "4485d3307cc334cd4017cebbf379ffa9d7d8fd70572c91885e66290553069f08"
+  },
+  "bio-synaptic-transmission-neurotransmitters-beginner": {
+   "topicId": "bio-synaptic-transmission-neurotransmitters",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 317,
+   "bytes": 73160878,
+   "sha256": "55bf02bc8952628599878a1d1542a5efca5d199c8accb3e0a2a2b7254f0e1ca4",
+   "posterSha256": "f4f0ea8e418eb566c277bb3c1b4e54328cfd2c0c1ca5567f3a0e6030285e2c6c",
+   "captionsSha256": "b447b92a42945b2f4e1bfb6c1e529833d33eb90b32d711fe7a213663dbedbcc5"
+  },
+  "bio-synaptic-transmission-neurotransmitters-intermediate": {
+   "topicId": "bio-synaptic-transmission-neurotransmitters",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 390,
+   "bytes": 90530106,
+   "sha256": "1c3e677355b012ca72c479b3d6b7b47c7d0a0c2e65626b6eb6e8130c00f450ed",
+   "posterSha256": "e0df21c70e4560e6e831e9329767224ddf4db1059fd153efaf0ebee282c4d3e6",
+   "captionsSha256": "9006a27a5f8036b344571a7538da2dc6235cb94404084f7ac943747faeeb2163"
+  },
+  "bio-synaptic-transmission-neurotransmitters-advanced": {
+   "topicId": "bio-synaptic-transmission-neurotransmitters",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 480,
+   "bytes": 111822985,
+   "sha256": "1cb98c3d2e8bab4925f11e47e839e97bc70fa1f7210a1feeff097e64eb3e9675",
+   "posterSha256": "3286d49d18e4e821321a5bd79c9a693b40ef1098ef3a494e38571a4ba39ea088",
+   "captionsSha256": "1f2e45647ab37ee28cb5e416352c18f6a488f4d441a3afcf3c513fe9f9f17f91"
+  },
+  "bio-nephron-kidney-countercurrent-filtration-beginner": {
+   "topicId": "bio-nephron-kidney-countercurrent-filtration",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 336,
+   "bytes": 78695614,
+   "sha256": "35e1ca2681d621ebded077d0edeaa24c1c85a9418f78eb760e45abfc3f71737a",
+   "posterSha256": "6b33ba946f401839921cdc06d90e0050a8cc506bc86933c6db785b65ebe8c03a",
+   "captionsSha256": "54b2d46dba1cb1e9299660570ea36d29e4a06789dafe2a460db98e4e1f1b66a5"
+  },
+  "bio-nephron-kidney-countercurrent-filtration-intermediate": {
+   "topicId": "bio-nephron-kidney-countercurrent-filtration",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 392,
+   "bytes": 91356707,
+   "sha256": "f0af683fb43a1051c56939c4f3fe4c9de1e48e2f7fd0e114085db1c698db03c5",
+   "posterSha256": "f5c3a001e917ca6fe43f3a6547729d140b3bffb86b069b2d20aa294703fcbfb9",
+   "captionsSha256": "cf7ceb3c54fe77eda2f123b613d708644b6ec90a0d732e2a7d178f0991a91b24"
+  },
+  "bio-nephron-kidney-countercurrent-filtration-advanced": {
+   "topicId": "bio-nephron-kidney-countercurrent-filtration",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 460,
+   "bytes": 107078876,
+   "sha256": "aa860a7398e0f990aefb2da22701fd8301655ab3cd2360d377b3cefbe648136e",
+   "posterSha256": "05355f225a609a67598f12f55cbba1796194845a3b264e367853ec434524f758",
+   "captionsSha256": "0da6e4659409cdea076ad9a01154d1a276709eaff41a01e07246e1bb60eb6696"
+  },
+  "bio-t-cells-b-cells-adaptive-immunity-beginner": {
+   "topicId": "bio-t-cells-b-cells-adaptive-immunity",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 357,
+   "bytes": 82975935,
+   "sha256": "bd8ffa26cf4bf68e8f5a5fb252c4dc3dff2c6ac6dd0ff40b5d3deb616361ecf7",
+   "posterSha256": "468f5ea079c843f4ec00434d518b25dfef7ab5299c053c2f94756b6ca23bbaae",
+   "captionsSha256": "12a70720ea73189c1b53a8d7e44b9ee82a701c1b070f34b7adbcf3bd2cbd3edd"
+  },
+  "bio-t-cells-b-cells-adaptive-immunity-intermediate": {
+   "topicId": "bio-t-cells-b-cells-adaptive-immunity",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 376,
+   "bytes": 87145969,
+   "sha256": "21519e591fd4387f59ca9ba7f52590d1f5675b34332d5a455369c8a9abd13114",
+   "posterSha256": "7120e53be855b17da9718ee998362fcfa19b8e0a21319f293091971f6b10fe56",
+   "captionsSha256": "0a8ae6c6b8d29280f3f4e7aab83ed7dc14cc8f849f41d6507f6812700f52a73d"
+  },
+  "bio-t-cells-b-cells-adaptive-immunity-advanced": {
+   "topicId": "bio-t-cells-b-cells-adaptive-immunity",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 486,
+   "bytes": 112838732,
+   "sha256": "be5ce4e0bc532582106273f7a4dfae9f8d9fc2ceee8fdb2a81f354ccad0330c9",
+   "posterSha256": "23e0c005b47aecdc6909589fb427eaca1f7b44866f529729202fdfa97ae04a67",
+   "captionsSha256": "545f906f76cc96683ea5e28fca3c70c09b59be69e55626caa68feef36a631689"
+  },
+  "bio-antibodies-immune-defense-beginner": {
+   "topicId": "bio-antibodies-immune-defense",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 286,
+   "bytes": 66271899,
+   "sha256": "a692cd6dea2eee7e81f77ce818104fa3bea3dcc46a766dd1c861f68e3d2944fe",
+   "posterSha256": "9e6cd774a0dd5d3bcd6d15fa08f31a3dcc3b7c6db8473ea823cf6a2839608a46",
+   "captionsSha256": "f60f7b57ae225fdec7457a4f92ecda2787aff6a864526188f64521b351e2ddcf"
+  },
+  "bio-antibodies-immune-defense-intermediate": {
+   "topicId": "bio-antibodies-immune-defense",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 262,
+   "bytes": 60946423,
+   "sha256": "2836aac31c38b69fbac724d213b10b044ce75438c61cf3e87331784249c86e5b",
+   "posterSha256": "9f5e2040cac8809bfe79c91cb3ad7afe7f3a47dae6560ed53fc88a39102e579b",
+   "captionsSha256": "7a501e5a1d22183eeecb278d480cb3d8f1b1746a8eb2d3998496ace318ef72ca"
+  },
+  "bio-antibodies-immune-defense-advanced": {
+   "topicId": "bio-antibodies-immune-defense",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 329,
+   "bytes": 77103993,
+   "sha256": "d925f685611a854a40bd9dbe30da5aa62b031fa9d93e1e1dc235c9c1101e9804",
+   "posterSha256": "d2da648ebd0cbf2055cdba950383200a4604b523cbdc8dde562f6548fb113381",
+   "captionsSha256": "622249a322bf2f54c1b77c80a40a9aa3a2385e105ebc8fbb73716ed8e73a7842"
+  },
+  "bio-dog-compass-intermediate": {
+   "topicId": "bio-dog-compass",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 369,
+   "bytes": 85843841,
+   "sha256": "e13b7d910e1d7440ad832fe9a200024bdba13ae1aa803fc0a21c45faea3f1045",
+   "posterSha256": "48995cf369b1d48842f590c87bfda1c98da44b2ab690ebcf0b9bad0e35f8ba10",
+   "captionsSha256": "48da202bc1206c20d00ef17513948b16fa014247f87682b46ab8a97d6d03a7db"
+  },
+  "chem-polar-dipoles-beginner": {
+   "topicId": "chem-polar-dipoles",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 331,
+   "bytes": 76408342,
+   "sha256": "780e5e6d01155c29eba485cfdfd9c26a737ea5fb25359ff7ac470b21f97f1145",
+   "posterSha256": "9e2fed3ddbc192a017a1cfb3785770c9bf4343f55fb356d80fe24d55e10d998d",
+   "captionsSha256": "1a5624a7fead0cc7fe63bb13b5a0717dfa931d0ab8ade967dd06bbdd8bf0c784"
+  },
+  "chem-polar-dipoles-intermediate": {
+   "topicId": "chem-polar-dipoles",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 376,
+   "bytes": 86743447,
+   "sha256": "ecf51670ce0163820def73f1306203411941bf73c290c0f6a5b60fabde478ac7",
+   "posterSha256": "48da5ba0ae393ff5f66799837f61536f99122a60caf3a51e8d426390e3ab9c8a",
+   "captionsSha256": "58193ad2563dade77a07eee289ff69acd8b866e29d785a5feadef2f1d209b8a5"
+  },
+  "chem-polar-dipoles-advanced": {
+   "topicId": "chem-polar-dipoles",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 449,
+   "bytes": 103791403,
+   "sha256": "bfd1292ada45ae6565e370874d835c2704da83fb167fcf91acdc06981a7c5d1e",
+   "posterSha256": "e47ef0adb09a722507304f93062b60b9fe4b8838be7bb8e053b3c3b03b97500b",
+   "captionsSha256": "d0119fe1c5b27e6b7fc2146fe733455d2387bc27a6683f53a464ef5b03eda37a"
+  },
+  "chem-hybridization-sp3-sp2-sp-molecular-geometry-beginner": {
+   "topicId": "chem-hybridization-sp3-sp2-sp-molecular-geometry",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 328,
+   "bytes": 76052453,
+   "sha256": "5a026c1b971129127b6b5dc0ec469217f1b7479a22828740f0737d6016a839a2",
+   "posterSha256": "436b2708f7700ad3f86660e3da1d97564699133b87a792a28b92ca8ab87d1163",
+   "captionsSha256": "b34a2466b0295535494582e743029d8b65721f4ac6b3fb0bb954f8b7c472b989"
+  },
+  "chem-hybridization-sp3-sp2-sp-molecular-geometry-intermediate": {
+   "topicId": "chem-hybridization-sp3-sp2-sp-molecular-geometry",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 371,
+   "bytes": 85907301,
+   "sha256": "bcdc9d4e2a162d163bf28425d4201497f1f610a2b0a083c4dcfb473ab01efad6",
+   "posterSha256": "e71ed58e3315b261a4e029d206c79f899abb86776be58545d894533f9006d2f1",
+   "captionsSha256": "457322d4897e25eb1d7b8c67166f930c916cc8b46bdd630177395c62477aa245"
+  },
+  "chem-hybridization-sp3-sp2-sp-molecular-geometry-advanced": {
+   "topicId": "chem-hybridization-sp3-sp2-sp-molecular-geometry",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 453,
+   "bytes": 105538784,
+   "sha256": "1023dd1033eb25ef99d4683115cfaedf4cb004ad7303454880f37c969f199d17",
+   "posterSha256": "70d8ad4067be3b6d8126f4ca7ad4c4008224270b9c34ff5b638e1267a7465b29",
+   "captionsSha256": "b04a40d9c8999674dbfcbd0f2a8bdf72f364ce9dec02dbe1eda0ef949c6a5413"
+  },
+  "chem-intermolecular-forces-london-dipole-hydrogen-beginner": {
+   "topicId": "chem-intermolecular-forces-london-dipole-hydrogen",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 343,
+   "bytes": 79533893,
+   "sha256": "cf32060f385f397348fc72d782d9d8d116db8799a0f7f0c171fef1d68aee9bbf",
+   "posterSha256": "6426f5cc1a1723013e1ac655e7ca23b4ce18a2d0b0d49cb289b666c333c96741",
+   "captionsSha256": "c4b95432c99e1aabfba47ba4711e1c6931eb44ab921bbf5426e66c69e4143146"
+  },
+  "chem-intermolecular-forces-london-dipole-hydrogen-intermediate": {
+   "topicId": "chem-intermolecular-forces-london-dipole-hydrogen",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 361,
+   "bytes": 83875246,
+   "sha256": "92a5e0a50b0d03ecff20c8733b37f71391a3bd9fcd6162a87323c591e7070b65",
+   "posterSha256": "90019bded0dab91cec115d67dcb51bd2814929d9ef5b3194a646f072b92dc3c8",
+   "captionsSha256": "d04e90380cfe015e876adfea2b97132a1f10ce4a3eb8322c6a79792723990f8c"
+  },
+  "chem-intermolecular-forces-london-dipole-hydrogen-advanced": {
+   "topicId": "chem-intermolecular-forces-london-dipole-hydrogen",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 451,
+   "bytes": 104909741,
+   "sha256": "9cb70840f1853807aa14c785c0da90767cc430ae2fb1061ad05bc69de4020eb7",
+   "posterSha256": "c5d4e0c7675a8a17a1cc5090981fbac6ad19f50744db68032225d8f5e649afba",
+   "captionsSha256": "77e9cb44d3a7af3155d62c00700dcde037708ad30bcf6b46e685d88d31d01baf"
+  },
+  "chem-surface-tension-capillary-beginner": {
+   "topicId": "chem-surface-tension-capillary",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 304,
+   "bytes": 70291641,
+   "sha256": "6624670b80f8dc336e51a884ab4a0731842e06063a3af3f6805e74ac354b2ba5",
+   "posterSha256": "2a1b1b389398dcf9b74d165d2149d12ffc47fdcf19dadd46ad73992d3868128a",
+   "captionsSha256": "87420618b8c65e6778fc7b267686a005067c7ffe28c240d42d549548822f413d"
+  },
+  "chem-surface-tension-capillary-intermediate": {
+   "topicId": "chem-surface-tension-capillary",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 348,
+   "bytes": 80936325,
+   "sha256": "8ba8cd83f7432fea5a65939b0d8a0b37feaa6e38e5ab245cac0a55425e759c8c",
+   "posterSha256": "2f240a502735d6a87eb25f92430119cbd3ac281a8af7818b7d7a1c875e54a50a",
+   "captionsSha256": "91342dcb183ba93838ecd7ce00be4e2bac8fb116655af574027aebb26db9f654"
+  },
+  "chem-surface-tension-capillary-advanced": {
+   "topicId": "chem-surface-tension-capillary",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 454,
+   "bytes": 105420088,
+   "sha256": "7369f263ead2a4dbd5130c95ee81a1390c63a3cf678550734b2adb5ccd86726a",
+   "posterSha256": "b7e14a7b0d46d2c598bc3850330c0c2eea5c380d8d5a932271aaecbcb0f9f43c",
+   "captionsSha256": "ae80f37c32ec07f79f6cf28598370d9469b14d8d7f4eb7764a85d716112a6a77"
+  },
+  "chem-ideal-gas-beginner": {
+   "topicId": "chem-ideal-gas",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 316,
+   "bytes": 73254217,
+   "sha256": "6751c0b2fa1277afef3186cbb8a8a98255794c88d0488e4db4db2ab3bd762d6f",
+   "posterSha256": "a4c811ad00c2b074d92c62b00ed3d3eaecca490abe48db7248be09cb73877e6d",
+   "captionsSha256": "415d802a75c005e98b5974e5f8a37c021a9027860e20a699c1fb1432b657ed2d"
+  },
+  "chem-ideal-gas-intermediate": {
+   "topicId": "chem-ideal-gas",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 343,
+   "bytes": 79549171,
+   "sha256": "458f69830a6f79d999d5b5cdd093862245690813b6e5ca33a615f3c2457ce065",
+   "posterSha256": "d3b92b01629a4d5d2b795f520bde39febee0fefeb75a2f6a67084ff0de3e3663",
+   "captionsSha256": "158d00eebe6e544676ac9bdf150e4e798a6edf54545127a87d6fe22f814d0ace"
+  },
+  "chem-ideal-gas-advanced": {
+   "topicId": "chem-ideal-gas",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 489,
+   "bytes": 113453344,
+   "sha256": "cab8316fe940e26b57be9ed1be4ddc0dd5dbb3755f34616b2146bb5d18172ece",
+   "posterSha256": "17d1fe66e3c2910486f4e6d98a5d6d3da4d47c5cda4a840779933d6a02d5d6f4",
+   "captionsSha256": "b18844c2a9f7b23b61abc315aa13f0db53b37c00c7521a6a1c6476f55cd98dab"
+  },
+  "chem-ideal-vs-real-gases-van-der-waals-beginner": {
+   "topicId": "chem-ideal-vs-real-gases-van-der-waals",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 308,
+   "bytes": 71672633,
+   "sha256": "8adc57642c4c16366d8f6421fa8014b8d5953ba3b0baf2edc909d3d51640e3c9",
+   "posterSha256": "65244c5a27dd4a45da38d3ee8993a5d2ac004e99ab21a4c9470b651dfa52fef1",
+   "captionsSha256": "d51951b6c892cba98fd340f0adc4cb48cf48d5ebb185dd6261314ca43409c1cc"
+  },
+  "chem-ideal-vs-real-gases-van-der-waals-intermediate": {
+   "topicId": "chem-ideal-vs-real-gases-van-der-waals",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 360,
+   "bytes": 83932123,
+   "sha256": "2c05026ef945436146afb12330ee068df85b5835d9109cf2bb2c9a1b380b9c8c",
+   "posterSha256": "9708c33ad1cb9eef310fd1a14cd9e6d9f2f356764bb70a32dc5557cc3b3c4351",
+   "captionsSha256": "075c9f340a8461cb2d8083a73d64d3f9929c2fd246d41925e1dcda921375f322"
+  },
+  "chem-ideal-vs-real-gases-van-der-waals-advanced": {
+   "topicId": "chem-ideal-vs-real-gases-van-der-waals",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 429,
+   "bytes": 99210093,
+   "sha256": "7e7d076b63df0ee16977ba90fa63a5e89b3dc799f5a5ceceb0fde4630c83ae84",
+   "posterSha256": "84d94076bb4600ea2b43f1dc3cbad1b0f05fa8ee09572ef6db8b8d58439c18fb",
+   "captionsSha256": "24ebb353a7ecade2656f8929951f2426188bb0224c499d91cab5964c3c24eeb4"
+  },
+  "chem-phase-diagrams-triple-point-supercritical-beginner": {
+   "topicId": "chem-phase-diagrams-triple-point-supercritical",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 315,
+   "bytes": 72782974,
+   "sha256": "bd4b836f9ec2e96cab452b40af0377f90cc71aa390a4797d75657d8e5c9d23b9",
+   "posterSha256": "070bfe293ecf9031229fec25b7e6d4c5ba3bc3b0cf44569bf7365ba2221faa2e",
+   "captionsSha256": "15c483b781ea9bc0479689d9dc8dd0186692bcd23bfd67f5f2a511dbdce00953"
+  },
+  "chem-phase-diagrams-triple-point-supercritical-intermediate": {
+   "topicId": "chem-phase-diagrams-triple-point-supercritical",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 370,
+   "bytes": 86733415,
+   "sha256": "177dc967c689ef4ddab7812ff1f1baa745ef2d4b502cc906f6df686d8b4ebd5c",
+   "posterSha256": "83aae0762461a380574b9c8d4d212cda393443afe4f3c3c0f1f63e3e0ad96921",
+   "captionsSha256": "65f05566c56521aa961b843ba51addbfd32c8dac0430c2ec2f7b7c9afbfa3e31"
+  },
+  "chem-phase-diagrams-triple-point-supercritical-advanced": {
+   "topicId": "chem-phase-diagrams-triple-point-supercritical",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 455,
+   "bytes": 105043721,
+   "sha256": "d68a563b1b59453070a60a663dd8101b0581c52cb3443116ba2728fdeee30cd3",
+   "posterSha256": "2ec44ded17e4d265aa4272e9960194e8033b8e50ee182b4cb8ea907d801620fc",
+   "captionsSha256": "8d97cb72f40ca5c8c47f3798dcb2bfab6766e7cc206047beaa0f786311941bb3"
+  },
+  "chem-nucleation-intermediate": {
+   "topicId": "chem-nucleation",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 349,
+   "bytes": 81691059,
+   "sha256": "d1a0cca02f676dcadd4ec0ac9428faee3a6411b1a081e36ad99ed55069957eb5",
+   "posterSha256": "b4d68427c8022ad73f7374741bc390eba6754dcd85d1d3b4386bbb23ec59594e",
+   "captionsSha256": "2015ac9d7be32ff48a45e178c8f1ca91998286761f05943ec3d059bcffafff7a"
+  },
+  "chem-calorimetry-bomb-enthalpy-reactions-beginner": {
+   "topicId": "chem-calorimetry-bomb-enthalpy-reactions",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 333,
+   "bytes": 77105206,
+   "sha256": "8d949bd70c4e53bdc272cc003f33245f775cabf577281120be8cb602fd17471f",
+   "posterSha256": "620e248f72ca44a480dab262b013096dc09b5f30d377fb9aa3b7d0853247fe59",
+   "captionsSha256": "bfd3462e91c8988c6ebde6f92c3ae4195517481cad7fa9b118c221c069d3e11c"
+  },
+  "chem-calorimetry-bomb-enthalpy-reactions-intermediate": {
+   "topicId": "chem-calorimetry-bomb-enthalpy-reactions",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 375,
+   "bytes": 87417899,
+   "sha256": "f6c72edc8af068868272481741ff46dcd2161bb92dbb4c6bc2a4c80a2da922fe",
+   "posterSha256": "d9f1e3a50c381f4b00286cba455d2a6bf32e3a9dd05b5ac943e175f8924df636",
+   "captionsSha256": "73111153dc6f2b91226556e107e200518a7fdd58c52d2c357733a76084261c19"
+  },
+  "chem-calorimetry-bomb-enthalpy-reactions-advanced": {
+   "topicId": "chem-calorimetry-bomb-enthalpy-reactions",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 447,
+   "bytes": 103548686,
+   "sha256": "c5c2c96fb82037d4015ee6e2df228fcd52228954291e0049e295bdebf58644e6",
+   "posterSha256": "bfaf00192016631973cfc5445675cab108c4522a3d98f135447feb3aac8d144a",
+   "captionsSha256": "f8459c9c8939900dc969be7c02499011a05de2c206cc94ba3c4856fac6fb00f2"
+  },
+  "chem-hesss-law-beginner": {
+   "topicId": "chem-hesss-law",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 306,
+   "bytes": 70585871,
+   "sha256": "7906fe831344eb09d5f35038be1251c31ed9cedfe4125884fcdcf0e8d2481066",
+   "posterSha256": "8dec9bdef0d9d9e914a08a352b2dac8f1a2ffbf9875abce9ad3aa5fb48daf97a",
+   "captionsSha256": "188ebd2791fe31cac3ade761bfb9c5820ac6e716dca5cb7af8dd72d545e44013"
+  },
+  "chem-hesss-law-intermediate": {
+   "topicId": "chem-hesss-law",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 363,
+   "bytes": 84486309,
+   "sha256": "ac04e73da263f6bfe036d6723b64f764eaf430a2dcc524bf495cac2beed4a985",
+   "posterSha256": "3dd407d263599e345e132742601e023926b7dd534e0983a1d4269cee943792d9",
+   "captionsSha256": "e1d6d7634c6a9658e391e222bf29320aabe83d7a3ffaa922ad4f390c06be07bc"
+  },
+  "chem-hesss-law-advanced": {
+   "topicId": "chem-hesss-law",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 457,
+   "bytes": 106133892,
+   "sha256": "3cd6a585bbe6dd39355a688c67530c771edd8e2d2a563837e4b88bfeb2481255",
+   "posterSha256": "0d01e4eb7303ba9bbabe00370b22262172bdf1bc788c06562aa55a3ff6644db6",
+   "captionsSha256": "4df2aab3b63e9edb0b44c986f2f9e7d3a4c133b0ac72a62573f077a9b3da4766"
+  },
+  "chem-thermodynamics-entropy-gibbs-beginner": {
+   "topicId": "chem-thermodynamics-entropy-gibbs",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 302,
+   "bytes": 70276406,
+   "sha256": "29a801c3e635bea280c55ee857cca492887bb85aa31dd9b826551ea2a523a5e7",
+   "posterSha256": "b477be5c8210e94f22acab10ddccb05cb5c2ed2b86de30ceac2dcaa249933554",
+   "captionsSha256": "183aedd1a7794809d5b90428b0781620950bad7c0a1e922ebd9b9bc4c225a94f"
+  },
+  "chem-thermodynamics-entropy-gibbs-intermediate": {
+   "topicId": "chem-thermodynamics-entropy-gibbs",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 377,
+   "bytes": 87568902,
+   "sha256": "7f407778f4f2207a55dcda78fea7ff3af2b123ac938a04fa433844aee18d90bc",
+   "posterSha256": "04d05198b6b717a069c8ac93ac158a13d3ae89e33021f85b462565c8d3139689",
+   "captionsSha256": "98f77178d36c88ac48ed3fa48283e0e69321383dcf445c2437406fc4386b347d"
+  },
+  "chem-thermodynamics-entropy-gibbs-advanced": {
+   "topicId": "chem-thermodynamics-entropy-gibbs",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 474,
+   "bytes": 109996279,
+   "sha256": "516d52e994679f61763024985734bda891be2f57f76cd133ed8b7c9738f70174",
+   "posterSha256": "b2612e99e751a44ebe074172adfe6301546518266813f02cfd4717945707b35c",
+   "captionsSha256": "83f01af7b6f64ecb4ba30dbd8f3a14ac373c73a2073ed3884b7b32f4c94506f9"
+  },
+  "chem-activation-energy-enzymes-beginner": {
+   "topicId": "chem-activation-energy-enzymes",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 306,
+   "bytes": 71103093,
+   "sha256": "2e7532b7333e07706bb646c5012dd6eedc64be5d716fb7f47b0fc25d4d637d18",
+   "posterSha256": "efe489556d417f8b35a7eb2a00bf47f3b17bff4e497756d179ec7efe09f17b3c",
+   "captionsSha256": "f3119f9b44aee75a615d795328adf1cdf232d32a9a1fb017268be6787bb061e7"
+  },
+  "chem-activation-energy-enzymes-intermediate": {
+   "topicId": "chem-activation-energy-enzymes",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 370,
+   "bytes": 86262270,
+   "sha256": "2108a8f8c575e89c5ad9e8f79df2a093a6e0f4cb53b6e02d31b7640544abe456",
+   "posterSha256": "451d0719b32b539c29b134efb4591e674eba51db18a20d6b738709e0c438d135",
+   "captionsSha256": "745347bc08d286048f502ff88744d90a60728663aa77b887fab6007621d476fe"
+  },
+  "chem-activation-energy-enzymes-advanced": {
+   "topicId": "chem-activation-energy-enzymes",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 474,
+   "bytes": 110215669,
+   "sha256": "93203c1cf069238176ece25114016b6b0bb58ce2dbc15222ae1f81590177da5f",
+   "posterSha256": "2a6b273087f1b76f9ce11ceba47d7ff63d336a9dc7652064f8bd78581e531a50",
+   "captionsSha256": "1fdb84bc7d1d7f91c28698bbdfe358e1bba2a2a6b66ae6efd182a295718e0a17"
+  },
+  "chem-rate-laws-beginner": {
+   "topicId": "chem-rate-laws",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 302,
+   "bytes": 69893901,
+   "sha256": "133fe219ca433d60c0694074a10b0aa77a79676c539b5fda3b277023de09b3a4",
+   "posterSha256": "c4503d408d3b66714d1c8920a46b0ad14f894089d62c850481fc9755e8f05ab8",
+   "captionsSha256": "4cb1b758506fb76a2cdf119bf93a57296237e1a653215a1ccf17feb83971e11a"
+  },
+  "chem-rate-laws-intermediate": {
+   "topicId": "chem-rate-laws",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 332,
+   "bytes": 76254918,
+   "sha256": "6712441d34720892a07145366c71cc538ca78246cfc5ea933a3bf9c3874f69ea",
+   "posterSha256": "642b898c278b3b5cc792af6a5a430c48db34fe0f4fefd3068853a1ae4ed9cfb3",
+   "captionsSha256": "b1563797989d672ea06c82d2f972aeec131a30333d94d6e18e721f94fead2ce7"
+  },
+  "chem-rate-laws-advanced": {
+   "topicId": "chem-rate-laws",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 444,
+   "bytes": 102618929,
+   "sha256": "e253d740a545a35353001d20b6af4daab9c5e4b7e61ea23dd0e5988d310e404b",
+   "posterSha256": "7962146e229e13535c41c2591a23ae5c4ad649ebab17617f75afd863d16d0cce",
+   "captionsSha256": "b38f196d825359e016a04ac31c5cacb68f21dd5a5d7971a91b5dbbf873dbb802"
+  },
+  "chem-le-chatelier-beginner": {
+   "topicId": "chem-le-chatelier",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 311,
+   "bytes": 71601855,
+   "sha256": "d62567633d823a399c12758e6e37e5b65846aa5b552c250956dda9777311df0a",
+   "posterSha256": "85cd7ea5cc9f5b4816b8427f612f5221dfd98f29ef9c00a05f93777f7e597011",
+   "captionsSha256": "f72b12d39611388020715e339a58961cac94be69bee5665e71cce39abd1ae79a"
+  },
+  "chem-le-chatelier-intermediate": {
+   "topicId": "chem-le-chatelier",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 349,
+   "bytes": 80918068,
+   "sha256": "93ef277dfd4da000412e5abadca4b1034489580b11941a3f984d05e43e7c4689",
+   "posterSha256": "f5c0451021d9b3e69581afa91a0c92fe6430c2e41b517a58dd849dcd3c900410",
+   "captionsSha256": "5cb512a683f3db361057823e2000a0ae177263a32a35114f264e112dc47803fd"
+  },
+  "chem-le-chatelier-advanced": {
+   "topicId": "chem-le-chatelier",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 430,
+   "bytes": 100039078,
+   "sha256": "bfb2a166f5727710d6e92583c47b4b6dfed014d3e1cc244ca89f59348abd1006",
+   "posterSha256": "faf0ea746718032af3b7713cffcdd120e74d70dfd86c8d2cfd100c6aaddf66d7",
+   "captionsSha256": "f5b9490147e5e3c48edc6b2f757f791f989cb511a2730db822b47540db4faaaf"
+  },
+  "chem-equilibrium-haber-beginner": {
+   "topicId": "chem-equilibrium-haber",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 340,
+   "bytes": 78359487,
+   "sha256": "f515d65edc211adbe7b13a99bf277d92d2351181906dfa357135c071e571e25c",
+   "posterSha256": "cc15c96a7f5a4e8b0478c7aa940b5314c6fa6f9c07d2e033b6b8ac41dd56d4bf",
+   "captionsSha256": "425255ab5bed0fa306d0f509d17c282925c2f3eeabb5692b71e2d0e85d0e4e14"
+  },
+  "chem-equilibrium-haber-intermediate": {
+   "topicId": "chem-equilibrium-haber",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 366,
+   "bytes": 85137510,
+   "sha256": "2bd73e5cbae2312d8f6909d5b09469a0e7f3a65ac99dce55124280a5e9352cf9",
+   "posterSha256": "16861bff387a907a9128be21de2158f4db02085519eb6f2ca3ad853392df2021",
+   "captionsSha256": "2354028b6cada2d7f2ee895eac42c323df82ab5c5cd30232a5c723b485c4ae03"
+  },
+  "chem-equilibrium-haber-advanced": {
+   "topicId": "chem-equilibrium-haber",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 441,
+   "bytes": 101893158,
+   "sha256": "0ad3898feabdbf036e81b8ee5a52b504583ffd35c237025216c29c37673677ef",
+   "posterSha256": "8677e1a81fc3b00aeba03667059371cc4776a8cfd127046a20d4ce9296a0823b",
+   "captionsSha256": "4a9dd96834e036a607bd5d647721959e03439ec0eb1a6ae98e81a5ccec99960e"
+  },
+  "chem-acids-bases-ph-buffers-beginner": {
+   "topicId": "chem-acids-bases-ph-buffers",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 308,
+   "bytes": 71263218,
+   "sha256": "3493f1bed8ebc55bf3dc6baa4e3b5264cb863d224c20415d598fb0f7535b8dfe",
+   "posterSha256": "522b962f55462f0a23150136e1b2c533cd84de13cf32003f32323672dd72602b",
+   "captionsSha256": "982a0e09a11a8f3e9758f03dc180a2d1b0f4f42e40708ac6187e159e9f22cf57"
+  },
+  "chem-acids-bases-ph-buffers-intermediate": {
+   "topicId": "chem-acids-bases-ph-buffers",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 368,
+   "bytes": 85091685,
+   "sha256": "a1c79c4e3c985dbeee8bf1005c3c3bcc1b5ae46cf0ebaf749099a11241557a0d",
+   "posterSha256": "7c3dc8e84392ba6fe3157d4fc802f43714ad4b0e0c24334b6b1bd5f52ddf95d4",
+   "captionsSha256": "694f1961ec23f65b8d201670c0a701e1c58b3bfd6bfe5b8b40c32900dd5032e5"
+  },
+  "chem-acids-bases-ph-buffers-advanced": {
+   "topicId": "chem-acids-bases-ph-buffers",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 434,
+   "bytes": 100417549,
+   "sha256": "60b685101611c755b012f9e6a83462a92448255c35a99336740ab8de9c611575",
+   "posterSha256": "c71b9540b8685d8dca46623b82c9c1b62dd8fca52b9ce171cbc805c8cdfe8310",
+   "captionsSha256": "f7e45e45871db6d70f548fcdde74767feb0a126de70f7c482b593f03e47d7ab5"
+  },
+  "chem-buffers-blood-beginner": {
+   "topicId": "chem-buffers-blood",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 330,
+   "bytes": 76378306,
+   "sha256": "2e3591739da562728be868f30e8aed7b0c47f594d777d4dd46410f82da3827ed",
+   "posterSha256": "f72ba7591ee9a8bbf15d50e172396f98537877489f9d9b7117843c69cadf8452",
+   "captionsSha256": "a8ae44f37f74dc2527f844b3ebacc35268758f8b5c34ef73b39770d32a7fded4"
+  },
+  "chem-buffers-blood-intermediate": {
+   "topicId": "chem-buffers-blood",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 374,
+   "bytes": 86795584,
+   "sha256": "dbdb834dadae173d7b5aac4ef7014f0a1cb5ff8f8df953aaebe4ad8d0e6303d1",
+   "posterSha256": "3381d4eec77df058f7cfec0d38d5b2965ecb7661fb4f8053982c5fb1f2c457f3",
+   "captionsSha256": "3a626307a39e5fc0be45207b428d2860bf99e6c50c1a1ffaea8f9fd45ee7711e"
+  },
+  "chem-buffers-blood-advanced": {
+   "topicId": "chem-buffers-blood",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 477,
+   "bytes": 110852413,
+   "sha256": "2ec5dae3014d6e42dcfc4ecb4ada310b01356e7b2ff8d39022fb28d9b10bd07b",
+   "posterSha256": "1899f4cee2ab7da431066264b4d24a8f0311a7f8db9d69a365bcecdc99c1ad38",
+   "captionsSha256": "63ba230330325d468b65991bc1f7765de9c5c16a7c3e29c48924196a0589c67f"
+  },
+  "chem-buffer-solutions-henderson-hasselbalch-beginner": {
+   "topicId": "chem-buffer-solutions-henderson-hasselbalch",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 303,
+   "bytes": 69778447,
+   "sha256": "a49daeb99791600407dacd81b8e21d84fb175849bce91943c855d7f49fea6827",
+   "posterSha256": "9f9da28e10af1e8442e14db585e8661e26977803a42771596bfee942ea8213c0",
+   "captionsSha256": "c4aea0e9be6cf77541cbca4594854d92521ef508ce71af91dd25152425bc247c"
+  },
+  "chem-buffer-solutions-henderson-hasselbalch-intermediate": {
+   "topicId": "chem-buffer-solutions-henderson-hasselbalch",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 352,
+   "bytes": 81377021,
+   "sha256": "3dc42b25d2eb8c01655ae4372b462abe39d65425a75da954d7db27fc8e41b52b",
+   "posterSha256": "c2b02d709f64f242ddf0233c74d61b976fb7b37bc2e944deded377050e20d903",
+   "captionsSha256": "c96079bf899ccd6c2a78c98d3542e481b5de7c9fbd64986f1947b08b6e1bb151"
+  },
+  "chem-buffer-solutions-henderson-hasselbalch-advanced": {
+   "topicId": "chem-buffer-solutions-henderson-hasselbalch",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 459,
+   "bytes": 106353915,
+   "sha256": "8e1187ef730a396463f64cb470622919ddd0f9ef59f135ace8b95848bb58e024",
+   "posterSha256": "f7c1171b7ee52797de40db795ab68992cb9395df0ae0b82ad69b7eb0b3c8c626",
+   "captionsSha256": "f81f90722cf8a2d84aa19d53201628b67b75db43ffe3891ec366bd313e6279c5"
+  },
+  "chem-redox-galvanic-beginner": {
+   "topicId": "chem-redox-galvanic",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 320,
+   "bytes": 74029311,
+   "sha256": "bf82bc1ab48b5bb4f70c109a8c9bc7136f9926201fd2a02d47a399fd64da026e",
+   "posterSha256": "ce3aec61c2d0b97c8f8a25b26331f670fc34d0550bae07c08bf8bcf73fc32b7e",
+   "captionsSha256": "9a77436369147253019248bab28330832dfd07ce823ccfb3700c69f38ebb9d70"
+  },
+  "chem-redox-galvanic-intermediate": {
+   "topicId": "chem-redox-galvanic",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 362,
+   "bytes": 83801786,
+   "sha256": "d59aed91c6246507297b6f0325a08ce1a2a4566275c133a857f30bbcbdfb98b7",
+   "posterSha256": "a495c82b3d5db98517e4310fdaacf3c0178b4a07d2ede3b53248f7f47d63b32f",
+   "captionsSha256": "8ff352def258399bc6c8cfd8fc3717cfc7433565ea7ab932373500960ba21334"
+  },
+  "chem-redox-galvanic-advanced": {
+   "topicId": "chem-redox-galvanic",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 421,
+   "bytes": 97460213,
+   "sha256": "f234e0466da9c154dd084d4b31e90bf3875a8ffd7af881e99fadd5ab5841bd84",
+   "posterSha256": "9ce91fe833b239128abc3f4a689be6837565b00cc525d34f6e8d4f7218104b9e",
+   "captionsSha256": "216be2ddd3dc061251cddf5e26ddeff8b29825d8e1896cef6a66f90322273227"
+  },
+  "chem-galvanic-batteries-beginner": {
+   "topicId": "chem-galvanic-batteries",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 313,
+   "bytes": 72391407,
+   "sha256": "0e9abd605ef3e0f81cdff41a91661d62ca929103fdc20dc0d8ff92e9a8325a92",
+   "posterSha256": "efd50b011c97c50a4738257b8d454ff1fedca790af56dfff4ae0767fdecb0b8b",
+   "captionsSha256": "462b30948ec5ff60a369a4f1f2c2920975176157efd5d3ceeb4af9d8788c978f"
+  },
+  "chem-galvanic-batteries-intermediate": {
+   "topicId": "chem-galvanic-batteries",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 351,
+   "bytes": 80437988,
+   "sha256": "12f6ac06286f205a9e8c49ac6ff364cf49aae8e24465b47da791216713126979",
+   "posterSha256": "40b249a2e069a4ee4c659df6d4cf1c829943e22d4fa19864125c79025c78073b",
+   "captionsSha256": "f04fc7b76c51e42e5182628a5aec13ce0aa054830bc7b0f89e471f38ea1797ae"
+  },
+  "chem-galvanic-batteries-advanced": {
+   "topicId": "chem-galvanic-batteries",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 399,
+   "bytes": 91803978,
+   "sha256": "28c5af3d0019d6753bc59087d2463e5d97f8bfe36589486d99dba95d26c60def",
+   "posterSha256": "c30d8c113d5dc54d77d3115d02caf7247ad57d0d2ba91b2b50cc5103e9035b58",
+   "captionsSha256": "695b5bf889c260671583037b22e747e752b908eb16c60ab13550a13d2d794cab"
+  },
+  "chem-galvanic-vs-electrolytic-cells-beginner": {
+   "topicId": "chem-galvanic-vs-electrolytic-cells",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 309,
+   "bytes": 71822818,
+   "sha256": "6b3a07513800f07185722f1d255460a741a948b04d579ed267448ad1b9071523",
+   "posterSha256": "fda555163c9633b1bde843407770d8098040a1eabb38ecae95b43ea9d0398ab2",
+   "captionsSha256": "766bf2d8db224f4ecfed252cd3a2b2c0aadfafde9727b917ebe0ba31cee52ef6"
+  },
+  "chem-galvanic-vs-electrolytic-cells-intermediate": {
+   "topicId": "chem-galvanic-vs-electrolytic-cells",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 322,
+   "bytes": 74637911,
+   "sha256": "3e891eb998df7a73def0209b7e4b19c158377b680fe309ded01059085812f445",
+   "posterSha256": "f7541bbb89ef65d707def80c7b1001bfdd1554bb187bf240eaf4d0b069317271",
+   "captionsSha256": "160c26f23c7f7a1053b21ed4b2fea5bd39a9458c253ed14f0bda27f770571501"
+  },
+  "chem-galvanic-vs-electrolytic-cells-advanced": {
+   "topicId": "chem-galvanic-vs-electrolytic-cells",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 396,
+   "bytes": 91686781,
+   "sha256": "01cdbdb3713c4d9ffd35e0105f6b29993b306a091e15f5ca2b465b73bd4fec3e",
+   "posterSha256": "d320b1588d1a9bafc08251bc61aa196c8bedfe9240ba99e342c0588c250c5e86",
+   "captionsSha256": "2a10faa6b830361f98177e696162bcded3f033a653511e99737ec93b3eb3d45e"
+  },
+  "chem-redox-galvanic-cell-potentials-beginner": {
+   "topicId": "chem-redox-galvanic-cell-potentials",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 290,
+   "bytes": 66980955,
+   "sha256": "1209051fa8c75e92d714ef44a434dcbcc514584dd3753881b68c0845c2acfcdd",
+   "posterSha256": "ef8c242d6fc235b63d0f015264f6a11bda30b27b7fccfc680bae364a4931c26d",
+   "captionsSha256": "1a7984112f99b0c2a37983ac8f6bc08e2f23d7472e0e1b764dc2aaea31c008e3"
+  },
+  "chem-redox-galvanic-cell-potentials-intermediate": {
+   "topicId": "chem-redox-galvanic-cell-potentials",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 361,
+   "bytes": 83538544,
+   "sha256": "9cc57428b18399441ffb6cb6a52eeecc5f0ddc29a0be4a5a616847e2d5a4d3c3",
+   "posterSha256": "c8885228ebf121d660dce377de01c082fdb18c0a11f338a6d3897124e6e7b9df",
+   "captionsSha256": "8b32ecbda0f3b8a5b7d418481cac1d5e386d60c55a7f93aefe1357ca9ddb1c98"
+  },
+  "chem-redox-galvanic-cell-potentials-advanced": {
+   "topicId": "chem-redox-galvanic-cell-potentials",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 471,
+   "bytes": 108842987,
+   "sha256": "a65dd21345082c8d83ffdc55fa7ba6ca655106c11d27ce30e3b4c9a8d5f5e6be",
+   "posterSha256": "85c0b4d0597e785eceb2cd5c4f89ebbe7a7be6ea72faa5331774fca4108399d3",
+   "captionsSha256": "42a9eccdedf98f3bff237e5b0446640b41dba0575141f9e1c9867a7925e15e0d"
+  },
+  "chem-electrolysis-faraday-beginner": {
+   "topicId": "chem-electrolysis-faraday",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 327,
+   "bytes": 75649333,
+   "sha256": "57509fb20f6ad2c191631dbe7c39e489d220ec2378b7af66e26e38563605d5ec",
+   "posterSha256": "7b34629d440ce2ddfa730b25ace008afabc481b82be9dfde6bf7c76b815ae165",
+   "captionsSha256": "97a00f66fd6a97832a785240a9976b1c379b5aa7f5cf654c7cfc00c214690b4a"
+  },
+  "chem-electrolysis-faraday-intermediate": {
+   "topicId": "chem-electrolysis-faraday",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 316,
+   "bytes": 73252649,
+   "sha256": "eb8cd0fe0d3d110a7df9cf89b690b4d2b98dc03db8d9a70258f4606c0462102d",
+   "posterSha256": "ec711f1415436ab2e2ee276f326288f1c226e8aecb902e6593eae10761183c6e",
+   "captionsSha256": "5b5602c39ae7aa3e082d5382d1858e29f5ff60a0a8d2b3993701612e7070193d"
+  },
+  "chem-electrolysis-faraday-advanced": {
+   "topicId": "chem-electrolysis-faraday",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 392,
+   "bytes": 90243478,
+   "sha256": "bbc475b47c6c098331be05e2a743c9d643a64f108687dcb0595a206eefb0c59f",
+   "posterSha256": "f8764d20e61118e57147920715a4bad208fd457e2f3334e315229f0bc75f658a",
+   "captionsSha256": "930c3f78d685b86ebe2ff69c2ed1e86aa9c2c593e99614849ed7fcb27f4eda5f"
+  },
+  "chem-electrolysis-faraday-laws-electroplating-beginner": {
+   "topicId": "chem-electrolysis-faraday-laws-electroplating",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 303,
+   "bytes": 70291631,
+   "sha256": "adfd6a1188f0fc23765682a17e1dadb57d3949903fe3cca22b3ed6eca3494f6b",
+   "posterSha256": "79981506ce0dd85f74a7079b1515f5ff4f3bbcd204a8a96bfdb6ab620de58f95",
+   "captionsSha256": "e0f00ae87ad2e33633653dc165b42cc5a9322fbe5098ea0bc301964b361b46a0"
+  },
+  "chem-electrolysis-faraday-laws-electroplating-intermediate": {
+   "topicId": "chem-electrolysis-faraday-laws-electroplating",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 335,
+   "bytes": 77170723,
+   "sha256": "5cd5f69bca00c60d66cc8e09aaf0a79be0fe22285c2a483d1e29bda0326c0685",
+   "posterSha256": "c9c7f7bcb4f73f6ddc90c76bf84ef6e22c2165bf68d4a500bf1a1ca3aa07a05d",
+   "captionsSha256": "1e08162f66029240a50128f3357c38fb37a92b0ed73d2c54fd5903ba2c81a200"
+  },
+  "chem-electrolysis-faraday-laws-electroplating-advanced": {
+   "topicId": "chem-electrolysis-faraday-laws-electroplating",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 404,
+   "bytes": 92855563,
+   "sha256": "a1d4138d417a3433cb010fa6bd2e51c71ad419e1d33437c5b0cbfebe4da48d1c",
+   "posterSha256": "55118a7c126f6f8bd681f42cf63bd4de0d4afb9bcba9a561a8335cda3fd104e6",
+   "captionsSha256": "5f0ad0f7b0edb060ab9ef45432817e74bbf4037f94e724a32ab6a4af5af46a9f"
+  },
+  "chem-chromatography-rf-values-polarity-beginner": {
+   "topicId": "chem-chromatography-rf-values-polarity",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 310,
+   "bytes": 71888072,
+   "sha256": "1b976747ae13e5cb8fd0ba6f4e11aac5a9ab174c2092429a48f991a1ec8c1d06",
+   "posterSha256": "bdb4b7c7c0cbe06fa7015ed2b50315ebdf6b384a038f95adc5716cb92766f62f",
+   "captionsSha256": "31839d01316e7cd3c3678ee632ba14894d85218b43da0b1839490c3e7b5fe73c"
+  },
+  "chem-chromatography-rf-values-polarity-intermediate": {
+   "topicId": "chem-chromatography-rf-values-polarity",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 343,
+   "bytes": 79815625,
+   "sha256": "1c7704717a17affb1df52627d0823cb66beac42898438084f4b1a9bd401a1c16",
+   "posterSha256": "b9e0adb3dda136c11de1d7f8e882f7fb958598804cf3655c6561ec156a815c0d",
+   "captionsSha256": "547c16769fcc7977389e30abf8c8a1dcab5483362bd4830ce2bc0a2013eac0f3"
+  },
+  "chem-chromatography-rf-values-polarity-advanced": {
+   "topicId": "chem-chromatography-rf-values-polarity",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 370,
+   "bytes": 85354876,
+   "sha256": "798f192e9eb38c5bc9f8db58779fd6258db73369cf49963bf5e8ecf73dba4876",
+   "posterSha256": "f4bc7afcdef7930d30e177040b2bac0ac613426676c14ad3586b5a098987fd7e",
+   "captionsSha256": "c114254f3570dbf5f9e7453a330d9f9630a340a8216164a1b8702021ae1bedad"
+  },
+  "chem-organic-stereochemistry-chirality-enantiomers-beginner": {
+   "topicId": "chem-organic-stereochemistry-chirality-enantiomers",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 320,
+   "bytes": 74104469,
+   "sha256": "d73d441b04d7e6938d137fddf9b2c8fb813f147231860163c963bde3ed7ea632",
+   "posterSha256": "80a7a06cc232ea089b960fe22bc3bf6b1eb8843bdd63d13011df8cd3c1dbeafa",
+   "captionsSha256": "0598d687a241065abe09dd3cdea34d5bdee1564fde0717aa4fe3124f475329eb"
+  },
+  "chem-organic-stereochemistry-chirality-enantiomers-intermediate": {
+   "topicId": "chem-organic-stereochemistry-chirality-enantiomers",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 339,
+   "bytes": 78482804,
+   "sha256": "9ec847272efc166484a5f5af45c7bc4afcc06a87645af56fb81eb7eca0936ddf",
+   "posterSha256": "9e73f3dfc27f601c9edb186f87b1f63e1900c4d3027f65fe43cc3d9212c391ec",
+   "captionsSha256": "c639f6f7d26e25cc9a8bdd41a098d89f32963b4f820de7386e7e9b3a18015375"
+  },
+  "chem-organic-stereochemistry-chirality-enantiomers-advanced": {
+   "topicId": "chem-organic-stereochemistry-chirality-enantiomers",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 388,
+   "bytes": 89696123,
+   "sha256": "96e7cf762c032a4d05cc4441f83759939e273d6431b50b50e35b759fe0086550",
+   "posterSha256": "beaf694b8f9735b4038878c273dbdea36c2a4989e0c72bd1a4aeff7a0545d8d2",
+   "captionsSha256": "6f529d82774a7b144b7c9e30b65e1cf0ebbdc89347f9db0bedb576a589da7983"
+  },
+  "chem-crystal-field-theory-colors-transition-metals-beginner": {
+   "topicId": "chem-crystal-field-theory-colors-transition-metals",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 307,
+   "bytes": 71573754,
+   "sha256": "ef51e72c6af21c2a51945e003ca4d9db235e16eb288bc490cfe4e44b47e71c54",
+   "posterSha256": "ba575dcf0a3cf8f8e27bf4ca877ce5f3681fd010a649b723cff36e4ca08f5008",
+   "captionsSha256": "c2c7a7db81b87e6fbeb5a0a30a811863654bc459eb37c1a956464be6ffe6fda0"
+  },
+  "chem-crystal-field-theory-colors-transition-metals-intermediate": {
+   "topicId": "chem-crystal-field-theory-colors-transition-metals",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 357,
+   "bytes": 82631737,
+   "sha256": "4b8729d0a92916d6129d0772ce8d5220b51d7cea7613096be5c2c6c0257a7dec",
+   "posterSha256": "20e541a5d706a623e69880104eb3aec5d5272b04538e7de77ae3b806b2cca55d",
+   "captionsSha256": "216dc5015e50935653e45c398815509deaaa663cf114c899013b9784542493c8"
+  },
+  "chem-crystal-field-theory-colors-transition-metals-advanced": {
+   "topicId": "chem-crystal-field-theory-colors-transition-metals",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 425,
+   "bytes": 98811721,
+   "sha256": "103c280fb94cec400effdb6795bc6c0ce369cf4822f7c1a7b136f1e24b7ff279",
+   "posterSha256": "9f486611f1e5a86859c87bab67653d8fd78b8bda3cc0806c6d0392dc28d95004",
+   "captionsSha256": "8a4826775aba9318f030eab0b4d49a8c75e5d885a2f85a36961a1328904fba5f"
+  },
+  "chem-photochemistry-jablonski-diagram-fluorescence-phosphorescence-beginner": {
+   "topicId": "chem-photochemistry-jablonski-diagram-fluorescence-phosphorescence",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 317,
+   "bytes": 72939391,
+   "sha256": "997c5d4b2f9e9e0e276d89dbb4e9f3b95c0795e25c646c49f57204bdc996cc0d",
+   "posterSha256": "f5666186c0a3f9abcbff2c4b0215c7607aad74dad9f0b11971e3cc053cd19a1f",
+   "captionsSha256": "4a4aca950cd28117fd912a6f8d9177116f1c7151c4e920a466072b72c7948b5a"
+  },
+  "chem-photochemistry-jablonski-diagram-fluorescence-phosphorescence-intermediate": {
+   "topicId": "chem-photochemistry-jablonski-diagram-fluorescence-phosphorescence",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 382,
+   "bytes": 88940836,
+   "sha256": "5c8b55e6d61040f7268d023bef4fa08bba8e477e4c75d129d3e02e7574c641fe",
+   "posterSha256": "076f66c0d95147074bcd06afc6e37daf60c13bc01e1630e9af54b2b18d842c9c",
+   "captionsSha256": "454ceb2831abf0caba28624ecf57c771affd69ff06b4f405735016ef71200ed1"
+  },
+  "chem-photochemistry-jablonski-diagram-fluorescence-phosphorescence-advanced": {
+   "topicId": "chem-photochemistry-jablonski-diagram-fluorescence-phosphorescence",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 496,
+   "bytes": 114444523,
+   "sha256": "cb440e46704def08f655f43564e3839e46654d54cfdac3d6c41313b00a5a3417",
+   "posterSha256": "0c3fac7ac1ab927134df44d917b88485c318e0ec6c99150a6bdc2bc7e16467e4",
+   "captionsSha256": "93f7c6665071c98321e68d80eda4092c0b763eddb677ed6c5550e2a022958fb0"
+  },
+  "eng-materials-stress-strain-youngs-modulus": {
+   "topicId": "eng-materials-stress-strain-youngs-modulus",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 156,
+   "bytes": 16249898,
+   "sha256": "277c088dc4b53785d33ca6ae4086909394e85cce8ef2a4c0ffed649549a4bb83",
+   "posterSha256": "f61f86cc9243a8de55fd9dd48519507c5ce93470ab3a27a81663b26aae392976",
+   "captionsSha256": "d03e58e2d7508c20da929a0adcc89cf0902339bc0770c3c8fc375f4ab6b55dad"
+  },
+  "eng-suspension-bridge": {
+   "topicId": "eng-suspension-bridge",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 128,
+   "bytes": 11711488,
+   "sha256": "c0d20461aab7ec705db3f4b96eb4022a13806cb9f4b038250658277485ef1118",
+   "posterSha256": "039c04ea2c66800d7b8b254cffb368c7f31dc4fe7a67617d0bd5a25a54e06fab",
+   "captionsSha256": "3c15d1f21c7194e3d2bc1ad3a73195d136ef94126e9345dad2f27b353875d999"
+  },
+  "eng-materials-composite-materials-carbon-fiber-reinforcement": {
+   "topicId": "eng-materials-composite-materials-carbon-fiber-reinforcement",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 88,
+   "bytes": 7717375,
+   "sha256": "7a7ef66d96755c9d6b92a06ab18812e544cca376746349e5e4c016252663985e",
+   "posterSha256": "10f8f77521580dca34fc5fe2c61464e11ef14915d77ea306308461662fe1e07e",
+   "captionsSha256": "eefa5ab2e67c83a19eb0a462fda512e68885abd3c3adcdedf25cd507ec0425d6"
+  },
+  "eng-materials-shape-memory-alloys-nitinol": {
+   "topicId": "eng-materials-shape-memory-alloys-nitinol",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 88,
+   "bytes": 7349134,
+   "sha256": "be178b32cf0b5585da3bdcc91a3d8751fc5183789b29e422fa6405902df901d2",
+   "posterSha256": "b0af71e8fdbba93282cf47af06df90e9b0e0a336f3cde3a14df6100e54457bb4",
+   "captionsSha256": "ce3a667a1a2c0f277ad175efbf07bbd506fa2ce9e597fcb99bffbede5000a0b5"
+  },
+  "eng-gears-planetary": {
+   "topicId": "eng-gears-planetary",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 145,
+   "bytes": 13948502,
+   "sha256": "dbbdf22e46171a7add8c02c8f041cd5ff12054305239e40f0909eb88b48154ae",
+   "posterSha256": "1ebcae3dda7dee97d8b813867251544a7c65479e7aadc9ccdd25eb12be8946de",
+   "captionsSha256": "a9025df1d9acd521fd968226623f2ff7c3ecc5bad32ef439c5b7a38ca876b5cd"
+  },
+  "eng-car-differential": {
+   "topicId": "eng-car-differential",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 116,
+   "bytes": 11783572,
+   "sha256": "5066e99e014e9da39a762209343ca5aeb6200e41b1adac6e4db490c04749b712",
+   "posterSha256": "0f77e231ebf270b1fd36ea577430a424c43fb3fe252689d7601dc776fce23e16",
+   "captionsSha256": "758288bbd1d361314c7a164532f4005dc1de8fcd03b3bef234d29426e9674c42"
+  },
+  "eng-piston-hydraulics": {
+   "topicId": "eng-piston-hydraulics",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 126,
+   "bytes": 11420091,
+   "sha256": "6d3dbf41009f1c88e3082bd103ff071c5071a42f1004ff6ec0f2234263a06961",
+   "posterSha256": "0f7fd2bbe5a6f67e918bc2614e36c448de063939180e2fc5ae730504fa9f9766",
+   "captionsSha256": "97597b8c36e893ae7958c7dd97d59fad4a4cf3113255cb8f364e6674be03ef0a"
+  },
+  "eng-fluid-dynamics-bernoulli-venturi-carburetor": {
+   "topicId": "eng-fluid-dynamics-bernoulli-venturi-carburetor",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 86,
+   "bytes": 6897138,
+   "sha256": "6f659b3d985f95eabe34e825d5cf609405eac188fbdd91cf7f3c8c1e6dc7e082",
+   "posterSha256": "9ca9fdb2b81bad372a4c1afe7390406be544b35c2004df75aaa0b5730669cb3a",
+   "captionsSha256": "26fa33f648fcb258b86f54804c5790b375288b258fc56345991601088ac47e7e"
+  },
+  "eng-four-stroke-engine": {
+   "topicId": "eng-four-stroke-engine",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 131,
+   "bytes": 13304643,
+   "sha256": "153681e4efb453761c32174115eb3890d71ee168e7744d56c38cdcd11219340f",
+   "posterSha256": "b9be6d440a75fb91cd1f61864d8eb6c32526b0fafb46e7bf0bc19957ced655c7",
+   "captionsSha256": "6dbdb304d179a7bbaccfd9a6782e646a391fc8c4a8f28b2c99d398a739c97be5"
+  },
+  "eng-internal-combustion-two-stroke-vs-four-stroke": {
+   "topicId": "eng-internal-combustion-two-stroke-vs-four-stroke",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 155,
+   "bytes": 16279947,
+   "sha256": "ef29f1f4a351cc99ee43bdfe1f2f9768c163a3031a0be50f6d633709d4c9ac03",
+   "posterSha256": "1a6a7f70c805dd6d7594323f09703cd6c13976c4a21a51050c4978798b4b267f",
+   "captionsSha256": "ca8487235a43544aabf34b5eee33a8e02048734b9ce927efe023f340cb19539e"
+  },
+  "eng-jet-engine-turbofan": {
+   "topicId": "eng-jet-engine-turbofan",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 161,
+   "bytes": 15538748,
+   "sha256": "9aa04724077e2eddba1920ccd639d85300ab4fb3bd7389bbcbe2c9aa04be762f",
+   "posterSha256": "c897e6a389112b139b642d22981a149fa33eebb887e78bd9b049caaf0dbac2f0",
+   "captionsSha256": "b5a0c8635ce955aefdc02ee6f7ca84604ebd907057efb7a546b319d49a4fbeb0"
+  },
+  "eng-aerodynamics-lift": {
+   "topicId": "eng-aerodynamics-lift",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 162,
+   "bytes": 16963877,
+   "sha256": "978d74b5e9ac33d18f052dcb8d202ac2f145402cb2528968892fed0f575204ca",
+   "posterSha256": "d09ba2e38d76e496310d2f16804409da55cc5b69f72278e6a876c349a7e8d69e",
+   "captionsSha256": "bd73dd99fd4b595ce688a20cbe1718a129e0dcc25f7c8222648340695e1b3ec6"
+  },
+  "eng-aerodynamics-boundary-layer-separation-stall": {
+   "topicId": "eng-aerodynamics-boundary-layer-separation-stall",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 93,
+   "bytes": 7927748,
+   "sha256": "c3c3f0a219cbccc723ddd8e007d5085fa3a39c5e8ce9b7c756ca32bbfa7aeb12",
+   "posterSha256": "816671367247d03d1a6bad87f10918931f2b45111aed8198669524011660d167",
+   "captionsSha256": "a1c29cb27a26e615f980e79ba8ea4b55f2b38276c135589bd6e7f611a1e386d5"
+  },
+  "eng-thermodynamics-carnot-efficiency-heat-pump": {
+   "topicId": "eng-thermodynamics-carnot-efficiency-heat-pump",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 91,
+   "bytes": 7364698,
+   "sha256": "ef1f38a7d5a4e146dc91788e35a984bfb5e7a7916587c0430c8a12a1cfe3d7a6",
+   "posterSha256": "9ca5b71732f55ecdeccb751794c8ba714fa661091149d6e94cf0d59b42847baf",
+   "captionsSha256": "5e89c410f42a66d4b8165955977971772600a85df4a545a7ca389bb497ba2e86"
+  },
+  "eng-rankine-cycle-steam-turbines-power": {
+   "topicId": "eng-rankine-cycle-steam-turbines-power",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 71,
+   "bytes": 5638497,
+   "sha256": "90f6f62cd80b595a9b1a1db7cae2472debb766215021bf4eb62f312a5c1adebc",
+   "posterSha256": "2c6d824e6ede915cfc1bd3e02390fff9ce3e321d984c05ff6976010f80d9f186",
+   "captionsSha256": "62789af3bc845032f580d5624c910aff6fe1a2f2ac4fd7f59415f6fd76f52667"
+  },
+  "eng-heat-pumps-fridge": {
+   "topicId": "eng-heat-pumps-fridge",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 139,
+   "bytes": 12934164,
+   "sha256": "389a45f20ee4a8696e3fb5b92a48fa99d1ac8d3db32a09719de77d4e7abf62f5",
+   "posterSha256": "83b80150e77ac0f43575e624f0979ef792db6e78a4923f3290976c59d7946fc9",
+   "captionsSha256": "819cdf28b9640d0714929237e3022e1c1acc228d3e396f1ddd87e6b592477560"
+  },
+  "eng-refrigeration-vapor-compression-cycle": {
+   "topicId": "eng-refrigeration-vapor-compression-cycle",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 85,
+   "bytes": 6999709,
+   "sha256": "020653d1399009842c870f1874df2fa12adcdd44eb4116a4daa0da40ea9ac735",
+   "posterSha256": "0d3e67aec2f41c686e77fd8a75617dbe8fa21436c60efc8eab1952b955ee7300",
+   "captionsSha256": "1adee57b015077c9c9139f395298202e902147aec376c14593e381c2b7844193"
+  },
+  "eng-transistor-logic": {
+   "topicId": "eng-transistor-logic",
+   "level": "standard",
+   "teacher": "Pinky",
+   "seconds": 167,
+   "bytes": 16630553,
+   "sha256": "2ab5b80fd7e3a7d066e1ca3bc6730830dcbfead8f862a6781c00f058dd9b9738",
+   "posterSha256": "05fdc828e8b5c384a29acfb3156d3ef988e707faab682af02f59c83d20fff13b",
+   "captionsSha256": "4b7a44b7dd524fc0705a6115e34528364cae3d24b9b63faa54ca9b931e432ba0"
+  },
+  "eng-op-amps-inverting-noninverting-feedback": {
+   "topicId": "eng-op-amps-inverting-noninverting-feedback",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 70,
+   "bytes": 5504633,
+   "sha256": "fceadc191712b2a8edfadc2a7a0d20ad579a3922153884f9f76e2bbb536cf9ce",
+   "posterSha256": "0526f43ea405b2e65981f090a8bd0bb5d152e38947f6f0e1033ebe26183a6b85",
+   "captionsSha256": "ce4007690b569d468b047758546bde969b346e45ce6f41be0da0446986fa5819"
+  },
+  "eng-pid-control-feedback-loops": {
+   "topicId": "eng-pid-control-feedback-loops",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 63,
+   "bytes": 4955033,
+   "sha256": "ed0f4de0ead811e4b39169b29f58b587ce805e1a2c09895f29c8c1ec9ea9c9e1",
+   "posterSha256": "031b1bfe48ad857a0c01f5ab702b5b5e052f878fe53e06ba1c1314eb862f17a2",
+   "captionsSha256": "818cf2f5f627c0de3cca345eeb28ac924803a906f70b9829f4ce93b1a2c252ee"
+  },
+  "eng-feedback-nyquist-bode-stability": {
+   "topicId": "eng-feedback-nyquist-bode-stability",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 87,
+   "bytes": 7204309,
+   "sha256": "9517fff91fc86ec3cbfffd0f850374ace5843c39a9c0a2eed02c5b7b4f3925dd",
+   "posterSha256": "5339bd775718ac06841297dbfba6f286c1ec7874a5c557a454b8eee7f7705e00",
+   "captionsSha256": "602cfbbe64fbe359daf6de38df834099e81371d0fb30e595595ef8a547ff56f9"
+  },
+  "eng-electrical-three-phase-power-synchronous-grids": {
+   "topicId": "eng-electrical-three-phase-power-synchronous-grids",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 88,
+   "bytes": 7102335,
+   "sha256": "b64c38b47140c44f36090b63150c3bbcc6d2fdd87b3eb8f9a6d294955105372a",
+   "posterSha256": "1553a47a757310391b087bf8a0a1dd7c4dbe55c8dda21d24649900086d103bfb",
+   "captionsSha256": "86e16f69a3334f284ff47f701b3e1dc3f3ff268d0c910010a847826fe7efb451"
+  },
+  "eng-aerospace-orbit-mechanics": {
+   "topicId": "eng-aerospace-orbit-mechanics",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 140,
+   "bytes": 14747375,
+   "sha256": "482062ae569b43d3d29fb3bb8142fca08e04b04af55822827e8183367bbff65d",
+   "posterSha256": "00048dc04a9808ce0c82257c464dd575899d113573f8fd598ce9bcca57ded849",
+   "captionsSha256": "f7b3f1eca4d9c0793133cbb2e90499a7a0a9c3c60d9e7d082ee238affde72b1e"
+  },
+  "eng-aerospace-orbital-mechanics-hohmann-transfer-vis-viva": {
+   "topicId": "eng-aerospace-orbital-mechanics-hohmann-transfer-vis-viva",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 87,
+   "bytes": 7661412,
+   "sha256": "ceca06f587db147fd2ada0883abb8a92bee21de52e771905c05fe85bf74876c2",
+   "posterSha256": "a019439a26b0035f87a6366bd813d673432a7c1fd482e357bf8632d78abb2af9",
+   "captionsSha256": "c568ac52c8d9709a5bbb9ca4cd85a01d280185c95387676919e37f361a2ee271"
+  },
+  "dyk-water-towers": {
+   "topicId": "dyk-water-towers",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 119,
+   "bytes": 11812620,
+   "sha256": "e8a5e1dc989dcae9231a981f717273b919d9ff3322e16ca2f2fdb912d0e4ded1",
+   "posterSha256": "c24faf6151820152381aa0d009544a8c2426fb83fba2a850f9635f4e6e1ded73",
+   "captionsSha256": "a17612e0f207ad74e5cb8759295c2c4a1beba47dd75c2c187dcf0d49020793ad"
+  },
+  "dyk-skyscraper-toilets": {
+   "topicId": "dyk-skyscraper-toilets",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 122,
+   "bytes": 11104972,
+   "sha256": "5ae2ba20214fd3ef4b8afaba8a70ac473335e8e5626688ad49fd7a0b9dafa81a",
+   "posterSha256": "84a9d4332499d4f7fbadf2f0d21781be5e6672d2fae640e53aad5e24980da655",
+   "captionsSha256": "a51b8bc58fea2f75651a845db53de12267d2996ee949aecb013a4dd09e412771"
+  },
+  "lit-the-odyssey-sirens": {
+   "topicId": "lit-the-odyssey-sirens",
+   "level": "standard",
+   "teacher": "Tealy",
+   "seconds": 140,
+   "bytes": 14897406,
+   "sha256": "70f071b15fdbbccf6e22dbf9f692a936aaf3b3a6e3b8df9c7362cc6a89f01615",
+   "posterSha256": "c2540a932f56064d8b86bdeaa08bc0c59bfb1894ab1f2422d98a7486ad9a525f",
+   "captionsSha256": "157814f9d50a0753be8540309aa3c954376b76da1f8aa06318533753ae48bf11"
+  },
+  "lit-virgil-aeneid-duty-pietas-founding-rome": {
+   "topicId": "lit-virgil-aeneid-duty-pietas-founding-rome",
+   "level": "standard",
+   "teacher": "Tealy",
+   "seconds": 83,
+   "bytes": 7077824,
+   "sha256": "b7aa2f78b56fd20942d4d157ec2a1090c02c6ff9184902c380bbfa00d8c1e54b",
+   "posterSha256": "1db37784789a93b67eb2e4907c0121572d93b33e77d2c9632eb9ac3462c8d8f8",
+   "captionsSha256": "34c6ee437fb6425d01140974418433785038583e68bdb60a5e63f21e5e99b9df"
+  },
+  "lit-oedipus-fate": {
+   "topicId": "lit-oedipus-fate",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 175,
+   "bytes": 16923086,
+   "sha256": "f8e123ffe85cadd450900366dd4b31681023b25b03797951a167ac176f898ac5",
+   "posterSha256": "c5f3f060f783d8682146b190473940a9a72b2b33788e2ac8cdbc8d21f1969014",
+   "captionsSha256": "128027c626ee68fa7f00bd3f7ae6ec97f3447bac822119e920230dbe163fbb20"
+  },
+  "lit-sophocles-oedipus-fate-dramatic-irony": {
+   "topicId": "lit-sophocles-oedipus-fate-dramatic-irony",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 90,
+   "bytes": 7366561,
+   "sha256": "7a5d8abbc85930b832a66bfaee93032e8b0efa6b047e84aa793671c419ca92bd",
+   "posterSha256": "0a245e888eaf198eabc8a2767dc09d7dc8e0f70991156b14fe46aee9cdaa078c",
+   "captionsSha256": "da1ff4deeb0fdc2446ca8a24ec9b83b16571f1ccc871fc07e47b0515ecc24a43"
+  },
+  "lit-dante-inferno-contrapasso-allegory-dark-wood": {
+   "topicId": "lit-dante-inferno-contrapasso-allegory-dark-wood",
+   "level": "standard",
+   "teacher": "Tealy",
+   "seconds": 94,
+   "bytes": 8319461,
+   "sha256": "10f8e6a6832b7e76bde4b5e03b261555177f791f852a13e2adac4b50f53314d7",
+   "posterSha256": "393856b142e9c13e5edf4c78262620095b7eb3176554c8974d39ca2d7f4a03a3",
+   "captionsSha256": "565cc67a3d2f8eafb650a161454401a259c1f687575e36426931afb7980c2343"
+  },
+  "lit-hamlet-madness": {
+   "topicId": "lit-hamlet-madness",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 158,
+   "bytes": 15057146,
+   "sha256": "51a5b513dd108a8d9bb7cb59fc0703fb3f0c80ec99fe9530e0421d621db77c1c",
+   "posterSha256": "03a92ffc88588ae0ee92c092c991d3b0f952becce3b1ca2783947d34b18b5e37",
+   "captionsSha256": "d793883b09b1e11d48d085210144a5d8b5387ad2842c02b9a09a97cb89a40e79"
+  },
+  "lit-shakespeare-the-tempest-prospero-art": {
+   "topicId": "lit-shakespeare-the-tempest-prospero-art",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 88,
+   "bytes": 7076227,
+   "sha256": "1ab7172323b9b39bd70210d363aa72dff0e6005b2c87e724fa5a83ccc3221d72",
+   "posterSha256": "d3c0411647b44ccb7f0acb464140dc54dd034cd34f63a8ba1cfd9598dc232275",
+   "captionsSha256": "406349473e72426bded4ca56924d43c10c83e1c2f85e738ea3c81bde956348c4"
+  },
+  "lit-don-quixote-idealism-windmills": {
+   "topicId": "lit-don-quixote-idealism-windmills",
+   "level": "standard",
+   "teacher": "Bluebold",
+   "seconds": 63,
+   "bytes": 5211199,
+   "sha256": "5daa026afbf3b27cdc501a19a3379b60dbdc39ecdfbe831091fa8fc6f4202fa0",
+   "posterSha256": "7dc5c4a67ab9810013018471ad9f6c83262b81d8074381fab8ed6e3196912e03",
+   "captionsSha256": "a9e8b71537364a86abb02e9e5069bc94a87e1d440a8e8487293ed8daa3045b8e"
+  },
+  "lit-frankenstein-galvanism": {
+   "topicId": "lit-frankenstein-galvanism",
+   "level": "standard",
+   "teacher": "Tealy",
+   "seconds": 131,
+   "bytes": 11810427,
+   "sha256": "067d4e5d6cafbb88398cf86a0f078caaf65afaa80668114c01d32d7743966ed0",
+   "posterSha256": "371c5cce55d13bf2f7bd24ea0d7be51a93aa6ba187eb9e08571321afd9e8e478",
+   "captionsSha256": "de17d8168f252fb485dfd9663d78ccb3ec31419ea32b87a5fad494c67f381dc1"
+  },
+  "lit-mary-shelley-frankenstein-galvanism-ethics": {
+   "topicId": "lit-mary-shelley-frankenstein-galvanism-ethics",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 85,
+   "bytes": 6881883,
+   "sha256": "e37ae23891301f09118e52bc7b34419bbee31fc5649f17d9ea7cd39414b408ad",
+   "posterSha256": "101f80fdf85f557259d50264fd3963ddbd906c4539718664b30b51d8f843aa9b",
+   "captionsSha256": "004d6fbc13e7bc8d5ef692220c6b67cf6863e94eab3f42dd2e1ddc9c5f88a5aa"
+  },
+  "lit-jane-eyre-independence-social-class": {
+   "topicId": "lit-jane-eyre-independence-social-class",
+   "level": "standard",
+   "teacher": "Bluebold",
+   "seconds": 61,
+   "bytes": 5112742,
+   "sha256": "992839c7724d0627d54921c56e4c663c3fdb25d9c79d64c73f028b56473f9f41",
+   "posterSha256": "a5988f916a9cde3720a9c7ca0535650b9961a317033a419fd9d75b7454ca3278",
+   "captionsSha256": "ec4e62c2b3f4c0b1c68cc5ed43e09deb4fa71e827d5eb580ca618d6b3ca52d92"
+  },
+  "lit-melville-moby-dick-whiteness-whale-obsession": {
+   "topicId": "lit-melville-moby-dick-whiteness-whale-obsession",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 86,
+   "bytes": 6993632,
+   "sha256": "9d51e80663ff06312cf9d0ea5551466d2676386bbcc8cbeda6ca37d566439bc2",
+   "posterSha256": "1a8d29f52bed7db99c4b0a2314be666600c52350121248a1bac2c08ba2460ceb",
+   "captionsSha256": "ee8ddfdfc5112414e38174f98e76637cb14fb1b42e347e00af948373abed590e"
+  },
+  "lit-crime-and-punishment-raskolnikov": {
+   "topicId": "lit-crime-and-punishment-raskolnikov",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 159,
+   "bytes": 16790669,
+   "sha256": "037084035ed8155321eb4b9806d554367213b398b78d5ebe72ef22f8ee96fa35",
+   "posterSha256": "6a49361d02e86e48ff8471c01dfb1e43041a787c059171314973a43135d71760",
+   "captionsSha256": "11eeec4dd5565616ae472541174953bda3ffa1e892e98c001ed616cbf50dac85"
+  },
+  "lit-jekyll-hyde-duality": {
+   "topicId": "lit-jekyll-hyde-duality",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 160,
+   "bytes": 15153031,
+   "sha256": "b8962c2733e2958a8a3e5cf2610f829381ca93eec428eaa8c7f340a6ed645369",
+   "posterSha256": "b09067cea9b8d56e10d1c13902f0aa3b2575cb996c2c9bead6c534d97a722af3",
+   "captionsSha256": "edd6cf6a40d8ed91be2d68c3505602c5f94529a16efb9666d2fd9471c7236331"
+  },
+  "lit-metamorphosis-kafka-alienation": {
+   "topicId": "lit-metamorphosis-kafka-alienation",
+   "level": "standard",
+   "teacher": "Bluebold",
+   "seconds": 69,
+   "bytes": 5685215,
+   "sha256": "239f315ea727f7dba64123a602c0e0901b54a2264d15ea53abb6ce4f8ce6a762",
+   "posterSha256": "cbf64dc32e1596d5e7b52cf7c4792aedb086352e270e5342300aaac6b6209e78",
+   "captionsSha256": "504c329a8f5b546846a0c0b775aff759ca52dc234875685a8ee53ed0565dfd25"
+  },
+  "lit-gatsby-green-light": {
+   "topicId": "lit-gatsby-green-light",
+   "level": "standard",
+   "teacher": "Tealy",
+   "seconds": 133,
+   "bytes": 13347018,
+   "sha256": "aab9461906ba16885226ca8b2d46dd75bafecb1a11f65aec09d3464033ad2062",
+   "posterSha256": "39f8afea475ee5117774d4af5ec765f0977f947993edea38e6b4083417b88924",
+   "captionsSha256": "522390a690e079cfb8bda1b1e2ffcb108736c4c9c2380b403cf91616936a40fe"
+  },
+  "lit-orwell-history": {
+   "topicId": "lit-orwell-history",
+   "level": "standard",
+   "teacher": "Bluebold",
+   "seconds": 127,
+   "bytes": 13200714,
+   "sha256": "e07a0cfd41e46c075d4b28f434236576f246accbb27d9110534be02b3705f38f",
+   "posterSha256": "6620eee5ca522f8a01618ac1c82ce1c2b6021369da2124e4f3dbf433d3f059f1",
+   "captionsSha256": "d06494d7abf24563d819c612ab07889fde9128e840a4a41372896b37e8394776"
+  },
+  "lit-1984-newspeak": {
+   "topicId": "lit-1984-newspeak",
+   "level": "standard",
+   "teacher": "Bluebold",
+   "seconds": 126,
+   "bytes": 12853516,
+   "sha256": "ac725c824e1c314fb8ad67342c5f849658b8e5b9ecba8a978af34f7f204bda6b",
+   "posterSha256": "0fd11372b5c430b947049f640f5ae29774402d5e4f27721f4a0d3d3943985531",
+   "captionsSha256": "bffdfbd38f49e0f355ff416dc32ba579c46193a3041f2cdb193422e29eeda1a0"
+  },
+  "lit-orwell-1984-linguistic-relativity-sapir-whorf": {
+   "topicId": "lit-orwell-1984-linguistic-relativity-sapir-whorf",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 99,
+   "bytes": 8318030,
+   "sha256": "1173e869a79fba4a0686c0bba35cb4a718641f36e701d880317ff4fbb5dc2cd2",
+   "posterSha256": "48f4c708e410ebd66145cc1b115996e1b2849e0f6993732f45afde3076f03fe9",
+   "captionsSha256": "9b4adcc831e37dbdb004da6f3b2295eae0001078dc30c02e0e598a75ca272970"
+  },
+  "lit-brave-new-world": {
+   "topicId": "lit-brave-new-world",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 155,
+   "bytes": 14568588,
+   "sha256": "0ea149c65c47a91355a939f2025507f7542ed83d511eda3d33c4007dad3a2488",
+   "posterSha256": "a6268ba15407d81ff7fe1917fbdd9bfcd036f7667e71e5a0be074eedffdbc812",
+   "captionsSha256": "8f306c8bd9acbc72b3b35b6e0ad18be729ab85b7c31287a1f7bfb95f5c4b9aa3"
+  },
+  "lit-fahrenheit-451": {
+   "topicId": "lit-fahrenheit-451",
+   "level": "standard",
+   "teacher": "Bluebold",
+   "seconds": 159,
+   "bytes": 15851707,
+   "sha256": "b10378fc8dc48a5bd5784751bf84dba734f0b1d56b81e5a15d7eb2999141b305",
+   "posterSha256": "f899916563f2d46deb42a6bab80623835905610fdc1720a623b9ca43b2a403c9",
+   "captionsSha256": "95f0dac57ad4613786e60f9fb6ce08899f3617d45742f0c0d31de527fdb920be"
+  },
+  "lit-fahrenheit-451-mechanical-hound": {
+   "topicId": "lit-fahrenheit-451-mechanical-hound",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 167,
+   "bytes": 17680666,
+   "sha256": "7a3ff4f90cf3dfd2c50b98a5177c0c87905094912fc4bdc8fe11ec28016d99a6",
+   "posterSha256": "8452269a59f3290503bd7d057bfeda947b94c277f1e14cdd370c190fb806cdcc",
+   "captionsSha256": "ddef0ac0ade4b220504679fa3841ffab2b84ab4f17b3cbc0ca97613f6e7ae422"
+  },
+  "lit-lord-of-the-flies": {
+   "topicId": "lit-lord-of-the-flies",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 160,
+   "bytes": 15070852,
+   "sha256": "a7802c3179875a1036a48c7c412d6c9af89312b0e81ebf8f9af869287105ec16",
+   "posterSha256": "53f5c728208d667b5ab3753fdc398086b6cc3f54be61e9434177c88daa9dfa46",
+   "captionsSha256": "3850e8f63ceb61d090896fb1ebeec06c3be8fbcfde898f58768bac67157aa15d"
+  },
+  "lit-camus-the-myth-of-sisyphus-absurd": {
+   "topicId": "lit-camus-the-myth-of-sisyphus-absurd",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 91,
+   "bytes": 7386967,
+   "sha256": "e8d13b1a303380e5eda08919fd0837e46de917005e5e1c39e5f67e6d54496943",
+   "posterSha256": "dd813d11d0435ce55155bd8a2a8e608ed1cbeb046f3c09d2d3dd519fb0115fa4",
+   "captionsSha256": "760b370c30662dbb6eb30a8bdd5e6bc9f68c17c5a003ba552a2586c7d423d8ab"
+  },
+  "precalc-cartesian-beginner": {
+   "topicId": "precalc-cartesian",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 308,
+   "bytes": 79105581,
+   "sha256": "ca3c3278865c9fa8c9017b18cfaa9db4368fdd6d842f6c15aab3af7d8fb85426",
+   "posterSha256": "cc8644c0a39443d5aaa664f889ad4efda805770cf5123edb48370e22b49746c5",
+   "captionsSha256": "9b8ee8d83a1a12036642eedb69cc7a22f0cd357ab6c9b48a50a32e3adc76556e"
+  },
+  "precalc-unit-circle-beginner": {
+   "topicId": "precalc-unit-circle",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 306,
+   "bytes": 78516542,
+   "sha256": "f068ed693206d3798267cdecd8460b2d1c4bf90874e3b9bdda9ec863626deaa3",
+   "posterSha256": "e88b085da155a6300cbe865b29012627d09ebba4fdb5287c19793b3a501a3e16",
+   "captionsSha256": "6b7d10b0f9b57011e9995b38cf63e11bdb67b3fe805ca123884abf6f44a5b70c"
+  },
+  "precalc-unit-circle-intermediate": {
+   "topicId": "precalc-unit-circle",
+   "level": "intermediate",
+   "teacher": "Pinky",
+   "seconds": 341,
+   "bytes": 88079412,
+   "sha256": "b52ab8ada6bffa0f7108d0df71519ea030cf6d4463c824b600736ebb215a9ca4",
+   "posterSha256": "24799080950f23346fc7e8f200065e87a0a49f48347aefcf56c0e3da8008d77e",
+   "captionsSha256": "395b29dba951c97d26eceb66a426cc8d0b7e49b2a875ca4ef22e29905c05c69e"
+  },
+  "precalc-unit-circle-advanced": {
+   "topicId": "precalc-unit-circle",
+   "level": "advanced",
+   "teacher": "Pinky",
+   "seconds": 438,
+   "bytes": 112553205,
+   "sha256": "4e75f035aedc310e82517dc291cc89e2e09a069c3004e1c2258d6997a44f523c",
+   "posterSha256": "72e5b95c972b31014ffcb8efbb6938e257f55dd32e96f4ec2fa3cfa84c05d4a5",
+   "captionsSha256": "bada2bb9a18dae445cbc053411eba37bb83170c081e03ccdd5e2357e4d62f805"
+  },
+  "precalc-trig-law-of-sines-cosines-beginner": {
+   "topicId": "precalc-trig-law-of-sines-cosines",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 307,
+   "bytes": 78461465,
+   "sha256": "09a9d60db502af026931ea2ed1d9fdbf5b048132370e98fabd4705659aff3ee0",
+   "posterSha256": "801ae0c095a77852709db17a0d7aaaff6c3e41acbbcd9a81901eb2552f47df73",
+   "captionsSha256": "7c8c74c615036e0e13307b169a83a630de031282cbe00f87787ff32b5c13703a"
+  },
+  "precalc-trig-law-of-sines-cosines-intermediate": {
+   "topicId": "precalc-trig-law-of-sines-cosines",
+   "level": "intermediate",
+   "teacher": "Pinky",
+   "seconds": 335,
+   "bytes": 85758051,
+   "sha256": "360d57882d461078c7a4186cd72a6bdef9b516abe7cd0a396a1bbfab937a1540",
+   "posterSha256": "76f9017331c21578c47d943c0edfe3974a1e5f6f34bee2c4b9c08df77fc0e2fe",
+   "captionsSha256": "72da16dfdbf0508d0584005ca133c3432f35e4e49c16eca7f3583ec5651cc22d"
+  },
+  "precalc-trig-law-of-sines-cosines-advanced": {
+   "topicId": "precalc-trig-law-of-sines-cosines",
+   "level": "advanced",
+   "teacher": "Pinky",
+   "seconds": 435,
+   "bytes": 111723624,
+   "sha256": "5039c36da31b644038fcf8d267a88d0c033ee60a63f65ef070fdfbf5be49276d",
+   "posterSha256": "5912c3983acc74bbb39b288854f69ddb30524d08e17b35bfa32ead10fd236332",
+   "captionsSha256": "25e57a367bc80f6fe52d90d9a2e9740f50552decceedfa82da8c2c4a3ef84b3f"
+  },
+  "precalc-polar-coordinates-beginner": {
+   "topicId": "precalc-polar-coordinates",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 322,
+   "bytes": 73782643,
+   "sha256": "6daeccdc02c6f191a04ec7465a6e299addff022a412dd84d729a11f783b6c34d",
+   "posterSha256": "5674297945ae5e45392ada558948d95f02e589699a5067e8e699383a897845e5",
+   "captionsSha256": "224900fe29cd143ac9f8b2287667044fb92cac11f0b973c8a16684db7ced1631"
+  },
+  "precalc-polar-coordinates-intermediate": {
+   "topicId": "precalc-polar-coordinates",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 371,
+   "bytes": 85091950,
+   "sha256": "fbe937844a1aefac7711cae59d074905a6d81bd1d55f0fb40a4d1bbda8ab9812",
+   "posterSha256": "8e260606bacac0885e290fcf235e3de3a0e4b00eed896ae122401aebf7adbdb6",
+   "captionsSha256": "91f15a0100afb7d6297ecbc785e8666a64e46135ff2deb7f20c07a7b15641472"
+  },
+  "precalc-polar-coordinates-advanced": {
+   "topicId": "precalc-polar-coordinates",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 429,
+   "bytes": 98288043,
+   "sha256": "ec8a631668a73b82830a08dd2a0e9c786978f6d870ed70680a7eb82888d66f90",
+   "posterSha256": "3b3e2b63fac32e44d08186b078d31f342c52d72418de76b114dac0f01b778e7f",
+   "captionsSha256": "f5ebee171d8059f222ce79459df37d61331103038cb53b9e9537955a7713bfb5"
+  },
+  "precalc-conic-sections-ellipses-hyperbolas-beginner": {
+   "topicId": "precalc-conic-sections-ellipses-hyperbolas",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 314,
+   "bytes": 72243513,
+   "sha256": "934e9f210f97ad3e561e406ef3f9308c96831698ae951a9243e2b8d820581fb0",
+   "posterSha256": "4a0d582de2834030878c8bce49e7af8b0cdf399470e99eccfc78dc4c1e387b68",
+   "captionsSha256": "6bf4ec5c720f025bb0374c7c0fbb2caed6f20890c947ec7f4a490a8ac4b6ac41"
+  },
+  "precalc-conic-sections-ellipses-hyperbolas-intermediate": {
+   "topicId": "precalc-conic-sections-ellipses-hyperbolas",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 381,
+   "bytes": 87624085,
+   "sha256": "afe157ffa4b1bae0fb037591fc88a7e56675e325c85bab0381298ff02792c948",
+   "posterSha256": "edf68f0a5d9d4c0dbaf3290692d507de62ff11a32acd68367d6fe6d19d4fc81d",
+   "captionsSha256": "6bdc86304ed7530cf196e80511b0cc99a675688a63184cb2fda391149f227c55"
+  },
+  "precalc-conic-sections-ellipses-hyperbolas-advanced": {
+   "topicId": "precalc-conic-sections-ellipses-hyperbolas",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 477,
+   "bytes": 110109386,
+   "sha256": "e6b3c96429b2450bc25a0ceb657c70a0662c2c398cc7f927571ac2008c6ccbde",
+   "posterSha256": "8e85707716034045467afff39769efc6c5e076827d162d0509914630506e659b",
+   "captionsSha256": "38d1694ffd41938fed1bc693b9951d2f6e92d0e7146597fab017bc656924bcdf"
+  },
+  "precalc-parametric-motion-beginner": {
+   "topicId": "precalc-parametric-motion",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 314,
+   "bytes": 72073497,
+   "sha256": "b03175fd1d6bd172120e158eaec49df0413dcf522b67681ad9003b07766bf13c",
+   "posterSha256": "4d3a23b5f7166e4d920da32e14867a9dc33e1708d7f01638bacd48524ff97010",
+   "captionsSha256": "1950a053e69288f8aa46a24d3332bb0d221c231ef9359cd3ea714873bfa9fbf6"
+  },
+  "precalc-parametric-motion-intermediate": {
+   "topicId": "precalc-parametric-motion",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 355,
+   "bytes": 81118407,
+   "sha256": "1ef0e9f3140db5ec781664c2f8c41373ef1b0548122fc3a7d968958ebc752a5d",
+   "posterSha256": "1a76583aaa20b1bc832ad35e39f1665b742b31395d5b7672f756efeb90c72188",
+   "captionsSha256": "a9658b9c8628486be4c03229949b2437321995fa9794628ca185e6d1833eb651"
+  },
+  "precalc-parametric-motion-advanced": {
+   "topicId": "precalc-parametric-motion",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 453,
+   "bytes": 104497476,
+   "sha256": "0bdb0a12c7dd77b2ebdeaf1242d9908a91e42b11d6fc8be698d714681dc1310c",
+   "posterSha256": "0a63b3b51aee28c2f831d21c009e26c4ecc26800c0224d8cc2f424743e677973",
+   "captionsSha256": "1ca32b052e455448e7dbf834720c6ef4a6fe5feccd3125a75861c8f2445e05c0"
+  },
+  "precalc-vectors-dot-beginner": {
+   "topicId": "precalc-vectors-dot",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 322,
+   "bytes": 74487197,
+   "sha256": "26d8b588c0dadfa57bd5f3c7451a440293cd359d01b5ed576223f2fdf91f6cb2",
+   "posterSha256": "f1c2ece74e992019d6194871abaf3694aadbed6623fcfcd00ce979dc2be17616",
+   "captionsSha256": "68b82e3701bf4fabc2f89f96be351c52ccf729ff9bf3f731cb5596cae7c1b0f4"
+  },
+  "precalc-vectors-dot-intermediate": {
+   "topicId": "precalc-vectors-dot",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 354,
+   "bytes": 81898464,
+   "sha256": "f75523ed70ff12245db933376b1fc957a69ff6d1908ab0a13d86c1d1cccf3e07",
+   "posterSha256": "a2463e85f3da098f83200d7ddb8c0909fa9e10ee35fbce7597540c451c8bf53a",
+   "captionsSha256": "6a4646d984d6de4da6fefbef23a84049cebb0c10f55550bfaab50ceae30a2bc3"
+  },
+  "precalc-vectors-dot-advanced": {
+   "topicId": "precalc-vectors-dot",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 440,
+   "bytes": 101308735,
+   "sha256": "da39a01771d86b50d1440bc2e9813ba3db2aae1784c77ff3da81e7a160ac9dca",
+   "posterSha256": "6b92e1350e8485ade96deb927a7f8e48fc990997802791c756cd81a90aef4f46",
+   "captionsSha256": "465a9938ca5f12006d93bb54dad77c4d185ce2bbfa8ca175097cdee42fe6484e"
+  },
+  "precalc-vectors-cross-beginner": {
+   "topicId": "precalc-vectors-cross",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 322,
+   "bytes": 73929218,
+   "sha256": "7a260e8a5e8e6ddcebb50afd2d5b42d63d36f626eef9d4ac1c091ab02f6bc1a5",
+   "posterSha256": "8801c6a79904498f00440a5bc391d728a3eb26167c914e6346e2966975d454ec",
+   "captionsSha256": "3b4b874def6baba068ec54fc4a829febe781c54a4a7ee9956e5a5b61afc77ea7"
+  },
+  "precalc-vectors-cross-intermediate": {
+   "topicId": "precalc-vectors-cross",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 363,
+   "bytes": 83736299,
+   "sha256": "1a496fb4e7116a85e25e48ab6aa997aea2a47b966de99ca439f70a77bb4f47c3",
+   "posterSha256": "4c9f7561c71e346209515c3b650a270e525f3ee00f19f9eb41d15689cd706e70",
+   "captionsSha256": "98f8b98a2a8144caf6187291b91f6e896b472518bee710506add03b011576249"
+  },
+  "precalc-vectors-cross-advanced": {
+   "topicId": "precalc-vectors-cross",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 442,
+   "bytes": 101681960,
+   "sha256": "e064b15be8cc04e23e757933562fadb002a92a353bb64ff66bb2a955f65c8cce",
+   "posterSha256": "c1295600c752372de25acd10317fe4d280d9397f471393ca733ff7b0e4d5d674",
+   "captionsSha256": "ca6a0c297c595b7abc8edf119175b00817103e8eb4a6a286ea32a65fdf7cd8bf"
+  },
+  "precalc-matrix-transformations-beginner": {
+   "topicId": "precalc-matrix-transformations",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 313,
+   "bytes": 72292584,
+   "sha256": "338d92d0cc084288646cdcb21720fc23b7b34639b1ffe2aa17116ed33d605601",
+   "posterSha256": "a167549fc296527b8339ed2e84e9ba41ecbaea76a729e867cfd7d28db19878ab",
+   "captionsSha256": "4866ab678710d003975798f368828158598f92d5380ebad7c764913847ae5959"
+  },
+  "precalc-matrix-transformations-intermediate": {
+   "topicId": "precalc-matrix-transformations",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 372,
+   "bytes": 85289060,
+   "sha256": "e85be5adceab9ff9866b7f6df9d4f2c7c23520259c971b8a7f3b6baf1cc50c82",
+   "posterSha256": "36d6aa44d9c6a02054b63def42812124900dd45099c51793ae9761e68db393ca",
+   "captionsSha256": "7bd0bc11956cbbcea34bb30f19cd7bab01e7973dcae711d3b0979333b5aa099e"
+  },
+  "precalc-matrix-transformations-advanced": {
+   "topicId": "precalc-matrix-transformations",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 468,
+   "bytes": 107681842,
+   "sha256": "fda1a03e88257c9f1cbc4e7eb31c3d2bcda93618528a0ed065f163c23a3e4ab5",
+   "posterSha256": "855de636a47ed6dd9d08577626feeb6a471eafff1e54e02f3e8ed96fae9ed933",
+   "captionsSha256": "598b0448370b0060d13e510a91f6eb3f99a6202606a5e5b8916f869e176a7668"
+  },
+  "precalc-eigenvalues-eigenvectors-principal-axes-beginner": {
+   "topicId": "precalc-eigenvalues-eigenvectors-principal-axes",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 323,
+   "bytes": 82506508,
+   "sha256": "19cb4a51e3628144c554ce64c2bb2c40fc24b243c414f823c8e3861e5c9997d6",
+   "posterSha256": "97df117447198ee8a9aacd2435197420680bf65c89146a0ed6f8acce2e2d8ed7",
+   "captionsSha256": "6006b5c77c8734ca55fe5377b62bd4423b8567986b753c1686169364ec8b0cc5"
+  },
+  "precalc-eigenvalues-eigenvectors-principal-axes-intermediate": {
+   "topicId": "precalc-eigenvalues-eigenvectors-principal-axes",
+   "level": "intermediate",
+   "teacher": "Pinky",
+   "seconds": 357,
+   "bytes": 91206938,
+   "sha256": "7fbb22108d8699e0725de550091adedeb5935958ec9effe64caf47737d5503d4",
+   "posterSha256": "6f1fe9e5b3c2f348ce64a883a0ea21817444fbf666c53294ceef9d1a39c611bc",
+   "captionsSha256": "b6bc2cdc99783b6a600b22a33f55ceb589a1150c00e707c3fe7d82b5eb9206fd"
+  },
+  "precalc-eigenvalues-eigenvectors-principal-axes-advanced": {
+   "topicId": "precalc-eigenvalues-eigenvectors-principal-axes",
+   "level": "advanced",
+   "teacher": "Pinky",
+   "seconds": 488,
+   "bytes": 125422393,
+   "sha256": "c8b19568ceb3c9fc5e5c6a01847b9a7e2a0a89edad8ac333655823b8df3bf887",
+   "posterSha256": "b912d0f0b97618fd3e973ecfd8c3e3d5ccec0b6acfdc0d335bfed2d2e1a2542d",
+   "captionsSha256": "b10357dc537a7248dd803402606434e5750e289de53a03c7f46b2513798e7262"
+  },
+  "precalc-sequences-series-geometric-beginner": {
+   "topicId": "precalc-sequences-series-geometric",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 306,
+   "bytes": 70560829,
+   "sha256": "2ab7dcf8266cd136890b1fdeb1882d46d965b0b6c969155777ea7e5cda9788e1",
+   "posterSha256": "efc36eef31402f331af574d36d0d09166679fdedb42d22413e2136ef12737ae0",
+   "captionsSha256": "33f2995558d284cf5bf3e8bff56316d6339ede25caf482adbdd1ecdcca07d2ce"
+  },
+  "precalc-sequences-series-geometric-intermediate": {
+   "topicId": "precalc-sequences-series-geometric",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 341,
+   "bytes": 78137471,
+   "sha256": "2f802fbdc8f7245e0f41926ecc089cd4d64f955d5d9fde7bf5e561852e888c30",
+   "posterSha256": "617af3522e9773764de3566ba3b0edb7d3dae0c9b5f2cf081607a82544a8a845",
+   "captionsSha256": "31dbf698db03853f7cf6c4d39b794a8d462af5bd3114fc9773fe4fb30bf540c7"
+  },
+  "precalc-sequences-series-geometric-advanced": {
+   "topicId": "precalc-sequences-series-geometric",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 442,
+   "bytes": 101393673,
+   "sha256": "593fadef68691ce2e89298b058f24bf3c4f80e7ee7679b8a1b71709ef141ffdf",
+   "posterSha256": "b738c0313195dd85ea6c70fc8c9bd46d248e04a407c269301dbc2a89454361de",
+   "captionsSha256": "34353a47dc6daf3a2a42b9b417f4295934dd9102718649189dddb4f7dc7c47db"
+  },
+  "precalc-exponential-growth-beginner": {
+   "topicId": "precalc-exponential-growth",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 308,
+   "bytes": 70821905,
+   "sha256": "a7a21dbf977333079a68f584d0f7de40b27d15d91440fe4029f4977d25698b66",
+   "posterSha256": "14d8124a7f7d48e37f061dbd5e3dece01085db5a60d60705ad75170e83bdca23",
+   "captionsSha256": "3933bc530ddf66915cfc10a04d00d5e4fed759eb19a6c397c5406e1500dad206"
+  },
+  "precalc-exponential-growth-intermediate": {
+   "topicId": "precalc-exponential-growth",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 363,
+   "bytes": 83633353,
+   "sha256": "7fdb79ce68fbe20ffd2930b4769234fc00599870c31f3a4ae3b7f0e60fd0ed64",
+   "posterSha256": "a08409cb42d077701865b213ee797047ff3b557b315a0a60bafb8458313a8aa5",
+   "captionsSha256": "f9f6d5a56ea14c4cd42b0b23d85a873286e564792872f7e63226d12e1fa9b13d"
+  },
+  "precalc-exponential-growth-advanced": {
+   "topicId": "precalc-exponential-growth",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 494,
+   "bytes": 114088690,
+   "sha256": "1a8112710c0629d37eb506bc841aa0151d6f9efb143c7b795bd67448a6ede9ca",
+   "posterSha256": "c7fb4937c79f71c330857eaa6b9d01f7343dd2339667ca9dc220e096f60d7aae",
+   "captionsSha256": "4333741f24b223e9c70a096d1eef70776c25765be4cbf9850588017b3051b831"
+  },
+  "precalc-complex-euler-formula-beginner": {
+   "topicId": "precalc-complex-euler-formula",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 322,
+   "bytes": 73771812,
+   "sha256": "34253c1ede1b677c9f125df5771373bd17bf32e6379a3731a764c6eec06be16d",
+   "posterSha256": "8dc38c747e6284564642eed1e6c09ba7bfc3c49e633af698dfdb0d1429dbeed5",
+   "captionsSha256": "ecbeaaedddbbe90420548226f3328adbd8b6314ff5078799cb273137d23bca7d"
+  },
+  "precalc-complex-euler-formula-intermediate": {
+   "topicId": "precalc-complex-euler-formula",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 355,
+   "bytes": 81344564,
+   "sha256": "c2fa252f6c5c83de79fb08c1e5b517e7826227a01519a1ab4c22049eaffa2e13",
+   "posterSha256": "b768112c3ada0dbb3e2e0ccc7ffef06da3b6c92bced75e2d286ca2263cb002f0",
+   "captionsSha256": "4d6a7627d9d1d18469007cb23fb7369d853229fbcadab2d945e8447e524d7113"
+  },
+  "precalc-complex-euler-formula-advanced": {
+   "topicId": "precalc-complex-euler-formula",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 475,
+   "bytes": 109061938,
+   "sha256": "642f93322a93076e1d31acf4da0766a26b064c8f11f80b87948d14a550ac35c9",
+   "posterSha256": "e8f629d0d66a4ddb1493c11d28dcd053e251aa1bac6d2237187c392a7895f870",
+   "captionsSha256": "5f59767dcbf0e067d72d8a3f7ca061bc7359c8353d8f6dc4355a8187ecfbd23b"
+  },
+  "precalc-fractals-mandelbrot-julia-complex-iteration-beginner": {
+   "topicId": "precalc-fractals-mandelbrot-julia-complex-iteration",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 318,
+   "bytes": 73202468,
+   "sha256": "971a7f796f3afcd09dcae885b5d7501bb1da7b29aa62ba9ca21104190b754baa",
+   "posterSha256": "186c159e6a4fc1cc6499d9d3e601b5cb80e3159a11f8538b9ce5fd9589e8a10a",
+   "captionsSha256": "ca22d6893f7c6cfa95860f2287886609f54d8db5c4306172cf7f0e39d60c4c11"
+  },
+  "precalc-fractals-mandelbrot-julia-complex-iteration-intermediate": {
+   "topicId": "precalc-fractals-mandelbrot-julia-complex-iteration",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 362,
+   "bytes": 83828675,
+   "sha256": "9e25e8fa3d10d4b51b610da472638e230fc305cfb2c36b1ecad77d7fe5df6f28",
+   "posterSha256": "38e99666cb3a47c3678aa1659456619ee086c91b9daee3e518547b6ab92acd01",
+   "captionsSha256": "205003ba633d2cc731ec0ec0c1a8a1c80202a93aaa3eccd94d1a23fe374e83b1"
+  },
+  "precalc-fractals-mandelbrot-julia-complex-iteration-advanced": {
+   "topicId": "precalc-fractals-mandelbrot-julia-complex-iteration",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 483,
+   "bytes": 110990153,
+   "sha256": "f5310749b5d235b3c53617bff92556eacb31be99d25e07dbd9cd81926343845a",
+   "posterSha256": "cb9ea4ee79a1d3ca12f03e608f2a1831525b0c96ffbec0e13c33c9ebaafab91e",
+   "captionsSha256": "4f89d8bf70bffb52860bd52ab6b13aecef73edc99e1284b9ca6d9dc39ded953f"
+  },
+  "precalc-trig-harmonics-beginner": {
+   "topicId": "precalc-trig-harmonics",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 328,
+   "bytes": 76070497,
+   "sha256": "55513fb4c53f254dd37633b62f3cf14dc86e479a4728944dcd414a91c1a16e41",
+   "posterSha256": "aa7e52711167f67800841e93dd0410d922a980302290c406fcf2f7aa610b4204",
+   "captionsSha256": "1837b53459c36468391122a7f3a606b9f6325d6de408b29cb36b9a34f671514a"
+  },
+  "precalc-trig-harmonics-intermediate": {
+   "topicId": "precalc-trig-harmonics",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 352,
+   "bytes": 81473422,
+   "sha256": "2fad206a0b995d2fcb4d774ac6453d09a564ef67545f562ffc95cfbcc5e36095",
+   "posterSha256": "3b03f4bbc694d56b2d8ccf550e3dbfa6bc1e4298b392e046b1bde3730768b297",
+   "captionsSha256": "cbbfc66fb2673713f1f899696fc90a7676cfa5a535c337020efab3b29c239934"
+  },
+  "precalc-trig-harmonics-advanced": {
+   "topicId": "precalc-trig-harmonics",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 441,
+   "bytes": 102208967,
+   "sha256": "333fbc842f9ea92d7dfb1043c810d3f2b9f7fb1a2cd4269e56723c89e577de03",
+   "posterSha256": "589476ead005c7d9a743f0b060395f7dc29502043cf5b41e794e84fa95d771d6",
+   "captionsSha256": "bca6e620e737237aadf08eb92fca40939ee6da2f47b1b114178900c9513450b2"
+  },
+  "precalc-trig-fourier-series-harmonics-beginner": {
+   "topicId": "precalc-trig-fourier-series-harmonics",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 322,
+   "bytes": 83032045,
+   "sha256": "e5c43c4f30052ce5f8e20f00111f84e877e03e8e472e850dd08224dfd4469609",
+   "posterSha256": "f4f3cc7006e7d0c35bf0bf6553bfb67ae15534e2b5553175f382bfbd9f103e2f",
+   "captionsSha256": "5fcd8b9de1ec60b87422badca37ca7e8666d19b24553e4a32f2b6c4045503d83"
+  },
+  "precalc-trig-fourier-series-harmonics-intermediate": {
+   "topicId": "precalc-trig-fourier-series-harmonics",
+   "level": "intermediate",
+   "teacher": "Pinky",
+   "seconds": 353,
+   "bytes": 90309753,
+   "sha256": "17a01f12c33f765114c02b41469afb59d7ba3f9676e927a7eb1526c6a3ad3983",
+   "posterSha256": "5548fc26d1fdfd0584c64cd9682c4756e291d42185ad267ae5cac74966201be6",
+   "captionsSha256": "9bdcb9ea90e7fee5f74c7087a067b4e7ebf7bad700c9ebe4c4af94fbf5e42d0d"
+  },
+  "precalc-trig-fourier-series-harmonics-advanced": {
+   "topicId": "precalc-trig-fourier-series-harmonics",
+   "level": "advanced",
+   "teacher": "Pinky",
+   "seconds": 493,
+   "bytes": 127283913,
+   "sha256": "f06ad864c7b6e38aecfc5abf0c65fc39d4d38624362054a48a538a43dfb1a0cb",
+   "posterSha256": "85983ea0df22294fffa4624206c7f237b14ad02acefa833f22d9b14632be5901",
+   "captionsSha256": "4ebd92a4356dc4847047c377ef4f07e3d005a90ce90b25840600448d0c9410b2"
+  },
+  "precalc-fourier-transform-frequency-domain-beginner": {
+   "topicId": "precalc-fourier-transform-frequency-domain",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 324,
+   "bytes": 74890437,
+   "sha256": "890049e24f7042ea5e6bfcd3de2284806a963b4cac318aa7de345682d2f58caf",
+   "posterSha256": "59546721f2315879642d7d9197ad1f2baf27f7e2dd0f9b21ff08044a561e1c74",
+   "captionsSha256": "9f4011073f91866703006562484ba31236113c6ed6d9a4e3bc41bc02c32a011e"
+  },
+  "precalc-fourier-transform-frequency-domain-intermediate": {
+   "topicId": "precalc-fourier-transform-frequency-domain",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 371,
+   "bytes": 85154877,
+   "sha256": "e8357bc0383023c7e316c60b0e589e1b05508fb6bafeafa7b4fd626d1a71ca0a",
+   "posterSha256": "d73c0db20a75f698afc790144551ec6b15f3c2f541984081aeed35577e0c4c3a",
+   "captionsSha256": "78cd232b56b6e3e4d77da53f2629c5c2efcdb1eb7ecf94161c88a0465a8c5dee"
+  },
+  "precalc-fourier-transform-frequency-domain-advanced": {
+   "topicId": "precalc-fourier-transform-frequency-domain",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 512,
+   "bytes": 118507499,
+   "sha256": "670a514700a21146f7559fe9f447a3184f45ab378aae4f8018fbba6e784266e6",
+   "posterSha256": "efdc3380188ff55e04634c500b43a95745848d7885f866b6bb22e075f243891a",
+   "captionsSha256": "2de05d18da686f1e77fdda09a0cf2f705d9819f7911e50458caee42156d0abe5"
+  },
+  "precalc-hyperbolic-trig-cosh-sinh-catenary-beginner": {
+   "topicId": "precalc-hyperbolic-trig-cosh-sinh-catenary",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 333,
+   "bytes": 76272309,
+   "sha256": "e6344cda9b7cf825ad1e360bb706d05f3a8cccabf98e134fdf7a694d971784ec",
+   "posterSha256": "2fd0909e8152cc808488cee4e3b7c838ce16c4147aabcb56bb2f0de52d906743",
+   "captionsSha256": "d87026f9cd7d02b85bd5de8b31f8fe950c768e2aff241f12e006c4853be311d7"
+  },
+  "precalc-hyperbolic-trig-cosh-sinh-catenary-intermediate": {
+   "topicId": "precalc-hyperbolic-trig-cosh-sinh-catenary",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 365,
+   "bytes": 84560622,
+   "sha256": "0742db0a7f6e59ee75dcf2bcd61a44a98e80ee0c42cf17991388ce249ff99450",
+   "posterSha256": "9566e0145582c00a306f4489062612e40c8bcce79fb5a30ea4995f70d8c60019",
+   "captionsSha256": "686196be94bbb642b1284927ee31b232f55a0d661691d74ad17a0c54842a29ce"
+  },
+  "precalc-hyperbolic-trig-cosh-sinh-catenary-advanced": {
+   "topicId": "precalc-hyperbolic-trig-cosh-sinh-catenary",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 533,
+   "bytes": 123030269,
+   "sha256": "ce608d16209333dcc429785dfedca7deafb86e4e257f9f634a1a19485b6dd8ec",
+   "posterSha256": "edf4acd2e080fc6eea15ca40e76fa98e228b1dc000b8f353a07d99a30acb2394",
+   "captionsSha256": "76048486ba3e3bfc90868b94570fdb5c21b01e32e0b37cb2ad046d2100e692ee"
+  },
+  "precalc-trig-chebyshev-polynomials-orthogonality-beginner": {
+   "topicId": "precalc-trig-chebyshev-polynomials-orthogonality",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 327,
+   "bytes": 82852113,
+   "sha256": "2fe6c09421a54804505d954f4d50fca35c5888286132bd016651b9f81a69422d",
+   "posterSha256": "819a8aa97a096b93ace6859091c394999038be1fa83203ce14da654beb9c6888",
+   "captionsSha256": "8ca70eb7b9443e3b501121c7bb84c753890cf4d8ca65a1edb7dfd7ee7f7b9563"
+  },
+  "precalc-trig-chebyshev-polynomials-orthogonality-intermediate": {
+   "topicId": "precalc-trig-chebyshev-polynomials-orthogonality",
+   "level": "intermediate",
+   "teacher": "Pinky",
+   "seconds": 351,
+   "bytes": 89897498,
+   "sha256": "9773630cbb1a81c43fd57b794e902fb3fa29637b3d05c19afc58ac5d1d29f76b",
+   "posterSha256": "585f8e66b83b2d55f872c8085c179084f479aea9cb6273ac3ad0bf87c85e3149",
+   "captionsSha256": "cc896d564e995cf344f874f4551e7b356563d439dcd3167cbab9a085d0c7c6d4"
+  },
+  "precalc-trig-chebyshev-polynomials-orthogonality-advanced": {
+   "topicId": "precalc-trig-chebyshev-polynomials-orthogonality",
+   "level": "advanced",
+   "teacher": "Pinky",
+   "seconds": 467,
+   "bytes": 119729040,
+   "sha256": "4222ca656d62f747aab424cd16b74756000daf95bbf27bbaaecff546fd8f06ad",
+   "posterSha256": "769e1be6eb1f88aa53b3342b4d609c99cd8eafce97bd1be9ae694e7d39b93641",
+   "captionsSha256": "aea853b83d0bdece201f3716540e69083cb6f266a5268ae3f1b07ad2bbb16bb0"
+  },
+  "precalc-markov-chains-steady-state-probabilities-beginner": {
+   "topicId": "precalc-markov-chains-steady-state-probabilities",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 317,
+   "bytes": 72853811,
+   "sha256": "1beaa54989f2f9b45aa63d9409470fd12f72698707b94e73c1867f96d24f2a7d",
+   "posterSha256": "179093a0c59f77324f1af6a5f63d1dbe9a00230a8790d03b418296a98fe0c17a",
+   "captionsSha256": "db89033bceacd25f8a4ff9fb8896da4cb1328619229e80470f57d2e06d8ff025"
+  },
+  "precalc-markov-chains-steady-state-probabilities-intermediate": {
+   "topicId": "precalc-markov-chains-steady-state-probabilities",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 358,
+   "bytes": 81950577,
+   "sha256": "f5c11de13e6ae6d13e3157e71daab95d13b03f47c2c16b104dbffaabf5f4f67a",
+   "posterSha256": "84fc862ee32d4deacea96771060bf2c3e68b97cae6153f1af59e6cd032faf2f3",
+   "captionsSha256": "758f378c1695f3b5f0efa7e6e9d324273f5cb8d0e6dcdc8857efad9bb4f275ae"
+  },
+  "precalc-markov-chains-steady-state-probabilities-advanced": {
+   "topicId": "precalc-markov-chains-steady-state-probabilities",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 418,
+   "bytes": 96016816,
+   "sha256": "863d0eeef1511280b1164a2c846851fb31d7443ccd4c2b8dc2317b1b3917bbb3",
+   "posterSha256": "92b0a3901b468dd189f238ad20b13d2255f743cfc2c97a585a17a1f7ae6ed688",
+   "captionsSha256": "43758a0d40bdf531cded7f9017359bcf738fa6afbe83486807460216f92ca83f"
+  },
+  "precalc-chaos-lorenz-attractor-butterfly-effect-beginner": {
+   "topicId": "precalc-chaos-lorenz-attractor-butterfly-effect",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 311,
+   "bytes": 71094192,
+   "sha256": "ef76b98c10d4ba8214010d06f049e8a4d9078705a53b231661d1df158e5e07e3",
+   "posterSha256": "062b9b313f3b3b1c388a2f8aaf70412c327c4bf968bcbbf382b17b0e8a165667",
+   "captionsSha256": "900a026159bb95c8cae6595fb4e562c0d320676f4fde3b5f9e7e5cfaaade6b63"
+  },
+  "precalc-chaos-lorenz-attractor-butterfly-effect-intermediate": {
+   "topicId": "precalc-chaos-lorenz-attractor-butterfly-effect",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 355,
+   "bytes": 81710001,
+   "sha256": "f6f9b938edb12a24471fc7d02a38737974fb62f5e0e80f805c3e7e03310b715d",
+   "posterSha256": "a7f8825b51761d0d61481437754b1e8884c6a4bbfd4427bf17f1913b6fcb29f0",
+   "captionsSha256": "936877d652a6c39eeacf883d8caaae358e9caa98f064f085ded86f6890e6151f"
+  },
+  "precalc-chaos-lorenz-attractor-butterfly-effect-advanced": {
+   "topicId": "precalc-chaos-lorenz-attractor-butterfly-effect",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 491,
+   "bytes": 113428046,
+   "sha256": "bc12f4d7630018fe0ca7c0486fb962a9ee4dd347afd9bbdef8842f07eb6d54e6",
+   "posterSha256": "86dc879a351e94688281ba35b6e632a9b278ff0422752c659da3fc9247a2c76a",
+   "captionsSha256": "3c15d20ab3ca572008faefef9b4f6b2cf4f3efe3d1af20940c287145a3755d68"
+  },
+  "precalc-projective-geometry-cross-ratio-desargues-theorem-beginner": {
+   "topicId": "precalc-projective-geometry-cross-ratio-desargues-theorem",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 318,
+   "bytes": 81689663,
+   "sha256": "5e82b644101c358ccb0faeedea5557b5230b095fe0521f4d148869b913d42f19",
+   "posterSha256": "7469f1055ab64c9be3f45354c6681b036be36b784b844f0ef034ea993d846297",
+   "captionsSha256": "cf7a75d79b4dd18f6638060498b9ec31866f28ac32a53ec0c60229fdae448da0"
+  },
+  "precalc-projective-geometry-cross-ratio-desargues-theorem-intermediate": {
+   "topicId": "precalc-projective-geometry-cross-ratio-desargues-theorem",
+   "level": "intermediate",
+   "teacher": "Pinky",
+   "seconds": 345,
+   "bytes": 88835071,
+   "sha256": "44815e2d779b2f792f525c511ab00484f26afd922aebdddca9e8c1711c62f217",
+   "posterSha256": "86d0571c436eded360ae21e882a7690993116db1734cdb8dc9b51a2824558442",
+   "captionsSha256": "aa21f6ec1d23ba1a3d46bd0e62e8d19273b54e1e09183c57870619631a389157"
+  },
+  "precalc-projective-geometry-cross-ratio-desargues-theorem-advanced": {
+   "topicId": "precalc-projective-geometry-cross-ratio-desargues-theorem",
+   "level": "advanced",
+   "teacher": "Pinky",
+   "seconds": 507,
+   "bytes": 130653843,
+   "sha256": "90cdd140db23c561f512482af326ce65eb6c33aa53eeb04cb91648eda6d8c3ca",
+   "posterSha256": "c686950ebb1771be761b59451a512a8d5588e38886c588a1daf6f9412c50e9ab",
+   "captionsSha256": "65e1358ab270d6dfaee874cc65b02eb5e352c72f7f636d6955b6f9316dcb68c6"
+  },
+  "precalc-galois-theory-polynomial-solvability-quintic-impossibility-beginner": {
+   "topicId": "precalc-galois-theory-polynomial-solvability-quintic-impossibility",
+   "level": "beginner",
+   "teacher": "Pinky",
+   "seconds": 324,
+   "bytes": 83120027,
+   "sha256": "338b3980b7149d6d09f6b4304590cb6f1e83795feeb96a13b49e1d2685ebb248",
+   "posterSha256": "81e69511f31f001468a0708d6016e31bb8744e3a702ed9a006698d195018f3a9",
+   "captionsSha256": "f932889073f6874f2e9f87518ded780934bb74bca2afb957145506e315d07a30"
+  },
+  "precalc-galois-theory-polynomial-solvability-quintic-impossibility-intermediate": {
+   "topicId": "precalc-galois-theory-polynomial-solvability-quintic-impossibility",
+   "level": "intermediate",
+   "teacher": "Pinky",
+   "seconds": 346,
+   "bytes": 89131033,
+   "sha256": "c76c9918a601cd03aa9a0c88d2fb7914e33c15a1d5dba5964825c2c4d82d32f3",
+   "posterSha256": "e62f7e2af685a2c19a458059b9f1d27b0fb53afcff47fd94d99b2589cd41fbce",
+   "captionsSha256": "7239d1bcd8c7fe0314b08700d839544d289f00d4f8733a565b208ca4f4c9cbaf"
+  },
+  "precalc-galois-theory-polynomial-solvability-quintic-impossibility-advanced": {
+   "topicId": "precalc-galois-theory-polynomial-solvability-quintic-impossibility",
+   "level": "advanced",
+   "teacher": "Pinky",
+   "seconds": 497,
+   "bytes": 128312715,
+   "sha256": "94272833fbd984064187e0659edf9fa9842cd637b857c5a26ff4a19e551f5972",
+   "posterSha256": "05d8fd9fe4ce780f7745f42367276874ae92e6cc5254262aa035c819cf7a7cd0",
+   "captionsSha256": "4a643c4c091dd8b71c0f19200c0475dcf3ea7e0e7c5756510278777a1cdb5d1e"
+  },
+  "physics-incline-beginner": {
+   "topicId": "physics-incline",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 336,
+   "bytes": 77065714,
+   "sha256": "d1338cb2467ade1456900ad3dcb5fe16b93bf42e8f5e3c70f5919d76ba895831",
+   "posterSha256": "b4795a5a0984b1ca4da5bc7b99b3891d35f2fc783f240c7435b6756efb130689",
+   "captionsSha256": "402be98ac852973c596c4fbd8086a35c8f1fd13603a6a8bffe5876babd8b20d4"
+  },
+  "physics-incline-intermediate": {
+   "topicId": "physics-incline",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 357,
+   "bytes": 81722262,
+   "sha256": "1d9f6c3016d812eb7d0c98d3fc3f4100682520d3d93c00e8cc146458b0d1aa7b",
+   "posterSha256": "9a6ad2bad2dc521bf977c3967d66adce70876d80be500476eff3b495e5606d94",
+   "captionsSha256": "9fc3c64d9b62b912eea5fc13ea1e33cbe05e485ad22c92e124a4dd0dc6d692a1"
+  },
+  "physics-incline-advanced": {
+   "topicId": "physics-incline",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 519,
+   "bytes": 119095767,
+   "sha256": "67f0eb1d63e6ebe50e6eacda2d351dbf6ee58e902f9a7184ae3e0da98f8d82fc",
+   "posterSha256": "06d86c030f20aa9a374e1d09afd02ed8daf8c2c5554f39f133a6228001366a4a",
+   "captionsSha256": "ad1c4f0c40e5be69f12d221e64b341ba754e4cb12e903fcbe18509a270f15341"
+  },
+  "physics-angular-momentum-gyroscopes-beginner": {
+   "topicId": "physics-angular-momentum-gyroscopes",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 326,
+   "bytes": 74640186,
+   "sha256": "4359bf9a8cdd90c8b27a5b6e8aca5698a600ac20bcc924abb1225818f1393851",
+   "posterSha256": "8939b856fe2af811ce018ab15d5671ddf083b253ed92f35ba58c3df6b5c3cdc3",
+   "captionsSha256": "972a019296d03cb07c8a513599991cdc8053ed1c43d7e5096b0deb9ab004395c"
+  },
+  "physics-angular-momentum-gyroscopes-intermediate": {
+   "topicId": "physics-angular-momentum-gyroscopes",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 328,
+   "bytes": 75537390,
+   "sha256": "2429906b41f59f9897bbdcdebca6bd3b513186b5e5c4c36b8297d002114091c3",
+   "posterSha256": "7faa6f08c24f69a03341d67dc2a2fbd867e26e89ac776ababbff4fad2e154435",
+   "captionsSha256": "f716bee0beb731fb577cbd1b56a3da89fed3d5ab5c6bfa6bd4462afca2300002"
+  },
+  "physics-angular-momentum-gyroscopes-advanced": {
+   "topicId": "physics-angular-momentum-gyroscopes",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 449,
+   "bytes": 103208627,
+   "sha256": "038405b8e223d99d36d539a0d3b96e5e25245dee1609fa90a28e3d65baff7315",
+   "posterSha256": "9ce491b9c1ffcea0b176efe7e3ba7a54e972359fb26f8c9b112c8bfd6f7e120d",
+   "captionsSha256": "c5ce9a3b9e8347b200c21c2494bef67a30f3265fb6f701d5d326f4c5ca0ae07b"
+  },
+  "physics-cat-landing-intermediate": {
+   "topicId": "physics-cat-landing",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 336,
+   "bytes": 77221559,
+   "sha256": "afc93572625aafd974c1953c5faa8975da8ea2d9d867760d5141ab88b83a3fdd",
+   "posterSha256": "dec5f550f19a47e4d146cf4083e2ad7f52bd30ef138149c19b44bd2a6df9fd10",
+   "captionsSha256": "d6d976056e2bcef106971fcc0635252ea838668fc32c7ce50ac51a11457cfbcf"
+  },
+  "physics-kepler-orbits-beginner": {
+   "topicId": "physics-kepler-orbits",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 344,
+   "bytes": 78484970,
+   "sha256": "dc69e56d01c5fa47d00c50c73f68613d28605c6ee8e7d5c941a58252c0869838",
+   "posterSha256": "839ab11d5d97c0f68308101b876f80d43a95bf15e79b6c15d4e6f0880c96fdd6",
+   "captionsSha256": "bc6ec7d26b6ac0a74f11c714a5007e4ac41a00e675f0a6370a7592aaba1fcc90"
+  },
+  "physics-kepler-orbits-intermediate": {
+   "topicId": "physics-kepler-orbits",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 374,
+   "bytes": 85570997,
+   "sha256": "a790f5383d9fa20c55f5f40c4351f465762a65745909b44add4b7c78d6e1e5db",
+   "posterSha256": "6523a5f26184ff7a0fb3a14aa3be0c45109bd58311514fdf0025df7cf2efce37",
+   "captionsSha256": "488b7c4a7912c4148c2324cd72875e13fe774b240fab26665de10f55d16577ce"
+  },
+  "physics-kepler-orbits-advanced": {
+   "topicId": "physics-kepler-orbits",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 469,
+   "bytes": 107769744,
+   "sha256": "da3b75f76fd0327e87b06f987b085c92b1ab827ff634879518f59cf5d1ca084e",
+   "posterSha256": "7fc15f9df8e7179f17e0dda1ce9bb9251f267f7a27b012702dddecd2cad98483",
+   "captionsSha256": "50cc041536f8b630f138a002c3a17a4d30e9f3c5ffead004a5821b3cbbc1cdd2"
+  },
+  "physics-bernoulli-fluids-beginner": {
+   "topicId": "physics-bernoulli-fluids",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 324,
+   "bytes": 74751115,
+   "sha256": "5b7823fdc77effb6a8b6e3517fb112b79c4cf11d3a31b4c6eeb3646097d4d3fc",
+   "posterSha256": "c35b94f625efaae75f683389a9b77b21b5128bcec4d4c1e34ed6511cb2a2181a",
+   "captionsSha256": "61040491bddec3a6f7da80eb1248a36d28a933276907e85d4627aa9db141ea35"
+  },
+  "physics-bernoulli-fluids-intermediate": {
+   "topicId": "physics-bernoulli-fluids",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 337,
+   "bytes": 77973278,
+   "sha256": "d1a98ca3ac09d5edb81ab841a228038a543161fef3ec8b4d017679621e2725e5",
+   "posterSha256": "7f8c23faa98c182b6924d51a7f329fb75d0faad369d69569111d32612b3f4ac2",
+   "captionsSha256": "efe3a75f49452b66d1f7f5155c366d9a4d5351d16221ff13d72c93e75e3bc4aa"
+  },
+  "physics-bernoulli-fluids-advanced": {
+   "topicId": "physics-bernoulli-fluids",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 433,
+   "bytes": 100865156,
+   "sha256": "ac445d4c925e94013f6795a3e6aea0fe1de5995e6c2f7439565c63ed16cb7d20",
+   "posterSha256": "465bbc71cbb3a33537a33ce73e52e30b88662fe9d2ab742127ae7f9680e484a6",
+   "captionsSha256": "3bcbe29c4a3aa3ae085e02d234652d7972683b448bad08171b8b29c268e82388"
+  },
+  "physics-resonance-sound-beginner": {
+   "topicId": "physics-resonance-sound",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 332,
+   "bytes": 76126343,
+   "sha256": "7132a306daee89aaab24be009fb98b6e3e27b394d2f76c2d44ac772363158d5c",
+   "posterSha256": "71dccb02a6afbe322727c6b92ad61a0cf2dbffb0b008c2c15bbaa3b5c276e1b7",
+   "captionsSha256": "9d3d5666aa7733e436b63491fc0ea859180473558750e4bf6436cb03ecf5f61a"
+  },
+  "physics-resonance-sound-intermediate": {
+   "topicId": "physics-resonance-sound",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 338,
+   "bytes": 78329553,
+   "sha256": "37eb50158f5ecbe0fd06f5e922d53c3641031a7fbf8f7f9473cb37ccadb9b22e",
+   "posterSha256": "29ef766c38019fa0a2e03fb0d2f204bc0dcfab9694d22b2e1da21665a2f708cf",
+   "captionsSha256": "4ea7e1fa2300d3b9696b129b22c06de16fbb7d2e27a375920543f835397aa123"
+  },
+  "physics-resonance-sound-advanced": {
+   "topicId": "physics-resonance-sound",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 511,
+   "bytes": 117541313,
+   "sha256": "1ee6ab6b0e76093b77adcf294dc1cef1a9ca9830d0bf8555329432dac7e88415",
+   "posterSha256": "6ddd117154c0d98475242b654619e51d3142220031625d3f0299a400298734e1",
+   "captionsSha256": "e6372799e379d09d040ead3e72d9ac063ce43331a714b2b9a5ea1cdac36e5654"
+  },
+  "physics-doppler-effect-beginner": {
+   "topicId": "physics-doppler-effect",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 325,
+   "bytes": 75243048,
+   "sha256": "db418ec455caf658408effee44af4ba5329ca09a64a41c79a4c1bab6fc9a9c5d",
+   "posterSha256": "d8964d44211a01be0615864310aa39f46445f1cc83e5ef4376da85b72579ef6a",
+   "captionsSha256": "b59938cf82406e7172692c8f7e479edc39ab4fac523d6e6b7a8d1674c0d8a6e6"
+  },
+  "physics-doppler-effect-intermediate": {
+   "topicId": "physics-doppler-effect",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 341,
+   "bytes": 78650797,
+   "sha256": "3b5fa818942577f7563522eface83e9a6af60dc6f0f9f215f9b84e60d093361b",
+   "posterSha256": "1966b18bad5d6763b0d98c905ac3317c9b6a18f1f5501a87f4ffaa7b9c04e8ac",
+   "captionsSha256": "e921d0e451af60ad108c5b1d6a5f53807e4b1be80e44b804476d9608b0cc8bbd"
+  },
+  "physics-doppler-effect-advanced": {
+   "topicId": "physics-doppler-effect",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 464,
+   "bytes": 107200111,
+   "sha256": "f8de76c900f2b45204a15a6abd3298cf5b8d380ee7a5e9278f3e03556f5e9b67",
+   "posterSha256": "d1969a2ed1d222a9edd6d4719e3a811f51b2bf7265d02874baf0995d5c523c03",
+   "captionsSha256": "b21e855d508bf6fee5ad28a07e3749c3ce18aab493b7545eee4c99778a51a6f4"
+  },
+  "physics-sonic-boom-beginner": {
+   "topicId": "physics-sonic-boom",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 317,
+   "bytes": 72774822,
+   "sha256": "ed4fb8343f265d1e54c82e5d4b755f8e9756da6a3abbbb980365a120171db366",
+   "posterSha256": "b83fd98918b69b82ffb8c2437f040bdae8e44aeba06504aea45c676c594edc4d",
+   "captionsSha256": "cd8eb206f2c815a5d704f5ec5daa4598631a4c7254903a67cee247e6d7912534"
+  },
+  "physics-sonic-boom-intermediate": {
+   "topicId": "physics-sonic-boom",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 319,
+   "bytes": 73647433,
+   "sha256": "b8380c8fce04b447642e745daabcc8fe9338d43ae40259bea904a479fd635241",
+   "posterSha256": "4619f64fd050d96c7de1be1709a84cd855b43325ec928c2ce6bb9e43395b5a2c",
+   "captionsSha256": "ea49585b6d680bbc10ec02080ef31bd64d11fd8647f0444d65b9bd20d7330a87"
+  },
+  "physics-sonic-boom-advanced": {
+   "topicId": "physics-sonic-boom",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 460,
+   "bytes": 105924457,
+   "sha256": "0ebad906a011c94bb28215a5bdab24888c118e45ce4eddff9b63c850f9e87c85",
+   "posterSha256": "7a4c68b2412107b53ad270fad4687d57d612b62e18b3a2d4499949b074a4c27b",
+   "captionsSha256": "744112e5f502a812bc0fbf32baf9101bfcf68d2f18f530d9e1101773d4da53fa"
+  },
+  "physics-snells-law-beginner": {
+   "topicId": "physics-snells-law",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 320,
+   "bytes": 73720745,
+   "sha256": "b08bc744c5d75a70d55d3d2b270f919974b84ad0450c9ac9821e54361fbbda9d",
+   "posterSha256": "a31affe8e2621dd4da01ba047c5ee0a116fbd34bd12ae67ab8c902ae05415138",
+   "captionsSha256": "99832465f5d52ed7b0d65ac00d4e0ba51a9d74b2c49d183f433cb8a063d067c8"
+  },
+  "physics-snells-law-intermediate": {
+   "topicId": "physics-snells-law",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 347,
+   "bytes": 79739301,
+   "sha256": "538b90540533663cc45307281702a5fa6fe6a505d754561ccfdb2a7845c13f81",
+   "posterSha256": "3d2674b2749dc0077b8e6d14c494ee660e275963704df1d06a07923cfbacc49b",
+   "captionsSha256": "71c9bf2b80e3b60f91b0739cbcbcb89cf1306d0eee7d674abc63850f6bd98dc7"
+  },
+  "physics-snells-law-advanced": {
+   "topicId": "physics-snells-law",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 468,
+   "bytes": 107760199,
+   "sha256": "47620759609875bafe4c609b567c22dff8a820c8c29fe76c305946ced65c5bdc",
+   "posterSha256": "e9352feb1a17b86fdb8eff8c01e32840a928915b87bcd1a28c0f506da0502c2d",
+   "captionsSha256": "0c2f4289e10a0fd4b1c034bfac966ffb45bf7554fce24459b9e6c3960f8c34f1"
+  },
+  "physics-em-spectrum-intermediate": {
+   "topicId": "physics-em-spectrum",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 341,
+   "bytes": 78648460,
+   "sha256": "4342f5640e6f7791774db1638ed54cc21c1044c2e28f213172e802aaa1a1ff63",
+   "posterSha256": "d805a80faf16482c78bf445f5dc5f202199f1a722ac2c0a785b7caec2ba7530e",
+   "captionsSha256": "8aa5f5569a71f7b7f0f97b73e00af74a15186febcb28fde062332e7daab6e303"
+  },
+  "physics-lorentz-force-beginner": {
+   "topicId": "physics-lorentz-force",
+   "level": "beginner",
+   "teacher": "Sprout",
+   "seconds": 309,
+   "bytes": 71273638,
+   "sha256": "b30488785d42864c87a499e4de99f2acaa145b77250d0b1f8f6156988445d562",
+   "posterSha256": "5652b832b8c48c0d14ec7cded5d1db2c84a05a03ff6337ff35d5827f7eefb491",
+   "captionsSha256": "c6e00524f0f234b6858275a3c74159bd29d7baa1dc58e801d78ff4e4626a43c4"
+  },
+  "physics-lorentz-force-intermediate": {
+   "topicId": "physics-lorentz-force",
+   "level": "intermediate",
+   "teacher": "Sprout",
+   "seconds": 344,
+   "bytes": 78990529,
+   "sha256": "4ed69fb0d827cf3712cddf2d4c130f031d080425b50aab1d86b79895669ed2aa",
+   "posterSha256": "aa2f3a57c992048de060c87b77d3c57f5b65cc8f3f1c50888893aa50b1d04f7e",
+   "captionsSha256": "417b0ec0e7398a0cff4ffe8e0c127732f4111fa0000ced8832a2943e8e3725b5"
+  },
+  "physics-lorentz-force-advanced": {
+   "topicId": "physics-lorentz-force",
+   "level": "advanced",
+   "teacher": "Sprout",
+   "seconds": 475,
+   "bytes": 109217280,
+   "sha256": "9187623ca056333e1716290cbac4c8954c52b48432acc3e7b3d3058a54f70912",
+   "posterSha256": "0c1d50e3df14388c2b5f142a1ad994979ca8f553db552f55b76e02bddb6b26c8",
+   "captionsSha256": "dc75af859d1836b375e948e022f0c825fcfae8b7d9010326ef86a52ed4559be4"
+  },
+  "physics-electromagnetism-induction": {
+   "topicId": "physics-electromagnetism-induction",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 155,
+   "bytes": 14479493,
+   "sha256": "dcaa7e8d89fd2abc6700b6cedc22924a74dcc220db1f83824b9672168105acb8",
+   "posterSha256": "54e0f8b2a1b3c7a0d0528fa55b194b4dafa8f1685953bf398b4b977788f23f97",
+   "captionsSha256": "481e499ab56cc9545a0bca3828b4a2155ff1448ec11400433fa84ce6bdbf25d3"
+  },
+  "physics-maxwell-equations-electromagnetic-waves": {
+   "topicId": "physics-maxwell-equations-electromagnetic-waves",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 76,
+   "bytes": 6005556,
+   "sha256": "e61a8da266eed1b471d8dd986c1ce3d58eb859fb6082782710116b74abf8fdb4",
+   "posterSha256": "09504319b7f50f0f0f5b9e4ad13a3f29d62cc45c4afd2c817ee4f76f61978cba",
+   "captionsSha256": "71c3eba26aad01163858f0f15c8a2869d94d9b02e7035a9d6037f0d58c643ba4"
+  },
+  "physics-microwave": {
+   "topicId": "physics-microwave",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 111,
+   "bytes": 11704556,
+   "sha256": "07d75792d1d8187e299383f1525b588082346c92c7c55d8667d6db70e310bef5",
+   "posterSha256": "95a374e0b0a39c4e05556ecdaf7c720da9fd8a59b3d21cee55548c1c4fa4328e",
+   "captionsSha256": "f93e61929a121830c19fffe1f0ffd955e60e1a836790d60dd44c05d78a4b0401"
+  },
+  "physics-microwave-spencer-magnetron-invention": {
+   "topicId": "physics-microwave-spencer-magnetron-invention",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 96,
+   "bytes": 7899193,
+   "sha256": "c7bbd0b20dbe8b4048c7c46abe94fad34fed34754defccbccc9fd340873bd238",
+   "posterSha256": "160928f322ae2c7e65d0941896ea4f1593dfe1df590cbbd8b3d9be0d182a0a23",
+   "captionsSha256": "c52e76243b4bc93ddf04d8f7f779d47152f4c22c2bc573385faa3be1bb0f0c3f"
+  },
+  "physics-ionized-air-lightning": {
+   "topicId": "physics-ionized-air-lightning",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 173,
+   "bytes": 16548093,
+   "sha256": "f7f1be471f7410948de082e6644faa57e36d5e094b11b99b7e70740b0d25841c",
+   "posterSha256": "9ef80a105270db3a559572a69d09f8cc366c88f8a046ff5fa8554de8f91d237e",
+   "captionsSha256": "c7a38aae1348ea519d8d75ff8baabc053d3b8ae2e05a63c1eeb32099e982f3fd"
+  },
+  "physics-carnot-efficiency": {
+   "topicId": "physics-carnot-efficiency",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 152,
+   "bytes": 14257528,
+   "sha256": "0b57d8d5fab1e8437e25335f33e83aafde6b769ec251e5d7789991590aaeb1c7",
+   "posterSha256": "4ffcc2a73226fe7328315d1654212e48460905d32a0be681f04812910da4da61",
+   "captionsSha256": "505aa2498a25af726361f9b847387b7bc18593d123ae029873f21961022be8d8"
+  },
+  "physics-blackbody-planck": {
+   "topicId": "physics-blackbody-planck",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 161,
+   "bytes": 17339543,
+   "sha256": "ed3d96a75e941b580fe7bc3f5a1cdfcd315f199b2d23ce14cf37c09db0b78946",
+   "posterSha256": "ee9874b202cfec464ecb6a508cca2fb394f02dec04193f11d5b680e795501d96",
+   "captionsSha256": "92f999ae26f9189c2182ace5e60087efe1c1a0bbd81e4f896208677171ba97ad"
+  },
+  "physics-stefan-boltzmann-blackbody-radiation": {
+   "topicId": "physics-stefan-boltzmann-blackbody-radiation",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 76,
+   "bytes": 5909106,
+   "sha256": "0a3ee3ccd75e0e66d024d618ac3c4d834d923642808a7c042d2b7773e057a7e3",
+   "posterSha256": "a872da38a15b29c5c47bb9f6f5b36ca920be145645700e229a777631b6b10b06",
+   "captionsSha256": "620c0658374c8c2cd4b1a7d9469e951fbb5f99c18dc95824e895474a6444dd3b"
+  },
+  "physics-special-relativity-time-dilation": {
+   "topicId": "physics-special-relativity-time-dilation",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 164,
+   "bytes": 16845473,
+   "sha256": "6717e66391c33c9c4f59703255ea4cf972b2787582a8a8785765f087ba45dbaf",
+   "posterSha256": "d3ad4b44af6f50e8d630a4ccc499bcbd742e1b7909207c45bc7ef54d5144bead",
+   "captionsSha256": "28fdd43b850c99f0c4a86608454f250c683094152ae5304a13d85e7f00b89089"
+  },
+  "physics-lorentz-contraction-spacetime": {
+   "topicId": "physics-lorentz-contraction-spacetime",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 97,
+   "bytes": 7788682,
+   "sha256": "7e7e6d125da946fa240cb4d61fb28be4d033d9579de08bb855d3fa846095f27b",
+   "posterSha256": "45a6b0e8ed2cd9bf4ab53f9a71469be06cdcf7cd790e49dbd0a0fc87acc68c2b",
+   "captionsSha256": "e3090e19f9ac2ec0d76b40e8aa0ab56c303d1a44038e873a3d235dceee4d8c0d"
+  },
+  "physics-special-relativity-mass-energy": {
+   "topicId": "physics-special-relativity-mass-energy",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 129,
+   "bytes": 13402969,
+   "sha256": "7284bab8af4c6dd9ce2d7fa5326deb9a4cd56d2e96bfecf3319fcb90acaf09f0",
+   "posterSha256": "8b58449fbe26476048fca65451c40b4956abab6d9f18c7e8bd634eeb11663cad",
+   "captionsSha256": "2696164b3de9be1d27a9c926dcc677a5fcbe14b5263d7c859b625a393d92f47e"
+  },
+  "physics-gravitational-time-dilation-general-relativity": {
+   "topicId": "physics-gravitational-time-dilation-general-relativity",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 91,
+   "bytes": 7485771,
+   "sha256": "c7029470871311f67d1143d76f2a912701ee688b4f38ff0e2e3bc472cc4db9cd",
+   "posterSha256": "898e7e692c916da4b6ecc02cdff69628e67a0d9d733f671085e739b17a2bfdb2",
+   "captionsSha256": "d95993ac799dec3a9c45b413e32c2f6514beea0f87aff4e5b31cef63ed8b48ab"
+  },
+  "physics-bohr-atom-hydrogen-spectral-lines": {
+   "topicId": "physics-bohr-atom-hydrogen-spectral-lines",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 75,
+   "bytes": 5925239,
+   "sha256": "450eaba6ed7421ce711e5bf1eb832464e449dd4ceaaf752a6e1dde9f3018d727",
+   "posterSha256": "f302356be03f51d5b7139eabb1a3a378da1db7352f203b083d639750a461139e",
+   "captionsSha256": "c7592dbc3feb2318c34e8fcf15d33d62aae4cf41398f0e1f217706b0800139f7"
+  },
+  "physics-photoelectric-effect": {
+   "topicId": "physics-photoelectric-effect",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 172,
+   "bytes": 16271271,
+   "sha256": "bc890d0588848205e6f3ae3d4e5367eba2fd9f8e1a8bb312028bc2ef76d8aecc",
+   "posterSha256": "15529f188cf25243dfdfdc0fdef78f4b8a0b69bfcc3ac957bb410a475d9a12be",
+   "captionsSha256": "c2f2e3a5c7e9aefcce61719c919e0b96a66a96eee94e5434e2520eb8b81ca6a0"
+  },
+  "physics-photoelectric-effect-work-function-einstein": {
+   "topicId": "physics-photoelectric-effect-work-function-einstein",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 92,
+   "bytes": 7616863,
+   "sha256": "0c5fe3f83f04fbb75fda84dad936b3e5d9e39ae4a680818f4b6cf1d8e669585e",
+   "posterSha256": "8e7fff8295e110f16aa395c6162cf26c83982f3e81f3ed9cf0988fa611456607",
+   "captionsSha256": "1b4e9a3b69b5debd72550e6a988d01793b9dc9d12c5c00011b1e9124dff2a455"
+  },
+  "physics-wave-particle-duality-de-broglie": {
+   "topicId": "physics-wave-particle-duality-de-broglie",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 173,
+   "bytes": 18375972,
+   "sha256": "7d28187f0cb5e618f83cc53432160899966c597183a869c5d22950973309f60f",
+   "posterSha256": "67a69b2971e06b8d104742612de54356805e9440698522307d183eaa10f05e3c",
+   "captionsSha256": "f198186024e61f0a8168fc6557a71ca5bbe499c10920d931935b0393bedb5ff7"
+  },
+  "physics-heisenberg-uncertainty-wavepackets": {
+   "topicId": "physics-heisenberg-uncertainty-wavepackets",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 100,
+   "bytes": 8144148,
+   "sha256": "f13c6f801a045a8294d5290c290a44d652d9431fb9f196dd98261f4e203f4d5f",
+   "posterSha256": "cc76c40daf8c1b9b7cda1f5cbd7d659b15521bdc4927651a126cd6e8f949cfb3",
+   "captionsSha256": "a144f28484a828f23b7185c34de2298b6dc1831c1e3f23ba859ae619867ed1ad"
+  },
+  "physics-compton-scattering-relativistic-electrons": {
+   "topicId": "physics-compton-scattering-relativistic-electrons",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 105,
+   "bytes": 8822741,
+   "sha256": "201e0a158dfd272ba00b8b2e4d183c3c453a1ca4ed12ad1440301b0932803626",
+   "posterSha256": "5201ad69852286eb71de8a144bbfacda6c2c732791b244a0c9de88b9cfdacbc6",
+   "captionsSha256": "afd847249447a53c48ceb24aab82201fc15a20c50083f2e310440bc96109ce38"
+  },
+  "physics-laser-stimulated-emission-population-inversion": {
+   "topicId": "physics-laser-stimulated-emission-population-inversion",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 99,
+   "bytes": 8182906,
+   "sha256": "a16445ff8f2b8e8167afea577e83661a343157adf75ae74f32fdd65a91c14b2e",
+   "posterSha256": "c0d8f291958930142bf2ebf5124a8c80198691e16e2e02a45a43e3a600b677f2",
+   "captionsSha256": "b4cf14569786b5f781b4103dca3c11ed01e08715d880817e91669b901ce5790d"
+  },
+  "physics-ionizing-radiation-air-alpha-beta-gamma": {
+   "topicId": "physics-ionizing-radiation-air-alpha-beta-gamma",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 107,
+   "bytes": 8767179,
+   "sha256": "b0c58bba53233db9a2e7dea92ade48eaa0c38e39f9a614ac40b5ce41653cae1b",
+   "posterSha256": "fe11de373f0da142561d9318cb037e847f7f63a498c7b49ef59d78d40e924255",
+   "captionsSha256": "a6aabb1fe1d0c24ee9b62be25a985c28a047ef908b8db285e15c54f75f9c5f9d"
+  },
+  "physics-superconductivity-meissner": {
+   "topicId": "physics-superconductivity-meissner",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 188,
+   "bytes": 19951547,
+   "sha256": "385924742d73cddf497a22ca48dedd9529b69aa82c6b7f2e8b574461bce812a4",
+   "posterSha256": "896b3d080fdcf18a74bca968ec3fc2797aafae1981b548c925c5ce1be7900708",
+   "captionsSha256": "8b5bad8d48970b73550d7dd22536da4a69d586ebf36f511a50dcf15b06d79d33"
+  },
+  "physics-superconductivity-meissner-flux-pinning": {
+   "topicId": "physics-superconductivity-meissner-flux-pinning",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 106,
+   "bytes": 8768324,
+   "sha256": "883e9f9babd94ee2761170a00f60a588858ba21fd7eab48a4d998dba9667eb3d",
+   "posterSha256": "c21cfba940f1c112ec4745dc50ea7dd2ffc2f896ce1ba27ef107fdb2f4435d4d",
+   "captionsSha256": "4ba6c9fd884ba3f5267835306d177346fa5bf900f2538aabb99ab92545c16a46"
+  },
+  "physics-casimir-effect": {
+   "topicId": "physics-casimir-effect",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 157,
+   "bytes": 14814924,
+   "sha256": "7044968505b8eb453cce59fd276010d5a8b16943d9313ba83c018399c85a687b",
+   "posterSha256": "c073889dededbce7e5220ccf27c72949b493f0b0a2cfd5ff0dba9f6339c4a2c2",
+   "captionsSha256": "edeed4027c98bc748e0172dcc5827d783f452effbccec9713a1acb489b4cccca"
+  },
+  "physics-particle-physics-higgs-boson-electroweak-symmetry-breaking": {
+   "topicId": "physics-particle-physics-higgs-boson-electroweak-symmetry-breaking",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 93,
+   "bytes": 8049460,
+   "sha256": "6070f5f556c445e3196884247cd998c0722bc41f1bc4c9d43ea159c29c36d22c",
+   "posterSha256": "ccfe92a479393967db2b3c6968bc331508bb9aa522b6253e26d90cf46ca36e63",
+   "captionsSha256": "8a997f7311254595f2232d8826980825353181b8f70284d20be9d6dbb18ff221"
+  },
+  "physics-astrophysics-chandrasekhar-limit-white-dwarfs-supernovae": {
+   "topicId": "physics-astrophysics-chandrasekhar-limit-white-dwarfs-supernovae",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 96,
+   "bytes": 8469171,
+   "sha256": "da8a32145adaca1b537291076dc43b132e32ff6c203886629c09137744a3f05d",
+   "posterSha256": "79181ac66804cc24b2ea6fa8ac0c62430b0c9c78b4bcdfc1fbd9273508263ff9",
+   "captionsSha256": "1a3d4c981d2277c0b0ace90157e4528296bc0658650189d529bcac998dc35281"
+  },
+  "weather-coriolis-cyclones": {
+   "topicId": "weather-coriolis-cyclones",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 153,
+   "bytes": 14357289,
+   "sha256": "5e73ae67307ddd848e7af100f4a35376c026259a99d7f8a94bca50fc199bbe3a",
+   "posterSha256": "97c92e066231a5988329d2213124455d9eb998f1383da9c0dfdd88f44a82a406",
+   "captionsSha256": "8f4bbe2305bbf4e9db07f866c4c3d5780feed27d3c3362e81a9d0c07da6ffb0b"
+  },
+  "weather-el-nino": {
+   "topicId": "weather-el-nino",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 128,
+   "bytes": 12575923,
+   "sha256": "3058c4721561f429812917143ef20cb6126382e45e02a3238cdb01a4351dc0aa",
+   "posterSha256": "94182142de6d8cd70228b07879f543e96361a5a2dcbe745a751314a3be7d9bb3",
+   "captionsSha256": "45ab615869087169f129bd3870e857250de0ff3d572a7fd6440addb2a3ff8bd0"
+  },
+  "weather-perfect-storm": {
+   "topicId": "weather-perfect-storm",
+   "level": "standard",
+   "teacher": "Sprout",
+   "seconds": 120,
+   "bytes": 11808844,
+   "sha256": "420e5c6b9fa57ca4382f88738eb89e75c63afb971ef8cd1a1ae8eeb335e295f7",
+   "posterSha256": "c06d93e67cc2691a13cf407cda6a774bdb88c4c0bf3a9109cd9bbee4ee1d0975",
+   "captionsSha256": "deb8b054becb2baf6c1c519d5250f6e0ee3bf08ffaecd933dcb8fee7041f0f66"
+  }
+ }
+}

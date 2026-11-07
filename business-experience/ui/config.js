@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Own the established display configuration; current catalogs and permissions stay with their owners.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.0.4: Social's Compose and Workspace are one application; the social card lists surface social-workspace.
  */
 window.HOMEBASE_PRESETS = {
   "company": {
@@ -114,7 +115,7 @@ window.HOMEBASE_PRESETS = {
         "app": "social",
         "kicker": "COMMUNICATIONS · SOCIAL",
         "surfaces": [
-          "social-composer"
+          "social-workspace"
         ]
       },
       {

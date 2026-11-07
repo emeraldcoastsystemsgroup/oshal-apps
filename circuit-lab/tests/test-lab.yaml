@@ -423,3 +423,24 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
+  - id: ux-run-primary
+    name: Run is the one primary at the right of the app row; the gesture text is Help
+    purpose: >-
+      UX audit 2026-11-06: the page carries one Run, as the primary, at the right of the design app row with auto-run beside it, and the mouse, touch and keys text sits behind a Help disclosure.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ux-run-primary.test.js
+    expected:
+      - The design app row ends with auto-run and the Run primary.
+      - The canvas and board hints sit inside the canvas-help disclosure.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

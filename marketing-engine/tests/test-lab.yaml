@@ -175,3 +175,24 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: ux-utm
+    name: The UTM builder checks itself before any request, on the Channels tab
+    purpose: >-
+      UX audit 2026-11-06: run the shipped utmProblems(); an empty form names each required field and sends nothing; the builder sits on Channels with labels; one refresh only.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ux-utm.test.mjs
+    expected:
+      - An empty form names url, campaign, source and medium; a full one passes.
+      - No refreshBtn; utmCard is inside pane-channels.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

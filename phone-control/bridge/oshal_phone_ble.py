@@ -3,27 +3,13 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
-# 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0: the resident Bluetooth keyboard, consumer control and mouse an iPhone pairs with as OSHAL-KB. The GATT layout, report map and advertisement are the ones proven on 2026-11-05 (typed "hello from oshal" into Notes), so a phone that bonded with that test keyboard keeps its handles. Changed from it: a private unix socket instead of an open port on 127.0.0.1, the auto-accepting pairing agent only during a pairing window the person opens, report notifications that need an encrypted (bonded) link where BlueZ supports it, "sent" only when a phone has subscribed to that report, and unknown keys and characters refused in words instead of answered as done.
-"""Resident BLE HID peripheral for phone-control. Started by `oshal_phone_bridge.py ensure`:
+# 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0: resident BlueZ BLE HID keyboard, consumer control and mouse peripheral (OSHAL-KB) over a private 0600 unix socket.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: forget removes one paired device from this computer's adapter (BlueZ RemoveDevice).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: mark paired devices Trusted=True for automatic BLE HID reconnection, keep advertisement alive, detect AssistiveTouch-off state, and add calibrated tap, swipe, drag and scroll HID mouse operations with unchanged REPORT_MAP.
+"""Resident BLE HID peripheral for phone-control (`python3 -I oshal_phone_ble.py serve <runtime folder>`)."""
 
-    python3 -I oshal_phone_ble.py serve <runtime folder>
-
-It listens on <runtime folder>/ble.sock for one JSON line per request and answers one JSON line.
-"""
-
-import fcntl
-import json
-import os
-import signal
-import socket
-import sys
-import threading
-import time
-
-import dbus
-import dbus.exceptions
-import dbus.mainloop.glib
-import dbus.service
+import fcntl, hashlib, json, os, re, signal, socket, sys, threading, time
+import dbus, dbus.exceptions, dbus.mainloop.glib, dbus.service
 from gi.repository import GLib
 
 BLUEZ = 'org.bluez'
@@ -40,7 +26,10 @@ CHRC_IFACE = 'org.bluez.GattCharacteristic1'
 DESC_IFACE = 'org.bluez.GattDescriptor1'
 AD_IFACE = 'org.bluez.LEAdvertisement1'
 AGENT_PATH = '/org/bluez/oshal/agent'
+ADDRESS_RE = re.compile(r'^[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}$')
 MAX_TEXT = 300
+with open(os.path.abspath(__file__), 'rb') as _own:
+    CODE_SHA256 = hashlib.sha256(_own.read()).hexdigest()
 
 # Report 1 keyboard (modifier, reserved, six keys), report 2 consumer usage (16 bit), report 3 mouse
 # (buttons, dx, dy, wheel). Byte for byte the map of the proven test keyboard.
@@ -58,36 +47,78 @@ REPORT_MAP = [
 
 
 def build_keymap():
-    """US keyboard usage codes for every plain keyboard character: (modifier, usage)."""
     keys = {' ': (0, 0x2C), '\n': (0, 0x28), '\t': (0, 0x2B)}
-    for index, char in enumerate('abcdefghijklmnopqrstuvwxyz'):
-        keys[char], keys[char.upper()] = (0, 0x04 + index), (0x02, 0x04 + index)
-    for index, char in enumerate('1234567890'):
-        keys[char] = (0, 0x1E + index)
-    for index, char in enumerate('!@#$%^&*()'):
-        keys[char] = (0x02, 0x1E + index)
-    plain = {'-': 0x2D, '=': 0x2E, '[': 0x2F, ']': 0x30, '\\': 0x31, ';': 0x33, "'": 0x34, '`': 0x35,
-             ',': 0x36, '.': 0x37, '/': 0x38}
-    shifted = {'_': 0x2D, '+': 0x2E, '{': 0x2F, '}': 0x30, '|': 0x31, ':': 0x33, '"': 0x34, '~': 0x35,
-               '<': 0x36, '>': 0x37, '?': 0x38}
-    keys.update({char: (0, code) for char, code in plain.items()})
-    keys.update({char: (0x02, code) for char, code in shifted.items()})
+    for idx, ch in enumerate('abcdefghijklmnopqrstuvwxyz'):
+        keys[ch], keys[ch.upper()] = (0, 0x04 + idx), (0x02, 0x04 + idx)
+    for idx, ch in enumerate('1234567890'):
+        keys[ch] = (0, 0x1E + idx)
+    for idx, ch in enumerate('!@#$%^&*()'):
+        keys[ch] = (0x02, 0x1E + idx)
+    plain = {'-': 0x2D, '=': 0x2E, '[': 0x2F, ']': 0x30, '\\': 0x31, ';': 0x33, "'": 0x34, '`': 0x35, ',': 0x36, '.': 0x37, '/': 0x38}
+    shifted = {'_': 0x2D, '+': 0x2E, '{': 0x2F, '}': 0x30, '|': 0x31, ':': 0x33, '"': 0x34, '~': 0x35, '<': 0x36, '>': 0x37, '?': 0x38}
+    keys.update({ch: (0, code) for ch, code in plain.items()})
+    keys.update({ch: (0x02, code) for ch, code in shifted.items()})
     return keys
 
 
+def bool_arg(value):
+    return str(value or '').lower() in ('true', '1')
+
+
+def ble_profiles_path():
+    base = os.environ.get('XDG_STATE_HOME') or os.path.join(os.path.expanduser('~'), '.local', 'state')
+    return os.path.join(base, 'oshal-phone-bridge', 'ble-profiles.json')
+
+
+def span_for(landscape=False, span_x=None, span_y=None, address=None, phones=None):
+    if span_x is not None and span_y is not None:
+        return max(100, min(2400, int(span_x))), max(100, min(2400, int(span_y)))
+    is_land = bool_arg(landscape)
+    try:
+        with open(ble_profiles_path(), 'r', encoding='utf-8') as handle:
+            profiles = json.load(handle)
+    except (OSError, ValueError):
+        profiles = {}
+    keys = [str(address or '').strip().upper()] + [str(p.get('address') or '').upper() for p in (phones or [])] + ['DEFAULT']
+    for key in keys:
+        prof = profiles.get(key) if key and isinstance(profiles, dict) else None
+        if isinstance(prof, dict) and prof.get('span_x') and prof.get('span_y'):
+            sx, sy = max(100, min(2400, int(prof['span_x']))), max(100, min(2400, int(prof['span_y'])))
+            return (max(sx, sy), min(sx, sy)) if is_land else (min(sx, sy), max(sx, sy))
+    return (932, 430) if is_land else (430, 932)
+
+
 KEYMAP = build_keymap()
-# A named key is a list of steps: ('consumer', usage) or ('key', modifier, usage). Home and Spotlight send
-# both the consumer usage and the keyboard shortcut, as the proven keyboard did.
 NAMED_KEYS = {
-    'Home': [('consumer', 0x0040), ('key', 0x08, 0x0B)], 'Spotlight': [('consumer', 0x0221), ('key', 0x08, 0x2C)],
-    'VolumeUp': [('consumer', 0x00E9)], 'VolumeDown': [('consumer', 0x00EA)], 'Enter': [('key', 0, 0x28)],
-    'Escape': [('key', 0, 0x29)], 'Backspace': [('key', 0, 0x2A)], 'Tab': [('key', 0, 0x2B)],
-    'Right': [('key', 0, 0x4F)], 'Left': [('key', 0, 0x50)], 'Down': [('key', 0, 0x51)], 'Up': [('key', 0, 0x52)],
+    'Home': [('consumer', 0x0040), ('key', 0x08, 0x0B)],
+    'Spotlight': [('consumer', 0x0221), ('key', 0x08, 0x2C)],
+    'VolumeUp': [('consumer', 0x00E9)],
+    'VolumeDown': [('consumer', 0x00EA)],
+    'Enter': [('key', 0, 0x28)],
+    'Select': [('consumer', 0x0041), ('key', 0, 0x28)],
+    'Back': [('consumer', 0x0224), ('key', 0, 0x29)],
+    'Menu': [('consumer', 0x0040), ('key', 0, 0x65)],
+    'PlayPause': [('consumer', 0x00CD)],
+    'Escape': [('key', 0, 0x29)],
+    'Backspace': [('key', 0, 0x2A)],
+    'Tab': [('key', 0, 0x2B)],
+    'Right': [('key', 0, 0x4F)],
+    'Left': [('key', 0, 0x50)],
+    'Down': [('key', 0, 0x51)],
+    'Up': [('key', 0, 0x52)],
 }
 
 
 class Agent(dbus.service.Object):
-    """Accepts a pairing request. Registered only while a pairing window the person opened is open."""
+    def __init__(self, bus, path):
+        self.bus = bus
+        dbus.service.Object.__init__(self, bus, path)
+
+    def _trust(self, device):
+        try:
+            dbus.Interface(self.bus.get_object(BLUEZ, device), PROP_IFACE).Set(DEVICE_IFACE, 'Trusted', dbus.Boolean(True))
+        except dbus.exceptions.DBusException:
+            pass
 
     @dbus.service.method(AGENT_IFACE, in_signature='', out_signature='')
     def Release(self):
@@ -95,14 +126,16 @@ class Agent(dbus.service.Object):
 
     @dbus.service.method(AGENT_IFACE, in_signature='os', out_signature='')
     def AuthorizeService(self, device, uuid):
-        pass
+        self._trust(device)
 
     @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='s')
     def RequestPinCode(self, device):
+        self._trust(device)
         return '0000'
 
     @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='u')
     def RequestPasskey(self, device):
+        self._trust(device)
         return dbus.UInt32(0)
 
     @dbus.service.method(AGENT_IFACE, in_signature='ouq', out_signature='')
@@ -115,11 +148,12 @@ class Agent(dbus.service.Object):
 
     @dbus.service.method(AGENT_IFACE, in_signature='ou', out_signature='')
     def RequestConfirmation(self, device, passkey):
+        self._trust(device)
         print(f'pairing confirmed for {device}', flush=True)
 
     @dbus.service.method(AGENT_IFACE, in_signature='o', out_signature='')
     def RequestAuthorization(self, device):
-        pass
+        self._trust(device)
 
     @dbus.service.method(AGENT_IFACE, in_signature='', out_signature='')
     def Cancel(self):
@@ -129,7 +163,8 @@ class Agent(dbus.service.Object):
 class Advertisement(dbus.service.Object):
     PATH = '/org/bluez/oshal/advertisement0'
 
-    def __init__(self, bus):
+    def __init__(self, bus, peripheral=None):
+        self.peripheral = peripheral
         dbus.service.Object.__init__(self, bus, self.PATH)
 
     @dbus.service.method(PROP_IFACE, in_signature='s', out_signature='a{sv}')
@@ -139,19 +174,18 @@ class Advertisement(dbus.service.Object):
 
     @dbus.service.method(AD_IFACE, in_signature='', out_signature='')
     def Release(self):
-        pass
+        if self.peripheral is not None:
+            self.peripheral.advertising = False
 
 
 class Descriptor(dbus.service.Object):
-    def __init__(self, bus, characteristic, uuid, flags, value):
-        self.path = characteristic.path + '/desc0'
-        self.characteristic, self.uuid, self.flags = characteristic, uuid, flags
+    def __init__(self, bus, chrc, uuid, flags, value):
+        self.path, self.chrc, self.uuid, self.flags = chrc.path + '/desc0', chrc, uuid, flags
         self.value = [dbus.Byte(b) for b in value]
         dbus.service.Object.__init__(self, bus, self.path)
 
     def properties(self):
-        return {DESC_IFACE: {'Characteristic': dbus.ObjectPath(self.characteristic.path), 'UUID': self.uuid,
-                             'Flags': self.flags}}
+        return {DESC_IFACE: {'Characteristic': dbus.ObjectPath(self.chrc.path), 'UUID': self.uuid, 'Flags': self.flags}}
 
     @dbus.service.method(PROP_IFACE, in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface):
@@ -163,8 +197,6 @@ class Descriptor(dbus.service.Object):
 
 
 class Characteristic(dbus.service.Object):
-    """One GATT characteristic; a report remembers whether a phone subscribed to it."""
-
     def __init__(self, bus, service, index, uuid, flags, value):
         self.path = f'{service.path}/char{index}'
         self.service, self.uuid, self.flags = service, uuid, flags
@@ -207,32 +239,28 @@ class Characteristic(dbus.service.Object):
         self.PropertiesChanged(CHRC_IFACE, {'Value': dbus.Array(self.value, signature='y')}, [])
 
 
-class Service(dbus.service.Object):
-    def __init__(self, bus, index, uuid):
-        self.path = f'/org/bluez/oshal/service_v2_{index}'
-        self.uuid, self.characteristics = uuid, []
-        dbus.service.Object.__init__(self, bus, self.path)
-
-    def add(self, bus, uuid, flags, value, descriptor=None):
-        characteristic = Characteristic(bus, self, len(self.characteristics), uuid, flags, value)
-        if descriptor:
-            characteristic.descriptors.append(Descriptor(bus, characteristic, uuid16('2908'), ['encrypt-read'],
-                                                         descriptor))
-        self.characteristics.append(characteristic)
-        return characteristic
-
-    def properties(self):
-        return {SERVICE_IFACE: {'UUID': self.uuid, 'Primary': True,
-                                'Characteristics': dbus.Array([dbus.ObjectPath(c.path) for c in self.characteristics],
-                                                              signature='o')}}
-
-
 def uuid16(short):
     return f'0000{short}-0000-1000-8000-00805f9b34fb'
 
 
+class Service(dbus.service.Object):
+    def __init__(self, bus, index, uuid):
+        self.path, self.uuid, self.characteristics = f'/org/bluez/oshal/service_v2_{index}', uuid, []
+        dbus.service.Object.__init__(self, bus, self.path)
+
+    def add(self, bus, uuid, flags, value, descriptor=None):
+        chrc = Characteristic(bus, self, len(self.characteristics), uuid, flags, value)
+        if descriptor:
+            chrc.descriptors.append(Descriptor(bus, chrc, uuid16('2908'), ['encrypt-read'], descriptor))
+        self.characteristics.append(chrc)
+        return chrc
+
+    def properties(self):
+        return {SERVICE_IFACE: {'UUID': self.uuid, 'Primary': True,
+                                'Characteristics': dbus.Array([dbus.ObjectPath(c.path) for c in self.characteristics], signature='o')}}
+
+
 class Application(dbus.service.Object):
-    """HID, battery and device information services, in the proven order (BlueZ assigns handles by it)."""
     PATH = '/org/bluez/oshal/app_v2'
 
     def __init__(self, bus, report_flag):
@@ -254,11 +282,11 @@ class Application(dbus.service.Object):
         self.services = [hid, battery, info]
 
     def objects(self):
-        for service in self.services:
-            yield service
-            for characteristic in service.characteristics:
-                yield characteristic
-                yield from characteristic.descriptors
+        for svc in self.services:
+            yield svc
+            for chrc in svc.characteristics:
+                yield chrc
+                yield from chrc.descriptors
 
     @dbus.service.method(OM_IFACE, out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
@@ -270,24 +298,51 @@ class Application(dbus.service.Object):
 
 
 class Peripheral:
-    """The keyboard on one adapter: registration, the pairing window, the phones and the reports."""
-
     def __init__(self, bus, adapter_path):
         self.bus, self.adapter_path = bus, adapter_path
         self.adapter = bus.get_object(BLUEZ, adapter_path)
         self.props = dbus.Interface(self.adapter, PROP_IFACE)
         self.agent = Agent(bus, AGENT_PATH)
-        self.advertisement = Advertisement(bus)
+        self.advertisement = Advertisement(bus, self)
         self.app, self.report_flag = None, 'encrypt-notify'
-        self.registered = self.advertising = False
+        self.registered = self.advertising = self.ad_pending = False
         self.problem, self.window_until = None, 0
 
     def start(self):
         self.props.Set(ADAPTER_IFACE, 'Powered', dbus.Boolean(True))
+        self.trust_paired_devices()
         self.register(self.report_flag)
-        dbus.Interface(self.adapter, AD_MANAGER_IFACE).RegisterAdvertisement(
-            dbus.ObjectPath(Advertisement.PATH), {}, reply_handler=self.advertised,
-            error_handler=lambda error: self.failed('advertisement', error))
+        self.ensure_advertising(force=True)
+
+    def ensure_advertising(self, force=False):
+        if self.advertising or self.ad_pending or (not force and not self.registered):
+            return
+        self.ad_pending = True
+        try:
+            dbus.Interface(self.adapter, AD_MANAGER_IFACE).RegisterAdvertisement(
+                dbus.ObjectPath(Advertisement.PATH), {}, reply_handler=self.advertised, error_handler=self.ad_failed)
+        except dbus.exceptions.DBusException as error:
+            self.ad_failed(error)
+
+    def ad_failed(self, error):
+        self.ad_pending = False
+        if 'AlreadyExists' in str(error):
+            self.advertising = True
+            return
+        self.failed('advertisement', error)
+
+    def trust_paired_devices(self):
+        try:
+            objects = dbus.Interface(self.bus.get_object(BLUEZ, '/'), OM_IFACE).GetManagedObjects()
+        except dbus.exceptions.DBusException:
+            return
+        for path, ifaces in objects.items():
+            dev = ifaces.get(DEVICE_IFACE)
+            if dev and str(dev.get('Adapter', '')) == self.adapter_path and (dev.get('Paired') or dev.get('Bonded')) and not dev.get('Trusted'):
+                try:
+                    dbus.Interface(self.bus.get_object(BLUEZ, path), PROP_IFACE).Set(DEVICE_IFACE, 'Trusted', dbus.Boolean(True))
+                except dbus.exceptions.DBusException:
+                    pass
 
     def register(self, flag):
         self.app, self.report_flag = Application(self.bus, flag), flag
@@ -299,16 +354,14 @@ class Peripheral:
         print(f'registered with reports {self.report_flag}', flush=True)
 
     def register_failed(self, error):
-        # A BlueZ that does not know encrypt-notify refuses the flags; the proven plain notify is the fallback.
         if self.report_flag == 'encrypt-notify':
-            print(f'encrypt-notify refused ({error}); registering with notify', flush=True)
             self.app.remove()
             self.register('notify')
             return
         self.failed('application', error)
 
     def advertised(self):
-        self.advertising = True
+        self.ad_pending, self.advertising = False, True
         print('advertising OSHAL-KB', flush=True)
 
     def failed(self, what, error):
@@ -316,37 +369,48 @@ class Peripheral:
         print(self.problem, flush=True)
 
     def adapter_state(self):
-        values = self.props.GetAll(ADAPTER_IFACE)
-        return {'address': str(values.get('Address', '')), 'name': str(values.get('Alias', '')),
-                'powered': bool(values.get('Powered')), 'pairable': bool(values.get('Pairable'))}
+        vals = self.props.GetAll(ADAPTER_IFACE)
+        return {'address': str(vals.get('Address', '')), 'name': str(vals.get('Alias', '')),
+                'powered': bool(vals.get('Powered')), 'pairable': bool(vals.get('Pairable'))}
 
     def phones(self):
-        """Devices this adapter knows that are paired or connected."""
-        manager = dbus.Interface(self.bus.get_object(BLUEZ, '/'), OM_IFACE)
+        self.trust_paired_devices()
+        mgr = dbus.Interface(self.bus.get_object(BLUEZ, '/'), OM_IFACE)
         found = []
-        for path, interfaces in manager.GetManagedObjects().items():
-            device = interfaces.get(DEVICE_IFACE)
-            if not device or str(device.get('Adapter', '')) != self.adapter_path:
-                continue
-            if device.get('Paired') or device.get('Connected'):
-                found.append({'address': str(device.get('Address', '')), 'name': str(device.get('Alias', '')),
-                              'paired': bool(device.get('Paired')), 'bonded': bool(device.get('Bonded', False)),
-                              'connected': bool(device.get('Connected'))})
+        for _, ifaces in mgr.GetManagedObjects().items():
+            dev = ifaces.get(DEVICE_IFACE)
+            if dev and str(dev.get('Adapter', '')) == self.adapter_path and (dev.get('Paired') or dev.get('Connected')):
+                found.append({'address': str(dev.get('Address', '')), 'name': str(dev.get('Alias', '')),
+                              'paired': bool(dev.get('Paired')), 'bonded': bool(dev.get('Bonded', False)),
+                              'trusted': bool(dev.get('Trusted', False)), 'connected': bool(dev.get('Connected'))})
         return sorted(found, key=lambda item: (not item['connected'], item['name']))
 
+    def forget(self, address):
+        if not isinstance(address, str) or not ADDRESS_RE.match(address):
+            return {'ok': False, 'error': 'bad_address', 'message': 'Name the device by its Bluetooth address.'}
+        mgr = dbus.Interface(self.bus.get_object(BLUEZ, '/'), OM_IFACE)
+        for path, ifaces in mgr.GetManagedObjects().items():
+            dev = ifaces.get(DEVICE_IFACE)
+            if dev and str(dev.get('Adapter', '')) == self.adapter_path and str(dev.get('Address', '')).upper() == address.upper():
+                dbus.Interface(self.adapter, ADAPTER_IFACE).RemoveDevice(path)
+                return {'ok': True, 'removed': address}
+        return {'ok': False, 'error': 'not_paired', 'message': 'That device is not paired with this computer.'}
+
     def status(self):
-        subscribed = {name: report.notifying for name, report in self.app.reports.items()} if self.app else {}
+        self.ensure_advertising()
+        sub = {name: rep.notifying for name, rep in self.app.reports.items()} if self.app else {}
         return {'ok': True, 'registered': self.registered, 'advertising': self.advertising, 'problem': self.problem,
-                'reportSecurity': self.report_flag, 'adapter': self.adapter_state(), 'subscribed': subscribed,
+                'reportSecurity': self.report_flag, 'adapter': self.adapter_state(), 'subscribed': sub,
                 'phones': self.phones(), 'pairWindowSeconds': max(0, int(self.window_until - time.time())),
-                'pid': os.getpid()}
+                'pid': os.getpid(), 'code': CODE_SHA256}
 
     def open_window(self, seconds):
-        manager = dbus.Interface(self.bus.get_object(BLUEZ, '/org/bluez'), AGENT_MANAGER_IFACE)
+        mgr = dbus.Interface(self.bus.get_object(BLUEZ, '/org/bluez'), AGENT_MANAGER_IFACE)
         if self.window_until <= time.time():
-            manager.RegisterAgent(dbus.ObjectPath(AGENT_PATH), 'NoInputNoOutput')
-            manager.RequestDefaultAgent(dbus.ObjectPath(AGENT_PATH))
+            mgr.RegisterAgent(dbus.ObjectPath(AGENT_PATH), 'NoInputNoOutput')
+            mgr.RequestDefaultAgent(dbus.ObjectPath(AGENT_PATH))
         self.props.Set(ADAPTER_IFACE, 'Pairable', dbus.Boolean(True))
+        self.ensure_advertising()
         self.window_until = time.time() + seconds
         GLib.timeout_add_seconds(seconds, self.close_window_when_due)
         return {'ok': True, 'pairWindowSeconds': seconds, 'name': 'OSHAL-KB'}
@@ -360,44 +424,40 @@ class Peripheral:
         if not self.window_until:
             return
         self.window_until = 0
+        self.trust_paired_devices()
         try:
-            dbus.Interface(self.bus.get_object(BLUEZ, '/org/bluez'), AGENT_MANAGER_IFACE).UnregisterAgent(
-                dbus.ObjectPath(AGENT_PATH))
-        except dbus.exceptions.DBusException as error:
-            print(f'unregistering the agent: {error}', flush=True)
+            dbus.Interface(self.bus.get_object(BLUEZ, '/org/bluez'), AGENT_MANAGER_IFACE).UnregisterAgent(dbus.ObjectPath(AGENT_PATH))
+        except dbus.exceptions.DBusException:
+            pass
         self.props.Set(ADAPTER_IFACE, 'Pairable', dbus.Boolean(False))
-        print('pairing window closed', flush=True)
+        self.ensure_advertising()
 
     def listening(self, report):
-        """The phones that will receive this report: it is subscribed and a paired phone is connected."""
+        self.ensure_advertising()
         if not self.app or not self.app.reports[report].notifying:
             return []
         return [phone['name'] for phone in self.phones() if phone['connected'] and phone['paired']]
 
     def stop(self):
         self.close_window()
-        for call in (lambda: dbus.Interface(self.adapter, AD_MANAGER_IFACE).UnregisterAdvertisement(
-                         dbus.ObjectPath(Advertisement.PATH)),
-                     lambda: dbus.Interface(self.adapter, GATT_MANAGER_IFACE).UnregisterApplication(
-                         dbus.ObjectPath(Application.PATH))):
+        for call in (lambda: dbus.Interface(self.adapter, AD_MANAGER_IFACE).UnregisterAdvertisement(dbus.ObjectPath(Advertisement.PATH)),
+                     lambda: dbus.Interface(self.adapter, GATT_MANAGER_IFACE).UnregisterApplication(dbus.ObjectPath(Application.PATH))):
             try:
                 call()
-            except dbus.exceptions.DBusException as error:
-                print(f'stopping: {error}', flush=True)
+            except dbus.exceptions.DBusException:
+                pass
 
 
 class MainThread:
-    """D-Bus is not thread safe: every BlueZ call runs on the GLib loop and the socket thread waits for it."""
-
     @staticmethod
-    def call(function, timeout=10):
+    def call(fn, timeout=10):
         done, box = threading.Event(), {}
 
         def step():
             try:
-                box['value'] = function()
-            except Exception as error:  # reported to the caller, never swallowed
-                box['error'] = error
+                box['value'] = fn()
+            except Exception as err:
+                box['error'] = err
             done.set()
             return False
 
@@ -410,10 +470,9 @@ class MainThread:
 
 
 class Keyboard:
-    """What a request asks for, sent as HID reports, one request at a time."""
-
     def __init__(self, peripheral):
         self.peripheral, self.lock = peripheral, threading.Lock()
+        self.ptr_x, self.ptr_y, self.homed_at = 0.0, 0.0, 0.0
 
     def report(self, name, data, pause):
         MainThread.call(lambda: self.peripheral.app.reports[name].send(data))
@@ -428,26 +487,61 @@ class Keyboard:
         self.report('consumer', [0, 0], 0.05)
 
     def need(self, report):
-        phones = MainThread.call(lambda: self.peripheral.listening(report))
+        phones, kb_on = MainThread.call(lambda: (self.peripheral.listening(report), bool(self.peripheral.listening('keyboard'))))
         if not phones:
+            if report == 'mouse' and kb_on:
+                return None, {'ok': False, 'error': 'assistive_touch_off', 'sent': False,
+                              'message': 'Turn on AssistiveTouch on your iPhone (Settings → Accessibility → Touch → AssistiveTouch) so Bluetooth taps and swipes work.'}
             return None, {'ok': False, 'error': 'no_phone_listening', 'sent': False,
                           'message': 'No phone is listening: pair an iPhone with OSHAL-KB and keep it near this computer.'}
         return phones, None
 
+    def home_pointer(self):
+        for _ in range(36):
+            self.report('mouse', [0, (-40) & 0xFF, (-40) & 0xFF, 0], 0.010)
+        self.ptr_x, self.ptr_y, self.homed_at = 0.0, 0.0, time.time()
+
+    def ensure_homed(self, force=False):
+        if force or self.homed_at == 0.0 or (time.time() - self.homed_at) > 25.0:
+            self.home_pointer()
+
+    def move_to(self, tx, ty):
+        cx, cy, tx, ty = int(round(self.ptr_x)), int(round(self.ptr_y)), int(round(tx)), int(round(ty))
+        while cx != tx or cy != ty:
+            sx, sy = max(-12, min(12, tx - cx)), max(-12, min(12, ty - cy))
+            self.report('mouse', [0, sx & 0xFF, sy & 0xFF, 0], 0.010)
+            cx, cy = cx + sx, cy + sy
+        self.ptr_x, self.ptr_y = float(tx), float(ty)
+
+    def _hold_path(self, x1, y1, x2, y2, steps, pause, hold_start, hold_end):
+        self.ensure_homed(False)
+        self.move_to(x1, y1)
+        self.report('mouse', [1, 0, 0, 0], hold_start)
+        cx, cy = x1, y1
+        for idx in range(1, steps + 1):
+            tx, ty = round(x1 + (x2 - x1) * idx / steps), round(y1 + (y2 - y1) * idx / steps)
+            sx, sy = max(-127, min(127, tx - cx)), max(-127, min(127, ty - cy))
+            self.report('mouse', [1, sx & 0xFF, sy & 0xFF, 0], pause)
+            cx, cy = cx + sx, cy + sy
+        if hold_end > 0:
+            self.report('mouse', [1, 0, 0, 0], hold_end)
+        self.report('mouse', [0, 0, 0, 0], 0.040)
+        self.ptr_x, self.ptr_y = float(cx), float(cy)
+        return cx, cy
+
     def type_text(self, text, enter):
         if not isinstance(text, str) or not text or len(text) > MAX_TEXT:
             return {'ok': False, 'error': 'bad_text', 'message': f'Send between 1 and {MAX_TEXT} characters.'}
-        bad = sorted({char for char in text if char not in KEYMAP})
+        bad = sorted({ch for ch in text if ch not in KEYMAP})
         if bad:
             return {'ok': False, 'error': 'cannot_type', 'sent': False,
-                    'message': 'The keyboard types plain keyboard characters only; it cannot type ' + ' '.join(bad[:10])
-                               + '. Nothing was sent.'}
+                    'message': 'The keyboard types plain keyboard characters only; it cannot type ' + ' '.join(bad[:10]) + '. Nothing was sent.'}
         phones, refusal = self.need('keyboard')
         if refusal:
             return refusal
         with self.lock:
-            for char in text:
-                self.press(*KEYMAP[char])
+            for ch in text:
+                self.press(*KEYMAP[ch])
             if enter:
                 self.press(0, 0x28)
         return {'ok': True, 'sent': True, 'typed': len(text), 'phones': phones}
@@ -465,23 +559,94 @@ class Keyboard:
                 self.consumer(step[1]) if step[0] == 'consumer' else self.press(step[1], step[2])
         return {'ok': True, 'sent': True, 'key': name, 'phones': phones}
 
-    def mouse(self, dx, dy, click):
+    def mouse(self, dx, dy, click, rehome=False):
         dx, dy = max(-2000, min(2000, int(dx))), max(-2000, min(2000, int(dy)))
         phones, refusal = self.need('mouse')
         if refusal:
             return refusal
         with self.lock:
+            if bool_arg(rehome):
+                self.home_pointer()
+                self.move_to(215, 466)
             while dx or dy:
-                step_x, step_y = max(-100, min(100, dx)), max(-100, min(100, dy))
-                self.report('mouse', [0, step_x, step_y, 0], 0.025)
-                dx, dy = dx - step_x, dy - step_y
+                sx, sy = max(-100, min(100, dx)), max(-100, min(100, dy))
+                self.report('mouse', [0, sx & 0xFF, sy & 0xFF, 0], 0.025)
+                dx, dy = dx - sx, dy - sy
+                self.ptr_x, self.ptr_y = max(0.0, self.ptr_x + sx), max(0.0, self.ptr_y + sy)
             if click:
                 self.report('mouse', [1, 0, 0, 0], 0.05)
                 self.report('mouse', [0, 0, 0, 0], 0.05)
         return {'ok': True, 'sent': True, 'phones': phones}
 
+    def home(self):
+        phones, refusal = self.need('mouse')
+        if refusal:
+            return refusal
+        with self.lock:
+            self.home_pointer()
+        return {'ok': True, 'sent': True, 'homed': True, 'phones': phones}
+
+    def move(self, nx, ny, landscape=False, rehome=False, span_x=None, span_y=None, address=None):
+        nx, ny = max(0.0, min(1.0, float(nx))), max(0.0, min(1.0, float(ny)))
+        phones, refusal = self.need('mouse')
+        if refusal:
+            return refusal
+        sx, sy = span_for(landscape, span_x, span_y, address, phones)
+        tx, ty = round(nx * sx), round(ny * sy)
+        with self.lock:
+            self.ensure_homed(bool_arg(rehome))
+            self.move_to(tx, ty)
+        return {'ok': True, 'sent': True, 'moved': [tx, ty], 'span': [sx, sy], 'phones': phones}
+
+    def tap(self, nx, ny, landscape=False, rehome=False, span_x=None, span_y=None, address=None):
+        nx, ny = max(0.0, min(1.0, float(nx))), max(0.0, min(1.0, float(ny)))
+        phones, refusal = self.need('mouse')
+        if refusal:
+            return refusal
+        sx, sy = span_for(landscape, span_x, span_y, address, phones)
+        tx, ty = round(nx * sx), round(ny * sy)
+        with self.lock:
+            self.ensure_homed(bool_arg(rehome))
+            self.move_to(tx, ty)
+            self.report('mouse', [1, 0, 0, 0], 0.045)
+            self.report('mouse', [0, 0, 0, 0], 0.030)
+        return {'ok': True, 'sent': True, 'tapped': [tx, ty], 'span': [sx, sy], 'phones': phones}
+
+    def swipe(self, nx1, ny1, nx2, ny2, ms=260, landscape=False, span_x=None, span_y=None, address=None):
+        c = [max(0.0, min(1.0, float(v))) for v in (nx1, ny1, nx2, ny2)]
+        phones, refusal = self.need('mouse')
+        if refusal:
+            return refusal
+        sx, sy = span_for(landscape, span_x, span_y, address, phones)
+        x1, y1, x2, y2 = round(c[0] * sx), round(c[1] * sy), round(c[2] * sx), round(c[3] * sy)
+        steps = max(8, min(32, int(max(abs(x2 - x1), abs(y2 - y1)) / 14) or 8))
+        pause = max(0.008, min(0.030, max(80, min(1500, int(ms or 260))) / 1000.0 / steps))
+        with self.lock:
+            cx, cy = self._hold_path(x1, y1, x2, y2, steps, pause, 0.040, 0.0)
+        return {'ok': True, 'sent': True, 'swiped': [x1, y1, cx, cy], 'span': [sx, sy], 'phones': phones}
+
+    def drag(self, nx1, ny1, nx2, ny2, hold_ms=700, landscape=False, span_x=None, span_y=None, address=None):
+        c = [max(0.0, min(1.0, float(v))) for v in (nx1, ny1, nx2, ny2)]
+        phones, refusal = self.need('mouse')
+        if refusal:
+            return refusal
+        sx, sy = span_for(landscape, span_x, span_y, address, phones)
+        x1, y1, x2, y2 = round(c[0] * sx), round(c[1] * sy), round(c[2] * sx), round(c[3] * sy)
+        hold_s = max(300, min(1500, int(hold_ms or 700))) / 1000.0
+        with self.lock:
+            cx, cy = self._hold_path(x1, y1, x2, y2, 24, 0.018, hold_s, 0.12)
+        return {'ok': True, 'sent': True, 'dragged': [x1, y1, cx, cy], 'span': [sx, sy], 'phones': phones}
+
+    def scroll(self, dy):
+        dy = max(-40, min(40, int(dy)))
+        phones, refusal = self.need('mouse')
+        if refusal:
+            return refusal
+        with self.lock:
+            self.report('mouse', [0, 0, 0, dy & 0xFF], 0.025)
+        return {'ok': True, 'sent': True, 'scrolled': dy, 'phones': phones}
+
     def open_app(self, name):
-        """Spotlight, the app's name, Enter: how a keyboard opens an app on an iPhone."""
         if not isinstance(name, str) or not name.strip() or len(name) > 60:
             return {'ok': False, 'error': 'bad_name', 'message': 'Name the app, for example Notes.'}
         opened = self.key('Spotlight')
@@ -492,71 +657,69 @@ class Keyboard:
         return dict(typed, opened=name.strip()) if typed.get('ok') else typed
 
 
-def answer(peripheral, keyboard, request):
-    """One request, one reply."""
-    op = request.get('op')
-    try:
-        if op == 'status':
-            return MainThread.call(peripheral.status)
-        if op == 'devices':
-            return {'ok': True, 'phones': MainThread.call(peripheral.phones)}
-        if op == 'pair-window':
-            seconds = max(30, min(300, int(request.get('seconds', 120))))
-            return MainThread.call(lambda: peripheral.open_window(seconds))
-        if op == 'type':
-            return keyboard.type_text(request.get('text'), str(request.get('enter', '')).lower() in ('true', '1'))
-        if op == 'key':
-            return keyboard.key(str(request.get('key', '')))
-        if op == 'mouse':
-            return keyboard.mouse(request.get('dx', 0), request.get('dy', 0),
-                                  str(request.get('click', '')).lower() in ('true', '1'))
-        if op == 'open':
-            return keyboard.open_app(request.get('name'))
+def answer(peripheral, kb, req):
+    op = req.get('op')
+    handlers = {
+        'status': lambda: MainThread.call(peripheral.status),
+        'devices': lambda: {'ok': True, 'phones': MainThread.call(peripheral.phones)},
+        'forget': lambda: MainThread.call(lambda: peripheral.forget(req.get('address'))),
+        'pair-window': lambda: MainThread.call(lambda: peripheral.open_window(max(30, min(300, int(req.get('seconds', 120)))))),
+        'home': kb.home,
+        'type': lambda: kb.type_text(req.get('text'), bool_arg(req.get('enter'))),
+        'key': lambda: kb.key(str(req.get('key', ''))),
+        'mouse': lambda: kb.mouse(req.get('dx', 0), req.get('dy', 0), bool_arg(req.get('click')), req.get('rehome', False)),
+        'move': lambda: kb.move(req.get('nx', 0.5), req.get('ny', 0.5), req.get('landscape', False), req.get('rehome', False), req.get('spanX'), req.get('spanY'), req.get('address')),
+        'tap': lambda: kb.tap(req.get('nx', 0.5), req.get('ny', 0.5), req.get('landscape', False), req.get('rehome', False), req.get('spanX'), req.get('spanY'), req.get('address')),
+        'swipe': lambda: kb.swipe(req.get('nx1', 0.5), req.get('ny1', 0.7), req.get('nx2', 0.5), req.get('ny2', 0.3), req.get('ms', 260), req.get('landscape', False), req.get('spanX'), req.get('spanY'), req.get('address')),
+        'drag': lambda: kb.drag(req.get('nx1', 0.5), req.get('ny1', 0.5), req.get('nx2', 0.5), req.get('ny2', 0.5), req.get('holdMs', 700), req.get('landscape', False), req.get('spanX'), req.get('spanY'), req.get('address')),
+        'scroll': lambda: kb.scroll(req.get('dy', -6)),
+        'open': lambda: kb.open_app(req.get('name')),
+    }
+    if op not in handlers:
         return {'ok': False, 'error': 'unknown_op', 'message': f'There is no {op!r} here.'}
-    except (ValueError, TypeError) as error:
-        return {'ok': False, 'error': 'bad_argument', 'message': str(error)}
-    except (dbus.exceptions.DBusException, TimeoutError) as error:
-        print(f'request {op} failed: {error}', flush=True)
-        return {'ok': False, 'error': 'ble_failed', 'message': f'Bluetooth refused it: {error}'}
+    try:
+        return handlers[op]()
+    except (ValueError, TypeError) as err:
+        return {'ok': False, 'error': 'bad_argument', 'message': str(err)}
+    except (dbus.exceptions.DBusException, TimeoutError) as err:
+        return {'ok': False, 'error': 'ble_failed', 'message': f'Bluetooth refused it: {err}'}
 
 
-def serve_socket(path, peripheral, keyboard):
-    """The private socket: this account only (the folder is 0700, the socket 0600)."""
+def serve_socket(path, peripheral, kb):
     if os.path.exists(path):
         os.remove(path)
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(path)
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(path)
     os.chmod(path, 0o600)
-    server.listen(8)
+    srv.listen(8)
 
-    def one(connection):
-        with connection:
-            connection.settimeout(60)
+    def one(conn):
+        with conn:
+            conn.settimeout(60)
             data = b''
             while not data.endswith(b'\n') and len(data) < 65536:
-                part = connection.recv(65536)
+                part = conn.recv(65536)
                 if not part:
                     break
                 data += part
             try:
-                request = json.loads(data.decode('utf-8'))
-                reply = answer(peripheral, keyboard, request) if isinstance(request, dict) else None
+                req = json.loads(data.decode('utf-8'))
+                reply = answer(peripheral, kb, req) if isinstance(req, dict) else None
             except ValueError:
                 reply = None
-            reply = reply or {'ok': False, 'error': 'bad_request', 'message': 'Send one JSON object per line.'}
-            connection.sendall(json.dumps(reply).encode('utf-8') + b'\n')
+            conn.sendall(json.dumps(reply or {'ok': False, 'error': 'bad_request', 'message': 'Send one JSON object per line.'}).encode('utf-8') + b'\n')
 
-    def loop():
+    def accept_loop():
         while True:
-            connection, _ = server.accept()
-            threading.Thread(target=one, args=(connection,), daemon=True).start()
+            conn, _ = srv.accept()
+            threading.Thread(target=one, args=(conn,), daemon=True).start()
 
-    threading.Thread(target=loop, daemon=True).start()
+    threading.Thread(target=accept_loop, daemon=True).start()
 
 
 def first_adapter(bus):
-    manager = dbus.Interface(bus.get_object(BLUEZ, '/'), OM_IFACE)
-    adapters = sorted(str(path) for path, interfaces in manager.GetManagedObjects().items() if ADAPTER_IFACE in interfaces)
+    mgr = dbus.Interface(bus.get_object(BLUEZ, '/'), OM_IFACE)
+    adapters = sorted(str(p) for p, ifaces in mgr.GetManagedObjects().items() if ADAPTER_IFACE in ifaces)
     if not adapters:
         raise SystemExit('No Bluetooth adapter on this computer.')
     return adapters[0]
@@ -567,7 +730,6 @@ def serve(runtime):
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        print('already running', flush=True)
         return 0
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
@@ -585,7 +747,6 @@ def serve(runtime):
 
     GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, quit_loop)
     GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGINT, quit_loop)
-    print(f'serving on {runtime}', flush=True)
     loop.run()
     for name in ('ble.sock', 'ble.pid'):
         try:

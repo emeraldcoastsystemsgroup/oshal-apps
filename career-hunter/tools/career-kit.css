@@ -1,0 +1,119 @@
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the design standard's --ds-* tokens, derived from the active palette the same way the platform derives them (the platform file is not served yet), and one small Career kit every Career screen shares: primary, secondary, tertiary and destructive buttons, labelled fields, empty state, alert with Retry, segmented stages, sheet, row menu, in-page confirm. Imported by career-theme.css; the Job Board links it directly.
+ */
+/* ── Design standard kit (UX audit 2026-11-06) ────────────────────────────────────────────
+   The --ds-* tokens use the platform's own formulas (docs/ux/design-standard.md §2.11). Both rules
+   sit at zero specificity, so when the platform's design-tokens.css is served the later file wins
+   with the same values. Screens paint with these and the ck- classes below. */
+:where(:root[data-career-surface]) {
+  --ds-page: var(--bg-primary);
+  --ds-surface: var(--bg-primary);
+  --ds-surface-2: color-mix(in srgb, var(--text-primary) 6%, var(--ds-surface));
+  --ds-surface-3: color-mix(in srgb, var(--text-primary) 12%, var(--ds-surface));
+  --ds-scrim: rgb(0 0 0 / 0.40);
+  --ds-hairline: color-mix(in srgb, var(--text-primary) 14%, var(--ds-page));
+  --ds-edge: color-mix(in srgb, var(--text-primary) 20%, var(--ds-surface));
+  --ds-line-control: color-mix(in srgb, var(--text-primary) 50%, var(--ds-page));
+  --ds-ink: var(--text-primary);
+  --ds-ink-2: color-mix(in srgb, var(--text-primary) 78%, var(--ds-page));
+  --ds-ink-disabled: color-mix(in srgb, var(--text-primary) 45%, var(--ds-page));
+  --ds-accent: var(--accent-primary);
+  --ds-accent-ink: color-mix(in srgb, var(--accent-primary) 66%, var(--text-primary));
+  --ds-on-accent: var(--text-on-accent, #fff);
+  --ds-ok: var(--status-success); --ds-warn: var(--status-warning); --ds-bad: var(--status-error);
+  --ds-elev-float: 0 2px 6px rgb(0 0 0 / 0.08), 0 12px 32px rgb(0 0 0 / 0.16);
+  --ds-radius-s: 6px; --ds-radius-m: 10px; --ds-radius-l: 14px; --ds-radius-xl: 20px;
+  --ds-target: 44px; --ds-control-h: 44px;
+}
+@supports (color: rgb(from red r g b / 1)) {
+  :where(:root[data-career-surface]) { --ds-surface: rgb(from var(--bg-card, var(--bg-primary)) r g b / 1); }
+}
+
+/* Buttons (§4.1). One .ck-primary per screen. */
+.ck-primary, .ck-btn, .ck-danger, .ck-tertiary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--ds-target); padding: 0 16px; border-radius: var(--ds-radius-m);
+  font-weight: 600; font-size: 15px; line-height: 1.2; font-family: inherit; cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.ck-primary { background: var(--ds-accent); color: var(--ds-on-accent); border: 0; }
+.ck-primary:hover { box-shadow: inset 0 0 0 1px var(--ds-on-accent); }
+.ck-btn { background: var(--ds-surface-2); color: var(--ds-ink); border: 1px solid var(--ds-line-control); }
+.ck-btn:hover { background: var(--ds-surface-3); }
+.ck-danger { background: var(--ds-surface-2); color: var(--ds-bad); border: 1px solid var(--ds-bad); }
+.ck-danger.solid { background: var(--ds-bad); color: var(--ds-page); }
+.ck-tertiary { background: none; border: 0; color: var(--ds-accent-ink); padding: 0 8px; }
+:is(.ck-primary, .ck-btn, .ck-danger, .ck-tertiary):disabled {
+  background: var(--ds-surface-2); color: var(--ds-ink-disabled); border-color: var(--ds-hairline); opacity: 1; cursor: default; box-shadow: none;
+}
+.ck-icon { display: inline-flex; align-items: center; justify-content: center; width: var(--ds-target); height: var(--ds-target);
+  border: 0; border-radius: var(--ds-radius-m); background: none; color: var(--ds-ink); font-size: 20px; cursor: pointer; }
+.ck-icon:hover { background: var(--ds-surface-3); }
+
+/* Forms (§4.7): the label above its control. */
+.ck-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ck-field > span, .ck-field > label { font-weight: 600; font-size: 14px; line-height: 20px; font-family: inherit; color: var(--ds-ink); }
+.ck-field :is(input, select, textarea) {
+  min-height: var(--ds-control-h); padding: 8px 12px; border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-m);
+  background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-size: 15px; width: 100%;
+}
+.ck-field textarea { min-height: 120px; resize: vertical; }
+.ck-help { margin: 0; color: var(--ds-ink-2); font-size: 14px; line-height: 20px; }
+@media (pointer: coarse) { .ck-field :is(input, select, textarea) { font-size: 16px; } }
+
+/* Empty state (§4.8). */
+.ck-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 40px 16px 32px; }
+.ck-empty .ck-empty-icon { font-size: 40px; line-height: 48px; color: var(--ds-ink-2); }
+.ck-empty h2 { margin: 0; font-size: 18px; line-height: 24px; color: var(--ds-ink); text-transform: none; letter-spacing: normal; }
+.ck-empty p { margin: 0 0 6px; max-width: 420px; color: var(--ds-ink-2); font-size: 15px; line-height: 22px; }
+
+/* Error (§4.8, DS-41): in place of the content, with Retry. */
+.ck-alert { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; margin: 12px 0;
+  border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l); background: var(--ds-surface); color: var(--ds-ink); }
+.ck-alert h2 { margin: 0; font-size: 18px; line-height: 24px; color: var(--ds-bad); }
+.ck-alert p { margin: 0; color: var(--ds-ink-2); font-size: 15px; line-height: 22px; }
+
+/* Segmented control (stages, chips with counts): one row, scrolls sideways on a phone. */
+.ck-seg { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 8px; margin: 0 0 12px; }
+.ck-seg::-webkit-scrollbar { display: none; }
+.ck-seg > :is(button, a) { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: var(--ds-target); padding: 0 14px;
+  border: 1px solid var(--ds-line-control); border-radius: 999px; background: var(--ds-surface-2); color: var(--ds-ink);
+  font-weight: 600; font-size: 14px; line-height: 1; font-family: inherit; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.ck-seg > :is(button, a) .n { font-weight: 400; color: var(--ds-ink-2); }
+.ck-seg > :is([aria-selected="true"], [aria-pressed="true"], [aria-current="page"]) { background: var(--ds-ink); color: var(--ds-page); border-color: var(--ds-ink); }
+.ck-seg > :is([aria-selected="true"], [aria-pressed="true"], [aria-current="page"]) .n { color: inherit; }
+
+/* Sheet (phone) and dialog (desktop): opaque, top layer, scrim (§4.4). Use with <dialog class="ck-sheet">. */
+dialog.ck-sheet { border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-xl); padding: 0; width: min(560px, calc(100vw - 32px));
+  max-height: min(86vh, 900px); background: var(--ds-surface); color: var(--ds-ink); box-shadow: var(--ds-elev-float); }
+dialog.ck-sheet::backdrop { background: var(--ds-scrim); }
+dialog.ck-sheet > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 8px 0 16px;
+  border-bottom: 1px solid var(--ds-hairline); position: sticky; top: 0; background: var(--ds-surface); }
+dialog.ck-sheet > header h2 { margin: 0; font-size: 18px; line-height: 24px; }
+dialog.ck-sheet > .ck-sheet-body { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+dialog.ck-sheet > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--ds-hairline);
+  position: sticky; bottom: 0; background: var(--ds-surface); }
+@media (max-width: 640px) {
+  dialog.ck-sheet { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0; max-height: 92vh; }
+  dialog.ck-sheet > footer > * { flex: 1; }
+}
+
+/* Row menu (§4.3/§4.6): a ⋯ button opening an opaque popover. */
+.ck-menu { position: fixed; margin: 0; inset: auto; min-width: 200px; padding: 4px; border: 1px solid var(--ds-edge); border-radius: var(--ds-radius-l);
+  background: var(--ds-surface); color: var(--ds-ink); box-shadow: var(--ds-elev-float); }
+.ck-menu > button { display: flex; align-items: center; width: 100%; min-height: var(--ds-target); padding: 0 12px; border: 0; border-radius: var(--ds-radius-m);
+  background: none; color: var(--ds-ink); font-size: 15px; line-height: 1; font-family: inherit; text-align: left; cursor: pointer; }
+.ck-menu > button:hover { background: var(--ds-surface-3); }
+.ck-menu > button.bad { color: var(--ds-bad); }
+.ck-menu > hr { border: 0; border-top: 1px solid var(--ds-hairline); margin: 4px 0; }
+
+/* In-page confirm (DS-44). */
+.ck-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--ds-bad);
+  border-radius: var(--ds-radius-m); background: var(--ds-surface); color: var(--ds-ink); font-size: 15px; }
+.ck-confirm > span { flex: 1 1 200px; }
+.ck-saved { color: var(--ds-ink-2); font-size: 13px; }
+/* The kit's display rules never override the hidden attribute. */
+:is(.ck-primary, .ck-btn, .ck-danger, .ck-tertiary, .ck-icon, .ck-field, .ck-empty, .ck-alert, .ck-seg, .ck-confirm)[hidden] { display: none; }

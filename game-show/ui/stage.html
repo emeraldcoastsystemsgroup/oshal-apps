@@ -2,10 +2,126 @@
 <html lang="en" data-theme="midnight">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <!-- Zoom is open here; the game views lock it while they draw a [data-ds-game] set (gs-surfaces.js syncZoom, DS-42). -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Game Show</title>
   <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
   <script src="/shared/ui/js/surface-theme.js"></script>
+  <!-- The family view moved here with Game Show Review's tile (UX audit 2026-11-06): the Home shell opens an app's
+       first tile with ?audience=family, and Play is now the first tile. The block is the review page's, unchanged
+       (tests/audience-view.test.cjs proves the two are the same); gs-app.js starts the game only when no view paints. -->
+<!-- Audience view (ADR-164 D6). The Home shell (Jarvis) opens this page with ?audience=family: the signed-in
+     account's game nights in plain words, painted by the shared kit in the family grammar. The rooms it hosts
+     (waiting in the lobby, marked live, ended in the last 5 days) and its three newest rooms with their state and
+     last update come from the SAME GET /api/game-show/home-summary the full page reads (owner-scoped SELECTs); the
+     hall of fame comes from GET /api/game-show/leaderboard (a caller-scoped SELECT over the end-of-game score
+     snapshots, the lobby's own read) and the show names from GET /api/game-show/shows (the static show catalog).
+     Those three plain GETs under the caller's session are all it reads on open. It never reads /rooms (listing
+     rooms runs the ended-room retention DELETE), a room's state, sync, cost, QR or camera stills; it never opens,
+     joins or starts a room, never calls the host bot, a voice or a model, never fetches connected-actions offers
+     and writes nothing. Any other request runs the full Game Show Review page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=game-show', KICKER = 'Game night';
+  var STATUS = { lobby: 'Waiting in the lobby', live: 'Marked live', ended: 'Ended' };
+  var ICON = { lobby: '🚪', live: '🎤', ended: '🏁' };
+  // The route's three counts (routes/home-summary.js metric ids) with the family view's stat id and plain label.
+  var COUNTS = [['hosted-lobbies', 'lobby', 'Waiting in the lobby'], ['hosted-live', 'live', 'Marked live'], ['ended-updated-5d', 'ended', 'Ended, last 5 days']];
+  function call(path) {
+    return fetch('/api/game-show' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; } return j || {}; });
+    });
+  }
+  function refused(e) { return !!e && (e.status === 401 || e.status === 403); }
+  // The scores and the show names are their own reads and may fail on their own: the saved rooms still show.
+  function optional(path) { return call(path).catch(function (e) { if (refused(e)) throw e; return null; }); }
+  // Data keys (a room name, a status, a show id) are looked up as own keys only, so 'constructor' stays a word.
+  function own(map, key) { return typeof key === 'string' && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null; }
+  function showNames(catalog) {
+    var names = {};
+    ((catalog && catalog.shows) || []).forEach(function (s) { if (s && typeof s.id === 'string') names[s.id] = String(s.title || s.id); });
+    return names;
+  }
+  // The route sends each count as digits in a string, or the word 'Unavailable' when that source failed.
+  function count(body, id) {
+    var m = (body.metrics || body.tiles || []).filter(function (x) { return x && x.id === id; })[0];
+    return m && typeof m.value === 'string' && /^\d+$/.test(m.value.trim()) ? Number(m.value) : null;
+  }
+  function isPartial(body) { return body.partial === true || COUNTS.some(function (c) { return count(body, c[0]) === null; }); }
+  // A room item carries the route's two planning offers; the partial, no-work and bounds notes carry none.
+  function isRoom(item) { return !!item && Array.isArray(item.actions) && item.actions.length > 0; }
+  // A room item's detail is '<status> / updated <ISO instant, or the route's own 'date unavailable'>'.
+  function parse(detail) {
+    var s = String(detail || ''), at = s.lastIndexOf(' / updated ');
+    return at < 0 ? { status: s, updated: '' } : { status: s.slice(0, at), updated: s.slice(at + 11) };
+  }
+  // An unnamed room carries its show id as its text: the catalog names it.
+  function room(item, names) {
+    var p = parse(item.detail), name = String(item.text || '');
+    return { icon: own(ICON, p.status) || '🎲', title: own(names, name) || name || 'Saved room', text: own(STATUS, p.status) || 'Saved room',
+      meta: /^\d{4}-\d{2}-\d{2}T/.test(p.updated) ? 'updated ' + A.when(p.updated) : null };
+  }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function title(body, rooms, partial) {
+    var live = count(body, 'hosted-live'), lobby = count(body, 'hosted-lobbies'), ended = count(body, 'ended-updated-5d');
+    if (partial) return 'Some saved games cannot be checked';
+    if (live > 0) return plural(live, 'game', 'games') + ' marked live';
+    if (lobby > 0) return plural(lobby, 'room', 'rooms') + ' waiting to start';
+    if (ended > 0) return plural(ended, 'game', 'games') + ' ended in the last 5 days';
+    return rooms.length ? 'No game open right now' : 'No game nights yet';
+  }
+  function lede(rooms, names, partial) {
+    if (!rooms.length) return partial ? 'Your saved rooms could not be checked right now.' : 'Host a room in Game Show and everyone joins from their phone. Rooms you host show up here.';
+    var r = room(rooms[0], names), status = own(STATUS, parse(rooms[0].detail).status);
+    return 'Newest: ' + [r.title, status ? status.toLowerCase() : null, r.meta].filter(Boolean).join(', ') + '.';
+  }
+  function stats(body, board) {
+    var top = board && Array.isArray(board.entries) ? board.entries[0] : null;
+    return COUNTS.map(function (c) {
+      var n = count(body, c[0]);
+      return { id: c[1], label: c[2], value: n === null ? '—' : n, tone: n === null ? 'warn' : null, hint: n === null ? 'Could not check' : null };
+    }).concat([{ id: 'top', label: 'Top score', value: top ? String(Number(top.score) || 0) : '—', hint: !board ? 'Could not check' : top ? String(top.name || 'Player') : 'No scores yet' }]);
+  }
+  function roomsSection(rooms, names, partial) {
+    return { kind: 'tiles', id: 'rooms', title: 'Your recent rooms', empty: partial ? 'Some saved rooms could not be checked.' : 'No rooms yet. Rooms you host show up here.',
+      items: rooms.map(function (item) { return room(item, names); }),
+      note: 'Rooms you host, newest first. Marked live means a game was started and not ended; it does not mean anyone is playing right now.' };
+  }
+  function fameItem(entry, index, names) {
+    var show = own(names, entry.showId) || (typeof entry.showId === 'string' ? entry.showId : null);
+    return { icon: index === 0 ? '🏆' : '⭐', title: String(entry.name || 'Player'), text: [show, entry.team ? 'Team ' + entry.team : null].filter(Boolean).join(' · ') || null, badge: String(Number(entry.score) || 0) };
+  }
+  function fameSection(board, names) {
+    var entries = board && Array.isArray(board.entries) ? board.entries.slice(0, 5) : [];
+    return { kind: 'list', id: 'fame', title: 'Hall of fame', empty: board ? 'No scores yet. Best scores from ended games show up here.' : 'The scores could not be checked right now.',
+      items: entries.map(function (e, i) { return fameItem(e, i, names); }),
+      note: entries.length ? 'The best scores from ended games you hosted or played in.' : null };
+  }
+  function model(body, board, names) {
+    var rooms = (body.items || []).filter(isRoom), partial = isPartial(body);
+    return { kicker: KICKER, title: title(body, rooms, partial), lede: lede(rooms, names, partial),
+      actions: [{ label: 'Open Game Show', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(body, board), sections: [roomsSection(rooms, names, partial), fameSection(board, names)] };
+  }
+  function refusal(e) {
+    return { kicker: KICKER, title: e.status === 401 ? 'Sign in to see your game nights' : 'This account cannot open Game Show',
+      lede: e.status === 401 ? 'Game Show shows the rooms and scores of whoever is signed in, and this session is not signed in.' : 'The Game Show routes refused this account (HTTP 403).' };
+  }
+  function family() {
+    return Promise.all([call('/home-summary'), optional('/leaderboard'), optional('/shows')]).then(function (r) {
+      return model(r[0], r[1], showNames(r[2]));
+    }, function (e) {
+      if (refused(e)) return refusal(e);
+      throw new Error('Game Show could not read your saved games' + (e && e.status ? ' (HTTP ' + e.status + ')' : '') + '.');
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'game-show', escapeLabel: 'Open Game Show in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
   <link rel="stylesheet" href="/api/game-show/game-show.css">
   <link rel="stylesheet" href="/api/game-show/game-show-play.css">
   <link rel="stylesheet" href="/api/game-show/gs-set-feud.css">
@@ -20,7 +136,7 @@
   <video class="gs-cam-src" id="gs-cam" playsinline muted autoplay></video>
   <canvas id="gs-canvas" width="320" height="320" style="display:none"></canvas>
   <!-- Surface scripts are inlined at serve time (CSP-safe); order matters:
-       core → presence/controls → show-UI registry → one file per show → chrome → surfaces → boot. -->
+       core → presence/controls → show-UI registry → one file per show → chrome → sheets → surfaces → host desk → boot. -->
   <script src="/api/game-show/gs-core.js"></script>
   <script src="/api/game-show/gs-presence.js"></script>
   <script src="/api/game-show/gs-controls.js"></script>
@@ -31,7 +147,9 @@
   <script src="/api/game-show/gs-show-wheel.js"></script>
   <script src="/api/game-show/gs-show-whammy.js"></script>
   <script src="/api/game-show/gs-play.js"></script>
+  <script src="/api/game-show/gs-sheets.js"></script>
   <script src="/api/game-show/gs-surfaces.js"></script>
+  <script src="/api/game-show/gs-host-desk.js"></script>
   <script src="/api/game-show/gs-app.js"></script>
 </body>
 </html>

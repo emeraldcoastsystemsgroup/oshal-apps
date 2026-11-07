@@ -9,12 +9,15 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the tenant-aware dashboard role matrix and teacher-scoped aggregates so each private-data query remains independently reviewable.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recheck the viewer's current tenant, role, and active teacher relationship in the final student-PII query.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A teacher reading their own dashboard is read as the learner, and teacher scoping applies only when the scope carries a teacher clause, so a teacher who also studies sees their own progress.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Delegate /student/guardian-summary/dashboard and /student/timelines/dashboard to their owner-scoped RP-LM-01 and RP-LM-05 services without altering authorization.yaml.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createEducationDashboardRoutes = createEducationDashboardRoutes;
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const education_access_1 = require("./education-access");
+const education_guardian_service_1 = require("./education-guardian-service");
+const education_timelines_service_1 = require("./education-timelines-service");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-dashboard-routes' });
 /** Map an EducationAccessError to its intentional client response. */
 function sendAccessError(res, err) {
@@ -122,9 +125,18 @@ async function loadDashboardData(pool, viewer, studentId) {
 }
 /** Serve one private dashboard after enforcing the complete viewer role matrix. */
 async function getStudentDashboard(ctx, levelFromXP, req, res) {
+    const rawStudentId = String(req.params.studentId || '');
+    if (rawStudentId === 'guardian-summary') {
+        await (0, education_guardian_service_1.getGuardianSummaryPayload)(ctx.pool, req, res);
+        return;
+    }
+    if (rawStudentId === 'timelines') {
+        await (0, education_timelines_service_1.listStudentTimelines)(ctx.pool, req, res);
+        return;
+    }
     try {
         const viewer = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
-        const studentId = String(req.params.studentId);
+        const studentId = rawStudentId;
         await (0, education_access_1.assertCanViewStudent)(ctx.pool, viewer, studentId);
         const student = await loadDashboardStudent(ctx.pool, viewer, studentId);
         if (!student) {

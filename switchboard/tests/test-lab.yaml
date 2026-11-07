@@ -12,6 +12,9 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: real posts that say "cannot" or "publish" legitimately (carrying the source's topic words, a hashtag or link, an "Unable to …?" hook, or opening "Declined: …") keep their text; the live refusals stay declines against a real source too.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | compose-variants-decline: a refusal that names the author's topic, quotes the text or quotes its link stays a decline; post signs count only outside the refused clause and quotes.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the open Streams post is saved before a concierge reads it and redrawn from its own GET /posts/:id after, keeping a body the person is still editing.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6 (UX audit 2026-11-06): register the Workspaces surface regression case.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6 (UX audit 2026-11-06): register the calendar, compose and streams P2 surface case.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7: register switchboard-ux-batch7 covering Stage merge into Compose, Threads merge into Inbox (?group=person), and Inbox/Today layout guards.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -155,4 +158,76 @@ cases:
       mode: disposable
       cleanup: Drop only the suite's own uniquely named database; preserve the shared PostgreSQL server.
     limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: workspaces-surface
+    name: Workspaces before any account is connected
+    purpose: >-
+      Run the served Workspaces page script in a sandbox with no accounts and no workspaces: New workspace and a Personal desk are offered, Create Personal posts a workspace with no accounts, and no surface loads the Connections page inside its frame.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/switchboard-workspaces-surface.test.js
+    expected:
+      - With no accounts and no workspaces the page draws the New workspace field and a Personal desk, not a Connect accounts first gate.
+      - Create Personal sends POST /api/switchboard/workspaces with the name Personal and draws the new desk with a connect line.
+      - Every Connections link in every Switchboard surface has target _top.
+      - The primary button uses the on-accent ink token and no border.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: p2-surfaces
+    name: Calendar, Compose and Streams controls read and work on touch
+    purpose: >-
+      Read the served Calendar, Compose and Streams surfaces for the audit fixes: 44px named day buttons and a legend, a status-led save label, a network-gated Write variants with pressed chips and Copy for networks that cannot post, a workspace field on New post, phone stages in one row with imports under More, and a solid accent primary.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/switchboard-p2-surfaces.test.js
+    expected:
+      - Calendar day buttons are 44px, always visible and named for their day; previous, next and refresh are named.
+      - The Pipeline line is a legend; the dialog button reads Save draft, Send for approval or Schedule post from Status, and a new post cannot be Published.
+      - Write variants is disabled with a hint until a network is chosen; chips carry aria-pressed and an inverted fill; Generate is secondary.
+      - A variant-only or unconnected network shows Copy and never Publish or Schedule; the communications bot is named once.
+      - Streams refresh is named, New post has a Workspace select prefilled from the rail, phone stages scroll in one row with imports under More, and the policy line clears the floor.
+      - Every primary uses the solid accent and the on-accent ink with no glow.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: switchboard-ux-batch7
+    name: Switchboard batch-7 merge and layout guards
+    purpose: >-
+      Verify Stage folds into Compose, Threads folds into Inbox (?group=person), Inbox withholds CHANNELS and WORKSPACES when unconnected, and Today hides its in-page nav when framed while unifying empty-state channel legends and removing raw /utilities route messages.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/switchboard-ux-batch7.test.js
+    expected:
+      - The switchboard-stage manifest entry points to /api/switchboard/compose and /api/switchboard/stage navigates to Compose with Same text everywhere and confirmed Send to all chosen networks.
+      - With no connected channel Stage withholds unconnected chips, shows the Connect accounts empty state, and keeps Tailor per channel and Use as-is solid-disabled with a visible reason.
+      - With no account connected Inbox withholds CHANNELS and WORKSPACES above the empty state, names #refreshBtn, and shares the Gmail, Outlook, Slack, LinkedIn, X, Facebook dot-and-word legend with Today.
+      - Opening /api/switchboard/inbox?group=person selects By person and reads /api/switchboard/threads/items while /api/switchboard/threads redirects there and business-experience keeps resolving switchboard-threads.
+      - Today hides #sbTopnav when framed, puts All apps first standalone with one named #refreshBtn, greets by local hour, and omits raw /utilities paths from Today and Threads route messages.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

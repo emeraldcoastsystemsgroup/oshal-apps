@@ -1,4 +1,15 @@
 <!DOCTYPE html>
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (aero-lab--aero-lab, FIX-LAYOUT + SPLIT): two views,
+    Sizing & flight envelope (presets, design vector, run, plots, verdict) and Vehicle record & build package (the
+    Floater record and Export Build Files with its file list). One primary, Run 24 h Energy Loop; Run Polar, Run Screen
+    and Mission are secondary. The design vector is closed groups with Reset to preset each (the separate Site & season
+    block joined its group); number fields show the field's own decimals and the full value on focus. Each preset reads
+    one line (its provenance note still goes to the designer chat). The engine block is a popover on the engine badge.
+    The analysis-document disclosure sits under the verdict, painted with the page tokens. On a phone: verdict and
+    charts first, the design vector a sheet from a bottom bar (Design · Results · Verdict · More). No run changed.
+-->
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8">
@@ -192,18 +203,81 @@
     header { flex-wrap: wrap; height: auto; padding: 6px 10px; }
     body { grid-template-rows: auto 1fr; }
   }
+
+  /* UX audit 2026-11-06: two views, the engine popover, closed design groups with Reset to preset, one primary in the run
+     bar, and on a phone verdict and charts first with the design vector as a sheet from the bottom bar. */
+  body[data-view="sizing"] [data-part="vehicle"], body[data-view="vehicle"] [data-part="sizing"] { display: none !important; }
+  body[data-view="vehicle"] main { grid-template-columns: minmax(0, 720px); justify-content: center; }
+  body[data-view="vehicle"] #right { border: 0; }
+  .view-bar { display: flex; gap: 2px; }
+  .view-tab { min-height: 36px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--dim); font-weight: 600; cursor: pointer; }
+  .view-tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  #engineBadge { background: none; cursor: pointer; font: inherit; font-size: 11px; }
+  .pop[popover] { margin: auto; padding: 12px; min-width: 280px; max-width: min(420px, calc(100vw - 24px)); border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); }
+  .pop-head { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+  .pop.menu[popover] { padding: 4px; inset: auto 12px calc(64px + env(safe-area-inset-bottom, 0px)) auto; margin: 0; }
+  .pop.menu button { display: block; width: 100%; min-height: 44px; text-align: left; padding: 0 12px; border: 0; background: none; color: var(--text); }
+  button.link { background: none; border: 0; color: var(--accent); cursor: pointer; min-height: 44px; }
+  details.grp { margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+  details.grp > summary { min-height: 40px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.8px; }
+  details.grp .grp-reset { text-transform: none; letter-spacing: 0; font-size: 12px; }
+  details.grp .site-chips { margin: 6px 0; }
+  .row-actions { margin: 6px 0 8px; }
+  button.primary { background: var(--accent); color: var(--text-on-accent, #06080f); border-color: var(--accent); font-weight: 600; }
+  .phone-bar, .sheet-head { display: none; }
+  @media (max-width: 760px) {
+    header .view-bar { display: none; }
+    main { display: flex; flex-direction: column; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+    #right { order: 1; } #center { order: 2; }
+    #left { order: 3; }
+    body:not(.design-open) #left { display: none !important; }
+    body.design-open #left { display: block; position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); max-height: 70vh; overflow: auto; z-index: 30;
+      border-radius: 16px 16px 0 0; border: 1px solid var(--line); box-shadow: 0 -10px 30px rgba(0,0,0,.35); }
+    body.design-open #left .sheet-head { display: flex; justify-content: space-between; align-items: center; min-height: 56px; padding: 0 12px; position: sticky; top: 0; background: var(--panel); z-index: 1; }
+    #runBar { position: sticky; top: 0; z-index: 5; background: var(--panel); }
+    .phone-bar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 72px env(safe-area-inset-bottom, 0px) 4px; background: var(--panel); border-top: 1px solid var(--line); }
+    .phone-bar button { flex: 1; min-height: 56px; border: 0; border-top: 2px solid transparent; border-radius: 0; background: none; color: var(--dim); font-weight: 600; font-size: 12px; }
+    .phone-bar button[aria-expanded="true"] { color: var(--text); border-top-color: var(--accent); }
+  }
+  /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
+     sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
+  .pop[popover], .phone-bar { background: linear-gradient(var(--panel), var(--panel)), var(--bg); }
+  @media (max-width: 760px) { body.design-open #left, body.design-open #left .sheet-head, #runBar { background: linear-gradient(var(--panel), var(--panel)), var(--bg); } }
 </style>
 </head>
-<body>
+<body data-view="sizing">
 <header>
   <h1>Aero Lab</h1>
-  <span id="engineBadge">engine: checking…</span>
+  <button type="button" id="engineBadge" popovertarget="enginePop" aria-haspopup="dialog" title="Engine details">engine: checking…</button>
+  <nav class="view-bar" aria-label="Aero Lab views">
+    <button type="button" class="view-tab" id="tab-sizing" data-view="sizing" aria-pressed="true">Sizing &amp; flight envelope</button>
+    <button type="button" class="view-tab" id="tab-vehicle" data-view="vehicle" aria-pressed="false">Vehicle record &amp; build package</button>
+  </nav>
   <div class="spacer"></div>
   <div id="capChips"></div>
 </header>
+<!-- The engine block (where it runs, its python and venv) lives in a popover on the engine badge (UX audit 2026-11-06). -->
+<div id="enginePop" class="pop" popover>
+  <div class="pop-head"><strong>Engine</strong><button type="button" class="link" popovertarget="enginePop" popovertargetaction="hide">Done</button></div>
+  <div id="engineCard" class="kv"><span class="k">status</span><span class="v">checking…</span></div>
+  <div id="engineNote" class="note" style="margin-top:6px"></div>
+</div>
+<!-- Phone: a bottom bar Design · Results · Verdict · More (UX audit 2026-11-06); Design opens the design vector as a sheet. -->
+<nav class="phone-bar" aria-label="Aero Lab sections">
+  <button type="button" id="pb-design" aria-expanded="false">Design</button>
+  <button type="button" id="pb-results">Results</button>
+  <button type="button" id="pb-verdict">Verdict</button>
+  <button type="button" id="pb-more" aria-haspopup="menu" popovertarget="pb-more-menu">More</button>
+</nav>
+<div id="pb-more-menu" class="pop menu" popover role="menu">
+  <button type="button" role="menuitem" data-view="vehicle">Vehicle record &amp; build package</button>
+  <button type="button" role="menuitem" data-view="sizing">Sizing &amp; flight envelope</button>
+  <button type="button" role="menuitem" popovertarget="enginePop">Engine</button>
+</div>
 
 <main>
-  <div id="left">
+  <div id="left" data-part="sizing" class="design-sheet" aria-label="Design">
+    <div class="sheet-head"><strong>Design</strong><button type="button" class="link" id="design-done">Done</button></div>
     <section>
       <h2>Proven starting points</h2>
       <div id="presetBtns"></div>
@@ -214,10 +288,6 @@
       <div id="designForm"></div>
       <div id="derived"></div>
       <div id="hullNote"></div>
-    </section>
-    <section>
-      <h2>Site &amp; season</h2>
-      <div class="site-chips" id="siteChips"></div>
     </section>
     <section>
       <h2>Draft with AI</h2>
@@ -231,14 +301,13 @@
     </section>
   </div>
 
-  <div id="center">
+  <div id="center" data-part="sizing">
     <div class="card">
       <div id="runBar">
-        <button id="btnPolar" class="primary">Run Polar</button>
         <button id="btnEval" class="primary">Run 24 h Energy Loop</button>
+        <button id="btnPolar">Run Polar</button>
         <button id="btnScreen">Run Screen</button>
         <span class="days"><button id="btnMission">Mission</button><label for="missionDays">days</label><input id="missionDays" type="number" min="1" max="14" step="1" value="3" /></span>
-        <button id="btnExport">Export Build Files</button>
         <span class="spacer" style="flex:1"></span>
         <span id="runStatus"></span>
       </div>
@@ -276,22 +345,19 @@
   </div>
 
   <div id="right">
-    <section>
+    <section data-part="sizing" id="verdictSection">
       <h2>Verdict</h2>
       <div id="verdictCard"><div class="note">No run yet. The verdict — closed / admissible, with the engine's named reasons — appears after Run 24 h Energy Loop or Run Screen.</div></div>
       <div id="fingerprint"></div>
     </section>
-    <section>
+    <section data-part="sizing" id="labReviewSlot"></section>
+    <section data-part="vehicle">
       <h2>The Floater &mdash; a record</h2>
       <div id="vehicleCard"><div class="note">Loading the record…</div></div>
     </section>
-    <section>
-      <h2>Engine</h2>
-      <div id="engineCard" class="kv"><span class="k">status</span><span class="v">checking…</span></div>
-      <div id="engineNote" class="note" style="margin-top:6px"></div>
-    </section>
-    <section>
+    <section data-part="vehicle">
       <h2>Build package</h2>
+      <div class="row-actions"><button id="btnExport">Export Build Files</button></div>
       <div id="exportCard"><div class="note">Export Build Files generates the physical package — STL wing panels, DXF ribs and gores, airfoil dat, BOM, build sheet — then lists each file for download.</div></div>
       <div id="exportList"></div>
     </section>
@@ -347,6 +413,7 @@ window.AERO_LAB_DATA = {
   presets: [
     {
       key: 'tier1', name: 'Tier-1 sketch',
+      line: 'The hand-sketched 2.5 m solar wing; on record it does not close at 47.6°N in midsummer.',
       sub: '2.5 m hand sketch · 100 Wh · 47.6°N midsummer',
       note: 'The operator’s hand-sketched solar wing (TIER1_operator_eval.py): span 2.5 m / S 0.52 m², 0.40 kg pack at 250 Wh/kg, 21× SunPower C60. Recorded verdict at 47.6°N d195: does NOT close — min SOC 0.050, usable 0.927, inadmissible (TIER1_operator_eval.out). Recorded boundary: ~0.694 kg battery is the smallest single change that closes. Press Run to reproduce live.',
       v: { area_m2: 0.52, aspect_ratio: 12.019230769230768, taper_ratio: 1.0, twist_root_deg: 0.0, twist_tip_deg: 0.0,
@@ -357,6 +424,7 @@ window.AERO_LAB_DATA = {
     },
     {
       key: 'fixedwing', name: 'Fixed wing (AtlantikSolar class)',
+      line: 'A 5.65 m AtlantikSolar-class fixed wing; on record it closes with a minimum charge of 35 %.',
       sub: '5.65 m span · 703 Wh · closed, min SOC 0.354',
       note: 'The engine’s reference case A (validate_designs.DESIGN_A, AtlantikSolar class): 5.65 m span, 1.72 m², 703 Wh at 241 Wh/kg. Recorded (FINAL_readme_numbers.out): closed, min SOC 0.3538, usable margin 1.0446. Caveat: case A pins all-up mass at 6.93 kg; these sliders express fuselage-over-floor instead, so the live billed fuselage can differ slightly from the recorded case.',
       v: { area_m2: 1.72, aspect_ratio: 18.559593023255814, taper_ratio: 0.7, twist_root_deg: 2.0, twist_tip_deg: 0.0,
@@ -367,6 +435,7 @@ window.AERO_LAB_DATA = {
     },
     {
       key: 'hybrid80', name: 'Hybrid f = 0.80',
+      line: 'A 2.5 m wing under a hull that carries 80 % of the weight; recorded on an earlier engine.',
       sub: '2.87 m hull + 2.5 m wing · 79.6 Wh · recorded on an earlier engine',
       needs: 'hybrid',
       note: 'The FINAL_PRODUCT hybrid (design_snapshot.json): Tier-1 planform under a 3:1 prolate-spheroid hull (2.87 × 0.96 m, 1.369 m³) carrying 80 % of the 1.998 kg all-up weight. Pack 79.6 Wh (0.318 kg). RECORDED on an earlier engine revision: closes at 47.6°N d195 with min SOC 0.050. HONEST WARNING (verified 2026-08-06 on the vendored engine): buoyant trim now converges at the unchanged strict tolerance, including f=0.80 with certified aero. The recorded energy result still uses the ideal propulsion/storage path; integrated BEMT + real-ECM certification remains open, and the live upstream tree may differ. The hybrid capability flag reports that the machinery IMPORTS, not that a proposed design closes. Press Run for the current deterministic verdict.',
@@ -379,6 +448,7 @@ window.AERO_LAB_DATA = {
     },
     {
       key: 'r7winner', name: 'Search winner (R7)',
+      line: 'The optimizer\'s best design for the tropics; on record it closes and is certified.',
       sub: '3.29 m span · 902 Wh Si-anode · certified, min SOC 0.437',
       note: 'The R7 optimizer winner (R7_winner_vector.json): 3.29 m span, 0.9 m², 2.04 kg pack at 441.8 Wh/kg, tropics d90. Recorded: closed, admissible AND certified — min SOC 0.4366, usable 1.0586, all-up 4.759 kg. Vector fingerprint 02fff512…afef29a. Press Run to reproduce live.',
       v: { area_m2: 0.9, aspect_ratio: 12.019034280644231, taper_ratio: 0.5696602084249895,
@@ -401,10 +471,11 @@ window.AERO_LAB_DATA = {
 <script src="/api/aero-lab/geometry.js"></script>
 <script src="/api/aero-lab/app.js"></script>
 
-<style>/* The hand-off panel floats beside a wide screen; on a phone it sits in the page flow after the content, so it never covers the rows above it. */
-.handoff-dock{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px))}
-@media (max-width:760px){.handoff-dock{position:static;width:auto;margin:16px}}</style>
-<details id="labReview" class="handoff-dock" style="max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box">
+<style>/* UX audit 2026-11-06: the hand-off sits in the page flow under the verdict, painted with the page's own tokens, so it is
+   opaque, reads at 4.5:1 and is never under the concierge button. */
+.handoff-dock{position:static;width:auto;margin:0;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.handoff-dock summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;color:var(--text)}</style>
+<details id="labReview" class="handoff-dock">
  <summary>Prepare an analysis document</summary>
  <p>Capture the visible simulation verdict, then edit the brief. These are modeled results, not measured performance.</p>
  <button type="button" id="captureLabEvidence">Use visible results</button>
@@ -412,6 +483,23 @@ window.AERO_LAB_DATA = {
  <div id="labActions"></div><p id="labReviewState" role="status"></p>
 </details>
 <script>
+// The analysis-document disclosure goes under the verdict (it was a fixed box at the bottom right, under the concierge button).
+(function(){const slot=document.getElementById('labReviewSlot'),box=document.getElementById('labReview');if(slot&&box)slot.appendChild(box);})();
+// Views (UX audit 2026-11-06, SPLIT): Sizing & flight envelope; Vehicle record & build package. Phone: Design is a sheet.
+(function(){
+  const $=(id)=>document.getElementById(id);
+  const closeDesign=()=>{document.body.classList.remove('design-open');$('pb-design').setAttribute('aria-expanded','false');};
+  const setView=(v)=>{const view=v==='vehicle'?'vehicle':'sizing';document.body.dataset.view=view;closeDesign();
+    for(const id of ['sizing','vehicle'])$('tab-'+id).setAttribute('aria-pressed',String(id===view));
+    try{history.replaceState(null,'',location.pathname+location.search+(view==='vehicle'?'#view=vehicle':''));}catch(_){}};
+  document.querySelectorAll('[data-view]').forEach((b)=>{if(b!==document.body)b.addEventListener('click',()=>{const m=$('pb-more-menu');try{m.hidePopover();}catch(_){}setView(b.dataset.view);});});
+  $('pb-design').addEventListener('click',()=>{setView('sizing');document.body.classList.add('design-open');$('pb-design').setAttribute('aria-expanded','true');});
+  $('design-done').addEventListener('click',closeDesign);
+  $('pb-results').addEventListener('click',()=>{setView('sizing');$('socCard').scrollIntoView({block:'start'});});
+  $('pb-verdict').addEventListener('click',()=>{setView('sizing');$('verdictSection').scrollIntoView({block:'start'});});
+  document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeDesign();});
+  setView(/(^|[#&])view=vehicle\b/.test(location.hash)?'vehicle':'sizing');
+})();
 (async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const notes=document.getElementById('labNotes');
 // One tile per separated part: the verdict card's chips and its label/value pairs are separate elements, and their joined
 // textContent ran together ("closed ✕admissible ✕certified ✓min SOC0.0500usable margin0.9269"). A label (.k) keeps its value (.v).

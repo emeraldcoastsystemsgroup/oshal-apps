@@ -4,6 +4,7 @@
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 2026-10-13 14:40:00 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 14: Get a Ride's Recent trips listed "Pensacola Beach, FL / Pensacola International Airport, Pensacola, FL" four times, one row per Show rides. In Chromium at 412x915 the shipped rides-app.html opens over a /history holding that trip four times (newest first) and one other: Recent trips lists each trip once, newest copy first, and the destination suggestions do the same. Seams: /api/rides answers the history and empty reads; the shell's shared assets are empty stand-ins. Needs the store toolchain (express, playwright, chromium).
+ * 2026-11-06 07:45:00 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06: the Search list no longer repeats a trip Recent trips lists, and shows three places plus More places until something is typed; a typed search still finds the recent destination, once.
  */
 'use strict';
 const test = require('node:test');
@@ -42,6 +43,14 @@ test('Recent trips lists each trip once, newest copy first', async (t) => {
   await page.locator('#recentTrips .suggestion').first().waitFor();
   const recent = await page.locator('#recentTrips .suggestion strong').allTextContents();
   assert.deepEqual(recent, [BEACH.dropoff, 'Downtown Library']);
+  // 1.5.6 (UX audit 2026-11-06): with nothing typed the Search list repeats no recent trip (Pensacola Beach was in both)
+  // and holds three places plus More places; typing finds the recent destination there, once.
   const suggested = await page.locator('#suggestions .suggestion strong').allTextContents();
-  assert.equal(suggested.filter((label) => label.toLowerCase().startsWith('pensacola international')).length, 1, suggested.join(' | '));
+  assert.equal(suggested.filter((label) => label.toLowerCase().startsWith('pensacola international')).length, 0, suggested.join(' | '));
+  assert.equal(suggested.length, 3, suggested.join(' | '));
+  await page.locator('#morePlaces').click();
+  assert.equal((await page.locator('#suggestions .suggestion').count()) > 3, true, 'More places shows the rest');
+  await page.locator('#dropoff').fill('pensacola');
+  const typed = await page.locator('#suggestions .suggestion strong').allTextContents();
+  assert.equal(typed.filter((label) => label.toLowerCase().startsWith('pensacola international')).length, 1, typed.join(' | '));
 });

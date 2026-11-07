@@ -20,9 +20,10 @@
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                     | DESCRIPTION
+ * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-31 18:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Initial Threads module: GET / (surface) + GET /items (the already-ingested inbox store folded into per-counterpart chronological threads via the pure switchboard-threads-model — email-first identity, bulk senders excluded, workspace-scoped, read-only, no LLM). Aggregation lives in the pure module so store-CI tests the compiled bytes.
+ * 1   | maintainer@emeraldcoastsystemsgroup.com     | Initial Threads module: GET / (surface) + GET /items (the already-ingested inbox store folded into per-counterpart chronological threads via the pure switchboard-threads-model — email-first identity, bulk senders excluded, workspace-scoped, read-only, no LLM). Aggregation lives in the pure module so store-CI tests the compiled bytes.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | UX audit batch 7 (switchboard--switchboard-threads): name Connections instead of printing a raw route path in not-connected responses.
  *
  * @module switchboard-threads-routes
  */
@@ -144,10 +145,10 @@ function createThreadsRoutes(ctx) {
             const threads = (0, switchboard_threads_model_1.buildThreads)(rows);
             if (!threads.length && !(await hasGoogleConnection(ctx.pool, sub))) {
                 if (req.query.surface === '1') {
-                    res.json({ connected: false, message: 'Connect your Google account at /utilities to build your threads.' });
+                    res.json({ connected: false, message: 'Connect an account to see one thread per person.' });
                     return;
                 }
-                res.status(409).json({ error: 'no_connection', message: 'Connect your Google account at /utilities first.' });
+                res.status(409).json({ error: 'no_connection', message: 'Connect an account first.' });
                 return;
             }
             res.json({

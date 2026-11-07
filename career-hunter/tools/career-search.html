@@ -36,6 +36,7 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | Load results ahead of optional map assets, overlap identity lookup, cancel obsolete requests and keep prior results visible during faster progressive search.
   7 | maintainer@emeraldcoastsystemsgroup.com | Keep the desktop filter rail independently scrollable and explain when the current filters have no further pages.
   8 | maintainer@emeraldcoastsystemsgroup.com | Offer remembered 25/50/100/200-result pages and reset paging when the size changes.
+  10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): on a phone the first job card sat about 1,700px down under always-open fields, and "Search jobs" was written four times above the work. The eyebrow, title and field heading are gone (the shell names the screen) and the button reads Search; on a phone there is one search field and a Filters button whose full sheet holds the rail (near a city, radius, pay, arrangement, posted) and the Advanced title, description and company fields, with Done and Clear all, so results start under the search row. Job Board · All openings · Recommended is one 44px segmented control. Phones open on the list with a Map toggle; desktop puts the list (480px) beside the map. The pay and state method notes are (i) help tips. Clear all, the Any/Remote/On-site pills and the unlisted-pay checkbox are 44px targets. Guard: tests/career-search-layout.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="search-ui"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -157,14 +158,47 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
   .grp input[type=search],.grp input[type=number],.grp select{font-size:16px}
   #jobMap{height:260px}.saved-search-controls input,.saved-search-controls select{font-size:16px}
 }
+/* UX audit 2026-11-06: one search row, a Filters sheet on a phone, list beside the map on desktop. */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#openSearchFilters{display:none}
+.narrow-only{display:none}
+.clear{min-height:44px;padding:0 8px;font-size:14px}
+.pill{min-height:44px;padding:0 14px;font-size:14px}
+.grp label:has(#include_unknown_pay){display:flex;align-items:center;gap:10px;min-height:44px}
+#include_unknown_pay{width:22px;height:22px}
+.tip{border:0;background:none;color:var(--accent);font:inherit;font-size:15px;min-width:44px;min-height:44px;cursor:pointer;vertical-align:middle}
+.tip-body{padding:12px 14px;max-width:300px;font-size:14px;line-height:1.45}
+html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){min-height:44px}
+@media(min-width:1100px){
+  .results-split:not(.list-only){display:grid;grid-template-columns:480px minmax(0,1fr);gap:16px;align-items:start}
+  .results-split:not(.list-only) > #careerExclusions{grid-column:1 / -1;grid-row:1}
+  .results-split:not(.list-only) > #list{grid-column:1;grid-row:2}
+  .results-split:not(.list-only) .map-panel{grid-column:2;grid-row:2;position:sticky;top:12px;margin:0}
+  .results-split:not(.list-only) #jobMap{height:calc(100vh - 140px);min-height:360px}
+}
+@media(max-width:820px){
+  #openSearchFilters{display:inline-flex}
+  .wide-only{display:none}.narrow-only{display:inline}
+  .cols>.rail{display:none}
+  #keywordSearch #adv{display:none}
+  #keywordHint{display:none}
+  html[data-search-view="map"] #list, html[data-search-view="map"] #pager{display:none}
+  .career-intro .sub{display:none}
+  .career-intro{margin-bottom:12px}
+  #keywordSearch.career-keyword-search{padding:12px;margin-bottom:12px}
+  #keywordSearch .career-keyword-row{flex-wrap:wrap;gap:8px}
+  #keywordSearch .career-keyword-row input[type="search"]{flex:1 1 100%}
+  #keywordSearch .career-keyword-row :is(.ck-primary,#openSearchFilters){flex:1 1 40%;min-height:44px}
+  dialog #adv{display:grid;grid-template-columns:1fr}
+  dialog .rail{display:block;position:static;max-height:none;border:0;padding:0;background:none}
+}
 </style>
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head>
 <body>
 <div class="wrap">
   <header class="career-intro">
-    <div><p class="career-eyebrow">Career / Job search</p><h1>Search jobs</h1>
-      <p class="sub">No résumé needed to search. Save a job to assess its fit and add it to your shortlist.</p></div>
+    <div><p class="sub">No résumé needed to search. Save a job to assess its fit and add it to your shortlist.</p></div>
     <nav class="career-view-nav" aria-label="Job search views">
       <a href="/api/career-hunter/board-native" data-career-tool="career-board">Job Board</a>
       <span aria-current="page">All openings</span><a href="/api/career-hunter/search-ui?view=matches" data-career-tool="career-search">Recommended for you</a>
@@ -173,10 +207,11 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
   </header>
 
   <form id="keywordSearch" class="career-keyword-search" role="search" aria-label="Search all jobs" autocomplete="off">
-    <label for="q">Search jobs</label>
+    <label for="q" class="sr-only">Search all openings</label>
     <div class="career-keyword-row">
       <input id="q" name="q" type="search" placeholder="Job title, skills, keywords, or employer" aria-describedby="keywordHint" />
-      <button type="submit" class="btn primary">Search jobs</button>
+      <button type="submit" class="ck-primary">Search</button>
+      <button type="button" class="ck-btn" id="openSearchFilters" aria-haspopup="dialog">Filters</button>
     </div>
     <p id="keywordHint">Searches job titles, full descriptions, and employers across all collected openings.</p>
     <div id="adv" class="career-keyword-fields">
@@ -224,7 +259,8 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
           <label for="max_pay">To<input id="max_pay" name="max_pay" type="number" min="0.01" max="10000000" step="0.01" placeholder="No maximum" /></label>
         </div>
         <label style="text-transform:none;letter-spacing:normal;margin-top:8px"><input id="include_unknown_pay" name="include_unknown_pay" type="checkbox" /> Include jobs with no pay estimate</label>
-        <span class="hint">Matches overlapping your range, including labeled estimates. BLS estimates use US occupation wages; they are not employer offers. Pay units are kept separate.</span>
+        <span class="hint">Matches overlapping your range, including labeled estimates. <button type="button" class="tip" aria-label="About pay estimates" popovertarget="payTip">ⓘ</button></span>
+        <div class="ck-menu tip-body" id="payTip" popover role="tooltip">BLS estimates use US occupation wages; they are not employer offers. Pay units are kept separate.</div>
       </div>
 
       <details class="career-search-filters" id="jobSearchFilters" open>
@@ -242,7 +278,8 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
       <div class="grp">
         <label for="state">State (optional)</label>
         <input id="state" name="state" type="search" maxlength="2" placeholder="state code, e.g. FL"/>
-        <span class="hint">About 6 in 10 postings record a state.</span>
+        <span class="hint">Optional. <button type="button" class="tip" aria-label="About the state filter" popovertarget="stateTip">ⓘ</button></span>
+        <div class="ck-menu tip-body" id="stateTip" popover role="tooltip">About 6 in 10 postings record a state, so this filter hides the rest.</div>
       </div>
 
       <div class="grp">
@@ -278,8 +315,8 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
     <div>
       <div class="bar">
         <div class="count" id="count" role="status" aria-live="polite"></div>
-        <div class="view-controls" aria-label="Job views"><button type="button" class="btn" id="mapView" aria-pressed="true">Map + list</button>
-          <button type="button" class="btn" id="listView" aria-pressed="false">List only</button></div>
+        <div class="view-controls" aria-label="Job views"><button type="button" class="btn" id="mapView" aria-pressed="true"><span class="wide-only">Map + list</span><span class="narrow-only">Map</span></button>
+          <button type="button" class="btn" id="listView" aria-pressed="false"><span class="wide-only">List only</span><span class="narrow-only">List</span></button></div>
         <label class="sortwrap" for="per">Results per page
           <select id="per" name="per"><option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="200">200</option></select>
         </label>
@@ -293,17 +330,23 @@ html[data-career-surface="search-ui"] .career-view-nav>:is(a,span){white-space:n
         </label>
       </div>
       <div class="chips" id="chips"></div>
+      <p id="searchStatus" class="location-note" role="status" hidden></p>
+      <div class="results-split" id="resultsSplit">
+      <div id="list" aria-label="Open job results"></div>
       <section class="map-panel" id="mapPanel" aria-label="Job locations">
         <div id="jobMap" aria-label="Map of job locations"></div>
         <p class="map-note" id="mapNote" role="status">Map pins show approximate city/base locations for this page of results.</p>
       </section>
-      <p id="searchStatus" class="location-note" role="status" hidden></p>
-      <div id="list" aria-label="Open job results"></div>
+      </div>
       <div class="pager" id="pager"></div>
     </div>
   </div>
 </div>
 
+<dialog class="ck-sheet" id="searchSheet" aria-labelledby="searchSheetTitle">
+  <header><h2 id="searchSheetTitle">Filters</h2><span><button type="button" class="ck-tertiary" id="sheetClear">Clear all</button><button type="button" class="ck-tertiary" id="sheetDone">Done</button></span></header>
+  <div class="ck-sheet-body" id="searchSheetBody"></div>
+</dialog>
 <script src="/api/career-hunter/static/career-search-memory.js"></script>
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script src="/api/career-hunter/static/career-navigation.js"></script>
@@ -380,6 +423,8 @@ function cancelSearch(){
 function showMap(mode){
   viewMode = mode === 'map' ? 'map' : 'list';
   if ($('mapPanel')) $('mapPanel').hidden = viewMode !== 'map';
+  if (document.documentElement && document.documentElement.dataset) document.documentElement.dataset.searchView = viewMode;
+  $('resultsSplit')?.classList?.toggle('list-only', viewMode !== 'map');
   $('mapView')?.setAttribute('aria-pressed', String(viewMode === 'map'));
   $('listView')?.setAttribute('aria-pressed', String(viewMode === 'list'));
   if (viewMode === 'map') paintMap();
@@ -612,6 +657,19 @@ for (let i = 0; i < pills.length; i += 1) {
 $('rail').addEventListener('submit', e => { e.preventDefault(); refilter(); });
 $('keywordSearch').addEventListener('submit', e => { e.preventDefault(); refilter(); });
 $('clear').onclick = () => { fill({}); refilter(); };
+/* Phone: the rail and the Advanced fields live in one Filters sheet while it is open. */
+(function () {
+  const sheet = $('searchSheet'), body = $('searchSheetBody'), rail = $('rail'), adv = $('adv');
+  if (!sheet || !body || !rail || typeof sheet.showModal !== 'function') return;
+  const homes = [[rail, rail.parentNode, rail.nextSibling], [adv, adv.parentNode, adv.nextSibling]];
+  const advanced = document.createElement('details'); advanced.className = 'adv';
+  advanced.innerHTML = '<summary>Advanced: job title, description, company</summary>';
+  $('openSearchFilters').addEventListener('click', () => { body.append(rail); advanced.append(adv); body.append(advanced); if ($('jobSearchFilters')) $('jobSearchFilters').open = true; sheet.showModal(); });
+  sheet.addEventListener('close', () => { for (const [node, home, next] of homes) home.insertBefore(node, next && next.parentNode === home ? next : null); advanced.remove(); });
+  sheet.addEventListener('click', e => { if (e.target === sheet) sheet.close(); });
+  $('sheetDone').addEventListener('click', () => sheet.close());
+  $('sheetClear').addEventListener('click', () => { fill({}); refilter(); });
+})();
 
 const fromUrl = Object.fromEntries(new URLSearchParams(location.search));
 function renderSaved(){
@@ -671,6 +729,7 @@ async function startSearch(){
   const explicit = FIELDS.some(key => fromUrl[key]) || fromUrl.page || fromUrl.view;
   let position=null;try{if(memory&&!explicit)position=JSON.parse(sessionStorage.getItem(memory.key+':position')||'null');}catch(_){}
   fill(explicit ? fromUrl : (position?.criteria||memory?.last() || fromUrl));
+  if (!fromUrl.view && typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 820px)').matches) showMap('list');
   page = Math.max(1, Number(explicit?fromUrl.page:position?.page) || 1);
   await search();if(position?.scrollY)window.scrollTo({top:position.scrollY,behavior:'instant'});
 }

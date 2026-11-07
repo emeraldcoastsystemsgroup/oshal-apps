@@ -31,6 +31,8 @@
 # -----------------------------------------------------------------------------
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Register deterministic statement-clock create/append/read/list/history equality with immutable images and owner/revision guards.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | Register fourteen-module discovery parity and actual CAD/LoRA Home/New access, navigation and owner-summary guards without a browser, CAD engine or training job.
+# 29 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): register the editor's app row, autosave, Insert, bar-only tool options, one Format inspector and 16 px offset browser proof at 412x915 touch and 1440x900.
+# 30 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: New merges into Home as a sheet; register the Home cards unit case (meta in words, match counts, planned controls, Blank starts, skeletons) and restate the workspace and New expectations for the merged Home.
 version: 1
 cases:
   - id: editor-foundation-adapter
@@ -62,6 +64,28 @@ cases:
       - Invalid and stale focused fields remain recoverable and cannot publish a revision or change another target.
       - The existing handoff saves focused text before reading and returns an editable same-layer update.
       - Read-only permissions hold and phone drawers retain a usable canvas without horizontal page overflow.
+    prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, core:shared-theme-assets, core:editor-foundation]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/browser/create-editor-fixture.mjs]
+      cleanup: Close loopback servers, synthetic stores and the exact owned Chromium process; no installed projects or model providers.
+    limits: { timeoutMs: 120000, maxMemoryMb: 1024 }
+    installation: never
+  - id: editor-ux-audit-browser
+    name: The image editor's app row, Insert tools and one Format inspector
+    purpose: Drive the actual editor and shared foundation at 412x915 touch and 1440x900 through the UX audit's fixes for create--create-editor.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files: [tests/browser/create-editor-ux-proof.mjs]
+    expected:
+      - One app row of at most 48px holds the image's document menu, Undo, Redo, a Saved caption and one primary; Add opens the Insert sheet on a phone and Save is never the primary.
+      - Automatic saving saves a new image with content through the same create route; Save returns only while Save automatically is off; Delete image is the document menu's last item.
+      - The pen's Closed path, Finish and Cancel and the Select tool's options appear in the canvas bar only while their tool is on, and the canvas does not move when they do.
+      - The duplicate Selected layer form is gone, Format with nothing selected edits the canvas, and a second new layer lands 16 px from the first.
+      - On a desktop Insert is a 48px rail, the concierge starts closed and says image, and Export becomes the finishing primary once the canvas has content.
     prerequisites: [runner:playwright, browser:chromium, harness:oshal-core-root, core:dependencies, core:shared-theme-assets, core:editor-foundation]
     sideEffects: fixture-write
     isolation:
@@ -478,10 +502,10 @@ cases:
       files:
         - tests/browser/create-workspace-proof.mjs
     expected:
-      - Home puts saved work before quick starts and provides one clear route to the template catalog.
-      - Template cards are not duplicated and keyboard search preserves the exact owning-studio kind, starter and theme.
-      - Desktop and narrow pages keep controls in bounds; section and filter interactions retain keyboard focus.
-      - Locked studios never navigate or receive summary probes, and unavailable data stays visibly unavailable.
+      - Home opens on picture cards newest first (a real render for a saved image), with meta in words and skeletons while a studio answers; a tap opens a card and its ⋯ holds Open plus greyed Rename, Duplicate and Delete that do nothing.
+      - One 52px New at the bottom right opens the New sheet (phone) or dialog (desktop) with the Blank row first, greyed Custom size and Import a file, then templates with 44px format chips and "No templates match" with Clear.
+      - Search sits in the app row (behind an icon on a phone) over work and templates and counts "1 match" / "N matches"; Back closes the sheet and the old /api/create/new address lands on Home with New open.
+      - Pages stay inside 320–1440px viewports; locked studios never navigate or receive summary probes, and unavailable data stays visibly unavailable.
     prerequisites:
       - runner:playwright
       - browser:chromium
@@ -565,8 +589,8 @@ cases:
       maxMemoryMb: 256
     installation: never
   - id: create-new
-    name: New screen contracts
-    purpose: Verify the shipped New screen and its owning-app starter links without opening any provider.
+    name: New sheet and the old New address
+    purpose: Verify the New sheet inside Home, the old /api/create/new forward and the owning-app template links without opening any provider.
     level: unit
     runner:
       kind: node-test
@@ -574,9 +598,31 @@ cases:
       files:
         - tests/create-new.test.js
     expected:
-      - Inline scripts parse and studio links match manifest routes.
-      - Office starters remain owned by AI Office and access-denied cards stay locked.
-      - The Edit video card opens the Video-owned editor tile while Short video still opens generation.
+      - Outside an audience view /api/create/new forwards to /api/create/home?new=1 with only a known format; an audience view stays.
+      - The manifest has no create-new tile while GET /new still answers; every template and Blank start opens a rail tile at its manifest URL.
+      - Office templates remain owned by AI Office, access-denied cards stay locked, and Edit video / Short video keep their editors.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: create-home-cards
+    name: Home work cards, New sheet starts and planned controls
+    purpose: Run Home's own card, search, Blank-row and skeleton functions in isolation, with no browser and no network.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/create-home-cards.test.js
+    expected:
+      - Studio details read as words ("Built · revision 1", "Reconstructed from photos", "Saved PowerPoint") and the date as "Image editor · 2 days ago"; no slash, instant or provider id survives.
+      - Search counts read "1 match" / "2 matches"; every planned control is aria-disabled, says "Not available yet", names its backlog id and has no handler.
+      - The Blank row opens real studio addresses (AI Office kind=pptx|docx|xlsx, the editor's blank canvas, the video editor's empty timeline) and skeletons show only while a studio answers.
     prerequisites:
       - runner:node-test
     sideEffects: none

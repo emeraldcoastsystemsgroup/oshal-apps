@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The page speaks in sentences, not codes or JSON. The Plain helper is executed out of the shipped ui/index.html: every refusal code the routes raise toward this page reads as what to do (select_connection was shown as "select connection"), an unknown code is still a sentence, the audio test reads as what was heard and what the assistant would do on a call (the page printed the raw result JSON), and malformed approved replies say how to write them. client.js routes the audio result, refusals and the replies field through Plain and never prints the audio result as JSON.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: an account with no Twilio connection gets the Calls view's empty state instead of the banner sentence.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -53,6 +54,8 @@ test('client.js uses Plain for refusals, the audio result and the replies field,
   assert.ok(!/audioResult'\)\.textContent=JSON\.stringify/.test(client), 'the audio result is never JSON');
   assert.ok(/message\(Plain\.refusal\(e\)\)/.test(client), 'refusals are sentences');
   assert.ok(/responses:Plain\.responses\(/.test(client) && !/JSON\.parse\(\$\('responses'\)/.test(client));
-  assert.ok(/if\(!data\.connections\.length\) message\(Plain\.NO_CONNECTION\)/.test(client));
+  // UX audit 2026-11-06: no connection is one empty state in the Calls view (the banner repeated the setup sentence).
+  assert.ok(/\$\('noTwilio'\)\.hidden=!!data\.connections\.length; \$\('newCall'\)\.hidden=!data\.connections\.length;/.test(client));
+  assert.doesNotMatch(client, /message\(Plain\.NO_CONNECTION\)/);
   assert.match(Plain.NO_CONNECTION, /Connections page \(\/utilities\)/);
 });

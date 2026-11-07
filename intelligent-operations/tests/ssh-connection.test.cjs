@@ -1,3 +1,4 @@
+/* CHANGE LOG: ux audit | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the SSH card opens from the SSH hosts row of Connections & access; the app row's one refresh reads it (no card Refresh); the username is never guessed. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Review of 2026-11-03: the Credentials & access SSH card points at the card, never the masked dialog; a key leaves the page once the kernel has it even when the page moves mid-request, and after a refusal a retry cannot change; the kernel's capability refusal keeps its meaning (missing, revoked, turned off) on the card and on Cloud & SSH commands; a record the kernel cannot read is named on Check login; Disconnect says revoked; a lapsed session names the way back; the kernel's username rule; indented pastes canonicalized; no save where no hosts are selected; the binding guard reads the real router and any quoting. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard Your SSH connection: the key check reads only the OpenSSH envelope (an unencrypted ed25519 key passes; a passphrase, an RSA key, a PEM key or junk is named before anything is sent), the credential is exactly {"username","privateKey"}; the shipped Connections page saves a chosen key file as that credential through the kernel's connect route, lists the selected hosts under one confirmation, runs one confirmed uptime as a login check recorded as an ssh-connection command run in real SQL, disconnects and clears on refusal; Cloud & SSH commands names the missing connection instead of treating the kernel's "nobody has connected ssh" as a lost session. Every asset the experience route serves and every script the page loads has GET and HEAD bindings in authorization.yaml: a new script without them is refused by the kernel (deny_tier), which is how the first 1.1.4 delivery failed on the Spark, so the card ships inside the bound command-helper asset. Keys are made at test time by ssh-keygen: the public-snapshot gate refuses key-shaped literals in the tree. */
 'use strict';
@@ -40,10 +41,12 @@ test('every served asset and every page script is bound in authorization.yaml fo
  for(const p of [...served,...scripts]){assert.ok(bound('GET').has(p),p+' is served but has no GET binding');assert.ok(bound('HEAD').has(p),p+' is served but has no HEAD binding');}
  for(const s of scripts)assert.ok(served.has(s),s+' is loaded by the page but not served by the route');
 });
-test('the Credentials & access page sends SSH people to the card, never to the standard masked dialog',()=>{
- const page=fs.readFileSync(path.join(root,'experience/index.html'),'utf8'),start=page.indexOf('<section id="credentials"');assert.ok(start>0);
- const section=page.slice(start,page.indexOf('</section>',start)),from=section.indexOf('<h2>SSH hosts</h2>');assert.ok(from>0);
- const card=section.slice(from,section.indexOf('</article>',from));assert.ok(card.includes('href="#connections">Open Your SSH connection</a>'));assert.ok(!card.includes('/utilities'));assert.ok(card.includes('key file under Connections, Your SSH connection'));
+test('the SSH hosts row on Connections & access opens Your SSH connection in place, never the standard masked dialog',()=>{
+ // UX audit 2026-11-06: Credentials & access merged into Connections & access; the SSH row's action opens the in-app card.
+ const page=fs.readFileSync(path.join(root,'experience/index.html'),'utf8'),controller=fs.readFileSync(path.join(root,'experience/experience.js'),'utf8');
+ assert.equal(page.includes('<section id="credentials"'),false,'the merged-away page is gone; #credentials leads to Connections & access');
+ const row=controller.match(/\{key:'ssh',[^}]*\}/);assert.ok(row,'an SSH hosts provider row');assert.match(row[0],/panel:'ssh'/);assert.doesNotMatch(row[0],/href:/,'no top-window connection flow for SSH');
+ const card=page.slice(page.indexOf('<article id="ssh-conn-panel"'),page.indexOf('</article>',page.indexOf('<article id="ssh-conn-panel"')));assert.match(card,/data-panel="ssh"/);assert.ok(!card.includes('/utilities'));assert.match(card,/key file/);
  assert.match(page,/<input id="commands-ssh-account"[^>]*readonly/,'the account on Cloud & SSH commands is always primary');
 });
 test('the shipped Connections page saves a key file through the connect route, lists hosts and checks the login under confirmations, records the check, keeps the kernel\'s refusal meaning, forgets the key, disconnects (revoked) and clears on refusal; Cloud & SSH commands names a missing or revoked connection',async()=>{
@@ -67,7 +70,7 @@ test('the shipped Connections page saves a key file through the connect route, l
   assert.equal(await page.locator('#commands-ssh-account').getAttribute('readonly'),'');await page.locator('#commands-tool').selectOption('ssh');await page.getByRole('button',{name:'Load selected hosts',exact:true}).click();
   await page.locator('#commands-status').getByText('No SSH connection saved yet: open Connections, Your SSH connection',{exact:false}).waitFor();assert.equal(await page.locator('#commands-history').evaluate(e=>e.childElementCount),1);
   // The card: no connection, no hosts selected on the installation, a key with a passphrase, a connect the kernel refuses.
-  await page.goto(base+'#connections');await standing.getByText('No SSH connection saved yet. Save your username and key file below; your administrator has selected the hosts.',{exact:true}).waitFor();
+  await page.goto(base+'#connections');await page.locator('#provider-rows .provider-row',{hasText:'SSH hosts'}).locator('.provider-action').click();await page.locator('#ssh-conn-panel').waitFor({state:'visible'});await page.locator('#ssh-conn-username').fill('root');await standing.getByText('No SSH connection saved yet. Save your username and key file below; your administrator has selected the hosts.',{exact:true}).waitFor();
   services=false;await page.locator('#ssh-conn-file').setInputFiles(ed);await page.locator('#ssh-conn-keycheck').getByText('ed: OpenSSH ssh-ed25519 key, no passphrase. Ready to save.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Save SSH connection',exact:true}).click();await result.getByText('has not selected any SSH hosts on this installation',{exact:false}).waitFor();assert.equal(effects.filter(e=>e.op==='connect').length,0,'nothing is sent where no hosts are selected');services=true;
   await page.locator('#ssh-conn-file').setInputFiles(locked);await page.locator('#ssh-conn-keycheck').getByText('This key has a passphrase',{exact:false}).waitFor();
@@ -78,10 +81,10 @@ test('the shipped Connections page saves a key file through the connect route, l
   // The page moves while the connect is in flight: the kernel has the key, so the page forgets it.
   holdConnect=true;await page.locator('#ssh-conn-panel details').evaluate(d=>{d.open=true;});await page.locator('#ssh-conn-key').fill(text);await page.locator('#ssh-conn-keycheck').getByText('Pasted key: OpenSSH ssh-ed25519 key, no passphrase. Ready to save.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Save SSH connection',exact:true}).click();while(!pending)await new Promise(r=>setTimeout(r,20));
-  await page.getByRole('button',{name:'Refresh',exact:true}).first().click();await standing.getByText('No SSH connection saved yet',{exact:false}).waitFor();pending();pending=null;holdConnect=false;
+  await page.getByRole('button',{name:'Refresh records',exact:true}).click();await standing.getByText('No SSH connection saved yet',{exact:false}).waitFor();pending();pending=null;holdConnect=false;
   await page.waitForFunction(()=>document.getElementById('ssh-conn-key').value===''&&document.getElementById('ssh-conn-keycheck').textContent==='');assert.equal(await page.locator('#ssh-conn-file').inputValue(),'');
   assert.deepEqual(JSON.parse(effects.filter(e=>e.op==='connect')[1].body.token),{username:'root',privateKey:text});
-  await page.getByRole('button',{name:'Refresh',exact:true}).first().click();await standing.getByText('Saved: your SSH connection "primary". Check login on this host proves the kernel can read it; Cloud & SSH commands uses it as "primary".',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Refresh records',exact:true}).click();await standing.getByText('Saved: your SSH connection "primary". Check login on this host proves the kernel can read it; Cloud & SSH commands uses it as "primary".',{exact:true}).waitFor();
   // A record the kernel cannot read (saved elsewhere) is named on Check login; then the real save, the hosts and a login that works.
   await page.getByRole('button',{name:'Show my hosts',exact:true}).click();await result.getByText('1 host(s) selected by your administrator: gsquared-dev.',{exact:false}).waitFor();
   execBroken=true;await page.getByRole('button',{name:'Check login on this host',exact:true}).click();await result.getByText('The saved SSH connection is not a login the kernel can read',{exact:false}).waitFor();
@@ -103,7 +106,7 @@ test('the shipped Connections page saves a key file through the connect route, l
   await page.locator('#commands-tool').selectOption('ssh');await page.getByRole('button',{name:'Load selected hosts',exact:true}).click();
   await page.locator('#commands-status').getByText('Your SSH connection is revoked and cannot be used: open Connections, Your SSH connection',{exact:false}).waitFor();assert.equal(await page.locator('#commands-history').locator('article').count(),1,'a revoked connection does not clear the page');
   // A lapsed session empties the page and the card names the way back.
-  denied=true;await page.goto(base+'#connections');await page.getByRole('button',{name:'Refresh',exact:true}).first().click();
-  await standing.getByText('Sign in through OSHAL to continue, then press Refresh.',{exact:true}).waitFor();assert.deepEqual(errors,[]);
+  denied=true;await page.goto(base+'#connections');
+  await page.getByText('Access changed.',{exact:false}).first().waitFor();assert.match(await page.locator('#ssh-conn-standing').textContent(),/^(Sign in through OSHAL to continue, then press Refresh records\.|Refresh to read your SSH connection\.)$/,'the card keeps nothing of the earlier connection and names the way back');assert.equal(await page.locator('#provider-rows .provider-row').count(),0);assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
 });

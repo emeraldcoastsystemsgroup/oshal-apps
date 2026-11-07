@@ -3,7 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Storage Assistant — OSHAL</title>
+<title>Storage Assistant — oshal</title>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (storage--storage-assistant MERGE): starter prompts
+       are <button> controls, one greeting replaces the triple prompt repetition, subtitle links directly to /api/files and
+       Storage Settings, and user bubble + Send button use solid --ds-accent with --ds-on-accent ink (Graphite-safe). -->
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colours at all. -->
@@ -116,23 +120,27 @@
   /* Short alias names kept, but DERIVED from the framework theme instead of literal hex, so all
      eleven themes work — not just the dark palette these hex values used to match. Semantic status
      colours come from the theme with the old hex as a fallback. */
-  :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color); --text:var(--text-primary); --muted:var(--text-muted); --accent:var(--accent-primary); --accent2:var(--status-success, #00d3a7); }
+  :root { --bg:var(--ds-page, var(--bg-primary)); --panel:var(--ds-surface, var(--bg-card)); --panel2:var(--ds-surface-2, var(--bg-tertiary)); --line:var(--ds-edge, var(--border-color)); --line-ctrl:var(--ds-line-control, var(--border-color)); --text:var(--ds-ink, var(--text-primary)); --muted:var(--ds-ink-2, var(--text-muted)); --accent:var(--ds-accent, var(--accent-primary)); --on-accent:var(--ds-on-accent, var(--text-on-accent, #fff)); --accent-ink:var(--ds-accent-ink, var(--accent-primary)); --accent2:var(--ds-ok, var(--status-success, #00d3a7)); }
   * { box-sizing:border-box; }
-  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  .page { max-width:680px; margin:0 auto; padding:24px 22px 30px; display:flex; flex-direction:column; height:100vh; }
-  h1 { font-size:20px; margin:0 0 2px; } .sub { color:var(--muted); font-size:12.5px; margin-bottom:14px; }
-  .chips { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:12px; }
-  .chip { background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:16px; padding:6px 11px; font-size:12px; cursor:pointer; }
-  .chip:hover { border-color:var(--accent); }
+  body { margin:0; font-family: var(--ds-font, system-ui, sans-serif); background:var(--bg); color:var(--text); overscroll-behavior:contain; }
+  .page { max-width:680px; margin:0 auto; padding:24px 22px 30px; display:flex; flex-direction:column; height:100dvh; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:14px; line-height:20px; margin-bottom:14px; }
+  .sub a { color:var(--accent-ink); text-decoration:underline; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .chip { font-family:inherit; background:var(--panel2); border:1px solid var(--line-ctrl); color:var(--text); border-radius:var(--ds-radius-full, 999px); min-height:44px; padding:8px 14px; font-size:14px; font-weight:500; cursor:pointer; display:inline-flex; align-items:center; }
+  .chip:hover { background:var(--ds-surface-3, var(--panel)); border-color:var(--accent); }
+  .chip:focus-visible, .bar input:focus-visible, .bar button:focus-visible { outline:2px solid var(--ds-focus, var(--accent)); outline-offset:2px; }
   #log { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:4px 2px; }
-  .msg { max-width:85%; padding:10px 13px; border-radius:12px; font-size:13.5px; line-height:1.5; white-space:pre-wrap; }
-  .msg.user { align-self:flex-end; background:var(--accent); color:#fff; }
+  .msg { max-width:85%; padding:10px 13px; border-radius:12px; font-size:14px; line-height:1.5; white-space:pre-wrap; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:var(--on-accent); }
   .msg.bot { align-self:flex-start; background:var(--panel); border:1px solid var(--line); }
-  .msg.bot a { color:var(--accent); }
+  .msg.bot a { color:var(--accent-ink); text-decoration:underline; }
   .bar { display:flex; gap:10px; margin-top:12px; }
-  .bar input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:14px; }
-  .bar button { border:none; border-radius:9px; padding:11px 18px; font-size:14px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
-  .bar button:disabled { opacity:.5; }
+  .bar input { flex:1; min-height:44px; background:var(--panel); color:var(--text); border:1px solid var(--line-ctrl); border-radius:var(--ds-radius-m, 10px); padding:10px 13px; font-size:15px; font-family:inherit; }
+  .bar button { min-height:44px; border:none; border-radius:var(--ds-radius-m, 10px); padding:10px 18px; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer; background:var(--accent); color:var(--on-accent); }
+  .bar button:hover:not(:disabled) { box-shadow:inset 0 0 0 1px var(--on-accent); }
+  .bar button:disabled { background:var(--panel2); color:var(--ds-ink-disabled, var(--muted)); border:1px solid var(--line); opacity:1; cursor:not-allowed; }
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
@@ -146,20 +154,20 @@
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
-<body>
+<body data-ds-work>
   <div class="page">
-    <h1>🗂️ Storage Assistant</h1>
-    <div class="sub">Chat to manage your storage — create a GitHub repo, set where code/files save, or list your files. I do it for you.</div>
-    <div class="chips">
-      <span class="chip" onclick="ask(this.textContent)">Where do my files save?</span>
-      <span class="chip" onclick="ask(this.textContent)">Save my files to Dropbox</span>
-      <span class="chip" onclick="ask(this.textContent)">Make me a new GitHub repo called oshal-demo</span>
-      <span class="chip" onclick="ask(this.textContent)">List my files</span>
+    <h1>Storage Assistant</h1>
+    <div class="sub">Browse your folders in <a href="/api/files" target="_top">Files</a> or change defaults in <a href="/api/storage" target="_top">Storage Settings</a>.</div>
+    <div class="chips" role="group" aria-label="Suggested prompts">
+      <button type="button" class="chip" onclick="ask(this.textContent)">Where do my files save?</button>
+      <button type="button" class="chip" onclick="ask(this.textContent)">List my files</button>
+      <button type="button" class="chip" onclick="ask(this.textContent)">Save my files to Dropbox</button>
+      <button type="button" class="chip" onclick="ask(this.textContent)">Make a GitHub repo</button>
     </div>
     <div id="log"></div>
     <div class="bar">
-      <input id="input" placeholder="Ask the storage assistant…" onkeydown="if(event.key==='Enter')send()" />
-      <button id="sendBtn" onclick="send()">Send</button>
+      <input id="input" aria-label="Ask the storage assistant" placeholder="Ask the storage assistant…" onkeydown="if(event.key==='Enter')send()" />
+      <button type="button" id="sendBtn" onclick="send()">Send</button>
     </div>
   </div>
 <script>
@@ -183,7 +191,7 @@ async function send(){
 }
 // The full page only: under an audience view the shared kit paints instead (see the head script), so the greeting,
 // the page's one start step, is not added; the chips and the send bar stay hidden with the rest of the full UI.
-if (!window.AppView || !AppView.active()) add('bot', "Hi — I'm your storage assistant. Try “make me a GitHub repo called oshal-demo”, “save my files to Dropbox”, or “where do my files save?”");
+if (!window.AppView || !AppView.active()) add('bot', "Hi — I'm your storage assistant. Pick a prompt above or ask about your files and storage targets.");
 </script>
 </body>
 </html>

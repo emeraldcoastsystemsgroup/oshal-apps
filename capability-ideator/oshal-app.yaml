@@ -1,6 +1,8 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: UX audit split (capability-ideation--capability-ideation-review): Brief by default, the composer first with one primary Develop this idea that sends the brief to the concierge and Save draft on this device; the Capability directory lists each application once with de-duplicated action chips, a search and a suite filter, and Use in a brief.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 name: capability-ideator
 suite: ai-engineering
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -17,7 +19,7 @@ displayName: Capability Ideator
 description: >-
   Discover sourced tools and integration opportunities for business processes, grounded in installed applications and
   explicit connection requirements.
-version: 1.1.7
+version: 1.1.9
 testing:
   version: 1
   catalog: tests/test-lab.yaml

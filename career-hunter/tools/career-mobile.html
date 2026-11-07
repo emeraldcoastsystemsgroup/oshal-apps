@@ -1,5 +1,13 @@
 <!doctype html>
 <!--
+  CHANGE LOG
+  UX audit 2026-11-06 (grade D): the Mobile tile left the menu (a screen size, not a task; this route stays). Until its
+  swipe deck becomes the Job Board's phone layout: Ready and Status read the caller's own submission records
+  (GET /api/career-hunter/submission-queue, as Submission activity does) instead of /api/apply-operator/queue, which the
+  native kernel does not serve, and a failed read shows "Couldn't load your submission queue" with Retry (role=alert)
+  instead of "Nothing here yet"; an empty deck says "No matches yet" with one Find jobs and hides the four swipe
+  buttons; the zoom lock (maximum-scale=1) is gone. Author maintainer@emeraldcoastsystemsgroup.com. Guard: tests/career-mobile-screen.test.mjs.
+
   Intelligent Career — Mobile
   A phone-first surface over the EXISTING career-hunter + apply pipeline. Three views:
 
@@ -40,7 +48,7 @@
 <html lang="en" data-theme="midnight" data-career-surface="mobile">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d1117">
 <title>Intelligent Career — Mobile</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
@@ -133,7 +141,7 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .stamp.like{left:20px;color:var(--green);border-color:var(--green)}
 .stamp.nope{right:20px;color:var(--red);border-color:var(--red);transform:rotate(12deg)}
 
-.deck-actions{flex:0 0 auto;display:flex;justify-content:center;align-items:center;gap:26px;padding:14px 0 6px}
+.deck-actions{flex:0 0 auto;display:flex;justify-content:center;align-items:center;gap:26px;padding:14px 0 6px}.deck-actions[hidden]{display:none}
 .round{width:62px;height:62px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);
   display:grid;place-items:center;font-size:1.5rem;box-shadow:var(--shadow);cursor:pointer;transition:transform .1s}
 .round:active{transform:scale(.92)}
@@ -326,6 +334,18 @@ function applicationProofHtml(record){
 }
 // APPLICATION_PROVENANCE_END
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600);}
+/* The native kernel serves no /api/apply-operator/queue: the queue is the caller's own submission records. */
+async function nativeQueue(){
+  const {items=[]}=await jget(CH+'/submission-queue');
+  const lane=s=>({queued:'queued',claimed:'submitting',reviewing:'submitting',submitting:'submitting',needs_you:'needs_you',failed:'failed',unknown:'needs_you'})[s]||'done';
+  return {items:items.map(a=>({postingId:a.postingId,title:a.title,company:a.company,lane:lane(a.status),
+    executionState:['claimed','reviewing','submitting'].includes(a.status)?'working':'settled',executionDetail:a.reason||String(a.status||'').replace(/_/g,' '),assignedClientId:a.nativeNodeId}))};
+}
+/* DS-41: a read that failed is told, with Retry, never shown as an empty list. */
+function queueAlert(retry){
+  return `<div class="ck-alert" role="alert"><h2>Couldn\u2019t load your submission queue</h2><p>Your applications are not lost. Try again in a moment.</p><button class="btn" type="button" data-reload="${retry}">Retry</button></div>`;
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-reload]');if(!b)return;if(b.dataset.reload==='ready')loadReady();else loadStatus();});
 async function jget(u){const r=await fetch(u,{headers:{Accept:'application/json'}});if(!r.ok)throw Object.assign(new Error('HTTP '+r.status),{status:r.status});return r.json();}
 async function jpost(u,b){const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});let j={};try{j=await r.json();}catch{}return{status:r.status,ok:r.ok,body:j};}
 function salary(j){
@@ -411,10 +431,14 @@ function cardHTML(c,top){
 
 function renderDeck(){
   const el=$('#deck');
+  const actions=document.querySelector('.deck-actions');
   if(!deck.length){
-    el.innerHTML=`<div class="empty"><div class="big">🎉</div><b>All caught up</b><div class="tsub" style="margin-top:6px">No more roles in your queue.</div><br><button class="btn primary" onclick="loadDeck(true)">Pull more roles</button></div>`;
+    el.innerHTML=`<div class="empty"><div class="big">🔍</div><b>No matches yet</b><div class="tsub" style="margin-top:6px">Matches you have not decided on appear here.</div><br><a class="btn primary" id="deckFind" href="/api/career-hunter/search-ui">Find jobs</a></div>`;
+    if(actions) actions.hidden=true;
+    const find=$('#deckFind'); if(find) find.onclick=e=>{ if(window.parent===window) return; e.preventDefault(); CareerJobActions.navigate('career-search', find.href); };
     setPill(); return;
   }
+  if(actions) actions.hidden=false;
   const top=deck[0], next=deck[1];
   el.innerHTML=(next?cardHTML(next,false):'')+cardHTML(top,true);
   bindDrag($('.jobcard[style*="z-index:2"]')||el.lastElementChild);
@@ -500,7 +524,7 @@ async function loadReady(){
     const [appsR,jobsR,queueR]=await Promise.all([
       jget(CH+'/applications').catch(()=>({applications:[]})),
       jget(CH+'/jobs?status=generated&sort=generated&per=100&lane=all').catch(()=>({jobs:[]})),
-      jget(AP+'/queue').catch(()=>({items:[]})),
+      nativeQueue().catch(()=>({items:[],failed:true})),
     ]);
     const apps=appsR.applications||[];
     const draftingRows=apps.filter(a=>a.status==='drafting');
@@ -527,6 +551,7 @@ async function loadReady(){
     }).join(''));
     if(!html) html=`<div class="empty"><div class="big">📋</div><b>Nothing here yet</b><div class="tsub" style="margin-top:6px">Swipe right in Discover to queue résumés; they draft in the background and land here to review + apply.</div></div>`;
 
+    if(queueR.failed) html=queueAlert('ready')+html;
     el.innerHTML=html; el.dataset.loaded='1';
     $$('[data-open]',el).forEach(b=>b.onclick=e=>{e.stopPropagation();openReview(Number(b.dataset.open));});
     $$('.row[data-id]',el).forEach(r=>r.onclick=()=>openReview(Number(r.dataset.id)));
@@ -661,7 +686,7 @@ async function loadStatus(){
       jget(CH+'/jobs?status=generated&sort=generated&per=100&lane=all').catch(()=>({jobs:[]})),
       jget(CH+'/jobs?status=deferred&per=100&lane=all').catch(()=>({jobs:[]})),
       jget(CH+'/jobs?status=applied&sort=applied&per=100&lane=all').catch(()=>({jobs:[]})),
-      jget(AP+'/queue').catch(()=>({items:[]})),
+      nativeQueue().catch(()=>({items:[],failed:true})),
     ]);
     [ready.jobs,deferred.jobs,applied.jobs].forEach(a=>(a||[]).forEach(j=>jobCache.set(j.id,{title:j.title,company:j.company})));
     const queueItems=queue.items||[];
@@ -671,7 +696,7 @@ async function loadStatus(){
     const reviewIds=new Set(failed.map(q=>Number(q.postingId)));
     const readyJobs=(ready.jobs||[]).filter(j=>!queuedIds.has(Number(j.id)));
     const deferredJobs=(deferred.jobs||[]).filter(j=>!reviewIds.has(Number(j.id)));
-    el.innerHTML=
+    el.innerHTML=(queue.failed?queueAlert('status'):'')+
       lane('ready','Ready to auto-apply',readyJobs,j=>lineJob(j,'Review','open'))+
       lane('queued','Queued / running',queued,q=>lineApplyQueue(q))+
       lane('failed','Stopped / review required',failed,q=>lineApplyQueue(q))+

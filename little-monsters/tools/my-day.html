@@ -14,6 +14,7 @@
   2026-06-12     | roger.murphy@agenticfederal.us   | Google Calendar card: connection status + one-tap "Sync my assignments to Google" (push) via the new /calendar/google/* routes; honest not-connected state with CLI login hint
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: the shared theme bootstrap (classroom default), package stylesheet and page frame replace the parent-frame theme reader, the glass sheet and the web font; hero, stat tiles, week strip, class tiles, month calendar, due lists, quick actions, reflection and focus timer are built from the system's components and tokens (the class colour set is the one page-local palette). Navigation goes through window.LM. The Google Calendar card is gone (its route is retired and answers 410); the streak tile renders its emoji, shows "No streak yet" instead of celebrating 0 and reads the learner id from /me when this device has none; the record-a-lecture action shows only to teachers and admins, who are the only ones the lecture routes accept.
   2026-10-18     | maintainer@emeraldcoastsystemsgroup.com   | Due today and Coming up also list the person's own calendar items from /calendar (rows with a student_id, from today on), sorted with the assignments: an action item saved through Jarvis showed on the month calendar but never under Coming up.
+  2026-11-06     | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-myday): Due today comes first as a checklist (ticks kept on this device) with '+ Add to my day' as the one primary; it opens a sheet (title, date, optional time, reminder / study session / test) that saves through POST /calendar, the route the lm-add-reminder tool uses, and the person's own items carry a ⋯ Remove (DELETE /calendar/:eventId); teacher due dates have none. One calendar with a Week | Month control replaces the 7-day strip and the month grid, its days are real buttons with aria-pressed and the selected day wears --ds-on-accent. The My classes row and Quick actions block are gone (they live on Class dashboard and in the bottom bar); the focus timer card is always shown; the study tile says 'Minutes on this page today' without the footnote; the reflection says 'Saved on this device'. Guarded by tests/lm-ux-myday.test.cjs.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -56,7 +57,22 @@
   .cal-cell.is-empty { background: transparent; border-color: transparent; cursor: default; }
   .cal-cell:not(.is-empty):hover { border-color: var(--lm-accent-line); background: var(--lm-card-hover); }
   .cal-cell.is-today { border-color: var(--lm-accent); box-shadow: inset 0 0 0 1px var(--lm-accent); color: var(--lm-accent); font-weight: 800; }
-  .cal-cell.is-selected { background: var(--lm-accent-soft); }
+  .cal-cell.is-selected { background: var(--lm-accent); border-color: var(--lm-accent); color: var(--ds-on-accent, var(--lm-on-accent)); }
+  .cal-cell.is-selected .cal-dots i { box-shadow: 0 0 0 1.5px var(--ds-on-accent, var(--lm-on-accent)); }
+  .cal-grid.is-week .cal-cell { min-height: 56px; }
+  .cal-mode { margin: 0 auto 10px 0; }
+  .cal-mode .lm-tab[aria-pressed="true"] { background: var(--lm-card); color: var(--lm-accent); box-shadow: var(--lm-shadow-soft); }
+  .due-check { display: flex; align-items: center; justify-content: center; flex: 0 0 var(--lm-touch); height: var(--lm-touch); margin: -6px 0; cursor: pointer; }
+  .due-check input { width: 22px; height: 22px; accent-color: var(--lm-accent); cursor: pointer; }
+  .lm-item.is-done .lm-item-body strong { text-decoration: line-through; color: var(--lm-muted); }
+  .row-menu { position: relative; flex: 0 0 auto; }
+  .row-menu summary { list-style: none; display: grid; place-items: center; width: var(--lm-touch); height: var(--lm-touch); border-radius: 50%; cursor: pointer; font-size: 20px; font-weight: 800; color: var(--lm-ink-2); }
+  .row-menu summary::-webkit-details-marker { display: none; }
+  .row-menu summary:hover, .row-menu[open] summary { background: var(--lm-accent-wash); color: var(--lm-ink); }
+  .row-menu-list { position: absolute; right: 0; top: calc(100% + 4px); min-width: 140px; display: grid; padding: 6px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); box-shadow: var(--lm-shadow); z-index: 20; }
+  .row-menu-list button { min-height: var(--lm-touch); text-align: left; padding: 8px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--lm-ink); font: inherit; font-weight: 600; cursor: pointer; }
+  .row-menu-list button:hover { background: var(--lm-accent-wash); }
+  .due-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .cal-dots { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
   .cal-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--lm-accent)); }
   .cal-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; font-size: 12.5px; color: var(--lm-muted); }
@@ -98,33 +114,38 @@
     <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
   </header>
 
-  <section class="lm-section glance" aria-label="Today at a glance">
-    <div class="lm-grid is-tight" style="--min:150px">
-      <div class="lm-stat is-accent"><div class="lm-stat-icon" aria-hidden="true">📚</div><div class="lm-stat-value" id="studyTimeDisplay">—</div><div class="lm-stat-label">Study time today</div></div>
-      <div class="lm-stat" id="streakStat"><div class="lm-stat-icon" id="streakIcon" aria-hidden="true">🌱</div><div class="lm-stat-value" id="streakValue">—</div><div class="lm-stat-label" id="streakLabel">Streak</div></div>
-      <div class="lm-stat"><div class="lm-stat-icon" aria-hidden="true">📌</div><div class="lm-stat-value" id="dueTodayCount">—</div><div class="lm-stat-label">Due today</div></div>
-      <div class="lm-stat is-info"><div class="lm-stat-icon" aria-hidden="true">🗓️</div><div class="lm-stat-value" id="dueSoonCount">—</div><div class="lm-stat-label">Coming up</div></div>
+  <section class="lm-section">
+    <div class="lm-card" id="dueTodaySection">
+      <div class="lm-section-head due-head"><h2>Due today</h2>
+        <button type="button" class="lm-btn lm-btn-primary" id="addToDayBtn" aria-haspopup="dialog">+ Add to my day</button></div>
+      <div id="dueToday"><div class="lm-loading">Checking…</div></div>
+      <p class="lm-help">Ticks are saved on this device.</p>
     </div>
-    <p class="lm-help">Study time counts the minutes this page is open, on this device only.</p>
   </section>
 
   <section class="lm-section">
-    <div class="lm-section-head"><h2>This week</h2><span class="lm-subtle lm-small">Tap a day to see it in the calendar</span></div>
-    <div class="lm-week" id="weekStrip"></div>
+    <div class="lm-card" id="dueSoonSection">
+      <div class="lm-section-head"><h2>Coming up</h2></div>
+      <div id="dueSoon"><div class="lm-loading">Checking…</div></div>
+    </div>
+  </section>
+
+  <section class="lm-section lm-hide" id="notifSection">
+    <div class="lm-section-head"><h2>Notifications</h2><span class="lm-pill is-gold" id="notifCount"></span></div>
+    <ul class="lm-list" id="notifList"></ul>
   </section>
 
   <section class="lm-section">
-    <div class="lm-section-head"><h2>My classes</h2><span class="lm-subtle lm-small" id="classCount"></span></div>
-    <div class="lm-grid" id="classTiles" style="--min:220px"><div class="lm-skeleton"></div><div class="lm-skeleton"></div><div class="lm-skeleton"></div></div>
-  </section>
-
-  <section class="lm-section">
-    <div class="lm-section-head"><h2>My calendar</h2><span class="lm-subtle lm-small">Every class and every due date, colour-coded by class</span></div>
+    <div class="lm-section-head"><h2>My calendar</h2><span class="lm-subtle lm-small">Every class and every due date, color-coded by class</span></div>
     <div class="lm-card" id="calWrap">
+      <div class="lm-tabs cal-mode" role="group" aria-label="Calendar view">
+        <button type="button" class="lm-tab" data-mode="week" aria-pressed="true">Week</button>
+        <button type="button" class="lm-tab" data-mode="month" aria-pressed="false">Month</button>
+      </div>
       <div class="cal-head">
-        <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" onclick="calMove(-1)" aria-label="Previous month">‹</button>
+        <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" id="calPrev" onclick="calMove(-1)" aria-label="Previous week">‹</button>
         <div class="cal-title" id="calTitle" aria-live="polite">—</div>
-        <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" onclick="calMove(1)" aria-label="Next month">›</button>
+        <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" id="calNext" onclick="calMove(1)" aria-label="Next week">›</button>
       </div>
       <div class="cal-filters" id="calFilters" aria-label="Show or hide a class"></div>
       <div class="cal-dow" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
@@ -134,38 +155,16 @@
     </div>
   </section>
 
-  <section class="lm-section">
-    <div class="lm-grid" style="--min:300px">
-      <div class="lm-card" id="dueTodaySection">
-        <div class="lm-section-head"><h2>Due today</h2></div>
-        <div id="dueToday"><div class="lm-loading">Checking…</div></div>
+  <section class="lm-section" id="timerSection">
+    <div class="lm-section-head"><h2>Focus time</h2></div>
+    <div class="lm-card lm-text-center">
+      <div class="timer-ring" id="timerRing"><div><div class="timer-time" id="timerDisplay">25:00</div><div class="lm-small lm-muted lm-strong" id="timerStatus">Ready</div></div></div>
+      <div class="lm-row is-wrap" style="justify-content:center">
+        <button type="button" class="lm-btn lm-btn-soft lm-btn-lg" id="timerStartBtn" onclick="toggleTimer()">Start</button>
+        <button type="button" class="lm-btn lm-btn-ghost" onclick="resetTimer()">Reset</button>
       </div>
-      <div class="lm-card" id="dueSoonSection">
-        <div class="lm-section-head"><h2>Coming up</h2></div>
-        <div id="dueSoon"><div class="lm-loading">Checking…</div></div>
-      </div>
+      <p class="lm-help">25 minutes of focus, then a little break. Runs on this device.</p>
     </div>
-  </section>
-
-  <section class="lm-section">
-    <div class="lm-section-head"><h2>Quick actions</h2></div>
-    <div class="lm-grid" style="--min:200px">
-      <button type="button" class="lm-tile" onclick="navigate('flashcards')"><span class="lm-tile-icon is-gold" aria-hidden="true">★</span><span><strong>Flashcards</strong><small>Review your sets</small></span></button>
-      <button type="button" class="lm-tile" onclick="startTimer()"><span class="lm-tile-icon is-success" aria-hidden="true">⏱</span><span><strong>Focus timer</strong><small>25 calm minutes</small></span></button>
-      <button type="button" class="lm-tile" onclick="navigate('tutor')"><span class="lm-tile-icon is-info" aria-hidden="true">💬</span><span><strong>Ask the tutor</strong><small>Stuck? Ask anything</small></span></button>
-      <button type="button" class="lm-tile" id="voiceNoteBtn" onclick="toggleVoiceNote()"><span class="lm-tile-icon" aria-hidden="true">🎤</span><span><strong id="voiceNoteLabel">Quick voice note</strong><small id="voiceNoteStatus">Say it and we write it down</small></span></button>
-      <button type="button" class="lm-tile lm-hide" id="recordAction" onclick="navigate('recorder')"><span class="lm-tile-icon is-danger" aria-hidden="true">●</span><span><strong>Record a lecture</strong><small>For teachers</small></span></button>
-    </div>
-    <div class="lm-card is-compact lm-hide lm-mt-md" id="voiceNoteResult">
-      <div class="lm-section-label">You said</div>
-      <p id="voiceNoteText"></p>
-      <button type="button" class="lm-btn lm-btn-ghost lm-mt-md" onclick="speak(document.getElementById('voiceNoteText').textContent)">🔊 Replay</button>
-    </div>
-  </section>
-
-  <section class="lm-section lm-hide" id="notifSection">
-    <div class="lm-section-head"><h2>Notifications</h2><span class="lm-pill is-gold" id="notifCount"></span></div>
-    <ul class="lm-list" id="notifList"></ul>
   </section>
 
   <section class="lm-section">
@@ -181,19 +180,16 @@
         <span class="lm-spacer"></span>
         <span class="lm-status is-success" id="reflectionSaved" style="opacity:0;transition:opacity 0.3s">Saved</span>
       </div>
-      <p class="lm-help">Saved on this device only — it is not sent anywhere.</p>
+      <p class="lm-help">Saved on this device</p>
     </div>
   </section>
 
-  <section class="lm-section lm-hide" id="timerSection">
-    <div class="lm-section-head"><h2>Focus time</h2></div>
-    <div class="lm-card lm-text-center">
-      <div class="timer-ring" id="timerRing"><div><div class="timer-time" id="timerDisplay">25:00</div><div class="lm-small lm-muted lm-strong" id="timerStatus">Ready</div></div></div>
-      <div class="lm-row is-wrap" style="justify-content:center">
-        <button type="button" class="lm-btn lm-btn-primary lm-btn-lg" id="timerStartBtn" onclick="toggleTimer()">Start</button>
-        <button type="button" class="lm-btn lm-btn-ghost" onclick="resetTimer()">Reset</button>
-      </div>
-      <p class="lm-help">25 minutes of focus, then a little break. Runs on this device.</p>
+  <section class="lm-section glance" aria-label="Today at a glance">
+    <div class="lm-grid is-tight" style="--min:150px">
+      <div class="lm-stat is-accent"><div class="lm-stat-icon" aria-hidden="true">📚</div><div class="lm-stat-value" id="studyTimeDisplay">—</div><div class="lm-stat-label">Minutes on this page today</div></div>
+      <div class="lm-stat" id="streakStat"><div class="lm-stat-icon" id="streakIcon" aria-hidden="true">🌱</div><div class="lm-stat-value" id="streakValue">—</div><div class="lm-stat-label" id="streakLabel">Streak</div></div>
+      <div class="lm-stat"><div class="lm-stat-icon" aria-hidden="true">📌</div><div class="lm-stat-value" id="dueTodayCount">—</div><div class="lm-stat-label">Due today</div></div>
+      <div class="lm-stat is-info"><div class="lm-stat-icon" aria-hidden="true">🗓️</div><div class="lm-stat-value" id="dueSoonCount">—</div><div class="lm-stat-label">Coming up</div></div>
     </div>
   </section>
 </main>
@@ -204,6 +200,25 @@
     <h2 class="lm-display" id="celebrateTitle">Great job!</h2>
     <p class="lm-lead" id="celebrateMsg" style="margin:10px auto 0">You completed a focus session!</p>
   </div>
+</div>
+
+<div class="lm-modal" id="addSheet" role="dialog" aria-modal="true" aria-labelledby="addSheetTitle">
+  <form class="lm-modal-card" id="addForm" novalidate>
+    <div class="lm-modal-head"><h2 id="addSheetTitle">Add to my day</h2>
+      <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" id="addClose" aria-label="Close">✕</button></div>
+    <div class="lm-field"><label for="addTitle">What is it?</label><input id="addTitle" maxlength="200" placeholder="Finish the lab write-up" autocomplete="off" required></div>
+    <div class="lm-grid is-tight" style="--min:140px">
+      <div class="lm-field"><label for="addDate">Date</label><input id="addDate" type="date" required></div>
+      <div class="lm-field"><label for="addTime">Time (optional)</label><input id="addTime" type="time"></div>
+    </div>
+    <div class="lm-field"><label for="addType">Type</label>
+      <select id="addType"><option value="reminder">Reminder</option><option value="study-session">Study session</option><option value="test">Test</option></select></div>
+    <p class="lm-status is-error" id="addStatus" role="alert"></p>
+    <div class="lm-row is-wrap">
+      <button type="submit" class="lm-btn lm-btn-primary" id="addSave">Add</button>
+      <button type="button" class="lm-btn lm-btn-ghost" id="addCancel">Cancel</button>
+    </div>
+  </form>
 </div>
 
 <div id="mascot-container"></div>
@@ -254,11 +269,10 @@ function getTimeOfDay() {
   return 'evening';
 }
 
-/** Who is here, from the page frame (one fetch per page): personalises the greeting and reveals teacher-only actions. */
+/** Who is here, from the page frame (one fetch per page): personalizes the greeting. */
 async function loadMe() {
   try { ME = await LM.me(); } catch (_) { ME = null; }
   if (ME && ME.name) document.getElementById('greeting').innerHTML = '<span class="wave" aria-hidden="true">👋</span> Good ' + getTimeOfDay() + ', ' + esc(String(ME.name).split(' ')[0]) + '!';
-  if (ME && (ME.role === 'teacher' || ME.role === 'admin')) document.getElementById('recordAction').classList.remove('lm-hide');
   if (ME && ME.studentId) { try { localStorage.setItem('lm-student-id', ME.studentId); } catch (_) { /* storage unavailable */ } }
   return ME;
 }
@@ -288,29 +302,16 @@ var TYPE_META = {
   event: { i: '📅', l: 'Event' }, lab: { i: '🔬', l: 'Lab' }
 };
 function typeMeta(t) { return TYPE_META[(t || '').toLowerCase()] || { i: '•', l: (t || 'Task') }; }
-var calState = { events: [], hiddenClasses: {}, sel: null };
+var calState = { events: [], hiddenClasses: {}, sel: null, mode: 'week' };
 var calCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+var weekCursor = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay());
 
 async function loadClassesAndCalendar() {
-  var classes = null;
-  try { var r = await fetch('/api/education/classes'); if (r.ok) classes = (await r.json()).classes || []; } catch (e) { classes = null; }
-  var tiles = document.getElementById('classTiles');
-  var count = document.getElementById('classCount');
-  if (classes === null) {
-    tiles.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>Your classes could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.</div>';
-  } else if (!classes.length) {
-    count.textContent = '';
-    tiles.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🌱</div><strong>No classes yet.</strong>Join or create one from your dashboard and it shows up here.<br><button type="button" class="lm-btn lm-btn-primary" onclick="navigate(\'dashboard\')">Open my dashboard</button></div>';
-  } else {
-    count.textContent = classes.length + (classes.length === 1 ? ' class' : ' classes');
-    tiles.innerHTML = classes.map(function (c) {
-      var name = c.name || 'Class';
-      return '<button type="button" class="lm-tile class-tile" data-id="' + esc(c.class_id) + '" style="--c:' + colorFor(c.name) + '">' +
-        '<span class="lm-tile-icon class-icon" aria-hidden="true">' + esc(name.trim().charAt(0).toUpperCase()) + '</span>' +
-        '<span><strong>' + esc(name) + '</strong><small>' + esc([c.subject, c.teacher_name].filter(Boolean).join(' · ')) + '</small></span></button>';
-    }).join('');
-    tiles.querySelectorAll('.class-tile').forEach(function (t) { t.addEventListener('click', function () { LM.openClass(t.getAttribute('data-id')); }); });
-  }
+  // Classes seed the colour order (first seen keeps its colour); the class tiles live on Class dashboard.
+  try {
+    var r = await fetch('/api/education/classes');
+    if (r.ok) ((await r.json()).classes || []).forEach(function (c) { colorFor(c.name); });
+  } catch (e) { /* the calendar colours events in the order it meets them */ }
   // Merge assignments + calendar events
   var events = [];
   try {
@@ -325,7 +326,6 @@ async function loadClassesAndCalendar() {
   calState.events = events;
   renderFilters();
   calRender();
-  renderWeek();
 }
 
 function renderFilters() {
@@ -339,7 +339,7 @@ function renderFilters() {
     chip.addEventListener('click', function () {
       calState.hiddenClasses[name] = !calState.hiddenClasses[name];
       chip.setAttribute('aria-pressed', calState.hiddenClasses[name] ? 'false' : 'true');
-      calRender(); renderWeek();
+      calRender();
     });
     box.appendChild(chip);
   });
@@ -347,30 +347,55 @@ function renderFilters() {
 
 function visibleEvents() { return calState.events.filter(function (e) { return !calState.hiddenClasses[e.cls]; }); }
 
+/** One day as a real button: aria-pressed marks the selected day, the dots its items' classes. */
+function dayCell(date, evs) {
+  var ds = ymd(date);
+  var cell = document.createElement('button'); cell.type = 'button';
+  cell.className = 'cal-cell' + (ds === todayStr ? ' is-today' : '') + (ds === calState.sel ? ' is-selected' : '');
+  cell.setAttribute('data-date', ds);
+  cell.setAttribute('aria-pressed', ds === calState.sel ? 'true' : 'false');
+  cell.setAttribute('aria-label', date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + (evs.length ? ', ' + evs.length + (evs.length === 1 ? ' item' : ' items') : ''));
+  var dots = evs.slice(0, 6).map(function (e) { return '<i style="--c:' + colorFor(e.cls) + '"></i>'; }).join('');
+  cell.innerHTML = '<span class="num">' + date.getDate() + '</span><span class="cal-dots" aria-hidden="true">' + dots + '</span>';
+  cell.addEventListener('click', function () { calState.sel = ds; calRender(); });
+  return cell;
+}
+/** The days the calendar shows: this week's seven, or the month with blank cells before the 1st. */
+function calDays() {
+  if (calState.mode === 'week') return { blanks: 0, days: [0, 1, 2, 3, 4, 5, 6].map(function (i) { return new Date(weekCursor.getFullYear(), weekCursor.getMonth(), weekCursor.getDate() + i); }) };
+  var y = calCursor.getFullYear(), m = calCursor.getMonth(), n = new Date(y, m + 1, 0).getDate(), days = [];
+  for (var d = 1; d <= n; d++) days.push(new Date(y, m, d));
+  return { blanks: new Date(y, m, 1).getDay(), days: days };
+}
+function calTitle() {
+  if (calState.mode === 'month') return calCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  var end = new Date(weekCursor.getFullYear(), weekCursor.getMonth(), weekCursor.getDate() + 6);
+  return weekCursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' + end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 function calRender() {
-  var y = calCursor.getFullYear(), m = calCursor.getMonth();
-  document.getElementById('calTitle').textContent = calCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  var first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
-  var prefix = y + '-' + String(m + 1).padStart(2, '0');
-  var byDay = {}; visibleEvents().forEach(function (e) { if (e.date.indexOf(prefix) === 0) (byDay[e.date] = byDay[e.date] || []).push(e); });
+  var unit = calState.mode === 'week' ? 'week' : 'month', view = calDays();
+  document.getElementById('calTitle').textContent = calTitle();
+  document.getElementById('calPrev').setAttribute('aria-label', 'Previous ' + unit);
+  document.getElementById('calNext').setAttribute('aria-label', 'Next ' + unit);
+  document.querySelectorAll('.cal-mode [data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-mode') === calState.mode ? 'true' : 'false'); });
+  var byDay = {}; visibleEvents().forEach(function (e) { (byDay[e.date] = byDay[e.date] || []).push(e); });
   var grid = document.getElementById('calGrid'); grid.innerHTML = '';
-  for (var i = 0; i < first; i++) { var x = document.createElement('span'); x.className = 'cal-cell is-empty'; x.setAttribute('aria-hidden', 'true'); grid.appendChild(x); }
-  for (var d = 1; d <= days; d++) {
-    var ds = prefix + '-' + String(d).padStart(2, '0');
-    var evs = byDay[ds] || [];
-    var cell = document.createElement('button'); cell.type = 'button';
-    cell.className = 'cal-cell' + (ds === todayStr ? ' is-today' : '') + (ds === calState.sel ? ' is-selected' : '');
-    cell.setAttribute('aria-pressed', ds === calState.sel ? 'true' : 'false');
-    cell.setAttribute('aria-label', new Date(y, m, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + (evs.length ? ', ' + evs.length + (evs.length === 1 ? ' item' : ' items') : ''));
-    var dots = evs.slice(0, 6).map(function (e) { return '<i style="--c:' + colorFor(e.cls) + '"></i>'; }).join('');
-    cell.innerHTML = '<span class="num">' + d + '</span><span class="cal-dots" aria-hidden="true">' + dots + '</span>';
-    (function (ds) { cell.addEventListener('click', function () { calState.sel = ds; calRender(); }); })(ds);
-    grid.appendChild(cell);
-  }
+  grid.classList.toggle('is-week', calState.mode === 'week');
+  for (var i = 0; i < view.blanks; i++) { var x = document.createElement('span'); x.className = 'cal-cell is-empty'; x.setAttribute('aria-hidden', 'true'); grid.appendChild(x); }
+  view.days.forEach(function (d) { grid.appendChild(dayCell(d, byDay[ymd(d)] || [])); });
   var types = {}; visibleEvents().forEach(function (e) { types[(e.type || '').toLowerCase()] = true; });
   document.getElementById('calLegend').innerHTML = Object.keys(types).map(function (t) { var mt = typeMeta(t); return '<span>' + mt.i + ' ' + esc(mt.l) + '</span>'; }).join('');
   if (calState.sel) showDay(calState.sel); else document.getElementById('calDay').innerHTML = '';
 }
+/** Week | Month: the same calendar, one control (the separate 7-day strip is gone). */
+function setCalMode(mode) {
+  calState.mode = mode === 'month' ? 'month' : 'week';
+  var anchor = calState.sel ? parseDue(calState.sel) : today;
+  calCursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  weekCursor = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - anchor.getDay());
+  calRender();
+}
+document.querySelectorAll('.cal-mode [data-mode]').forEach(function (b) { b.addEventListener('click', function () { setCalMode(b.getAttribute('data-mode')); }); });
 
 function showDay(ds) {
   var items = visibleEvents().filter(function (e) { return e.date === ds; });
@@ -384,29 +409,10 @@ function showDay(ds) {
       '<span class="lm-pill is-neutral">' + mt.i + ' ' + esc(mt.l) + '</span></li>';
   }).join('') + '</ul>';
 }
-function calMove(delta) { calCursor.setMonth(calCursor.getMonth() + delta); calState.sel = null; calRender(); }
-
-/** The week strip: this week's seven days, today marked, days with something on them underlined. */
-function renderWeek() {
-  var strip = document.getElementById('weekStrip');
-  var start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - today.getDay());
-  var counts = {}; visibleEvents().forEach(function (e) { counts[e.date] = (counts[e.date] || 0) + 1; });
-  strip.innerHTML = [0, 1, 2, 3, 4, 5, 6].map(function (i) {
-    var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), ds = ymd(d), n = counts[ds] || 0;
-    var cls = [ds === todayStr ? 'is-today' : '', n ? 'has-events' : ''].filter(Boolean).join(' ');
-    var label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + (n ? ', ' + n + (n === 1 ? ' item' : ' items') : '');
-    return '<span class="' + cls + '" role="button" tabindex="0" data-date="' + ds + '" aria-label="' + esc(label) + '">' + d.toLocaleDateString('en-US', { weekday: 'short' }) + '<b>' + d.getDate() + '</b></span>';
-  }).join('');
-  strip.querySelectorAll('[data-date]').forEach(function (el) {
-    function go() {
-      var ds = el.getAttribute('data-date');
-      calCursor = new Date(+ds.slice(0, 4), +ds.slice(5, 7) - 1, 1);
-      calState.sel = ds; calRender();
-      document.getElementById('calWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-    el.addEventListener('click', go);
-    el.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
-  });
+function calMove(delta) {
+  if (calState.mode === 'week') weekCursor = new Date(weekCursor.getFullYear(), weekCursor.getMonth(), weekCursor.getDate() + 7 * delta);
+  else calCursor.setMonth(calCursor.getMonth() + delta);
+  calState.sel = null; calRender();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -428,7 +434,7 @@ async function loadDueItems() {
       var cal = await fetch('/api/education/calendar');
       if (cal.ok) (((await cal.json()).events) || []).forEach(function (ev) {
         if (ev.student_id && ev.event_date && ymd(parseDue(ev.event_date)) >= todayStr) {
-          items.push({ title: ev.title, class_name: ev.class_name || '', due_date: ev.event_date, assignment_type: ev.event_type || 'reminder' });
+          items.push({ title: ev.title, class_name: ev.class_name || '', due_date: ev.event_date, assignment_type: ev.event_type || 'reminder', event_id: ev.event_id || '' });
         }
       });
     } catch (e) { /* the assignments above still show */ }
@@ -443,7 +449,7 @@ async function loadDueItems() {
   var todayItems = [], soonItems = [];
   items.forEach(function (a) {
     var due = parseDue(a.due_date);
-    var item = { title: a.title, className: a.class_name || '', due: due, type: a.assignment_type || 'homework', urgency: getUrgency(due) };
+    var item = { title: a.title, className: a.class_name || '', due: due, type: a.assignment_type || 'homework', urgency: getUrgency(due), eventId: a.event_id || '' };
     if (ymd(due) <= todayStr) todayItems.push(item); else soonItems.push(item);
   });
   document.getElementById('dueTodayCount').textContent = String(todayItems.length);
@@ -476,29 +482,99 @@ function getUrgency(due) {
   return 'Due ' + due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-function renderDueList(containerId, items, emptyHtml) {
-  var container = document.getElementById(containerId);
-  if (!items.length) { container.innerHTML = emptyHtml; return; }
-  container.innerHTML = '<ul class="lm-list">' + items.map(function (item) {
-    var u = item.urgency;
-    var tone = (u === 'Overdue' || u.indexOf('Due today') === 0) ? 'is-danger' : u.indexOf('Due tomorrow') === 0 ? 'is-warning' : 'is-info';
-    var dateCls = tone === 'is-danger' ? ' is-urgent' : tone === 'is-warning' ? ' is-soon' : '';
-    return '<li class="lm-item" style="--c:' + colorFor(item.className || 'General') + '"><span class="cal-bar" aria-hidden="true"></span>' +
-      '<div class="lm-date' + dateCls + '"><b>' + item.due.getDate() + '</b>' + item.due.toLocaleDateString('en-US', { month: 'short' }) + '</div>' +
-      '<div class="lm-item-body"><strong>' + esc(item.title) + '</strong><small>' + esc([item.className, typeMeta(item.type).l].filter(Boolean).join(' · ')) + '</small></div>' +
-      '<div class="lm-item-actions"><span class="lm-pill ' + tone + '">' + esc(u) + '</span>' + sayBtn(item.title + '. ' + u) + '</div></li>';
-  }).join('') + '</ul>';
+/** Today's ticks live on this device only (no route records completion). */
+var DONE_KEY = 'lm-myday-done-' + todayStr;
+function doneKeys() { try { return JSON.parse(localStorage.getItem(DONE_KEY) || '[]'); } catch (_) { return []; } }
+function itemKey(item) { return item.eventId || (item.title + '|' + ymd(item.due)); }
+function setDone(key, done) {
+  var keys = doneKeys().filter(function (k) { return k !== key; });
+  if (done) keys.push(key);
+  try { localStorage.setItem(DONE_KEY, JSON.stringify(keys)); } catch (_) { /* the tick still shows until reload */ }
 }
+/** The ⋯ menu of an item the person added themselves; teacher due dates have none. */
+function rowMenu(item) {
+  if (!item.eventId) return '';
+  return '<details class="row-menu"><summary aria-label="Options for ' + esc(item.title) + '">⋯</summary><div class="row-menu-list">' +
+    '<button type="button" data-remove="' + esc(item.eventId) + '">Remove</button></div></details>';
+}
+function dueRow(item, i, checklist, done) {
+  var u = item.urgency;
+  var tone = (u === 'Overdue' || u.indexOf('Due today') === 0) ? 'is-danger' : u.indexOf('Due tomorrow') === 0 ? 'is-warning' : 'is-info';
+  var dateCls = tone === 'is-danger' ? ' is-urgent' : tone === 'is-warning' ? ' is-soon' : '';
+  var key = itemKey(item), isDone = checklist && done.indexOf(key) !== -1, id = 'due-' + i;
+  var lead = checklist ? '<label class="due-check" for="' + id + '"><input type="checkbox" id="' + id + '" data-key="' + esc(key) + '"' + (isDone ? ' checked' : '') + ' aria-label="Done: ' + esc(item.title) + '"></label>'
+    : '<div class="lm-date' + dateCls + '"><b>' + item.due.getDate() + '</b>' + item.due.toLocaleDateString('en-US', { month: 'short' }) + '</div>';
+  return '<li class="lm-item' + (isDone ? ' is-done' : '') + '" style="--c:' + colorFor(item.className || 'General') + '"><span class="cal-bar" aria-hidden="true"></span>' + lead +
+    '<div class="lm-item-body"><strong>' + esc(item.title) + '</strong><small>' + esc([item.className, typeMeta(item.type).l].filter(Boolean).join(' · ')) + '</small></div>' +
+    '<div class="lm-item-actions"><span class="lm-pill ' + tone + '">' + esc(u) + '</span>' + sayBtn(item.title + '. ' + u) + rowMenu(item) + '</div></li>';
+}
+function renderDueList(containerId, items, emptyHtml) {
+  var container = document.getElementById(containerId), checklist = containerId === 'dueToday', done = doneKeys();
+  if (!items.length) { container.innerHTML = emptyHtml; return; }
+  container.innerHTML = '<ul class="lm-list">' + items.map(function (item, i) { return dueRow(item, containerId + i, checklist, done); }).join('') + '</ul>';
+  container.querySelectorAll('input[data-key]').forEach(function (box) {
+    box.addEventListener('change', function () { setDone(box.getAttribute('data-key'), box.checked); box.closest('.lm-item').classList.toggle('is-done', box.checked); });
+  });
+  container.querySelectorAll('[data-remove]').forEach(function (b) {
+    b.addEventListener('click', function () { b.closest('details').open = false; removeItem(b.getAttribute('data-remove')); });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD TO MY DAY / REMOVE (the person's own calendar items, POST and DELETE /calendar)
+// ─────────────────────────────────────────────────────────────────────────────
+function refreshDay() { loadDueItems(); loadClassesAndCalendar(); }
+function openAddSheet() {
+  document.getElementById('addForm').reset();
+  document.getElementById('addDate').value = todayStr;
+  document.getElementById('addStatus').textContent = '';
+  document.getElementById('addSheet').classList.add('is-open');
+  document.getElementById('addTitle').focus();
+}
+function closeAddSheet() {
+  document.getElementById('addSheet').classList.remove('is-open');
+  document.getElementById('addToDayBtn').focus();
+}
+/** The body lm-add-reminder sends: title, eventDate (YYYY-MM-DD), eventType, and eventTime only when given. */
+function addBody() {
+  var body = { title: document.getElementById('addTitle').value.trim(), eventDate: document.getElementById('addDate').value, eventType: document.getElementById('addType').value };
+  var time = document.getElementById('addTime').value;
+  if (time) body.eventTime = time;
+  return body;
+}
+async function submitAdd(e) {
+  e.preventDefault();
+  var body = addBody(), status = document.getElementById('addStatus'), btn = document.getElementById('addSave');
+  if (!body.title) { status.textContent = 'Say what it is first.'; document.getElementById('addTitle').focus(); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(body.eventDate)) { status.textContent = 'Pick a date.'; document.getElementById('addDate').focus(); return; }
+  btn.disabled = true; status.textContent = '';
+  try {
+    var r = await fetch('/api/education/calendar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    var data = await r.json().catch(function () { return {}; });
+    if (!r.ok || !data.eventId) throw new Error(data.error || 'It could not be saved right now.');
+    closeAddSheet(); LM.toast('Added to your day.'); refreshDay();
+  } catch (err) {
+    status.textContent = err.message || 'It could not be saved right now.';
+  } finally { btn.disabled = false; }
+}
+async function removeItem(eventId) {
+  try {
+    var r = await fetch('/api/education/calendar/' + encodeURIComponent(eventId), { method: 'DELETE' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    LM.toast('Removed.'); refreshDay();
+  } catch (err) { LM.toast('That item could not be removed right now.'); }
+}
+document.getElementById('addToDayBtn').addEventListener('click', openAddSheet);
+document.getElementById('addClose').addEventListener('click', closeAddSheet);
+document.getElementById('addCancel').addEventListener('click', closeAddSheet);
+document.getElementById('addForm').addEventListener('submit', submitAdd);
+document.getElementById('addSheet').addEventListener('click', function (e) { if (e.target === e.currentTarget) closeAddSheet(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.getElementById('addSheet').classList.contains('is-open')) closeAddSheet(); });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FOCUS TIMER (device-local)
 // ─────────────────────────────────────────────────────────────────────────────
 var timerSeconds = 25 * 60, timerRunning = false, timerInterval = null;
-
-function startTimer() {
-  document.getElementById('timerSection').classList.remove('lm-hide');
-  document.getElementById('timerSection').scrollIntoView({ behavior: 'smooth' });
-}
 
 function toggleTimer() {
   if (timerRunning) { pauseTimer(); return; }
@@ -557,52 +633,6 @@ function celebrate(title, msg) {
   document.getElementById('celebrateMsg').textContent = msg;
   document.getElementById('celebrateOverlay').classList.add('is-open');
   setTimeout(function () { document.getElementById('celebrateOverlay').classList.remove('is-open'); }, 3000);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VOICE NOTE
-// ─────────────────────────────────────────────────────────────────────────────
-var vnRecognition = null;
-var vnListening = false;
-
-function toggleVoiceNote() {
-  if (vnListening) { stopVoiceNote(); return; }
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { LM.toast('Voice notes need a browser with speech recognition — try Chrome.'); return; }
-
-  vnRecognition = new SR();
-  vnRecognition.continuous = false;
-  vnRecognition.interimResults = true;
-  vnRecognition.lang = 'en-US';
-
-  vnRecognition.onstart = function () {
-    vnListening = true;
-    document.getElementById('voiceNoteLabel').textContent = '🔴 Listening…';
-    document.getElementById('voiceNoteStatus').textContent = 'Speak now';
-    document.getElementById('voiceNoteResult').classList.remove('lm-hide');
-    document.getElementById('voiceNoteText').textContent = '…';
-  };
-  vnRecognition.onresult = function (e) {
-    var t = '';
-    for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-    document.getElementById('voiceNoteText').textContent = t;
-  };
-  vnRecognition.onend = function () {
-    stopVoiceNote();
-    var text = document.getElementById('voiceNoteText').textContent;
-    if (text && text !== '…') document.getElementById('voiceNoteStatus').textContent = 'Got it';
-  };
-  vnRecognition.onerror = function (e) {
-    stopVoiceNote();
-    if (e.error !== 'no-speech') document.getElementById('voiceNoteStatus').textContent = 'Could not hear — try again';
-  };
-  vnRecognition.start();
-}
-
-function stopVoiceNote() {
-  vnListening = false;
-  document.getElementById('voiceNoteLabel').textContent = 'Quick voice note';
-  if (vnRecognition) { try { vnRecognition.stop(); } catch (e) { /* already stopped */ } }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -715,7 +745,7 @@ function voiceReflection() {
   updateDisplay();
 })();
 
-renderWeek(); // paint the week before the network answers; it re-renders with events
+calRender(); // paint the week before the network answers; it re-renders with events
 loadDueItems();
 loadClassesAndCalendar();
 loadNotifications();

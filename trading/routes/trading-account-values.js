@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Retain exact-owner measured balances and expose account details with explicit value-change and benchmark provenance.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Compare bound observation timestamps in the daily upsert predicate so native package SQL never evaluates EXCLUDED outside DO UPDATE SET.
  */
 'use strict';
 const {PortfolioError,accountKey,measured}=require('./trading-portfolio-model');
@@ -18,7 +19,7 @@ async function recordAccountValue(ctx,owner,account,at){
  if(account.kind!=='live'||account.broker!=='schwab'||!accountKey(account)||measured(account.equity)===null||!Number.isFinite(Date.parse(at)))return;
  await ctx.pool.query(`INSERT INTO trading_account_values (user_sub,connection_key,account_id,observed_day,observed_at,equity,cash) VALUES ($1,$2,$3,$4,$5,$6,$7)
  ON CONFLICT (user_sub,connection_key,account_id,observed_day) DO UPDATE SET observed_at=EXCLUDED.observed_at,equity=EXCLUDED.equity,cash=EXCLUDED.cash
- WHERE trading_account_values.observed_at < EXCLUDED.observed_at`,[owner,account.connectionKey,account.accountId,day(at),at,account.equity,measured(account.cash)]);
+ WHERE trading_account_values.observed_at::timestamptz < $5::timestamptz`,[owner,account.connectionKey,account.accountId,day(at),at,account.equity,measured(account.cash)]);
 }
 /** @description Preserve actual native reads independently of financial authorization.
  * @param {object} ctx Admitted context. @param {string} owner Current owner. @param {object} native Broker read.

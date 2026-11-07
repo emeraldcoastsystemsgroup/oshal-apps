@@ -4,6 +4,8 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: aero-designer declares routing words (airfoil, aero lab, naca, wing, drag polar, ...). It declared none, so a request had to name the application to reach it. Guarded by scripts/tool-apps-routing-words.test.mjs.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: the design tools name the design fields and say each is optional ({} runs the baseline). Their schema was a bare object, so asked from Jarvis to evaluate an airfoil, the aero-designer asked for a complete design vector and ran nothing. Guarded by aero-lab/tests/design-tool-schema.test.cjs.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: UX audit (aero-lab--aero-lab): two views (Sizing & flight envelope; Vehicle record & build package with Export Build Files); one primary Run 24 h Energy Loop; closed design groups with Reset to preset; the field's own decimals with the full value on focus; one-line presets; the engine block in a popover on its badge; the analysis-document disclosure under the verdict; a phone bottom bar with the design vector as a sheet.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — aero-lab ("Aero Lab")
 # Packages the validated aerosim persistent-flight simulator (5-round adversarial
@@ -41,7 +43,7 @@ description: >-
   trace, polar, drag buildup, margins), and download the build package
   (STL / DXF / BOM). A design concierge turns plain language into a design
   vector; the deterministic engine is the only source of numbers.
-version: 1.4.3
+version: 1.4.5
 status: active
 
 source:

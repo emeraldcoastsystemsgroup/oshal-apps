@@ -101,6 +101,9 @@
 # 97 | maintainer@emeraldcoastsystemsgroup.com | 1.47.9: A person's store mounted read-only opens for a read whatever its journal mode and whatever shape its owner's last write left: leaving WAL made every engine read there fail, and an older store answered the board with a 500.
 # 98 | maintainer@emeraldcoastsystemsgroup.com | 1.47.10: A jobs pull a restart stops continues from the last employer it finished, with the kernel keeping its copy. Resolve is honest on the native kernel, where a request cannot write the corpus: the page no longer offers it and the route refuses.
 # 99 | maintainer@emeraldcoastsystemsgroup.com | 1.47.11: Resolve and Accept work on the native kernel. A change is saved, the kernel hands it to the next pull only for an administrator, the pull applies it on its private copy, and the Companies page shows what happened, with one-press Undo. Needs the kernel carrying career_source_requests.
+# 102 | maintainer@emeraldcoastsystemsgroup.com | 1.49.1: Resume Studio declares its design contract (editor, type first, its work surface), contains overscroll and keeps the document frame on the radius scale (the design standard audit on production).
+# 101 | maintainer@emeraldcoastsystemsgroup.com | 1.49.0 (Roger, 2026-11-06): Resume Studio opens the master resume as an editable Word document in AI Office's own editor (tools/career-resume-office.js), with AI Office's standard Concierge beside it in place of Career's resume editor panel; Save to master resume writes it back through the existing whitelisted base-save. The Career persona sends resume editing there and never patches the master behind the open document; routing words hand a resume request to Career. Contract: docs/career-and-office.md. Tailored packets keep the classic editor; without AI Office the master opens in the classic view.
+# 100 | maintainer@emeraldcoastsystemsgroup.com | 1.48.2: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — career-hunter (Career Hunter)
@@ -200,7 +203,8 @@ description: >-
   additional experience, generate and review its resume and cover letter, then approve submission.
   Prepare for interviews after submitting.
   Track recorded applications and matching email updates in your private workspace.
-version: 1.47.11
+  Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it.
+version: 1.49.1
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -357,7 +361,10 @@ dependencies:
     # portrait-studio is a cross-app tile plus an opportunistic headshot picker, never a runtime.
     # tools/career-profile-studio.html:243 says so in the code - "If the app isn't installed (404)
     # the button never appears and upload still works" - and the probe at :247 hides the button.
-    apps: [portrait-studio]
+    # presentations (AI Office): Resume Studio embeds its Word editor on the master resume
+    # (tools/career-resume-office.js reads /api/presentations/editor). Without it the master opens
+    # in the classic view and says why, so it is optional.
+    apps: [portrait-studio, presentations]
     tools: []
     # The runtime connector allow-list. Every id is one THIS package's own code reads a
     # caller-owned credential for, and nothing else is:
@@ -410,6 +417,8 @@ bots:
     container: career-bot
     port: 5000
     role: career/job-hunt-owner
+    # A resume request reaches Career (and its Resume Studio) by these words, not by AI Office's "a word document".
+    routingKeywords: [my resume, master resume, edit my resume, tighten my resume, update my resume]
     capabilities:
       - ats-scraping
       - job-scoring
@@ -975,11 +984,6 @@ ui:
       icon: codicon codicon-briefcase
       iframeUrl: /api/career-hunter/review
       section: top
-    - toolName: career-mobile
-      label: Mobile
-      icon: codicon codicon-device-mobile
-      iframeUrl: /api/career-hunter/mobile
-      section: top
     # ── Job Search ──────────────────────────────────────────────────────────
     # Search Jobs leads the group on purpose: it is the one screen in it that works
     # before anything is set up. The Job Board below needs an indexed résumé to say
@@ -990,25 +994,15 @@ ui:
       iframeUrl: /api/career-hunter/search-ui
       section: top
       group: Job Search
+    # UX audit 2026-11-06 (1.48.1: the stage control is on the live board, career-job-lists.html): the Job Board is the one pipeline. Prepare & submit (?view=queue),
+    # Application status (?view=status) and Approvals (/approvals, ?view=approve) are its stages,
+    # chosen by the stage control on the page, so they left the menu; their routes and addresses
+    # still answer. Mobile left the menu too (a screen size, not a task; its route stays). To bring
+    # any of them back, restore its entry from git history (career-hunter 1.47.11).
     - toolName: career-board
       label: Job Board
       icon: codicon codicon-briefcase
       iframeUrl: /api/career-hunter/board-native
-      section: top
-      group: Job Search
-    # Submissions — what the desktop worker is doing with the queued résumés: worker reachability,
-    # the ticket lanes, and the narrated screenshot story per run. Sits next to the Job Board because
-    # that is where a submission is queued and this is where you watch it.
-    - toolName: career-submissions
-      label: Prepare & submit
-      icon: codicon codicon-desktop-download
-      iframeUrl: /api/career-hunter/board-native?view=queue
-      section: top
-      group: Job Search
-    - toolName: career-application-status
-      label: Application status
-      icon: codicon codicon-checklist
-      iframeUrl: /api/career-hunter/board-native?view=status
       section: top
       group: Job Search
     - toolName: career-submission-activity
@@ -1074,11 +1068,6 @@ ui:
       iframeUrl: /api/portrait-studio/app
       section: top
       group: Presence
-    - toolName: career-approvals
-      label: Approvals
-      icon: codicon codicon-checklist
-      iframeUrl: /api/career-hunter/approvals
-      section: bottom
     # Admin only (server gates on CAREER_HUNTER_ADMIN_SUBS): view every company + its detected
     # board, paste a real careers URL to re-detect the ATS + scrape. Writes the SHARED corpus.
     - toolName: career-companies

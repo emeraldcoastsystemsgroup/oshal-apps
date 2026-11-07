@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Verify real selected-layer context, permission and lifecycle retraction through the production surface contract.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the name, My projects and Save automatically are reached through the document menu, and layer values are edited in the one Format inspector (the duplicate form is gone).
  */
+import { inMenu } from './create-editor-fixture.mjs';
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
@@ -39,7 +41,7 @@ test('shipped manifest permits only context refresh and the compiled factory ser
 
 test('actual Create text selection reaches the unchanged core contract as read-only context', async t => {
   const value = await open(t);
-  await value.surface.locator('#addText').click(); await change(value, '#layerText', 'A readable selected headline');
+  await value.surface.locator('#addText').click(); await change(value, '[data-editor-property="text"]', 'A readable selected headline');
   const context = await latest(value, () => window.contextMessages.at(-1)?.fields?.text === 'A readable selected headline');
   assert.equal(context.app, 'create'); assert.equal(context.surface, 'create-editor');
   assert.equal(context.fields.readOnly, true); assert.deepEqual(context.can, []);
@@ -65,23 +67,23 @@ test('selection changes replace context without disclosing other text or the doc
 test('project dialog retracts all project and layer details, then closing republishes the same draft', async t => {
   const value = await open(t, { seed: twoLayers() });
   await value.surface.getByRole('button', { name: 'Select Headline', exact: true }).click();
-  await change(value, '#layerText', 'Draft remains here');
-  await value.surface.locator('#openProjects').click();
+  await change(value, '[data-editor-property="text"]', 'Draft remains here');
+  await (await inMenu(value.surface, '#openProjects')).click();
   const closed = await latest(value, () => window.contextMessages.at(-1)?.digest?.includes('dialog open'));
   assert.equal(closed.fields.available, false); assert.equal(closed.recordId, undefined); assert.equal(closed.title, undefined);
   assert.equal('text' in closed.fields, false);
   await value.surface.locator('#closeProjects').click();
   const restored = await latest(value, () => window.contextMessages.at(-1)?.fields?.text === 'Draft remains here');
-  assert.equal(restored.fields.draft, true); assert.equal(await value.surface.locator('#layerText').inputValue(), 'Draft remains here');
+  assert.equal(restored.fields.draft, true); assert.equal(await value.surface.locator('[data-editor-property="text"]').inputValue(), 'Draft remains here');
   assert.equal(value.fixture.state.successfulWrites, 0); clean(value);
 });
 
 test('save and local undo update the current revision and draft without extra writes', async t => {
   const value = await open(t); await value.surface.locator('#addText').click();
-  await change(value, '#layerText', 'Saved headline'); await value.surface.locator('#saveProject').click();
+  await change(value, '[data-editor-property="text"]', 'Saved headline'); await value.surface.locator('#saveProject').click();
   const saved = await latest(value, () => window.contextMessages.at(-1)?.fields?.revision === 1);
   assert.equal(saved.fields.draft, false); assert.ok(saved.recordId);
-  await change(value, '#layerText', 'Unsaved headline');
+  await change(value, '[data-editor-property="text"]', 'Unsaved headline');
   await latest(value, () => window.contextMessages.at(-1)?.fields?.text === 'Unsaved headline');
   await value.surface.locator('#undo').click();
   const undone = await latest(value, () => window.contextMessages.at(-1)?.fields?.text === 'Saved headline');
@@ -99,7 +101,7 @@ test('read-only saved selection is described without advertising or accepting ed
   await value.page.evaluate(() => window.requestContext());
   const refreshed = await latest(value, () => window.contextMessages.at(-1)?.fields?.contextEpoch > 2);
   assert.equal(refreshed.fields.text, 'Visible selection');
-  assert.equal(await value.surface.locator('#layerText').isDisabled(), true); assert.equal(value.fixture.state.successfulWrites, 0); clean(value);
+  assert.equal(await value.surface.locator('[data-editor-property="text"]').isDisabled(), true); assert.equal(value.fixture.state.successfulWrites, 0); clean(value);
 });
 
 test('missing read and create permissions never disclose a requested saved project', async t => {
@@ -113,7 +115,7 @@ test('missing read and create permissions never disclose a requested saved proje
 
 test('long selected text is bounded and shared normalization strips markup', async t => {
   const value = await open(t); await value.surface.locator('#addText').click();
-  await change(value, '#layerText', '<b>Headline</b>' + 'x'.repeat(2500));
+  await change(value, '[data-editor-property="text"]', '<b>Headline</b>' + 'x'.repeat(2500));
   const context = await latest(value, () => window.contextMessages.at(-1)?.fields?.text?.startsWith('Headline'));
   assert.ok(context.fields.text.length <= 1000); assert.equal(context.fields.text.includes('<b>'), false);
   assert.ok(JSON.stringify(context).length < 2200); assert.equal(value.fixture.state.uploads, 0); clean(value);
@@ -138,7 +140,7 @@ test('dispose removes the real state subscription and message observer; explicit
   });
   await latest(value, () => window.contextMessages.at(-1)?.digest?.includes('closed'));
   const count = await value.page.evaluate(() => window.contextMessages.length);
-  await change(value, '#layerText', 'After detach'); await value.page.evaluate(() => window.requestContext());
+  await change(value, '[data-editor-property="text"]', 'After detach'); await value.page.evaluate(() => window.requestContext());
   await value.surface.locator('body').evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
   assert.equal(await value.page.evaluate(() => window.contextMessages.length), count);
   await value.surface.locator('body').evaluate(async () => {
@@ -151,7 +153,7 @@ test('dispose removes the real state subscription and message observer; explicit
 });
 
 test('pagehide retracts the departed selection and a fresh editor frame never inherits it', async t => {
-  const value = await open(t); await value.surface.locator('#addText').click(); await change(value, '#layerText', 'Departed draft');
+  const value = await open(t); await value.surface.locator('#addText').click(); await change(value, '[data-editor-property="text"]', 'Departed draft');
   await latest(value, () => window.contextMessages.at(-1)?.fields?.text === 'Departed draft');
   await value.surface.locator('body').evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
   const departed = await latest(value, () => window.contextMessages.at(-1)?.digest?.includes('closed'));
@@ -162,7 +164,7 @@ test('pagehide retracts the departed selection and a fresh editor frame never in
 });
 
 test('persisted page restoration republishes current context once without replacing the draft', async t => {
-  const value = await open(t); await value.surface.locator('#addText').click(); await change(value, '#layerText', 'Back-forward draft');
+  const value = await open(t); await value.surface.locator('#addText').click(); await change(value, '[data-editor-property="text"]', 'Back-forward draft');
   await latest(value, () => window.contextMessages.at(-1)?.fields?.text === 'Back-forward draft');
   await value.surface.locator('body').evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })));
   await latest(value, () => window.contextMessages.at(-1)?.digest?.includes('closed'));
@@ -170,6 +172,6 @@ test('persisted page restoration republishes current context once without replac
   await value.surface.locator('body').evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
   await latest(value, () => window.contextMessages.at(-1)?.fields?.text === 'Back-forward draft');
   assert.equal(await value.page.evaluate(() => window.contextMessages.length), count + 1);
-  assert.equal(await value.surface.locator('#layerText').inputValue(), 'Back-forward draft');
+  assert.equal(await value.surface.locator('[data-editor-property="text"]').inputValue(), 'Back-forward draft');
   assert.equal(value.fixture.state.successfulWrites, 0); clean(value);
 });

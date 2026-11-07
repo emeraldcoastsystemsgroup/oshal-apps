@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise original editable templates through the real gallery, renderer, permission-aware editor and synthetic project API.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep gallery keyboard and paste browsing isolated from the existing draft and refuse mixed artifact queries even with a saved project.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Templates is reached from the Insert tools (the rail on a desktop, Add on a phone), the name, New, My projects and Save automatically through the document menu, and canvas size in the Format inspector.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,7 +13,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { createProject, applyOperation } from '../../tools/editor/model.mjs';
-import { chromium, startEditorFixture, syntheticImage } from './create-editor-fixture.mjs';
+import { chromium, startEditorFixture, syntheticImage, inMenu, rename, manualSaving } from './create-editor-fixture.mjs';
 
 const PRESETS = [
   ['square-announcement', 1080, 1080], ['story-promo', 1080, 1920], ['presentation-title', 1920, 1080],
@@ -52,6 +53,7 @@ async function snapshot(value) {
 }
 
 async function gallery(value) {
+  if (await value.surface.locator('#addPrimary').isVisible()) await value.surface.locator('#addPrimary').click();
   await value.surface.locator('#openTemplates').click();
   await value.surface.locator('#templateDialog').waitFor();
   await value.surface.locator('#templateGrid button[data-template-id]').nth(PRESETS.length - 1).waitFor();
@@ -191,16 +193,16 @@ for (const [id, width, height] of PRESETS) test(`${id} has a truthful painted pr
 
 test('selecting by keyboard starts a new copy, preserves the saved original and supports edit/save/reopen/portable export', async t => {
   const original = applyOperation(createProject({ name: 'Synthetic saved original' }), { type: 'add', layer: { id: 'original', type: 'text', text: 'Keep this original' } });
-  const value = await open(t, { seed: original }); await value.surface.locator('#autosave').uncheck(); await gallery(value);
+  const value = await open(t, { seed: original }); await manualSaving(value.surface); await gallery(value);
   const card = value.surface.locator('[data-template-id="event-flyer"]'); await card.focus(); await card.press('Enter');
   await value.surface.locator('#templateDialog').waitFor({ state: 'hidden' }); assert.equal((await snapshot(value)).id, null);
   assert.deepEqual(value.fixture.state.projects.get(value.record.id).document, original); assert.equal(value.fixture.state.successfulWrites, 0);
   const firstText = (await snapshot(value)).project.layers.find(layer => layer.type === 'text');
-  await value.surface.locator(`[data-layer-id="${firstText.id}"] .layer-select`).click(); await change(value, '#layerText', 'Synthetic edited event');
-  await change(value, '#projectName', 'Synthetic template copy'); await value.surface.locator('#saveProject').click(); await saved(value);
+  await value.surface.locator(`[data-layer-id="${firstText.id}"] .layer-select`).click(); await change(value, '[data-editor-property="text"]', 'Synthetic edited event');
+  await rename(value.surface, 'Synthetic template copy'); await value.surface.locator('#saveProject').click(); await saved(value);
   const copy = [...value.fixture.state.projects.values()].find(row => row.id !== value.record.id); assert.ok(copy);
   assert.equal(copy.document.layers.find(layer => layer.id === firstText.id).text, 'Synthetic edited event');
-  await value.surface.locator('#newProject').click(); await value.surface.locator('#openProjects').click();
+  await (await inMenu(value.surface, '#newProject')).click(); await (await inMenu(value.surface, '#openProjects')).click();
   await value.surface.locator(`[data-project-id="${copy.id}"]`).getByRole('button', { name: 'Open', exact: true }).click(); await saved(value);
   assert.deepEqual((await snapshot(value)).project, copy.document);
   const portable = await download(value, '#exportJson'); assert.deepEqual(JSON.parse(portable.bytes.toString()).layers, copy.document.layers);
@@ -210,8 +212,8 @@ test('selecting by keyboard starts a new copy, preserves the saved original and 
 
 test('cancelling dirty replacement preserves the complete draft and saved document; closing the gallery is harmless', async t => {
   const original = applyOperation(createProject({ name: 'Synthetic retained project' }), { type: 'add', layer: { id: 'kept', type: 'rect' } });
-  const value = await open(t, { seed: original }); await value.surface.locator('#autosave').uncheck();
-  await change(value, '#projectName', 'Synthetic dirty title'); await value.surface.locator('#addText').click(); const before = await snapshot(value);
+  const value = await open(t, { seed: original }); await manualSaving(value.surface);
+  await rename(value.surface, 'Synthetic dirty title'); await value.surface.locator('#addText').click(); const before = await snapshot(value);
   await gallery(value); value.page.once('dialog', dialog => dialog.dismiss());
   await value.surface.locator('[data-template-id="square-announcement"]').click(); await twoFrames(value);
   assert.deepEqual(await snapshot(value), before); assert.deepEqual(value.fixture.state.projects.get(value.record.id).document, original);
@@ -221,8 +223,8 @@ test('cancelling dirty replacement preserves the complete draft and saved docume
 
 test('gallery keyboard browsing cannot move, remove, undo or save the underlying selected draft', async t => {
   const original = applyOperation(createProject({ name: 'Synthetic protected keyboard project' }), { type: 'add', layer: { id: 'protected', type: 'rect', x: 30, y: 50 } });
-  const value = await open(t, { seed: original }); await value.surface.locator('#autosave').uncheck();
-  await value.surface.locator('[data-layer-id="protected"] .layer-select').click(); await change(value, '#projectName', 'Synthetic unsaved keyboard draft');
+  const value = await open(t, { seed: original }); await manualSaving(value.surface);
+  await value.surface.locator('[data-layer-id="protected"] .layer-select').click(); await rename(value.surface, 'Synthetic unsaved keyboard draft');
   const before = await snapshot(value); await gallery(value); const card = value.surface.locator('[data-template-id="quote-card"]'); await card.focus();
   for (const key of ['ArrowRight', 'Shift+ArrowDown', 'Delete', 'Backspace', 'Control+z', 'Control+y', 'Control+s']) {
     await card.press(key); await twoFrames(value); assert.deepEqual(await snapshot(value), before, `${key} must not affect the canvas while browsing`);
@@ -243,7 +245,7 @@ async function pasteImage(locator, bytes) {
 
 test('raster paste while browsing neither uploads nor changes the draft, but normal editor paste still works', async t => {
   const original = applyOperation(createProject({ name: 'Synthetic protected clipboard project' }), { type: 'add', layer: { id: 'clipboard-kept', type: 'rect' } });
-  const value = await open(t, { seed: original }); await value.surface.locator('#autosave').uncheck(); await change(value, '#projectName', 'Synthetic unsaved clipboard draft');
+  const value = await open(t, { seed: original }); await manualSaving(value.surface); await rename(value.surface, 'Synthetic unsaved clipboard draft');
   const before = await snapshot(value), png = await syntheticImage(); await gallery(value);
   const card = value.surface.locator('[data-template-id="quote-card"]'); await card.focus();
   assert.equal(await pasteImage(card, png), false, 'The editor must not consume clipboard images behind a modal'); await twoFrames(value);
@@ -321,7 +323,7 @@ test('the actual New template card opens the editor gallery and selecting a desi
   await value.page.locator('#templateDialog').waitFor(); assert.equal(value.fixture.state.successfulWrites, 0);
   await value.page.locator('[data-template-id="square-announcement"]').click();
   await value.page.locator('#layerCount').filter({ hasNotText: /^0$/ }).waitFor();
-  assert.equal(await value.page.locator('#canvasWidth').inputValue(), '1080'); assert.equal(await value.page.locator('#canvasHeight').inputValue(), '1080');
+  assert.equal(await value.page.locator('[data-editor-property="width"]').inputValue(), '1080'); assert.equal(await value.page.locator('[data-editor-property="height"]').inputValue(), '1080');
   assert.equal(value.fixture.state.successfulWrites, 0); assert.equal(value.fixture.state.projects.size, 0); clean(value);
 });
 
@@ -332,7 +334,7 @@ test('an exact template deep link seeds its design only after access resolves an
     await context.route('**/api/create/permissions', route => { observed(); return hold.then(() => route.continue()); });
   } }); await seen;
   assert.equal((await snapshot(value)).project.layers.length, 0); assert.equal(await value.surface.locator('#openTemplates').isDisabled(), true);
-  release(); await value.surface.locator('#canvasWidth').filter({ visible: true }).waitFor();
+  release(); await value.surface.locator('[data-editor-property="width"]').filter({ visible: true }).waitFor();
   await value.surface.locator('#saveStatus').filter({ hasNotText: /Checking|Loading/ }).waitFor();
   const current = await snapshot(value); assert.equal(current.project.width, 1500); assert.equal(current.project.height, 500);
   assert.equal(current.id, null); assert.equal(current.revision, 0); assert.equal(value.fixture.state.successfulWrites, 0); clean(value);

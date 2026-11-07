@@ -10,6 +10,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register director-rules (persona and tool usage rules: named project, read before edit, BoxMesh sub_resources, no capabilities-first read); package-tools also proves scene-get-project reports the live engine.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the person and the concierge edit the same project file in turn through the shared document handoff, over the compiled routes and the package's shared fixture.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register actual model-visible Blender read/write example execution through owned SQL and a real isolated engine.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register first-screen (UX audit 2026-11-06): the page's action gating with no project open, New's three types with the first preview rendered at once, the projects list with one New, the Scene and Script & build views and the phone layout, in Chromium over the compiled routes and the shared fixture.
 version: 1
 cases:
   - id: safe-object-operations
@@ -352,6 +353,40 @@ cases:
       fixtures:
         - tests/scene.fixture.cjs
       cleanup: Close the loopback server, the fake engine bridge and the owned Chromium, and remove the temporary project directory; the pool is in memory and ends with the process.
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 1536
+    installation: never
+  - id: first-screen
+    name: First screen, action gating and the two views
+    purpose: >-
+      Drive the actual Scene Studio page in Chromium over the compiled routes with the package's shared fixture (owner-keyed
+      in-memory pool, fake wire-protocol engine bridge): with no project open every project action is disabled and a forced
+      Render preview posts nothing to /projects/null; New offers 3D scene, Godot game and Blender model, creates an untitled
+      project at once and renders its first preview; with projects the first screen is their list newest first with one New
+      at the bottom right; an open project has Render preview as its one primary, a 240px scene tree, keyframes in Properties
+      and a Script & build tab; on a phone Revision history and Help are in More and nothing is fixed over the work.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/first-screen.browser.test.mjs
+    expected:
+      - Render preview, Run, Run Blender, Call, Import, Undo, Save and Set keyframe are disabled before a project is open; no request names a missing project.
+      - One press on 3D scene posts a godot/3d project titled Untitled scene and one preview; the preview line shows the revision, never "No preview yet".
+      - The list is newest first with exactly one New, at the bottom right of the work on desktop and above the bottom bar on a phone.
+      - A concierge turn begun with no project open opens the one project it made; with two made the list shows them and none is opened.
+    prerequisites:
+      - runner:node
+      - runtime:playwright
+      - runtime:kernel-shared-ui
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/scene.fixture.cjs
+      cleanup: Close the loopback servers, the fake engine bridge and Chromium, and remove the temporary project directory; the pools are in memory and end with the process.
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1536

@@ -11,14 +11,26 @@
   ---------------------------------------------------------------------------
   2026-08-05     | maintainer@emeraldcoastsystemsgroup.com     | Document the shipped curriculum-linked warm-up path and its intentional empty-state fallback.
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and literal palette; hero, game cards, the warm-up dialog (lm-modal) and the play stage use tokens and read on light and dark skins; toasts come from the frame. Game labels now match the games' own titles (Monster Dash, Monster Snake, Monster 2048); a game's stored best score shows on its card when one exists. Warm-up gate, XP posts and the lm-game / lm-exit message handling are unchanged.
+  2026-11-06     | maintainer@emeraldcoastsystemsgroup.com     | UX audit (lm-arcade, P0): the lobby is a wall of artwork tiles, not text cards: each game shows a square picture cut from the package's own icon sheet (/api/education/icons.png), its name and one line, 2 per row on a phone and 3 on a desktop, and the whole tile is the button. 'Warm-up first' is a small lock badge on the picture; a best score shows when there is one. play() focuses the game's frame once it loads, so the arrow keys reach Monster 2048 without a click first. The warm-up gate (only the right answer unlocks) is unchanged.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  .game-emoji { font-size: 36px; line-height: 1; margin-bottom: 10px; }
-  .game-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+  /* Lobby: artwork tiles, 2 per row on a phone and 3 on a desktop; the whole tile is the button. */
+  .game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (min-width: 720px) { .game-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+  .game { display: flex; flex-direction: column; padding: 0; overflow: hidden; min-height: var(--lm-touch); }
+  /* The picture is one cell of the package's icon sheet (3 x 3, dark backdrop): --cx/--cy is the icon's centre. */
+  .game-art { position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden; background: #0e0418; }
+  .game-art img { position: absolute; width: 310%; height: 310%; max-width: none; left: calc(50% - var(--cx) * 310%); top: calc(50% - var(--cy) * 310%); pointer-events: none; }
+  .game-lock { position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: var(--lm-radius-pill);
+    background: color-mix(in srgb, #000 62%, transparent); color: #fff; font-size: 12px; font-weight: 700; line-height: 1.3; }
+  .game-best { position: absolute; top: 8px; right: 8px; }
+  .game-text { display: block; padding: 10px 12px 12px; }
+  .game-text .game-name { display: block; font-size: 16px; font-weight: 800; line-height: 1.25; }
+  .game-text .lm-card-meta { display: block; margin-top: 2px; }
   .gate-q { font-weight: 700; font-size: 17px; margin-bottom: 12px; }
   .gate-opts { display: grid; gap: 8px; }
   /* Answer choice: a full-width, left-aligned option the design system has no component for. */
@@ -50,7 +62,7 @@
   </header>
   <section class="lm-section">
     <div class="lm-section-head"><h2>Games</h2><span class="lm-subtle lm-small">One warm-up question unlocks each game</span></div>
-    <div class="lm-grid" id="grid" style="--min:300px"></div>
+    <div class="game-grid" id="grid"></div>
   </section>
 </main>
 
@@ -77,14 +89,16 @@
 var esc = window.LM.esc;
 // Bundled games (served from /api/education/games/<id>/index.html). Names are the games' own titles;
 // bestKey is the localStorage key a game keeps its best score under, when it keeps one.
+// art: the centre (fraction of width, height) of the game's picture on the package's icon sheet.
 var GAMES = [
-  { id:'milkshake-maker', name:'Milkshake Maker', emoji:'🥤', blurb:'Remember the recipe' },
-  { id:'quiz-arena',      name:'Quiz Arena',      emoji:'⚔️', blurb:'Battle with your flashcards' },
-  { id:'snake',           name:'Monster Snake',   emoji:'🐍', blurb:'Eat apples, don’t crash', bestKey:'lm-snake-best' },
-  { id:'2048',            name:'Monster 2048',    emoji:'🔢', blurb:'Merge your way to 2048', bestKey:'lm-2048-best' },
-  { id:'school-dash',     name:'Monster Dash',    emoji:'🏃', blurb:'Jump the backpacks', bestKey:'lm-dash-best' },
-  { id:'flashcards',      name:'Flashcard Blitz', emoji:'🃏', blurb:'Beat the clock' },
+  { id:'milkshake-maker', name:'Milkshake Maker', art:[0.152,0.193], blurb:'Remember the recipe' },
+  { id:'quiz-arena',      name:'Quiz Arena',      art:[0.844,0.201], blurb:'Battle with your flashcards' },
+  { id:'snake',           name:'Monster Snake',   art:[0.508,0.492], blurb:'Eat apples, don’t crash', bestKey:'lm-snake-best' },
+  { id:'2048',            name:'Monster 2048',    art:[0.822,0.488], blurb:'Merge your way to 2048', bestKey:'lm-2048-best' },
+  { id:'school-dash',     name:'Monster Dash',    art:[0.273,0.805], blurb:'Jump the backpacks', bestKey:'lm-dash-best' },
+  { id:'flashcards',      name:'Flashcard Blitz', art:[0.670,0.801], blurb:'Beat the clock' },
 ];
+var ART_SHEET = '/api/education/icons.png';
 // Dependency-free fallback bank for students with fewer than four accessible cards.
 // loadCurriculum below replaces it with the student's current flashcards when available.
 var WARMUPS = [
@@ -129,15 +143,20 @@ function bestScore(g){
   if(!g.bestKey) return null;
   try{ var v=localStorage.getItem(g.bestKey); return v==null||v===''?null:Number(v); }catch(e){ return null; }
 }
-var grid = document.getElementById('grid');
-GAMES.forEach(function(g){
+/** One lobby tile: the game's picture with its lock badge (and best score), then its name and one line. */
+function gameTile(g){
   var best=bestScore(g);
-  var b = document.createElement('button'); b.type='button'; b.className='lm-card is-clickable game';
-  b.innerHTML = '<div class="game-emoji">'+g.emoji+'</div><h3>'+esc(g.name)+'</h3><div class="lm-card-meta">'+esc(g.blurb)+'</div>'
-    +'<div class="game-foot"><span class="lm-pill is-neutral">Warm-up first</span>'+(best!=null&&Number.isFinite(best)?'<span class="lm-pill is-gold">Best '+best+'</span>':'')+'</div>';
+  var b = document.createElement('button'); b.type='button'; b.className='lm-card is-clickable game'; b.setAttribute('data-game', g.id);
+  b.setAttribute('aria-label', g.name+', '+g.blurb+'. Warm-up question first.');
+  b.innerHTML = '<span class="game-art" style="--cx:'+g.art[0]+';--cy:'+g.art[1]+'"><img src="'+ART_SHEET+'" alt="" draggable="false">'
+    +'<span class="game-lock"><span aria-hidden="true">&#128274;</span>Warm-up</span>'
+    +(best!=null&&Number.isFinite(best)?'<span class="lm-pill is-gold game-best">Best '+best+'</span>':'')+'</span>'
+    +'<span class="game-text"><strong class="game-name">'+esc(g.name)+'</strong><span class="lm-card-meta">'+esc(g.blurb)+'</span></span>';
   b.onclick = function(){ openGate(g); };
-  grid.appendChild(b);
-});
+  return b;
+}
+var grid = document.getElementById('grid');
+GAMES.forEach(function(g){ grid.appendChild(gameTile(g)); });
 
 // Feed the real scoring module: POST /api/education/xp (awardXP → lm_xp_events + level).
 function awardXp(eventType, meta){
@@ -181,7 +200,10 @@ function play(g){
   bonusedThisGame=false;
   document.getElementById('ov').classList.remove('is-open');
   document.getElementById('stageTitle').textContent = g.name;
-  document.getElementById('stageFrame').src = '/api/education/games/'+g.id+'/index.html?v=3';
+  var frame = document.getElementById('stageFrame');
+  // Keys go to the game at once: focus its frame when it has loaded (a click was needed before).
+  frame.onload = function(){ if(frame.src.indexOf('about:blank')!==-1) return; try{ frame.focus(); frame.contentWindow.focus(); }catch(e){} };
+  frame.src = '/api/education/games/'+g.id+'/index.html?v=3';
   document.getElementById('stage').classList.add('is-open');
 }
 // Games postMessage their score on game-over; reward a one-time skill bonus per play.

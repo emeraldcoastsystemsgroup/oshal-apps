@@ -9,6 +9,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add authenticated-self, permission-bound flashcard review recording.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Save per-set shuffle and prompt-side study preferences for the authenticated learner (RP-LM-04).
  * ---------------------------------------------------------------------------
  *
  * @module education-study-review-routes
@@ -19,13 +20,23 @@ import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { resolveAuthedStudent } from './education-access';
 import { sendStudyError, StudyHttpError } from './education-study-errors';
-import { recordStudyReview } from './education-study-store';
+import { recordStudyReview, saveStudySetPreferences } from './education-study-store';
 
 const logger = createChildLogger({ module: 'education-study-review-routes' });
 
 async function reviewCard(req: Request, res: Response, ctx: AppContext): Promise<void> {
   try {
     const actor = await resolveAuthedStudent(req, ctx.pool);
+    if (req.body?.preferences && typeof req.body.preferences === 'object') {
+      const preferences = await saveStudySetPreferences(
+        ctx.pool,
+        actor,
+        req.body.setId,
+        req.body.preferences,
+      );
+      res.json({ success: true, preferences });
+      return;
+    }
     if (!req.body?.cardId || req.body?.score === undefined) {
       throw new StudyHttpError('cardId and score (0-2) are required', 400);
     }

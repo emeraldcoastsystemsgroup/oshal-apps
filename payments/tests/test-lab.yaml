@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register continue-panel: the Continue from a payment panel shows only when Recent payments holds a payment (it asked to select a saved payment below with no list on the page).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register the Stripe rail suites: stripe-rail (routes against a local fake Stripe server: request shapes, mode, confirmations, isolation, no key in answers or logs) and stripe-page (the panel's mode badges and two-step LIVE confirmation).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register connections-recheck: connect links open a new tab and the page checks the connection again in place.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register not-connected-card (one card, one primary Connect Stripe, Check again with its answer, the disabled form, no title card, the status filter).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -129,6 +130,28 @@ cases:
       - Not connected and a rejected key point to the Connections page and offer no payment form.
       - A test key shows TEST MODE; a live key shows LIVE; an unknown mode is treated as LIVE.
       - A non-test key asks twice, the second time naming LIVE, before confirmLive is sent.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: not-connected-card
+    name: Payments before Stripe is connected is one card with one primary
+    purpose: Run the shipped Stripe panel, check-again and preview functions from tools/payments.html in a VM - no browser, server, Stripe or money.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/not-connected-card.test.cjs
+    expected:
+      - Not connected is Connect Stripe to take payments, one sentence on the restricted key and one primary Connect Stripe opening Connections in a new tab.
+      - Check again shows a spinner, then the form or Still not connected.
+      - The payment-link form shows solid-disabled with Connect Stripe first.
+      - No title card or repeated rail copy; the primary is solid with no underline; actions keep 8px apart; Recent payments get a status filter.
     prerequisites:
       - runner:node-test
     sideEffects: none

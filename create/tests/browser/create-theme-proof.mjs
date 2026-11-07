@@ -4,7 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove actual Create Home and New follow all portal palettes, optional package colors and cross-tab changes without losing input or replacing their documents.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: New is Home's sheet (the old address forwards to Home with it open), so the New screen's retained search is the sheet's #tq and Home's primary label is its New button.
  */
+const SEARCH = { home: '#q', new: '#tq' };
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -69,18 +71,18 @@ async function controlContrast(frame, selector) {
 
 for (const screen of ['home', 'new']) test(`${screen} follows all twelve parent palettes and retains its actual search document`, async t => {
   const page = await pageFor(t); await page.goto(`${fixture.origin}/fixture/${screen}`);
-  const frame = page.frameLocator('iframe'); await frame.locator('#q').waitFor();
+  const frame = page.frameLocator('iframe'), q = SEARCH[screen]; await frame.locator(q).waitFor();
   assert.equal((await colors(frame)).theme, 'workspace');
-  await frame.locator('#q').fill('Synthetic');
-  await frame.locator('html').evaluate(() => { window.retainedDocument = document; window.retainedSearch = document.getElementById('q'); });
+  await frame.locator(q).fill('Synthetic');
+  await frame.locator('html').evaluate(id => { window.retainedDocument = document; window.retainedSearch = document.getElementById(id); }, q.slice(1));
   for (const theme of themes) {
     await page.evaluate(value => window.createTheme.apply(value), theme);
     await frame.locator(`html[data-theme="${theme}"]`).waitFor();
     const actual = await colors(frame);
     assert.equal(actual.actualBackground, actual.background, theme); assert.equal(actual.actualForeground, actual.foreground, theme);
     assert.equal(actual.saved, theme); assert.deepEqual(actual.writes, []);
-    assert.equal(await frame.locator('#q').inputValue(), 'Synthetic');
-    assert.equal(await frame.locator('html').evaluate(() => window.retainedDocument === document && window.retainedSearch === document.getElementById('q')), true);
+    assert.equal(await frame.locator(q).inputValue(), 'Synthetic');
+    assert.equal(await frame.locator('html').evaluate(id => window.retainedDocument === document && window.retainedSearch === document.getElementById(id), q.slice(1)), true);
     if (['workspace', 'midnight'].includes(theme)) await screenshot(page, `create-${screen}-${theme}`);
   }
   assert.deepEqual(fixture.requests.filter(row => !['GET', 'HEAD'].includes(row.method)), []);
@@ -88,8 +90,8 @@ for (const screen of ['home', 'new']) test(`${screen} follows all twelve parent 
 
 for (const screen of ['home', 'new']) test(`${screen} preserves the optional Create skin and returns to the chosen portal palette`, async t => {
   const page = await pageFor(t, 'midnight'); await page.goto(`${fixture.origin}/fixture/${screen}`);
-  const frame = page.frameLocator('iframe'); await frame.locator('#q').waitFor();
-  await frame.locator('#q').fill('Synthetic');
+  const frame = page.frameLocator('iframe'), q = SEARCH[screen]; await frame.locator(q).waitFor();
+  await frame.locator(q).fill('Synthetic');
   await page.evaluate(() => { window.retainedFrame = document.querySelector('iframe'); });
   await page.locator('#settingsApplicationColors').check(); await frame.locator('html[data-theme="create"]').waitFor();
   const app = await colors(frame); assert.equal(app.actualBackground, 'rgb(248, 247, 253)'); assert.equal(app.saved, 'midnight');
@@ -97,31 +99,31 @@ for (const screen of ['home', 'new']) test(`${screen} preserves the optional Cre
   await page.locator('#workspace').click(); await frame.locator('html[data-theme="workspace"]').waitFor();
   const portal = await colors(frame); assert.notEqual(portal.actualBackground, app.actualBackground); assert.equal(portal.saved, 'workspace');
   assert.equal(await page.locator('#settingsApplicationColors').isChecked(), false);
-  assert.equal(await frame.locator('#q').inputValue(), 'Synthetic'); assert.deepEqual(portal.writes, []);
+  assert.equal(await frame.locator(q).inputValue(), 'Synthetic'); assert.deepEqual(portal.writes, []);
   assert.equal(await page.evaluate(() => window.retainedFrame === document.querySelector('iframe')), true);
 });
 
 for (const screen of ['home', 'new']) test(`${screen} follows a real cross-tab theme change when opened standalone without writing preferences`, async t => {
-  const page = await pageFor(t); await page.goto(`${fixture.origin}/api/create/${screen}`); await page.locator('#q').waitFor();
-  assert.equal((await colors(page)).theme, 'workspace'); await page.locator('#q').fill('Synthetic');
+  const q = SEARCH[screen], page = await pageFor(t); await page.goto(`${fixture.origin}/api/create/${screen}`); await page.locator(q).waitFor();
+  assert.equal((await colors(page)).theme, 'workspace'); await page.locator(q).fill('Synthetic');
   const chooser = await page.context().newPage(); await chooser.goto(`${fixture.origin}/fixture/home`);
   await chooser.locator('html[data-ready="true"]').waitFor(); await chooser.locator('#midnight').click();
   await page.locator('html[data-theme="midnight"]').waitFor();
   const actual = await colors(page); assert.equal(actual.actualBackground, actual.background); assert.equal(actual.saved, 'midnight');
-  assert.equal(await page.locator('#q').inputValue(), 'Synthetic'); assert.deepEqual(actual.writes, []);
+  assert.equal(await page.locator(q).inputValue(), 'Synthetic'); assert.deepEqual(actual.writes, []);
 });
 
 test('fresh standalone Create starts in Workspace and does not manufacture a saved preference', async t => {
   const page = await pageFor(t, null);
   for (const screen of ['home', 'new']) {
-    await page.goto(`${fixture.origin}/api/create/${screen}`); await page.locator('#q').waitFor();
+    await page.goto(`${fixture.origin}/api/create/${screen}`); await page.locator(SEARCH[screen]).waitFor();
     const actual = await colors(page); assert.equal(actual.theme, 'workspace'); assert.equal(actual.saved, null); assert.deepEqual(actual.writes, []);
   }
 });
 
 for (const screen of ['home', 'new']) test(`${screen} retains readable primary or preview labels in every portal palette`, async t => {
   const page = await pageFor(t); await page.goto(`${fixture.origin}/fixture/${screen}`);
-  const frame = page.frameLocator('iframe'), selector = screen === 'home' ? '#recentGrid .btn' : '.card .pv .badge';
+  const frame = page.frameLocator('iframe'), selector = screen === 'home' ? '#newBtn' : '.card .pv .badge';
   await frame.locator(selector).first().waitFor();
   for (const theme of themes) {
     await page.evaluate(value => window.createTheme.apply(value), theme);

@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bring the person's brand kit into the image editor: brand swatches for the selected layer or the canvas, the logo as a layer, brand and Office fonts in the font list, and the kit for branded templates.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): the duplicate layer form and its font list are gone, so the same brand, basic and Office faces are offered as choices to the shared Format inspector's Font field (fontChoices); the kit's arrival refreshes it.
  */
 import { $, state, edit, notify, subscribe, handle, api, canEdit } from './editor-state.mjs';
 import { BRAND_ROLES, BRAND_ROLE_LABELS, BRAND_FONTS, validateBrandKit, logoAssetId } from './brand-kit.mjs';
@@ -81,19 +82,17 @@ function renderPanel() {
   $('addLogo').hidden = !brand.kit.logo; $('addLogo').disabled = !canEdit() || state.loading || state.saving;
 }
 
-function option(value, label) { const node = document.createElement('option'); node.value = value; node.textContent = label; return node; }
-function group(label, options) { const node = document.createElement('optgroup'); node.label = label; node.append(...options); return node; }
-
-/** Brand faces first, then the basic families, then every Office face; a template's own face always has an entry. */
-function renderFonts() {
-  const select = $('fontFamily'), kit = brand.kit, current = select.value;
-  const brandFaces = kit ? [...new Set([kit.fonts.heading, kit.fonts.body])] : [];
+/** @description The Font field's choices: brand faces first, then the basic families, then every Office face; the layer's own face always has an entry.
+ * @param {string} current The selected text layer's font family.
+ * @returns {{value:string,label:string}[]} Choices for the shared inspector's select. */
+export function fontChoices(current) {
+  const kit = brand.kit, brandFaces = kit ? [...new Set([kit.fonts.heading, kit.fonts.body])] : [];
   const label = face => (kit && face === kit.fonts.heading ? `${face} · brand heading` : `${face} · brand body`);
-  select.replaceChildren(
-    ...(brandFaces.length ? [group('Your brand', brandFaces.map(face => option(face, label(face))))] : []),
-    group('Basic', BASIC_FONTS.map(([value, text]) => option(value, text))),
-    group('Office fonts', BRAND_FONTS.filter(face => !brandFaces.includes(face)).map(face => option(face, face))));
-  select.value = current;
+  const choices = [...brandFaces.map(face => ({ value: face, label: label(face) })),
+    ...BASIC_FONTS.map(([value, text]) => ({ value, label: text })),
+    ...BRAND_FONTS.filter(face => !brandFaces.includes(face)).map(face => ({ value: face, label: face }))];
+  if (current && !choices.some(choice => choice.value === current)) choices.unshift({ value: current, label: current });
+  return choices;
 }
 
 /** @description Read the kit once per editor visit. A person without brand access, or a failed read,
@@ -109,12 +108,11 @@ export async function loadBrand() {
     console.warn('[Create] The brand kit is unavailable here; editing continues without it.', failure?.status ?? '');
   }
   $('brandTemplateToggle').hidden = !brand.kit;
-  renderPanel(); renderFonts();
+  renderPanel(); notify();
 }
 
 /** @description Bind the brand panel once; it re-renders with every editor state change. */
 export function bindBrand() {
-  renderFonts();
   $('addLogo').onclick = handle(addLogo);
   $('editBrand').onclick = () => navigate('create-brand'); $('setupBrand').onclick = () => navigate('create-brand');
   subscribe(() => { if (brand.available) renderPanel(); });

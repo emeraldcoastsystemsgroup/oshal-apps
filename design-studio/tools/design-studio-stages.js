@@ -31,6 +31,9 @@
  *                     |                             | mechanism, embodied's catalog, the plant's state and the
  *                     |                             | training jobs beside the reports (the mechanism module renders
  *                     |                             | concept -> built -> baseline -> trained -> certified).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06: a failed or absent read is said in words with what
+ *                     |                             | to do, never the route path; a reasoned phase's action is Mark done by
+ *                     |                             | hand. Guard: tests/ux-words.test.js.
  */
 window.DesignStudioStages = (function stages() {
   'use strict';
@@ -51,9 +54,10 @@ window.DesignStudioStages = (function stages() {
   }
   /** The honest line for a read that did not answer: absent (404 or no answer), refused (401/403), or the failure itself. */
   function absence(r, engine) {
-    if (r.status === 404 || r.status === 0) return { kind: 'absent', line: `no engine on this swarm for this phase (${ENGINE_NAME[engine]} did not answer ${r.url.replace(/\?.*$/, '')})` };
+    // In words, never the route path (UX audit 2026-11-06): the person reads which engine and what to do, not a URL.
+    if (r.status === 404 || r.status === 0) return { kind: 'absent', line: `no engine on this swarm for this phase (${ENGINE_NAME[engine]} is not installed or not answering here)` };
     if (r.status === 401 || r.status === 403) return { kind: 'refused', line: `${ENGINE_NAME[engine]} refused this account (HTTP ${r.status})` };
-    return { kind: 'failed', line: `unavailable · ${r.url.replace(/\?.*$/, '')}: ${r.error}` };
+    return { kind: 'failed', line: `${ENGINE_NAME[engine]} is not working on this installation right now: ${r.error}. Try again later, or ask the administrator to check ${ENGINE_NAME[engine]}.` };
   }
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
   const grams = (v) => (isNum(v) ? `${Math.round(v)} g` : '— g');
@@ -420,7 +424,7 @@ window.DesignStudioStages = (function stages() {
     return { stage: 'drafted', tone: 'warn', figure: [String(n), n === 1 ? 'requirement' : 'requirements'], line, met: true, evidence: `the brief is right: ${b.what} · ${n} requirements`, revision: revisionOf(b), read: null, action: { label: 'Confirm the brief', brief: true } };
   }
   function viewReasoned(kind, brief) {
-    return { stage: 'reasoned', tone: 'warn', figure: ['—', 'no engine'], line: `no engine on this swarm for this phase · ${brief.produces}`, met: true, evidence: '', revision: 'reasoned', read: null, action: { label: 'Close the phase', close: true, typed: true } };
+    return { stage: 'reasoned', tone: 'warn', figure: ['—', 'no engine'], line: `no engine on this swarm for this phase · ${brief.produces}`, met: true, evidence: '', revision: 'reasoned', read: null, action: { label: 'Mark done by hand', close: true, typed: true, byHand: true } };
   }
 
   /**

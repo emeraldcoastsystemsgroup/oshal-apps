@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Admit all race-test connections before starting transactions, including a deliberately late caller, without overriding production lock deadlines or database results.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Apply migration 104 with the rest of the package schema: the studio's dataset listing now expires staged images, so a fixture without the staging table would answer that read with an error.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /characters no longer saves the starter character (a GET is admitted read-only on the native host, which refused that write), so a fresh owner's console opens on the explicit "Add the starter character" action instead of a card. openConsole waits for either, and a new case proves over Chromium and forced-RLS PostgreSQL that the studio's read saves nothing and that the action saves exactly one owner-bound starter, idempotently, without starting work.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the studio opens on New character step 1, so the console cases open its Advanced section (Subject slug, Hero image and the rest live there) instead of a Create a character disclosure, press Create character, and read a successful save from the shared result line (the form hides once the new character opens at 2 Dataset); a refusal still shows under the form.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
@@ -183,11 +184,11 @@ describe('character console and storage acceptance', () => {
   it('creates all identity fields in the console, reloads them and starts no work', async () => {
     const { context, page, errors, external } = await openConsole();
     try {
-      await page.getByText('Create a character', { exact: true }).click();
+      await page.locator('#characterAdvanced > summary').click();
       for (const [key, value] of Object.entries(draft)) await page.locator(`#characterForm [name="${key}"]`).fill(value);
-      await page.getByRole('button', { name: 'Save character' }).click();
-      await page.locator('#createResult.ok').waitFor();
-      expect(await page.locator('#createResult').innerText()).toContain('No training was started');
+      await page.getByRole('button', { name: 'Create character' }).click();
+      await page.locator('#result.ok').waitFor();
+      expect(await page.locator('#result').innerText()).toContain('No training was started');
       await page.reload();
       await page.locator('#chars .card').filter({ hasText: 'Tin Drummer' }).click();
       await page.waitForFunction(() => document.getElementById('characterConfig')?.textContent?.includes('hero-tin.png'));
@@ -279,18 +280,18 @@ describe('character console and storage acceptance', () => {
       await route.continue();
     });
     try {
-      await page.getByText('Create a character', { exact: true }).click();
+      await page.locator('#characterAdvanced > summary').click();
       await page.locator('#characterForm [name="subject"]').fill('cancelled');
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       expect(posts).toBe(0);
-      await page.getByText('Create a character', { exact: true }).click();
+      await page.locator('#characterAdvanced > summary').click();
       expect(await page.locator('#characterForm [name="subject"]').inputValue()).toBe('');
       for (const [key, value] of Object.entries(draft)) await page.locator(`#characterForm [name="${key}"]`).fill(value);
-      await page.getByRole('button', { name: 'Save character' }).click();
+      await page.getByRole('button', { name: 'Create character' }).click();
       await vi.waitFor(() => expect(posts).toBe(1));
-      expect(await page.getByRole('button', { name: 'Save character' }).isDisabled()).toBe(true);
+      expect(await page.getByRole('button', { name: 'Create character' }).isDisabled()).toBe(true);
       await page.locator('#characterForm').evaluate((form) => (form as HTMLFormElement).requestSubmit());
-      release(); await page.locator('#createResult.ok').waitFor();
+      release(); await page.locator('#result.ok').waitFor();
       expect(posts).toBe(1);
       expect((await fixture.pool.query('SELECT * FROM oshal_lora_characters WHERE subject=$1', [draft.subject])).rows).toHaveLength(1);
       expect((await fixture.pool.query('SELECT * FROM oshal_lora_characters WHERE subject=$1', ['cancelled'])).rows).toHaveLength(0);
@@ -302,9 +303,9 @@ describe('character console and storage acceptance', () => {
     expect((await create({ ...draft, subject: 'prior', displayName: '<img src=x onerror=alert(1)>' })).status).toBe(201);
     const { context, page, errors } = await openConsole();
     try {
-      await page.getByText('Create a character', { exact: true }).click();
+      await page.locator('#characterAdvanced > summary').click();
       for (const [key, value] of Object.entries(draft)) await page.locator(`#characterForm [name="${key}"]`).fill(value);
-      await page.getByRole('button', { name: 'Save character' }).click();
+      await page.getByRole('button', { name: 'Create character' }).click();
       await page.locator('#createResult.err').waitFor();
       expect(await page.locator('#createResult').innerText()).toContain('prior');
       expect(await page.locator('#characterForm [name="heroImage"]').inputValue()).toBe(draft.heroImage);

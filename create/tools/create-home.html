@@ -1,17 +1,27 @@
 <!doctype html>
 <!--
-  Create — the home page of the Create studio ("What will you create today?").
+  Create — the home page of the Create studio: your work first, one New at the bottom right.
   Served by create-routes at /api/create/home. Self-contained: no CDN scripts,
   no inline event handlers, cockpit-iframe friendly.
 
-  Everything it shows is real: the studio rail comes from this app's own cockpit
-  profile (GET /api/ui/profile?name=create), "Continue creating" and "This week"
-  come from each member studio's Home summary probe (GET /api/<app>/home-summary),
-  asked here in the signed-in user's own session — never impersonated, never cached
-  server-side. A probe that fails or times out renders "can't check", not a zero.
+  Everything it shows is real: "Continue creating" and "This week" come from each member
+  studio's Home summary probe (GET /api/<app>/home-summary), asked here in the signed-in
+  user's own session — never impersonated, never cached server-side. A probe that fails or
+  times out renders "can't check", not a zero. A saved Create image is drawn by the image
+  editor's own renderer from the person's own project (GET /api/create/projects/<id>); every
+  other studio's card is a tinted cover with the studio glyph and the title, because no
+  member summary carries a picture.
+
+  The New sheet (phone) or dialog (desktop) is the former New screen (/api/create/new now
+  forwards here with ?new=1): a Blank row first, each opening a blank ready document in the
+  studio that owns it, then templates with search and one row of format chips. The Office
+  templates come from AI Office's OWN starter catalog (GET /api/presentations/sections/starters).
 
   Navigation speaks the ribbon's `app-navigate` dialect (postMessage to the
-  cockpit shell); opened standalone, a tile falls back to the studio's own URL.
+  cockpit shell); opened standalone, a card falls back to the studio's own URL.
+
+  Framed with ?audience=family|company (the shells, ADR-164 D6) the page paints the shared
+  kit's read-only card of the person's own image projects instead and starts nothing else.
 
   CHANGE LOG
   -----------------------------------------------------------------------------
@@ -30,6 +40,13 @@
   11  | maintainer@emeraldcoastsystemsgroup.com     | Add Video Studio's manual timeline editor as its own studio card and an Edit video quick start (CREATE-EDIT-05d). It shares Video Studio's access answer and summary, so its catalog entry is marked summary: false and is never probed twice.
   12  | maintainer@emeraldcoastsystemsgroup.com     | Add Brand Graphics as a studio card and a Brand intro clip quick start; both open the brand-graphics package's own review page, behind the same access check as every studio.
   13  | maintainer@emeraldcoastsystemsgroup.com     | Add the existing CAD editor, parametric-model quick start and owner summary behind the studio access checks.
+  14  | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (create--create-home FIX-LAYOUT, create--create-new MERGE): the first screen is your work as picture cards, newest first (a real render for saved images, a tinted cover with the studio glyph elsewhere), with skeletons while the studios answer, meta in words ("Image editor · 2 days ago", "Built · revision 1") and a tap that opens; ⋯ holds Open plus greyed Rename/Duplicate/Delete placeholders. One New at the bottom right opens the merged New sheet/dialog: a Blank row first (each a real blank start in its studio), greyed Custom size and Import a file, then templates with search, one row of 44px format chips and "No templates match" + Clear. Search sits in the app row (behind an icon on a phone) over work and templates; "Set up your brand" is one 44px row only while no kit exists; the hero, the section pills, the quick-start grid and the studios grid are gone (the rail lists the studios). Home is now Create's first surface, so the family/company audience view moves here from the New page unchanged (its studio list renamed AUDIENCE_STUDIOS) and the full start is gated on the kit's decision.
+  15  | maintainer@emeraldcoastsystemsgroup.com     | A start access refuses keeps the New sheet open (go() says whether it opened); a locked template is a card, not a button, so its Access link stays pressable; the 3D template preview keeps its stroke cube on the light gradient for contrast; a saved image's picture is contained in its card, never cropped.
+  16  | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (create--create-new): the Blank row's image start is two sized blanks, Image 1080 × 1080 and Image 1920 × 1080, each opening the editor's blank canvas at that size (?size=).
+  17  | maintainer@emeraldcoastsystemsgroup.com     | The trial check (visitor seat, 412x915): the shell's orb sat on New's right half. Home now reports New's top edge to the shell as --oshal-app-bottom-inset (the contract the shared editor already uses for its pane bar), so the orb rests above New on a phone; the property is removed when Home goes away.
+  19  | maintainer@emeraldcoastsystemsgroup.com     | The trial re-check: the orb still sat on New, because New is position:fixed and a fixed element's offsetParent is always null, so clearOrb removed the inset every time. It now reads New's box (a zero height means hidden) and runs again on load.
+  20  | maintainer@emeraldcoastsystemsgroup.com     | The trial sweep (@design-apply, 11:27Z): the Video clip template said "rendered on your own desktop worker", set-up wording a visitor cannot act on. It now says what the clip is.
+  18  | maintainer@emeraldcoastsystemsgroup.com     | The trial check (visitor seat): every template in the New sheet wore "Access: can't check" because the sixteen access probes share one 3 s limit while the kernel answers them in turn (~0.3 s each). The access probe waits 10 s (ACCESS_TIMEOUT_MS); a real failure still shows the badge.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -38,6 +55,62 @@
 <title>Create</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<!-- Audience view (ADR-164 D6). Home is Create's first surface, so Jarvis (the Home shell) frames this page with
+     ?audience=family and Studio, Orbit and Commons with ?audience=company (the old /api/create/new forwards its ?audience= here): the signed-in account's OWN image projects from GET /api/create/home-summary (the package's
+     bound summary read: project.view + project.read, owner-scoped), painted by the shared kit in each shell's grammar, and
+     what Create can open. The view asks no studio for its access, reads no AI Office starter catalog and writes nothing.
+     Any other request runs the full Create page below unchanged. -->
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var KICKER = 'Creative · Create';
+  var LEDE = 'Say what you are making (a resume, a budget, a launch deck, a headshot, a short video) and Create opens the studio that owns it, already set up. Your own image projects are listed here; looking starts nothing.';
+  var AUDIENCE_STUDIOS = [
+    ['AI Office', 'Presentations, documents and spreadsheets'], ['Portrait Studio', 'Headshots and character portraits'],
+    ['Video Studio', 'Short videos and the manual timeline editor'], ['Vids Studio', 'Clips rendered on your own worker'],
+    ['Stories', 'Kid-safe animated episodes'], ['3D Scan-to-Print', 'Printable objects from photos'], ['CAD Studio', 'Parametric parts and editable dimensions'], ['LoRA Studio', 'Characters, training images and captions'], ['Image editor', 'Layered image designs']
+  ];
+  var REFUSALS = { 401: 'Sign in to see your projects.', 403: 'Create is not available to this account.' };
+  function read() {
+    return fetch('/api/create/home-summary', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j && typeof j === 'object' ? j : {} }; });
+    }, function () { return { ok: false, status: 0, body: {} }; });
+  }
+  function openFull() { window.location.assign(window.location.pathname); }
+  function count(v) { return typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : null; }
+  // A project item is '<title>' with the detail 'Layered image · updated <ISO instant>' and one image-editor action.
+  function project(item) {
+    var d = String(item.detail || ''), at = d.indexOf(' · updated '), when = at < 0 ? '' : d.slice(at + 11);
+    var a = Array.isArray(item.actions) ? item.actions[0] : null;
+    var q = a && typeof a.query === 'string' && /^project=[A-Za-z0-9-]+$/.test(a.query) ? a.query : '';
+    return { title: String(item.text || 'Untitled project'), text: at < 0 ? d : d.slice(0, at),
+      meta: /^\d{4}-\d{2}-\d{2}T/.test(when) ? 'Updated ' + A.when(when) : '', href: q ? '/api/create/editor?' + q : undefined };
+  }
+  function refusal(res) {
+    var why = REFUSALS[res.status] || (res.status ? 'Your projects cannot be checked right now (HTTP ' + res.status + ').' : 'Create could not be reached.');
+    return { kicker: KICKER, title: 'Your projects are not available right now', lede: why + ' No figure is shown in its place.',
+      actions: [{ label: 'Open Create', primary: true, onClick: openFull }] };
+  }
+  function family() {
+    return read().then(function (res) {
+      if (!res.ok) return refusal(res);
+      var items = Array.isArray(res.body.items) ? res.body.items : [], metrics = Array.isArray(res.body.metrics) ? res.body.metrics : [];
+      var m = metrics[0] || null, n = m ? count(m.value) : null;
+      return { kicker: KICKER, title: n === null ? 'Your image projects' : n === 0 ? 'No image projects yet' : n + ' image project' + (n === 1 ? '' : 's'), lede: LEDE,
+        actions: [{ label: 'Open Create', primary: true, onClick: openFull }],
+        stats: m ? [{ id: 'image-projects', label: String(m.label || 'Image projects'), value: m.value, tone: n > 0 ? 'ok' : null, hint: n === null ? 'Could not be checked' : null }] : [],
+        sections: [
+          { kind: 'list', id: 'projects', title: 'Your image projects', wide: true, note: items.length ? 'Newest first. Each opens in the image editor.' : 'Nothing saved yet. Open Create to start one.', items: items.map(project) },
+          { kind: 'list', id: 'studios', title: 'What Create can open', wide: true, items: AUDIENCE_STUDIOS.map(function (s) { return { title: s[0], text: s[1] }; }) }
+        ] };
+    });
+  }
+  // ADR-164 D6: the Business shells' audience (company) paints this same account-scoped card in its own grammar.
+  A.boot({ app: 'create', escapeLabel: 'Open Create in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
 <!-- The package skin: the SAME tokens the cockpit wears while this app is focused. -->
 <link rel="stylesheet" href="/api/create/theme/create.css" />
 <style>
@@ -46,207 +119,259 @@
   :root {
     --bg: var(--bg-primary, #f8f7fd);
     --paper: var(--bg-card-hover, #ffffff);
+    --solid: var(--ds-surface, var(--bg-primary, #ffffff));
     --panel: var(--bg-tertiary, #f3f0fb);
+    --skel: var(--ds-surface-2, var(--bg-tertiary, #ece8f5));
     --line: var(--border-color, rgba(23,18,54,.08));
     --line-hover: var(--border-color-hover, rgba(23,18,54,.16));
     --text: var(--text-primary, #171236);
     --muted: var(--text-secondary, #4b4670);
     --faint: var(--text-muted, #8b86a8);
+    --disabled: var(--ds-ink-disabled, color-mix(in srgb, var(--text) 45%, var(--bg)));
     --accent: var(--accent-primary, #7d2ae8);
     --accent-hover: var(--accent-primary-hover, #6a1fcf);
+    --on-accent: var(--text-on-accent, #ffffff);
     --gradient: var(--accent-gradient, linear-gradient(135deg,#7d2ae8 0%,#a259ff 48%,#00c4cc 100%));
-    --glow: var(--accent-glow, rgba(125,42,232,.22));
     --ok: var(--status-success, #0f9d58);
     --warn: var(--status-warning, #d97706);
-    --hero: var(--create-hero, linear-gradient(120deg,var(--bg-tertiary),var(--bg-secondary)));
     --peach: var(--create-tint-peach, #ffe6d9);
     --lilac: var(--create-tint-lilac, #ebe2ff);
     --sky: var(--create-tint-sky, #dcefff);
     --mint: var(--create-tint-mint, #d9f7ec);
     --lemon: var(--create-tint-lemon, #fff3c9);
     --rose: var(--create-tint-rose, #ffe0ee);
+    --sheet-paper: var(--create-paper, #ffffff);
     --ink-on-tint: var(--create-ink-on-tint, #2a2350);
+    --scrim: var(--ds-scrim, rgba(10, 8, 30, .45));
     --shadow: var(--card-shadow, 0 2px 10px rgba(23,18,54,.06));
     --shadow-deep: var(--depth-shadow, 0 24px 60px rgba(23,18,54,.12));
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  html, body { margin: 0; background: var(--bg); color: var(--text); overscroll-behavior: contain; }
   body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
   button { font: inherit; color: inherit; }
   a { color: var(--accent); }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .hidden { display: none !important; }
 
-  main { max-width: 1240px; margin: 0 auto; padding: 0 28px 48px; }
-  @media (max-width: 720px) { main { padding: 0 16px 48px; } }
+  /* The work owns the scroll; the bottom keeps room for New (52px) above the shell's assistant button. */
+  main { max-width: 1240px; margin: 0 auto; padding: 0 24px 168px; }
+  @media (max-width: 600px) { main { padding: 0 16px 160px; } }
 
-  /* ── Hero ─────────────────────────────────────────────────────────────── */
-  .hero { position: relative; margin: 24px 0; padding: 26px; border: 1px solid var(--line); border-radius: 22px; background: var(--hero); }
-  .hero::before { content: ""; position: absolute; inset: 0; background: var(--glass-highlight); pointer-events: none; }
-  .hero > * { position: relative; }
-  .hero-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
-  .hero-heading > div { min-width: 0; }
-  .eyebrow { color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 7px; }
-  .hero h1 { margin: 0; font-size: clamp(25px, 3vw, 34px); line-height: 1.15; letter-spacing: -.035em; font-weight: 750; }
-  .intro { color: var(--muted); font-size: 14px; margin: 9px 0 0; }
-  .hero-heading .btn { flex: 0 0 auto; min-height: 44px; }
-  .seg { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px; border-radius: 12px; background: var(--panel); width: fit-content; margin-bottom: 22px; }
-  .seg button { border: 0; background: transparent; border-radius: 9px; padding: 9px 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
-  .seg button.on { background: var(--paper); color: var(--text); box-shadow: var(--shadow); }
-  .search { margin: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; height: 50px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line-hover); }
+  /* ── App row: the page title and search (an icon on a phone) ─────────────── */
+  .approw { display: flex; align-items: center; gap: 16px; min-height: 64px; padding: 10px 0 6px; }
+  .approw h1 { flex: 0 0 auto; margin: 0; font-size: 20px; letter-spacing: -0.02em; font-weight: 750; }
+  .search { flex: 1 1 auto; max-width: 560px; margin-left: auto; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px; height: 44px; border-radius: 12px; background: var(--solid); border: 1px solid var(--line-hover); }
   .search:focus-within { border-color: var(--accent); }
   .search svg { flex: 0 0 auto; color: var(--faint); }
-  .search input { flex: 1; border: 0; background: transparent; font-size: 15px; color: var(--text); min-width: 0; }
+  .search input { flex: 1; border: 0; background: transparent; font-size: 16px; color: var(--text); min-width: 0; }
   .search input::placeholder { color: var(--faint); }
-  .search .clear { border: 0; background: var(--panel); border-radius: 999px; width: 28px; height: 28px; cursor: pointer; color: var(--muted); display: none; }
+  .search .clear { border: 0; background: transparent; border-radius: 999px; width: 36px; height: 36px; cursor: pointer; color: var(--muted); display: none; font-size: 20px; line-height: 1; }
   .search.has-q .clear { display: inline-flex; align-items: center; justify-content: center; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-  .chips button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; }
-  .chips button .dot { width: 18px; height: 18px; border-radius: 6px; display: inline-block; }
-  .chips button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .icon-btn { display: none; flex: 0 0 auto; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text); cursor: pointer; align-items: center; justify-content: center; margin-left: auto; }
+  .icon-btn:hover { background: var(--panel); }
+  @media (max-width: 600px) {
+    .icon-btn { display: inline-flex; }
+    .approw .search { display: none; }
+    .approw.searching h1 { display: none; }
+    .approw.searching .search { display: flex; max-width: none; margin-left: 0; }
+    .approw.searching .icon-btn { margin-left: 0; }
+  }
+  #filterStatus { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  #filterStatus[hidden] { display: none; }
+  .link { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 0 4px; min-height: 44px; }
+  .link:hover { text-decoration: underline; }
+
+  /* ── Set up your brand: one 44px row, only while there is no kit ─────────── */
+  .brand-row[hidden] { display: none; }
+  .brand-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin: 0 0 14px; padding: 6px 14px 6px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--solid); text-align: left; cursor: pointer; }
+  .brand-row:hover { border-color: var(--line-hover); }
+  .brand-row .logo { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--gradient); color: var(--on-accent); font-weight: 800; font-size: 14px; }
+  .brand-row b { font-weight: 700; }
+  .brand-row .why { color: var(--muted); font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brand-row .chev { color: var(--muted); font-size: 18px; }
+  @media (max-width: 600px) { .brand-row .why { display: none; } .brand-row b { flex: 1; } }
 
   /* ── Sections ─────────────────────────────────────────────────────────── */
-  section { margin: 0 0 30px; scroll-margin-top: 20px; }
-  section:focus { outline: none; }
-  section:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 12px; }
-  .sec-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-bottom: 14px; }
-  h2 { margin: 0; font-size: 20px; letter-spacing: -0.02em; font-weight: 750; }
-  .sec-head .note { color: var(--muted); font-size: 12px; }
-  #filterStatus { color: var(--muted); font-size: 13px; margin: -8px 0 20px; }
-  .link { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 0; }
-  .link:hover { text-decoration: underline; }
-  .empty { color: var(--faint); padding: 26px; border: 1px dashed var(--line-hover); border-radius: 18px; text-align: center; }
+  section { margin: 0 0 30px; }
+  .sec-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-bottom: 12px; }
+  h2 { margin: 0; font-size: 18px; letter-spacing: -0.02em; font-weight: 750; }
+  .note { color: var(--muted); font-size: 12.5px; margin: 0; }
+  #recentNote { margin: -2px 0 12px; }
+  .empty { color: var(--muted); padding: 26px; border: 1px dashed var(--line-hover); border-radius: 16px; text-align: center; }
 
-  /* A wrapping grid keeps every starter reachable without a second horizontal rail. */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; }
-  .tile { position: relative; min-width: 0; text-align: left; border: 1px solid transparent; border-radius: 16px; padding: 82px 14px 14px; min-height: 140px; cursor: pointer; color: var(--ink-on-tint); display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; transition: transform .15s ease, box-shadow .15s ease; overflow: hidden; }
-  .tile:hover { transform: translateY(-3px); box-shadow: var(--shadow-deep); }
-  .tile .art { position: absolute; right: 12px; top: 12px; width: 88px; height: 66px; filter: drop-shadow(0 8px 14px rgba(23,18,54,.16)); transition: transform .2s ease; }
-  .tile:hover .art { transform: translateY(-3px) rotate(-3deg); }
-  .tile b { font-size: 14px; font-weight: 750; letter-spacing: -0.01em; overflow-wrap: anywhere; }
-  .tile span { font-size: 12px; }
-  .tile.hidden { display: none; }
-  .tile.locked { cursor: not-allowed; filter: saturate(.35); opacity: .8; }
-  .tile .lock { position: absolute; left: 12px; top: 12px; font-size: 10.5px; font-weight: 800; color: #fff; background: rgba(23,18,54,.72); border-radius: 999px; padding: 3px 9px; }
-  .card.locked { opacity: .85; cursor: not-allowed; }
-  .card .blurb .access { color: var(--accent); font-weight: 700; text-decoration: none; }
+  /* ── Work: picture cards, 2 columns on a phone, auto-fill 160px on desktop (§4.5) ── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+  @media (max-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+  .wcard { position: relative; min-width: 0; }
+  .wopen { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: var(--text); }
+  .wopen:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 10px; }
+  .thumb { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 8px; }
+  .wopen:hover .thumb { border-color: var(--line-hover); box-shadow: var(--shadow); }
+  .thumb canvas.render { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--sheet-paper); }
+  .sheetp { position: relative; display: flex; flex-direction: column; gap: 4px; background: var(--sheet-paper); color: var(--ink-on-tint); border-radius: 4px; box-shadow: 0 6px 16px rgba(23,18,54,.14); padding: 8% 9%; overflow: hidden; }
+  .sheetp[data-shape="slide"] { width: 84%; aspect-ratio: 16 / 9; }
+  .sheetp[data-shape="page"] { height: 86%; aspect-ratio: 1 / 1.294; }
+  .sheetp[data-shape="land"] { width: 80%; aspect-ratio: 4 / 3; }
+  .sheetp[data-shape="square"] { height: 80%; aspect-ratio: 1 / 1; }
+  .sheetp svg { width: 30px; height: 22px; flex: 0 0 auto; }
+  .sheetp .ctitle { font-size: 11px; line-height: 1.25; font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .wcard .title { font-weight: 650; font-size: 14px; line-height: 1.35; padding-right: 40px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .wcard .meta, .wcard .state { color: var(--muted); font-size: 12px; line-height: 1.4; padding-right: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wcard .state.warn { color: var(--warn); }
+  /* ⋯ sits at the card's bottom right, beside the caption, never on the picture. */
+  .wcard .more { position: absolute; right: -8px; bottom: -6px; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text); cursor: pointer; font-size: 20px; line-height: 1; }
+  .wcard .more:hover { background: var(--panel); }
+  .wcard.locked .wopen { cursor: not-allowed; }
+  .skel .thumb, .skel .bar { background: var(--skel); border-color: transparent; }
+  .skel .bar { display: block; height: 12px; border-radius: 6px; margin: 6px 0; width: 80%; }
+  .skel .bar.short { width: 50%; }
+  @media (prefers-reduced-motion: no-preference) { .skel .thumb, .skel .bar { animation: pulse 1.4s ease-in-out infinite; } }
+  @keyframes pulse { 50% { opacity: .55; } }
   .t-peach { background: var(--peach); } .t-lilac { background: var(--lilac); } .t-sky { background: var(--sky); }
   .t-mint { background: var(--mint); } .t-lemon { background: var(--lemon); } .t-rose { background: var(--rose); }
 
-  /* Continue creating + studios: card grids. */
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 14px; }
-  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
-  #recentGrid .card { border-top: 3px solid var(--accent); }
-  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); border-color: var(--line-hover); }
-  .card.hidden { display: none; }
-  .badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-  .badge .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-  .card .title { font-weight: 700; font-size: 15.5px; overflow-wrap: anywhere; }
-  .card .detail { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .card .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
-  .card .when { color: var(--faint); font-size: 12px; }
-  .btn { border: 0; border-radius: 12px; padding: 9px 14px; font-weight: 700; cursor: pointer; background: var(--accent); color: var(--text-on-accent, #fff); transition: background .12s ease, transform .12s ease; }
-  .btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
-  .btn.ghost { background: var(--panel); color: var(--text); }
-  .studio { flex-direction: row; align-items: center; gap: 14px; cursor: pointer; text-align: left; }
-  .studio > div { min-width: 0; overflow-wrap: anywhere; }
-  .studio .mark { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; }
-  .studio .mark svg { width: 30px; height: 30px; }
-  .studio .name { font-weight: 750; font-size: 15.5px; }
-  .studio .blurb { color: var(--muted); font-size: 12.5px; }
-  .warnline { color: var(--warn); font-size: 12.5px; margin: 8px 0 0; }
-
   /* This week: metric pills. */
   .metrics { display: flex; flex-wrap: wrap; gap: 10px; }
-  .metric { display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; align-items: center; gap: 10px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .metric { display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; align-items: center; gap: 10px; background: var(--solid); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
   .metric .sw { width: 10px; height: 10px; border-radius: 3px; }
   .metric strong { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
   .metric span { color: var(--muted); font-size: 12.5px; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; padding-top: 12px; border-top: 1px solid var(--line); }
 
-  footer { color: var(--faint); font-size: 12px; text-align: center; padding-top: 12px; border-top: 1px solid var(--line); }
-  #status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
-  #status.show { opacity: 1; }
-  @media (max-width: 600px) { .hero { margin-top: 16px; padding: 20px; } .hero-heading { flex-direction: column; align-items: flex-start; gap: 16px; } .hero-heading .btn { width: 100%; } .hero h1 { font-size: 27px; } }
-  /* ── Your brand: the kit every studio reads ──────────────────────────────── */
-  .brand-band[hidden] { display: none; }
-  .brand-band { display: flex; align-items: center; gap: 18px; margin: 0 0 24px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); }
-  .brand-band .logo { flex: 0 0 auto; width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); }
-  .brand-band .logo img { max-width: 52px; max-height: 52px; object-fit: contain; }
-  .brand-band .logo.empty { background: var(--gradient); color: #fff; font-weight: 800; font-size: 22px; }
-  .brand-band .copy { flex: 1; min-width: 0; }
-  .brand-band h2 { font-size: 16px; }
-  .brand-band p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
-  .brand-band .sws { display: flex; gap: 6px; margin-top: 8px; }
-  .brand-band .sws span { width: 22px; height: 22px; border-radius: 7px; border: 1px solid var(--line); }
-  @media (max-width: 600px) { .brand-band { flex-wrap: wrap; } .brand-band .btn { width: 100%; } }
-  /* Phone launchers keep every document format in a compact, readable grid. */
+  /* ── One New, bottom right (52px), lifted above the shell's 48px assistant button ── */
+  .fab { position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 5; display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px; border: 0; border-radius: 16px; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: var(--shadow-deep); }
+  .fab:hover { background: var(--accent-hover); }
+  .fab, .blank, .card, .wopen { -webkit-tap-highlight-color: transparent; }
+  .fab svg { width: 22px; height: 22px; }
+
+  /* ── Row menu (⋯): top layer, opaque, 44px rows (§4.3) ───────────────────── */
+  .menu { margin: 0; padding: 6px; min-width: 220px; border: 1px solid var(--line-hover); border-radius: 14px; background: var(--solid); color: var(--text); box-shadow: var(--shadow-deep); }
+  .menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; }
+  .menu button:hover:not([data-ds-not-yet]) { background: var(--panel); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+  [data-ds-not-yet] { color: var(--disabled) !important; cursor: default !important; background: transparent; }
+  [data-ds-not-yet] small, [data-ds-not-yet] .nyet { margin-left: auto; font-size: 12px; color: inherit; }
+
+  /* ── The New sheet (phone) / dialog (desktop) ────────────────────────────── */
+  dialog.sheet { padding: 0; border: 1px solid var(--line-hover); border-radius: 20px; background: var(--solid); color: var(--text); width: min(760px, calc(100vw - 48px)); max-width: none; max-height: min(88vh, 920px); box-shadow: var(--shadow-deep); overflow: hidden; }
+  dialog.sheet[open] { display: flex; flex-direction: column; }
+  dialog.sheet::backdrop { background: var(--scrim); }
+  .sheet .handle { display: none; width: 36px; height: 5px; border-radius: 3px; background: var(--disabled); margin: 8px auto 0; }
+  .sheet-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 56px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--line); }
+  .sheet-head h2 { font-size: 18px; }
+  .tertiary { border: 0; background: none; color: var(--accent); font-weight: 700; min-height: 44px; padding: 0 12px; border-radius: 10px; cursor: pointer; }
+  .sheet-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px 28px; }
+  .sheet-body h3 { margin: 0 0 10px; font-size: 15px; font-weight: 750; }
+  .sheet-body section { margin-bottom: 22px; }
   @media (max-width: 600px) {
-    .hero { padding: 16px; margin-bottom: 18px; }
-    .hero-heading { gap: 12px; margin-bottom: 14px; }
-    .hero h1 { font-size: 25px; }
-    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .tile { min-height: 112px; padding: 48px 12px 12px; border-radius: 12px; }
-    .tile .art { top: 10px; right: 12px; width: 42px; height: 32px; }
-    .tile b { font-size: 13px; line-height: 1.35; }
-    .tile span { line-height: 1.4; }
-    .tile .lock { font-size: 9px; padding: 2px 6px; }
-    .chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
-    .chips button { flex: 0 0 auto; min-height: 44px; }
-    .seg { width: 100%; }
-    .seg button { flex: 1; min-height: 44px; padding: 8px; }
-    .studio { padding: 14px; }
+    dialog.sheet { width: 100vw; max-width: 100vw; height: calc(100dvh - 8px); max-height: none; margin: auto 0 0; border-radius: 20px 20px 0 0; border-bottom: 0; }
+    .sheet .handle { display: block; }
+    .sheet-body { padding: 14px 16px 28px; }
   }
-  @media (prefers-reduced-motion: reduce) { .tile, .card, .btn, .tile .art { transition: none; } }
+  /* Blank row: one row, sideways on a phone. */
+  .blankrow { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
+  .blank { flex: 0 0 96px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; text-align: center; scroll-snap-align: start; color: var(--text); }
+  .blank .bthumb { position: relative; display: grid; place-items: center; width: 96px; height: 72px; border-radius: 10px; border: 1px solid var(--line); }
+  .blank:hover:not([data-ds-not-yet]) .bthumb { border-color: var(--accent); }
+  .blank .bthumb > svg { width: 64px; height: 48px; filter: drop-shadow(0 6px 10px rgba(23,18,54,.14)); }
+  .blank[data-ds-not-yet] .bthumb > svg { width: 26px; height: 26px; filter: none; }
+  .blank b { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
+  .blank span.hint { font-size: 11px; color: var(--muted); line-height: 1.2; }
+  .blank[data-ds-not-yet] .bthumb { background: var(--skel); border-style: dashed; }
+  .blank[data-ds-not-yet] span.hint { color: inherit; }
+  .blank.locked { cursor: not-allowed; }
+  .blank.locked .bthumb { filter: saturate(.35); }
+  .lockdot { position: absolute; left: 4px; bottom: 4px; font-size: 10px; font-weight: 800; color: var(--on-accent); background: rgba(23,18,54,.72); border-radius: 999px; padding: 1px 6px; }
+  .import { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin-top: 8px; padding: 0 12px; border: 1px dashed var(--line-hover); border-radius: 12px; text-align: left; }
+  .import svg { width: 20px; height: 20px; }
+  /* Templates: search, then one sideways row of 44px format chips. */
+  .sheet .search { max-width: none; margin: 0 0 10px; }
+  .fchips, .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin-bottom: 8px; scrollbar-width: thin; }
+  .chips:empty { display: none; }
+  .fchips button, .chips button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1px solid var(--line-hover); border-radius: 999px; background: var(--solid); color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .fchips button .c { color: var(--muted); font-size: 12px; }
+  .fchips button[aria-pressed="true"], .chips button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .fchips button[aria-pressed="true"] .c { color: inherit; }
+  .chips .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .sec { margin-bottom: 20px; }
+  .sec h4 { margin: 0 0 4px; font-size: 14px; font-weight: 750; }
+  .sec .sub { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+  .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  @media (max-width: 600px) { .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+  .nomatch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 18px; border: 1px dashed var(--line-hover); border-radius: 14px; color: var(--muted); }
+  .nomatch b { color: var(--text); }
+  .btn2 { min-height: 44px; padding: 0 16px; border: 1px solid var(--line-hover); border-radius: 12px; background: var(--solid); color: var(--text); font-weight: 600; cursor: pointer; }
+
+  /* Template card: a drawn preview from the template's own section titles, one caption line. */
+  .card { display: flex; flex-direction: column; min-width: 0; border: 0; padding: 0; background: none; text-align: left; cursor: pointer; color: var(--text); }
+  .card .pv { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; border: 1px solid var(--line); padding: 30px 10px 0; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
+  .card:hover .pv { border-color: var(--line-hover); box-shadow: var(--shadow); }
+  .card .pv .badge { position: absolute; left: 8px; top: 7px; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; color: var(--ink-on-tint); background: var(--sheet-paper); border-radius: 999px; padding: 2px 8px; max-width: calc(100% - 44px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .pv .icon { position: absolute; right: 8px; top: 5px; font-size: 15px; }
+  .card .name { font-weight: 650; font-size: 14px; margin: 8px 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card.locked { cursor: not-allowed; }
+  .card.locked .pv { filter: saturate(.35); }
+  .card .pv .lock { position: absolute; left: 6px; bottom: 6px; font-size: 10.5px; font-weight: 800; color: var(--on-accent); background: rgba(23,18,54,.72); border-radius: 999px; padding: 3px 8px; }
+  .card .pv .lock.unknown { background: rgba(217,119,6,.85); }
+  .card .access { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; color: var(--accent); font-weight: 700; font-size: 13px; text-decoration: none; }
+  /* Drawn previews: a page, a slide, a sheet — with the starter's real section titles as strips. */
+  .mock { background: var(--sheet-paper); border-radius: 6px 6px 0 0; box-shadow: 0 8px 20px rgba(23,18,54,.14); overflow: hidden; }
+  .mock.page { width: 58%; height: 100%; padding: 10px 9px; }
+  .mock.slide { width: 92%; height: 92%; padding: 9px 10px; }
+  .mock.sheet { width: 92%; height: 96%; padding: 0; }
+  .mock .t { height: 7px; border-radius: 3px; background: var(--accent); margin-bottom: 6px; }
+  .mock.slide .t { width: 60%; }
+  .mock .l { height: 3px; border-radius: 2px; background: #d9d3ee; margin-bottom: 4px; }
+  .mock .h { font-size: 7px; font-weight: 800; color: var(--ink-on-tint); margin: 4px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mock.slide .cols { display: flex; gap: 6px; }
+  .mock.slide .col { flex: 1; min-width: 0; }
+  .mock.slide .bar { border-radius: 2px 2px 0 0; background: var(--accent); opacity: .85; }
+  .mock.sheet .hd { display: flex; background: var(--accent); }
+  .mock.sheet .hd span, .mock.sheet .r span { flex: 1; font-size: 6px; padding: 2px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mock.sheet .hd span { color: var(--on-accent); font-weight: 800; }
+  .mock.sheet .r { display: flex; border-bottom: 1px solid #ece8f5; }
+  .mock.sheet .r span { color: #4b4670; }
+  .mock.sheet .r.tot span { font-weight: 800; color: var(--accent); }
+  .mock.photo { width: 62%; height: 100%; display: grid; place-items: center; background: linear-gradient(180deg, var(--sheet-paper), #f3f0fb); }
+  .mock.photo.cube { color: #225e65; }
+  .mock.photo svg { width: 70%; height: 70%; }
+  .mock.phone { width: 36%; height: 100%; border-radius: 10px 10px 0 0; padding: 7px 6px; }
+  .mock.phone .screen { height: 100%; border-radius: 5px; background: var(--accent); display: grid; place-items: center; }
+  .mock.phone .screen svg { width: 22px; height: 22px; }
+  .mock.design { width: 92%; height: 92%; background: #231f42; }
+
+  #status { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 6; }
+  #status.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { #status { transition: none; } }
 </style>
 </head>
 <body>
-<main>
-  <section class="hero" aria-labelledby="heroTitle">
-    <div class="hero-heading">
-      <div><p class="eyebrow">Create / Home</p><h1 id="heroTitle">Your creative workspace</h1>
-      <p class="intro">Pick up a project or make something new.</p></div>
-      <button type="button" class="btn" id="seeAll">Browse templates <span aria-hidden="true">↗</span></button>
-    </div>
+<main id="work" data-ds-work>
+  <div class="approw" id="appRow">
+    <h1 id="recentTitle">Continue creating</h1>
     <form class="search" id="searchForm" role="search" autocomplete="off">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-      <input id="q" type="search" placeholder="Search starters, studios and your recent work" aria-label="Search starters, studios and your recent work" />
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+      <input id="q" type="search" placeholder="Search your work and templates" aria-label="Search your work and templates" />
       <button type="button" class="clear" id="clearQ" aria-label="Clear search">×</button>
     </form>
-  </section>
-
-  <section class="brand-band" id="brandBand" aria-labelledby="brandTitle" hidden>
-    <div class="logo empty" id="brandLogo" aria-hidden="true">B</div>
-    <div class="copy"><h2 id="brandTitle">Your brand</h2><p id="brandLine">Set your colors, fonts and logo once. Every studio uses them.</p><div class="sws" id="brandSws"></div></div>
-    <button type="button" class="btn ghost" id="brandOpen">Set up brand kit</button>
-  </section>
-  <nav class="seg" aria-label="On this page">
-    <button type="button" class="on" data-jump="recent" aria-pressed="true">Recent work</button>
-    <button type="button" data-jump="starters" aria-pressed="false">Quick start</button>
-    <button type="button" data-jump="studios" aria-pressed="false">Studios</button>
-  </nav>
+    <button type="button" class="icon-btn" id="searchToggle" aria-label="Search" aria-expanded="false" aria-controls="searchForm"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg></button>
+  </div>
   <p id="filterStatus" role="status" hidden></p>
 
-  <section id="recent" aria-labelledby="recentTitle" tabindex="-1">
-    <div class="sec-head"><h2 id="recentTitle">Continue creating</h2><span class="note" id="recentNote">Checking your studios…</span></div>
-    <div class="grid" id="recentGrid" aria-live="polite"></div>
+  <button type="button" class="brand-row" id="brandBand" hidden>
+    <span class="logo" aria-hidden="true">B</span><b id="brandTitle">Set up your brand</b>
+    <span class="why">Colors, fonts and logo every studio uses</span><span class="chev" aria-hidden="true">›</span>
+  </button>
+
+  <section id="recent" aria-labelledby="recentTitle">
+    <p class="note" id="recentNote">Checking your studios…</p>
+    <div class="grid" id="recentGrid" aria-live="polite" aria-busy="true"></div>
   </section>
 
-  <section id="starters" aria-labelledby="startersTitle" tabindex="-1">
-    <div class="sec-head"><h2 id="startersTitle">Quick start</h2><span class="note">Choose a format to open its studio.</span></div>
-    <div class="chips" id="chips" role="group" aria-label="Filter starters">
-      <button type="button" data-cat="all" class="on"><span class="dot" style="background:var(--gradient)"></span>Everything</button>
-      <button type="button" data-cat="documents"><span class="dot" style="background:#ff8a5b"></span>Documents</button>
-      <button type="button" data-cat="images"><span class="dot" style="background:#7d2ae8"></span>Portraits</button>
-      <button type="button" data-cat="video"><span class="dot" style="background:#2f9bff"></span>Video</button>
-      <button type="button" data-cat="story"><span class="dot" style="background:#ffb020"></span>Stories</button>
-      <button type="button" data-cat="training"><span class="dot" style="background:#10b981"></span>Training</button>
-      <button type="button" data-cat="3d"><span class="dot" style="background:#00b8c4"></span>3D &amp; print</button>
-    </div>
-    <div class="tiles" id="starterTiles"></div>
-  </section>
-
-  <section id="studios" aria-labelledby="studiosTitle" tabindex="-1">
-    <div class="sec-head"><h2 id="studiosTitle">Your studios</h2><span class="note">Everything installed, one rail.</span></div>
-    <div class="grid" id="studioGrid"></div>
+  <section id="templateHits" aria-labelledby="hitsTitle" hidden>
+    <div class="sec-head"><h2 id="hitsTitle">Templates</h2><button type="button" class="link" id="hitsAll">See all in New</button></div>
+    <div class="tgrid" id="hitGrid"></div>
   </section>
 
   <section id="week" aria-labelledby="weekTitle">
@@ -256,6 +381,32 @@
 
   <footer>Create is part of oshal. Every studio here is yours — nothing is generated or sent from this page.</footer>
 </main>
+
+<button type="button" class="fab" id="newBtn" aria-haspopup="dialog" aria-controls="newSheet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New</button>
+
+<dialog class="sheet" id="newSheet" aria-labelledby="newTitle">
+  <div class="handle" id="sheetHandle" aria-hidden="true"></div>
+  <header class="sheet-head" id="sheetHead"><h2 id="newTitle">New</h2><button type="button" class="tertiary" id="newDone">Done</button></header>
+  <div class="sheet-body">
+    <section aria-labelledby="blankTitle">
+      <h3 id="blankTitle">Start blank</h3>
+      <div class="blankrow" id="blankRow" role="group" aria-labelledby="blankTitle"></div>
+      <button type="button" class="import" id="importFile" aria-disabled="true" data-ds-not-yet data-ds-backlog="RP-CRE-03" aria-label="Import a file, not available yet" title="Not available yet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>Import a file<small>Not available yet</small></button>
+    </section>
+    <section aria-labelledby="tplTitle">
+      <h3 id="tplTitle">Templates</h3>
+      <form class="search" id="tplSearchForm" role="search" autocomplete="off">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="tq" type="search" placeholder="What would you like to create?" aria-label="Search templates" />
+        <button type="button" class="clear" id="tplClear" aria-label="Clear template search">×</button>
+      </form>
+      <div class="fchips" id="cats" role="group" aria-label="Template formats"></div>
+      <div class="chips" id="chips" role="group" aria-label="Purpose"></div>
+      <div id="sections"></div>
+    </section>
+  </div>
+</dialog>
+<div class="menu" id="cardMenu" popover role="menu" aria-label="Work actions"></div>
 <div id="status" role="status" aria-live="polite"></div>
 
 <script>
@@ -285,30 +436,65 @@
     { tool: 'create-cad-studio', app: 'cad-studio', name: 'CAD Studio', swatch: '#0d9488', tint: 'mint', art: 'cube', url: '/api/cad-studio/app', blurb: 'Design parametric parts with editable dimensions and feature history.' }
   ];
   var byTool = {}; STUDIOS.forEach(function (s) { byTool[s.tool] = s; });
-  byTool['create-new'] = { tool: 'create-new', name: 'Create', url: '/api/create/new' };
   byTool['create-brand'] = { tool: 'create-brand', name: 'Brand Kit', url: '/api/create/brand' };
 
-  /* ── Starters: the shapes you can begin with, each opening its studio ─────── */
-  var STARTERS = [
-    { id: 'image-design', label: 'Image design', hint: 'Editable layers', cat: 'images', tool: 'create-editor', tint: 'lilac', art: 'portrait' },
-    { id: 'deck',      label: 'Presentation',       hint: 'Themed deck',          cat: 'documents', tool: 'create-office',   tint: 'peach', art: 'deck',      query: 'kind=pptx' },
-    { id: 'doc',       label: 'Document',           hint: 'Word document',        cat: 'documents', tool: 'create-office',   tint: 'lilac', art: 'doc',       query: 'kind=docx' },
-    { id: 'sheet',     label: 'Spreadsheet',        hint: 'Live workbook',        cat: 'documents', tool: 'create-office',   tint: 'mint',  art: 'sheet',     query: 'kind=xlsx' },
-    { id: 'publication', label: 'Publication layout', hint: 'Multi-page layout & print', cat: 'documents', tool: 'create-publishing-studio', tint: 'rose', art: 'doc' },
-    { id: 'pdf-workbench', label: 'PDF workbench',  hint: 'Edit, OCR & merge PDFs', cat: 'documents', tool: 'create-pdf-workbench', tint: 'peach', art: 'doc' },
-    { id: 'headshot',  label: 'Headshot',           hint: 'Studio portrait',      cat: 'images',    tool: 'create-portrait', tint: 'sky',   art: 'portrait' },
-    { id: 'character', label: 'Character portrait', hint: 'You, in a scene',      cat: 'images',    tool: 'create-portrait', tint: 'rose',  art: 'character' },
-    { id: 'group',     label: 'Group portrait',     hint: 'Everyone in one shot', cat: 'images',    tool: 'create-portrait', tint: 'lemon', art: 'group' },
-    { id: 'short',     label: 'Short video',        hint: 'Reels, Shorts, TikTok', cat: 'video',    tool: 'create-video',    tint: 'lilac', art: 'video' },
-    { id: 'clip',      label: 'Video clip',         hint: 'Rendered on the node', cat: 'video',     tool: 'create-vids',     tint: 'sky',   art: 'clip' },
-    { id: 'edit-video', label: 'Edit video',        hint: 'Trim and join clips',  cat: 'video',     tool: 'create-video-editor', tint: 'rose', art: 'clip' },
-    { id: 'motion-composition', label: 'Motion composition', hint: 'Keyframes & motion graphics', cat: 'video', tool: 'create-motion-studio', tint: 'lilac', art: 'clip' },
-    { id: 'brand-intro', label: 'Brand intro clip', hint: 'On-brand motion graphic', cat: 'video', tool: 'create-brand-graphics', tint: 'sky', art: 'clip' },
-    { id: 'episode',   label: 'Story episode',      hint: 'Kid-safe animation',   cat: 'story',     tool: 'create-story',    tint: 'peach', art: 'film' },
-    { id: 'lora',      label: 'LoRA character',     hint: 'Train your own look',  cat: 'training',  tool: 'create-lora',     tint: 'mint',  art: 'nodes' },
-    { id: 'scan-to-print', label: '3D scan to print', hint: 'Photos to a 3D model', cat: '3d', tool: 'create-scan-to-print', tint: 'mint', art: 'cube' },
-    { id: 'scene-3d',  label: '3D scene & model',   hint: 'Godot scene or Blender mesh', cat: '3d', tool: 'create-scene-studio', tint: 'sky', art: 'cube' },
-    { id: 'cad-model', label: 'CAD model', hint: 'Parametric parts & dimensions', cat: '3d', tool: 'create-cad-studio', tint: 'mint', art: 'cube' }
+  /* ── New sheet, Blank row: each opens a blank ready document in the studio that owns it ──
+     Image: the editor's own blank canvas; Office: a blank document of that kind (?kind=);
+     Video: the editor's empty timeline; Portrait, Story and 3D scan: the studio's first step.
+     Custom size is a planned control (§4.10): greyed, no handler. */
+  var BLANKS = [
+    { id: 'image-square', label: 'Image', hint: '1080 × 1080', tool: 'create-editor', query: 'size=1080x1080', tint: 'lilac', art: 'portrait' },
+    { id: 'image-wide', label: 'Image', hint: '1920 × 1080', tool: 'create-editor', query: 'size=1920x1080', tint: 'sky', art: 'portrait' },
+    { id: 'pptx', label: 'Presentation', hint: 'Blank slides', tool: 'create-office', query: 'kind=pptx', tint: 'peach', art: 'deck' },
+    { id: 'docx', label: 'Document', hint: 'Blank page', tool: 'create-office', query: 'kind=docx', tint: 'lilac', art: 'doc' },
+    { id: 'xlsx', label: 'Spreadsheet', hint: 'Blank workbook', tool: 'create-office', query: 'kind=xlsx', tint: 'mint', art: 'sheet' },
+    { id: 'video', label: 'Video', hint: 'Empty timeline', tool: 'create-video-editor', tint: 'rose', art: 'clip' },
+    { id: 'portrait', label: 'Portrait', hint: 'From one photo', tool: 'create-portrait', tint: 'sky', art: 'portrait' },
+    { id: 'story', label: 'Story', hint: 'A new brief', tool: 'create-story', tint: 'lemon', art: 'film' },
+    { id: 'scan', label: '3D scan', hint: 'Take photos', tool: 'create-scan-to-print', tint: 'mint', art: 'cube' }
+  ];
+
+  /* ── Template formats (one sideways row of chips). Office kinds carry the catalog's own groups. ── */
+  var CATEGORIES = [
+    { id: 'foryou',   name: 'All' },
+    { id: 'image',    name: 'Image designs' },
+    { id: 'pptx',     name: 'Presentations', office: true },
+    { id: 'docx',     name: 'Documents', office: true },
+    { id: 'xlsx',     name: 'Spreadsheets', office: true },
+    { id: 'portrait', name: 'Portraits' },
+    { id: 'video',    name: 'Video' },
+    { id: 'story',    name: 'Stories' },
+    { id: 'training', name: 'LoRA characters' },
+    { id: '3d',       name: '3D & print' }
+  ];
+  var TINT = { image: 'lilac', pptx: 'peach', docx: 'lilac', xlsx: 'mint', portrait: 'sky', video: 'rose', story: 'lemon', training: 'mint', '3d': 'mint' };
+  var SWATCH = { story: '#ff8a5b', explain: '#7d2ae8', meeting: '#2f9bff', sell: '#ffb020', career: '#7d2ae8', marketing: '#ff5c8a', writing: '#2f9bff', reports: '#10b981', money: '#10b981', plans: '#2f9bff', tracking: '#ffb020', sales: '#ff8a5b' };
+
+  /* ── Templates that are not Office starters: the other studios' shapes (image designs first). ── */
+  var OTHER = [
+    { id: 'image-templates', cat: 'image', group: 'designs', groupLabel: 'Editable designs', tool: 'create-editor', name: 'Image templates', desc: 'Start with an announcement, story, flyer, quote or cover. Every title, color and shape stays editable.', preview: 'design', query: 'templates=1' },
+    { id: 'publication', cat: 'docx', group: 'publishing', groupLabel: 'Publishing & PDF', tool: 'create-publishing-studio', name: 'Publication layout', desc: 'Design multi-page brochures, booklets, reports and print-ready spreads with master pages.', preview: 'design' },
+    { id: 'pdf-workbench', cat: 'docx', group: 'publishing', groupLabel: 'Publishing & PDF', tool: 'create-pdf-workbench', name: 'PDF workbench', desc: 'Inspect, reorder, merge, split, redact, OCR and export PDF documents.', preview: 'design' },
+    { id: 'headshot',  cat: 'portrait', group: 'professional', groupLabel: 'Professional', tool: 'create-portrait', name: 'Headshot',           desc: 'A studio portrait from one photo — for LinkedIn, a bio, a badge.', preview: 'photo' },
+    { id: 'character', cat: 'portrait', group: 'character',    groupLabel: 'Character',    tool: 'create-portrait', name: 'Character portrait', desc: 'Your face, or your pet’s, in a scene — superhero, astronaut, vintage tintype.', preview: 'photo' },
+    { id: 'group',     cat: 'portrait', group: 'group',        groupLabel: 'Group',        tool: 'create-portrait', name: 'Group portrait',     desc: 'Everyone from one photo, boxed and placed into a single scene together.', preview: 'photo' },
+    { id: 'short',     cat: 'video',    group: 'shortform',    groupLabel: 'Short-form',   tool: 'create-video',    name: 'Short video',        desc: 'Reels, Shorts and TikTok from a storyboard you approve before anything renders.', preview: 'phone' },
+    { id: 'clip',      cat: 'video',    group: 'render',       groupLabel: 'Render queue', tool: 'create-vids',     name: 'Video clip',         desc: 'A short clip made from a written brief and placed on a timeline.', preview: 'phone' },
+    { id: 'edit-video', cat: 'video',   group: 'editing',      groupLabel: 'Editing',      tool: 'create-video-editor', name: 'Edit video',      desc: 'Trim, split and reorder your own clips, add a title and music, then export an MP4.', preview: 'phone' },
+    { id: 'motion-composition', cat: 'video', group: 'motion', groupLabel: 'Motion graphics', tool: 'create-motion-studio', name: 'Motion composition', desc: 'Keyframe animations, motion graphics and visual effects on a multi-track timeline.', preview: 'phone' },
+    { id: 'brand-intro', cat: 'video', group: 'brand', groupLabel: 'Brand', tool: 'create-brand-graphics', name: 'Brand intro clip', desc: 'An on-brand oshal motion graphic from a short brief, made in Google Vids on your signed-in Chrome.', preview: 'phone' },
+    { id: 'episode',   cat: 'story',    group: 'episodes',     groupLabel: 'Episodes',     tool: 'create-story',    name: 'Story episode',      desc: 'A kid-safe animated episode from the rotating story library, produced on a schedule.', preview: 'phone' },
+    { id: 'scan-to-print', cat: '3d', group: 'objects', groupLabel: 'Objects', tool: 'create-scan-to-print', name: '3D scan to print', desc: 'Capture photos or upload views, review the model and prepare a 3D print.', preview: 'cube' },
+    { id: 'scene-3d',  cat: '3d',       group: 'scenes',       groupLabel: '3D scenes & models', tool: 'create-scene-studio', name: '3D scene & model', desc: 'Build 3D scenes and games in Godot or models in Blender with Cycles previews.', preview: 'cube' },
+    { id: 'cad-model', cat: '3d', group: 'cad', groupLabel: 'CAD parts', tool: 'create-cad-studio', name: 'CAD model', desc: 'Design parametric parts with editable dimensions and feature history.', preview: 'cube' },
+    { id: 'lora-character', cat: 'training', group: 'characters', groupLabel: 'Characters', tool: 'create-lora', name: 'LoRA character', desc: 'Organize training images, captions and character settings in your own workspace.', preview: 'photo' }
+  ];
+
+  /* ── Planned controls (§4.10): greyed, labelled, no handler. Each names its backlog entry. ── */
+  var PLANNED = [
+    { id: 'rename', label: 'Rename', backlog: 'RP-CRE-01' },
+    { id: 'duplicate', label: 'Duplicate', backlog: 'RP-CRE-01' },
+    { id: 'delete', label: 'Delete', backlog: 'RP-CRE-01' }
   ];
 
   /* ── Tiny illustrations (static markup, no user data) ────────────────────── */
@@ -320,16 +506,16 @@
       case 'doc': return s + '<rect x="22" y="4" width="44" height="58" rx="6" fill="#fff"/><rect x="30" y="14" width="20" height="5" rx="2.5" fill="#7d2ae8"/><rect x="30" y="24" width="28" height="3" rx="1.5" fill="#d9d3ee"/><rect x="30" y="31" width="28" height="3" rx="1.5" fill="#d9d3ee"/><rect x="30" y="38" width="22" height="3" rx="1.5" fill="#d9d3ee"/><rect x="30" y="45" width="26" height="3" rx="1.5" fill="#d9d3ee"/></svg>';
       case 'sheet': return s + paper + '<path d="M18 18h52M18 28h52M18 38h52M18 48h52M34 18v34M52 18v34" stroke="#d9d3ee" stroke-width="2"/><rect x="18" y="18" width="52" height="10" fill="#10b981" opacity=".25"/><rect x="36" y="40" width="14" height="6" rx="2" fill="#7d2ae8"/></svg>';
       case 'portrait': return s + '<rect x="18" y="4" width="52" height="58" rx="10" fill="#fff"/><circle cx="44" cy="26" r="10" fill="#7d2ae8"/><path d="M26 56c2-12 10-16 18-16s16 4 18 16" fill="#a259ff"/></svg>';
-      case 'character': return s + '<rect x="18" y="4" width="52" height="58" rx="10" fill="#fff"/><circle cx="44" cy="24" r="9" fill="#ff5c8a"/><path d="M28 56c2-12 9-15 16-15s14 3 16 15" fill="#ffb020"/><path d="M37 12l3 5h-6zM51 12l3 5h-6z" fill="#ff5c8a"/><circle cx="60" cy="16" r="3" fill="#00c4cc"/></svg>';
-      case 'group': return s + '<rect x="6" y="4" width="76" height="58" rx="10" fill="#fff"/><circle cx="26" cy="26" r="7" fill="#ffb020"/><circle cx="44" cy="22" r="8" fill="#7d2ae8"/><circle cx="62" cy="26" r="7" fill="#00c4cc"/><path d="M14 54c2-9 7-12 12-12s10 3 12 12M32 54c2-11 7-14 12-14s10 3 12 14M50 54c2-9 7-12 12-12s10 3 12 12" fill="#d9d3ee"/></svg>';
       case 'video': return s + '<rect x="30" y="2" width="28" height="62" rx="7" fill="#fff"/><rect x="34" y="8" width="20" height="46" rx="4" fill="#7d2ae8"/><path d="M41 24l10 7-10 7z" fill="#fff"/></svg>';
       case 'clip': return s + paper + '<rect x="18" y="14" width="52" height="30" rx="5" fill="#2f9bff"/><path d="M40 22l12 7-12 7z" fill="#fff"/><rect x="18" y="50" width="52" height="4" rx="2" fill="#d9d3ee"/><rect x="18" y="50" width="30" height="4" rx="2" fill="#00c4cc"/></svg>';
-      case 'film': return s + '<rect x="8" y="12" width="72" height="42" rx="6" fill="#fff"/><path d="M8 20h72M8 46h72" stroke="#d9d3ee" stroke-width="2"/><rect x="14" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="26" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="38" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="50" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="62" y="14" width="5" height="4" rx="1" fill="#ffb020"/><rect x="14" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="26" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="38" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="50" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="62" y="48" width="5" height="4" rx="1" fill="#ffb020"/><rect x="16" y="24" width="24" height="18" rx="3" fill="#ff8a5b"/><rect x="46" y="24" width="26" height="18" rx="3" fill="#7d2ae8"/></svg>';
+      case 'film': return s + '<rect x="8" y="12" width="72" height="42" rx="6" fill="#fff"/><path d="M8 20h72M8 46h72" stroke="#d9d3ee" stroke-width="2"/><rect x="16" y="24" width="24" height="18" rx="3" fill="#ff8a5b"/><rect x="46" y="24" width="26" height="18" rx="3" fill="#7d2ae8"/></svg>';
       case 'nodes': return s + paper + '<path d="M26 44L44 20L62 44M26 44h36M44 20v24" stroke="#10b981" stroke-width="2.5"/><circle cx="26" cy="44" r="6" fill="#7d2ae8"/><circle cx="62" cy="44" r="6" fill="#00c4cc"/><circle cx="44" cy="20" r="6" fill="#ff8a5b"/><circle cx="44" cy="44" r="4" fill="#10b981"/></svg>';
       case 'cube': return s + '<path d="M44 6 70 20v28L44 62 18 48V20z" fill="#fff"/><path d="m44 6 26 14-26 14-26-14z" fill="#b9efe2"/><path d="M44 34v28l26-14V20z" fill="#00b8c4"/><path d="M18 20 44 34 70 20M44 34v28" fill="none" stroke="#087f82" stroke-width="2"/></svg>';
       default: return s + paper + '</svg>';
     }
   }
+  /* The paper a format sits on: slides 16:9, pages Letter, models square. */
+  var SHAPE = { deck: 'slide', doc: 'page', sheet: 'land', portrait: 'page', character: 'page', video: 'page', clip: 'slide', film: 'slide', nodes: 'square', cube: 'square' };
 
   /* ── Access: what the signed-in person may open, from the authorization service (ADR-149) ──
      GET /api/authorization/me?app=<name> answers { status, tier, denied }: `legacy` = the package
@@ -337,8 +523,11 @@
      only when the tier is not deny. A studio that is not provisioned is shown LOCKED — never
      opened, its probes never asked — with the Access link an administrator uses. A probe that
      cannot answer (401/404/timeout) is 'unknown': the card stays, marked "can't check". */
+  /* Home asks all sixteen studios at once and the kernel answers them one after another (~0.3 s each on the trial,
+     2026-11-06), so a 3 s limit timed the last ones out and every template wore "Access: can't check". */
+  var ACCESS_TIMEOUT_MS = 10000;
   function accessFor(app) {
-    return fetchJson('/api/authorization/me?app=' + encodeURIComponent(app), 3000).then(function (a) {
+    return fetchJson('/api/authorization/me?app=' + encodeURIComponent(app), ACCESS_TIMEOUT_MS).then(function (a) {
       if (!a || typeof a !== 'object') return 'unknown';
       if (a.status === 'legacy') return 'open';
       return (a.denied !== true && typeof a.tier === 'string' && a.tier !== 'deny') ? 'open' : 'locked';
@@ -354,25 +543,34 @@
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = String(text); return n; }
   function svgNode(markup) { var w = document.createElement('div'); w.innerHTML = markup; return w.firstChild; }
   var statusEl = document.getElementById('status'), statusTimer = 0;
-  function toast(msg) { statusEl.textContent = msg; statusEl.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(function () { statusEl.classList.remove('show'); }, 2600); }
+  function toast(msg) { statusEl.textContent = msg; statusEl.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(function () { statusEl.classList.remove('show'); }, 4000); }
+  /** Planned control (§4.10): aria-disabled, "Not available yet" in its name and title, its backlog id, and no handler. */
+  function planned(cls, label, backlog, role) {
+    var b = el('button', cls); b.type = 'button'; if (role) b.setAttribute('role', role);
+    b.setAttribute('aria-disabled', 'true'); b.setAttribute('data-ds-not-yet', ''); b.setAttribute('data-ds-backlog', backlog);
+    b.setAttribute('aria-label', label + ', not available yet'); b.title = 'Not available yet';
+    return b;
+  }
 
   /* ── Navigation: the ribbon's app-navigate dialect, or the studio URL standalone ── */
   var embedded = (function () { try { return window.parent && window.parent !== window; } catch (_) { return false; } })();
   var surfaceUrls = {};   // toolName → iframeUrl, from this app's own cockpit profile
   var ACCESS = {};        // app → 'open' | 'locked' | 'unknown'
+  /** @returns {boolean} True when the studio opens; false when access refuses it (the toast says why). */
   function go(tool, query) {
     var studio = byTool[tool];
-    if (studio && studio.app === 'create' && ACCESS.create !== 'open') { toast('Image editor access could not be confirmed. Refresh this page or review Access.'); return; }
-    if (studio && studio.app && ACCESS[studio.app] === 'locked') { toast(studio.name + ' is not assigned to you — an administrator grants it in Access.'); return; }
+    if (studio && studio.app === 'create' && ACCESS.create !== 'open') { toast('Image editor access could not be confirmed. Refresh this page or review Access.'); return false; }
+    if (studio && studio.app && ACCESS[studio.app] === 'locked') { toast(studio.name + ' is not assigned to you — an administrator grants it in Access.'); return false; }
     if (embedded) {
       var msg = { type: 'app-navigate', tool: tool };
       if (query) msg.query = query;   // the cockpit appends it to the tile's own URL (kind / starter / theme)
       window.parent.postMessage(msg, window.location.origin);
       toast('Opening ' + (studio ? studio.name : tool) + '…');
-      return;
+      return true;
     }
-    var url = surfaceUrls[tool] || (studio && studio.url) || (tool === 'create-new' ? '/api/create/new' : '');
+    var url = surfaceUrls[tool] || (studio && studio.url) || '';
     if (url) window.location.assign(url + (query ? (url.indexOf('?') === -1 ? '?' : '&') + query : ''));
+    return Boolean(url);
   }
 
   /* Open-mode artifact exchange lands on Home; only its admitted editor receives the handle. */
@@ -392,109 +590,7 @@
     go('create-editor', 'artifact=' + encodeURIComponent(ref));
   }
 
-  /* ── Starters ─────────────────────────────────────────────────────────────── */
-  var tilesEl = document.getElementById('starterTiles');
-  STARTERS.forEach(function (st) {
-    var b = el('button', 'tile t-' + st.tint); b.type = 'button'; b.dataset.tool = st.tool; b.dataset.cat = st.cat; b.dataset.q = (st.label + ' ' + st.hint + ' ' + (byTool[st.tool] || {}).name).toLowerCase();
-    var a = svgNode(art(st.art)); a.setAttribute('class', 'art'); b.appendChild(a);
-    b.appendChild(el('b', null, st.label)); b.appendChild(el('span', null, st.hint));
-    b.setAttribute('aria-label', st.label + ' — opens ' + ((byTool[st.tool] || {}).name || st.tool));
-    b.dataset.app = (byTool[st.tool] || {}).app || '';
-    b.addEventListener('click', function () { go(st.tool, st.query || ''); });
-    tilesEl.appendChild(b);
-  });
-  function applyAccessToStarters() {
-    Array.prototype.forEach.call(tilesEl.children, function (t) {
-      var locked = ACCESS[t.dataset.app] === 'locked';
-      t.classList.toggle('locked', locked);
-      var tag = t.querySelector('.lock');
-      if (locked && !tag) { tag = el('span', 'lock', '🔒 Not provisioned'); t.appendChild(tag); }
-      if (!locked && tag) tag.remove();
-      t.setAttribute('aria-disabled', locked ? 'true' : 'false');
-    });
-  }
-
-  document.getElementById('seeAll').addEventListener('click', function () { go('create-new'); });
-
-  /* ── Filters: chips (category) + search (text) ────────────────────────────── */
-  var activeCat = 'all', query = '';
-  var qEl = document.getElementById('q'), form = document.getElementById('searchForm');
-  function applyFilters() {
-    var q = query.trim().toLowerCase();
-    form.classList.toggle('has-q', q.length > 0);
-    var shownStarters = 0, matches = 0;
-    Array.prototype.forEach.call(tilesEl.children, function (t) {
-      var ok = (activeCat === 'all' || t.dataset.cat === activeCat) && (!q || t.dataset.q.indexOf(q) !== -1);
-      t.classList.toggle('hidden', !ok); if (ok) shownStarters++;
-    });
-    ['recentGrid', 'studioGrid'].forEach(function (id) {
-      Array.prototype.forEach.call(document.getElementById(id).children, function (c) {
-        if (!c.dataset.q) return;
-        var visible = !q || c.dataset.q.indexOf(q) !== -1;
-        c.classList.toggle('hidden', !visible); if (visible) matches++;
-      });
-    });
-    var count = shownStarters + matches, status = document.getElementById('filterStatus');
-    status.hidden = !q;
-    status.textContent = count ? count + ' matches in your workspace' : 'No matches. Try another search or clear it to see your workspace.';
-    return shownStarters;
-  }
-  document.getElementById('chips').addEventListener('click', function (e) {
-    var b = e.target.closest('button[data-cat]'); if (!b) return;
-    activeCat = b.dataset.cat;
-    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); });
-    applyFilters();
-  });
-  qEl.addEventListener('input', function () { query = qEl.value; applyFilters(); });
-  document.getElementById('clearQ').addEventListener('click', function () { qEl.value = ''; query = ''; applyFilters(); qEl.focus(); });
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var first = tilesEl.querySelector('.tile:not(.hidden)');
-    if (first) first.click();
-  });
-
-  /* Section shortcuts scroll and transfer keyboard focus; all sections remain visible. */
-  document.querySelector('.seg').addEventListener('click', function (e) {
-    var b = e.target.closest('button[data-jump]'); if (!b) return;
-    Array.prototype.forEach.call(this.children, function (c) { c.classList.toggle('on', c === b); c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); });
-    var target = document.getElementById(b.dataset.jump);
-    if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ behavior: 'instant', block: 'start' }); }
-  });
-
-  /* ── Studios: from this app's OWN cockpit profile, so the cards are the rail ── */
-  var studioGrid = document.getElementById('studioGrid');
-  function renderStudios(items) {
-    studioGrid.replaceChildren();
-    var rendered = 0;
-    items.forEach(function (it) {
-      var tool = String(it.id || '').replace(/^tool-/, '');
-      var s = byTool[tool]; if (!s || !s.app) return;
-      var locked = ACCESS[s.app] === 'locked', unknown = !ACCESS[s.app] || ACCESS[s.app] === 'unknown';
-      var c = el('button', 'card studio' + (locked ? ' locked' : '')); c.type = 'button'; c.dataset.q = (s.name + ' ' + s.blurb).toLowerCase();
-      var mark = el('div', 'mark t-' + s.tint); mark.appendChild(svgNode(art(s.art))); c.appendChild(mark);
-      var body = el('div'); body.appendChild(el('div', 'name', it.label || s.name));
-      if (locked) { var why = el('div', 'blurb'); why.appendChild(document.createTextNode('🔒 Not assigned to you yet — an administrator grants it in Access. ')); why.appendChild(accessLink(s.app)); body.appendChild(why); c.setAttribute('aria-disabled', 'true'); }
-      else { body.appendChild(el('div', 'blurb', (unknown ? 'Access: can’t check · ' : '') + s.blurb)); }
-      c.appendChild(body);
-      c.addEventListener('click', function () { go(tool); });
-      studioGrid.appendChild(c); rendered++;
-    });
-    if (!rendered) studioGrid.appendChild(el('div', 'empty', 'No studio is installed yet. Install AI Office, Portrait Studio, Video Studio or LoRA Studio from the store and they appear here.'));
-  }
-  function loadProfile() {
-    return fetchJson('/api/ui/profile?name=create', 4000).then(function (body) {
-      // The profile endpoint answers { profile: {...} }; older builds answered the profile bare.
-      var p = (body && body.profile && typeof body.profile === 'object') ? body.profile : body;
-      var items = (p && p.ribbon && Array.isArray(p.ribbon.items)) ? p.ribbon.items : [];
-      items.forEach(function (it) { if (it && it.toolUi && it.toolUi.iframeUrl) surfaceUrls[String(it.id || '').replace(/^tool-/, '')] = it.toolUi.iframeUrl; });
-      renderStudios(items.filter(function (it) { return it && typeof it === 'object' && it.toolUi; }));
-    }).catch(function () {
-      // No profile (standalone open, or the loader is still booting): the catalog is the rail.
-      renderStudios(STUDIOS.map(function (s) { return { id: 'tool-' + s.tool, label: s.name, toolUi: { iframeUrl: s.url } }; }));
-    });
-  }
-
-  /* ── Member summaries: asked here, in the viewer's own session ───────────── */
+  /* ── Studio summaries: asked here, in the viewer's own session ───────────── */
   var PROBE_TIMEOUT_MS = 3000;
   function fetchJson(url, ms) {
     var ctl = new AbortController(); var t = setTimeout(function () { ctl.abort(); }, ms || PROBE_TIMEOUT_MS);
@@ -510,79 +606,452 @@
     if (days <= 0) return 'Today'; if (days === 1) return 'Yesterday'; if (days < 7) return days + ' days ago';
     return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   }
-  function stripWhen(detail) { return String(detail || '').replace(/\s*·\s*(?:updated|registered)?\s*\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, '').replace(ISO, '').trim(); }
 
+  /* ── Card meta in words: the studio's raw detail ('built / revision 1 / <date>') becomes a sentence. ── */
+  var FORMAT_WORDS = { pptx: 'PowerPoint', docx: 'Word document', xlsx: 'Excel workbook' };
+  function humanize(part, first) {
+    var s = String(part).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    return first && s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  }
+  function detailParts(detail) {
+    return String(detail || '').replace(new RegExp(ISO.source, 'g'), '').replace(/date unavailable/g, '').split(/[\/·]/)
+      .map(function (p) { return p.replace(/\b(?:updated|registered)\s*$/i, '').trim(); }).filter(Boolean);
+  }
+  function stateWords(studio, detail) {
+    var parts = detailParts(detail);
+    if (!parts.length) return '';
+    if (studio.app === 'presentations') {
+      var saved = /^saved (\w+) document$/i.exec(parts[0]);
+      return saved ? 'Saved ' + (FORMAT_WORDS[saved[1].toLowerCase()] || saved[1]) : humanize(parts[0], true);
+    }
+    if (studio.app === 'scan-to-print' && parts.length >= 2) return humanize(parts[0], true) + ' from ' + humanize(parts[1]).toLowerCase();
+    return parts.map(function (p, i) { return humanize(p, i === 0); }).join(' · ');
+  }
+  function metaWords(studio, detail) { var when = whenText(detail); return studio.name + (when ? ' · ' + when : ''); }
+  function matchWords(n) { return n + (n === 1 ? ' match' : ' matches'); }
+  function officeFormat(detail) { var m = /saved (pptx|docx|xlsx) document/i.exec(String(detail || '')); return m ? m[1].toLowerCase() : ''; }
+
+  /* ── Picture cards ─────────────────────────────────────────────────────── */
+  var OFFICE_ART = { pptx: 'deck', docx: 'doc', xlsx: 'sheet' };
+  /** A studio with no picture: a format-tinted cover with the studio glyph and the title. */
+  function cover(studio, item) {
+    var fmt = studio.app === 'presentations' ? officeFormat(item.detail) : '';
+    var kind = OFFICE_ART[fmt] || studio.art, tint = fmt === 'xlsx' ? 'mint' : fmt === 'docx' ? 'lilac' : studio.tint;
+    var thumb = el('span', 'thumb t-' + tint), paper = el('span', 'sheetp');
+    paper.setAttribute('data-shape', SHAPE[kind] || 'land');
+    paper.appendChild(svgNode(art(kind))); paper.appendChild(el('span', 'ctitle', item.text));
+    thumb.appendChild(paper); return thumb;
+  }
+  var rendererModule = null;
+  function loadRenderer() { if (!rendererModule) rendererModule = import('/api/create/editor/renderer.mjs'); return rendererModule; }
+  /** A saved Create image: the editor's own renderer draws the person's own saved document, scaled down. */
+  function paintProject(thumb, id) {
+    return Promise.all([loadRenderer(), fetchJson('/api/create/projects/' + encodeURIComponent(id), 6000)]).then(function (both) {
+      var R = both[0], doc = both[1] && both[1].project && both[1].project.document;
+      if (!doc) throw new Error('The saved project has no document.');
+      return R.loadProjectImages(doc).then(function (images) {
+        var full = document.createElement('canvas'); R.renderProject(full.getContext('2d'), doc, { images: images });
+        var scale = Math.min(1, 480 / Math.max(full.width, full.height)), small = document.createElement('canvas');
+        small.width = Math.max(1, Math.round(full.width * scale)); small.height = Math.max(1, Math.round(full.height * scale));
+        small.getContext('2d').drawImage(full, 0, 0, small.width, small.height);
+        small.className = 'render'; small.setAttribute('role', 'img'); small.setAttribute('aria-label', 'Preview of ' + (both[1].project.title || 'your image'));
+        thumb.replaceChildren(small); thumb.classList.add('rendered');
+      });
+    }).catch(function (failure) { console.warn('[Create] Image preview unavailable; the cover stays.', failure && failure.message); });
+  }
+  function projectQuery(studio, item) {
+    if (studio.app !== 'create') return '';
+    var action = item.actions.find(function (a) { return a && a.tool === 'create-editor' && /^project=[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(a.query || ''); });
+    return action ? action.query : '';
+  }
+  function workCard(studio, item) {
+    var c = el('article', 'wcard'), query = projectQuery(studio, item), state = stateWords(studio, item.detail), meta = metaWords(studio, item.detail);
+    c.dataset.q = (studio.name + ' ' + item.text + ' ' + state).toLowerCase();
+    var open = el('button', 'wopen'); open.type = 'button'; open.setAttribute('aria-label', item.text + ' — ' + meta + (state ? ', ' + state : ''));
+    var thumb = cover(studio, item); open.appendChild(thumb);
+    open.appendChild(el('span', 'title', item.text)); open.appendChild(el('span', 'meta', meta));
+    if (state) open.appendChild(el('span', 'state' + (item.tone === 'warn' ? ' warn' : ''), state));
+    open.addEventListener('click', function () { go(studio.tool, query); });
+    var more = el('button', 'more', '⋯'); more.type = 'button'; more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('aria-label', 'More for ' + item.text);
+    more.addEventListener('click', function (e) { e.stopPropagation(); openCardMenu(more, studio, item, query); });
+    c.appendChild(open); c.appendChild(more);
+    if (query && ACCESS.create === 'open') void paintProject(thumb, query.slice('project='.length));
+    return c;
+  }
+  /** The ⋯ menu: the working file action first, then the planned Rename / Duplicate / Delete rows. */
+  var menuEl = document.getElementById('cardMenu');
+  function openCardMenu(trigger, studio, item, query) {
+    menuEl.replaceChildren();
+    var open = el('button', null, 'Open in ' + studio.name); open.type = 'button'; open.setAttribute('role', 'menuitem');
+    open.addEventListener('click', function () { hideMenu(); go(studio.tool, query); });
+    menuEl.appendChild(open); menuEl.appendChild(el('hr'));
+    PLANNED.forEach(function (p) {
+      var row = planned(null, p.label, p.backlog, 'menuitem'); row.appendChild(document.createTextNode(p.label)); row.appendChild(el('small', null, 'Not available yet'));
+      menuEl.appendChild(row);
+    });
+    if (typeof menuEl.showPopover !== 'function') { toast('Open the card to work on it.'); return; }
+    menuEl.showPopover();
+    var r = trigger.getBoundingClientRect(), w = menuEl.offsetWidth, h = menuEl.offsetHeight;
+    var left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)), top = r.bottom + 4;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+    menuEl.style.position = 'fixed'; menuEl.style.left = left + 'px'; menuEl.style.top = top + 'px';
+    open.focus();
+  }
+  function hideMenu() { try { menuEl.hidePopover(); } catch (_) { /* already closed */ } }
+  function skeleton() {
+    var s = el('div', 'wcard skel'); s.setAttribute('aria-hidden', 'true');
+    s.appendChild(el('span', 'thumb')); s.appendChild(el('span', 'bar')); s.appendChild(el('span', 'bar short')); return s;
+  }
+
+  /* ── Continue creating: newest first, rendered as each studio answers ─────── */
   var recentGrid = document.getElementById('recentGrid'), recentNote = document.getElementById('recentNote');
   var metricsEl = document.getElementById('metrics'), weekNote = document.getElementById('weekNote');
-  function recordCard(studio, item) {
-    var c = el('article', 'card'); c.dataset.q = (studio.name + ' ' + item.text + ' ' + (item.detail || '')).toLowerCase();
-    var badge = el('div', 'badge'); var sw = el('span', 'sw'); sw.style.background = studio.swatch; badge.appendChild(sw); badge.appendChild(el('span', null, studio.name)); c.appendChild(badge);
-    c.appendChild(el('div', 'title', item.text));
-    var d = stripWhen(item.detail); if (d) c.appendChild(el('div', 'detail', d));
-    var row = el('div', 'row'); row.appendChild(el('span', 'when', whenText(item.detail)));
-    var open = el('button', 'btn', 'Open'); open.type = 'button'; open.addEventListener('click', function () {
-      var action = studio.app === 'create' && item.actions.find(function (a) { return a && a.tool === 'create-editor' && /^project=[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(a.query || ''); });
-      go(studio.tool, action ? action.query : '');
-    }); row.appendChild(open);
-    c.appendChild(row); return c;
+  var recentCards = [], pills = [], cantCheck = [], pending = 0;
+  function collectSummary(studio, data) {
+    (Array.isArray(data.items) ? data.items : []).forEach(function (it) {
+      if (!it || typeof it !== 'object' || !Array.isArray(it.actions) || !it.actions.length) return;   // footnotes carry no actions
+      recentCards.push({ studio: studio, item: it, t: (function () { var m = ISO.exec(String(it.detail || '')); return m ? Date.parse(m[0]) : 0; })() });
+    });
+    (Array.isArray(data.metrics) ? data.metrics : []).slice(0, 3).forEach(function (m) { if (m && typeof m.label === 'string' && (typeof m.value === 'string' || typeof m.value === 'number')) pills.push({ studio: studio, m: { label: m.label, value: String(m.value) } }); });
+    if (data.partial === true) cantCheck.push(studio.name);
+  }
+  function renderRecent() {
+    recentGrid.replaceChildren();
+    recentCards.sort(function (a, b) { return b.t - a.t; });
+    recentCards.slice(0, 12).forEach(function (c) { recentGrid.appendChild(workCard(c.studio, c.item)); });
+    var skeletons = pending > 0 ? Math.max(2, 4 - recentCards.length) : 0;
+    for (var i = 0; i < skeletons; i++) recentGrid.appendChild(skeleton());
+    recentGrid.setAttribute('aria-busy', pending > 0 ? 'true' : 'false');
+    if (!pending && !recentCards.length) recentGrid.appendChild(el('div', 'empty', 'No saved work to show yet. Press New to start something.'));
+    var n = Math.min(recentCards.length, 12);
+    // "Recent work" is the place the concierge names for a project it just made (personas/create-editor.yaml).
+    recentNote.textContent = pending > 0 ? 'Checking your studios…' : n ? 'Recent work, newest first · ' + n + ' piece' + (n === 1 ? '' : 's') + ' across your studios' : '';
+    applyFilters();
   }
   function metricPill(studio, m) {
     var p = el('div', 'metric'); var sw = el('span', 'sw'); sw.style.background = studio.swatch; p.appendChild(sw);
     p.appendChild(el('strong', null, m.value === 'Unavailable' ? '—' : m.value)); p.appendChild(el('span', null, m.label)); return p;
   }
+  function finishSummaries() {
+    metricsEl.replaceChildren();
+    pills.forEach(function (p) { metricsEl.appendChild(metricPill(p.studio, p.m)); });
+    if (!pills.length) metricsEl.appendChild(el('div', 'empty', 'No counts yet.'));
+    weekNote.textContent = cantCheck.length ? "Can't check: " + cantCheck.join(', ') : 'Counts come from each studio\'s own saved records.';
+  }
   function loadSummaries() {
-    recentGrid.replaceChildren(); metricsEl.replaceChildren();
-    var cards = [], pills = [], cantCheck = [];
-    return Promise.all(STUDIOS.map(function (studio) {
-      if (studio.summary === false) return Promise.resolve();   // another catalog entry already reads this app's summary
-      if (studio.app === 'create' && ACCESS.create !== 'open') { if (ACCESS.create !== 'locked') cantCheck.push(studio.name); return Promise.resolve(); }
-      if (ACCESS[studio.app] === 'locked') return Promise.resolve();   // not provisioned: nothing to ask, nothing to show
-      return fetchJson('/api/' + studio.app + '/home-summary').then(function (data) {
-        (Array.isArray(data.items) ? data.items : []).forEach(function (it) {
-          if (!it || typeof it !== 'object' || !Array.isArray(it.actions) || !it.actions.length) return;   // footnotes carry no actions
-          cards.push({ studio: studio, item: it, t: (function () { var m = ISO.exec(String(it.detail || '')); return m ? Date.parse(m[0]) : 0; })() });
-        });
-        (Array.isArray(data.metrics) ? data.metrics : []).slice(0, 3).forEach(function (m) { if (m && typeof m.label === 'string' && (typeof m.value === 'string' || typeof m.value === 'number')) pills.push({ studio: studio, m: { label: m.label, value: String(m.value) } }); });
-        if (data.partial === true) cantCheck.push(studio.name);
-      }).catch(function () { cantCheck.push(studio.name); });
-    })).then(function () {
-      cards.sort(function (a, b) { return b.t - a.t; });
-      cards.slice(0, 12).forEach(function (c) { recentGrid.appendChild(recordCard(c.studio, c.item)); });
-      if (!cards.length) recentGrid.appendChild(el('div', 'empty', 'No saved work to show yet. Browse templates or choose a quick start below.'));
-      recentNote.textContent = cards.length ? cards.length + ' recent piece' + (cards.length === 1 ? '' : 's') + ' across your studios' : '';
-      pills.forEach(function (p) { metricsEl.appendChild(metricPill(p.studio, p.m)); });
-      if (!pills.length) metricsEl.appendChild(el('div', 'empty', 'No counts yet.'));
-      weekNote.textContent = cantCheck.length ? "Can't check: " + cantCheck.join(', ') : 'Counts come from each studio\'s own saved records.';
-      applyFilters();
+    recentCards = []; pills = []; cantCheck = [];
+    var asks = STUDIOS.filter(function (studio) {
+      if (studio.summary === false) return false;   // another catalog entry already reads this app's summary
+      if (studio.app === 'create' && ACCESS.create !== 'open') { if (ACCESS.create !== 'locked') cantCheck.push(studio.name); return false; }
+      if (ACCESS[studio.app] === 'locked') return false;   // not provisioned: nothing to ask, nothing to show
+      return true;
     });
+    pending = asks.length; renderRecent();
+    return Promise.all(asks.map(function (studio) {
+      return fetchJson('/api/' + studio.app + '/home-summary').then(function (data) { collectSummary(studio, data); })
+        .catch(function () { cantCheck.push(studio.name); })
+        .finally(function () { pending -= 1; renderRecent(); });
+    })).then(finishSummaries);
   }
 
-  /* ── Your brand: read in the viewer's session once Create is open; any refusal hides the band ── */
+  /* ── Search: in the app row, over your work and the templates ─────────────── */
+  var query = '';
+  var qEl = document.getElementById('q'), form = document.getElementById('searchForm'), appRow = document.getElementById('appRow');
+  var statusLine = document.getElementById('filterStatus'), hitsEl = document.getElementById('templateHits'), hitGrid = document.getElementById('hitGrid');
+  function templateMatches(q) { return allCards().filter(function (c) { return cardText(c).indexOf(q) !== -1; }); }
+  function applyFilters() {
+    var q = query.trim().toLowerCase(), matches = 0;
+    form.classList.toggle('has-q', q.length > 0);
+    Array.prototype.forEach.call(recentGrid.children, function (c) {
+      if (!c.dataset.q) return;
+      var ok = !q || c.dataset.q.indexOf(q) !== -1; c.classList.toggle('hidden', !ok); if (ok) matches++;
+    });
+    var hits = q ? templateMatches(q) : [];
+    hitGrid.replaceChildren(); hits.slice(0, 8).forEach(function (c) { hitGrid.appendChild(cardNode(c)); });
+    hitsEl.hidden = !hits.length;
+    statusLine.hidden = !q; statusLine.replaceChildren();
+    var count = matches + hits.length;
+    statusLine.appendChild(el('span', null, count ? matchWords(count) : 'No matches.'));
+    if (q) { var clear = el('button', 'link', 'Clear'); clear.type = 'button'; clear.addEventListener('click', clearSearch); statusLine.appendChild(clear); }
+    return count;
+  }
+  function clearSearch() { qEl.value = ''; query = ''; applyFilters(); qEl.focus(); }
+  qEl.addEventListener('input', function () { query = qEl.value; applyFilters(); });
+  document.getElementById('clearQ').addEventListener('click', clearSearch);
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var first = recentGrid.querySelector('.wcard:not(.hidden) .wopen') || hitGrid.querySelector('.card');
+    if (first) first.click();
+  });
+  document.getElementById('searchToggle').addEventListener('click', function () {
+    var on = !appRow.classList.contains('searching');
+    appRow.classList.toggle('searching', on); this.setAttribute('aria-expanded', on ? 'true' : 'false');
+    this.setAttribute('aria-label', on ? 'Close search' : 'Search');
+    if (on) qEl.focus(); else { qEl.value = ''; query = ''; applyFilters(); }
+  });
+  document.getElementById('hitsAll').addEventListener('click', function () { openNew({ query: query }); });
+
+  /* ── Your brand: one row while no kit exists; read only once Create is open ── */
   function loadBrandCard() {
     if (ACCESS.create !== 'open') return;
     var band = document.getElementById('brandBand');
-    fetchJson('/api/create/brand-kit', 4000).then(function (data) {
-      var kit = data && data.kit, logo = document.getElementById('brandLogo'), sws = document.getElementById('brandSws');
-      document.getElementById('brandOpen').textContent = kit ? 'Edit brand kit' : 'Set up brand kit';
-      if (kit) {
-        document.getElementById('brandTitle').textContent = kit.name || 'Your brand';
-        document.getElementById('brandLine').textContent = kit.fonts.heading + ' headings · ' + kit.fonts.body + ' text' + (data.words ? ' · ' + data.words.phrase : '');
-        sws.replaceChildren();
-        ['primary', 'secondary', 'accent', 'dark', 'light'].forEach(function (role) { var sw = el('span'); sw.style.background = kit.colors[role]; sw.title = role + ' ' + kit.colors[role]; sws.appendChild(sw); });
-        if (kit.logo) { logo.replaceChildren(); var img = el('img'); img.src = kit.logo.src; img.alt = ''; logo.appendChild(img); logo.classList.remove('empty'); logo.style.background = kit.colors.light; }
-      }
-      band.hidden = false;
-    }).catch(function () { band.hidden = true; });
+    fetchJson('/api/create/brand-kit', 4000).then(function (data) { band.hidden = !!(data && data.kit); })
+      .catch(function () { band.hidden = true; });
   }
-  document.getElementById('brandOpen').addEventListener('click', function () { go('create-brand'); });
+  document.getElementById('brandBand').addEventListener('click', function () { go('create-brand'); });
 
+  /* ── This app's own cockpit profile: the tile URLs a standalone open falls back to ── */
+  function loadProfile() {
+    return fetchJson('/api/ui/profile?name=create', 4000).then(function (body) {
+      // The profile endpoint answers { profile: {...} }; older builds answered the profile bare.
+      var p = (body && body.profile && typeof body.profile === 'object') ? body.profile : body;
+      var items = (p && p.ribbon && Array.isArray(p.ribbon.items)) ? p.ribbon.items : [];
+      items.forEach(function (it) { if (it && it.toolUi && it.toolUi.iframeUrl) surfaceUrls[String(it.id || '').replace(/^tool-/, '')] = it.toolUi.iframeUrl; });
+    }).catch(function () { /* No profile (standalone open): each studio's own URL is the fallback. */ });
+  }
+
+  /* ══ The New sheet ══════════════════════════════════════════════════════ */
+  /* Previews drawn from the starter's real section titles (no template ships a rendered page). */
+  function titlesOf(outline) { return String(outline || '').split(/\n\s*\n/).map(function (b) { return (b.split('\n')[0] || '').trim(); }).filter(Boolean); }
+  function firstTable(outline) {
+    var rows = String(outline || '').split('\n').filter(function (l) { return /^\s*\|/.test(l); }).slice(0, 4);
+    return rows.map(function (r) { return r.replace(/^\s*\||\|\s*$/g, '').split('|').map(function (c) { return c.trim(); }); });
+  }
+  function firstSeries(outline) {
+    return String(outline || '').split('\n').map(function (l) { var m = /^([^:|#>]{1,24}):\s*(-?[\d.,]+[kmbt%x]?)$/i.exec(l.trim()); return m ? [m[1], m[2]] : null; }).filter(Boolean).slice(0, 3);
+  }
+  function sheetPreview(st) {
+    var sheet = el('div', 'mock sheet'), tb = firstTable(st.outline), rows = tb.length ? tb : [['Label', 'Value']].concat(firstSeries(st.outline)).concat([['Total', '=SUM']]);
+    rows.slice(0, 5).forEach(function (r, i) { var row = el('div', i ? 'r' + (i === rows.length - 1 && !tb.length ? ' tot' : '') : 'hd'); r.forEach(function (c) { row.appendChild(el('span', null, c)); }); sheet.appendChild(row); });
+    return sheet;
+  }
+  function preview(st) {
+    var t = titlesOf(st.outline);
+    if (st.kind === 'xlsx') return sheetPreview(st);
+    if (st.kind === 'docx') {
+      var page = el('div', 'mock page'); page.appendChild(el('div', 't'));
+      t.slice(0, 4).forEach(function (h) { page.appendChild(el('div', 'h', h)); page.appendChild(el('div', 'l')); });
+      return page;
+    }
+    var slide = el('div', 'mock slide'); slide.appendChild(el('div', 't'));
+    var cols = el('div', 'cols'), left = el('div', 'col'), right = el('div', 'col');
+    t.slice(0, 3).forEach(function (h) { left.appendChild(el('div', 'h', h)); left.appendChild(el('div', 'l')); });
+    right.style.display = 'flex'; right.style.alignItems = 'flex-end'; right.style.gap = '3px'; right.style.height = '34px';
+    [10, 18, 26, 22].forEach(function (hgt) { var b = el('div', 'bar'); b.style.height = hgt + 'px'; b.style.flex = '1'; right.appendChild(b); });
+    cols.appendChild(left); cols.appendChild(right); slide.appendChild(cols);
+    return slide;
+  }
+  function otherPreview(item) {
+    if (item.preview === 'design') { var design = el('div', 'mock design'); design.appendChild(svgNode('<svg viewBox="0 0 160 90" aria-hidden="true"><rect x="12" y="13" width="44" height="6" fill="#bef264"/><rect x="12" y="32" width="110" height="10" fill="#ffffff"/><rect x="12" y="49" width="86" height="10" fill="#ffffff"/><circle cx="137" cy="75" r="29" fill="#a78bfa"/></svg>')); return design; }
+    if (item.preview === 'cube') { var model = el('div', 'mock photo cube'); model.appendChild(svgNode('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10"/></svg>')); return model; }
+    if (item.preview === 'photo') { var p = el('div', 'mock photo'); p.appendChild(svgNode('<svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="30" r="14" fill="#7d2ae8"/><path d="M12 76c3-18 15-24 28-24s25 6 28 24" fill="#a259ff"/></svg>')); return p; }
+    var ph = el('div', 'mock phone'); var sc = el('div', 'screen'); sc.appendChild(svgNode('<svg viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 6l10 6-10 6z"/></svg>')); ph.appendChild(sc); return ph;
+  }
+
+  /* ── State of the sheet ── */
+  var KINDS = [], STARTERS = [], activeCat = 'foryou', activeGroup = 'all', tquery = '';
+  function kindOf(id) { for (var i = 0; i < KINDS.length; i++) if (KINDS[i].id === id) return KINDS[i]; return null; }
+  function groupLabel(kindId, groupId) { var k = kindOf(kindId); if (!k || !Array.isArray(k.groups)) return groupId; for (var i = 0; i < k.groups.length; i++) if (k.groups[i].id === groupId) return k.groups[i].label; return groupId; }
+  function officeQuery(st) { return 'kind=' + encodeURIComponent(st.kind) + '&starter=' + encodeURIComponent(st.id) + '&theme=' + encodeURIComponent(st.theme || ''); }
+  var BADGE = { pptx: 'Slides', docx: 'Document', xlsx: 'Spreadsheet' };
+
+  /* Every template, normalised: image designs first, then the Office starters, then the other studios. */
+  function allCards() {
+    var other = OTHER.map(function (o) { var s = byTool[o.tool]; return { id: 'other-' + o.id, cat: o.cat, group: o.group, groupLabel: o.groupLabel, name: o.name, desc: o.desc, badge: s.name, tint: TINT[o.cat], tool: o.tool, app: s.app, query: o.query || '', other: o }; });
+    var office = STARTERS.map(function (st) { return { id: 'office-' + st.id, cat: st.kind, group: st.group, groupLabel: groupLabel(st.kind, st.group), name: st.name, desc: st.desc, icon: st.icon, badge: BADGE[st.kind], tint: TINT[st.kind], tool: 'create-office', app: 'presentations', query: officeQuery(st), st: st }; });
+    return other.filter(function (c) { return c.cat === 'image'; }).concat(office, other.filter(function (c) { return c.cat !== 'image'; }));
+  }
+  function cardText(c) { return (c.name + ' ' + c.desc + ' ' + c.groupLabel + ' ' + c.cat).toLowerCase(); }
+  function cardNode(c) {
+    var access = ACCESS[c.app], studio = byTool[c.tool];   // undefined until the probe answers: no badge, still opens
+    var b = el(access === 'locked' ? 'div' : 'button', 'card' + (access === 'locked' ? ' locked' : '')); b.dataset.q = cardText(c); b.title = c.desc;
+    if (access !== 'locked') b.type = 'button';
+    var pv = el('span', 'pv t-' + c.tint); pv.appendChild(el('span', 'badge', c.badge)); if (c.icon) pv.appendChild(el('span', 'icon', c.icon));
+    pv.appendChild(c.st ? preview(c.st) : otherPreview(c.other));
+    if (access === 'locked') pv.appendChild(el('span', 'lock', '🔒 Not provisioned'));
+    else if (access === 'unknown') pv.appendChild(el('span', 'lock unknown', 'Access: can’t check'));
+    b.appendChild(pv); b.appendChild(el('span', 'name', c.name));
+    if (access === 'locked') {   // a card, not a button: its Access link is the one thing to press
+      b.setAttribute('aria-label', c.name + ' — not provisioned: ' + studio.name + ' is not assigned to you');
+      b.setAttribute('aria-disabled', 'true'); b.appendChild(accessLink(c.app));
+      b.addEventListener('click', function () { toast(studio.name + ' is not assigned to you — an administrator grants it in Access.'); });
+      return b;
+    }
+    b.setAttribute('aria-label', c.name + ' — ' + c.desc);
+    b.addEventListener('click', function () { if (go(c.tool, c.query)) closeNew(true); });
+    return b;
+  }
+  function blankNode(blank) {
+    var studio = byTool[blank.tool], locked = ACCESS[studio.app] === 'locked';
+    var b = el('button', 'blank' + (locked ? ' locked' : '')); b.type = 'button'; b.dataset.blank = blank.id;
+    var thumb = el('span', 'bthumb t-' + blank.tint); thumb.appendChild(svgNode(art(blank.art)));
+    if (locked) thumb.appendChild(el('span', 'lockdot', '🔒'));
+    b.appendChild(thumb); b.appendChild(el('b', null, blank.label)); b.appendChild(el('span', 'hint', blank.hint));
+    b.setAttribute('aria-label', 'Blank ' + blank.label.toLowerCase() + ' — opens ' + studio.name + (locked ? ', not assigned to you' : ''));
+    if (locked) b.setAttribute('aria-disabled', 'true');
+    b.addEventListener('click', function () { if (go(blank.tool, blank.query || '')) closeNew(true); });
+    return b;
+  }
+  var blankRow = document.getElementById('blankRow');
+  function renderBlanks() {
+    blankRow.replaceChildren();
+    BLANKS.forEach(function (blank) { blankRow.appendChild(blankNode(blank)); });
+    var custom = planned('blank', 'Custom size', 'RP-CRE-02');
+    var thumb = el('span', 'bthumb'); thumb.appendChild(svgNode('<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M4 4l7 7M20 20l-7-7"/></svg>'));
+    custom.appendChild(thumb); custom.appendChild(el('b', null, 'Custom size')); custom.appendChild(el('span', 'hint', 'Not available yet'));
+    blankRow.appendChild(custom);
+  }
+
+  /* ── Render the template half ── */
+  var catsEl = document.getElementById('cats'), chipsEl = document.getElementById('chips'), secEl = document.getElementById('sections');
+  function renderCats() {
+    catsEl.replaceChildren();
+    var cards = allCards();
+    CATEGORIES.forEach(function (c) {
+      var b = el('button', 'cat'); b.type = 'button'; b.dataset.cat = c.id; b.setAttribute('aria-pressed', c.id === activeCat ? 'true' : 'false');
+      var n = c.id === 'foryou' ? cards.length : cards.filter(function (x) { return x.cat === c.id; }).length;
+      b.appendChild(el('span', 'n', c.name)); b.appendChild(el('span', 'c', n));
+      b.addEventListener('click', function () { activeCat = c.id; activeGroup = 'all'; renderTemplates(); catsEl.querySelector('[aria-pressed="true"]').focus({ preventScroll: true }); });
+      catsEl.appendChild(b);
+    });
+  }
+  function groupsFor(cat) {
+    if (cat === 'foryou') return [];
+    var seen = {}, out = [];
+    allCards().filter(function (c) { return c.cat === cat; }).forEach(function (c) { if (!seen[c.group]) { seen[c.group] = true; out.push({ id: c.group, label: c.groupLabel }); } });
+    return out;
+  }
+  function renderChips() {
+    chipsEl.replaceChildren();
+    var groups = groupsFor(activeCat); if (groups.length < 2) return;
+    [{ id: 'all', label: 'Everything' }].concat(groups).forEach(function (g) {
+      var b = el('button'); b.type = 'button'; b.setAttribute('aria-pressed', g.id === activeGroup ? 'true' : 'false');
+      var sw = el('span', 'sw'); sw.style.background = g.id === 'all' ? 'var(--gradient)' : (SWATCH[g.id] || 'var(--accent)'); b.appendChild(sw); b.appendChild(el('span', null, g.label));
+      b.addEventListener('click', function () { activeGroup = g.id; renderTemplates(); chipsEl.querySelector('[aria-pressed="true"]').focus({ preventScroll: true }); });
+      chipsEl.appendChild(b);
+    });
+  }
+  function section(title, sub, cards) {
+    var s = el('section', 'sec'); if (title) s.appendChild(el('h4', null, title)); if (sub) s.appendChild(el('p', 'sub', sub));
+    var g = el('div', 'tgrid'); cards.forEach(function (c) { g.appendChild(cardNode(c)); }); s.appendChild(g); return s;
+  }
+  function noMatch() {
+    var box = el('div', 'nomatch'); box.appendChild(el('b', null, 'No templates match'));
+    box.appendChild(el('span', null, 'Try another word, or clear the search and the format.'));
+    var clear = el('button', 'btn2', 'Clear'); clear.type = 'button'; clear.id = 'tplReset';
+    clear.addEventListener('click', function () { tquery = ''; tqEl.value = ''; activeCat = 'foryou'; activeGroup = 'all'; renderTemplates(); tqEl.focus(); });
+    box.appendChild(clear); return box;
+  }
+  function renderSections() {
+    secEl.replaceChildren();
+    var q = tquery.trim().toLowerCase(), k = kindOf(activeCat);
+    var mine = allCards().filter(function (c) {
+      return (activeCat === 'foryou' || c.cat === activeCat) && (activeGroup === 'all' || c.group === activeGroup) && (!q || cardText(c).indexOf(q) !== -1);
+    });
+    document.getElementById('tplSearchForm').classList.toggle('has-q', q.length > 0);
+    if (!mine.length) { secEl.appendChild(noMatch()); return; }
+    if (q || activeCat === 'foryou' || activeGroup !== 'all') {
+      secEl.appendChild(section(q ? matchWords(mine.length) : '', activeGroup !== 'all' && k ? 'Opens in ' + k.opens + '.' : '', mine)); return;
+    }
+    groupsFor(activeCat).forEach(function (g) {
+      var own = mine.filter(function (c) { return c.group === g.id; });
+      if (own.length) secEl.appendChild(section(g.label, k ? 'Opens in ' + k.opens + '.' : '', own));
+    });
+  }
+  function renderTemplates() { renderCats(); renderChips(); renderSections(); }
+  function renderSheet() { renderBlanks(); renderTemplates(); }
+
+  var tqEl = document.getElementById('tq');
+  tqEl.addEventListener('input', function () { tquery = tqEl.value; renderSections(); });
+  document.getElementById('tplClear').addEventListener('click', function () { tquery = ''; tqEl.value = ''; renderSections(); tqEl.focus(); });
+  document.getElementById('tplSearchForm').addEventListener('submit', function (e) { e.preventDefault(); var first = secEl.querySelector('.card'); if (first) first.click(); });
+
+  /* ── Open and close: a sheet on a phone, a dialog on desktop; Back, Escape, the scrim and Done close it ── */
+  var sheet = document.getElementById('newSheet'), sheetPushed = false;
+  function openNew(opts) {
+    opts = opts || {};
+    if (opts.cat && CATEGORIES.some(function (c) { return c.id === opts.cat; })) { activeCat = opts.cat; activeGroup = 'all'; }
+    if (typeof opts.query === 'string') { tquery = opts.query; tqEl.value = opts.query; }
+    renderSheet();
+    if (!sheet.open) sheet.showModal();
+    if (!sheetPushed) { try { history.pushState({ createNew: true }, ''); sheetPushed = true; } catch (_) { /* no history in this frame */ } }
+    var first = blankRow.querySelector('.blank:not([data-ds-not-yet])'); if (first && !opts.query) first.focus({ preventScroll: true }); else tqEl.focus();
+  }
+  /** @param {boolean} leaving A studio opens next: keep the history entry, the navigation replaces it. */
+  function closeNew(leaving) {
+    if (sheet.open) sheet.close();
+    if (sheetPushed && !leaving) { sheetPushed = false; history.back(); } else sheetPushed = false;
+    document.getElementById('newBtn').focus({ preventScroll: true });
+  }
+  window.addEventListener('popstate', function () { sheetPushed = false; if (sheet.open) sheet.close(); });
+  sheet.addEventListener('cancel', function (e) { e.preventDefault(); closeNew(false); });
+  sheet.addEventListener('click', function (e) { if (e.target === sheet) closeNew(false); });
+  document.getElementById('newDone').addEventListener('click', function () { closeNew(false); });
+  document.getElementById('newBtn').addEventListener('click', function () { openNew({}); });
+
+  /* ── The shell's assistant orb rests above --oshal-app-bottom-inset on a phone (cockpit jarvis-orb.js, the same
+     contract the shared editor reports its pane bar through), so Home reports New's top edge and the orb sits above
+     New instead of on it. Removed again when Home goes away. ── */
+  function orbInset(viewHeight, frameTop, fabTop) { return Math.max(0, Math.round(viewHeight - (frameTop + fabTop) - 4)); }
+  function clearOrb() {
+    try {
+      var outer = window.parent !== window ? window.parent.document.documentElement : null, frame = window.frameElement;
+      var fab = document.getElementById('newBtn');
+      if (!outer || !frame) return;
+      var box = fab ? fab.getBoundingClientRect() : null;   // New is position:fixed, so offsetParent is always null
+      if (!box || !box.height) { outer.style.removeProperty('--oshal-app-bottom-inset'); return; }
+      var inset = orbInset(window.parent.innerHeight, frame.getBoundingClientRect().top, box.top);
+      outer.style.setProperty('--oshal-app-bottom-inset', inset + 'px');
+    } catch (_) { /* a standalone or cross-origin open has no orb to move */ }
+  }
+  clearOrb();
+  window.addEventListener('resize', clearOrb);
+  window.addEventListener('load', clearOrb);
+  window.addEventListener('pagehide', function () { try { window.parent.document.documentElement.style.removeProperty('--oshal-app-bottom-inset'); } catch (_) { /* no shell */ } });
+  (function swipeDown() {
+    var y0 = null, grip = document.getElementById('sheetHead'), handle = document.getElementById('sheetHandle');
+    [grip, handle].forEach(function (n) {
+      n.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'mouse') y0 = e.clientY; });
+      n.addEventListener('pointerup', function (e) { if (y0 !== null && e.clientY - y0 > 80) closeNew(false); y0 = null; });
+    });
+  })();
+
+  /* ── The Office catalog, from the owning app ── */
+  function loadStarters() {
+    return fetchJson('/api/presentations/sections/starters', 4000).then(function (cat) {
+      KINDS = Array.isArray(cat.kinds) ? cat.kinds : [];
+      STARTERS = (Array.isArray(cat.starters) ? cat.starters : []).filter(function (s) { return s && /^[a-z0-9-]+$/.test(String(s.id)) && /^(pptx|docx|xlsx)$/.test(String(s.kind)); });
+      renderTemplates(); applyFilters();
+    }).catch(function () {
+      KINDS = []; STARTERS = [];   // the Blank row still opens every Office kind
+      if (sheet.open) toast('AI Office templates could not be loaded — Blank still opens each studio.');
+    });
+  }
+  /** Access answers re-draw what depends on them: locks on blanks and template cards. */
+  function applyAccess() { if (sheet.open) renderSheet(); else renderBlanks(); }
+
+  /* An address can open New directly: /api/create/home?new=1[&cat=docx] (the old /api/create/new forwards here). */
+  function openFromAddress() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('new') !== '1') return;
+    var cat = params.get('cat'); params.delete('new'); params.delete('cat');
+    try { history.replaceState(history.state, '', window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash); } catch (_) { /* address stays */ }
+    openNew({ cat: cat || '' });
+  }
+
+  // Audience view (ADR-164 D6): under a view the page starts nothing; without one, or on a core without the kit, it starts as before.
+  if (!window.AppView || !AppView.active()) {
+  renderBlanks();
+  loadStarters();
+  openFromAddress();
   Promise.all(STUDIOS.map(function (s) { return accessFor(s.app).then(function (state) { ACCESS[s.app] = state; }); })).then(function () {
-    applyAccessToStarters();
+    applyAccess();
     openIncomingArtifact();
     loadProfile();
     loadSummaries();
     loadBrandCard();
   });
+  }
 })();
 </script>
 </body>

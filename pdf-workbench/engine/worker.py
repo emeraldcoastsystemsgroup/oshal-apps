@@ -1,5 +1,6 @@
 """Bounded pure PDF operations. Authority and immutable publication belong to the package.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Preserve real pages/forms and explicit OCR reports.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Add blank-page derivation, QuadPoints/ink markup, word boxes, photo-to-PDF, compression and OOXML export.
 """
 import base64
 import csv
@@ -15,9 +16,9 @@ import tempfile
 from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
-from pypdf.annotations import FreeText, Highlight
-from pypdf.generic import ArrayObject, DictionaryObject, FloatObject, NameObject, NumberObject
-from page_content import inspect_objects, inspect_image, edit_page, ContentRefused
+from page_content import inspect_objects, inspect_image, edit_page, blank_page_bytes, extract_page_words, ContentRefused
+from pdf_transforms import annotate_page, photos_to_pdf, compress_pdf
+from ooxml_export import convert_pdf_to_ooxml
 
 MAX_BYTES = 4 * 1024 * 1024
 MAX_PAGES = 32
@@ -126,59 +127,62 @@ def inspect_pdf(data):
                       for i, page in enumerate(reader.pages)], "fields": fields_of(reader)}
 
 
-def point(value, box):
-    require(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
-            and box[0] <= value <= box[1], "pdf_annotation_geometry")
-    return float(value)
+def _page_additions(page_id, additions, images):
+    objects = []
+    for obj in additions:
+        if obj["page"] != page_id:
+            continue
+        if obj.get("kind") == "image":
+            asset = images.get(obj.get("asset"))
+            require(asset is not None, "pdf_image_asset_unavailable")
+            objects.append({**obj, "image": asset["data"], "imageType": asset["type"]})
+        else:
+            objects.append(obj)
+    return objects
 
 
-def annotate(writer, page_number, item):
-    exact(item, ("id", "page", "kind", "rect", "text", "points", "color"))
-    require(UUID.fullmatch(str(item.get("id", ""))) and item.get("kind") in ("text", "highlight", "ink"))
-    page = writer.pages[page_number]
-    box = [float(x) for x in page.cropbox]
-    rect = item.get("rect")
-    require(isinstance(rect, list) and len(rect) == 4)
-    x0, y0, x1, y1 = [point(v, (box[i % 2], box[i % 2 + 2])) for i, v in enumerate(rect)]
-    require(x0 < x1 and y0 < y1)
-    color = item.get("color", "ffcc00")
-    require(isinstance(color, str) and re.fullmatch(r"[0-9a-f]{6}", color))
-    if item["kind"] == "text":
-        text = item.get("text")
-        require(isinstance(text, str) and 0 < len(text) <= 2000 and all(32 <= ord(c) <= 126 or c == "\n" for c in text),
-                "pdf_annotation_text_unsupported")
-        annotation = FreeText(text=text, rect=rect, font="Helvetica", font_size="12pt", font_color="000000",
-                              background_color="ffffff", border_color=color)
-    elif item["kind"] == "highlight":
-        quad = ArrayObject([FloatObject(v) for v in (x0, y1, x1, y1, x0, y0, x1, y0)])
-        annotation = Highlight(rect=rect, quad_points=quad, highlight_color=color, printing=True)
-    else:
-        points = item.get("points")
-        require(isinstance(points, list) and 2 <= len(points) <= 256)
-        values = []
-        for pair in points:
-            require(isinstance(pair, list) and len(pair) == 2)
-            values.extend([FloatObject(point(pair[0], (x0, x1))), FloatObject(point(pair[1], (y0, y1)))])
-        annotation = DictionaryObject({NameObject("/Type"): NameObject("/Annot"),
-            NameObject("/Subtype"): NameObject("/Ink"), NameObject("/Rect"): ArrayObject([FloatObject(v) for v in rect]),
-            NameObject("/InkList"): ArrayObject([ArrayObject(values)]), NameObject("/F"): NumberObject(4),
-            NameObject("/C"): ArrayObject([FloatObject(int(color[i:i+2], 16) / 255) for i in (0, 2, 4)]),
-            NameObject("/BS"): DictionaryObject({NameObject("/W"): NumberObject(2)})})
-    annotation[NameObject("/F")] = NumberObject(4)
-    writer.add_annotation(page_number, annotation)
+def _append_derived_page(writer, item, readers, source_bytes, definitions, source_instances, content_edits, additions, images):
+    edits = [edit for edit in content_edits if edit["page"] == item["id"]]
+    objects = _page_additions(item["id"], additions, images)
+    if item.get("blank") is True:
+        exact(item, ("id", "blank", "cropBox", "rotation"))
+        crop, rotation = item.get("cropBox"), item.get("rotation")
+        require(isinstance(crop, list) and len(crop) == 4 and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in crop)
+                and crop[0] == 0 and crop[1] == 0 and 0 < crop[2] <= 2000 and 0 < crop[3] <= 2000 and rotation in (0, 90, 180, 270))
+        base = blank_page_bytes(crop)
+        if edits or objects:
+            base = edit_page(base, 0, edits, objects, [float(v) for v in crop])
+            require(len(base) <= MAX_BYTES, "pdf_output_limit")
+        selected_reader = safe_reader(base)
+        writer.reset_translation(selected_reader)
+        writer.append(selected_reader, pages=[0], import_outline=False)
+        writer.pages[-1].rotate(rotation)
+        return
+    exact(item, ("id", "source", "index", "rotation"))
+    key, index, rotation = item.get("source"), item.get("index"), item.get("rotation")
+    require(key in readers and isinstance(index, int) and not isinstance(index, bool)
+            and 0 <= index < len(readers[key].pages) and rotation in (0, 90, 180, 270))
+    require(not definitions[key] or (key, index) not in source_instances, "pdf_repeated_form_page_unsupported")
+    source_instances.add((key, index))
+    selected_reader = readers[key]
+    if edits or objects:
+        changed = edit_page(source_bytes[key], index, edits, objects, [float(x) for x in readers[key].pages[index].cropbox])
+        require(len(changed) <= MAX_BYTES, "pdf_output_limit")
+        selected_reader = safe_reader(changed)
+        selected_reader.add_form_topname(key)
+    writer.reset_translation(selected_reader)
+    writer.append(selected_reader, pages=[index], import_outline=False)
+    writer.pages[-1].rotate(rotation)
 
 
-def derive(sources, model, assets=None):
-    exact(model, ("pages", "annotations", "fields", "contentEdits", "objects"))
-    require(isinstance(sources, list) and 1 <= len(sources) <= 32)
+def _load_assets(assets):
     assets = assets or []
     require(isinstance(assets, list) and len(assets) <= 128, "pdf_content_limit")
     images, image_bytes = {}, 0
     for asset in assets:
         exact(asset, ("id", "data", "sha256", "type"))
-        key = asset.get("id")
+        key, encoded = asset.get("id"), asset.get("data")
         require(UUID.fullmatch(str(key)) and key not in images)
-        encoded = asset.get("data")
         require(isinstance(encoded, str) and len(encoded) <= 1398104, "pdf_content_image_limit")
         data = base64.b64decode(encoded, validate=True)
         info = inspect_image(data)
@@ -186,10 +190,12 @@ def derive(sources, model, assets=None):
         image_bytes += len(data)
         require(image_bytes <= MAX_BYTES, "pdf_content_image_limit")
         images[key] = asset
-    readers = {}
-    source_bytes = {}
-    total = 0
-    definitions = {}
+    return images
+
+
+def _load_sources(sources, allow_empty):
+    require(isinstance(sources, list) and (0 if allow_empty else 1) <= len(sources) <= 32)
+    readers, source_bytes, definitions, total = {}, {}, {}, 0
     for source in sources:
         exact(source, ("id", "data", "sha256"))
         key = source.get("id")
@@ -199,57 +205,13 @@ def derive(sources, model, assets=None):
         require(total <= MAX_BYTES, "pdf_input_limit")
         require(hashlib.sha256(data).hexdigest() == source.get("sha256"), "pdf_source_changed")
         reader = safe_reader(data)
-        source_bytes[key] = data
-        definitions[key] = fields_of(reader)
+        source_bytes[key], definitions[key] = data, fields_of(reader)
         reader.add_form_topname(key)
         readers[key] = reader
-    pages = model.get("pages")
-    require(isinstance(pages, list) and 1 <= len(pages) <= MAX_PAGES, "pdf_page_limit")
-    writer = PdfWriter()
-    seen = set()
-    source_instances = set()
-    content_edits, additions = model.get("contentEdits", []), model.get("objects", [])
-    require(isinstance(content_edits, list) and len(content_edits) <= 2048 and isinstance(additions, list) and len(additions) <= 128, "pdf_content_limit")
-    valid_pages = {item.get("id") for item in pages if isinstance(item, dict)}
-    require(all(isinstance(item, dict) and item.get("page") in valid_pages for item in content_edits + additions))
-    for item in pages:
-        exact(item, ("id", "source", "index", "rotation"))
-        key, index, rotation = item.get("source"), item.get("index"), item.get("rotation")
-        require(UUID.fullmatch(str(item.get("id", ""))) and item["id"] not in seen)
-        seen.add(item["id"])
-        require(key in readers and isinstance(index, int) and not isinstance(index, bool)
-                and 0 <= index < len(readers[key].pages) and rotation in (0, 90, 180, 270))
-        require(not definitions[key] or (key, index) not in source_instances, "pdf_repeated_form_page_unsupported")
-        source_instances.add((key, index))
-        selected_reader = readers[key]
-        edits = [edit for edit in content_edits if edit["page"] == item["id"]]
-        objects = []
-        for obj in additions:
-            if obj["page"] != item["id"]:
-                continue
-            if obj.get("kind") == "image":
-                asset = images.get(obj.get("asset"))
-                require(asset is not None, "pdf_image_asset_unavailable")
-                objects.append({**obj, "image": asset["data"], "imageType": asset["type"]})
-            else:
-                objects.append(obj)
-        if edits or objects:
-            changed = edit_page(source_bytes[key], index, edits, objects, [float(x) for x in readers[key].pages[index].cropbox])
-            require(len(changed) <= MAX_BYTES, "pdf_output_limit")
-            selected_reader = safe_reader(changed)
-            selected_reader.add_form_topname(key)
-        writer.reset_translation(selected_reader)
-        writer.append(selected_reader, pages=[index], import_outline=False)
-        writer.pages[-1].rotate(rotation)
-    annotations = model.get("annotations", [])
-    require(isinstance(annotations, list) and len(annotations) <= 128, "pdf_annotation_limit")
-    page_index = {item["id"]: i for i, item in enumerate(pages)}
-    annotation_ids = set()
-    for item in annotations:
-        require(isinstance(item, dict) and item.get("page") in page_index and item.get("id") not in annotation_ids)
-        annotation_ids.add(item.get("id"))
-        annotate(writer, page_index[item["page"]], item)
-    values = model.get("fields", {})
+    return readers, source_bytes, definitions
+
+
+def _apply_fields(writer, values, definitions):
     require(isinstance(values, dict) and len(values) <= 256, "pdf_field_limit")
     all_fields = {key + "." + item["name"]: item for key, items in definitions.items() for item in items}
     available = writer.get_fields() or {}
@@ -265,11 +227,37 @@ def derive(sources, model, assets=None):
             require(value in field["options"], "pdf_field_option_invalid")
     if values:
         writer.update_page_form_field_values(None, values, auto_regenerate=False)
+
+
+def derive(sources, model, assets=None):
+    exact(model, ("pages", "annotations", "fields", "contentEdits", "objects"))
+    pages = model.get("pages")
+    require(isinstance(pages, list) and 1 <= len(pages) <= MAX_PAGES, "pdf_page_limit")
+    has_blank = any(isinstance(item, dict) and item.get("blank") is True for item in pages)
+    images = _load_assets(assets)
+    readers, source_bytes, definitions = _load_sources(sources, has_blank)
+    writer, seen, source_instances = PdfWriter(), set(), set()
+    content_edits, additions = model.get("contentEdits", []), model.get("objects", [])
+    require(isinstance(content_edits, list) and len(content_edits) <= 2048 and isinstance(additions, list) and len(additions) <= 128, "pdf_content_limit")
+    valid_pages = {item.get("id") for item in pages if isinstance(item, dict)}
+    require(all(isinstance(item, dict) and item.get("page") in valid_pages for item in content_edits + additions))
+    for item in pages:
+        require(isinstance(item, dict) and UUID.fullmatch(str(item.get("id", ""))) and item["id"] not in seen)
+        seen.add(item["id"])
+        _append_derived_page(writer, item, readers, source_bytes, definitions, source_instances, content_edits, additions, images)
+    annotations = model.get("annotations", [])
+    require(isinstance(annotations, list) and len(annotations) <= 128, "pdf_annotation_limit")
+    page_index = {item["id"]: i for i, item in enumerate(pages)}
+    annotation_ids = set()
+    for item in annotations:
+        require(isinstance(item, dict) and item.get("page") in page_index and item.get("id") not in annotation_ids)
+        annotation_ids.add(item.get("id"))
+        annotate_page(writer, page_index[item["page"]], item, require)
+    _apply_fields(writer, model.get("fields", {}), definitions)
     output = io.BytesIO()
     writer.write(output)
     data = output.getvalue()
     require(len(data) <= MAX_BYTES, "pdf_output_limit")
-    # Re-open the derivative before returning it; never append to the original bytes.
     inspection = inspect_pdf(data)
     return {**inspection, "data": base64.b64encode(data).decode()}
 
@@ -288,8 +276,68 @@ def raster(data, page, side, directory):
     return png, prefix.with_suffix(".png")
 
 
+def _ocr_page(data, page, language):
+    require(language == "eng", "pdf_ocr_language_unsupported")
+    with tempfile.TemporaryDirectory(prefix="pdf-ocr-") as directory:
+        _, path = raster(data, page, 1600, directory)
+        result = subprocess.run(["tesseract", str(path), "stdout", "-l", "eng", "tsv"], check=True,
+                                capture_output=True, timeout=20)
+        require(len(result.stdout) <= 1048576, "pdf_ocr_output_limit")
+        words = []
+        for row in csv.DictReader(io.StringIO(result.stdout.decode()), delimiter="\t"):
+            if row.get("level") != "5" or not row.get("text", "").strip():
+                continue
+            confidence = float(row["conf"])
+            require(math.isfinite(confidence) and -1 <= confidence <= 100, "pdf_ocr_invalid_response")
+            require(len(words) < 10000, "pdf_ocr_output_limit")
+            words.append({"text": row["text"], "confidence": confidence,
+                          "rect": [int(row[k]) for k in ("left", "top", "width", "height")]})
+        confidence = sum(w["confidence"] for w in words) / len(words) if words else None
+        return {"page": page, "language": "eng", "rasterMaxSide": 1600,
+                "text": " ".join(w["text"] for w in words), "words": words, "confidence": confidence,
+                "quality": "low" if confidence is None or confidence < 70 else "readable",
+                "uncertain": True, "truncated": False, "sourceUnchanged": True}
+
+
+def _data_operation(op, data, request):
+    if op == "preview":
+        with tempfile.TemporaryDirectory(prefix="pdf-preview-") as directory:
+            png, _ = raster(data, request.get("page"), request.get("side", 1200), directory)
+            return {"type": "image/png", "data": base64.b64encode(png).decode(), "bytes": len(png),
+                    "sha256": hashlib.sha256(png).hexdigest()}
+    if op == "words":
+        safe_reader(data)
+        return {"page": request.get("page"), "words": extract_page_words(data, request.get("page"))}
+    if op == "compress":
+        safe_reader(data)
+        out_bytes, stats = compress_pdf(data, request.get("level", "balanced"), MAX_BYTES, require)
+        info = inspect_pdf(out_bytes)
+        return {**info, **stats, "data": base64.b64encode(out_bytes).decode()}
+    if op == "convert":
+        safe_reader(data)
+        fmt = request.get("format")
+        require(fmt in ("docx", "xlsx", "pptx"))
+        title = str(request.get("title") or "Document")[:160]
+        archive, mime = convert_pdf_to_ooxml(data, fmt, title)
+        require(len(archive) <= 6 * 1024 * 1024, "pdf_output_limit")
+        return {"format": fmt, "type": mime, "bytes": len(archive), "sha256": hashlib.sha256(archive).hexdigest(),
+                "data": base64.b64encode(archive).decode(), "approximateLayout": True}
+    if op == "text":
+        reader = safe_reader(data)
+        texts, used = [], 0
+        for i, page in enumerate(reader.pages):
+            text = page.extract_text() or ""
+            retained = text[:max(0, 1048576 - used)]
+            texts.append({"page": i, "text": retained, "truncated": len(retained) != len(text)})
+            used += len(retained)
+        return {"pages": texts, "ocr": False, "truncated": any(x["truncated"] for x in texts)}
+    if op == "ocr":
+        return _ocr_page(data, request.get("page"), request.get("language"))
+    raise Refused("pdf_operation_unsupported")
+
+
 def operation(request):
-    exact(request, ("op", "data", "sources", "model", "page", "side", "language", "assets"))
+    exact(request, ("op", "data", "sources", "model", "page", "side", "language", "assets", "photos", "level", "format", "title"))
     op = request.get("op")
     if op == "inspect":
         return inspect_pdf(decode(request.get("data")))
@@ -299,6 +347,10 @@ def operation(request):
         data = base64.b64decode(encoded, validate=True)
         require(base64.b64encode(data).decode() == encoded, "pdf_invalid_encoding")
         return inspect_image(data)
+    if op == "photos-to-pdf":
+        pdf_bytes = photos_to_pdf(request.get("photos"), MAX_BYTES, require)
+        info = inspect_pdf(pdf_bytes)
+        return {**info, "data": base64.b64encode(pdf_bytes).decode()}
     if op == "derive":
         return derive(request.get("sources"), request.get("model"), request.get("assets"))
     if op == "draft-preview":
@@ -308,44 +360,7 @@ def operation(request):
             png, _ = raster(data, request.get("page"), request.get("side", 1200), directory)
             return {"type": "image/png", "data": base64.b64encode(png).decode(), "bytes": len(png),
                     "sha256": hashlib.sha256(png).hexdigest(), "page": derived["pages"][request["page"]]}
-    data = decode(request.get("data"))
-    if op == "preview":
-        with tempfile.TemporaryDirectory(prefix="pdf-preview-") as directory:
-            png, _ = raster(data, request.get("page"), request.get("side", 1200), directory)
-            return {"type": "image/png", "data": base64.b64encode(png).decode(), "bytes": len(png),
-                    "sha256": hashlib.sha256(png).hexdigest()}
-    if op == "text":
-        reader = safe_reader(data)
-        texts = []
-        used = 0
-        for i, page in enumerate(reader.pages):
-            text = page.extract_text() or ""
-            retained = text[:max(0, 1048576 - used)]
-            texts.append({"page": i, "text": retained, "truncated": len(retained) != len(text)})
-            used += len(retained)
-        return {"pages": texts, "ocr": False, "truncated": any(x["truncated"] for x in texts)}
-    if op == "ocr":
-        require(request.get("language") == "eng", "pdf_ocr_language_unsupported")
-        with tempfile.TemporaryDirectory(prefix="pdf-ocr-") as directory:
-            _, path = raster(data, request.get("page"), 1600, directory)
-            result = subprocess.run(["tesseract", str(path), "stdout", "-l", "eng", "tsv"], check=True,
-                                    capture_output=True, timeout=20)
-            require(len(result.stdout) <= 1048576, "pdf_ocr_output_limit")
-            words = []
-            for row in csv.DictReader(io.StringIO(result.stdout.decode()), delimiter="\t"):
-                if row.get("level") != "5" or not row.get("text", "").strip():
-                    continue
-                confidence = float(row["conf"])
-                require(math.isfinite(confidence) and -1 <= confidence <= 100, "pdf_ocr_invalid_response")
-                require(len(words) < 10000, "pdf_ocr_output_limit")
-                words.append({"text": row["text"], "confidence": confidence,
-                              "rect": [int(row[k]) for k in ("left", "top", "width", "height")]})
-            confidence = sum(w["confidence"] for w in words) / len(words) if words else None
-            return {"page": request["page"], "language": "eng", "rasterMaxSide": 1600,
-                    "text": " ".join(w["text"] for w in words), "words": words, "confidence": confidence,
-                    "quality": "low" if confidence is None or confidence < 70 else "readable",
-                    "uncertain": True, "truncated": False, "sourceUnchanged": True}
-    raise Refused("pdf_operation_unsupported")
+    return _data_operation(op, decode(request.get("data")), request)
 
 
 def main():

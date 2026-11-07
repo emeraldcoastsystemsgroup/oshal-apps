@@ -7,6 +7,7 @@
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Added tenant-safe targeting and transactional, idempotent reminder delivery
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Minimize notification reads to the authenticated caller's rendered response fields
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Delegate owner-scoped guardianAction (RP-LM-01) and timelineAction (RP-LM-05) mutations on POST /notify while keeping authorization.yaml unchanged
  * ---------------------------------------------------------------------------
  *
  * @module education-notification-routes
@@ -17,6 +18,8 @@ import type { PoolClient } from 'pg';
 import type { AppContext } from '@/app/composition/app-context';
 import { createChildLogger } from '@/shared/logger';
 import { EducationAccessError, resolveAuthedStudent, type AuthedStudent } from './education-access';
+import { handleGuardianMutation } from './education-guardian-service';
+import { handleTimelineMutation } from './education-timelines-service';
 import {
   formatDueUrgency,
   requirePattern,
@@ -62,6 +65,14 @@ async function listNotifications(ctx: AppContext, req: Request, res: Response): 
 
 /** Send only to self or to a student the caller is entitled to view. */
 async function sendNotification(ctx: AppContext, req: Request, res: Response): Promise<void> {
+  if (req.body?.guardianAction) {
+    await handleGuardianMutation(ctx.pool, req, res);
+    return;
+  }
+  if (req.body?.timelineAction) {
+    await handleTimelineMutation(ctx.pool, req, res);
+    return;
+  }
   try {
     const caller = await resolveAuthedStudent(req, ctx.pool);
     const studentId = String(req.body?.studentId ?? '');

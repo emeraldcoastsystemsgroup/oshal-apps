@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Native-port contract: the package declares something runnable (the platform left only an inert declaration that opened nothing). Every workflow phase and the concierge name a bot this package declares or imports, every declared bot is inline with a persona file inside the package that answers in plain prose and teaches no shell, CLI script, workspace path or platform HTTP call, and no screen points at a platform-only route.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The only route a ported package may declare is the store's canonical service-authenticated readiness route, byte-identical to the reviewed brand-graphics module; any other route module (a platform TypeScript port) is still refused.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: declare the native Bot Forge workspace route (/api/codex-packer) alongside the canonical readiness probe so 1-click caller-scoped Inject opens inside the cockpit without platform routes.
  */
 'use strict';
 const { test } = require('node:test');
@@ -35,7 +36,10 @@ test('the package declares something runnable: a concierge or a workflow, each b
   for (const binding of imported) assert.ok(manifest.dependencies.required.apps.includes(binding.app), binding.app);
   const readiness = { module: 'routes/package-smoke.js', factory: 'createPackageSmokeRoutes',
     mountPath: `/api/${manifest.name}/_smoke`, auth: 'service', requiresContext: true, requiresAi: false };
-  assert.deepEqual(manifest.routes, [readiness], 'only the canonical readiness route is declared');
+  const workspace = { module: 'routes/forge-routes.mjs', factory: 'createBotForgeRoutes',
+    mountPath: `/api/${manifest.name}`, auth: 'oidc', requiresAuth: true, requiresContext: true, requiresAi: false };
+  assert.deepEqual(manifest.routes, [readiness, workspace], 'readiness and native Bot Forge workspace routes are declared');
+  assert.equal(manifest.ui?.static?.[0]?.iframeUrl, '/api/codex-packer/app');
   for (const file of ['routes/package-smoke.js', 'src-routes/package-smoke.ts']) {
     assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), fs.readFileSync(path.join(store, 'brand-graphics', file), 'utf8'), file);
   }

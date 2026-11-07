@@ -1,4 +1,15 @@
 <!doctype html>
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (calling-assistant--calling-settings, SPLIT): two views.
+    Calls (the default) holds New call and Call reports; with no Twilio connection it is one empty state, Connect Twilio
+    to place calls, with Open Connections (a new tab) and Check again that reports its result. Calling settings holds the
+    connection and sender in one 44px row, the handoff phone, voices, caps, allowlist, disclosure, consent and Check
+    recorded audio; the public origin sits under Advanced and fills from this page's https address. Answers are rows
+    (When it says, Say or Press, ⋯ Remove) that write the same JSON, which stays under Advanced. Start call is solid-
+    disabled with its reason while calling is off or no connection is chosen. Consent, Enable and Approve are 44px
+    switch rows. Reports are newest first with status badges, a search and a status filter. No route changed.
+-->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Calling Assistant</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css"><script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience view (ADR-164 D6). The Business shell opens this page with ?audience=company: the caller's own calling
@@ -55,15 +66,29 @@
 </script>
 <style>
 body{font:15px system-ui;margin:0;background:var(--bg-primary);color:var(--text-primary)}main{max-width:1040px;margin:auto;padding:28px}h1{margin:0 0 8px}h2{font-size:20px}p{line-height:1.55}section{border:1px solid var(--border-color);border-radius:14px;padding:22px;margin:22px 0;background:var(--bg-card)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}label{display:grid;gap:7px;font-size:14px}input,select,textarea,button{font:inherit;color:inherit;background:var(--bg-primary);border:1px solid var(--border-color);border-radius:6px;padding:10px}textarea{min-height:80px}button{cursor:pointer;background:var(--accent-primary);color:white}button:disabled{opacity:.5;cursor:wait}.wide{grid-column:1/-1}.check{display:flex;align-items:flex-start;gap:10px}.check input{margin-top:4px}a{color:var(--accent-primary)}small,.muted{color:var(--text-muted)}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px monospace;max-height:420px;overflow:auto}#message{position:sticky;top:0;padding:12px;background:var(--bg-tertiary);border-radius:8px;z-index:2}#message:empty{display:none}.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.task{padding:12px 0;border-bottom:1px solid var(--border-color)}.danger{background:var(--status-error)}@media(max-width:650px){main{padding:16px}.grid{grid-template-columns:1fr}}
+button.primary,a.primary.button{background:var(--accent-primary);color:var(--text-on-accent,#fff);border-color:transparent;font-weight:600}a.button{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:6px;text-decoration:none}button{background:var(--bg-secondary,var(--bg-primary));color:var(--text-primary);min-height:44px}button:disabled{opacity:1;background:var(--bg-secondary,var(--bg-primary));color:var(--text-muted);border-color:var(--border-color);cursor:not-allowed}.why{color:var(--text-primary);font-weight:600}.why:empty{display:none}.view[hidden]{display:none!important}.view-bar{display:flex;gap:4px;border-bottom:1px solid var(--border-color);margin:0 0 8px}.view-tab{min-height:44px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--text-muted);font-weight:600;padding:0 16px}.view-tab[aria-selected=true]{color:var(--text-primary);border-bottom-color:var(--accent-primary)}.check{min-height:44px;align-items:center}.check input{width:22px;height:22px;margin:0;flex:0 0 22px;accent-color:var(--accent-primary)}.pick-row{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}.pick-row select,.pick-row button,input,select{min-height:44px}.answers{display:grid;gap:8px}.answers .label{font-size:14px}.answer-row{display:grid;grid-template-columns:1fr 130px 1fr 44px;gap:8px;align-items:center}.answer-row .row-menu{min-width:44px;padding:0}.answer-menu[popover]{margin:0;padding:4px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-primary);min-width:160px}.answer-menu button{display:block;width:100%;text-align:left;border:0;background:none;color:var(--status-error)}details.advanced summary{min-height:44px;display:flex;align-items:center;cursor:pointer}.badge{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid var(--border-color);font-size:12px;font-weight:600}.badge.bad{border-color:var(--status-error);color:var(--status-error)}.badge.warn{border-color:var(--status-warning);color:var(--text-primary)}.badge.ok{border-color:var(--status-success);color:var(--text-primary)}.report-tools input{flex:1 1 220px}.empty h2{margin-top:0}@media(max-width:650px){.pick-row{grid-template-columns:1fr}.answer-row{grid-template-columns:1fr 1fr 44px}.answer-row input.when{grid-column:1/-1}}
 </style></head><body><main>
-<h1>Calling Assistant</h1><p>Set up a phone task once, let the calling service handle the menu, and join when a person answers.</p>
+<nav class="view-bar" role="tablist" aria-label="Calling Assistant views"><button type="button" class="view-tab" role="tab" id="tab-calls" data-view="calls" aria-controls="view-calls" aria-selected="true">Calls</button><button type="button" class="view-tab" role="tab" id="tab-settings" data-view="settings" aria-controls="view-settings" aria-selected="false">Calling settings</button></nav>
 <div id="message" role="status" aria-live="polite"></div>
-<section><h2>1. Connect and configure</h2><p>Open <a href="/utilities" target="_top">Connections</a> to add Twilio, then select it here. Calling starts disabled. These settings belong to your account; background tasks run for you using the connection you select.</p>
+<div class="view" id="view-calls" role="tabpanel" aria-labelledby="tab-calls">
+<section id="noTwilio" class="empty" hidden><h2>Connect Twilio to place calls</h2><p>Calls go out through your own Twilio account; add it on the Connections page, then check again here.</p><div class="row"><a class="primary button" href="/utilities" target="_blank" rel="noopener">Open Connections</a><button type="button" id="checkTwilio">Check again</button><span id="checkResult" class="muted" role="status"></span></div></section>
+<section id="newCall"><h2>New call</h2><p>The service listens in short turns, answers menus with your approved answers, and rings your phone when a person answers.</p>
+<form id="taskForm" class="grid">
+<label>Destination<input id="to" required placeholder="An allowed international number"></label>
+<label>Objective<input id="objective" required maxlength="500" placeholder="Reach someone about my existing car claim"></label>
+<label class="wide">Listen for these menu words<input id="keywords" value="claims, existing claim" required><small>Comma-separated menu choices relevant to this task.</small></label>
+<div class="wide answers"><span class="label">Answers</span><div id="answerRows"></div><button type="button" id="addAnswer">Add an answer</button><small>Only enter information you want disclosed on this call.</small>
+<details class="advanced"><summary>Advanced</summary><label class="wide">Answers as JSON<textarea id="responses">[{"prompt":"say claims","say":"claims"}]</textarea><small>Use prompt + say for a spoken reply, or prompt + digits for keypad input. Only enter information you want disclosed on this call.</small></label></details></div>
+<label class="check wide"><input id="approveCall" type="checkbox" role="switch" required>I approve this call to the displayed destination with these answers.</label>
+<div class="row wide"><button id="startCall" class="primary">Start call</button><small id="startWhy" class="why"></small><small>Each submission receives an idempotency key to prevent a retry from dialing twice.</small></div>
+</form></section>
+<section><div class="row"><h2>Call reports</h2><button id="refresh" type="button">Refresh</button></div><div class="row report-tools"><input id="taskSearch" type="search" placeholder="Search calls" aria-label="Search call reports"><select id="taskStatus" aria-label="Status"><option value="">Every status</option></select></div><div id="tasks"></div><pre id="report"></pre></section>
+</div>
+<div class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+<section><h2>Calling settings</h2><p>Pick the Twilio connection you added on the <a href="/utilities" target="_blank" rel="noopener">Connections page</a>; calling starts disabled.</p>
 <form id="settings" class="grid">
-<label>Twilio connection<select id="connectionId"><option value="">Select a connection</option></select></label>
-<label>Sender phone<select id="from"><option value="">Select a sender</option></select><small><button type="button" id="loadNumbers">Load numbers from selected account</button></small></label>
+<div class="wide pick-row"><label>Twilio connection<select id="connectionId"><option value="">Select a connection</option></select></label><label>Sender phone<select id="from"><option value="">Select a sender</option></select></label><button type="button" id="loadNumbers">Load numbers</button></div>
 <label>Your phone for human handoff<input id="transferPhone" placeholder="+ country code and number" autocomplete="tel"></label>
-<label>Public application origin<input id="publicOrigin" type="url" placeholder="https://your-oshal-domain.example"><small>Twilio must reach this HTTPS address without an external login wall.</small></label>
 <label>Speech recognition<select id="sttProvider"></select></label>
 <label>Spoken reply voice<select id="voice"><option value="alice">Alice</option><option value="woman">Woman</option><option value="man">Man</option></select></label>
 <label>Maximum call minutes<input id="maxMinutes" type="number" min="1" max="60"></label>
@@ -71,24 +96,16 @@ body{font:15px system-ui;margin:0;background:var(--bg-primary);color:var(--text-
 <label>Listen window (seconds)<input id="chunkSeconds" type="number" min="4" max="25"></label>
 <label>Estimated all-in cents per minute<input id="estimatedCentsPerMinute" type="number" min="1" max="1000"><small>Include both legs and optional speech charges from your account rates.</small></label>
 <label>Maximum estimated cost (cents)<input id="maxCostCents" type="number" min="1" max="50000"><small>Admission estimate, not a Twilio billing cap. Duration limits are enforced.</small></label>
-<label>Allowed destination numbers<textarea id="allowedNumbers" placeholder="One international phone number per line"></textarea></label>
+<label class="wide">Allowed destination numbers<textarea id="allowedNumbers" placeholder="One international phone number per line"></textarea></label>
 <label class="wide">Opening disclosure<textarea id="introduction" placeholder="Introduce your automated assistant and the audio processing used for this call."></textarea><small>Audio is recorded in short turns for interpretation and deleted from Twilio after processing. Cleanup failures remain visible in the report.</small></label>
-<label class="check wide"><input id="consent" type="checkbox">I authorize this application's call processing and charges for the selected connection and destinations.</label>
-<label class="check wide"><input id="enabled" type="checkbox">Enable calling for my account</label>
-<div class="row wide"><button type="submit">Save configuration</button><span id="readiness" class="muted"></span></div>
+<details class="wide advanced"><summary>Advanced</summary><label>Public application origin<input id="publicOrigin" type="url" placeholder="https://your-oshal-domain.example"><small>Filled from the address you opened this page at when it is https. Twilio must reach it without a login wall.</small></label></details>
+<label class="check wide"><input id="consent" type="checkbox" role="switch">I authorize this application's call processing and charges for the selected connection and destinations.</label>
+<label class="check wide"><input id="enabled" type="checkbox" role="switch">Enable calling for my account</label>
+<div class="row wide"><button type="submit" class="primary">Save configuration</button><span id="readiness" class="muted"></span></div>
 </form></section>
-<section><h2>2. Check recorded audio</h2><p>Upload a WAV containing a claims menu, hold music, or an agent greeting. This uses the same audio interpreter as a phone task and shows its transcript and decision.</p>
+<section><h2>Check recorded audio</h2><p>Upload a WAV of a menu, hold music or a greeting to see what the assistant would hear and do; it calls no one.</p>
 <form id="audioForm" class="row"><input id="audioFile" type="file" accept="audio/wav,.wav" required aria-label="Audio recording"><button>Interpret audio</button></form><pre id="audioResult"></pre></section>
-<section><h2>3. Run a call</h2><p>The service listens in short turns. Unknown or ambiguous menus wait; an approved reply can speak or send digits. A recognized human greeting rings your handoff phone.</p>
-<form id="taskForm" class="grid">
-<label>Destination<input id="to" required placeholder="An allowed international number"></label>
-<label>Objective<input id="objective" required maxlength="500" placeholder="Reach someone about my existing car claim"></label>
-<label class="wide">Menu keywords<input id="keywords" value="claims, existing claim" required><small>Comma-separated menu choices relevant to this task.</small></label>
-<label class="wide">Approved replies (JSON)<textarea id="responses">[{"prompt":"say claims","say":"claims"}]</textarea><small>Use prompt + say for a spoken reply, or prompt + digits for keypad input. Only enter information you want disclosed on this call.</small></label>
-<label class="check wide"><input id="approveCall" type="checkbox" required>I approve this call to the displayed destination with these replies.</label>
-<div class="row wide"><button id="startCall">Start call</button><small>Each submission receives an idempotency key to prevent a retry from dialing twice.</small></div>
-</form></section>
-<section><div class="row"><h2>Call reports</h2><button id="refresh" type="button">Refresh</button></div><div id="tasks"></div><pre id="report"></pre></section>
+</div>
 </main>
 <script>
 /* Plain sentences for what the server answers in codes (client.js uses Plain). A refusal says what to do; the audio test

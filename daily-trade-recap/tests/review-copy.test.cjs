@@ -7,6 +7,7 @@
  *   from a creative app) and its empty state said 'Open the app to begin.' though Recap Review is this application's only
  *   screen. The compiled home summary, run with a pool that answers no session, names where sessions come from; the page's
  *   eyebrow names the recap.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (recap-review, D): the page carries no uppercase overline and no second 'Daily Trade Recap' heading; the shell already names the application once (DS-03).
  */
 'use strict';
 const test = require('node:test');
@@ -47,8 +48,10 @@ test('with no session in the window the summary says where sessions come from, n
   assert.ok(!texts.some((t) => /Open the app to begin/.test(t)));
 });
 
-test('the Recap Review eyebrow names the recap, not a creative workspace', () => {
+test('the Recap Review page has no overline and does not repeat the application name', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'tools', 'review.html'), 'utf8');
-  assert.match(html, /<div class="eyebrow">Trading recap review<\/div><h1>Daily Trade Recap<\/h1>/);
+  const page = html.slice(html.indexOf('<body>'));
+  assert.doesNotMatch(page, /class="eyebrow"/);
+  assert.doesNotMatch(page, /<h1>/);
   assert.doesNotMatch(html, /Connected creative workspace/);
 });

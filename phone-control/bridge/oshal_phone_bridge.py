@@ -3,102 +3,83 @@
 # -----------------------------------------------------------------------------
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
-# 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0: the bridge on the person's own computer (Roger, 2026-11-06: "phone control fix it place"). OSHAL Node runs it through shell.exec when the person presses a button in phone-control: Android over adb (Wi-Fi pairing, the screen, taps, keys, typing, apps and the words on screen) and an iPhone through the resident Bluetooth keyboard in oshal_phone_ble.py. A closed list of verbs, one JSON argument, one JSON line back, never more than 19,000 characters, so it fits the computer's answer.
-# 2 | maintainer@emeraldcoastsystemsgroup.com | Set up also fetches any library adb needs that the computer lacks (read from the adb packages' own Depends, unpacked beside it), and an adb that cannot start says why instead of reading as too old.
-# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: the version follows the package; no behaviour change.
-# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: the version follows the package; no behaviour change.
-"""oshal phone bridge.
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: bridge on the operator computer via shell.exec: Android adb + iPhone BLE keyboard in oshal_phone_ble.py, closed verb list, single bounded JSON line.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Unpack missing adb shared libraries from Depends and surface adb startup errors clearly.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: version tracks package.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: version tracks package.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: Fire TV / Android TV network adb (adb-connect-tv, OK, PLAY_PAUSE, Leanback launcher).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: iPhone AirPlay mirroring through UxPlay (setup-mirror, mirror-start, mirror-stop, mirror-frame).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: delegate mirror/TV/transfer helpers to oshal_phone_mirror.py and calibration/RDP/unified input primitives to oshal_phone_ops.py (ble-calibrate, rdp-probe, screen-info, pointer-move, pointer-click, pointer-drag, keyboard-type, keyboard-key).
+"""oshal phone bridge: one closed verb, one JSON line."""
 
-Usage: oshal_phone_bridge.py <verb> [--b64 <base64 JSON> | --json '<JSON>' | name=value ...]
-Run `oshal_phone_bridge.py help` for the verbs and their arguments.
-Every run prints exactly one JSON line.
-"""
+import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
+from types import SimpleNamespace
 
-import base64
-import glob
-import hashlib
-import json
-import math
-import os
-import re
-import shutil
-import signal
-import socket
-import subprocess
-import sys
-import time
-from xml.etree import ElementTree
+sys.dont_write_bytecode = True
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import oshal_phone_mirror  # noqa: E402
+import oshal_phone_ops  # noqa: E402
 
-VERSION = '1.1.2'
+VERSION = '1.4.0'
 MAX_OUT = 19000
 CHUNK = 16000
-HERE = os.path.dirname(os.path.abspath(__file__))
-FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py')
+FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py')
 WRAPPER = 'oshal-phone-bridge'
-ADB_PACKAGES = ['adb', 'android-libbase', 'android-libboringssl', 'android-libcutils', 'android-liblog',
-                'android-libziparchive']
-# The earlier hand-started test keyboard this replaces, found by what it is, never by where it lives.
-EARLIER_PORT_HEX = '0100007F:BADB'  # 127.0.0.1:47835
+ADB_PACKAGES = ['adb', 'android-libbase', 'android-libboringssl', 'android-libcutils', 'android-liblog', 'android-libziparchive']
+EARLIER_PORT_HEX = '0100007F:BADB'
 EARLIER_SCRIPT = 'oshal_ble_hid.py'
 ANDROID_KEYS = {'HOME': 3, 'BACK': 4, 'RECENTS': 187, 'VOLUME_UP': 24, 'VOLUME_DOWN': 25, 'POWER': 26,
-                'ENTER': 66, 'BACKSPACE': 67, 'TAB': 61, 'UP': 19, 'DOWN': 20, 'LEFT': 21, 'RIGHT': 22}
+                'ENTER': 66, 'BACKSPACE': 67, 'TAB': 61, 'UP': 19, 'DOWN': 20, 'LEFT': 21, 'RIGHT': 22,
+                'OK': 23, 'PLAY_PAUSE': 85}
+TV_PORT = 5555
+TV_HOST = re.compile(r'^(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9][A-Za-z0-9.-]{0,252})$')
 ADDRESS = re.compile(r'^(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9][A-Za-z0-9.-]{0,252}):(\d{1,5})$')
 SERIAL = re.compile(r'^[A-Za-z0-9\[][A-Za-z0-9._:\[\]-]{0,159}$')
-PACKAGE = re.compile(r'^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$')
-FRAME_ID = re.compile(r'^[0-9a-f]{16}$')
 
 
 class Refusal(Exception):
-    """A run that could not do what was asked, with a code, the words for the person and any detail."""
-
     def __init__(self, code, message, **extra):
         super().__init__(message)
-        self.code = code
-        self.message = message
-        self.extra = extra
+        self.code, self.message, self.extra = code, message, extra
 
-
-# ───────────────────────── output, arguments, programs ─────────────────────────
 
 def emit(payload):
-    """Print the one JSON line; an answer that would not fit says so instead of being cut."""
     text = json.dumps(payload, separators=(',', ':'), ensure_ascii=True)
     if len(text) > MAX_OUT:
-        text = json.dumps({'ok': False, 'error': 'output_too_large',
-                           'message': 'The answer was larger than the computer can send back.'})
+        text = json.dumps({'ok': False, 'error': 'output_too_large', 'message': 'The answer was larger than the computer can send back.'})
     sys.stdout.write(text + '\n')
     sys.stdout.flush()
 
 
 def parse_args(argv):
-    """The verb and its arguments: --b64 (what phone-control sends), --json, or name=value (for a person or Jarvis)."""
     if not argv:
         raise Refusal('no_verb', 'Name what to do, for example: oshal-phone-bridge help')
-    verb, rest, args, index = argv[0], argv[1:], {}, 0
-    while index < len(rest):
-        token = rest[index]
-        if token in ('--b64', '--json') and index + 1 < len(rest):
-            raw = rest[index + 1]
+    verb, rest, args, idx = argv[0], argv[1:], {}, 0
+    while idx < len(rest):
+        tok = rest[idx]
+        if tok in ('--b64', '--json') and idx + 1 < len(rest):
+            raw = rest[idx + 1]
             try:
-                text = base64.b64decode(raw, validate=True).decode('utf-8') if token == '--b64' else raw
-                value = json.loads(text)
-            except (ValueError, UnicodeDecodeError) as error:
-                raise Refusal('bad_argument', f'The {token} argument is not valid: {error}')
-            if not isinstance(value, dict):
-                raise Refusal('bad_argument', f'The {token} argument must be a JSON object.')
-            args.update(value)
-            index += 2
-        elif '=' in token and not token.startswith('-'):
-            name, value = token.split('=', 1)
-            args[name] = value
-            index += 1
+                text = base64.b64decode(raw, validate=True).decode('utf-8') if tok == '--b64' else raw
+                val = json.loads(text)
+            except (ValueError, UnicodeDecodeError) as err:
+                raise Refusal('bad_argument', f'The {tok} argument is not valid: {err}')
+            if not isinstance(val, dict):
+                raise Refusal('bad_argument', f'The {tok} argument must be a JSON object.')
+            args.update(val)
+            idx += 2
+        elif '=' in tok and not tok.startswith('-'):
+            name, val = tok.split('=', 1)
+            args[name] = val
+            idx += 1
         else:
-            raise Refusal('bad_argument', f'Unexpected argument {token[:40]!r}. Use name=value pairs.')
+            raise Refusal('bad_argument', f'Unexpected argument {tok[:40]!r}. Use name=value pairs.')
     return verb, args
 
 
 def run(command, timeout=30, env=None, data=None, binary=False, cwd=None):
-    """Run one program without a shell. @returns (exit code, stdout, stderr)."""
     try:
         done = subprocess.run(command, input=data, capture_output=True, timeout=timeout, env=env, cwd=cwd)
     except FileNotFoundError:
@@ -114,17 +95,13 @@ def home():
 
 
 def install_dir():
-    return os.path.join(home(), '.local', 'share', 'oshal-phone-bridge')
+    return os.environ.get('OSHAL_PHONE_BRIDGE_HOME') or os.path.join(home(), '.local', 'share', 'oshal-phone-bridge')
 
 
 def runtime_dir():
-    """Where the resident keyboard's socket, pid and pictures live: private to this account. A unix socket
-    path is at most 107 bytes, so a long home falls back to a private folder under /tmp."""
     base = os.environ.get('XDG_RUNTIME_DIR')
-    if base and os.path.isdir(base):
-        path = os.path.join(base, 'oshal-phone-bridge')
-    else:
-        path = os.path.join(home(), '.local', 'state', 'oshal-phone-bridge', 'run')
+    path = (os.path.join(base, 'oshal-phone-bridge') if base and os.path.isdir(base)
+            else os.path.join(home(), '.local', 'state', 'oshal-phone-bridge', 'run'))
     if len(os.path.join(path, 'ble.sock').encode()) > 100:
         path = os.path.join('/tmp', f'oshal-phone-bridge-{os.getuid()}')
     os.makedirs(path, mode=0o700, exist_ok=True)
@@ -143,21 +120,17 @@ def sha256_file(path):
 
 
 def number(args, name, low, high, default=None):
-    """A whole number argument inside its bounds."""
-    value = args.get(name, default)
+    val = args.get(name, default)
     try:
-        value = int(value)
+        val = int(val)
     except (TypeError, ValueError):
         raise Refusal('bad_argument', f'{name} must be a whole number.')
-    if not low <= value <= high:
+    if not low <= val <= high:
         raise Refusal('bad_argument', f'{name} must be between {low} and {high}.')
-    return value
+    return val
 
-
-# ───────────────────────── adb ─────────────────────────
 
 def adb_layout():
-    """Our own adb copy: the folder, the program and the folders its libraries are in."""
     root = os.path.join(install_dir(), 'adb')
     binary = os.path.join(root, 'usr', 'lib', 'android-sdk', 'platform-tools', 'adb')
     android = sorted(glob.glob(os.path.join(root, 'usr', 'lib', '*', 'android')))
@@ -166,18 +139,17 @@ def adb_layout():
 
 
 def find_adb():
-    """The adb setup installed (the one it checked) first, then this computer's own."""
+    override = os.environ.get('OSHAL_ADB_BIN', '').strip()
+    if override and os.access(override, os.X_OK):
+        return {'path': override, 'env': dict(os.environ), 'source': 'override'}
     _, binary, libs = adb_layout()
     if os.access(binary, os.X_OK) and libs:
         return {'path': binary, 'env': dict(os.environ, LD_LIBRARY_PATH=libs), 'source': 'phone-control'}
     system = shutil.which('adb')
-    if system:
-        return {'path': system, 'env': dict(os.environ), 'source': 'this computer'}
-    return None
+    return {'path': system, 'env': dict(os.environ), 'source': 'this computer'} if system else None
 
 
 def adb_version(adb):
-    """adb's platform-tools version (wireless pairing needs 30 or newer), or why it did not run."""
     code, out, err = run([adb['path'], 'version'], 15, adb['env'])
     match = re.search(r'^Version (\d+)\.(\d+)\.(\d+)', out, re.M)
     if not match:
@@ -193,19 +165,17 @@ def adb_call(arguments, timeout=30, binary=False, data=None):
 
 
 def adb_words(text, address=''):
-    """adb's own failure, with what to do about it in words."""
-    lower = text.lower()
-    if 'not found' in lower and 'device' in lower:
+    low = text.lower()
+    if 'not found' in low and 'device' in low:
         return 'not_connected', 'The phone is not connected to this computer. Open Connect a device and press Connect.'
-    if 'unauthorized' in lower:
+    if 'unauthorized' in low:
         return 'unauthorized', 'The phone has not allowed this computer yet. Unlock the phone and press Allow.'
-    if 'wrong password' in lower or 'pairing failed' in lower or 'protocol fault' in lower:
+    if 'wrong password' in low or 'pairing failed' in low or 'protocol fault' in low:
         return 'pairing_refused', 'The phone refused the pairing code. Open Pair device with pairing code again and use the new code.'
-    if any(word in lower for word in ('unable to start pairing', 'connection refused', 'no route', 'timed out',
-                                      'failed to connect', 'cannot connect', 'network is unreachable')):
+    if any(w in low for w in ('unable to start pairing', 'connection refused', 'no route', 'timed out',
+                              'failed to connect', 'cannot connect', 'network is unreachable')):
         return 'no_answer', (f'The phone did not answer at {address or "that address"}. Check the IP address and port '
-                             'on the phone; the pairing port changes each time that dialog opens, and the phone and '
-                             'this computer must be on the same Wi-Fi.')
+                             'on the phone; the phone and this computer must be on the same Wi-Fi.')
     return 'adb_failed', 'adb did not do it.'
 
 
@@ -214,23 +184,22 @@ def adb_refusal(text, address=''):
     return Refusal(code, words, adb=text.strip()[-400:])
 
 
-def need_address(value):
-    value = str(value or '').strip()
-    match = ADDRESS.match(value)
+def need_address(val):
+    val = str(val or '').strip()
+    match = ADDRESS.match(val)
     if not match or not 1 <= int(match.group(1)) <= 65535:
         raise Refusal('bad_address', 'Type the address as the phone shows it, for example 192.168.1.42:37123.')
-    return value
+    return val
 
 
 def need_serial(args):
-    value = str(args.get('serial') or '').strip()
-    if not SERIAL.match(value):
+    val = str(args.get('serial') or '').strip()
+    if not SERIAL.match(val):
         raise Refusal('bad_serial', 'Name the phone by the address adb lists for it.')
-    return value
+    return val
 
 
 def adb_shell(serial, command, timeout=30):
-    """One command in the phone's own shell; a phone that is gone says so in words."""
     code, out, err = adb_call(['-s', serial, 'shell', command], timeout)
     if code and ('device' in err and 'not found' in err or 'offline' in err or 'unauthorized' in err):
         raise adb_refusal(err)
@@ -242,9 +211,8 @@ def installed(package):
     return code == 0 and out.endswith('install ok installed')
 
 
-def missing_dependencies(debs):
-    """The libraries the downloaded packages need that this computer does not have (two levels deep)."""
-    names, seen = set(), set(ADB_PACKAGES)
+def missing_dependencies(debs, initial=None):
+    names, seen = set(), set(ADB_PACKAGES if initial is None else initial)
     for deb in sorted(glob.glob(os.path.join(debs, '*.deb'))):
         _, depends, _ = run(['dpkg-deb', '-f', deb, 'Depends'], 15)
         for clause in depends.split(','):
@@ -256,10 +224,10 @@ def missing_dependencies(debs):
     return sorted(names)
 
 
-def download_and_unpack(packages, debs, stage):
+def download_and_unpack(packages, debs, stage, label='adb'):
     code, _, err = run(['apt-get', 'download'] + packages, 240, cwd=debs)
     if code:
-        raise Refusal('download_failed', 'apt-get could not download adb: ' + (err.strip().splitlines() or ['?'])[-1][:300])
+        raise Refusal('download_failed', f'apt-get could not download {label}: ' + (err.strip().splitlines() or ['?'])[-1][:300])
     for deb in sorted(glob.glob(os.path.join(debs, '*.deb'))):
         code, _, err = run(['dpkg-deb', '-x', deb, stage], 60)
         if code:
@@ -267,18 +235,14 @@ def download_and_unpack(packages, debs, stage):
 
 
 def verb_setup_adb(args):
-    """adb 30 or newer on this computer, without root: apt-get download and dpkg-deb -x into our own folder,
-    with any library it needs that this computer lacks."""
-    current = find_adb()
-    if current and adb_version(current)['major'] >= 30:
-        return {'ok': True, 'adb': adb_summary(current, devices=False)}
+    cur = find_adb()
+    if cur and adb_version(cur)['major'] >= 30:
+        return {'ok': True, 'adb': adb_summary(cur, devices=False)}
     if not shutil.which('apt-get') or not shutil.which('dpkg-deb'):
-        raise Refusal('no_apt', 'This computer has no apt-get. Install Android platform-tools (adb 30 or newer), '
-                                'then press Set up this computer again.')
+        raise Refusal('no_apt', 'This computer has no apt-get. Install Android platform-tools (adb 30 or newer), then press Set up this computer again.')
     root = adb_layout()[0]
-    stage = root + '.new'
+    stage, debs = root + '.new', os.path.join(root + '.new', 'debs')
     shutil.rmtree(stage, ignore_errors=True)
-    debs = os.path.join(stage, 'debs')
     os.makedirs(debs, mode=0o700)
     try:
         download_and_unpack(ADB_PACKAGES, debs, stage)
@@ -295,16 +259,15 @@ def verb_setup_adb(args):
     shutil.rmtree(root, ignore_errors=True)
     os.rename(stage, root)
     adb = find_adb()
-    version = adb_version(adb) if adb else {'major': 0, 'error': 'adb was not unpacked'}
-    if version.get('error'):
-        raise Refusal('adb_failed', 'The downloaded adb does not run on this computer: ' + version['error'])
-    if version['major'] < 30:
+    ver = adb_version(adb) if adb else {'major': 0, 'error': 'adb was not unpacked'}
+    if ver.get('error'):
+        raise Refusal('adb_failed', 'The downloaded adb does not run on this computer: ' + ver['error'])
+    if ver['major'] < 30:
         raise Refusal('adb_too_old', 'The adb this computer can download is older than 30, which cannot pair over Wi-Fi.')
     return {'ok': True, 'installed': True, 'libraries': extra, 'adb': adb_summary(adb, devices=False)}
 
 
 def list_devices():
-    """adb's devices: an emulator port nobody is using (another program on 5554-5585) is left out."""
     code, out, err = adb_call(['devices', '-l'], 20)
     if code:
         raise adb_refusal(err)
@@ -327,10 +290,10 @@ def adb_summary(adb=None, devices=True):
     adb = adb or find_adb()
     if not adb:
         return {'ready': False, 'message': 'adb is not set up on this computer.'}
-    version = adb_version(adb)
-    words = ('Android tools ready' if version['major'] >= 30 else f"adb does not run: {version['error']}" if version.get('error')
+    ver = adb_version(adb)
+    words = ('Android tools ready' if ver['major'] >= 30 else f"adb does not run: {ver['error']}" if ver.get('error')
              else 'adb is older than 30 and cannot pair over Wi-Fi.')
-    summary = {'ready': version['major'] >= 30, 'version': version['text'], 'source': adb['source'], 'message': words}
+    summary = {'ready': ver['major'] >= 30, 'version': ver['text'], 'source': adb['source'], 'message': words}
     if devices and summary['ready']:
         summary['devices'], summary['ignoredEmulatorPorts'] = list_devices()
     return summary
@@ -349,14 +312,12 @@ def verb_adb_pair(args):
 
 
 def discover_connect_address():
-    """The phone's connect address from adb's own mDNS, when exactly one phone offers it."""
     _, out, _ = adb_call(['mdns', 'services'], 20)
     found = sorted({line.split()[-1] for line in out.splitlines() if '_adb-tls-connect._tcp' in line and line.split()})
     if len(found) == 1:
         return found[0]
     if not found:
-        raise Refusal('not_found', "No phone on this network is offering Wireless debugging. Type the IP address and "
-                                   "port from the phone's Wireless debugging screen into Connect address.")
+        raise Refusal('not_found', "No phone on this network is offering Wireless debugging. Type the IP address and port from the phone's Wireless debugging screen into Connect address.")
     raise Refusal('choose', 'More than one phone offers Wireless debugging; type the address of yours.', candidates=found)
 
 
@@ -366,6 +327,30 @@ def verb_adb_connect(args):
     text = (out + '\n' + err).strip()
     if re.search(r'^(already )?connected to ', text, re.M):
         return {'ok': True, 'serial': address, 'adb': text.splitlines()[0][:200]}
+    raise adb_refusal(text, address)
+
+
+def tv_address(val):
+    val = str(val or '').strip()
+    if TV_HOST.match(val):
+        val = f'{val}:{TV_PORT}'
+    match = ADDRESS.match(val)
+    if not match or not 1 <= int(match.group(1)) <= 65535:
+        raise Refusal('bad_address', "Type the TV's IP address, for example 192.168.1.138. It is under Settings, My Fire TV, About, Network.")
+    return val
+
+
+def verb_adb_connect_tv(args):
+    address = tv_address(args.get('address'))
+    _, out, err = adb_call(['connect', address], 25)
+    text = (out + '\n' + err).strip()
+    state = next((dev['state'] for dev in list_devices()[0] if dev['serial'] == address), '')
+    if state == 'device':
+        return {'ok': True, 'serial': address, 'adb': text.splitlines()[0][:200] if text else ''}
+    if state == 'unauthorized' or 'authenticate' in text.lower():
+        raise Refusal('tv_unauthorized', 'The TV is asking "Allow USB debugging?". On the TV, tick Always allow from this computer and choose OK, then press Connect TV again.', adb=text[-400:])
+    if any(w in text.lower() for w in ('connection refused', 'no route', 'timed out', 'failed to connect', 'cannot connect', 'network is unreachable', 'unable to connect')):
+        raise Refusal('no_answer', f'The TV did not answer at {address}. Check the address under Settings, My Fire TV, About, Network; turn on ADB debugging under Developer options; the TV and this computer must be on the same network.', adb=text[-400:])
     raise adb_refusal(text, address)
 
 
@@ -382,8 +367,7 @@ def verb_adb_devices(args):
 
 def verb_adb_info(args):
     serial = need_serial(args)
-    code, out, err = adb_shell(serial, 'getprop ro.product.manufacturer; getprop ro.product.model; '
-                                       'getprop ro.build.version.release; wm size')
+    code, out, err = adb_shell(serial, 'getprop ro.product.manufacturer; getprop ro.product.model; getprop ro.build.version.release; wm size')
     if code:
         raise adb_refusal(err or out)
     lines = out.splitlines()
@@ -405,12 +389,12 @@ def verb_adb_tap(args):
 
 def verb_adb_swipe(args):
     serial = need_serial(args)
-    points = [number(args, name, 0, 20000) for name in ('x1', 'y1', 'x2', 'y2')]
-    duration = number(args, 'ms', 50, 3000, 300)
-    code, out, err = adb_shell(serial, 'input swipe {} {} {} {} {}'.format(*points, duration))
+    pts = [number(args, name, 0, 20000) for name in ('x1', 'y1', 'x2', 'y2')]
+    dur = number(args, 'ms', 50, 3000, 300)
+    code, out, err = adb_shell(serial, 'input swipe {} {} {} {} {}'.format(*pts, dur))
     if code:
         raise adb_refusal(err or out)
-    return {'ok': True, 'swiped': points}
+    return {'ok': True, 'swiped': pts}
 
 
 def verb_adb_key(args):
@@ -425,171 +409,37 @@ def verb_adb_key(args):
 
 
 def android_text_segments(text):
-    """What adb's input text can type: plain keyboard characters; a new line is the Enter key."""
     if not isinstance(text, str) or not text:
         raise Refusal('no_text', 'Type something to send.')
     if len(text) > 500:
         raise Refusal('too_long', 'Send at most 500 characters at a time.')
-    bad = sorted({char for char in text if char != '\n' and not ' ' <= char <= '~'})
+    bad = sorted({ch for ch in text if ch != '\n' and not ' ' <= ch <= '~'})
     if bad:
-        raise Refusal('cannot_type', 'Android typing over adb takes only plain keyboard characters; it cannot type '
-                      + ' '.join(bad[:10]) + '. Nothing was sent.')
+        raise Refusal('cannot_type', 'Android typing over adb takes only plain keyboard characters; it cannot type ' + ' '.join(bad[:10]) + '. Nothing was sent.')
     if '%s' in text:
         raise Refusal('cannot_type', 'The two characters %s cannot be typed over adb: Android reads them as a space. Nothing was sent.')
     return text.split('\n')
 
 
-def device_quote(value):
-    """Quote for the phone's own shell."""
-    return "'" + value.replace("'", "'\\''") + "'"
+def device_quote(val):
+    return "'" + val.replace("'", "'\\''") + "'"
 
 
 def verb_adb_text(args):
     serial = need_serial(args)
-    segments = android_text_segments(args.get('text'))
-    for index, segment in enumerate(segments):
-        if index:
+    for idx, seg in enumerate(android_text_segments(args.get('text'))):
+        if idx:
             adb_shell(serial, 'input keyevent 66')
-        if segment:
-            code, out, err = adb_shell(serial, 'input text ' + device_quote(segment.replace(' ', '%s')))
+        if seg:
+            code, out, err = adb_shell(serial, 'input text ' + device_quote(seg.replace(' ', '%s')))
             if code:
                 raise adb_refusal(err or out)
     return {'ok': True, 'typed': len(args.get('text'))}
 
 
-def verb_adb_apps(args):
-    serial = need_serial(args)
-    _, out, err = adb_shell(serial, 'cmd package query-activities --brief -a android.intent.action.MAIN '
-                                    '-c android.intent.category.LAUNCHER')
-    packages = {match.group(1) for match in re.finditer(r'^\s*([A-Za-z][\w.]*)/', out, re.M)}
-    if not packages:
-        _, out, err = adb_shell(serial, 'pm list packages')
-        packages = {line[8:].strip() for line in out.splitlines() if line.startswith('package:')}
-    packages = sorted(name for name in packages if PACKAGE.match(name))
-    if not packages:
-        raise adb_refusal(err or 'no apps were listed')
-    while len(json.dumps(packages)) > MAX_OUT - 400:
-        packages.pop()
-    return {'ok': True, 'apps': packages}
-
-
-def verb_adb_launch(args):
-    serial = need_serial(args)
-    name = str(args.get('package', ''))
-    if not PACKAGE.match(name):
-        raise Refusal('bad_package', 'Name the app by its package, for example com.android.settings.')
-    _, out, err = adb_shell(serial, f'monkey -p {name} -c android.intent.category.LAUNCHER 1', 30)
-    if 'Events injected: 1' in out:
-        return {'ok': True, 'opened': name}
-    raise Refusal('not_opened', f'{name} has no screen to open on this phone.', adb=(out + err).strip()[-300:])
-
-
-def ui_items(xml):
-    """The words on the screen and the centre of each, from uiautomator's dump."""
-    root = ElementTree.fromstring(xml)
-    items, package = [], ''
-    for node in root.iter('node'):
-        package = package or node.get('package', '')
-        label = (node.get('text') or '').strip() or (node.get('content-desc') or '').strip()
-        bounds = re.match(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.get('bounds', ''))
-        if not label or not bounds:
-            continue
-        x1, y1, x2, y2 = (int(value) for value in bounds.groups())
-        items.append({'text': label[:80], 'x': (x1 + x2) // 2, 'y': (y1 + y2) // 2,
-                      'tap': node.get('clickable') == 'true'})
-    return package, items
-
-
-def verb_adb_ui(args):
-    serial = need_serial(args)
-    _, out, err = adb_call(['-s', serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty'], 30)
-    if '</hierarchy>' not in out:
-        adb_shell(serial, 'uiautomator dump /sdcard/oshal_ui.xml', 30)
-        _, out, err = adb_call(['-s', serial, 'exec-out', 'cat', '/sdcard/oshal_ui.xml'], 20)
-    start, end = out.find('<?xml'), out.rfind('</hierarchy>')
-    if start < 0 or end < 0:
-        raise adb_refusal(err or out or 'uiautomator gave no screen')
-    package, items = ui_items(out[start:end + len('</hierarchy>')])
-    truncated = False
-    while len(json.dumps(items)) > MAX_OUT - 500:
-        items.pop()
-        truncated = True
-    return {'ok': True, 'package': package, 'items': items, 'truncated': truncated}
-
-
-# ───────────────────────── pictures of the phone's screen ─────────────────────────
-
-def png_size(data):
-    if data[:8] != b'\x89PNG\r\n\x1a\n' or len(data) < 24:
-        return 0, 0
-    return int.from_bytes(data[16:20], 'big'), int.from_bytes(data[20:24], 'big')
-
-
-def frames_dir():
-    path = os.path.join(runtime_dir(), 'frames')
-    os.makedirs(path, mode=0o700, exist_ok=True)
-    return path
-
-
-def keep_frame(data, extension):
-    """Keep the picture for its chunks; only the newest four stay."""
-    digest = hashlib.sha256(data).hexdigest()
-    folder = frames_dir()
-    with open(os.path.join(folder, f'{digest[:16]}.{extension}'), 'wb') as handle:
-        handle.write(data)
-    kept = sorted(glob.glob(os.path.join(folder, '*.*')), key=os.path.getmtime, reverse=True)
-    for old in kept[4:]:
-        os.remove(old)
-    return digest
-
-
-def scaled_jpeg(png, width):
-    """A narrower JPEG through ffmpeg, when this computer has it; otherwise None."""
-    ffmpeg = shutil.which('ffmpeg')
-    if not ffmpeg:
-        return None
-    code, jpeg, _ = run([ffmpeg, '-v', 'error', '-f', 'png_pipe', '-i', 'pipe:0', '-vf', f'scale={width}:-2',
-                         '-q:v', '7', '-f', 'mjpeg', 'pipe:1'], 30, data=png, binary=True)
-    return jpeg if code == 0 and jpeg[:2] == b'\xff\xd8' else None
-
-
-def verb_adb_frame(args):
-    serial = need_serial(args)
-    width = number(args, 'width', 160, 1080, 432)
-    code, png, err = adb_call(['-s', serial, 'exec-out', 'screencap', '-p'], 30, binary=True)
-    device_width, device_height = png_size(png)
-    if code or not device_width:
-        raise adb_refusal(err or 'the phone sent no picture')
-    jpeg = scaled_jpeg(png, width)
-    data, mime = (jpeg, 'image/jpeg') if jpeg else (png, 'image/png')
-    digest = keep_frame(data, 'jpg' if jpeg else 'png')
-    text = base64.b64encode(data).decode('ascii')
-    return {'ok': True, 'id': digest[:16], 'sha256': digest, 'mime': mime, 'bytes': len(data),
-            'chunks': max(1, math.ceil(len(text) / CHUNK)), 'index': 0, 'data': text[:CHUNK],
-            'deviceWidth': device_width, 'deviceHeight': device_height, 'slow': not jpeg}
-
-
-def verb_frame_chunk(args):
-    frame = str(args.get('id', ''))
-    if not FRAME_ID.match(frame):
-        raise Refusal('bad_frame', 'Name the picture by the id adb-frame gave.')
-    index = number(args, 'index', 0, 10000)
-    found = glob.glob(os.path.join(frames_dir(), frame + '.*'))
-    if not found:
-        raise Refusal('frame_gone', 'That picture is no longer kept; ask for a new one.')
-    with open(found[0], 'rb') as handle:
-        text = base64.b64encode(handle.read()).decode('ascii')
-    if index * CHUNK >= len(text):
-        raise Refusal('bad_frame', f'That picture has only {math.ceil(len(text) / CHUNK)} parts.')
-    return {'ok': True, 'id': frame, 'index': index, 'data': text[index * CHUNK:(index + 1) * CHUNK]}
-
-
-# ───────────────────────── the resident Bluetooth keyboard ─────────────────────────
-
 def ble_paths():
     folder = runtime_dir()
-    return {'socket': os.path.join(folder, 'ble.sock'), 'pid': os.path.join(folder, 'ble.pid'),
-            'log': os.path.join(folder, 'ble.log')}
+    return {'socket': os.path.join(folder, 'ble.sock'), 'pid': os.path.join(folder, 'ble.pid'), 'log': os.path.join(folder, 'ble.log')}
 
 
 def process_argv(pid):
@@ -601,7 +451,6 @@ def process_argv(pid):
 
 
 def ble_pid():
-    """The resident keyboard's process, when it is ours and alive."""
     try:
         with open(ble_paths()['pid']) as handle:
             pid = int(handle.read().strip())
@@ -611,28 +460,25 @@ def ble_pid():
 
 
 def ble_request(op, payload=None, timeout=60):
-    """One request to the resident keyboard over its private socket."""
-    path = ble_paths()['socket']
-    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    connection.settimeout(timeout)
+    conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    conn.settimeout(timeout)
     try:
-        connection.connect(path)
-        connection.sendall(json.dumps(dict(payload or {}, op=op)).encode('utf-8') + b'\n')
+        conn.connect(ble_paths()['socket'])
+        conn.sendall(json.dumps(dict(payload or {}, op=op)).encode('utf-8') + b'\n')
         reply = b''
         while not reply.endswith(b'\n'):
-            part = connection.recv(65536)
+            part = conn.recv(65536)
             if not part:
                 break
             reply += part
     except (FileNotFoundError, ConnectionRefusedError):
-        raise Refusal('ble_not_running', 'The Bluetooth keyboard is not running on this computer. '
-                                         'Press Set up this computer in phone-control.')
+        raise Refusal('ble_not_running', 'The Bluetooth keyboard is not running on this computer. Press Set up this computer in phone-control.')
     except socket.timeout:
         raise Refusal('timed_out', 'The Bluetooth keyboard did not answer in time.')
-    except OSError as error:
-        raise Refusal('ble_not_running', f'The Bluetooth keyboard could not be reached: {error}.')
+    except OSError as err:
+        raise Refusal('ble_not_running', f'The Bluetooth keyboard could not be reached: {err}.')
     finally:
-        connection.close()
+        conn.close()
     try:
         return json.loads(reply.decode('utf-8'))
     except ValueError:
@@ -640,23 +486,21 @@ def ble_request(op, payload=None, timeout=60):
 
 
 def bluetooth_prerequisites():
-    """What this computer has for the iPhone keyboard: BlueZ over the system bus, its Python bindings, an adapter."""
     found = {'ready': False, 'bluez': None, 'adapter': None}
     if shutil.which('bluetoothctl'):
         _, out, _ = run(['bluetoothctl', '--version'], 10)
         found['bluez'] = out.strip().split()[-1] if out.strip() else None
     try:
-        import dbus  # noqa: F401  (the system's python3-dbus)
+        import dbus  # noqa: F401
         from gi.repository import GLib  # noqa: F401
     except ImportError:
         return dict(found, message='Bluetooth needs python3-dbus and python3-gi on this computer.')
     try:
         bus = dbus.SystemBus()
         objects = dbus.Interface(bus.get_object('org.bluez', '/'), 'org.freedesktop.DBus.ObjectManager').GetManagedObjects()
-    except dbus.exceptions.DBusException as error:
-        return dict(found, message='No Bluetooth adapter on this computer.', detail=error.get_dbus_name())
-    adapters = sorted((str(path), props['org.bluez.Adapter1']) for path, props in objects.items()
-                      if 'org.bluez.Adapter1' in props)
+    except dbus.exceptions.DBusException as err:
+        return dict(found, message='No Bluetooth adapter on this computer.', detail=err.get_dbus_name())
+    adapters = sorted((str(p), props['org.bluez.Adapter1']) for p, props in objects.items() if 'org.bluez.Adapter1' in props)
     if not adapters:
         return dict(found, message='No Bluetooth adapter on this computer.')
     path, props = adapters[0]
@@ -666,8 +510,6 @@ def bluetooth_prerequisites():
 
 
 def find_earlier_keyboard():
-    """The earlier hand-started test keyboard, if it runs: a listener on 127.0.0.1:47835 whose program is
-    oshal_ble_hid.py, owned by this account."""
     try:
         with open('/proc/net/tcp') as handle:
             rows = [line.split() for line in handle.read().splitlines()[1:]]
@@ -706,14 +548,12 @@ def stop_process(pid, seconds=5):
 
 
 def start_detached(argv, log_path, cwd):
-    """A process that outlives this command: its own session, no inherited output."""
     with open(log_path, 'ab') as log:
         return subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True, close_fds=True, cwd=cwd).pid
 
 
 def self_check(seconds=20):
-    """The resident keyboard registered with BlueZ and advertises within the time, or why not."""
     end, last = time.time() + seconds, 'it did not start'
     while time.time() < end:
         try:
@@ -727,46 +567,6 @@ def self_check(seconds=20):
     return False, last
 
 
-def restore_earlier(earlier):
-    """Start the earlier test keyboard again exactly as it was started."""
-    pid = start_detached(earlier['argv'], os.path.join(runtime_dir(), 'earlier-keyboard.log'), earlier['cwd'])
-    time.sleep(3)
-    return {'pid': pid, 'listening': find_earlier_keyboard() is not None}
-
-
-def verb_ensure(args):
-    """The resident keyboard running; it replaces the earlier test keyboard only when the person said so."""
-    prerequisites = bluetooth_prerequisites()
-    if not prerequisites['ready']:
-        raise Refusal('no_bluetooth', prerequisites['message'], bluetooth=prerequisites)
-    if ble_pid():
-        ok, status = self_check(5)
-        if ok:
-            return {'ok': True, 'started': False, 'ble': status}
-        stop_process(ble_pid())
-    earlier = find_earlier_keyboard()
-    if earlier and str(args.get('replaceEarlier', '')).lower() not in ('true', '1'):
-        raise Refusal('earlier_keyboard_running', f'An earlier test keyboard (process {earlier["pid"]}) is using '
-                      'Bluetooth on this computer. Press Replace the earlier test keyboard to let phone-control take over.',
-                      earlier={'pid': earlier['pid'], 'program': os.path.basename(earlier['argv'][-1])})
-    if earlier:
-        with open(os.path.join(install_dir(), 'earlier-keyboard.json'), 'w') as handle:
-            json.dump(dict(earlier, stoppedAt=time.time()), handle)
-        stop_process(earlier['pid'])
-    paths = ble_paths()
-    start_detached([sys.executable, '-I', os.path.join(HERE, 'oshal_phone_ble.py'), 'serve', runtime_dir()],
-                   paths['log'], runtime_dir())
-    ok, status = self_check(20)
-    if ok:
-        return {'ok': True, 'started': True, 'replacedEarlier': bool(earlier), 'ble': status}
-    pid = ble_pid()
-    if pid:
-        stop_process(pid)
-    restored = restore_earlier(earlier) if earlier else None
-    raise Refusal('self_check_failed', f'The Bluetooth keyboard did not come up within 20 s: {status}.',
-                  restoredEarlier=restored, log=log_tail(paths['log']))
-
-
 def log_tail(path, size=600):
     try:
         with open(path, 'rb') as handle:
@@ -776,22 +576,55 @@ def log_tail(path, size=600):
         return ''
 
 
+def verb_ensure(args):
+    prereq = bluetooth_prerequisites()
+    if not prereq['ready']:
+        raise Refusal('no_bluetooth', prereq['message'], bluetooth=prereq)
+    if ble_pid():
+        ok, status = self_check(5)
+        if ok and status.get('code') == sha256_file(os.path.join(HERE, 'oshal_phone_ble.py')):
+            return {'ok': True, 'started': False, 'ble': status}
+        stop_process(ble_pid())
+    earlier = find_earlier_keyboard()
+    if earlier and str(args.get('replaceEarlier', '')).lower() not in ('true', '1'):
+        raise Refusal('earlier_keyboard_running', f'An earlier test keyboard (process {earlier["pid"]}) is using Bluetooth on this computer. Press Replace the earlier test keyboard to let phone-control take over.',
+                      earlier={'pid': earlier['pid'], 'program': os.path.basename(earlier['argv'][-1])})
+    if earlier:
+        with open(os.path.join(install_dir(), 'earlier-keyboard.json'), 'w') as handle:
+            json.dump(dict(earlier, stoppedAt=time.time()), handle)
+        stop_process(earlier['pid'])
+    paths = ble_paths()
+    start_detached([sys.executable, '-I', os.path.join(HERE, 'oshal_phone_ble.py'), 'serve', runtime_dir()], paths['log'], runtime_dir())
+    ok, status = self_check(20)
+    if ok:
+        return {'ok': True, 'started': True, 'replacedEarlier': bool(earlier), 'ble': status}
+    if ble_pid():
+        stop_process(ble_pid())
+    restored = None
+    if earlier:
+        rpid = start_detached(earlier['argv'], os.path.join(runtime_dir(), 'earlier-keyboard.log'), earlier['cwd'])
+        time.sleep(3)
+        restored = {'pid': rpid, 'listening': find_earlier_keyboard() is not None}
+    raise Refusal('self_check_failed', f'The Bluetooth keyboard did not come up within 20 s: {status}.',
+                  restoredEarlier=restored, log=log_tail(paths['log']))
+
+
 def verb_stop(args):
     pid = ble_pid()
     return {'ok': True, 'stopped': bool(pid and stop_process(pid))}
 
 
+def ble_op(op, payload=None):
+    reply = ble_request(op, payload or {})
+    if not reply.get('ok'):
+        raise Refusal(reply.get('error', 'ble_failed'), reply.get('message', 'The Bluetooth keyboard did not do it.'),
+                      **{k: v for k, v in reply.items() if k not in ('ok', 'error', 'message')})
+    return reply
+
+
 def ble_passthrough(op, fields):
-    def verb(args):
-        reply = ble_request(op, {name: args[name] for name in fields if name in args})
-        if not reply.get('ok'):
-            raise Refusal(reply.get('error', 'ble_failed'), reply.get('message', 'The Bluetooth keyboard did not do it.'),
-                          **{key: value for key, value in reply.items() if key not in ('ok', 'error', 'message')})
-        return reply
-    return verb
+    return lambda args: ble_op(op, {name: args[name] for name in fields if name in args})
 
-
-# ───────────────────────── this bridge itself ─────────────────────────
 
 def file_hashes():
     hashes = {name: sha256_file(os.path.join(HERE, name)) for name in FILES}
@@ -799,12 +632,30 @@ def file_hashes():
     return hashes
 
 
+MIRROR_CTX = SimpleNamespace(
+    Refusal=Refusal, CHUNK=CHUNK, MAX_OUT=MAX_OUT, run=run, install_dir=install_dir, runtime_dir=runtime_dir,
+    installed=installed, missing_dependencies=missing_dependencies, download_and_unpack=download_and_unpack,
+    process_argv=process_argv, stop_process=stop_process, log_tail=log_tail, number=number,
+    need_serial=need_serial, adb_call=adb_call, adb_shell=adb_shell, adb_refusal=adb_refusal,
+    device_quote=device_quote, list_devices=list_devices, ble_op=ble_op,
+    verb_adb_info=verb_adb_info, verb_adb_tap=verb_adb_tap, verb_adb_swipe=verb_adb_swipe,
+    verb_adb_text=verb_adb_text, verb_adb_key=verb_adb_key,
+)
+
+
+def verb_mirror(fn):
+    return lambda args: getattr(oshal_phone_mirror, fn)(MIRROR_CTX, args)
+
+
+def verb_ops(fn):
+    return lambda args: getattr(oshal_phone_ops, fn)(MIRROR_CTX, args)
+
+
 def verb_version(args):
     return {'ok': True, 'version': VERSION, 'files': file_hashes(), 'python': sys.version.split()[0]}
 
 
 def verb_status(args):
-    """Everything phone-control shows about this computer, read now."""
     try:
         ble = ble_request('status', timeout=5) if ble_pid() else None
     except Refusal:
@@ -817,16 +668,19 @@ def verb_status(args):
     return {'ok': True, 'version': VERSION, 'files': file_hashes(), 'python': sys.version.split()[0],
             'bluetooth': bluetooth_prerequisites(), 'ble': ble, 'ffmpeg': bool(shutil.which('ffmpeg')),
             'earlierKeyboard': {'pid': earlier['pid']} if earlier else None, 'adb': adb,
-            'readAt': int(time.time() * 1000)}
+            'tvApk': oshal_phone_mirror.local_tv_apk_summary(),
+            'mirror': oshal_phone_mirror.mirror_summary(MIRROR_CTX), 'readAt': int(time.time() * 1000)}
 
 
 def verb_uninstall(args):
-    """Take this bridge off the computer: the keyboard, our adb and our files. The phone's own pairing stays."""
     removed = []
     pid = ble_pid()
     if pid and stop_process(pid):
         removed.append('keyboard')
-    root, binary, _ = adb_layout()
+    mpid = oshal_phone_mirror.mirror_pid(MIRROR_CTX)
+    if mpid and stop_process(mpid):
+        removed.append('mirror')
+    _, binary, _ = adb_layout()
     for proc in (name for name in os.listdir('/proc') if name.isdigit()):
         try:
             if os.readlink(f'/proc/{proc}/exe') == binary:
@@ -847,32 +701,65 @@ def verb_uninstall(args):
 VERBS = {
     'help': (lambda args: {'ok': True, 'version': VERSION, 'verbs': HELP}),
     'version': verb_version, 'status': verb_status, 'setup-adb': verb_setup_adb, 'uninstall': verb_uninstall,
-    'ensure': verb_ensure, 'stop': verb_stop,
-    'ble-status': ble_passthrough('status', ()),
-    'ble-pair-window': ble_passthrough('pair-window', ('seconds',)),
-    'ble-devices': ble_passthrough('devices', ()),
-    'ble-type': ble_passthrough('type', ('text', 'enter')),
-    'ble-key': ble_passthrough('key', ('key',)),
-    'ble-mouse': ble_passthrough('mouse', ('dx', 'dy', 'click')),
-    'ble-open': ble_passthrough('open', ('name',)),
-    'adb-pair': verb_adb_pair, 'adb-connect': verb_adb_connect, 'adb-disconnect': verb_adb_disconnect,
+    'setup-mirror': verb_mirror('verb_setup_mirror'), 'mirror-start': verb_mirror('verb_mirror_start'),
+    'mirror-stop': verb_mirror('verb_mirror_stop'), 'mirror-frame': verb_mirror('verb_mirror_frame'),
+    'mirror-ui': verb_mirror('verb_mirror_ui'), 'ensure': verb_ensure, 'stop': verb_stop,
+    'ble-status': ble_passthrough('status', ()), 'ble-pair-window': ble_passthrough('pair-window', ('seconds',)),
+    'ble-devices': ble_passthrough('devices', ()), 'ble-remove': ble_passthrough('forget', ('address',)),
+    'ble-type': ble_passthrough('type', ('text', 'enter')), 'ble-key': ble_passthrough('key', ('key',)),
+    'ble-mouse': ble_passthrough('mouse', ('dx', 'dy', 'click', 'rehome')),
+    'ble-move': ble_passthrough('move', ('nx', 'ny', 'landscape', 'rehome', 'spanX', 'spanY', 'address')),
+    'ble-tap': ble_passthrough('tap', ('nx', 'ny', 'landscape', 'rehome', 'spanX', 'spanY', 'address')),
+    'ble-swipe': ble_passthrough('swipe', ('nx1', 'ny1', 'nx2', 'ny2', 'ms', 'landscape', 'spanX', 'spanY', 'address')),
+    'ble-drag': ble_passthrough('drag', ('nx1', 'ny1', 'nx2', 'ny2', 'holdMs', 'landscape', 'spanX', 'spanY', 'address')),
+    'ble-scroll': ble_passthrough('scroll', ('dy',)), 'ble-open': ble_passthrough('open', ('name',)),
+    'ble-calibrate': verb_ops('verb_ble_calibrate'), 'rdp-probe': verb_ops('verb_rdp_probe'),
+    'screen-info': verb_ops('verb_screen_info'), 'pointer-move': verb_ops('verb_pointer_move'),
+    'pointer-click': verb_ops('verb_pointer_click'), 'pointer-drag': verb_ops('verb_pointer_drag'),
+    'keyboard-type': verb_ops('verb_keyboard_type'), 'keyboard-key': verb_ops('verb_keyboard_key'),
+    'adb-pair': verb_adb_pair, 'adb-connect': verb_adb_connect, 'adb-connect-tv': verb_adb_connect_tv,
+    'adb-scan-tv': verb_mirror('verb_adb_scan_tv'), 'stage-chunk': verb_mirror('verb_stage_chunk'),
+    'adb-install-apk': verb_mirror('verb_adb_install_apk'), 'adb-disconnect': verb_adb_disconnect,
     'adb-devices': verb_adb_devices, 'adb-info': verb_adb_info, 'adb-tap': verb_adb_tap, 'adb-swipe': verb_adb_swipe,
-    'adb-text': verb_adb_text, 'adb-key': verb_adb_key, 'adb-apps': verb_adb_apps, 'adb-launch': verb_adb_launch,
-    'adb-ui': verb_adb_ui, 'adb-frame': verb_adb_frame, 'frame-chunk': verb_frame_chunk,
+    'adb-text': verb_adb_text, 'adb-key': verb_adb_key, 'adb-apps': verb_mirror('verb_adb_apps'),
+    'adb-launch': verb_mirror('verb_adb_launch'), 'adb-ui': verb_mirror('verb_adb_ui'),
+    'adb-frame': verb_mirror('verb_adb_frame'), 'frame-chunk': verb_mirror('verb_frame_chunk'),
+    'adb-files': verb_mirror('verb_adb_files'), 'adb-push': verb_mirror('verb_adb_push'),
+    'adb-pull': verb_mirror('verb_adb_pull'), 'adb-clipboard-get': verb_mirror('verb_adb_clipboard_get'),
+    'adb-clipboard-set': verb_mirror('verb_adb_clipboard_set'),
 }
 HELP = {
-    'status': 'everything about this computer: Bluetooth, the keyboard, adb and its phones',
-    'ensure': 'start the iPhone keyboard [replaceEarlier=true]', 'stop': 'stop the iPhone keyboard',
-    'ble-pair-window': 'let a new iPhone pair for seconds=120', 'ble-devices': 'the iPhones paired with this computer',
-    'ble-type': 'type on the iPhone: text="..." [enter=true]', 'ble-key': 'key=Home|Spotlight|VolumeUp|VolumeDown|Enter|Escape|Backspace|Tab|Up|Down|Left|Right',
-    'ble-mouse': 'move the iPhone pointer: dx= dy= [click=true] (AssistiveTouch on)', 'ble-open': 'open an iPhone app by name: name="Notes"',
-    'setup-adb': 'get adb 30 or newer', 'adb-pair': 'address=IP:port code=123456', 'adb-connect': '[address=IP:port]',
-    'adb-devices': 'the Android phones adb sees', 'adb-info': 'serial=...', 'adb-tap': 'serial= x= y=',
+    'status': 'Bluetooth, keyboard, AirPlay mirror, adb and phones',
+    'ensure': 'start iPhone keyboard [replaceEarlier=true]', 'stop': 'stop iPhone keyboard',
+    'setup-mirror': 'unpack UxPlay + GStreamer', 'mirror-start': 'start AirPlay receiver',
+    'mirror-stop': 'stop AirPlay receiver', 'mirror-frame': '[width=432] mirrored iPhone JPEG',
+    'mirror-ui': 'mirrored iPhone screen text and coordinates',
+    'ble-pair-window': 'open pairing window [seconds=120]', 'ble-devices': 'paired iPhones',
+    'ble-remove': 'forget paired device: address=...', 'ble-type': 'type on iPhone: text=... [enter=true]',
+    'ble-key': 'key=Home|Spotlight|VolumeUp|VolumeDown|Enter|Escape|Backspace|Tab|Up|Down|Left|Right',
+    'ble-mouse': 'move iPhone pointer: dx= dy= [click=true] [rehome=true]',
+    'ble-move': 'move iPhone pointer: nx=0..1 ny=0..1',
+    'ble-tap': 'tap iPhone screen: nx=0..1 ny=0..1', 'ble-swipe': 'swipe iPhone: nx1= ny1= nx2= ny2=',
+    'ble-drag': 'long-press drag iPhone icon: nx1= ny1= nx2= ny2= [holdMs=700]',
+    'ble-scroll': 'scroll iPhone wheel: dy=-40..40', 'ble-open': 'open iPhone app: name="Notes"',
+    'ble-calibrate': 'learn iOS pointer gain from live AirPlay mirror [address=MAC]',
+    'rdp-probe': 'verify TCP + X.224 RDP handshake: host=... [port=3389]',
+    'screen-info': 'detect screen width x height and visible text: [platform=ios|android]',
+    'pointer-move': 'move pointer to (x, y): x= y= [width= height=]',
+    'pointer-click': 'click screen at (x, y): x= y= [width= height=]',
+    'pointer-drag': 'drag or swipe (x1, y1)->(x2, y2): [holdMs=700]',
+    'keyboard-type': 'type text into focused input: text=... [enter=true]',
+    'keyboard-key': 'press named key: key=Enter|Backspace|Home|Up|Down|Left|Right|Select|Back|Menu|PlayPause',
+    'setup-adb': 'unpack adb 30+', 'adb-pair': 'address=IP:port code=123456', 'adb-connect': '[address=IP:port]',
+    'adb-connect-tv': 'address=IP[:port]', 'adb-scan-tv': 'scan Wi-Fi LAN for Fire TV / Android TV port 5555',
+    'stage-chunk': 'id= index= total= sha256= data=', 'adb-install-apk': 'serial= stageId= sha256= [launchPackage=...]',
+    'adb-devices': 'connected Android devices', 'adb-info': 'serial=...', 'adb-tap': 'serial= x= y=',
     'adb-swipe': 'serial= x1= y1= x2= y2= [ms=300]', 'adb-text': 'serial= text="..."',
     'adb-key': 'serial= key=' + '|'.join(sorted(ANDROID_KEYS)), 'adb-apps': 'serial=', 'adb-launch': 'serial= package=',
-    'adb-ui': 'serial= (the words on the screen and where they are)', 'adb-frame': 'serial= [width=432]',
-    'frame-chunk': 'id= index=', 'adb-disconnect': 'serial=', 'version': 'this bridge and its files',
-    'uninstall': 'take the bridge off this computer',
+    'adb-ui': 'serial=', 'adb-frame': 'serial= [width=432]', 'frame-chunk': 'id= index=',
+    'adb-files': 'serial=', 'adb-push': 'serial= name= data=', 'adb-pull': 'serial= name= [offset=0]',
+    'adb-clipboard-get': 'serial=', 'adb-clipboard-set': 'serial= text="..."',
+    'adb-disconnect': 'serial=', 'version': 'bridge version and file hashes', 'uninstall': 'remove bridge',
 }
 
 
@@ -886,10 +773,10 @@ def main(argv):
     except Refusal as refusal:
         emit(dict(refusal.extra, ok=False, error=refusal.code, message=refusal.message))
         return 3
-    except Exception as error:  # still one JSON line; the trace goes to stderr for whoever reads it
+    except Exception as err:
         import traceback
         traceback.print_exc()
-        emit({'ok': False, 'error': 'bridge_failed', 'message': f'The bridge failed: {type(error).__name__}: {error}'})
+        emit({'ok': False, 'error': 'bridge_failed', 'message': f'The bridge failed: {type(err).__name__}: {err}'})
         return 4
 
 

@@ -11,6 +11,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Export the 0.5.0 modules: print checks (B13), perspective
  *                     |                             | re-projection (B2), range-image decoding (B1), frame
  *                     |                             | suggestion (B12) and the orientation-cube face markers (B9).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Export STL parsing, binary glTF 2.0 (.glb), Apple USDZ (.usdz)
+ *                     |                             | and interactive 3D mesh crop, rotation/lay-flat and measurement.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -33,7 +35,11 @@ __exportStar(require("./geometry/format-number"), exports);
 __exportStar(require("./geometry/mesh-metrics"), exports);
 __exportStar(require("./geometry/mesh-validate"), exports);
 __exportStar(require("./geometry/export-stl"), exports);
+__exportStar(require("./geometry/parse-stl"), exports);
 __exportStar(require("./geometry/export-obj"), exports);
+__exportStar(require("./geometry/export-glb"), exports);
+__exportStar(require("./geometry/export-usdz"), exports);
+__exportStar(require("./geometry/mesh-ops"), exports);
 __exportStar(require("./raster/raster-types"), exports);
 __exportStar(require("./raster/silhouette"), exports);
 __exportStar(require("./raster/face-marker"), exports);

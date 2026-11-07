@@ -41,6 +41,8 @@
 #     schema or permission change. Guarded by tests/audience-view.test.cjs (test-lab.yaml).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.4: campaign-director declares its core word (campaign) and email-campaign phrases (marketing email campaign, marketing email, email campaign, newsletter, drip campaign): "Draft a marketing email campaign" went to Intelligent Communication, which said it could not. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.5.7 (UX audit 2026-11-06): the UTM builder is on the Channels tab with labelled fields and checks itself before any request; one refresh only; the imports note is a plain line. Guard: tests/ux-utm.test.mjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.5.8 (UX audit 2026-11-06): add Board status filter chips (Active, Draft, Archived, All, default Active) and campaign search input updating the Board count, make primary buttons solid without gradient or glow, and on phone move the tab bar to a fixed opaque bottom bar (Board, Scorecard, Channels, Approvals, More -> Experiments) while stacking campaign rows as cards.
 
 name: marketing-engine
 displayName: Marketing Engine
@@ -49,7 +51,7 @@ description: >-
   intake, per-channel consent (explicit opt-in, default OFF), UTM-tagged links, a deterministic
   metrics scorecard, experiment registry, budget proposals a human approves, and weekly review
   tickets worked by inline concierge bots only after human approval.
-version: 0.5.6
+version: 0.5.8
 status: active
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.

@@ -10,6 +10,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Export the 0.5.0 modules: print checks (B13), perspective
  *                     |                             | re-projection (B2), range-image decoding (B1), frame
  *                     |                             | suggestion (B12) and the orientation-cube face markers (B9).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | Export STL parsing, binary glTF 2.0 (.glb), Apple USDZ (.usdz)
+ *                     |                             | and interactive 3D mesh crop, rotation/lay-flat and measurement.
  */
 
 export * from './geometry/geometry-types';
@@ -18,7 +20,11 @@ export * from './geometry/format-number';
 export * from './geometry/mesh-metrics';
 export * from './geometry/mesh-validate';
 export * from './geometry/export-stl';
+export * from './geometry/parse-stl';
 export * from './geometry/export-obj';
+export * from './geometry/export-glb';
+export * from './geometry/export-usdz';
+export * from './geometry/mesh-ops';
 export * from './raster/raster-types';
 export * from './raster/silhouette';
 export * from './raster/face-marker';

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Phone-width (412 x 915) proof for the store screens a person reported broken on a phone (2026-10-11), in headless Chromium against the real page files, with synthetic read-only answers for each page's own routes and no provider call. Layout: Animatronics, Drone Relay and World never scroll sideways (World with a by-source table ~1,200px wide), E-STOP stays on screen, Drone Relay's results get the full width, D&D's floating toolbar buttons never overlap and its buttons painted on the dark wood keep at least 4.5:1 contrast under a light cockpit theme, and the Smart Home hand-off panel never sits on the Ask input or Send. Honest states: Spaces, Drone Ops, AI Bake-Off, Payments and Portrait Studio show the server's own reason for an unavailable executor and switch off what cannot run (never "Connect undefined", a raw refusal code, or a demo room that does not exist); Finance and Intelligent Trades (its real connected-actions module on the panel it binds to) open the draft panel and say what to write when a connected action has nothing to hand on.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Payments with a rail the server reports not configured (configured:false + detail, the native kernel's merchant rails): the reason is shown and there is no Connect link.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Smart Home (UX audit 2026-11-05): the inline Ask bar is removed, so the home check proves there is none and that the empty state's one primary, Connect a hub, takes its own tap.
  * -----------------------------------------------------------------------------
  *
  * Usage: node scripts/phone-screens.browser.cjs            (every screen)
@@ -84,9 +85,12 @@ const SCREENS = [
     check: async (page) => {
       const r = await page.evaluate(() => {
         const covered = (el) => { const b = el.getBoundingClientRect(); const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return !(hit && (hit === el || el.contains(hit))); };
-        return { msg: covered(document.getElementById('msg')), send: covered(document.getElementById('send')) };
+        const connect = document.getElementById('connectHub');
+        return { askBar: Boolean(document.getElementById('msg') || document.getElementById('send')), connect: Boolean(connect) && !connect.closest('[hidden]') && !covered(connect) };
       });
-      assert.deepEqual(r, { msg: false, send: false }, 'the hand-off panel must not sit on the Ask input or Send');
+      // UX audit 2026-11-05: the inline Ask bar is gone (the shell concierge is the one assistant entry); with no hub
+      // the one primary, Connect a hub, takes its own tap.
+      assert.deepEqual(r, { askBar: false, connect: true }, 'no Ask bar, and Connect a hub is what a tap on it hits');
     } },
   { name: 'spaces', url: '/api/spaces/app', file: 'spaces/tools/spaces.html',
     reads: { '/api/spaces/scans': { scans: [], configured: false, native: true, reason: 'no_reconstruction_engine', detail: UNAVAILABLE } },

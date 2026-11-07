@@ -1,12 +1,13 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive shared properties through the actual Create canvas, immutable saves and phone drawers on isolated synthetic project HTTP.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Save automatically is turned off through the document menu, New is pressed in it, the navigation pane is named Layers and the phone's app row (document menu, Undo, Redo, Add) is checked for touch size.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createProject, applyOperation } from '../../tools/editor/model.mjs';
-import { chromium, startEditorFixture } from './create-editor-fixture.mjs';
+import { chromium, startEditorFixture, inMenu, manualSaving } from './create-editor-fixture.mjs';
 let browser;
 before(async () => { browser = await chromium.launch({ headless: true }); });
 after(async () => { await browser?.close(); });
@@ -24,7 +25,7 @@ async function open(t, options = {}) {
   const page = await context.newPage(), errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${fixture.origin}/api/create/editor?project=${record.id}`);
   await page.locator('.ef-shell').waitFor(); await page.locator('#saveStatus').filter({ hasText: 'Saved · revision 1' }).waitFor();
-  if (await page.locator('#autosave').isEnabled()) await page.locator('#autosave').uncheck();
+  await manualSaving(page);
   return { page, fixture, record, errors };
 }
 const property = (page, key) => page.locator(`[data-editor-property="${key}"]`);
@@ -106,16 +107,16 @@ test('cancelled replacement and failed import preserve pending fields; confirmed
   const { page, fixture, errors } = await open(t);
   await page.getByRole('button', { name: 'Select First rectangle', exact: true }).click();
   await change(page, 'w', -10);
-  page.once('dialog', dialog => dialog.dismiss()); await page.locator('#newProject').click();
+  page.once('dialog', dialog => dialog.dismiss()); await (await inMenu(page, '#newProject')).click();
   assert.equal(await property(page, 'w').inputValue(), '-10');
   page.once('dialog', dialog => dialog.accept());
   await page.locator('#projectFile').setInputFiles({ name: 'Broken.create.json', mimeType: 'application/json', buffer: Buffer.from('bad project bytes') });
   await page.locator('#editorError').filter({ hasText: /JSON|Unexpected|project/i }).waitFor();
   assert.equal(await property(page, 'w').inputValue(), '-10');
   assert.equal(await page.evaluate(async () => (await import('/api/create/editor/editor-state.mjs')).state.foundation.hasPending()), true);
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#newProject').click();
+  page.once('dialog', dialog => dialog.accept()); await (await inMenu(page, '#newProject')).click();
   assert.equal(await page.evaluate(async () => (await import('/api/create/editor/editor-state.mjs')).state.foundation.hasPending()), false);
-  assert.equal(await page.locator('[data-editor-property]').count(), 0);
+  assert.deepEqual(await page.locator('[data-editor-property]').evaluateAll(nodes => nodes.map(node => node.dataset.editorProperty)), ['width', 'height', 'background', 'transparent']);
   await page.locator('#addRectangle').click(); await page.locator('#saveProject').click();
   await page.locator('#saveStatus').filter({ hasText: 'Saved · revision 1' }).waitFor();
   assert.equal(fixture.state.projects.size, 2); assert.deepEqual(errors, []);
@@ -123,10 +124,10 @@ test('cancelled replacement and failed import preserve pending fields; confirmed
 
 test('phone drawers keep the document visible and permit property changes without page overflow', async t => {
   const { page, errors } = await open(t, { width: 412, height: 915 });
-  for (const selector of ['#newProject', '#openProjects', '#saveProject', '#exportMenu summary', '#projectName']) {
+  for (const selector of ['#documentMenu > summary', '#undo', '#redo', '#addPrimary']) {
     assert.ok((await page.locator(selector).boundingBox()).height >= 44, selector + ' is a usable touch target');
   }
-  await page.locator('.ef-tools').getByRole('button', { name: 'Navigation', exact: true }).click();
+  await page.locator('.ef-tools').getByRole('button', { name: 'Layers', exact: true }).click();
   await page.getByRole('button', { name: 'Select First rectangle', exact: true }).click();
   await page.getByRole('button', { name: 'Close navigation', exact: true }).click();
   await page.locator('.ef-tools').getByRole('button', { name: 'Properties', exact: true }).click();
@@ -158,5 +159,5 @@ test('shape, outline and shadow properties save actual editable appearance and r
  const{page,fixture,record,errors}=await open(t);
  await page.getByRole('button',{name:'Select First rectangle',exact:true}).click();await property(page,'shape').selectOption('diamond');await change(page,'stroke','#203050');await change(page,'strokeWidth',8);await change(page,'dash','12, 6');await property(page,'shadowEnabled').check();await property(page,'shadowX').fill('24');await page.locator('#saveProject').click();await page.locator('#saveStatus').filter({hasText:'Saved · revision 2'}).waitFor();
  const saved=fixture.state.projects.get(record.id).document;assert.equal(saved.version,4);assert.equal(saved.layers[0].shape,'diamond');assert.deepEqual(saved.layers[0].dash,[12,6]);assert.equal(saved.layers[0].shadow.offsetX,24);assert.equal(saved.layers[1].text,'Keep this text');await screenshot(page,'image-desktop');
- await page.setViewportSize({width:412,height:915});await page.locator('.ef-tools').getByRole('button',{name:'Navigation',exact:true}).click();for(const id of ['duplicateLayer','deleteLayer'])assert.ok((await page.locator('#'+id).boundingBox()).height>=44);assert.ok((await page.locator('#layerArrange summary').boundingBox()).height>=44);await page.getByRole('button',{name:'Close navigation',exact:true}).click();await page.locator('.ef-tools').getByRole('button',{name:'Properties',exact:true}).click();await screenshot(page,'image-phone-properties');await page.getByRole('button',{name:'Close inspector',exact:true}).click();await screenshot(page,'image-phone-document');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
+ await page.setViewportSize({width:412,height:915});await page.locator('.ef-tools').getByRole('button',{name:'Layers',exact:true}).click();for(const id of ['duplicateLayer','deleteLayer'])assert.ok((await page.locator('#'+id).boundingBox()).height>=44);assert.ok((await page.locator('#layerArrange summary').boundingBox()).height>=44);await page.getByRole('button',{name:'Close navigation',exact:true}).click();await page.locator('.ef-tools').getByRole('button',{name:'Properties',exact:true}).click();await screenshot(page,'image-phone-properties');await page.getByRole('button',{name:'Close inspector',exact:true}).click();await screenshot(page,'image-phone-document');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
 });

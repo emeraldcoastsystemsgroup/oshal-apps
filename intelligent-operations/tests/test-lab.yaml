@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 29 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: datacenter-replay also covers Replay a sample all-or-nothing (refused rules save nothing, a stopped run removes what it saved, leftovers offered, only synthetic sources discarded) and Live context reading its detector on open.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | Register default/disabled first-use tick safety against real SQL; existing silence-watch opt-in remains separate.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Register the Your computers guard (tests/computers.test.cjs, kernel ADR-206).
 # 26 | maintainer@emeraldcoastsystemsgroup.com | Register the monitored installations guard (tests/installations.test.cjs); ingest expects one event per occurrence of an alert.
@@ -495,6 +496,11 @@ cases:
     expected:
       - One hundred occurrences yield forty matches, four symptoms, two dependency groups and four pinned context packets.
       - Desktop and phone views render real results and clear private data on access withdrawal.
+      - The old Scenario lab address opens the Replay a sample sheet on Data pipeline, and every step shows done after a verified run.
+      - A detection service that refuses the scenario rules (the 2026-11-05 HTTP 503 at publishing rules) stops the run before anything is saved, with an alert naming the step and the fix.
+      - A run that stops after saving removes its synthetic sources, stream configuration, telemetry, rule binding and topology scans, and says so; a source an earlier run left behind is offered for removal.
+      - Only synthetic replay sources can be discarded; a real source is refused and kept.
+      - Live context reads its detector when it opens, lists streams as checklist rows and says why Run detection now is off.
     prerequisites: [runner:node-test, service:postgresql, service:opensearch, browser:chromium, dependency:playwright]
     sideEffects: temporary-data
     isolation: { mode: disposable, cleanup: Close browser, fixture server and engine; drop fixture database/role and owned rule indexes in finally. }

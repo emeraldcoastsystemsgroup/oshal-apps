@@ -7,7 +7,7 @@
   (/api/cad-studio/assets/…), the theme is inherited from the surrounding cockpit through the
   shared surface-theme bootstrap with local fallbacks. The STL renderer is provided by core. (.html is exempt from the CHANGE LOG header.)
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="light-blue" data-ds-category="studio" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -56,84 +56,131 @@
   A.boot({ app: 'cad-studio', escapeLabel: 'Open CAD Studio in the cockpit', audiences: { company: company, family: company } });
 })();
 </script>
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />
 <style>
-  :root { --cs-bg: var(--bg, var(--bg-primary, #12151c)); --cs-panel: var(--panel, var(--bg-card, #1b1f29)); --cs-panel2: var(--panel2, var(--bg-tertiary, #232836));
-          --cs-text: var(--text, var(--text-primary, #e6e9ef)); --cs-muted: var(--muted, var(--text-muted, #9aa3b2)); --cs-line: var(--line, var(--border-color, #2f3646));
-          --cs-accent: var(--accent, #4f8cff); --cs-danger: var(--danger, #e5534b); --cs-ok: var(--ok, #3fb950); --cs-warn: var(--warn, #d29922); }
+  /* Colours, lines and type come from the design standard's --ds-* tokens (docs/ux/design-standard.md §2.11): opaque
+     surfaces, a 3:1 control line, a 4.5:1 secondary ink and one accent in every theme; the fallbacks are for a page
+     opened without the portal's sheets. */
+  :root { --cs-bg: var(--ds-page, var(--bg-primary, #12151c)); --cs-panel: var(--ds-surface, var(--bg-primary, #1b1f29)); --cs-panel2: var(--ds-surface-2, var(--bg-tertiary, #232836));
+          --cs-hover: var(--ds-surface-3, var(--bg-tertiary, #2a3040)); --cs-text: var(--ds-ink, var(--text-primary, #e6e9ef)); --cs-muted: var(--ds-ink-2, var(--text-secondary, #b6bdca));
+          --cs-line: var(--ds-line-control, var(--border-color, #6b7385)); --cs-edge: var(--ds-edge, var(--border-color, #2f3646)); --cs-hairline: var(--ds-hairline, var(--border-color, #2f3646));
+          --cs-accent: var(--ds-accent, var(--accent-primary, #4f8cff)); --cs-accent-ink: var(--ds-accent-ink, var(--accent-primary, #4f8cff)); --cs-on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
+          --cs-danger: var(--ds-bad, var(--status-error, #e5534b)); --cs-ok: var(--ds-ok, var(--status-success, #3fb950)); --cs-warn: var(--ds-warn, var(--status-warning, #d29922)); --cs-disabled: var(--ds-ink-disabled, #8a8f99);
+          --cs-float: var(--ds-elev-float, 0 2px 6px rgb(0 0 0 / .08), 0 12px 32px rgb(0 0 0 / .16)); --cs-scrim: var(--ds-scrim, rgb(0 0 0 / .4)); }
+  html, body { overscroll-behavior: contain; }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--cs-text); background: var(--cs-bg); }
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--cs-line); background: var(--cs-panel); }
-  header h1 { font-size: 16px; margin: 0; }
+  body { margin: 0; font: 400 14px/20px var(--ds-font, system-ui, sans-serif); color: var(--cs-text); background: var(--cs-bg); }
+  :focus-visible { outline: 2px solid var(--ds-focus, var(--cs-accent)); outline-offset: 2px; }
+  header { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 16px; border-bottom: 1px solid var(--cs-hairline); background: var(--cs-bg); }
+  header h1 { font-size: 16px; line-height: 24px; margin: 0; }
   header .spacer { flex: 1; }
+  .header-title { min-width: 0; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .layout { display: grid; grid-template-columns: 240px 1fr 340px; min-height: calc(100vh - 49px); }
-  aside { border-right: 1px solid var(--cs-line); padding: 12px; background: var(--cs-panel); overflow: auto; }
-  aside.right { border-right: 0; border-left: 1px solid var(--cs-line); }
-  main { padding: 14px 18px 40px; overflow: auto; }
-  .model-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--cs-line); border-radius: 8px; background: var(--cs-panel2); color: var(--cs-text); cursor: pointer; }
-  .model-item.active { border-color: var(--cs-accent); }
-  .model-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  aside { border-right: 1px solid var(--cs-hairline); padding: 12px; background: var(--cs-panel); overflow: auto; }
+  aside.right { border-right: 0; border-left: 1px solid var(--cs-hairline); }
+  main { padding: 16px 24px 40px; overflow: auto; }
+  .model-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 44px; text-align: left; padding: 8px 12px; margin-bottom: 4px; border: 1px solid var(--cs-line); border-radius: 10px; background: var(--cs-panel); color: var(--cs-text); font: inherit; font-size: 14px; cursor: pointer; }
+  .model-item.active { border-color: var(--cs-accent); box-shadow: inset 3px 0 0 var(--cs-accent); }
+  .model-title { overflow-wrap: anywhere; }
   .model-name { display: flex; flex-direction: column; min-width: 0; }
-  .model-note { font-size: 11px; color: var(--cs-muted); }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--cs-line); color: var(--cs-muted); white-space: nowrap; }
+  .model-note { font-size: 12px; color: var(--cs-muted); }
+  .badge { font-size: 12px; line-height: 16px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--cs-line); color: var(--cs-muted); white-space: nowrap; }
   .badge.built { border-color: var(--cs-ok); color: var(--cs-ok); }
   .badge.failed { border-color: var(--cs-danger); color: var(--cs-danger); }
-  .banner { border: 1px solid var(--cs-danger); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: var(--cs-panel2); }
+  .banner { border: 1px solid var(--cs-danger); border-radius: 14px; padding: 12px 16px; margin-bottom: 12px; background: var(--cs-panel); }
   .banner code { user-select: all; word-break: break-all; }
-  section.step { border: 1px solid var(--cs-line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: var(--cs-panel); }
-  section.step h2 { font-size: 14px; margin: 0 0 8px; }
-  section.step h2 small { color: var(--cs-muted); font-weight: normal; margin-left: 8px; }
+  section.step { border: 1px solid var(--cs-edge); border-radius: 14px; padding: 16px; margin-bottom: 12px; background: var(--cs-panel); }
+  section.step h2 { font-size: 16px; line-height: 24px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--cs-muted); font-weight: normal; font-size: 14px; margin-left: 8px; }
   button, input, select, textarea { font: inherit; color: var(--cs-text); }
-  button.primary { background: var(--cs-accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; cursor: pointer; }
-  button.primary:disabled { opacity: .5; cursor: default; }
-  button.ghost { background: transparent; border: 1px solid var(--cs-line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
-  button.link { background: none; border: 0; color: var(--cs-accent); cursor: pointer; padding: 0 4px; }
+  button.primary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--cs-accent); border-radius: 10px; background: var(--cs-accent); color: var(--cs-on-accent); font-weight: 600; cursor: pointer; }
+  button.primary:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--cs-on-accent); }
+  button.primary:disabled { background: var(--cs-panel2); border-color: var(--cs-line); color: var(--cs-disabled); opacity: 1; cursor: default; }
+  button.ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; background: var(--cs-panel2); border: 1px solid var(--cs-line); border-radius: 10px; font-weight: 600; cursor: pointer; }
+  button.ghost:hover:not(:disabled) { background: var(--cs-hover); }
+  button.ghost:disabled { color: var(--cs-disabled); opacity: 1; cursor: default; }
+  button.link { min-height: 44px; background: none; border: 0; color: var(--cs-accent-ink); text-decoration: underline; cursor: pointer; padding: 0 4px; }
   button.link.danger { color: var(--cs-danger); }
-  input[type=number], input[type=text], select, textarea { background: var(--cs-panel2); border: 1px solid var(--cs-line); border-radius: 6px; padding: 5px 8px; }
-  input[type=number] { width: 84px; }
-  label.file { display: inline-block; border: 1px dashed var(--cs-line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  .danger-action { color: var(--cs-danger) !important; border-color: var(--cs-danger) !important; }
+  input[type=number], input[type=text], select, textarea { min-height: 44px; background: var(--cs-panel); border: 1px solid var(--cs-line); border-radius: 10px; padding: 0 12px; }
+  input[type=number] { width: 96px; }
+  label.file { display: inline-flex; align-items: center; min-height: 44px; border: 1px solid var(--cs-line); border-radius: 10px; padding: 0 16px; background: var(--cs-panel2); font-weight: 600; cursor: pointer; }
   label.file input { display: none; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
   .muted { color: var(--cs-muted); }
-  .small { font-size: 12px; }
-  canvas#viewer { width: 100%; height: 420px; border-radius: 8px; border: 1px solid var(--cs-line); color: var(--cs-accent); background: var(--cs-panel2); touch-action: none; }
+  .small { font-size: 12px; line-height: 16px; }
+  /* The canvas: the model on a plain background, the view cube in its top-right corner, AR on its right edge, and one
+     strip of labelled tools under it (C-CAD-4, C-CAD-7, N13). */
+  .viewer-stage { position: relative; }
+  canvas#viewer { display: block; width: 100%; height: 420px; border-radius: 10px; border: 1px solid var(--cs-edge); color: var(--cs-accent); background: var(--cs-panel2); touch-action: none; }
+  .viewer-cube { position: absolute; top: 8px; right: 8px; left: 8px; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; pointer-events: none; z-index: 2; }
+  .viewer-cube button { pointer-events: auto; min-height: 36px; padding: 0 10px; font-size: 12px; }
+  .viewer-edge { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); z-index: 2; }
+  .measure-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--cs-edge); border-radius: 10px; background: var(--cs-panel2); }
+  .measure-readout { width: 100%; font-family: var(--ds-mono, ui-monospace, monospace); font-size: 13px; color: var(--cs-text); }
+  .qr-frame { display: flex; justify-content: center; padding: 12px; border: 1px solid var(--cs-edge); border-radius: 12px; background: #fff; }
+  .sheet-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--cs-line); border-radius: 10px; background: var(--cs-panel2); color: var(--cs-text); font-weight: 600; text-decoration: none; }
+  .tool-strip { display: flex; gap: 8px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+  .tool-strip > * { flex: none; }
   .views { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
-  .views figure { margin: 0; border: 1px solid var(--cs-line); border-radius: 8px; background: #fff; padding: 4px; }
+  .views figure { margin: 0; border: 1px solid var(--cs-edge); border-radius: 10px; background: #fff; padding: 4px; }
   .views img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; display: block; }
-  .views figcaption { text-align: center; color: #333; font-size: 11px; }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; }
+  .views figcaption { text-align: center; color: #333; font-size: 12px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; }
   dt { color: var(--cs-muted); }
   dd { margin: 0; }
-  .downloads a { margin-right: 12px; color: var(--cs-accent); }
+  .downloads a { display: inline-flex; align-items: center; min-height: 44px; margin-right: 12px; color: var(--cs-accent-ink); text-decoration: underline; }
   ol.features { list-style: none; padding: 0; margin: 0; }
-  ol.features li { border: 1px solid var(--cs-line); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; background: var(--cs-panel2); }
+  ol.features li { border: 1px solid var(--cs-edge); border-radius: 10px; padding: 8px; margin-bottom: 8px; background: var(--cs-panel); }
   ol.features li.failed { border-color: var(--cs-danger); }
-  ol.features li.disabled { opacity: .55; }
+  ol.features li.disabled .cad-feature-selection { color: var(--cs-muted); }
   ol.features li.selected { border-color: var(--cs-accent); }
-  .feature-head { display: flex; align-items: center; gap: 6px; }
+  .feature-head { display: flex; align-items: center; gap: 8px; }
   .feature-head .type { font-weight: 600; }
   .feature-head .spacer { flex: 1; }
-  .feature-params { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--cs-muted); word-break: break-all; }
+  .feature-params { font-family: var(--ds-mono, ui-monospace, monospace); font-size: 12px; color: var(--cs-muted); word-break: break-all; }
   .feature-error { color: var(--cs-danger); font-size: 12px; }
-  .params-form { display: grid; grid-template-columns: max-content 1fr; gap: 6px 8px; align-items: center; margin: 8px 0; }
-  .params-form .doc { grid-column: 1 / -1; color: var(--cs-muted); font-size: 11px; margin-top: -4px; }
+  .params-form { display: grid; grid-template-columns: max-content 1fr; gap: 8px; align-items: center; margin: 8px 0; }
+  .params-form .doc { grid-column: 1 / -1; color: var(--cs-muted); font-size: 12px; margin-top: -4px; }
   ul.revisions { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow: auto; }
-  ul.revisions li { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--cs-line); }
-  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--cs-panel2); border: 1px solid var(--cs-line); max-width: 460px; z-index: 5; }
+  ul.revisions li { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--cs-hairline); }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 12px 16px; border-radius: 14px; background: var(--cs-panel); color: var(--cs-text); border: 1px solid var(--cs-hairline); box-shadow: var(--cs-float); max-width: 460px; z-index: 5; }
   .toast.error { border-color: var(--cs-danger); }
   .toast.ok { border-color: var(--cs-ok); }
-  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } aside, aside.right { border: 0; border-bottom: 1px solid var(--cs-line); } .views { grid-template-columns: repeat(2, 1fr); } }
+  /* The Part menu (Part ▾): a top-layer popover, opaque, on the float layer (§4.3). */
+  .cs-menu { position: fixed; inset: auto; margin: 0; min-width: 220px; padding: 4px; border: 1px solid var(--cs-hairline); border-radius: 14px; background: var(--cs-panel); color: var(--cs-text); box-shadow: var(--cs-float); }
+  .cs-menu [role=menuitem] { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+  .cs-menu [role=menuitem]:hover:not(:disabled) { background: var(--cs-hover); }
+  .cs-menu [role=menuitem]:disabled { color: var(--cs-disabled); cursor: default; }
+  .cs-menu [role=menuitem].danger { color: var(--cs-danger); }
+  /* Sheets (Export, questions): opaque modal dialogs with one scrim (§4.4); a bottom sheet on a phone. */
+  dialog.cs-sheet { width: min(480px, calc(100vw - 32px)); max-height: min(80dvh, 720px); padding: 0; border: 1px solid var(--cs-hairline); border-radius: 20px; background: var(--cs-panel); color: var(--cs-text); box-shadow: var(--cs-float); }
+  dialog.cs-sheet[open] { display: flex; flex-direction: column; }
+  dialog.cs-sheet::backdrop { background: var(--cs-scrim); }
+  .cs-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; padding: 4px 8px 4px 16px; border-bottom: 1px solid var(--cs-hairline); }
+  .cs-sheet-head h2 { margin: 0; font-size: 18px; line-height: 24px; }
+  .cs-sheet-body { padding: 12px 16px 16px; overflow: auto; display: grid; gap: 4px; }
+  .cs-sheet-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--cs-hairline); }
+  .cs-sheet-foot .primary.wide { width: 100%; }
+  .export-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid var(--cs-edge); border-radius: 10px; background: var(--cs-panel); font: inherit; font-size: 14px; text-align: left; }
+  .export-row input { width: 20px; height: 20px; accent-color: var(--cs-accent); }
+  .export-row small { margin-left: auto; color: var(--cs-muted); font-size: 12px; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } aside, aside.right { border: 0; border-bottom: 1px solid var(--cs-hairline); } .views { grid-template-columns: repeat(2, 1fr); } }
 
-body.cad-foundation {margin:0;background:var(--bg-primary);color:var(--text-primary)}
+body.cad-foundation {margin:0;background:var(--cs-bg);color:var(--cs-text)}
 .cad-foundation .ef-navigation,.cad-foundation .ef-inspector {padding:12px;min-width:0}
 .cad-foundation main {padding:16px;min-width:0}
 .cad-foundation button,.cad-foundation summary,.cad-foundation select {min-height:44px}
 .cad-foundation details {padding:8px 0}
 .cad-foundation summary {cursor:pointer;display:flex;align-items:center;font-weight:600}
-.cad-foundation .cad-feature-selection,.cad-foundation .cad-base-selection {width:100%;text-align:left;white-space:normal;font:inherit;border:1px solid var(--border-color);border-radius:8px;padding:10px;background:var(--bg-secondary);color:var(--text-primary)}
-.cad-foundation [aria-pressed=true] {border-color:var(--accent-primary);background:var(--bg-tertiary)}
+.cad-foundation .cad-feature-selection,.cad-foundation .cad-base-selection {width:100%;text-align:left;white-space:normal;font:inherit;font-size:14px;border:1px solid var(--cs-line);border-radius:10px;padding:8px 12px;background:var(--cs-panel2);color:var(--cs-text);cursor:pointer}
+.cad-foundation .cad-feature-selection:hover,.cad-foundation .cad-base-selection:hover:not(:disabled) {background:var(--cs-hover)}
+.cad-foundation .cad-base-selection:disabled {color:var(--cs-disabled)}
+.cad-foundation [aria-pressed=true] {border-color:var(--cs-text);background:var(--cs-text);color:var(--cs-bg)}
+.cad-foundation .ef-navigation h2 {font-size:16px;line-height:24px;margin:12px 0 8px}
 .cad-foundation .feature-head {align-items:start;flex-wrap:wrap}
 .cad-foundation .cad-feature-menu {width:100%}
-.cad-foundation .cad-feature-menu button {display:block;width:100%;text-align:left;margin:4px 0}
+.cad-foundation .cad-feature-menu button {display:block;width:100%;text-align:left;margin:4px 0;border:1px solid var(--cs-line);border-radius:10px;background:var(--cs-panel2);padding:0 12px}
 .cad-foundation .features {padding-left:0;list-style:none}
 .cad-foundation .ef-inspector .step {padding:0;border:0}
 .cad-foundation .ef-inspector .params-form {grid-template-columns:1fr;min-width:0}
@@ -141,18 +188,53 @@ body.cad-foundation {margin:0;background:var(--bg-primary);color:var(--text-prim
 .cad-foundation .views {display:flex;flex-wrap:wrap}
 .cad-foundation .cad-revisions {padding:12px}.cad-foundation .cad-revisions h2 {font-size:14px;margin:0 0 8px}
 .cad-foundation .cad-revisions .revisions {max-height:140px;overflow:auto}
-@media(max-width:800px){.cad-foundation header {flex-wrap:nowrap;gap:8px;padding:6px 10px}.cad-foundation header #engine-pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cad-foundation header>span.small {display:none}.cad-foundation #viewer {height:45vh}.cad-foundation .ef-navigation,.cad-foundation .ef-inspector {max-height:none;border:0}}
+/* Nothing to show before a part is open: no empty More tools, no empty Revision history row. */
+.ef-editor .ef-more-tools:has(#features-panel[hidden])>summary{display:none}
+.ef-editor .ef-more-tools:has(#features-panel[hidden]){border:0;margin:0;padding:0}
+.ef-editor .ef-timeline-slot:has(#revisions:empty){display:none}
+#part-menu{display:inline-flex;align-items:center;gap:8px}
+/* With no part open there is nothing to inspect: the canvas takes the Properties track (F12, §3.3). */
+@media(min-width:801px){.ef-editor:has(#model-panel[hidden]) .ef-inspector{display:none}
+ .ef-editor:has(#model-panel[hidden]) .ef-body{grid-template-columns:220px minmax(0,1fr)}
+ .ef-editor.ef-has-concierge[data-editor-concierge=open]:has(#model-panel[hidden]) .ef-body{grid-template-columns:180px minmax(220px,1fr) clamp(300px,25vw,380px)}}
+/* The shared editor's chrome, held to the standard here as well (radius 10, 14px labels, solid fills, solid disabled). */
+.ef-editor .ef-button,.ef-editor .ef-discard{border-radius:10px;font-size:14px;background:var(--cs-panel2);border-color:var(--cs-line);color:var(--cs-text)}
+.ef-editor .ef-button:disabled{opacity:1;color:var(--cs-disabled)}
+.ef-editor .ef-panes>.ef-button{background:transparent}
+.ef-editor .ef-more-tools>summary{font-size:14px;min-height:44px;display:flex;align-items:center}
+.ef-editor .ef-more-tools:not(:has(>:not(summary):not([hidden])))>summary{display:none}
+.ef-editor .ef-more-tools:not(:has(>:not(summary):not([hidden]))){border:0;margin:0;padding:0}
+.ef-editor .ef-property>input,.ef-editor .ef-property>textarea,.ef-editor .ef-property>select{border-radius:10px;border-color:var(--cs-line);font-size:14px}
+.ef-editor .ef-error{font-size:14px}
+.ef-editor .ef-assistant-composer{border-radius:14px}
+.ef-editor .ef-assistant-icon{border-radius:10px;font:24px/1 system-ui!important}
+.ef-editor .ef-assistant-speaker{font-size:12px}
+.ef-editor .ef-assistant-user{border-radius:14px 14px 6px 14px}
+.ef-editor .ef-assistant-controls>.ef-assistant-send{border-radius:10px;font-size:14px!important}
+.ef-editor .ef-assistant button:disabled{opacity:1;color:var(--cs-disabled)}
+.ef-editor .ef-assistant-help{font-size:12px}
+@media(max-width:800px){.cad-foundation header {flex-wrap:nowrap;gap:8px;padding:4px 8px 4px 16px}.cad-foundation header #engine-pill{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cad-foundation header #part-menu{display:none}.cad-foundation #viewer {height:45vh}.cad-foundation .ef-navigation,.cad-foundation .ef-inspector {max-height:none;border:0}
+ .toast{top:56px;bottom:auto;left:12px;right:12px;max-width:none}
+ dialog.cs-sheet{width:100%;max-width:100%;margin:auto 0 0;border-radius:20px 20px 0 0;max-height:85dvh}
+ .ef-editor .ef-navigation,.ef-editor .ef-inspector,.ef-editor .ef-sheet,.ef-editor .ef-concierge{border-radius:20px 20px 0 0}
+ .cad-foundation input,.cad-foundation select{font-size:16px}}
 </style>
-<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />
 </head>
 <body>
 <header>
   <h1 data-ef-phone="brand">CAD Studio</h1>
-  <span class="muted small" data-ef-phone="brand">Design and edit your part.</span>
+  <span id="header-title" class="header-title"></span>
   <span class="spacer"></span>
   <span id="engine-pill" class="badge">engine…</span>
   <button id="cancel-rebuild" class="ghost" hidden title="Stop the rebuild the kernel is running for this part; it stays at its last good revision">Stop rebuild</button>
-  <button id="new-model" class="primary">New part</button>
+  <button id="part-menu" type="button" class="ghost" aria-haspopup="menu" aria-expanded="false" popovertarget="part-menu-items">Part <span aria-hidden="true">▾</span></button>
+  <div id="part-menu-items" class="cs-menu" popover role="menu" aria-label="Part">
+    <button id="new-model" type="button" role="menuitem" data-ef-phone="more">New part</button>
+    <button id="rename-model" type="button" role="menuitem" data-ef-phone="more" disabled>Rename</button>
+    <button id="rebuild-model" type="button" role="menuitem" data-ef-phone="more" disabled>Rebuild</button>
+    <button id="delete-model" type="button" role="menuitem" class="danger" data-ef-phone="more" disabled>Delete part</button>
+  </div>
+  <button id="export-model" type="button" class="primary" hidden>Export</button>
 </header>
 <div class="layout">
   <aside>
@@ -164,22 +246,44 @@ body.cad-foundation {margin:0;background:var(--bg-primary);color:var(--text-prim
       <div id="engine-reason" class="small"></div>
     </div>
     <div id="empty-panel">
-      <p class="muted">Create a part, open one, or start from a Scan to Print job (Open in CAD Studio).</p>
+      <p class="muted">Start a part from a base box, then add holes, fillets and more.</p>
     </div>
     <div id="model-panel" hidden>
       <div class="row">
         <h2 id="model-heading" style="margin:0"></h2>
         <span id="model-state" class="badge"></span>
         <span id="model-source" class="small muted"></span>
-        <span class="spacer" style="flex:1"></span>
-        <button id="rename-model" class="ghost">Rename</button>
-        <button id="rebuild-model" class="ghost">Rebuild</button>
-        <button id="delete-model" class="ghost">Delete</button>
       </div>
       <section class="step">
-        <h2>Model <small>drag to orbit · wheel to zoom · shift-drag to pan</small></h2>
-        <canvas id="viewer"></canvas>
+        <div class="viewer-stage">
+          <canvas id="viewer" aria-label="The part. Drag to orbit, wheel to zoom, shift-drag to pan."></canvas>
+          <div class="viewer-cube" role="toolbar" aria-label="3D view orientation">
+            <button type="button" class="ghost" data-cad-view="top" aria-pressed="false">Top</button>
+            <button type="button" class="ghost" data-cad-view="front" aria-pressed="false">Front</button>
+            <button type="button" class="ghost" data-cad-view="right" aria-pressed="false">Right</button>
+            <button type="button" class="ghost" data-cad-view="back" aria-pressed="false">Back</button>
+            <button type="button" class="ghost" data-cad-view="left" aria-pressed="false">Left</button>
+            <button type="button" class="ghost" data-cad-view="bottom" aria-pressed="false">Bottom</button>
+            <button type="button" class="ghost" data-cad-view="iso" aria-pressed="true">Iso</button>
+            <button id="view-fit" type="button" class="ghost" title="Fit part to viewport">Fit</button>
+          </div>
+          <div class="viewer-edge"><button id="tool-ar" type="button" class="ghost" aria-label="View in AR">AR</button></div>
+        </div>
         <p id="viewer-info" class="small muted"></p>
+        <div class="tool-strip" role="toolbar" aria-label="Part tools">
+          <button id="tool-add" type="button" class="ghost">Add feature</button>
+          <button id="tool-report" type="button" class="ghost">Report</button>
+          <button id="tool-measure" type="button" class="ghost" aria-pressed="false">Measure</button>
+        </div>
+        <div id="cad-measure-bar" class="measure-bar" hidden>
+          <button type="button" class="ghost" data-measure-mode="point" aria-pressed="true">Point-to-point</button>
+          <button type="button" class="ghost" data-measure-mode="edge" aria-pressed="false">Edge</button>
+          <button type="button" class="ghost" data-measure-mode="face" aria-pressed="false">Face angle</button>
+          <button type="button" class="ghost" data-measure-mode="bbox" aria-pressed="false">Bounding box</button>
+          <label class="small">Units <select id="cad-measure-unit"><option value="mm">mm</option><option value="in">in</option></select></label>
+          <button id="cad-measure-clear" type="button" class="link">Clear</button>
+          <div id="cad-measure-readout" class="measure-readout" role="status">Click two points on the part surface to measure distance.</div>
+        </div>
         <div id="views" class="views"></div>
       </section>
       <section class="step">
@@ -209,20 +313,87 @@ body.cad-foundation {margin:0;background:var(--bg-primary);color:var(--text-prim
         </div>
         <div id="params-form" class="params-form"></div>
         <div class="row">
-          <input id="feature-label" type="text" placeholder="label (optional)" style="width:150px" />
-          <button id="feature-submit" class="primary">Add feature</button>
-          <button id="feature-cancel" class="ghost" hidden>Cancel</button>
+          <input id="feature-label" type="text" placeholder="label (optional)" style="width:160px" />
+          <button id="feature-submit" class="ghost">Add feature</button>
+          <button id="feature-cancel" class="link" hidden>Cancel</button>
         </div>
       </div>
-      <h2 style="font-size:14px;margin:12px 0 6px">Revisions <small class="muted" style="font-weight:normal">restore = undo</small></h2>
+      <h2 style="font-size:14px;margin:12px 0 8px">Revisions <small class="muted" style="font-weight:normal">restore = undo</small></h2>
       <ul id="revisions" class="revisions small"></ul>
     </div>
   </aside>
 </div>
-<div id="toast" class="toast" hidden></div>
+<dialog id="export-sheet" class="cs-sheet" aria-labelledby="export-title">
+  <div class="cs-sheet-head"><h2 id="export-title">Export</h2><button type="button" class="link" data-cs-close>Done</button></div>
+  <div class="cs-sheet-body">
+    <fieldset id="export-list" style="display:grid;gap:4px;margin:0;padding:0;border:0" aria-label="Format"></fieldset>
+    <button id="send-printer" type="button" class="export-row"><span>Send to printer</span><small>Scan to Print, OctoPrint, Moonraker, PrusaLink, or slicer</small></button>
+  </div>
+  <div class="cs-sheet-foot"><button id="export-go" type="button" class="primary wide">Export</button></div>
+</dialog>
+<dialog id="ar-sheet" class="cs-sheet" aria-labelledby="ar-title">
+  <div class="cs-sheet-head"><h2 id="ar-title">View in AR</h2><button type="button" class="link" data-cs-close>Done</button></div>
+  <div class="cs-sheet-body" style="gap:10px">
+    <p class="small muted" style="margin:0">Inspect this CAD revision at true millimetre scale in iOS Quick Look (USDZ) or Android Scene Viewer (GLB), or scan the QR code with a phone.</p>
+    <div id="cad-ar-qr" class="qr-frame" aria-label="AR handoff QR code"></div>
+    <div class="row">
+      <a id="cad-ar-usdz" class="sheet-link" rel="ar" href="#">Open in iOS Quick Look (USDZ)<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="" width="1" height="1" style="position:absolute;opacity:0;pointer-events:none" /></a>
+      <a id="cad-ar-android" class="sheet-link" href="#">Open in Android Scene Viewer (GLB)</a>
+    </div>
+    <div class="row">
+      <a id="cad-ar-glb-dl" class="link" href="#">Download GLB</a>
+      <a id="cad-ar-usdz-dl" class="link" href="#">Download USDZ</a>
+    </div>
+  </div>
+</dialog>
+<dialog id="print-sheet" class="cs-sheet" aria-labelledby="print-title">
+  <div class="cs-sheet-head"><h2 id="print-title">Send to printer</h2><button type="button" class="link" data-cs-close>Done</button></div>
+  <div class="cs-sheet-body" style="gap:10px">
+    <div>
+      <strong class="small">Scan to Print printers</strong>
+      <div id="stp-printer-list"></div>
+    </div>
+    <div style="border-top:1px solid var(--cs-hairline);padding-top:10px;display:grid;gap:8px">
+      <strong class="small">Direct HTTP print queue (OctoPrint / Moonraker / PrusaLink)</strong>
+      <div class="row">
+        <select id="printer-kind" aria-label="Printer software">
+          <option value="octoprint">OctoPrint</option>
+          <option value="moonraker">Moonraker (Klipper)</option>
+          <option value="prusalink">PrusaLink</option>
+        </select>
+        <select id="printer-format" aria-label="Mesh format">
+          <option value="3mf">3MF</option>
+          <option value="stl">STL</option>
+        </select>
+      </div>
+      <input id="printer-url" type="text" placeholder="http://printer.local" aria-label="Printer HTTP URL" />
+      <input id="printer-apikey" type="text" placeholder="API key (required for OctoPrint / PrusaLink)" aria-label="Printer API key" />
+      <label class="row small"><input id="printer-start" type="checkbox" /> Request immediate print after upload (only if host slices on upload)</label>
+      <div class="row">
+        <button id="printer-check" type="button" class="ghost">Check status</button>
+        <button id="printer-upload" type="button" class="ghost">Upload to printer queue</button>
+      </div>
+      <p id="printer-status-msg" class="small muted" role="status" style="margin:0"></p>
+    </div>
+    <div style="border-top:1px solid var(--cs-hairline);padding-top:10px">
+      <strong class="small">Local desktop slicer</strong>
+      <div class="row">
+        <a id="printer-dl-3mf" class="sheet-link" href="#">Download 3MF</a>
+        <a id="printer-dl-stl" class="sheet-link" href="#">Download STL</a>
+      </div>
+    </div>
+  </div>
+</dialog>
+<dialog id="ask-sheet" class="cs-sheet" aria-labelledby="ask-title">
+  <div class="cs-sheet-head"><h2 id="ask-title">Are you sure?</h2></div>
+  <div class="cs-sheet-body"><p id="ask-text" style="margin:0;white-space:pre-line"></p></div>
+  <div class="cs-sheet-foot"><button id="ask-no" type="button" class="link">Cancel</button><button id="ask-yes" type="button" class="ghost">Continue</button></div>
+</dialog>
+<div id="toast" class="toast" role="status" hidden></div>
 <!-- Shared renderer v1 must load before the application compatibility adapter. -->
 <script src="/shared/ui/js/stl-viewer.js"></script>
 <script src="/api/cad-studio/assets/cad-studio-gl.js"></script>
 <script src="/api/cad-studio/assets/cad-studio.js"></script>
+<script src="/api/cad-studio/assets/cad-viewport-tools.js"></script>
 </body>
 </html>

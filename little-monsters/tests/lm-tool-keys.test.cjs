@@ -8,6 +8,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The answer is served on the already-bound /class-tool-keys (a new binding cannot activate where assignments exist), so the guard follows that route and the restored catalog
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The tool-keys visibility answer: the static surface names are read from this package's own manifest (never a second list), learners are not offered the teacher-only surfaces, teachers and admins get every surface, and the catalog binds the route and the class-material import the rail relies on
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Learners see Record (they record into their own class), Email and Storage; only Teacher stays teacher-only.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-storage MERGE): lm-storage merged into lm-files (?view=saved); learners see Email and My Files, and only Teacher stays teacher-only.
  * -----------------------------------------------------------------------------
  *
  * Runs against the COMPILED route module (what the loader mounts). Needs OSHAL_ROOT for js-yaml, like
@@ -71,7 +72,8 @@ test('learners are not offered the teacher-only surfaces; teachers and admins ge
   const learner = routes.visibleStaticToolNames('student', declared);
   assert.ok(!learner.includes('lm-teacher'));
   assert.ok(learner.includes('lm-recorder'), 'a student records into a class they own');
-  assert.ok(learner.includes('lm-email') && learner.includes('lm-storage'), 'the email viewer and file browser are offered to learners');
+  assert.ok(learner.includes('lm-email') && learner.includes('lm-files'), 'the email viewer and My Files are offered to learners');
+  assert.ok(!declared.includes('lm-storage'), 'lm-storage merged into lm-files (?view=saved)');
   assert.deepEqual(learner, declared.filter(n => n !== 'lm-teacher'));
   assert.deepEqual(routes.visibleStaticToolNames('teacher', declared), declared);
   assert.deepEqual(routes.visibleStaticToolNames('admin', declared), declared);

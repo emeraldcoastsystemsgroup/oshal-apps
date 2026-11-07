@@ -1,3 +1,5 @@
+/* CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Recorded command row ⋯ menu (Copy, Run again) on Cloud & SSH commands (UX audit 2026-11-06 P1). */
+/* CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | The List | Graph control of Systems (UX audit 2026-11-06: Topology merged in as the Graph view). */
 /* CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | A critical alert keeps a Late card and an alerts-only card edged red, and in the page's own tab a refusal and the second press's sentence scroll to below the two sticky bars, which a frame does not have (fourth review, 2026-11-04). */
 /* CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | A long unbroken server name wraps inside the Overview tile instead of printing across its neighbour and scrolling the page sideways, the chart's tip is opaque in both themes so its text never collides with the axis behind it, and Overview's sentence for an account with nothing wired wraps too (third review, 2026-11-04). */
 /* CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | A state word in the checks table stays whole on a phone, and a long unbroken server name wraps in the card's heading and on its second stop button instead of running off the left edge (second review, 2026-11-04). */
@@ -130,3 +132,18 @@ textarea[rows][maxlength]{min-height:0;height:auto;font:14px/1.5 system-ui,sans-
 @media (max-width:640px){.installation-head{flex-direction:column}.installation-standing{align-items:flex-start;text-align:left}.installation-checks td:first-child,.check-state{white-space:normal}.installation-checks td.check-state{overflow-wrap:normal}.installation-table th,.installation-table td{padding:6px 5px}}
 .installation.alerting{border-left-color:var(--ops-bad)}
 #status,.installation-stop-sure .operator-note{scroll-margin-top:125px}.operations-embedded #status,.operations-embedded .installation-stop-sure .operator-note{scroll-margin-top:0}
+
+/* UX audit 2026-11-06: Systems' List | Graph control (Topology merged in). */
+.systems-views{display:inline-grid;grid-auto-flow:column;gap:4px;padding:3px;margin:0 0 10px;border:1px solid var(--ops-border);border-radius:10px}
+.systems-views a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;min-width:88px;padding:0 12px;border-radius:8px;text-decoration:none;font-weight:600;color:var(--ops-text)}
+.systems-views a[aria-selected=true]{background:var(--ops-text);color:var(--ops-bg,#fff)}
+#refresh-pipeline{margin-right:8px}
+.rca-badge{display:inline-block;margin:2px 0;padding:1px 8px;border-radius:999px;border:1px solid var(--ops-border);font-size:12px;font-weight:600}
+.rca-badge.state-failed{color:var(--ops-bad);border-color:var(--ops-bad)}.rca-badge.state-done{color:var(--ops-good);border-color:var(--ops-good)}
+.rca-pager{display:flex;align-items:center;gap:8px;margin:8px 0}.rca-pager button{min-height:44px}
+.rca-done{display:none}
+@media(max-width:900px){#rca-detail.open{position:fixed;inset:56px 0 0 0;z-index:50;overflow:auto;background:var(--ops-bg,#fff);padding:12px 16px;border-radius:16px 16px 0 0;box-shadow:0 -8px 24px rgb(0 0 0 / .2)}#rca-detail.open .rca-done{display:inline-flex;float:right}}
+.commands-row-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.commands-row-head h4{margin:0;flex:1;min-width:0}
+.commands-row-more{position:relative;flex-shrink:0}.commands-row-more>summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 10px;border:1px solid var(--ops-border);border-radius:8px;background:var(--ops-card);cursor:pointer;font-weight:700;user-select:none}.commands-row-more>summary::-webkit-details-marker{display:none}
+.commands-row-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:160px;padding:4px;border:1px solid var(--ops-border);border-radius:10px;background:var(--ops-card,#fff);box-shadow:0 8px 24px rgb(0 0 0 / .18);display:grid;gap:2px}
+.commands-row-menu button{width:100%;min-height:40px;padding:8px 12px;border:0;border-radius:6px;background:transparent;color:var(--ops-text);text-align:left;font-size:13px;font-weight:600;cursor:pointer}.commands-row-menu button:hover{background:color-mix(in srgb,var(--ops-accent) 12%,var(--ops-card))}

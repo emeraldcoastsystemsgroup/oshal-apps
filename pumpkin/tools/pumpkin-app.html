@@ -1,4 +1,17 @@
 <!DOCTYPE html>
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-control, SPLIT): two views. Show (the
+    default) holds the look preset, Mimic/Autonomous, Launch Projector and Push look + mode, the Speak line with one
+    primary Say it, Ask, a greyed Stop (planned, RP-PUMP-01) and Saved responses; Look & setup holds the look editor
+    with one primary Save as new look… and Reset to preset, the projector room, link, QR and its short form under Help,
+    and the phone remote. The live preview stays beside both views (first on a phone). Body glow and Ambient are a
+    colour well plus an opacity slider (the rgba text under Advanced); Launch Projector's box glyph is an SVG icon; the
+    selected mode is inverted, not a third orange fill; status lines use the page ink. No request or route changed.
+  2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): carry the Home/Business
+    audience view now that pumpkin-control is the first tile in ui.static, gate full-page boot on !AppView.active(), and
+    render the Saved lines card with saved/pinned counts and explicit "Play on the projector" actions per line.
+-->
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -6,6 +19,107 @@
   <title>Pumpkin Control</title>
   <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
   <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+  <script src="/shared/ui/js/app-view.js"></script>
+  <script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var FULL = '/cockpit/?app=pumpkin', KICKER = 'Halloween pumpkin', ISO = /^\d{4}-\d{2}-\d{2}T/;
+  var FACES = { neutral: 'Calm face', happy: 'Happy face', mischief: 'Cheeky face', spooky: 'Spooky face', angry: 'Angry face', laugh: 'Laughing face', surprised: 'Surprised face' };
+  var SOURCES = { mimic: 'Said word for word', autonomous: 'The pumpkin’s own reply', manual: 'Saved by hand' };
+  var NOTE = 'A saved line is one the pumpkin can say again. It does not mean the line played on a projector, and Home never makes the pumpkin speak, change its face or check a projector.';
+  // Every read answers { ok, status, body }: a body that is not JSON is null, and an unreachable server is status 0.
+  function read(path) {
+    return fetch('/api/pumpkin' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+    }, function () { return { ok: false, status: 0, body: null }; });
+  }
+  function refusal(status) {
+    return status === 401
+      ? { kicker: KICKER, title: 'Sign in to see the pumpkin’s saved lines', lede: 'Pumpkin shows the saved lines of whoever is signed in, and this session is not signed in.' }
+      : { kicker: KICKER, title: 'This account cannot open Pumpkin', lede: 'The Pumpkin routes refused this account (HTTP 403).' };
+  }
+  function failure(sum, list) {
+    var status = sum.status || list.status;
+    return new Error(status ? 'Pumpkin could not read the saved lines (HTTP ' + status + ').' : 'Pumpkin could not be reached just now.');
+  }
+  // The home summary sends each count as digits in a string ('0', '12'), or the word 'Unavailable' when that query failed.
+  function count(body, id) {
+    var m = ((body && (body.metrics || body.tiles)) || []).filter(function (x) { return x && x.id === id; })[0];
+    return m && typeof m.value === 'string' && /^\d+$/.test(m.value.trim()) ? Number(m.value) : null;
+  }
+  // One row of GET /responses: the saved-lines playlist, pinned first and then newest, as the control surface reads it.
+  function fromList(r) {
+    return { say: String(r.say || ''), face: r.expression, source: r.source, pinned: r.pinned === true, plays: Number(r.playCount) || 0, updated: r.updatedAt || r.createdAt || '' };
+  }
+  // A line item of the home summary (the ones carrying the clip offer): text is the line clipped to 100 characters and
+  // detail is '<expression> / saved <ISO>' (or the route's own 'date unavailable'); the summary does not say which are pinned.
+  function isLine(item) { return !!item && Array.isArray(item.actions) && item.actions.length > 0; }
+  function fromSummary(item) {
+    var d = String(item.detail || ''), at = d.lastIndexOf(' / saved ');
+    return { say: String(item.text || ''), face: at < 0 ? d : d.slice(0, at), source: null, pinned: null, plays: 0, updated: at < 0 ? '' : d.slice(at + 9) };
+  }
+  function when(value) { return ISO.test(String(value || '')) ? A.when(value) : (value || 'date unavailable'); }
+  function clip(text, cap) { var s = String(text || '').trim(); return s.length > cap ? s.slice(0, cap - 1).trim() + '…' : s; }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function item(line) {
+    var face = FACES[line.face] || (line.face ? 'Face: ' + line.face : '');
+    return { icon: '🎃', title: '“' + clip(line.say, 140) + '”', text: [face, SOURCES[line.source]].filter(Boolean).join(' · '),
+      meta: 'updated ' + when(line.updated) + (line.plays > 0 ? ' · sent from the playlist ' + plural(line.plays, 'time', 'times') : '') };
+  }
+  function newest(lines) {
+    return lines.reduce(function (best, l) { var t = Date.parse(l.updated); return isFinite(t) && (!best || t > Date.parse(best.updated)) ? l : best; }, null);
+  }
+  function stat(id, label, n, hint) { return { id: id, label: label, value: n === null ? '—' : n, hint: n === null ? 'Could not check' : hint || null }; }
+  function stats(n, last) {
+    return [stat('lines', 'Saved lines', n.lines), stat('pinned', 'Pinned favourites', n.pinned), stat('looks', 'Custom looks', n.looks, 'Saved faces and colours'),
+      { id: 'latest', label: 'Last change', value: last ? A.when(last.updated) : '—' }];
+  }
+  function headline(n, shown) {
+    if (n.lines > 0) return plural(n.lines, 'saved line', 'saved lines') + ' for the pumpkin';
+    if (n.lines === 0 && !shown.length) return 'No saved lines yet';
+    return shown.length ? 'The pumpkin’s saved lines' : 'Some saved work could not be checked';
+  }
+  function lede(n, shown, last) {
+    if (last) return 'Most recent: “' + clip(last.say, 80) + '”, updated ' + when(last.updated) + '.';
+    if (shown.length) return 'The saved lines are below, pinned favourites first.';
+    if (n.lines === 0) return 'When the pumpkin says something, the line is saved so it can be said again on Halloween night. Nothing is saved yet.';
+    return 'Some saved lines could not be read just now. Try again in a moment, or open Pumpkin.';
+  }
+  // The newest few only: the playlist holds up to 100 lines, and a longer list belongs to the full application.
+  function capped(lines, cap, what) { return lines.length > cap ? 'The ' + cap + ' newest ' + what + ' show here; open Pumpkin for the rest.' : null; }
+  function sections(n, shown, note) {
+    var fav = shown.filter(function (l) { return l.pinned === true; }), rest = shown.filter(function (l) { return l.pinned !== true; });
+    var empty = fav.length ? 'No other saved lines.' : n.lines === 0 ? 'No saved lines yet.' : 'None to show: some saved work could not be checked.';
+    return [fav.length ? { kind: 'tiles', id: 'favourites', title: 'Pinned favourites', items: fav.slice(0, 8).map(item), note: capped(fav, 8, 'pinned favourites') } : null,
+      { kind: 'list', id: 'lines', title: fav.length ? 'More saved lines' : 'Saved lines', items: rest.slice(0, 20).map(item), empty: empty,
+        note: [capped(rest, 20, 'saved lines'), note].filter(Boolean).join(' ') }];
+  }
+  function model(sum, list) {
+    var n = { lines: count(sum, 'saved-lines'), pinned: count(sum, 'pinned-lines'), looks: count(sum, 'saved-looks') };
+    var rows = list ? list.map(fromList) : [], backup = ((sum && sum.items) || []).filter(isLine).map(fromSummary);
+    // GET /responses answers an empty list when its own query fails, so an empty list beside a summary that holds saved
+    // lines is a failed read, not an empty playlist: the summary's newest lines show instead and the note says so.
+    var fallback = !rows.length && n.lines !== 0 && (list === null || n.lines > 0 || backup.length > 0);
+    var shown = fallback ? backup : rows, last = newest(shown);
+    var note = [sum && sum.partial === true ? 'Some saved pumpkin data could not be checked.' : '', fallback ? (backup.length ? 'The full list of saved lines could not be read just now, so only the newest show.' : 'The saved lines could not be read just now.') : '', NOTE].filter(Boolean).join(' ');
+    return { kicker: KICKER, title: headline(n, shown), lede: lede(n, shown, last),
+      actions: [{ label: 'Open Pumpkin', primary: true, onClick: function () { A.open(FULL); } }],
+      stats: stats(n, last), sections: sections(n, shown, note) };
+  }
+  function family() {
+    return Promise.all([read('/home-summary'), read('/responses')]).then(function (r) {
+      var sum = r[0], list = r[1], refused = [sum, list].filter(function (x) { return x.status === 401 || x.status === 403; });
+      if (refused.length) return refusal(refused.some(function (x) { return x.status === 401; }) ? 401 : 403);
+      var body = sum.ok && sum.body ? sum.body : null, rows = list.ok && list.body && Array.isArray(list.body.responses) ? list.body.responses : null;
+      if (!body && rows === null) throw failure(sum, list);
+      return model(body, rows);
+    });
+  }
+  // ADR-164 D6: the other shells' audience (company) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'pumpkin', escapeLabel: 'Open Pumpkin in the cockpit', audiences: { family: family, company: family } });
+})();
+</script>
   <style>
     :root {
       --bg:var(--bg-primary,#160b04);
@@ -48,9 +162,15 @@
     .qrwrap .muted { flex:1 1 150px; line-height:1.5; word-break:break-word; }
     .qr { flex:0 0 auto; width:160px; height:160px; display:block; border:1px solid var(--line); border-radius:8px; background:#fff; image-rendering:pixelated; }
     .demo-note { border:1px solid rgba(255,176,32,.45); background:rgba(255,140,26,.1); border-radius:10px; color:#ffcf7a; font-size:12px; line-height:1.45; padding:10px 12px; margin:0 0 12px; }
-    .savedRow { display:flex; gap:6px; margin-bottom:6px; }
-    .savedRow .play { flex:1 1 auto; text-align:left; font-size:13px; line-height:1.3; overflow:hidden; }
-    .savedRow .play .src { display:block; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+    html[data-audience] .av-btn { margin: 0; }
+    .savedHead { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 8px; }
+    .savedHead h2 { margin:0; }
+    .savedCounts { font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+    .savedRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px; margin-bottom:6px; border:1px solid var(--line); border-radius:9px; }
+    .savedLine { flex:1 1 180px; min-width:0; font-size:13px; line-height:1.35; overflow-wrap:anywhere; }
+    .savedLine .src { display:block; margin-top:2px; font-size:11px; color:var(--muted); }
+    .savedActions { display:flex; gap:6px; align-items:center; flex:0 0 auto; }
+    .savedRow .play { white-space:nowrap; font-size:13px; padding:8px 11px; }
     .savedRow .pin, .savedRow .del { flex:0 0 44px; padding:8px; font-size:15px; }
     .savedRow .pin.on { background:#ff8c1a; color:#1a0a00; border-color:var(--amber); }
     .savedEmpty { font-size:12px; color:var(--muted); padding:4px 0; }
@@ -63,67 +183,159 @@
       #preview{ height:240px; }
       .row > button{ flex:1 1 140px; }
     }
+    /* UX audit 2026-11-06: the two views, one primary per view, the selected mode inverted (not a second orange fill),
+       status lines in the page ink, the placeholder Stop greyed, the colour wells and the Help disclosure. */
+    .view-bar { display:flex; gap:4px; padding:0 16px; border-bottom:1px solid var(--line); background:var(--panel); }
+    .view-tab { min-height:44px; border:0; border-bottom:2px solid transparent; border-radius:0; background:none; color:var(--muted); font-weight:600; padding:0 16px; }
+    .view-tab:hover { background:none; color:var(--ink); }
+    .view-tab[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--amber); }
+    button.seg.on { background:var(--ink); color:var(--bg); border-color:var(--ink); font-weight:600; }
+    .status { color:var(--text-primary, var(--ink)); }
+    button.tertiary { background:none; border-color:transparent; color:var(--amber); text-decoration:underline; }
+    button.not-yet, button.not-yet:hover { background:var(--bg-secondary,#12100c); color:var(--text-muted, rgba(255,220,170,.45)); border-color:var(--line); cursor:not-allowed; opacity:1; }
+    button svg.ext { vertical-align:-2px; margin-left:4px; }
+    .well input[type=range] { min-height:32px; }
+    .right .preview-card { position:sticky; top:12px; }
+    #savedList { max-height:340px; overflow:auto; }
+    .savedRow .pin.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+    @media (max-width:820px){ .right { order:-1; } .right .preview-card { position:static; } }
+    @media (max-width:640px){
+      .wrap { padding-bottom:calc(84px + env(safe-area-inset-bottom,0px)); }
+      .view-bar { position:fixed; left:0; right:0; bottom:0; z-index:20; height:calc(56px + env(safe-area-inset-bottom,0px)); padding:0 72px env(safe-area-inset-bottom,0px) 8px; border-top:1px solid var(--line); border-bottom:0; background:var(--bg); }
+      .view-tab { flex:1; min-height:56px; border-bottom:0; border-top:2px solid transparent; }
+      .view-tab[aria-selected="true"] { border-top-color:var(--amber); }
+    }
   </style>
   <!-- Shared glass treatment (contract: tests/unit/surface-glass-assets.spec.ts); after local styles. -->
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body data-guest-local-demo="true">
+  <!-- Two views, one job each (UX audit 2026-11-06, SPLIT): Show runs the live show; Look & setup holds the one-time
+       projector setup, the look editor and the phone remote. The live preview stays beside both (first on a phone). -->
+  <nav class="view-bar" role="tablist" aria-label="Pumpkin views">
+    <button class="view-tab" type="button" role="tab" id="tab-show" data-view="show" aria-controls="view-show" aria-selected="true">Show</button>
+    <button class="view-tab" type="button" role="tab" id="tab-setup" data-view="setup" aria-controls="view-setup" aria-selected="false">Look &amp; setup</button>
+  </nav>
   <div class="wrap">
     <div class="left">
-      <h1>🎃 <b>Pumpkin</b> Control</h1>
-      <div class="sub">Drive the animated jack-o'-lantern. Launch the projector on a second display, then talk to it or type lines.</div>
       <div class="demo-note" id="demoNote" hidden role="status">Public browser demo: every control works locally on this device. No account, paid AI call, saved server data, or operator projector is touched.</div>
-
-      <div class="card">
-        <h2>Display</h2>
-        <label>Look (preset)</label>
-        <select id="presetSel"></select>
-        <label>Mode</label>
-        <div class="row">
-          <button id="mMimic" class="seg">Mimic (say-back)</button>
-          <button id="mAuto" class="seg">Autonomous</button>
-        </div>
-        <label>Projector room name</label>
-        <input id="roomLabel" type="text" value="Main" />
-        <div class="fieldset row">
-          <button id="launch" class="primary">Launch Projector ⧉</button>
-          <button id="apply">Push look + mode →</button>
-        </div>
-        <div class="status" id="dispStatus"></div>
-
-        <div class="fieldset">
-          <label>Projector link — open this on the projector device</label>
-          <div class="linkbox">
-            <input id="projectorUrl" type="text" readonly />
-            <button id="copyProjector">Copy</button>
+      <section class="view" id="view-show" role="tabpanel" aria-labelledby="tab-show">
+        <div class="card">
+          <h2>Display</h2>
+          <label>Look (preset)</label>
+          <select id="presetSel"></select>
+          <label>Mode</label>
+          <div class="row">
+            <button id="mMimic" class="seg">Mimic (say-back)</button>
+            <button id="mAuto" class="seg">Autonomous</button>
           </div>
-          <div class="qrwrap">
-            <img id="projectorQr" class="qr" alt="Scan to open the projector page" width="160" height="160" hidden />
-            <div class="muted" id="projectorShort"></div>
+          <div class="fieldset row">
+            <button id="launch">Launch Projector <svg class="ext" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9 2h5v5M14 2L7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button id="apply">Push look + mode →</button>
           </div>
-          <div class="status" id="linkStatus"></div>
+          <div class="status" id="dispStatus"></div>
         </div>
-      </div>
 
-      <div class="card">
-        <h2>Speak</h2>
-        <div class="muted">Type a line and send it to the projector room. “Say” speaks it verbatim; “Ask” lets the pumpkin reply in character.</div>
-        <label>Line</label>
-        <input id="sayText" type="text" placeholder="Happy Halloween, little goblin…" />
-        <div class="fieldset row">
-          <button id="btnSay" class="primary">Say it</button>
-          <button id="btnAsk">Ask the pumpkin</button>
+        <div class="card">
+          <h2>Speak</h2>
+          <div class="muted">“Say it” speaks your line as typed; “Ask” lets the pumpkin reply in character.</div>
+          <label for="sayText">Line</label>
+          <input id="sayText" type="text" placeholder="Happy Halloween, little goblin…" />
+          <div class="fieldset row">
+            <button id="btnSay" class="primary">Say it</button>
+            <button id="btnAsk">Ask the pumpkin</button>
+            <button type="button" class="not-yet" aria-disabled="true" data-ds-not-yet data-ds-backlog="RP-PUMP-01" aria-label="Stop, not available yet" title="Not available yet"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor"/></svg> Stop</button>
+          </div>
+          <div class="status" id="sayStatus"></div>
         </div>
-        <div class="status" id="sayStatus"></div>
-      </div>
 
-      <div class="card">
-        <h2>Saved responses <button id="savedRefresh" style="float:right;min-height:32px;padding:4px 10px;" title="Refresh">↻</button></h2>
-        <div class="muted">Every line the pumpkin speaks is remembered. Click to replay it instantly — no waiting on a fresh reply. ★ pins a keeper.</div>
+        <div class="card" id="savedLinesCard">
+        <div class="savedHead">
+          <h2>Saved lines</h2>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="savedCounts" id="savedCounts">0 saved · 0 pinned</span>
+            <button id="savedRefresh" type="button" style="min-height:44px;min-width:44px;padding:4px 10px;" aria-label="Refresh saved lines" title="Refresh">↻</button>
+          </div>
+        </div>
+        <div class="muted">Saved and pinned response lines. ★ pins favourites first; Play on the projector speaks any line immediately.</div>
         <div id="savedList" class="fieldset"></div>
       </div>
+      </section>
 
-      <div class="card">
+      <section class="view" id="view-setup" role="tabpanel" aria-labelledby="tab-setup" hidden>
+        <div class="card">
+          <h2>Look</h2>
+          <div class="fieldset row">
+            <button id="saveLook" class="primary">Save as new look…</button>
+            <button id="resetLook" type="button" class="tertiary">Reset to preset</button>
+          </div>
+          <div class="status" id="editStatus"></div>
+          <details class="fieldset" open>
+            <summary>Colors</summary>
+            <div class="grid2 fieldset">
+              <div><label>Background</label><input data-k="colors.background" type="color" /></div>
+              <div><label>Eyes / mouth</label><input data-k="colors.feature" type="color" /></div>
+              <div><label>Hot core</label><input data-k="colors.featureHot" type="color" /></div>
+            </div>
+            <div class="grid2 fieldset">
+              <div class="well" data-rgba="colors.bodyGlow"><label>Body glow</label><input type="color" class="well-color" aria-label="Body glow colour" /><label>Opacity <span class="val"></span></label><input type="range" class="well-alpha" min="0" max="1" step="0.01" aria-label="Body glow opacity" /></div>
+              <div class="well" data-rgba="colors.ambient"><label>Ambient</label><input type="color" class="well-color" aria-label="Ambient colour" /><label>Opacity <span class="val"></span></label><input type="range" class="well-alpha" min="0" max="1" step="0.01" aria-label="Ambient opacity" /></div>
+            </div>
+            <details class="fieldset advanced">
+              <summary>Advanced</summary>
+              <div class="grid2 fieldset">
+                <div><label>Body glow (rgba)</label><input data-k="colors.bodyGlow" type="text" /></div>
+                <div><label>Ambient (rgba)</label><input data-k="colors.ambient" type="text" /></div>
+              </div>
+            </details>
+          </details>
+
+          <details class="fieldset">
+          <summary>Face</summary>
+          <div class="grid2 fieldset">
+            <div><label>Eye shape</label><select data-k="face.eyeShape"><option>triangle</option><option>round</option><option>angry</option><option>square</option><option>diamond</option></select></div>
+            <div><label>Mouth shape</label><select data-k="face.mouthShape"><option>jagged</option><option>grin</option><option>oval</option><option>snaggle</option></select></div>
+          </div>
+          <div class="grid3 fieldset" id="faceRanges"></div>
+        </details>
+
+          <details class="fieldset">
+          <summary>Motion + glow</summary>
+          <div class="grid3 fieldset" id="motionRanges"></div>
+        </details>
+
+          <details class="fieldset">
+          <summary>Voice</summary>
+          <div class="grid2 fieldset">
+            <div><label>Voice</label><select data-k="voice.voiceId"></select></div>
+            <div><label>Rate <span class="val" id="rateVal"></span></label><input data-k="voice.rate" type="range" min="0.5" max="2" step="0.05" /></div>
+          </div>
+        </details>
+        </div>
+
+        <div class="card">
+          <h2>Projector</h2>
+          <div class="muted">Open this link on the projector device; Launch Projector opens it in a new tab here.</div>
+          <label for="roomLabel">Projector room name</label>
+          <input id="roomLabel" type="text" value="Main" />
+          <div class="fieldset">
+            <label>Projector link</label>
+            <div class="linkbox">
+              <input id="projectorUrl" type="text" readonly />
+              <button id="copyProjector">Copy</button>
+            </div>
+            <div class="qrwrap">
+              <img id="projectorQr" class="qr" alt="Scan to open the projector page" width="160" height="160" hidden />
+            </div>
+            <div class="status" id="linkStatus"></div>
+            <details class="fieldset help">
+              <summary>Help</summary>
+              <div class="muted" id="projectorShort"></div>
+            </details>
+          </div>
+        </div>
+
+        <div class="card">
         <h2>Phone remote</h2>
         <div class="muted">Open on your phone (same login) to talk into the pumpkin from anywhere. Scan the code with the phone's camera, or copy the link.</div>
         <div class="linkbox fieldset">
@@ -135,50 +347,16 @@
           <div class="muted" id="remoteHint"></div>
         </div>
       </div>
+      </section>
     </div>
 
     <div class="right">
-      <div class="card">
+      <div class="card preview-card">
         <h2>Live preview <span class="muted" id="livePreset"></span></h2>
         <canvas id="preview"></canvas>
         <div class="fieldset row">
           <button id="testVoice">🔊 Test voice + lip-sync</button>
-          <button id="saveLook" class="primary">Save as new look…</button>
         </div>
-        <div class="status" id="editStatus"></div>
-
-        <details class="fieldset" open>
-          <summary>Colors</summary>
-          <div class="grid2 fieldset">
-            <div><label>Background</label><input data-k="colors.background" type="color" /></div>
-            <div><label>Eyes / mouth</label><input data-k="colors.feature" type="color" /></div>
-            <div><label>Hot core</label><input data-k="colors.featureHot" type="color" /></div>
-            <div><label>Body glow (rgba)</label><input data-k="colors.bodyGlow" type="text" /></div>
-            <div><label>Ambient (rgba)</label><input data-k="colors.ambient" type="text" /></div>
-          </div>
-        </details>
-
-        <details class="fieldset">
-          <summary>Face</summary>
-          <div class="grid2 fieldset">
-            <div><label>Eye shape</label><select data-k="face.eyeShape"><option>triangle</option><option>round</option><option>angry</option><option>square</option><option>diamond</option></select></div>
-            <div><label>Mouth shape</label><select data-k="face.mouthShape"><option>jagged</option><option>grin</option><option>oval</option><option>snaggle</option></select></div>
-          </div>
-          <div class="grid3 fieldset" id="faceRanges"></div>
-        </details>
-
-        <details class="fieldset">
-          <summary>Motion + glow</summary>
-          <div class="grid3 fieldset" id="motionRanges"></div>
-        </details>
-
-        <details class="fieldset">
-          <summary>Voice</summary>
-          <div class="grid2 fieldset">
-            <div><label>Voice</label><select data-k="voice.voiceId"></select></div>
-            <div><label>Rate <span class="val" id="rateVal"></span></label><input data-k="voice.rate" type="range" min="0.5" max="2" step="0.05" /></div>
-          </div>
-        </details>
       </div>
     </div>
   </div>
@@ -296,9 +474,41 @@
         el.value = v;
         var sib=el.parentElement.querySelector('.val'); if(sib && el.type==='range') sib.textContent=(Math.round(v*100)/100);
       });
+      syncWells();
+    }
+    /** UX audit 2026-11-06: Body glow and Ambient are a colour well plus an opacity slider; the rgba string they write
+     * is the Advanced field (data-k), so the editor, the preset and Save keep the exact value they always had. */
+    function parseRgba(text){
+      var m=/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(String(text||'').trim());
+      if(!m) return null;
+      var hex='#'+[m[1],m[2],m[3]].map(function(n){ return ('0'+Math.max(0,Math.min(255,+n)).toString(16)).slice(-2); }).join('');
+      return { hex:hex, alpha: m[4]==null ? 1 : Math.max(0,Math.min(1,+m[4])) };
+    }
+    function toRgba(hex,alpha){
+      var n=parseInt(String(hex).slice(1),16);
+      return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+(Math.round(alpha*100)/100)+')';
+    }
+    function syncWells(){
+      document.querySelectorAll('.well[data-rgba]').forEach(function(w){
+        var text=document.querySelector('input[data-k="'+w.getAttribute('data-rgba')+'"]'); var c=parseRgba(text&&text.value); if(!c) return;
+        w.querySelector('.well-color').value=c.hex; w.querySelector('.well-alpha').value=c.alpha; w.querySelector('.val').textContent=c.alpha;
+      });
+    }
+    function bindWells(){
+      document.querySelectorAll('.well[data-rgba]').forEach(function(w){
+        var text=document.querySelector('input[data-k="'+w.getAttribute('data-rgba')+'"]');
+        var push=function(){ var a=parseFloat(w.querySelector('.well-alpha').value); w.querySelector('.val').textContent=a; text.value=toRgba(w.querySelector('.well-color').value,a); text.dispatchEvent(new Event('input')); };
+        w.querySelector('.well-color').addEventListener('input',push); w.querySelector('.well-alpha').addEventListener('input',push);
+        text.addEventListener('change',syncWells);
+      });
+    }
+    /** Reset to preset: the chosen preset's own values again (edits are made on a copy, so the preset is intact). */
+    function resetLook(){
+      var o=$('#presetSel').selectedOptions[0]; if(!o||!o.__p) return;
+      applyPreset(o.__p); $('#editStatus').textContent='Back to the “'+(o.__p.label||o.__p.name)+'” look.';
     }
 
-    function applyPreset(p){ S.preset=p; if(face) face.setPreset(p); fillEditor(p); $('#livePreset').textContent='· '+(p.label||p.name); }
+    function applyPreset(p){ S.preset=clone(p); if(face) face.setPreset(S.preset); fillEditor(S.preset); $('#livePreset').textContent='· '+(p.label||p.name); }
     function loadPresetList(selectName){
       return api('/api/pumpkin/presets').then(function(j){
         var sel=$('#presetSel'); sel.innerHTML='';
@@ -432,18 +642,29 @@
     }
     function renderSaved(rows){
       var host=$('#savedList'); host.innerHTML='';
-      if(!rows.length){ var e=document.createElement('div'); e.className='savedEmpty'; e.textContent='Nothing saved yet — every line the pumpkin speaks lands here automatically.'; host.appendChild(e); return; }
-      rows.forEach(function(r){
+      var sorted=(Array.isArray(rows)?rows:[]).slice().sort(function(a,b){ return Number(!!b.pinned)-Number(!!a.pinned); });
+      var pinnedCount=sorted.filter(function(r){ return !!r.pinned; }).length;
+      var countsEl=$('#savedCounts');
+      if(countsEl) countsEl.textContent=sorted.length+' saved · '+pinnedCount+' pinned';
+      if(!sorted.length){ var e=document.createElement('div'); e.className='savedEmpty'; e.textContent='Nothing saved yet — every line the pumpkin speaks lands here automatically.'; host.appendChild(e); return; }
+      sorted.forEach(function(r){
         var row=document.createElement('div'); row.className='savedRow';
-        var play=document.createElement('button'); play.className='play'; play.title='Replay on the projector room';
-        play.textContent='🎃 '+truncSaved(r.say);
-        var src=document.createElement('span'); src.className='src'; src.textContent=(r.source||'')+(r.playCount?(' · played '+r.playCount+'×'):''); play.appendChild(src);
+        var line=document.createElement('div'); line.className='savedLine';
+        line.textContent='🎃 '+truncSaved(r.say);
+        var src=document.createElement('span'); src.className='src';
+        src.textContent=[(r.pinned?'Pinned':null),(r.source||null),(r.playCount?('played '+r.playCount+'×'):null)].filter(Boolean).join(' · ');
+        line.appendChild(src);
+        var actions=document.createElement('div'); actions.className='savedActions';
+        var play=document.createElement('button'); play.type='button'; play.className='play'; play.title='Play on the projector';
+        play.textContent='Play on the projector';
+        play.setAttribute('aria-label','Play on the projector: '+truncSaved(r.say));
         play.onclick=function(){ replaySaved(r); };
-        var pin=document.createElement('button'); pin.className='pin'+(r.pinned?' on':''); pin.textContent=r.pinned?'★':'☆'; pin.title=r.pinned?'Pinned. Tap to unpin':'Not pinned. Tap to pin (keep forever)'; pin.setAttribute('aria-label',pin.title); pin.setAttribute('aria-pressed',r.pinned?'true':'false');
+        var pin=document.createElement('button'); pin.type='button'; pin.className='pin'+(r.pinned?' on':''); pin.textContent=r.pinned?'★':'☆'; pin.title=r.pinned?'Pinned. Tap to unpin':'Not pinned. Tap to pin (keep forever)'; pin.setAttribute('aria-label',pin.title); pin.setAttribute('aria-pressed',r.pinned?'true':'false');
         pin.onclick=function(){ togglePinSaved(r); };
-        var del=document.createElement('button'); del.className='del'; del.textContent='✕'; del.title='Delete saved line';
+        var del=document.createElement('button'); del.type='button'; del.className='del'; del.textContent='✕'; del.title='Delete saved line'; del.setAttribute('aria-label','Delete saved line');
         del.onclick=function(){ deleteSaved(r); };
-        row.appendChild(play); row.appendChild(pin); row.appendChild(del); host.appendChild(row);
+        actions.appendChild(play); actions.appendChild(pin); actions.appendChild(del);
+        row.appendChild(line); row.appendChild(actions); host.appendChild(row);
       });
     }
     function replaySaved(r){
@@ -581,8 +802,19 @@
       }else{ input.select(); var ok=false; try{ok=document.execCommand('copy');}catch(e){} done(ok); }
     }
 
+    /** The two views; the address keeps the view (#view=setup) so Reload opens the same one. */
+    function setView(v){
+      var view=v==='setup'?'setup':'show';
+      ['show','setup'].forEach(function(id){ $('#view-'+id).hidden=id!==view; $('#tab-'+id).setAttribute('aria-selected',String(id===view)); });
+      try{ history.replaceState(null,'',location.pathname+location.search+(view==='setup'?'#view=setup':'')); }catch(_){}
+      if(face&&face.resize) face.resize();
+    }
+    function bindViews(){
+      ['show','setup'].forEach(function(id){ $('#tab-'+id).addEventListener('click',function(){ setView(id); }); });
+      setView(/(^|[#&])view=setup\b/.test(location.hash)?'setup':'show');
+    }
     function init(){
-      buildRanges(); bindEditor();
+      buildRanges(); bindEditor(); bindWells(); bindViews();
       face = new window.PumpkinFace($('#preview'), { name:'inflatable', colors:{background:'#000',bodyGlow:'rgba(255,96,0,0.12)',feature:'#ffb020',featureHot:'#fff3c0',ambient:'rgba(0,0,0,0.9)'}, face:{eyeShape:'triangle',mouthShape:'jagged',toothCount:4,eyeSpacing:0.58,eyeSize:0.5,mouthWidth:0.72,browAngle:-0.15}, motion:{idleBob:8,bobSpeed:0.3,sway:1.6,blinkPerMin:10,gaze:0.4,mouthReactivity:1.1,flicker:0.35}, glow:{blur:38,intensity:1.2}, voice:{voiceId:'Charon',rate:0.95}, defaultMode:'mimic' });
       S.preset=face.preset;
       audio = new window.PumpkinAudio('');
@@ -600,7 +832,7 @@
       $('#mMimic').onclick=function(){setMode('mimic');}; $('#mAuto').onclick=function(){setMode('autonomous');}; setMode('mimic');
       $('#launch').onclick=launch; $('#apply').onclick=pushLookMode;
       $('#btnSay').onclick=function(){sendLine('say');}; $('#btnAsk').onclick=function(){sendLine('ask');};
-      $('#testVoice').onclick=testVoice; $('#saveLook').onclick=saveLook;
+      $('#testVoice').onclick=testVoice; $('#saveLook').onclick=saveLook; $('#resetLook').onclick=resetLook;
       $('#presetSel').onchange=function(e){ var o=e.target.selectedOptions[0]; if(o&&o.__p) applyPreset(o.__p); scheduleRefreshLinks(); };
       $('#copyRemote').onclick=function(){ copyInput('remoteUrl',S.guest?'Demo remote link copied. Open it in another tab on this device.':'Phone remote link copied.'); };
       $('#copyProjector').onclick=function(){ copyInput('projectorUrl','Projector link copied. Paste it into the projector device’s browser.'); };
@@ -612,7 +844,9 @@
         .then(function(){ scheduleRefreshLinks(); })   // the preset name is only known once the list loads
         .catch(function(err){ $('#dispStatus').textContent=message(err,'Could not load Pumpkin looks.'); });
     }
-    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+    if (!window.AppView || !AppView.active()) {
+      if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+    }
   })();
   </script>
 </body>

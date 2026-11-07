@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the real Create Brand Graphics launchers (Home studio card, Brand intro clip quick start, New Video card), the access-gated owner summary, exact navigation and narrow layouts, with synthetic local HTTP only and no render, provider or business activity.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Home has no studio grid or quick starts and New is Home's sheet, so Brand Graphics opens from its saved-work card and the sheet's Brand intro clip card (Video format); a locked card keeps its Access link; the template search is #tq.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -66,10 +67,8 @@ async function open(t, screen = 'home', options = {}) {
   await page.goto(`${fixture.origin}/${embedded ? 'fixture' : 'api/create'}/${screen}${options.query ?? ''}`);
   const surface = embedded ? page.frameLocator('iframe') : page;
   if (options.holdAccess) await controls.accessSeen;
-  else if (screen === 'home') {
-    await surface.locator('#studioGrid .studio').first().waitFor();
-    await surface.locator('#weekNote').filter({ hasText: /Counts come|Can't check/ }).waitFor();
-  } else await surface.locator('#sections .card').first().waitFor();
+  else if (screen === 'home') await surface.locator('#weekNote').filter({ hasText: /Counts come|Can't check/ }).waitFor();
+  else await surface.locator('#newSheet[open] #sections .card').first().waitFor();
   return { page, surface, fixture, state, ...controls };
 }
 
@@ -81,33 +80,34 @@ function clean(value) {
     && ![SUMMARY, URL].includes(row.path)), []);
 }
 
-function studio(surface) { return surface.locator('#studioGrid .studio').filter({ hasText: 'Brand Graphics' }); }
-function starter(surface) { return surface.locator(`#starterTiles [data-tool="${TOOL}"]`); }
-function newCard(surface) { return surface.locator('#sections .card').filter({ hasText: 'Brand intro clip' }); }
+function work(surface) { return surface.locator('#recentGrid .wcard .wopen').filter({ hasText: 'Synthetic brand intro' }); }
+function newCard(surface) { return surface.locator('#newSheet[open] #sections .card').filter({ hasText: 'Brand intro clip' }); }
+async function sheet(surface) {
+  if (!await surface.locator('#newSheet[open]').count()) await surface.locator('#newBtn').click();
+  await surface.locator('#newSheet[open]').waitFor();
+}
 
 async function expectLaunch(value, action) {
   await action(); await value.page.waitForFunction(() => window.navigationMessages.length === 1);
   assert.deepEqual(await value.page.evaluate(() => window.navigationMessages), [navigation]); clean(value);
 }
 
-test('Home exposes one Brand Graphics studio and its owner summary through the existing access gate', async t => {
+test('Home shows the Brand Graphics owner summary through the existing access gate and its card opens Brand Graphics', async t => {
   const value = await open(t), { surface, fixture } = value;
-  assert.equal(await studio(surface).count(), 1);
+  assert.equal(await surface.locator('#studioGrid').count(), 0, 'the rail lists the studios, not Home');
   assert.equal(await surface.locator('#recentGrid .title').innerText(), 'Synthetic brand intro');
   assert.match(await surface.locator('#metrics').innerText(), /3\s+Brand clips/);
   const access = fixture.requests.findIndex(row => row.path === '/api/authorization/me' && row.query.app === APP);
   assert.ok(access >= 0 && fixture.requests.findIndex(row => row.path === SUMMARY) > access);
-  await expectLaunch(value, () => studio(surface).click());
+  await expectLaunch(value, () => work(surface).click());
 });
 
-test('Home Quick start has one Brand intro clip entry in Video that opens Brand Graphics', async t => {
+test('Home New has one Brand intro clip card in the Video format that opens Brand Graphics', async t => {
   const value = await open(t), { surface } = value;
-  assert.equal(await starter(surface).count(), 1);
-  assert.equal(await starter(surface).getAttribute('data-cat'), 'video');
-  assert.match(await starter(surface).innerText(), /Brand intro clip/);
-  await surface.locator('#chips [data-cat="video"]').click();
-  assert.equal(await surface.locator(`#starterTiles .tile:not(.hidden)[data-tool="${TOOL}"]`).count(), 1);
-  await expectLaunch(value, () => starter(surface).click());
+  await sheet(surface); await surface.locator('#cats [data-cat="video"]').click();
+  assert.equal(await newCard(surface).count(), 1);
+  assert.match(await newCard(surface).innerText(), /Brand intro clip/);
+  await expectLaunch(value, () => newCard(surface).click());
 });
 
 test('New Video category contains one Brand intro clip card with the exact embedded handoff', async t => {
@@ -121,19 +121,19 @@ test('New Video category contains one Brand intro clip card with the exact embed
 
 test('New keyboard search finds the single Brand intro clip card', async t => {
   const value = await open(t, 'new'), { surface } = value;
-  await surface.locator('#q').fill('Brand intro clip');
+  await surface.locator('#tq').fill('Brand intro clip');
   assert.equal(await surface.locator('#sections .card').count(), 1);
-  await expectLaunch(value, () => surface.locator('#q').press('Enter'));
+  await expectLaunch(value, () => surface.locator('#tq').press('Enter'));
 });
 
-test('denied Home Brand Graphics studio and Quick start never navigate or request the owner summary', async t => {
+test('denied Home Brand Graphics card in New never navigates or requests the owner summary', async t => {
   const value = await open(t, 'home', { denied: true }), { page, surface, fixture } = value;
-  assert.equal(await studio(surface).getAttribute('aria-disabled'), 'true');
-  assert.equal(await starter(surface).getAttribute('aria-disabled'), 'true');
-  await studio(surface).evaluate(node => node.click()); await starter(surface).evaluate(node => node.click());
+  await sheet(surface); await newCard(surface).locator('.lock').waitFor();
+  assert.equal(await newCard(surface).getAttribute('aria-disabled'), 'true');
+  await newCard(surface).evaluate(node => node.click());
   assert.deepEqual(await page.evaluate(() => window.navigationMessages), []);
   assert.equal(fixture.requests.some(row => row.path === SUMMARY || row.path === URL), false);
-  assert.equal(await studio(surface).locator('a').getAttribute('href'), '/access?app=brand-graphics'); clean(value);
+  assert.equal(await newCard(surface).locator('a').getAttribute('href'), '/access?app=brand-graphics'); clean(value);
 });
 
 test('denied New Brand intro clip card stays visibly locked and sends no navigation or summary', async t => {
@@ -157,8 +157,8 @@ test('an unavailable Brand Graphics summary stays visibly unknown while its stud
   const value = await open(t, 'home', { summaryFailure: true }), { surface } = value;
   assert.match(await surface.locator('#weekNote').innerText(), /Can't check:.*Brand Graphics/);
   assert.equal(await surface.locator('#metrics .metric').count(), 0);
-  assert.equal(await surface.locator('#recentGrid .card').count(), 0);
-  await expectLaunch(value, () => studio(surface).click());
+  assert.equal(await surface.locator('#recentGrid .wcard').count(), 0);
+  await sheet(surface); await expectLaunch(value, () => newCard(surface).click());
 });
 
 test('a valid empty Brand Graphics summary keeps an empty state without an unavailable claim', async t => {
@@ -170,8 +170,7 @@ test('a valid empty Brand Graphics summary keeps an empty state without an unava
 
 for (const screen of ['home', 'new']) test(`standalone ${screen} opens only the fixed Brand Graphics URL without inherited query context`, async t => {
   const value = await open(t, screen, { embedded: false, profileFailure: true, query: '?cat=video&artifact=fixture-only&job=unrelated' });
-  const target = screen === 'home' ? studio(value.surface) : newCard(value.surface);
-  await target.click(); await value.page.waitForURL(`${value.fixture.origin}${URL}`);
+  await sheet(value.surface); await newCard(value.surface).click(); await value.page.waitForURL(`${value.fixture.origin}${URL}`);
   assert.equal(value.page.url(), `${value.fixture.origin}${URL}`); clean(value);
 });
 
@@ -179,7 +178,8 @@ for (const theme of ['workspace', 'midnight']) test(`Brand Graphics entries rema
   for (const screen of ['home', 'new']) {
     const value = await open(t, screen, { width: 390, theme }), { surface } = value;
     assert.equal(await surface.locator('html').getAttribute('data-theme'), theme);
-    const target = screen === 'home' ? starter(surface) : newCard(surface);
+    await sheet(surface); await surface.locator('#cats [data-cat="video"]').click();
+    const target = newCard(surface);
     assert.equal(await target.count(), 1);
     const box = await target.evaluate(node => ({ left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right,
       width: innerWidth, pageWidth: document.documentElement.scrollWidth }));

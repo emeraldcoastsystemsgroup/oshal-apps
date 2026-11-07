@@ -13,6 +13,7 @@
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add owner-aware, tenant-bound flashcard persistence and safe SM-2 review writes.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | createStudySet admits the class's owner through assertOwnerOfClass, and the class-set insert and the shared set/card write scope match "tenant admin or the class's owner" (both also required the teacher role): generating flashcards for a student's own private class failed "Teacher access required" when the set was saved.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | Add owner-scoped per-set flashcard study preferences (shuffle and term/definition prompt side, RP-LM-04).
  * ---------------------------------------------------------------------------
  *
  * @module education-study-store
@@ -26,6 +27,8 @@ exports.addStudyCard = addStudyCard;
 exports.deleteStudySet = deleteStudySet;
 exports.createStudySet = createStudySet;
 exports.recordStudyReview = recordStudyReview;
+exports.getStudySetPreferences = getStudySetPreferences;
+exports.saveStudySetPreferences = saveStudySetPreferences;
 const crypto_1 = require("crypto");
 const education_access_1 = require("./education-access");
 const education_study_errors_1 = require("./education-study-errors");
@@ -317,5 +320,34 @@ async function recordStudyReview(pool, actor, cardIdValue, scoreValue) {
     finally {
         client.release();
     }
+}
+/** Read the caller's saved shuffle and prompt-side preferences for a readable flashcard set. */
+async function getStudySetPreferences(pool, actor, setIdValue) {
+    const setId = await assertScopedSet(pool, actor, setIdValue, 'read');
+    const result = await pool.query(`SELECT shuffle, prompt_side FROM lm_flashcard_study_prefs
+     WHERE student_id = $1 AND tenant_id = $2 AND set_id = $3`, [actor.studentId, actor.tenantId, setId]);
+    const row = result.rows[0];
+    return {
+        shuffle: Boolean(row?.shuffle),
+        promptSide: row?.prompt_side === 'definition' ? 'definition' : 'term',
+    };
+}
+/** Save the caller's shuffle and prompt-side preferences for a readable flashcard set. */
+async function saveStudySetPreferences(pool, actor, setIdValue, rawPrefs) {
+    const setId = await assertScopedSet(pool, actor, setIdValue, 'read');
+    if (typeof rawPrefs.shuffle !== 'boolean') {
+        throw new education_study_errors_1.StudyHttpError('shuffle boolean is required', 400);
+    }
+    if (rawPrefs.promptSide !== 'term' && rawPrefs.promptSide !== 'definition') {
+        throw new education_study_errors_1.StudyHttpError('promptSide must be term or definition', 400);
+    }
+    await pool.query(`INSERT INTO lm_flashcard_study_prefs
+       (student_id, tenant_id, set_id, shuffle, prompt_side, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())
+     ON CONFLICT (student_id, set_id) DO UPDATE SET
+       shuffle = EXCLUDED.shuffle,
+       prompt_side = EXCLUDED.prompt_side,
+       updated_at = NOW()`, [actor.studentId, actor.tenantId, setId, rawPrefs.shuffle, rawPrefs.promptSide]);
+    return { shuffle: rawPrefs.shuffle, promptSide: rawPrefs.promptSide };
 }
 //# sourceMappingURL=education-study-store.js.map

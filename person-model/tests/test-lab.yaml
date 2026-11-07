@@ -1,0 +1,44 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness smoke and Ambient Recall surface empty-state + pre-promotion 404 acceptance suite.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify metadata-only readiness without model spend or user data reads.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed person-model package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: ambient-recall-surface
+    name: Ambient Recall unhidden tile, five-endpoint empty states, and pre-promotion 404 grace
+    purpose: Verify person-model manifest unhide, inline concierge contract, and Chromium rendering of empty states across projection, recall, asks, people, and trends as well as HTTP 404 pre-promotion grace.
+    level: e2e
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/person-model-surface.test.cjs
+    expected:
+      - Manifest declares active Ambient Recall tile at /api/person-model/app and canonical readiness probe.
+      - Recall, Asks, People, Trends, and Projection render clean empty states when transcript arrays are empty.
+      - Pre-promotion HTTP 404 responses on /api/jarvis/ambient/person/* render calm empty-preview notices without page errors.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close ephemeral loopback server and headless browser context.
+    limits:
+      timeoutMs: 45000
+    installation: never

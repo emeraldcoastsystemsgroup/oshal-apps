@@ -317,6 +317,96 @@ body[data-gs-view="audience"] #gs-root { padding-bottom: 76px; }   /* reactions 
   .gs-buzz-btn { width: min(80vw, 340px); height: min(80vw, 340px); }
 }
 
+/* ── UX audit 2026-11-06: icons, menus, sheets, the clicker, the Host Desk, Recent games ─────────────────
+   The lobby, clicker, Host Desk and sheets follow the theme; the broadcast set pins its own (game-show-play.css). */
+.gs-icon { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; padding: 0 10px; border-radius: 12px;
+  border: 1px solid var(--gs-line); background: transparent; color: var(--gs-ink); font: 700 18px/1 system-ui, sans-serif;
+  cursor: pointer; text-decoration: none; }
+.gs-icon:hover, .gs-icon:focus-visible { background: var(--gs-surface-2); outline: none; }
+/* The one main action: the accent, flat, with its own ink (4.5:1 or more in every theme). */
+.gs-btn.primary { background: var(--ds-accent, var(--accent-primary, #3b82f6)); color: var(--ds-on-accent, var(--text-on-accent, #111827)); border-color: transparent; }
+.gs-btn.primary:disabled { background: var(--ds-surface-2, var(--gs-surface-2)); color: var(--ds-ink-disabled, var(--gs-dim)); opacity: 1; }
+.gs-more { position: relative; }
+.gs-more-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 1200; min-width: 210px; display: grid; gap: 2px; padding: 6px;
+  border-radius: 12px; background: var(--ds-surface, var(--gs-navy)); border: 1px solid var(--gs-line); box-shadow: var(--gs-shadow); }
+.gs-more-menu button { min-height: 44px; padding: 10px 14px; border: 0; border-radius: 8px; background: transparent; color: var(--gs-ink);
+  font: 600 15px/1.2 system-ui, sans-serif; text-align: left; cursor: pointer; white-space: nowrap; }
+.gs-more-menu button:hover, .gs-more-menu button:focus-visible { background: var(--gs-surface-2); outline: none; }
+#gs-sheets .gs-scrim { position: fixed; inset: 0; z-index: 1400; background: rgba(4, 7, 20, .55); }
+#gs-sheets .gs-sheet { position: fixed; z-index: 1401; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 94vw);
+  max-height: 86vh; display: flex; flex-direction: column; background: var(--ds-surface, var(--gs-navy)); color: var(--gs-ink);
+  border: 1px solid var(--gs-line); border-radius: 20px; box-shadow: 0 24px 80px rgba(0, 0, 0, .45); }
+#gs-sheets .gs-sheet.full { width: min(900px, 96vw); max-height: 92vh; }
+.gs-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 8px 0 20px; border-bottom: 1px solid var(--gs-line); }
+.gs-sheet-head h2 { margin: 0; font-size: 20px; }
+.gs-sheet-done { min-height: 44px; min-width: 72px; border: 0; border-radius: 10px; background: transparent; color: var(--gs-ink); font: 700 16px/1 system-ui, sans-serif; cursor: pointer; text-decoration: underline; }
+.gs-sheet-body { overflow-y: auto; padding: 16px 20px 20px; }
+.gs-sheet-body p { line-height: 1.5; }
+.gs-sheet-label { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--gs-dim); }
+.gs-btn.gs-choice { min-height: 44px; }
+.gs-btn.gs-choice.on { background: var(--gs-ink); color: var(--gs-navy); border-color: var(--gs-ink); }
+.gs-help h3 { margin: 14px 0 4px; font-size: 17px; }
+.gs-help p, .gs-help li { line-height: 1.5; }
+.gs-help-show.current { padding: 10px 12px; border-radius: 12px; background: var(--gs-surface-2); }
+/* The clicker: status, the buzzer and the answer. */
+.gs-clickroot { padding: 12px 16px; }
+.gs-clickroot .gs-top { padding: 0 0 4px; gap: 8px; flex-wrap: nowrap; }
+.gs-clickwho { gap: 8px; }
+.gs-clickwho .gp-you-btn { min-height: 44px; padding: 6px 12px; }
+.gs-clickroot .gs-buzzer { padding: 12px; }
+.gs-clickroot .gs-buzzer.collapsed { display: none; }
+.gs-clickroot .gs-buzz-btn { width: min(60vw, 240px); height: min(60vw, 240px); font-size: 36px;
+  background: var(--ds-accent, var(--accent-primary, #ef4444)); color: var(--ds-on-accent, var(--text-on-accent, #111827));
+  box-shadow: 0 10px 0 color-mix(in srgb, var(--accent-primary, #ef4444) 55%, #000), 0 16px 30px rgba(0, 0, 0, .3); }
+.gs-clickroot .gs-buzz-btn:active { box-shadow: 0 3px 0 color-mix(in srgb, var(--accent-primary, #ef4444) 55%, #000); }
+.gs-clickroot .gs-buzz-btn:disabled { background: var(--ds-surface-2, var(--gs-surface-2)); color: var(--ds-ink-disabled, var(--gs-dim));
+  filter: none; opacity: 1; box-shadow: 0 6px 0 rgba(0, 0, 0, .12); }
+.gs-clickroot .gs-buzz-btn.locked { background: var(--gs-gold); color: #26180a; box-shadow: 0 10px 0 #b45309; }
+.gs-answer { width: 100%; max-width: 640px; margin: 0 auto; }
+.gs-answer.big { gap: 8px; }
+.gs-answer.big .gs-input { min-height: 52px; font-size: 18px; }
+.gs-answer.big .gs-row { flex-wrap: nowrap; }
+.gs-answer-go { flex: 1 1 auto; min-height: 52px; font-size: 18px; }
+/* The Host Desk: a console that fits one screen. */
+.gs-desk .gs-btn, .gs-desk .gs-input, #gs-sheets .gs-btn, #gs-sheets .gs-input { min-height: 44px; }
+.gs-desk .gs-override .gs-btn { padding: 8px 12px; }
+.gs-desk-status, .gs-desk-cues { gap: 8px; }
+.gs-voice-off { border: 1px solid var(--gs-line); }
+.gs-desk-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.gs-desk-panel { padding: 12px; }
+.gs-desk-panel h3 { margin: 0 0 8px; font-size: 13px; color: var(--gs-dim); text-transform: uppercase; letter-spacing: .06em; }
+.gs-desk-bar { display: none; }
+.gsf-key { width: 100%; min-height: 44px; font: inherit; color: var(--gs-ink); border: 1px solid var(--gs-line); cursor: pointer; text-align: left; }
+.gsf-key:hover:not(:disabled) { border-color: var(--gs-ink); }
+.gsf-key:disabled { cursor: default; color: var(--gs-ink); }
+.gs-setup-part { border-top: 1px solid var(--gs-line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.gs-setup-part h3 { margin: 0; font-size: 16px; }
+.gs-answer-rows { display: grid; grid-template-columns: minmax(0, 2fr) 90px minmax(0, 1.4fr); gap: 6px; align-items: center; }
+.gs-setup-seat { justify-content: space-between; }
+/* Recent games: the last three ended games as posters, each with one Play again. */
+.gp-recent-wrap { margin-top: 14px; }
+.gp-recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.gp-recent-card { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; padding: 12px; border-radius: 14px;
+  border: 1px solid var(--gs-line); background: var(--gs-surface-2); }
+.gp-recent-card .gp-poster-art { font-size: 32px; }
+@media (max-width: 700px) {
+  #gs-sheets .gs-sheet { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 85vh; border-radius: 20px 20px 0 0; }
+  #gs-sheets .gs-sheet.full { top: 8px; max-height: none; }
+  .gs-answer-rows { grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr); }
+  .gs-clickroot .gs-top .gs-brand { display: none; }
+  .gs-desk-grid { grid-template-columns: minmax(0, 1fr); }
+  .gs-desk .gs-desk-panel { display: none; }
+  .gs-desk[data-tab="board"] .gs-desk-panel[data-tab="board"], .gs-desk[data-tab="clock"] .gs-desk-panel[data-tab="clock"],
+  .gs-desk[data-tab="cutaways"] .gs-desk-panel[data-tab="cutaways"], .gs-desk[data-tab="more"] .gs-desk-panel[data-tab="more"] { display: block; }
+  .gs-desk { padding-bottom: 80px; }
+  .gs-desk .gs-top { flex-wrap: nowrap; overflow: visible; }
+  .gs-desk .gs-top .gs-brand, .gs-desk .gs-top .gs-chip:not(.gs-clock) { display: none; }
+  .gs-desk-bar { display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 900;
+    background: var(--gs-navy); border-top: 1px solid var(--gs-line); padding-bottom: env(safe-area-inset-bottom); }
+  .gs-desk-bar button { min-height: 56px; border: 0; background: transparent; color: var(--gs-ink); font: 700 14px/1 system-ui, sans-serif; cursor: pointer; }
+  .gs-desk-bar button[aria-pressed="true"] { box-shadow: inset 0 3px 0 var(--gs-ink); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gs-cutaway *, .gs-confetti i, .gs-podiums.huddle .gs-podium,
   .gs-podiums.dance .gs-tile, .gs-podiums.pan { animation: none !important; }

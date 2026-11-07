@@ -25,6 +25,8 @@
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove TMDB credentials from generic orchestrator dispatch. The controller resolves TMDB only for its bounded catalog call and sends the model sanitized candidate records.
  * 2026-10-10 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: the TMDB key is the kernel's (manifest egress credential). A cached configuration read
  *            | decides `connected`, routes pass the kernel sentinel, and the surface never claims a key it cannot see.
+ * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | UX audit (FIX-BROKEN): the concierge printed its raw JSON envelope. The reply is now parsed
+ *            | by the package's own movies-envelope module (fenced, prose-wrapped or bare); an unreadable envelope is a plain apology.
  *
  * @module movies-routes
  */
@@ -72,7 +74,7 @@ const logger_1 = require("@/shared/logger");
 const database_1 = require("@/shared/services/database");
 const connectors_routes_1 = require("@/app/routes/connectors-routes");
 const tmdb_client_1 = require("./tmdb-client");
-const concierge_envelope_1 = require("@/app/routes/concierge-envelope");
+const movies_envelope_1 = require("./movies-envelope");
 const concierge_store_1 = require("@/app/routes/concierge-store");
 const logger = (0, logger_1.createChildLogger)({ module: 'movies-routes' });
 /** The movies-concierge agent (seeded by migration 049; inline bot run via the orchestrator). */
@@ -234,18 +236,9 @@ function buildConciergePrompt(o) {
         '{ "say": "your reply (ask a question when useful)", "show": ["candidate key", ...], "watchlist": ["candidate key to save"], "remember": ["a taste preference to save"] }',
     ].filter(Boolean).join('\n');
 }
-/** Parse the Movies concierge reply envelope (shared extraction in concierge-envelope.ts). */
+/** Parse the Movies concierge reply envelope (package-local, movies-envelope.ts: the native kernel's shared helper reads no string). */
 function parseEnvelope(text) {
-    const fallbackSay = (text || '').trim();
-    const o = (0, concierge_envelope_1.extractEnvelopeJson)(text);
-    if (!o)
-        return { say: fallbackSay, show: [], watchlist: [], remember: [] };
-    return {
-        say: (0, concierge_envelope_1.sayOr)(o, fallbackSay),
-        show: (0, concierge_envelope_1.asStringArray)(o.show),
-        watchlist: (0, concierge_envelope_1.asStringArray)(o.watchlist),
-        remember: (0, concierge_envelope_1.asStringArray)(o.remember),
-    };
+    return (0, movies_envelope_1.parseMoviesEnvelope)(text);
 }
 // ── Router ─────────────────────────────────────────────────────────────────--
 function createMoviesRoutes(ctx) {

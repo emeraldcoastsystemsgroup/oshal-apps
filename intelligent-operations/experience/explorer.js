@@ -1,3 +1,4 @@
+/* CHANGE LOG: ux audit words | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the funnel says Events evaluated and Matched a rule, not Incoming cohort and Percolator wall. */
 /* CHANGE LOG: installations label | maintainer@emeraldcoastsystemsgroup.com | Each system says whether a heartbeat filed its host, from every asset before any filter, so the tree's group label does not change when a filter hides the host. */
 /* CHANGE LOG: local times | maintainer@emeraldcoastsystemsgroup.com | Graph and observation times in the viewer's local time. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Allow the bounded resource tree to inspect the complete returned graph while keeping the legacy card limit. */
@@ -19,7 +20,7 @@ const text=(tag,value,cls)=>{const e=document.createElement(tag);e.textContent=v
 function flow(container,records,onInspect){
  const c=cohort(records),n=c.decisions.length;container.replaceChildren();
  container.append(text('p','Latest returned decision cohort: '+n+' unique evaluated events. Up to 200 decision records; this is not an installation-wide or live rate. Repeated policy evaluations count once.'));
- const stages=[['Incoming cohort',c.decisions,'Events that reached the percolator'],['Percolator wall',c.matched,'Matched at least one stored rule'],['After deduplication',c.survivors,'New or escalated symptoms eligible for evidence']];
+ const stages=[['Events evaluated',c.decisions,'Events checked against your rules'],['Matched a rule',c.matched,'Matched at least one of your rules'],['After deduplication',c.survivors,'New or escalated symptoms eligible for evidence']];
  const rail=text('div','','pipeline-flow');
  for(const [label,rows,description]of stages){const card=text('article','','pipeline-stage');card.append(text('h3',label),text('strong',String(rows.length)),text('p',n?`${rows.length}/${n} · ${(100*rows.length/n).toFixed(1)}% of evaluated`:'No evaluated cohort'),text('small',description));
  const meter=document.createElement('meter');meter.min=0;meter.max=Math.max(n,1);meter.value=rows.length;meter.setAttribute('aria-label',label+' fraction');card.append(meter);

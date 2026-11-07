@@ -10,6 +10,8 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the place cache (migration 041). What Google answers (address resolutions, searches, restaurant cards) is saved per person for Google's 30-day limit and served first: a search younger than a day asks Google nothing, Refresh asks again, and at Google's quota the saved answer is served with its saved time and the reason. search-restaurants is a POST now (the kernel admits no write on a GET); GET /search still reads.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: Use location works for real: coordinates resolve through the Geocoding API's reverse lookup on maps.googleapis.com (second egress host, same key), because Places Text Search refuses coordinates as a query (seen live). The key needs the Geocoding API allowed on it; until then the page says so and asks for a typed street address.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (1.4.1: the home summary's empty line reads "No saved Uber Eats links yet", as the household guard expects): real restaurants. Search answers from Google Places around the diner's delivery address through the kernel's egress (places.googleapis.com with the kernel-held google-places key as the key query parameter; the package never holds it). The curated five-restaurant catalog, the menu and the cart tools are gone: Uber has no consumer API, so a menu the package cannot read is not priced here. Ordering is the Uber Eats search link at the diner's resolved address (its Google place id in Uber's location token) for the chosen restaurant, proven in a browser. Tools: search-restaurants (query + address), open-uber-eats (approval-gated hand-off), ask-eats-concierge.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1 (UX audit 2026-11-06, eats-browse MERGE + eats-concierge FIX-BROKEN): the Restaurants tile is gone; it loaded /api/eats/app?view=browse, which no code read, so it was the Order Food page twice. Order Food is the one home and an old ?view=browse address opens it on its results. ribbon.hideAssistant: the in-page Eats Concierge is the one assistant entry. The page follows the theme it wears (the parent-token copy that froze the first theme's palette is gone), a typed delivery address is saved for the person, and internal state notes and repeated notes leave What the concierge remembers.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2 (UX audit 2026-11-06, eats-concierge): collapse a saved delivery address into a one-line "Deliver to <address> ▾" button until edited, move the four memory pills and What the concierge remembers out of browse into a Settings dialog, and open Eats Concierge on a phone as an opaque bottom half-sheet from one 48px button.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -53,7 +55,7 @@ description: >-
   Google Places, your tastes and allergies remembered, and a one-tap hand-off into
   Uber Eats at your address with the restaurant you chose. Other swarm bots can ask
   it to find food.
-version: 1.5.0
+version: 1.5.2
 status: active
 
 source:
@@ -183,18 +185,14 @@ tools:
     skills: [preference-learning, dietary-awareness]
     tags: [eats, route-backed]
 
-# UI SURFACES — ribbon icons that open the Eats surface.
+# UI SURFACES — the ribbon icon that opens the Eats surface. (1.5.1: the second "Restaurants" tile, ?view=browse, opened
+# this same page and was merged into it; /api/eats/app?view=browse still opens Order Food on its results.)
 ui:
   static:
     - toolName: eats-concierge
       label: Order Food
       icon: codicon codicon-flame
       iframeUrl: /api/eats/app
-      section: top
-    - toolName: eats-browse
-      label: Restaurants
-      icon: codicon codicon-search
-      iframeUrl: /api/eats/app?view=browse
       section: top
 
 # THE ASSISTANT RAIL (surface-bridge). Without this block the cockpit relay forwards NOTHING for
@@ -262,6 +260,8 @@ ribbon:
     - logs
     - operations
   hideChatPanel: true
+  # One assistant entry (UX audit 2026-11-06): the in-page Eats Concierge; the shell's own orb stays off here.
+  hideAssistant: true
   defaultView: eats-concierge
 
 integrations:

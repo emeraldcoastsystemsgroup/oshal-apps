@@ -16,6 +16,9 @@
   schedule is activated for you (Jobs screen), so the header reads your job from the kernel's schedule
   list and, when it is off, says so and where to turn it on instead of implying something refreshes on
   its own. "refreshed" is your last pass as the server stored it, not this process's memory.
+
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Sports Edge, grade C): every visit opened on a 32-button team picker with Following at the bottom, and a banner sent people to the platform Jobs screen to turn on refresh. Sports Edge now opens on Games once a team is followed (My Teams only on first run); on a phone the five sections are a bottom bar; the team picker is league chips that load at once (no Load teams) with a search field, and Following comes first; the Jobs-screen banner is gone: Games carries the app's own "Keep refreshing previews in the background" toggle (it turns on this person's refresh job through the same schedule endpoint the Jobs screen uses), an "Updated <time>" line and one Refresh now (POST /refresh/run); Unfollow is a 44px action. Guard: tests/home-page.test.js.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -121,6 +124,20 @@
   ul.wire a { color: var(--blue); text-decoration: none; }
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 760px) { .cols { grid-template-columns: 1fr; } }
+  /* UX audit 2026-11-06: league chips, team search, the refresh bar, a bottom bar on a phone. */
+  .leaguechips .chip { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+  .leaguechips .chip[aria-selected="true"] { background: var(--text-primary, #fff); color: var(--bg-primary, #000); }
+  #teamSearch { width: 100%; min-height: 44px; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: transparent; color: inherit; font: inherit; }
+  .refreshbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+  .refreshbar .toggle { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; }
+  .refreshbar .toggle input { width: 22px; height: 22px; }
+  #refreshNow, [data-un] { min-height: 44px; }
+  @media (max-width: 640px) {
+    nav[role="tablist"] { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr);
+      gap: 0; margin: 0; padding: 0 0 env(safe-area-inset-bottom, 0); background: var(--bg-primary, #111); border-top: 1px solid var(--border); }
+    nav[role="tablist"] button { min-height: 56px; border-radius: 0; font-size: 13px; padding: 0 2px; }
+    main { padding-bottom: 76px; }
+  }
 </style>
 </head>
 <body>
@@ -128,7 +145,7 @@
   <h1>Sports Edge</h1>
   <span class="sub" id="statusline">loading…</span>
 </header>
-<div class="banner" id="bgRefresh" style="display:none"></div>
+<div class="banner" id="bgRefresh" style="display:none" hidden></div>
 <nav role="tablist">
   <button role="tab" data-tab="teams" aria-selected="true">My Teams</button>
   <button role="tab" data-tab="games" aria-selected="false">Games</button>
@@ -139,22 +156,30 @@
 <main>
   <section id="tab-teams">
     <div class="card">
-      <h2>Follow a team</h2>
-      <p class="muted">Everything in this app fans out from a team you follow — its next game, the
-        players on both sides, the injury reports, and the number we set against the book's.</p>
-      <div class="row" style="margin-bottom:10px">
-        <select id="leaguePick"><option value="nfl">NFL</option><option value="ncaaf">NCAA Football</option><option value="nba">NBA</option></select>
-        <button class="ghost" id="loadTeams">Load teams</button>
-      </div>
-      <div class="teamgrid" id="teamgrid"></div>
-    </div>
-    <div class="card">
       <h2>Following</h2>
       <div id="followed" class="muted">nothing yet</div>
+    </div>
+    <div class="card">
+      <h2>Follow a team</h2>
+      <p class="muted">Everything in this app fans out from a team you follow.</p>
+      <div class="row leaguechips" role="tablist" aria-label="League" style="margin-bottom:10px">
+        <button type="button" role="tab" class="chip" data-league="nfl" aria-selected="true">NFL</button>
+        <button type="button" role="tab" class="chip" data-league="ncaaf" aria-selected="false">NCAA Football</button>
+        <button type="button" role="tab" class="chip" data-league="nba" aria-selected="false">NBA</button>
+        <select id="leaguePick" hidden aria-hidden="true"><option value="nfl">NFL</option><option value="ncaaf">NCAA Football</option><option value="nba">NBA</option></select>
+      </div>
+      <input type="search" id="teamSearch" placeholder="Search teams" aria-label="Search teams" autocomplete="off">
+      <div class="teamgrid" id="teamgrid"></div>
     </div>
   </section>
 
   <section id="tab-games" hidden>
+    <div class="card refreshbar" id="refreshBar">
+      <span id="updatedLine" class="muted"></span>
+      <label class="toggle"><input type="checkbox" id="bgToggle"> Keep refreshing previews in the background</label>
+      <button type="button" class="ghost" id="refreshNow">Refresh now</button>
+      <span id="refreshOut" class="muted" role="status"></span>
+    </div>
     <div class="card">
       <h2>Next up</h2>
       <div id="gamelist" class="muted">loading…</div>
@@ -231,7 +256,21 @@ function showTab(name) {
 }
 
 // ---- teams ------------------------------------------------------------------
-el('loadTeams').addEventListener('click', loadTeams);
+/* League chips load at once; the hidden select keeps the one value loadTeams reads. */
+Array.prototype.forEach.call(document.querySelectorAll('.leaguechips [data-league]'), function (c) {
+  c.addEventListener('click', function () {
+    el('leaguePick').value = c.getAttribute('data-league');
+    Array.prototype.forEach.call(document.querySelectorAll('.leaguechips [data-league]'), function (x) { x.setAttribute('aria-selected', String(x === c)); });
+    loadTeams();
+  });
+});
+el('teamSearch').addEventListener('input', filterTeams);
+function filterTeams() {
+  var q = el('teamSearch').value.trim().toLowerCase();
+  Array.prototype.forEach.call(el('teamgrid').querySelectorAll('button'), function (b) {
+    b.hidden = !!q && String(b.getAttribute('data-name') || '').toLowerCase().indexOf(q) < 0;
+  });
+}
 function loadTeams() {
   var league = el('leaguePick').value;
   el('teamgrid').innerHTML = '<span class="muted">loading…</span>';
@@ -243,6 +282,7 @@ function loadTeams() {
         '" data-id="' + esc(t.id) + '" data-name="' + esc(t.displayName) + '">' +
         esc(t.displayName) + '</button>';
     }).join('');
+    filterTeams();
     Array.prototype.forEach.call(el('teamgrid').querySelectorAll('button'), function (b) {
       b.addEventListener('click', function () {
         var on = b.classList.contains('on');
@@ -267,7 +307,7 @@ function renderFollowed() {
     state.followed.map(function (f) {
       return '<tr><td>' + esc(f.league.toUpperCase()) + '</td><td>' +
         esc(f.displayName || f.team) + '</td><td class="num"><button class="ghost" data-un="' +
-        esc(f.league) + '/' + esc(f.team) + '">unfollow</button></td></tr>';
+        esc(f.league) + '/' + esc(f.team) + '">Unfollow</button></td></tr>';
     }).join('') + '</table>';
   Array.prototype.forEach.call(el('followed').querySelectorAll('[data-un]'), function (b) {
     b.addEventListener('click', function () {
@@ -569,6 +609,7 @@ jget(API + '/follow').then(function (d) {
   state.followed = d.teams || [];
   renderFollowed();
   loadTeams();
+  if (state.followed.length) showTab('games');
 }).catch(function (e) { el('followed').innerHTML = '<span class="muted">' + esc(e.message) + '</span>'; });
 
 // ---- background refresh: the person's own refresh-pass job ---------------------
@@ -593,8 +634,28 @@ function refreshScheduleRow(sched) {
     });
 }
 
+var refreshRow = null;
+/* The app's own background-refresh toggle: it turns this person's refresh job on or off through the schedule endpoint. */
+el('bgToggle').addEventListener('change', function () {
+  var want = el('bgToggle').checked; el('refreshOut').textContent = 'Saving…';
+  (refreshRow ? refreshScheduleRow(refreshRow) : Promise.resolve(null)).then(function (row) {
+    if (!row || !row.id) throw new Error('This installation has no refresh job for Sports Edge.');
+    return fetch('/api/v1/agent/schedules/' + encodeURIComponent(row.id) + '/' + (want ? 'activate' : 'deactivate'), {
+      method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify(want ? { class: 'person' } : {}) });
+  }).then(function (resp) {
+    if (!resp.ok) throw new Error('The refresh job could not be changed (HTTP ' + resp.status + ').');
+    el('refreshOut').textContent = want ? 'Saved. Previews keep refreshing in the background.' : 'Saved. Background refresh is off.';
+  }).catch(function (e) { el('bgToggle').checked = !want; el('refreshOut').textContent = e.message; });
+});
+el('refreshNow').addEventListener('click', function () {
+  var b = el('refreshNow'); b.disabled = true; el('refreshOut').textContent = 'Refreshing…';
+  jbody('POST', API + '/refresh/run', {}).then(function () { el('refreshOut').textContent = 'Updated just now.'; loadGames(); })
+    .catch(function (e) { el('refreshOut').textContent = 'Refresh failed: ' + e.message; })
+    .then(function () { b.disabled = false; });
+});
 jget(API + '/status').then(function (d) {
   var r = d.refresh || {}, last = r.lastPassAt || r.lastRun;
+  el('updatedLine').textContent = last ? 'Updated ' + new Date(last).toLocaleString() : 'Not refreshed yet';
   var head = 'NFL ' + d.season.nfl + ' · NBA ' + d.season.nba +
     (last ? ' · refreshed ' + new Date(last).toLocaleString() : ' · not refreshed yet');
   el('statusline').textContent = head;
@@ -604,10 +665,10 @@ jget(API + '/status').then(function (d) {
     function () { return backgroundRefreshState(null, false, hours); })
     .then(function (st) {
       el('statusline').textContent = head + ' · ' + st.line;
-      var b = el('bgRefresh');
-      b.innerHTML = st.banner;
-      b.style.display = st.banner ? '' : 'none';
+      el('bgToggle').checked = st.on === true;
+      el('bgToggle').disabled = st.on === null;
     });
+  refreshRow = r.schedule;
 }).catch(function () { el('statusline').textContent = ''; });
 </script>
 </body>

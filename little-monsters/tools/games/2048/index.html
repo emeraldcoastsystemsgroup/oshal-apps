@@ -11,6 +11,7 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Monster 2048 mini-game: arrow-key and swipe merges, stored best score, lm-game score and lm-exit messages to the arcade
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default) and package stylesheet replace the hard-coded dark palette and glass; board, chips, hint and the game-over dialog use tokens while tile colours stay playful; a best score reads — until one exists; the arcade-only "I'm done" control hides when the game is opened on its own
+  3   | maintainer@emeraldcoastsystemsgroup.com   | UX audit (lm-arcade, P0): the board's four rows are equal and every cell is square (grid-template-rows repeat(4, 1fr), aspect-ratio 1), so a row with tiles no longer grows to twice the height of an empty row; a New game button beside the score starts over; the page takes keyboard focus when it loads, so the arrow keys work at once; swipe stays on pointer events (touch included)
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -22,17 +23,19 @@
   h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.2px; }
   .hud { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .hud b { font-variant-numeric: tabular-nums; }
-  #board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 8px; border-radius: var(--lm-radius-md);
-    background: var(--lm-bg-2); border: 1px solid var(--lm-line); width: min(90vw, 340px); height: min(90vw, 340px); touch-action: none; }
-  .tile { display: flex; align-items: center; justify-content: center; border-radius: 10px; background: var(--lm-accent-wash);
-    font-weight: 800; font-size: clamp(16px, 6vw, 30px); transition: transform .08s; }
+  /* Four equal rows of square cells: a row's height never depends on whether it holds tiles. */
+  #board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px; border-radius: var(--lm-radius-md);
+    background: var(--lm-bg-2); border: 1px solid var(--lm-line); width: min(90vw, 340px); aspect-ratio: 1; touch-action: none; }
+  .tile { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; aspect-ratio: 1; line-height: 1; border-radius: 10px; background: var(--lm-accent-wash);
+    font-weight: 800; font-size: clamp(16px, 6vw, 30px); transition: transform .08s; overflow: hidden; }
+  .hud { align-items: center; }
   .over-score { margin: 8px auto 16px; }
   .over-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 </style>
 </head>
 <body>
   <h1>🔢 Monster 2048</h1>
-  <div class="hud"><span class="lm-pill is-neutral">Score <b id="score">0</b></span><span class="lm-pill is-info">Best <b id="best">—</b></span></div>
+  <div class="hud"><span class="lm-pill is-neutral">Score <b id="score">0</b></span><span class="lm-pill is-info">Best <b id="best">—</b></span><button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" id="newGame" onclick="reset()">New game</button></div>
   <div id="board"></div>
   <p class="lm-help">Arrow keys or swipe · combine the monsters to 2048!</p>
   <div class="lm-modal" id="over" role="dialog" aria-modal="true" aria-labelledby="overTitle">
@@ -81,6 +84,8 @@ var sx,sy; board.addEventListener('pointerdown',function(e){sx=e.clientX;sy=e.cl
 board.addEventListener('pointerup',function(e){ var dx=e.clientX-sx,dy=e.clientY-sy; if(Math.abs(dx)<20&&Math.abs(dy)<20)return;
   if(Math.abs(dx)>Math.abs(dy)) move(dx>0?2:0); else move(dy>0?3:1); });
 reset();
+// Take the keyboard as soon as the game opens (the arcade also focuses this frame), so arrows need no click first.
+try{ window.focus(); }catch(e){}
 </script>
 </body>
 </html>

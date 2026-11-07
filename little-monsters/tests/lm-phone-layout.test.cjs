@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Phone geometry of the shipped Little Monsters pages in Chromium at 412 and 360px. Found as a student on a 412px phone: a long first name in the top bar made every page 83px too wide, My Files was 514px (stacked .lm-columns and .lm-stack sized to their widest item) and the Tutor's Read aloud button sat past the screen. Serves the shipped tools/ files, education.css and the page frame over a local server with the profile, identity and data routes they read.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | LM-FRAME (2026-11-06): on a phone the name pill moved into the top bar's ⋯, so the page is ready when the bar says so (data-lm-ready); a row that scrolls sideways on purpose ([data-lm-scroll-row], the Tutor's starter chips) is exempt like the nav.
  * -----------------------------------------------------------------------------
  *
  * Needs the store toolchain (express, playwright, chromium).
@@ -60,12 +61,12 @@ test('every Little Monsters page fits a phone: no sideways scroll, the top bar a
       const page = await browser.newPage({ viewport: { width, height: 915 } });
       for (const route of Object.keys(PAGES)) {
         await page.goto(base + route);
-        await page.locator('.lm-topbar .lm-pill').waitFor();
+        await page.locator('.lm-topbar[data-lm-ready]').waitFor();
         await page.waitForLoadState('networkidle');
         const fit = await page.evaluate(() => ({
           page: document.documentElement.scrollWidth, screen: innerWidth,
           off: [...document.querySelectorAll('button, select, input, textarea, .lm-topbar-side > *')]
-            .filter((e) => e.offsetParent && !e.closest('nav') && e.getBoundingClientRect().right > innerWidth + 1)
+            .filter((e) => e.offsetParent && !e.closest('nav, [data-lm-scroll-row]') && e.getBoundingClientRect().right > innerWidth + 1)
             .map((e) => e.id || e.textContent.trim().slice(0, 30)),
         }));
         assert.ok(fit.page <= fit.screen, `${route} at ${width}px is ${fit.page}px wide`);

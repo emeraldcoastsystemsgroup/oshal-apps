@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Generate video on an installation without a render executor: the page's own script, run against a stub DOM, disables Generate with "Video rendering is not configured on this installation" and the reason /pump/status gives (it had promised "Veo renders each scene" and then shown the raw "native_executor_unavailable"), keeps Generate on when the node is merely busy, and words a 503 refusal with the kernel's detail.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The subtitle under the title says rendering is not configured from the first paint and names what Storyboard it offers (sweep 9: the concierge, reading the screen before any storyboard, promised "a real .mp4"); a busy node keeps the render promise.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Sweep 13: the subtitle no longer promises the storyboard is saved as a project (it is not saved).
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.13.1: when rendering is unconfigured, the page withholds #studioHeader and #studioSplit behind #unconfiguredCard (Open Video editor); empty list does not say hit Generate; joke pump and muscle-cat copy removed.
  * -----------------------------------------------------------------------------
  * @module video-render-readiness.test
  */
@@ -33,14 +34,19 @@ async function runPage(node) {
   const page = new Function('window', 'AppView', 'document', 'fetch', src)({ AppView: undefined }, undefined,
     { getElementById: byId, querySelectorAll: () => [] }, fetchStub);
   for (let i = 0; i < 3; i += 1) await new Promise((done) => setImmediate(done));
-  return { genBtn: byId('genBtn'), genHint: byId('genHint'), studioSub: byId('studioSub'), page };
+  return { genBtn: byId('genBtn'), genHint: byId('genHint'), studioSub: byId('studioSub'), unconfiguredCard: byId('unconfiguredCard'), studioSplit: byId('studioSplit'), list: byId('list'), page };
 }
 
-test('an installation without a render executor disables Generate and says why', async () => {
-  const { genBtn, genHint } = await runPage({ available: false, check: 'native-render-unconfigured', reason: REASON });
+test('an installation without a render executor withholds the studio split behind Open Video editor and disables Generate', async () => {
+  const { genBtn, genHint, unconfiguredCard, studioSplit, list } = await runPage({ available: false, check: 'native-render-unconfigured', reason: REASON });
   assert.equal(genBtn.disabled, true);
   assert.equal(genHint.textContent, `Video rendering is not configured on this installation (${REASON}).`);
   assert.equal(genBtn.title, genHint.textContent);
+  assert.equal(unconfiguredCard.hidden, false);
+  assert.equal(studioSplit.hidden, true);
+  assert.doesNotMatch(list.innerHTML, /hit Generate/i);
+  const markup = html.slice(html.indexOf('<body>'), html.indexOf('<script>', html.indexOf('<body>')));
+  assert.doesNotMatch(markup, /joke pump|muscle-cat/i);
 });
 
 test('a busy render node leaves Generate on', async () => {

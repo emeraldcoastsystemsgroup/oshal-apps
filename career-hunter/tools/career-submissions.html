@@ -21,6 +21,7 @@
   3 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   5 | maintainer@emeraldcoastsystemsgroup.com | Isolate activity cards from shared row styles, align the page with Career, and add responsive title/status/action layouts.
   4 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: build the queue from the caller's application records and the native worker answer instead of the old platform's /api/apply-operator/queue, /story and /shot, which the native kernel does not serve (the screen showed "Could not reach the queue"). Narrated runs are not retained natively, so a run says so instead of fetching them.
+  7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): the top said "no worker connected" three times ("last seen 722h 39m ago") and the lanes were not buttons. One status row now reads "No computer connected · last seen 30 days ago" with one secondary Connect a computer, and the separate computer picker row is gone; the lanes are one row of 44px filter chips (role=tab with counts) that scroll sideways on a phone; an empty queue is "Nothing sent yet" with one primary Open Job Board; the Submission queue / Application status pill pair is gone (both are Job Board stages). Job Apply's counters fold in here as one row computed from these same records (active, failed or unknown, manually marked, verified in 24 hours and 5 days), and each row names its portal. Guard: tests/career-submission-activity.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="submissions"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -95,6 +96,14 @@
   .lb.show { display:flex; } .lb img { max-width:100%; max-height:100%; border-radius:8px; }
   .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 11px; font-size:12px; cursor:pointer; text-decoration:none; display:inline-block; }
   .btn:hover { border-color:var(--accent); }
+  /* UX audit 2026-11-06: one status row, chips for lanes, one counters row. */
+  .worker { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .worker .grow { flex:1 1 220px; min-width:0; }
+  .worker .grow b { display:block; }
+  .apply-counters { display:flex; flex-wrap:wrap; gap:8px 18px; margin:4px 0 12px; color:var(--ds-ink-2); font-size:14px; }
+  .apply-counters b { color:var(--ds-ink); }
+  .career-lanes > button { min-height:44px; }
+  .nodebar[hidden] { display:none !important; }
 </style>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css"/>
 <script src="/api/artifacts/send-to.js" defer></script>
@@ -139,16 +148,16 @@
   <header class="career-intro">
     <div><p class="career-eyebrow">Career / Job search</p><h1>Submission activity</h1>
       <p class="sub">Track queued applications, review requests, and submission records.</p></div>
-    <nav class="career-view-nav" aria-label="Application workflow"><a href="/api/career-hunter/board-native?view=queue">Submission queue</a><a href="/api/career-hunter/board-native?view=status">Application status ↗</a></nav>
+    <nav hidden aria-hidden="true"><a href="/api/career-hunter/board-native?view=queue">Submission queue</a><a href="/api/career-hunter/board-native?view=status">Application status ↗</a></nav>
   </header>
 
-  <div class="nodebar">
+  <div class="nodebar" hidden>
     <label>Computer <select id="nodeSel"><option value="">default</option></select></label>
     <span class="nodehint" id="nodeHint"></span>
   </div>
-  <button class="btn" onclick="CareerSubmit.connectWorker()">Connect browser worker</button>
-  <div class="worker" id="worker"><span class="dot"></span><div><b>Checking your desktop worker…</b></div></div>
-  <div class="lanes" id="lanes"></div>
+  <div class="worker" id="worker"><span class="dot"></span><div><b>Checking your computer…</b></div></div>
+  <div class="ck-seg career-lanes" id="lanes" role="tablist" aria-label="Submission lanes"></div>
+  <div class="apply-counters" id="applyCounters" aria-label="Submission runs"></div>
   <p id="submissionNotice" role="status" hidden></p>
   <div id="list"><div class="empty">Loading…</div></div>
 </div>
@@ -261,27 +270,27 @@ function rel(ms){
   const m=Math.round(s/60); if(m<60) return m+'m';
   return Math.floor(m/60)+'h '+(m%60)+'m';
 }
-function ago(iso){ if(!iso) return ''; const d=Date.parse(iso); return isNaN(d)?'':rel(Date.now()-d)+' ago'; }
+function ago(iso){ if(!iso) return ''; const d=Date.parse(iso); if(isNaN(d)) return ''; const ms=Date.now()-d, days=Math.floor(ms/86400000); return days>=2?days+' days ago':days===1&&ms>=129600000?'2 days ago':rel(ms)+' ago'; }
 
 function renderWorker(w){
   const el=$('worker');
   const cls = w.available ? 'ok' : (w.connected ? 'warn' : 'off');
-  const head = w.available ? 'Desktop worker ready'
-             : w.wedged ? 'Desktop worker stopped claiming work'
-             : w.connected ? 'Desktop worker unavailable'
-             : 'No desktop worker connected';
+  const head = w.available ? 'Computer ready'
+             : w.wedged ? 'Your computer stopped taking work'
+             : w.connected ? 'Computer unavailable'
+             : 'No computer connected';
   el.className='worker '+cls;
-  el.innerHTML=`<span class="dot"></span><div>
-    <b>${esc(head)}</b>
-    <p>${esc(w.detail||'')}</p>
-    ${w.hostname||w.lastSeenAt?`<p class="host">${w.hostname?esc(w.hostname):''}${w.lastSeenAt?` · last seen ${esc(ago(w.lastSeenAt))}`:''}</p>`:''}
-  </div>`;
+  el.innerHTML=`<span class="dot"></span><div class="grow">
+    <b>${esc(head)}${w.lastSeenAt?` · last seen ${esc(ago(w.lastSeenAt))}`:''}</b>
+    ${w.available?'':`<span class="host">${esc(w.hostname||'')}</span>`}
+  </div>${w.available?'':'<button type="button" class="ck-btn" id="connectComputer">Connect a computer</button>'}`;
+  const connect=$('connectComputer'); if(connect) connect.onclick=()=>CareerSubmit.connectWorker();
 }
 
 function renderLanes(counts){
   const total=LANES.reduce((n,[k])=>n+(counts[k]||0),0);
   $('lanes').innerHTML=[['','All',total]].concat(LANES.map(([k,l])=>[k,l,counts[k]||0]))
-    .map(([k,l,n])=>`<div class="lane${k===filter?' active':''}" data-k="${k}"><div class="n">${n}</div><div class="l">${esc(l)}</div></div>`).join('');
+    .map(([k,l,n])=>`<button type="button" role="tab" class="lane" aria-selected="${k===filter}" data-k="${k}">${esc(l)}<span class="n">${n}</span></button>`).join('');
   $('lanes').querySelectorAll('.lane').forEach(d=>d.onclick=()=>{ filter=d.dataset.k; lastSig=''; poll(); });
 }
 
@@ -317,6 +326,19 @@ function storyHtml(it){
   return `<div class="story">${beats.map(b=>beatHtml(it.ticketId,b)).join('')}</div>`;
 }
 
+/** Job Apply's counters, folded in: computed from these same records (the native submission truth). */
+function renderCounters(all){
+  const el=$('applyCounters'); if(!el) return;
+  const now=Date.now(), within=(it,h)=>{const t=Date.parse(it.updatedAt);return Number.isFinite(t)&&now-t<=h*3600000;};
+  const verified=all.filter(it=>it.lane==='applied'&&it.confirmationFile);
+  const c={active:all.filter(it=>['queued','submitting'].includes(it.lane)).length,
+    review:all.filter(it=>it.lane==='failed'||it.status==='unknown').length,
+    manual:all.filter(it=>it.application_source==='manual-mark').length,
+    day:verified.filter(it=>within(it,24)).length,five:verified.filter(it=>within(it,120)).length};
+  el.hidden=!all.length;
+  el.innerHTML=`<span><b>${c.active}</b> active</span><span><b>${c.review}</b> failed or unknown</span><span><b>${c.manual}</b> marked manually</span><span><b>${c.day}</b> verified in 24 h</span><span><b>${c.five}</b> verified in 5 days</span>`;
+}
+function portalOf(url){ try{ return new URL(url).hostname.replace(/^www\./,''); }catch(_){ return ''; } }
 function rowHtml(it){
   const live=it.executionState==='working';
   const open=openTicket===it.ticketId;
@@ -327,7 +349,7 @@ function rowHtml(it){
     <div class="rtop">
       <div class="ridentity">
         <p class="rtitle">${esc(it.title||'Application')}</p>
-        ${it.company?`<div class="rco">${esc(it.company)}</div>`:''}
+        ${it.company||it.jobUrl?`<div class="rco">${esc([it.company,portalOf(it.jobUrl)].filter(Boolean).join(' · '))}</div>`:''}
       </div>
       <span class="pill ${it.lane}">${esc((LANES.find(l=>l[0]===it.lane)||[,it.status])[1]||it.status)}</span>
     </div>
@@ -448,8 +470,11 @@ async function poll(){
   if(sig===lastSig) return;
   lastSig=sig;
 
+  renderCounters(q.items||[]);
   $('list').innerHTML = items.length ? items.map(rowHtml).join('')
-    : `<div class="empty">${filter?'Nothing in this lane.':'No submissions yet. Generate a résumé on the Job Board, review it, then choose <b>Review and submit</b>.'}</div>`;
+    : filter ? '<div class="empty">Nothing in this lane.</div>'
+    : '<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">📨</div><h2>Nothing sent yet</h2><p>Prepare a job on the Job Board, review it, then choose Review and submit.</p><a class="ck-primary" id="openBoard" data-career-tool="career-board" href="/api/career-hunter/board-native">Open Job Board</a></div>';
+  const ob=$('openBoard'); if(ob) ob.onclick=e=>{ if(window.parent===window) return; e.preventDefault(); CareerJobActions.navigate('career-board', ob.href); };
   }finally{pollBusy=false;}
 }
 

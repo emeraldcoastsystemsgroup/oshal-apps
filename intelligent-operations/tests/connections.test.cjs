@@ -1,3 +1,4 @@
+// CHANGE LOG: connections and access | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Credentials & access merged into Connections & access (provider rows with live state, settings in a pane or a phone sheet, no per-section Refresh, disabled services on one line); the old #credentials address leads there.
 // CHANGE LOG: ssh card in app | maintainer@emeraldcoastsystemsgroup.com | The SSH hosts card opens Your SSH connection inside the application (#connections, no top-window target), never the standard masked dialog; the other shortcuts still open native connections in the top window.
 // CHANGE LOG: credentials current | maintainer@emeraldcoastsystemsgroup.com | Credentials cards match what is built: Kubernetes and SSH added, Azure reads, GitHub token guidance, swarm hand-off built.
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Verify actual service-standing UX distinguishes configured transport, original-person scope and provider delivery, clearing private rows on denied or stale reads. */
@@ -19,40 +20,46 @@ async function fixture(){
   res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(path.join(dir,file)));
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const {chromium}=dependency('playwright'),browser=await chromium.launch({headless:true,args:['--disable-gpu']}),page=await browser.newPage();
- await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#connections');await page.getByText('Records refreshed',{exact:false}).waitFor();
+ await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#connections');await page.locator('#status',{hasText:/^Updated /}).waitFor();await page.waitForFunction(()=>/^Updated /.test(document.getElementById('connection-status').textContent));
  return {page,metadata,get sends(){return sends;},get reads(){return reads;},deny(){denied=true;},delay(callback){delayed=callback;},async close(){await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));}};
 }
-const read=async page=>{await page.getByRole('button',{name:'Refresh my connections',exact:true}).click();await page.waitForFunction(()=>document.getElementById('connection-status').textContent.includes('Current signed-in'));};
+// UX audit 2026-11-06: every section loads with the screen; the app row's one refresh icon reloads them all.
+const read=async page=>{await page.getByRole('button',{name:'Refresh records',exact:true}).click();await page.waitForFunction(()=>/^Updated /.test(document.getElementById('connection-status').textContent));};
 test('service view shows genuine source standing without claiming delivery or exposing private destinations',async()=>{
- const f=await fixture();try{await read(f.page);const service=await f.page.locator('#connection-services').innerText(),notification=await f.page.locator('#notification-services').innerText();assert.match(service,/Service selected/);assert.match(service,/invocation scope is linked/);assert.match(service,/Usable personal account recorded/);assert.match(service,/not-probed/);assert.match(service,/Service not selected/);assert.match(notification,/Portal transport registered/);assert.match(notification,/Portal transport not registered/);assert.match(notification,/Delivery has not been tested/);assert.ok(!notification.includes('private-destination'));assert.ok(!notification.includes('+15551234567'));assert.equal(f.sends,0);
-  delete f.metadata.httpServices;await read(f.page);assert.match(await f.page.locator('#connection-services').innerText(),/rollout is required/);
-  f.deny();await f.page.getByRole('button',{name:'Refresh my connections',exact:true}).click();await f.page.getByText('Access changed.',{exact:false}).waitFor();for(const id of ['connection-list','connection-services','notification-services'])assert.equal(await f.page.locator('#'+id).innerText(),'');assert.equal(f.sends,0);
+ const f=await fixture();try{await read(f.page);const service=await f.page.locator('#connection-services').textContent(),notification=await f.page.locator('#notification-services').textContent();assert.match(service,/Service selected/);assert.match(service,/invocation scope is linked/);assert.match(service,/Usable personal account recorded/);assert.match(service,/not-probed/);assert.match(service,/Not enabled by your administrator: GitLab, ServiceNow\./,'services the administrator has not enabled are one line');assert.doesNotMatch(service,/Service not selected/);assert.match(notification,/Portal transport registered/);assert.match(notification,/Portal transport not registered/);assert.match(notification,/Delivery has not been tested/);assert.ok(!notification.includes('private-destination'));assert.ok(!notification.includes('+15551234567'));assert.equal(f.sends,0);
+  delete f.metadata.httpServices;await read(f.page);assert.match(await f.page.locator('#connection-services').textContent(),/rollout is required/);
+  f.deny();await f.page.getByRole('button',{name:'Refresh records',exact:true}).click();await f.page.getByText('Access changed.',{exact:false}).first().waitFor();for(const id of ['connection-list','connection-services','notification-services','provider-rows'])assert.equal(await f.page.locator('#'+id).textContent(),'');assert.equal(f.sends,0);
  }finally{await f.close();}
 });
 test('an older connection response cannot restore private rows after a newer refresh',async()=>{
- const f=await fixture();let release;try{f.delay(fn=>{release=fn;});await f.page.getByRole('button',{name:'Refresh my connections',exact:true}).click();while(!release)await new Promise(r=>setTimeout(r,10));await read(f.page);const send=release;release=null;send();await f.page.waitForTimeout(50);assert.ok(!(await f.page.locator('#connection-list').innerText()).includes('stale-private-account'));assert.match(await f.page.locator('#connection-list').innerText(),/owned-work/);assert.equal(f.sends,0);
+ const f=await fixture();let release;try{f.delay(fn=>{release=fn;});await f.page.getByRole('button',{name:'Refresh records',exact:true}).click();while(!release)await new Promise(r=>setTimeout(r,10));await read(f.page);const send=release;release=null;send();await f.page.waitForTimeout(50);assert.ok(!(await f.page.locator('#connection-list').textContent()).includes('stale-private-account'));assert.match(await f.page.locator('#connection-list').textContent(),/owned-work/);assert.equal(f.sends,0);
  }finally{release?.();await f.close();}
 });
 
-test('credentials shortcuts route to native connections without collecting or transferring secrets',async()=>{
+test('Connections & access shows every provider with its live state, opens its settings in place, and the old Credentials address leads there',async()=>{
  const f=await fixture();try{
-  await f.page.getByRole('link',{name:'Credentials & access',exact:true}).click();
-  await f.page.locator('#credentials').waitFor({state:'visible'});
-  assert.equal(await f.page.locator('#connections').isVisible(),false);
-  for(const name of ['Kubernetes','GitHub','Amazon Web Services','Google Cloud','Microsoft Azure','SSH hosts','GitLab','Email']){
-   const card=f.page.locator('#credentials article').filter({has:f.page.getByRole('heading',{name,exact:true})});
-   assert.equal(await card.count(),1);
-   if(name==='SSH hosts'){assert.equal(await card.locator('a').getAttribute('href'),'#connections','the SSH card opens Your SSH connection inside the application, never the standard masked dialog');assert.equal(await card.locator('a').getAttribute('target'),null);continue;}
-   assert.equal(await card.locator('a').getAttribute('target'),'_top');
-   assert.match(await card.locator('a').getAttribute('href'),/^\/utilities(?:\?category=email)?$/);
-  }
-  const content=await f.page.locator('#credentials').innerText();
-  assert.match(content,/aws sso login/);assert.match(content,/gcloud auth login/);assert.match(content,/az login/);assert.match(content,/fine-grained token/);assert.match(content,/Swarm hand-off/);
-  assert.equal(await f.page.locator('#credentials input,#credentials textarea').count(),0);assert.equal(f.sends,0);
-  await f.page.setViewportSize({width:390,height:844});assert.equal(await f.page.locator('#credentials').isVisible(),true);
-  await f.page.getByRole('link',{name:'Review current integration services'}).click();await f.page.locator('#connections').waitFor({state:'visible'});assert.equal(await f.page.locator('#connections').isVisible(),true);
-  await f.page.getByRole('link',{name:'Credentials & access',exact:true}).click();await f.page.locator('#credentials').waitFor({state:'visible'});
-  await f.page.getByRole('link',{name:'Open Your SSH connection',exact:true}).click();await f.page.locator('#ssh-conn-panel').waitFor({state:'visible'});assert.equal(await f.page.locator('#connections').isVisible(),true);assert.equal(f.sends,0);
+  f.metadata.connections.push({connector:'github',account:'mine',status:'connected',shared:false},{connector:'ssh',account:'primary',status:'revoked',shared:false});
+  await f.page.goto(f.page.url().replace(/#.*$/,'#credentials'));await f.page.locator('#connections').waitFor({state:'visible'});
+  assert.match(f.page.url(),/#connections$/,'the merged-away address is replaced by its new home');
+  await f.page.waitForFunction(()=>/^Updated /.test(document.getElementById('connection-status').textContent));
+  const rows=f.page.locator('#provider-rows .provider-row');assert.equal(await rows.count(),9);
+  const state=async name=>(await rows.filter({hasText:name}).locator('.provider-meta').textContent()).trim();
+  assert.equal(await state('GitHub'),'Connected');assert.equal(await state('SSH hosts'),'Revoked');assert.equal(await state('Kubernetes'),'Not set up');assert.equal(await state('Amazon Web Services'),'Not set up');
+  const github=rows.filter({hasText:'GitHub'}).getByRole('link',{name:'Manage GitHub'});assert.equal(await github.getAttribute('href'),'/utilities');assert.equal(await github.getAttribute('target'),'_top');
+  assert.equal(await rows.filter({hasText:'Email'}).getByRole('link',{name:'Connect Email'}).getAttribute('href'),'/utilities?category=email');
+  assert.equal(await f.page.locator('#provider-rows input,#provider-rows textarea').count(),0);
+  assert.equal(await f.page.locator('#connections button:visible',{hasText:/^Refresh/}).count(),0,'no per-section Refresh buttons');
+  await rows.filter({hasText:'Kubernetes'}).locator('.provider-open').click();
+  assert.equal(await f.page.locator('#provider-detail').isVisible(),true);assert.equal((await f.page.locator('#conn-pane-title').textContent()),'Kubernetes');
+  assert.equal(await f.page.locator('#provider-detail-action').textContent(),'Connect Kubernetes');assert.match(await f.page.locator('#provider-detail-cli-text').textContent(),/kubectl/);
+  await rows.filter({hasText:'SSH hosts'}).getByRole('button',{name:'Set up'}).click();await f.page.locator('#ssh-conn-panel').waitFor({state:'visible'});assert.equal(await f.page.locator('#provider-detail').isVisible(),false);
+  assert.equal(await f.page.locator('#ssh-conn-username').inputValue(),'','no username is guessed for the person');
+  await f.page.locator('#setting-rows .provider-row',{hasText:'Peer tokens'}).locator('.provider-open').click();await f.page.locator('#swarms-issue').waitFor({state:'visible'});
+  await f.page.setViewportSize({width:390,height:844});await f.page.locator('#conn-pane-done').click();assert.equal(await f.page.locator('#conn-pane').isVisible(),false);
+  await rows.filter({hasText:'Google Cloud'}).locator('.provider-open').click();const pane=await f.page.locator('#conn-pane').boundingBox();assert.ok(pane&&pane.width>=389&&pane.y<=60,'on a phone the settings open as a sheet');
+  assert.match(await f.page.locator('#provider-detail-cli-text').textContent(),/gcloud auth login/);
+  await f.page.keyboard.press('Escape');assert.equal(await f.page.locator('#conn-pane').isVisible(),false);
+  assert.equal(await f.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,'no sideways scrolling on a phone');assert.equal(f.sends,0);
  }finally{await f.close();}
 });
 

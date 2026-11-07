@@ -8,6 +8,8 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0, ADR-149/ADR-157: import an authorization catalog (authorization.yaml) and declare `requires: [venture.rebaseline]` on the rebaseline tick. A system activation of a protected package with no catalog is refused 409 authorization_service_catalog_required, so the tick could never be turned on. The catalog binds every mounted route once, the four bots, and the tick as a `jobs` operation; venture.rebaseline is granted by no role, only to the application's service principal by a swarm administrator's system activation. Installing this version on a box where 1.4.x is installed is a catalog ADOPTION: the kernel refuses the load and records a breaking AUTH-07 review, so the package is not mounted until that review is approved and the package is loaded again; the old @app-admin assignment is not carried, so people are granted the `member` role afterwards. Guarded by tests/venture-catalog-bindings.test.js and tests/venture-catalog-kernel.core.spec.mjs.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the schema bootstrap runs under a package-owned advisory lock (VENTURE_SCHEMA_LOCK_KEY in src-routes/venture-schema.ts). Every api boot builds the console and rebaseline-tick routers in one synchronous loop and each starts the whole bootstrap; unserialised, the pair deadlocked in PostgreSQL (40P01 on a pg_proc row, "venture rebaseline schema bootstrap failed" at boot) and raced CREATE TABLE IF NOT EXISTS on a first install. No route, migration, persona or authorization catalog change.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Native provisioning: declare migrations/native/001-venture-plan.sql (every table and index of 001-005 in final shape, with 004's quote FX columns and checks and 005's run schedule/cost columns and checks folded in) and skip 001-005 natively, whose RLS DO blocks, pg_constraint-guarded ALTERs and PL/pgSQL triggers the native kernel refuses; the declared migrations stayed pending for every person. PostgreSQL still applies 001-005 and the native file is a no-op there.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2, UX audit 2026-11-06 (jarvis--jarvis-home): "In one short sentence, what workspace tools can you coordinate here?" asked on the Jarvis page was handed to the Venture BOM Analyst (production: jarvis_handoff_owner app=venture-plan score=4, jarvis_handoff_implied). The kernel scored the word "one" of the BOM phrase "cost to make one" and read "tools" as the operations keyword "tooling"; together a strong claim. The BOM phrase is now "unit cost" and the operations keyword "mold tooling" (manifest and persona files alike), so a question about the assistant's own tools claims no Venture Plan bot while tooling, unit-cost, BOM and landed-cost questions still do. Guarded by tests/venture-routing-words.test.js.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3, UX audit 2026-11-06 (venture-plan--venture-home, grade C): the console's first screen. The venture name is a menu (switch, New venture, Rename through the existing PATCH /ventures/:id, Delete with an in-page confirm); the ventures rail is gone and Delete left the top bar, so Run the analysts is the one primary beside Recompute. The run outcome, posture tiles and "Planning instrument, not a quote" collapse into one status line whose info button opens them (a run that left something undone opens them itself); the five step boxes are one line beside the tabs, which start at 118 px on a 1440x900 desktop and are the bottom bar on a phone. Cards say their formula in words or nothing (no buyerTotalMicros or max(0, -trough)); Break-even says the run the engine searched ("Not within 5,000 units") instead of "not computed"; menus, the bottom bar and the toast are opaque. No route, schema, persona or authorization change. Guarded by tests/venture-home-ui.test.js and the updated run, numbers and verdicts UI suites.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — venture-plan ("Venture Plan")
@@ -110,7 +112,7 @@ description: >-
   Bots supply assumptions with a source, a band and a confidence; a deterministic engine does
   every calculation. Every number is either computed and traceable, or visibly a labelled guess
   you should go replace with a quote.
-version: 1.5.1
+version: 1.5.3
 status: active
 scope: person
 
@@ -237,7 +239,7 @@ bots:
       - what parts
       - component cost
       - what is it made of
-      - cost to make one
+      - unit cost
       - tooling cost
       - moq
 
@@ -278,7 +280,7 @@ bots:
     routingKeywords:
       - how do i manufacture this
       - lead time
-      - tooling
+      - mold tooling
       - freight
       - landed cost
       - import duty

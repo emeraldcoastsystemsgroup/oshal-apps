@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Real PDF object selection, focused-property save, inline text, draft rendering, phone drawers and native exports.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | PDF Workbench 0.3.0 (the oshal design standard): the proofs upload through the Originals sheet, rotate through the Pages sheet, fill forms through the Form fields sheet, select shapes on the page and, on a phone, adjust through the Edit mode's Format sheet; Save shows only while there is something to save.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,17 +9,17 @@ import {readFile,mkdir,copyFile} from 'node:fs/promises';
 import {spawnSync} from 'node:child_process';
 import {fixture} from '../fixtures/fixture.mjs';
 import {requireRuntime} from '../fixtures/runtime.mjs';
+import {uploadAndCreate,rotateFirstPage,openFormFields,openFormat,editMode} from './workbench-ui.mjs';
 const {chromium}=requireRuntime('playwright');
 async function open(t,options={}){
  const f=await fixture(options);t.after(()=>f.close());if(options.prepare)await options.prepare(f.directory);const browser=await chromium.launch({headless:true});t.after(()=>browser.close());const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',error=>{errors.push(error.message);console.error('PDF browser error:',error.message);});page.on('response',async response=>{if(response.url().includes('/draft-preview')&&response.status()>=400)console.error('PDF draft preview refused:',response.status(),await response.text());});page.on('dialog',dialog=>dialog.accept());
- await page.goto(f.url+'/api/pdf-workbench/app');await page.locator('#file').setInputFiles(join(f.directory,'first.pdf'));await page.locator('#source-title').fill('Original owned PDF');await page.locator('#upload button').click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Original PDF preserved'));
- await page.locator('#title').fill('Editable PDF');await page.locator('#create').click();await page.locator('.pdf-object').first().waitFor();
+ await page.goto(f.url+'/api/pdf-workbench/app');await page.locator('[data-pdf-view]').first().waitFor();await uploadAndCreate(page,join(f.directory,'first.pdf'),'Original owned PDF','Editable PDF');await page.locator('.pdf-object').first().waitFor();
  const id=new URL(page.url()).searchParams.get('document');return{f,page,id,errors};
 }
 const textObject=page=>page.locator('[data-pdf-stage]').first().getByRole('button',{name:/^Text: FIRST PAGE 1/});
 test('selected original PDF objects edit in place, save focused fields, undo and export actual changed bytes',async t=>{
  const {f,page,id,errors}=await open(t);
- assert.ok(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim()));assert.ok((await page.getByRole('button',{name:'Save',exact:true}).boundingBox()).height>=44);
+ assert.ok(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim()));assert.equal(await page.getByRole('button',{name:'Save',exact:true}).isVisible(),false,'nothing to save yet');
  await textObject(page).click();const text=page.getByRole('textbox',{name:'Text',exact:true});await text.fill('HUMAN EDIT');
  await page.getByRole('button',{name:'Save',exact:true}).click();await page.waitForFunction(()=>document.getElementById('revision').textContent.includes('Saved revision 2'),null,{timeout:60000});
  let current=await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json();assert.equal(current.document.model.contentEdits[0].properties.text,'HUMAN EDIT');
@@ -42,7 +43,7 @@ test('invalid PDF property is retained, phone drawers work and AI reads the auto
  await x.fill('12');await x.press('Enter');if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();await page.getByRole('textbox',{name:'Message to concierge'}).fill('Read the selected text.');await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByText('Saved selection received.',{exact:true}).waitFor({timeout:60000});
  assert.equal(requests.length,1);assert.equal(requests[0].context.recordId,id);assert.equal(requests[0].context.fields.revision,2);assert.ok(requests[0].context.selection[0].includes('/o'));
  assert.equal((await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document.revision,2);
- await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Close inspector',exact:true}).click();await page.getByRole('button',{name:'Properties',exact:true}).click();await page.getByRole('button',{name:'Properties',exact:true}).click();await page.getByRole('spinbutton',{name:'X',exact:true}).waitFor();assert.equal(await page.getByRole('spinbutton',{name:'X',exact:true}).inputValue(),'12');
+ await page.setViewportSize({width:390,height:844});await openFormat(page);await page.getByRole('spinbutton',{name:'X',exact:true}).waitFor();assert.equal(await page.getByRole('spinbutton',{name:'X',exact:true}).inputValue(),'12');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);assert.deepEqual(errors,[]);
 });
 test('owned transparent images save once, keep asset references through history and refuse foreign or retained-image deletion',async t=>{
@@ -62,12 +63,12 @@ test('owned transparent images save once, keep asset references through history 
 
 test('one click selects the next PDF object after committing a valid property draft, and Undo restores saved pixels',async t=>{
  const {f,page,id,errors}=await open(t),originalImage=await page.locator('.page img').first().getAttribute('src');
- const originalShape=page.locator('.pdf-object-tree details').first().getByRole('button',{name:'Shape',exact:true});await originalShape.click();assert.equal(await page.getByRole('button',{name:'Delete object',exact:true}).isEnabled(),true);await page.getByRole('button',{name:'Delete object',exact:true}).click();assert.equal(await originalShape.count(),0);await page.getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await originalShape.count(),1);
+ const originalShape=page.locator('[data-pdf-stage]').first().getByRole('button',{name:'path object',exact:true}).first();await editMode(page);await originalShape.click();assert.equal(await page.getByRole('button',{name:'Delete object',exact:true}).isEnabled(),true);await page.getByRole('button',{name:'Delete object',exact:true}).click();assert.equal(await originalShape.count(),0);await page.getByRole('button',{name:'Undo',exact:true}).click();assert.equal(await originalShape.count(),1);
  await textObject(page).click();const size=page.getByRole('spinbutton',{name:'Font size',exact:true}),originalSize=await size.inputValue();await size.fill('32');
- const shape=page.locator('.pdf-object-tree details').first().getByRole('button',{name:'Shape',exact:true});await shape.click();await page.getByRole('spinbutton',{name:'Line weight',exact:true}).waitFor();assert.equal(await shape.getAttribute('aria-pressed'),'true');
+ const shape=page.locator('[data-pdf-stage]').first().getByRole('button',{name:'path object',exact:true}).first();await shape.click();await page.getByRole('spinbutton',{name:'Line weight',exact:true}).waitFor();assert.equal(await shape.getAttribute('aria-pressed'),'true');
  await page.waitForFunction(()=>document.querySelector('.page img').getAttribute('src').startsWith('data:image/png;base64,'),null,{timeout:60000});await page.getByRole('button',{name:'Undo',exact:true}).click();
  assert.equal(await page.locator('.page img').first().getAttribute('src'),originalImage);await textObject(page).click();assert.equal(await page.getByRole('spinbutton',{name:'Font size',exact:true}).inputValue(),originalSize);
- await page.locator('.page input').first().check();await page.locator('summary').filter({hasText:/^Selected pages$/}).click();await page.locator('#rotate').click();await textObject(page).click();const y=Number(await page.getByRole('spinbutton',{name:'Y',exact:true}).inputValue()),x=Number(await page.getByRole('spinbutton',{name:'X',exact:true}).inputValue());await textObject(page).press('ArrowRight');assert.ok(Math.abs(Number(await page.getByRole('spinbutton',{name:'Y',exact:true}).inputValue())-y-1)<.01);assert.equal(Number(await page.getByRole('spinbutton',{name:'X',exact:true}).inputValue()),x);
+ await rotateFirstPage(page);await textObject(page).click();const y=Number(await page.getByRole('spinbutton',{name:'Y',exact:true}).inputValue()),x=Number(await page.getByRole('spinbutton',{name:'X',exact:true}).inputValue());await textObject(page).press('ArrowRight');assert.ok(Math.abs(Number(await page.getByRole('spinbutton',{name:'Y',exact:true}).inputValue())-y-1)<.01);assert.equal(Number(await page.getByRole('spinbutton',{name:'X',exact:true}).inputValue()),x);
  const saved=(await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document;assert.equal(saved.revision,1);assert.equal(saved.model.contentEdits?.length??0,0);assert.deepEqual(errors,[]);
 });
 
@@ -81,7 +82,7 @@ test('starting native inline or form edits retires the earlier PDF approval card
  }});
  await textObject(page).click();const ask=async()=>{if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();await page.getByRole('textbox',{name:'Message to concierge'}).fill('Change the selected text.');await page.getByRole('button',{name:'Send',exact:true}).click();await page.getByRole('button',{name:'Approve',exact:true}).waitFor();};await ask();
  await textObject(page).dblclick();await page.getByRole('textbox',{name:'Edit selected PDF text'}).fill('A still local inline edit');assert.equal(await page.getByRole('button',{name:'Approve',exact:true}).count(),0);await page.getByRole('textbox',{name:'Edit selected PDF text'}).press('Escape');
- await ask();await page.getByRole('button',{name:'Properties',exact:true}).click();await page.locator('summary').filter({hasText:/^Form fields$/}).click();await page.locator('#forms input').first().fill('A still local form edit');if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Approve',exact:true}).count(),0);assert.equal(executed,0);assert.equal((await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document.revision,1);assert.deepEqual(errors,[]);
+ await ask();await openFormFields(page);await page.locator('#forms input').first().fill('A still local form edit');await page.locator('dialog.ds-layer[open] .ds-layer-done').click();if(!await page.locator('.ef-ai').isVisible())await page.getByRole('button',{name:'Concierge',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Approve',exact:true}).count(),0);assert.equal(executed,0);assert.equal((await(await fetch(f.url+'/api/pdf-workbench/documents/'+id)).json()).document.revision,1);assert.deepEqual(errors,[]);
 });
 
 

@@ -14,6 +14,13 @@
   First screen: the money view whenever there is money to show (startScreen: linked items OR a saved
   aggregate - a demo installation's sample household, or banks disconnected after a sync); the connect
   card only greets a person with nothing saved (1.3.0).
+  1.4.0 (UX audit 2026-11-05, finance-home, C): the brief sits directly under the four tiles, so Re-analyze's spinner
+  and answer appear where the button is (the audit's "no request" did not reproduce: the button posts /brief/refresh,
+  but the answer landed 2,400 px down). The overview is read only: Accounts in two groups, Assets and Liabilities
+  (owed amounts shown negative), sortable; Holdings and Spending beside them from 1040 px. Sync is an icon beside the
+  synced date. Linked banks, Add account and the transfer history are the Linked banks screen (?view=banks). The
+  money-sending form is withheld: POST /pay takes only a typed payment-method id and no route lists the person's own
+  payment methods, so it cannot offer a funding-source select (and no installation has a payment rail today).
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -157,15 +164,25 @@
   @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
   .foot { color:var(--muted); font-size:11px; margin-top:8px; }
   .acct-inst-line { display:none; }
+  .synced { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .icon-btn { min-width:36px; min-height:36px; border-radius:8px; border:1px solid var(--line); background:var(--panel2); color:var(--text); cursor:pointer; font-size:16px; line-height:1; }
+  .accounts-group { font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:14px 0 4px; display:flex; justify-content:space-between; }
+  .accounts-group:first-of-type { margin-top:4px; }
+  td.num.owed { color:var(--danger); }
+  th .ks-sort { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:5px; font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; }
+  th[aria-sort] .ks-sort { color:var(--accent); }
+  .cols { display:block; }
+  @media (min-width:1040px) {
+    .page { max-width:1200px; }
+    .cols { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:16px; align-items:start; }
+  }
   @media (max-width:640px) {
     .page { padding:16px 12px 50px; }
     .head { flex-wrap:wrap; gap:8px; }
     .actions { margin-left:0; width:100%; justify-content:flex-start; }
-    .btn { padding:10px 14px; font-size:14px; }
+    .btn { padding:10px 14px; font-size:14px; min-height:44px; }
+    .icon-btn { min-width:44px; min-height:44px; }
     .stat { min-width:calc(50% - 5px); flex:1 1 calc(50% - 5px); }
-    /* Payment grid: override the inline grid-template-columns:1fr 1fr */
-    #payPanel [style*="grid-template-columns"] { grid-template-columns:1fr !important; }
-    #payPanel [style*="grid-column"] { grid-column:auto !important; }
     /* Tables: allow horizontal scroll so they never overflow the viewport */
     .panel { overflow-x:auto; }
     table { min-width:360px; }
@@ -180,6 +197,7 @@
   }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+  <script src="/ui/kernel/table.js" defer></script>
 </head>
 <body>
 <div class="page">
@@ -187,12 +205,9 @@
     <span class="badge">💵</span>
     <h1>Finance</h1>
     <div class="actions" id="actions" style="display:none">
-      <button class="btn ghost" id="addBtn">Add account</button>
-      <button class="btn ghost" id="syncBtn">Sync</button>
       <button class="btn primary" id="briefBtn">Re-analyze</button>
     </div>
   </div>
-  <div class="sub">Your money in one view — balances, holdings, and spending across every linked bank and brokerage, with a plain-English brief. Reading is read-only; the only action that moves funds is the Send-money panel. No trading, no crypto.</div>
   <section class="panel" id="reviewPanel" hidden aria-label="Financial review draft">
     <h2>Review with your saved accounts</h2>
     <p class="sub">Check this context, then ask your finance analyst to compare it with your last account snapshot.</p>
@@ -382,84 +397,61 @@ async function renderDashboard(freshBrief) {
       <div class="stat"><div class="n">${money(a.netWorth.liabilities, cur)}</div><div class="l">liabilities</div></div>
       <div class="stat"><div class="n">${a.holdings.length}</div><div class="l">holdings</div></div>
     </div>
-    <div class="foot" style="margin-bottom:14px">Synced ${fmtDate(summary.syncedAt)} · ${(summary.aggregate.notes||[]).join(' · ')}</div>
-    ${renderAccounts(a, cur)}
-    ${a.holdings.length ? renderHoldings(a, cur) : ''}
-    ${a.topSpending.length ? renderSpending(a, cur) : ''}
+    <div class="foot synced" style="margin-bottom:14px">Synced ${fmtDate(summary.syncedAt)} <button class="icon-btn" id="syncIcon" type="button" aria-label="Sync accounts" title="Sync accounts">⟳</button>${(summary.aggregate.notes||[]).length ? ' · ' + (summary.aggregate.notes||[]).join(' · ') : ''}</div>
     <div class="panel brief" id="briefPanel"><div class="spin"><span class="dot"></span> Finance analyst is reading your accounts… (~30s)</div></div>
-    <div id="linksPanel"></div>
-    <div id="payPanel"></div>`;
-  loadLinks();
+    <div class="cols">
+      <div>${renderAccounts(a, cur)}</div>
+      <div>${a.holdings.length ? renderHoldings(a, cur) : ''}${a.topSpending.length ? renderSpending(a, cur) : ''}</div>
+    </div>`;
+  $('syncIcon').onclick = doSync;
   loadBrief(freshBrief);
-  loadPay();
 }
 
-/** Render the Send-money panel: a transfer form (gated on a configured rail) + history. */
-async function loadPay() {
+/** Linked banks (?view=banks): each linked institution with Disconnect, Add account, and the transfer history. */
+async function renderBanks() {
+  $('actions').style.display = 'none';
+  main.innerHTML = `<div id="linksPanel"><div class="spin"><span class="dot"></span> Loading your linked banks…</div></div>
+    <div><button class="btn primary" id="addAccount" type="button">Add account</button></div>
+    <div id="payPanel" style="margin-top:16px"></div>`;
+  $('addAccount').onclick = startLink;
+  await loadLinks();
+  loadPayHistory();
+}
+
+/** Transfer history on the Linked banks screen. Sending money is withheld: POST /pay takes only a typed payment-method
+ *  id and no route lists the person's own payment methods, so no funding-source select can be offered (UX audit). */
+async function loadPayHistory() {
   const host = $('payPanel');
   if (!host) return;
-  let st, hist = { payments: [] };
-  try { st = await api('/pay-status'); } catch (e) { st = { configured: false, message: e.message, provider: 'stripe' }; }
+  let hist = { payments: [] };
   try { hist = await api('/payments'); } catch (e) { /* history optional */ }
-  const test = st.testMode ? '<span class="chip" style="background:#3a2a10;border-color:#6b4a18">test mode — no real money</span>' : '';
-  const gate = st.configured ? '' : `<div class="sub">${PAYMENTS_UNAVAILABLE} <a href="/utilities" target="_top">Open Connections</a></div>`;
-  host.innerHTML = `
-    <div class="panel">
-      <h2>Send money ${test}</h2>
-      <div class="sub">Move money out of a linked account (ACH). Read-everything-else stays read-only; this is the only action that moves funds.</div>
-      ${gate}
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:560px;${st.configured ? '' : 'opacity:.5;pointer-events:none'}">
-        <label class="sub">Amount (USD)<input id="payAmt" type="number" min="0.01" step="0.01" placeholder="100.00" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
-        <label class="sub">Pay to (label)<input id="payTo" placeholder="Landlord / Card / Person" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
-        <label class="sub" style="grid-column:1/3">Funding source (bank PaymentMethod id)<input id="paySrc" placeholder="${st.testMode ? 'pm_usBankAccount_success (Stripe test ACH)' : 'pm_…'}" value="${st.testMode ? 'pm_usBankAccount_success' : ''}" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
-        <label class="sub" style="grid-column:1/3">Memo<input id="payMemo" placeholder="Rent — June" style="width:100%;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text)"></label>
-      </div>
-      <div style="margin-top:12px"><button class="btn primary" id="payBtn" ${st.configured ? '' : 'disabled'}>Send money</button> <span id="payMsg" class="sub"></span></div>
-      ${renderPayHistory(hist.payments || [])}
-    </div>`;
-  if (st.configured) $('payBtn').onclick = submitPay;
+  const rows = renderPayHistory(hist.payments || []);
+  host.innerHTML = rows ? `<div class="panel">${rows}</div>` : '';
 }
 
 function renderPayHistory(payments) {
   if (!payments.length) return '';
-  return `<div style="margin-top:18px"><h2 style="font-size:14px">Recent transfers</h2><table><thead><tr><th>Date</th><th>To</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>` +
+  return `<div><h2 style="font-size:14px">Recent transfers</h2><table data-sortable><thead><tr><th>Date</th><th>To</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>` +
     payments.map((p) => `<tr><td>${fmtDate(p.created_at)}</td><td>${p.payee || p.description || '—'}</td><td class="num">${money((p.amount_cents||0)/100)}</td><td>${p.status}${p.test_mode ? ' <span class="sub">(test)</span>' : ''}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 
-/** Submit a transfer. Generates a per-attempt requestId so the server can idempotency-key it. */
-async function submitPay() {
-  const msg = $('payMsg'); const btn = $('payBtn');
-  const dollars = Number($('payAmt').value);
-  const amountCents = Math.round(dollars * 100);
-  const source = $('paySrc').value.trim();
-  if (!(amountCents > 0)) { msg.className = 'sub err'; msg.textContent = 'Enter an amount.'; return; }
-  if (!source) { msg.className = 'sub err'; msg.textContent = 'Enter a funding source.'; return; }
-  if (!confirm(`Send ${money(dollars)} to "${$('payTo').value || 'recipient'}"? This moves real funds (unless in test mode).`)) return;
-  btn.disabled = true; msg.className = 'sub'; msg.innerHTML = '<span class="dot"></span> Sending…';
-  const requestId = 'req-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-  try {
-    const r = await api('/pay', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amountCents, currency: 'usd', source, payeeLabel: $('payTo').value, description: $('payMemo').value, requestId, confirm: true }) });
-    msg.className = 'sub'; msg.style.color = 'var(--accent2)'; msg.textContent = `Transfer ${r.transfer.status} (${r.transfer.id}).`;
-    await loadPay();
-  } catch (e) { msg.className = 'sub err'; msg.textContent = e.message; btn.disabled = false; }
-}
-
 // At phone width the Institution column folds under the account name (.acct-inst-line), so the Balance column fits
 // the card instead of being cut at its edge (sweep 8: 'BALANC', '$11' for $110 at 412 px).
+// Plaid reports credit and loan balances as amounts owed: they are the Liabilities group and read negative (UX audit).
 function renderAccounts(a, cur) {
-  return `<div class="panel"><h2>Accounts</h2><table class="accounts"><thead><tr><th>Account</th><th class="acct-inst">Institution</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>` +
-    a.accounts.map((x) => `<tr><td>${x.name}${x.mask ? ' ····' + x.mask : ''}${x.institution ? `<span class="acct-inst-line">${x.institution}</span>` : ''}</td><td class="acct-inst">${x.institution}</td><td>${x.subtype || x.type}</td><td class="num">${money(x.balance, cur)}</td></tr>`).join('') +
-    `</tbody></table></div>`;
+  const owed = (x) => x.type === 'credit' || x.type === 'loan';
+  const row = (x) => `<tr><td>${x.name}${x.mask ? ' ····' + x.mask : ''}${x.institution ? `<span class="acct-inst-line">${x.institution}</span>` : ''}</td><td class="acct-inst">${x.institution}</td><td>${x.subtype || x.type}</td><td class="num${owed(x) ? ' owed' : ''}">${owed(x) ? '−' + money(Math.abs(x.balance), cur) : money(x.balance, cur)}</td></tr>`;
+  const group = (label, list) => list.length ? `<div class="accounts-group"><span>${label}</span></div><table class="accounts" data-sortable><thead><tr><th>Account</th><th class="acct-inst">Institution</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>` : '';
+  return `<div class="panel"><h2>Accounts</h2>${group('Assets', a.accounts.filter((x) => !owed(x)))}${group('Liabilities', a.accounts.filter(owed))}</div>`;
 }
 function renderHoldings(a, cur) {
-  return `<div class="panel"><h2>Holdings</h2><table><thead><tr><th>Holding</th><th>Ticker</th><th class="num">Qty</th><th class="num">Value</th></tr></thead><tbody>` +
+  return `<div class="panel"><h2>Holdings</h2><table data-sortable><thead><tr><th>Holding</th><th>Ticker</th><th class="num">Qty</th><th class="num">Value</th></tr></thead><tbody>` +
     a.holdings.slice(0, 25).map((h) => `<tr><td>${h.name}</td><td>${h.ticker || '—'}</td><td class="num">${(h.quantity||0).toLocaleString()}</td><td class="num">${money(h.value, cur)}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 function renderSpending(a, cur) {
-  return `<div class="panel"><h2>Top spending (last ${a.transactionWindowDays} days)</h2><table><thead><tr><th>Category</th><th class="num">Spent</th><th class="num">#</th></tr></thead><tbody>` +
+  return `<div class="panel"><h2>Top spending (last ${a.transactionWindowDays} days)</h2><table data-sortable><thead><tr><th>Category</th><th class="num">Spent</th><th class="num">#</th></tr></thead><tbody>` +
     a.topSpending.map((s) => `<tr><td>${s.category}</td><td class="num">${money(s.total, cur)}</td><td class="num">${s.count}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
@@ -491,8 +483,6 @@ async function doSync() {
   catch (e) { main.innerHTML = '<div class="notice err">' + e.message + '</div>'; }
 }
 
-$('syncBtn').onclick = doSync;
-$('addBtn').onclick = startLink;
 $('briefBtn').onclick = () => loadBrief(true);
 
 /** The first screen: the money view whenever there is money to show (linked items, or a saved aggregate such as a
@@ -503,6 +493,7 @@ function startScreen(st) { return (st.connected > 0 || st.hasData) ? 'dashboard'
 if (!window.AppView || !AppView.active()) (async function init() {
   try {
     if (await resumeOAuth()) return;
+    if (new URLSearchParams(location.search).get('view') === 'banks') { await renderBanks(); return; }
     const st = await api('/status');
     if (startScreen(st) === 'dashboard') await renderDashboard(false);
     else renderConnect(st);

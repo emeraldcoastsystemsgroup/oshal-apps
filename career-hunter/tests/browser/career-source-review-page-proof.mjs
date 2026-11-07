@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shipped Companies page in Chromium with the nightly source review: employer text stays inert, a missing or unreadable report never hides the table, and the card fits a phone.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the nightly review is in the Source health view, so a report is read there; the page explanation sits under Help, so its text is read as text.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Where a change waits for the next pull: Resolve and Accept save it and say so, what the pull did shows in words with employer text inert, and an older answer still loads.
  */
 import {test,before,after} from 'node:test';
@@ -66,7 +67,9 @@ async function open(sourceReview, viewport = {width: 1280, height: 800}, sourceC
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + '/');
-  await page.waitForSelector('#rows tr');
+  await page.waitForSelector('#rows tr', {state: 'attached'});
+  // UX audit 2026-11-06: the nightly review lives in the page's Source health view.
+  if (sourceReview) await page.getByRole('tab', {name: 'Source health'}).click();
   return {page, errors};
 }
 
@@ -108,7 +111,7 @@ test('an unreadable or partial report says so and the companies still load', asy
 
 test('resolve saves the change and the row says it is waiting', async () => {
   const {page, errors} = await open(null, undefined, 'next-pull');
-  assert.ok((await page.locator('#companiesIntro').innerText()).includes('next nightly pull'));
+  assert.ok((await page.locator('#companiesIntro').textContent()).includes('next nightly pull'));
   await page.locator('#rows input').fill('https://boards.greenhouse.io/localcollege');
   await page.locator('#rows button', {hasText: 'Resolve'}).click();
   await page.waitForSelector('#rows .change');
@@ -190,7 +193,7 @@ test('an installation that changes sources at once keeps resolving at once and o
   assert.equal(await page.locator('button.accept').count(), 0);
   assert.ok((await page.locator('#sourceReview').innerText()).includes('press Resolve'));
   assert.equal(await page.locator('#sourceChanges').isVisible(), false);
-  assert.ok((await page.locator('#companiesIntro').innerText()).includes('scrape now'));
+  assert.ok((await page.locator('#companiesIntro').textContent()).includes('scrape now'));
   assert.deepEqual(errors, []);
   await page.close();
 });

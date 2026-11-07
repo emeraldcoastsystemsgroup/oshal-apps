@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | The printed arm in the Build panel: its joints and parts render, and Check on physics puts the container's measured hold in the row.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 S1, the operator's own acceptance case in a real browser: choose a medium, drop the explorer hull. In AIR the fall is drawn and the numbers are the analytic free fall; in SEAWATER the tile shows the REFUSAL by its own name instead of a plausible float.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | ADR-160 D5 in a real browser: the drop result renders its run fingerprint (medium id, package version, engine tree hash, the plant that answered), and a run that arrives WITHOUT its fingerprints — the route's own answer with `engine` stripped in flight — is not drawn: no rectangles, and the tile says which field is missing.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 split: the build tables and policies live in the Hardware sizing view and the hull drop in the Physics & medium lab, so each case presses that view's tab first; a part opens in CAD Studio from its row menu. The status line's words follow embodied.js change 18 (an absent engine reads 'not available on this installation', never the install command); the old pattern had kept this case red.
  */
 import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,7 +27,8 @@ beforeEach(async () => {
   page.on('dialog', (d) => { dialogs.push(d.message()); void d.accept(); });
   await page.addInitScript(fastPolling);
   await page.goto(f.origin + '/api/embodied/app');
-  await page.locator('#build-parts tbody tr').first().waitFor({ timeout: 15000 });
+  // The parts table lives in the Hardware sizing view (hidden until its tab is pressed): it only has to be loaded.
+  await page.locator('#build-parts tbody tr').first().waitFor({ state: 'attached', timeout: 15000 });
 });
 afterEach(async () => { await context.close(); await f.close(); });
 
@@ -122,7 +124,7 @@ test('Take command: a person scans and flies by hand, every command lands in the
 });
 
 test('Reset world switches the drone to the printed sensor set; Open in CAD Studio posts the exact part program and lands on the CAD Studio tile', async () => {
-  await page.locator('#physics-status').filter({ hasText: /physics engine: not reachable .* install: docker exec .* rail: tile-plant online/ }).waitFor({ timeout: 10000 });
+  await page.locator('#physics-status').filter({ hasText: /physics engine: not available on this installation · node rail: tile-plant online/ }).waitFor({ state: 'attached', timeout: 10000 });
   assert.deepEqual(await page.locator('#backend option').allTextContents(), ['kinematic truth', 'physics (MuJoCo)', 'rail node tile-plant (fake 0)']);
   assert.deepEqual(await page.locator('#scenario option').allTextContents(), ['Kitchen', 'Studio']);
   // B4: the Room selector starts the world from another hidden scene; the selector follows the active scene after the reset.
@@ -143,6 +145,7 @@ test('Reset world switches the drone to the printed sensor set; Open in CAD Stud
   assert.match(dialogs.at(-1), /2-D ring \+ ToF/); assert.match(dialogs.at(-1), /kinematic truth model/);
   await page.locator('#drone').filter({ hasText: /truth model\s*kinematic/ }).waitFor({ timeout: 10000 });
   // The Policies panel lists the container's reports with both scores; Certify on an unexplored world is refused and says why.
+  await page.click('#tab-sizing');
   await page.locator('#policies tbody tr').first().waitFor({ timeout: 10000 });
   const row = await page.locator('#policies tbody tr').first().allTextContents();
   assert.match(row[0], /hover-leg-residual-seed0\.json.*residual.*200000.*1\.0 cm \/ 1\.5 cm.*0\.8 cm \/ 1\.2 cm.*yes.*not run/s);
@@ -150,11 +153,16 @@ test('Reset world switches the drone to the printed sensor set; Open in CAD Stud
   await page.locator('#policies tbody tr').first().getByRole('button', { name: 'Certify' }).click();
   await page.locator('.toast').filter({ hasText: /Refused at 2 of 2 points .* unknown/ }).waitFor({ timeout: 10000 });
   await page.locator('#policies tbody tr').first().filter({ hasText: /refused 2/ }).waitFor({ timeout: 10000 });
+  await page.click('#tab-console');
   await page.locator('#drone').filter({ hasText: /sensors\s*recon-mini/ }).waitFor({ timeout: 10000 });
   assert.match(await text('#world-stats'), /No scans yet/);
   const design = await f.design('recon-mini');
   const expected = await f.partBody('recon-mini', design.parts[0].id);
-  await page.locator('#build-parts tbody tr').first().getByRole('button', { name: 'Open in CAD Studio' }).click();
+  // UX audit 2026-11-06: a part's actions are in its row menu (⋯) in the Hardware sizing view.
+  await page.click('#tab-sizing');
+  const first = page.locator('#build-parts tbody tr').first();
+  await first.getByRole('button', { name: /^Actions for / }).click();
+  await first.getByRole('menuitem', { name: 'Open in CAD Studio' }).click();
   await page.waitForURL('**/cockpit/?app=cad-studio', { timeout: 15000 });
   assert.equal(f.cadPosts.length, 1);
   assert.deepEqual(f.cadPosts[0], expected, 'the tile posts the program the routes publish, byte for byte');
@@ -163,6 +171,7 @@ test('Reset world switches the drone to the printed sensor set; Open in CAD Stud
 });
 
 test('the Build panel shows the printed arm and checks it on physics', async () => {
+  await page.click('#tab-sizing');
   await page.locator('#arm-joints tbody tr').first().waitFor({ timeout: 15000 });
   const design = await f.armDesign('desk-6');
   assert.equal(await page.locator('#arm-joints tbody tr').count(), design.joints.length, 'one row per joint');
@@ -189,6 +198,7 @@ test('ADR-160 S1: choose a medium and drop the hull — in air it falls, in seaw
   assert.match(summary, /free surface: none/);
 
   // AIR: it falls, and the fall is drawn.
+  await page.click('#tab-lab');
   await page.locator('#drop-hull').click();
   await page.waitForFunction(() => document.getElementById('drop-result').textContent.includes('It falls.'), null, { timeout: 15000 });
   const fell = await text('#drop-result');
@@ -222,6 +232,7 @@ test('ADR-160 D5: a run result that arrives without its engine fingerprints is N
     delete body.engine;
     await route.fulfill({ response, json: body });
   });
+  await page.click('#tab-lab');
   await page.locator('#drop-hull').click();
   await page.waitForFunction(() => document.getElementById('drop-result').textContent.includes('Not displayed'), null, { timeout: 15000 });
   const shown = await text('#drop-result');

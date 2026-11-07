@@ -8,8 +8,10 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Enable validated group duplication through the existing human Duplicate control.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): a short Saved caption replaces the Save button and the Unsaved changes footer (Save returns only when automatic saving is off or a save failed), the document menu's title and Delete follow the open image, Export takes the primary look once the canvas has content, the Select tool shows its shape, Whole image and Clear only while it is on or a region exists, and the deleted duplicate layer form is no longer rendered.
  */
-import { $, state, canEdit, dirty, edit, notify, error, status } from './editor-state.mjs';
+import { $, state, canEdit, dirty, edit, notify, error } from './editor-state.mjs';
+import { autosaveReady, hasContent } from './editor-projects.mjs';
 import { parentGroup, worldLayer } from './group-geometry.mjs';
 import { renderProject, loadProjectImages } from './renderer.mjs';
 import { resolveSelection, selectionSummary } from './region-select.mjs';
@@ -136,42 +138,62 @@ function renderAdjustment(layer) {
 
 function renderProperties() {
   renderMask(selectedLayer()); renderAdjustment(selectedLayer());
-  const rawLayer = selectedLayer(), layer = rawLayer ? { ...rawLayer, locked: worldLayer(state.project, rawLayer).locked } : null; $('noSelection').hidden = Boolean(layer); $('propertyFields').hidden = !layer;
+  const rawLayer = selectedLayer(), layer = rawLayer ? { ...rawLayer, locked: worldLayer(state.project, rawLayer).locked } : null; $('propertyFields').hidden = !layer;
   $('properties').disabled = !canEdit() || !layer || layer.locked;
+  $('properties').hidden = !['image', 'path', 'adjustment'].includes(layer?.type);
   for (const control of document.querySelectorAll('[data-selected]')) control.disabled = !canEdit() || !layer || layer.locked;
   $('ungroupLayer').disabled = !canEdit() || layer?.type !== 'group' || layer.locked;
   $('duplicateLayer').disabled = !canEdit() || !layer || layer.locked;
   if (!layer) return;
-  for (const control of document.querySelectorAll('[data-property]')) {
+  for (const control of document.querySelectorAll('#properties [data-property]')) {
     const neutral = control.dataset.neutral === undefined ? undefined : Number(control.dataset.neutral);
     const next = layer[control.dataset.property] ?? neutral;
-    if (['x', 'y', 'w', 'h', 'rotation'].includes(control.dataset.property)) control.closest('label').hidden = layer.type === 'adjustment';
     if (next !== undefined && document.activeElement !== control) control.value = control.type === 'color' && !/^#[a-f0-9]{6}$/i.test(next) ? '#000000' : next;
   }
-  $('textProperties').hidden = layer.type !== 'text'; $('imageProperties').hidden = layer.type !== 'image';
-  $('fillProperty').hidden = !['text', 'rect', 'ellipse', 'path'].includes(layer.type);
-  $('strokeProperties').hidden = !['rect', 'ellipse', 'freehand', 'path'].includes(layer.type);
+  $('imageProperties').hidden = layer.type !== 'image';
   if (layer.type === 'image') for (const [key, next] of Object.entries(layer.crop)) value(`crop${key.toUpperCase()}`, Math.round(next * 10000) / 100);
+}
+
+/** @description The save caption: a short visible word, with the revision or the reason kept for screen readers and hover.
+ * @returns {[string, string]} The visible word and its detail. */
+export function saveCaption() {
+  if (state.loading) return ['Loading…', ''];
+  if (state.saving) return ['Saving…', ''];
+  if (state.conflict) return ['Not saved', ' · save conflict · automatic saving paused'];
+  if (state.saveFailed) return ['Not saved', ' · save failed · retry Save'];
+  if (!dirty()) return ['Saved', ` · revision ${state.revision}`];
+  if (!state.id && !hasContent()) return ['Not saved yet', ''];
+  return autosaveReady() ? ['Saving…', ''] : ['Not saved', ' · unsaved changes'];
+}
+
+function renderSave(editable, busy) {
+  const [word, detail] = saveCaption(), caption = $('saveStatus');
+  if (caption.textContent !== word + detail) { const shown = document.createElement('span'), more = document.createElement('span'); shown.textContent = word; more.className = 'sr-only'; more.textContent = detail; caption.replaceChildren(shown, more); }
+  caption.title = word + detail; caption.dataset.state = word === 'Saved' ? 'saved' : word === 'Not saved' ? 'unsaved' : 'pending';
+  const manual = editable && !state.conflict && (state.id || hasContent()) && (!$('autosave').checked || state.saveFailed);
+  $('saveProject').hidden = !manual || !dirty(); $('saveProject').disabled = busy || !editable || state.conflict || !dirty();
+  $('documentTitle').textContent = state.project.name || 'Untitled image';
+  $('deleteProject').disabled = busy || !state.id || !state.permissions.delete;
 }
 
 /** Preserve focused text fields while refreshing admission, selection and save state. */
 export function render() {
   const editable = canEdit(), busy = state.loading || state.saving;
   for (const control of document.querySelectorAll('[data-edit]')) control.disabled = !editable;
+  $('addPrimary').disabled = !editable;
   $('importVectorSvg').disabled = busy || !state.permissions.create;
   $('importProject').disabled = busy || !state.permissions.create;
   $('newProject').disabled = busy || !state.permissions.create; $('openProjects').disabled = busy || !state.permissions.read;
-  $('saveProject').disabled = busy || !editable || state.conflict || !dirty(); $('saveCopy').disabled = busy || !state.permissions.create;
-  $('projectName').disabled = !editable; $('canvasSettings').disabled = !editable;
-  for (const id of ['exportPng', 'exportJpeg', 'exportJson', 'exportSvg']) $(id).disabled = busy || !state.permissions.export || !state.permissions.read || (!state.id && !editable);
+  $('saveCopy').disabled = busy || !state.permissions.create;
+  $('projectName').disabled = !editable;
+  const exportable = !busy && state.permissions.export && state.permissions.read && (state.id || editable);
+  for (const id of ['exportPng', 'exportJpeg', 'exportJson', 'exportSvg', 'exportFromMenu']) $(id).disabled = !exportable;
+  $('exportMenu').classList.toggle('finishing', Boolean(exportable && state.project.layers.length));
   $('undo').disabled = !editable || !state.history.canUndo(); $('redo').disabled = !editable || !state.history.canRedo();
   $('drawMode').setAttribute('aria-pressed', String(state.draw)); value('projectName', state.project.name);
-  value('canvasWidth', state.project.width); value('canvasHeight', state.project.height);
-  value('canvasBackground', state.project.background === 'transparent' ? '#ffffff' : state.project.background);
-  $('transparentBackground').checked = state.project.background === 'transparent';
   $('canvasDimensions').textContent = `${state.project.width} × ${state.project.height}`;
   $('selectionHint').textContent = state.draw ? 'Draw on the canvas. Select Draw again to move layers.' : 'Drag to move. Drag the corner to resize. Arrow keys nudge.';
-  status(state.loading ? 'Loading…' : state.saving ? 'Saving…' : state.conflict ? 'Save conflict · autosave paused' : state.saveFailed ? 'Save failed · retry Save' : dirty() ? 'Unsaved changes' : `Saved · revision ${state.revision}`);
+  renderSave(editable, busy);
   renderRegion(); renderLayers(); renderProperties(); fitCanvas(); paint(); refreshImages();
 }
 
@@ -180,6 +202,7 @@ function renderRegion() {
   const editable = canEdit(), selected = selectedLayer();
   $('regionMode').disabled = !editable; $('regionMode').setAttribute('aria-pressed', String(state.regionMode));
   $('selectWholeImage').disabled = !editable || selected?.type !== 'image'; $('clearRegion').disabled = !state.region;
+  $('regionOptions').hidden = !state.regionMode && !state.region;
   if (!state.region) { $('regionStatus').textContent = state.regionMode ? 'Region mode: drag a lasso, Shift-drag a box, or click an image for all of it.' : ''; return; }
   try {
     const { layer } = resolveSelection(state.project, state.region), summary = selectionSummary(state.region);

@@ -32,6 +32,10 @@
       as bullets, nested records indented, every value escaped). The Draft content dialog starts
       from the campaign's brief (message_map.brief) instead of an empty box that then said
       'Write a brief'.
+  5 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.7, UX audit 2026-11-06: the UTM builder moved to the
+      Channels tab with a label on every field, the required ones marked, and no request until the
+      form is valid (it sent empty fields and the route answered 400); 'imports never arm spend' is a
+      plain line, not a pill; the page's own Refresh is gone (the shell's Reload sits directly above).
 -->
 <!-- Marketing Engine — the campaign cockpit. Bots draft and propose; the human on this
      surface approves, publishes, and spends. Nothing goes out without an explicit
@@ -254,8 +258,8 @@
   .btn svg { width:15px; height:15px; }
   .btn:hover { border-color:var(--accent); color:var(--accent); }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
-  .btn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
-  .btn.primary:hover { filter:brightness(1.07); color:#fff; }
+  .btn.primary { background:var(--accent); border-color:transparent; color:var(--text-on-accent, #fff); box-shadow:none; }
+  .btn.primary:hover { filter:brightness(1.07); color:var(--text-on-accent, #fff); }
   .btn.danger { color:var(--err); }
   .btn.danger:hover { border-color:var(--err); color:var(--err); }
   .btn.sm { font-size:12px; padding:5px 11px; }
@@ -270,6 +274,7 @@
   }
   .banner.show { display:flex; }
   .banner svg { width:15px; height:15px; flex:none; margin-top:1px; }
+  input[aria-invalid="true"] { border-color:var(--err) !important; }
   .badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
     letter-spacing:.04em; padding:2px 9px; border-radius:var(--pill); border:1px solid var(--line); color:var(--muted); }
   .badge.ok   { color:var(--ok);   border-color:color-mix(in srgb, var(--ok) 45%, transparent);   background:color-mix(in srgb, var(--ok) 10%, transparent); }
@@ -399,11 +404,38 @@
   .footnote svg { width:13px; height:13px; color:var(--accent); flex:none; }
 
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .tab-more-wrap { display:none; position:relative; }
+  .more-popover { display:none; position:fixed; right:12px; bottom:62px; z-index:48; background:var(--bg); border:1px solid var(--line); border-radius:var(--r-md); padding:6px; min-width:170px; box-shadow:0 14px 36px rgba(0,0,0,.3); }
+  .more-popover.show { display:flex; flex-direction:column; gap:4px; }
+  .more-popover button { appearance:none; border:0; background:none; color:var(--text); font:inherit; font-size:13.5px; font-weight:600; min-height:44px; padding:8px 12px; border-radius:var(--r-sm); text-align:left; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .more-popover button:hover { background:var(--cardh); }
+  .row-more-cue { display:none; font-weight:700; color:var(--muted); padding:4px 8px; border:1px solid var(--line); border-radius:var(--pill); font-size:13px; }
   @media (max-width:760px) {
-    .wrap { padding:18px 13px 50px; }
+    .wrap { padding:18px 13px 88px; }
     .greet { font-size:22px; }
     .chrow { grid-template-columns:1fr; }
     .grid2 { grid-template-columns:1fr; }
+    .btn, .chip, select, input[type=text], input[type=url], input[type=email], input[type=number], input[type=date] { min-height:44px; }
+    .tabs {
+      position:fixed; left:0; right:0; bottom:0; z-index:45; margin:0; padding:4px 6px env(safe-area-inset-bottom, 4px);
+      background:var(--bg); border-top:1px solid var(--line); border-bottom:0; flex-wrap:nowrap; justify-content:space-around; gap:2px;
+    }
+    .tabs > button, .tab-more-wrap > button {
+      min-height:48px; flex:1 1 0; justify-content:center; padding:6px 4px; font-size:12px; border-bottom:0; margin-bottom:0; border-radius:var(--r-sm); gap:4px;
+    }
+    .tabs > button.on, .tab-more-wrap > button.on { background:color-mix(in srgb, var(--accent) 14%, transparent); color:var(--text); }
+    #tab-experiments { display:none; }
+    .tab-more-wrap { display:flex; flex:1 1 0; }
+    table.board, table.board tbody.card { display:block; }
+    table.board thead { display:none; }
+    table.board tbody.card { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:12px 14px; margin-bottom:10px; }
+    table.board tr.rowline { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+    table.board tr.rowline td { border:0; padding:0; }
+    table.board tr.rowline td:first-child { flex:1 1 calc(100% - 48px); }
+    table.board tr.rowline td:last-child { margin-left:auto; display:inline-flex; align-items:center; gap:8px; }
+    .row-more-cue { display:inline-flex; align-items:center; justify-content:center; min-width:34px; min-height:34px; }
+    table.board tr.detail-row.show, table.board tr.detail-row.show > td { display:block; width:100%; border:0; padding:10px 0 0; background:transparent; }
+    .toast { bottom:74px; }
   }
   @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
 </style>
@@ -431,9 +463,7 @@
       <h1 class="greet">Marketing</h1>
       <p class="subline">Bots draft and propose. <b>You approve, publish, and spend — one explicit confirm each.</b></p>
     </div>
-    <div class="controls">
-      <button class="btn" id="refreshBtn" title="Refresh"><svg><use href="#i-refresh"/></svg> Refresh</button>
-    </div>
+    <!-- One refresh only (UX audit 2026-11-06): the shell's Reload sits directly above; this page loads on open. -->
   </header>
 
   <div class="banner" id="banner"><svg><use href="#i-warn"/></svg><span id="bannerMsg"></span></div>
@@ -444,34 +474,31 @@
     <button id="tab-channels" role="tab">Channels</button>
     <button id="tab-experiments" role="tab">Experiments <span class="cnt" id="cntExp">–</span></button>
     <button id="tab-approvals" role="tab">Approvals <span class="cnt" id="cntAppr">–</span></button>
+    <span class="tab-more-wrap"><button type="button" id="tab-more" aria-haspopup="menu" aria-expanded="false">More</button></span>
   </nav>
+  <div class="more-popover" id="morePopover" role="menu">
+    <button type="button" id="moreExperiments" role="menuitem"><span>Experiments</span><span class="cnt" id="cntExpMore">–</span></button>
+  </div>
 
   <!-- ══ BOARD ══════════════════════════════════════════════════════════════════════════════ -->
   <section class="pane on" id="pane-board" role="tabpanel">
-    <div class="rowline" style="margin-bottom:14px">
+    <div class="rowline" style="margin-bottom:12px">
       <button class="btn primary" id="newCampBtn"><svg><use href="#i-plus"/></svg> New campaign</button>
       <button class="btn" id="importBtn"><svg><use href="#i-import"/></svg> Import</button>
       <span style="flex:1"></span>
-      <span class="badge" title="Imports carry content only — they can never enable a channel, set a budget, or advance a stage">imports never arm spend</span>
+      <span class="subline" style="margin:0" title="Imports carry content only — they can never enable a channel, set a budget, or advance a stage">Imports never arm spend.</span>
+    </div>
+    <div class="rowline" id="boardFilters" style="margin-bottom:14px">
+      <div class="chips" id="campStatusChips" role="group" aria-label="Filter campaigns by status">
+        <button type="button" class="chip on" data-filter="active">Active</button>
+        <button type="button" class="chip" data-filter="draft">Draft</button>
+        <button type="button" class="chip" data-filter="archived">Archived</button>
+        <button type="button" class="chip" data-filter="all">All</button>
+      </div>
+      <input type="text" id="campSearch" placeholder="Search campaigns…" aria-label="Search campaigns" style="min-width:190px; flex:1; max-width:280px"/>
     </div>
     <div id="campList"></div>
 
-    <div class="sechead">UTM link builder</div>
-    <div class="card" id="utmCard">
-      <div class="grid2">
-        <div class="fld"><label class="f" for="utmUrl">Destination URL</label><input type="url" id="utmUrl" placeholder="https://oshal.ai/product" style="width:100%"/></div>
-        <div class="fld"><label class="f" for="utmCampaign">Campaign</label><input type="text" id="utmCampaign" placeholder="campaign-slug" style="width:100%"/></div>
-        <div class="fld"><label class="f" for="utmSource">Source</label><input type="text" id="utmSource" placeholder="linkedin" style="width:100%"/></div>
-        <div class="fld"><label class="f" for="utmMedium">Medium</label><input type="text" id="utmMedium" placeholder="social" style="width:100%"/></div>
-      </div>
-      <div class="rowline">
-        <input type="text" id="utmContent" placeholder="content tag (optional)"/>
-        <button class="btn" id="utmBtn"><svg><use href="#i-link"/></svg> Build link</button>
-        <code id="utmOut" style="font-size:12px; word-break:break-all;"></code>
-        <button class="btn sm" id="utmCopy" style="display:none"><svg><use href="#i-copy"/></svg> Copy</button>
-      </div>
-      <div class="inline-err" id="utmErr"></div>
-    </div>
   </section>
 
   <!-- ══ SCORECARD ══════════════════════════════════════════════════════════════════════════ -->
@@ -491,6 +518,22 @@
     <div id="chanList"></div>
     <div class="sechead">Run ledger — every outward attempt, including refusals</div>
     <div id="ledgerWrap"></div>
+    <div class="sechead">UTM link builder</div>
+    <div class="card" id="utmCard">
+      <div class="grid2">
+        <div class="fld"><label class="f" for="utmUrl">Destination URL (required)</label><input type="url" id="utmUrl" required aria-describedby="utmErr" placeholder="https://oshal.ai/product" style="width:100%"/></div>
+        <div class="fld"><label class="f" for="utmCampaign">Campaign (required)</label><input type="text" id="utmCampaign" required aria-describedby="utmErr" placeholder="campaign-slug" style="width:100%"/></div>
+        <div class="fld"><label class="f" for="utmSource">Source (required)</label><input type="text" id="utmSource" required aria-describedby="utmErr" placeholder="linkedin" style="width:100%"/></div>
+        <div class="fld"><label class="f" for="utmMedium">Medium (required)</label><input type="text" id="utmMedium" required aria-describedby="utmErr" placeholder="social" style="width:100%"/></div>
+        <div class="fld"><label class="f" for="utmContent">Content tag (optional)</label><input type="text" id="utmContent" placeholder="hero-video" style="width:100%"/></div>
+      </div>
+      <div class="rowline">
+        <button class="btn" id="utmBtn"><svg><use href="#i-link"/></svg> Build link</button>
+        <code id="utmOut" style="font-size:12px; word-break:break-all;"></code>
+        <button class="btn sm" id="utmCopy" style="display:none"><svg><use href="#i-copy"/></svg> Copy</button>
+      </div>
+      <div class="inline-err" id="utmErr" role="alert"></div>
+    </div>
   </section>
 
   <!-- ══ EXPERIMENTS ════════════════════════════════════════════════════════════════════════ -->
@@ -658,6 +701,16 @@
     if (j.error === "not_authenticated")        return "You're signed out — sign in and reload this page.";
     if (res.status === 428)                     return j.message || "This action requires confirm: true. No write was attempted.";
     return j.message || j.error || ("Request failed (HTTP " + res.status + ")");
+  }
+  /** The UTM builder's own check, before any request: each required field named, and the URL absolute http(s). */
+  function utmProblems(v){
+    var out=[], t=function(x){ return String(x||"").trim(); };
+    if(!t(v.url)) out.push({ id:"utmUrl", text:"Enter the destination URL." });
+    else if(!/^https?:\/\/[^\s/]+/i.test(t(v.url))) out.push({ id:"utmUrl", text:"The destination URL must start with http:// or https://." });
+    if(!t(v.campaign)) out.push({ id:"utmCampaign", text:"Enter the campaign." });
+    if(!t(v.source)) out.push({ id:"utmSource", text:"Enter the source (for example linkedin)." });
+    if(!t(v.medium)) out.push({ id:"utmMedium", text:"Enter the medium (for example social)." });
+    return out;
   }
   function showInlineErr(el, text){ el.innerHTML = esc(text); el.classList.add("show"); }
   function clearInlineErr(el){ el.textContent=""; el.classList.remove("show"); }
@@ -835,29 +888,73 @@
 
   // ── tabs ──────────────────────────────────────────────────────────────────────────────────
   var TABS = ["board","scorecard","channels","experiments","approvals"];
-  TABS.forEach(function(t){
-    $("tab-"+t).addEventListener("click", function(){
-      state.tab=t;
-      TABS.forEach(function(u){
-        $("tab-"+u).classList.toggle("on", u===t);
-        $("pane-"+u).classList.toggle("on", u===t);
-      });
-      if(t==="scorecard") loadScorecard();
-      if(t==="experiments") loadExperiments();
-      if(t==="approvals") loadProposals();
+  function selectTab(t){
+    state.tab=t;
+    if($("morePopover")) $("morePopover").classList.remove("show");
+    if($("tab-more")){
+      $("tab-more").setAttribute("aria-expanded","false");
+      $("tab-more").classList.toggle("on", t==="experiments");
+    }
+    TABS.forEach(function(u){
+      $("tab-"+u).classList.toggle("on", u===t);
+      $("pane-"+u).classList.toggle("on", u===t);
     });
+    if(t==="scorecard") loadScorecard();
+    if(t==="experiments") loadExperiments();
+    if(t==="approvals") loadProposals();
+  }
+  TABS.forEach(function(t){
+    $("tab-"+t).addEventListener("click", function(){ selectTab(t); });
   });
-  $("refreshBtn").addEventListener("click", function(){
-    refresh();
-    if(state.tab==="scorecard") loadScorecard();
-    if(state.tab==="experiments") loadExperiments();
-    if(state.tab==="approvals") loadProposals();
+  if($("tab-more")){
+    $("tab-more").addEventListener("click", function(ev){
+      ev.stopPropagation();
+      var open = $("morePopover").classList.toggle("show");
+      $("tab-more").setAttribute("aria-expanded", open?"true":"false");
+    });
+    $("moreExperiments").addEventListener("click", function(){ selectTab("experiments"); });
+    document.addEventListener("click", function(ev){
+      if($("morePopover") && !ev.target.closest("#morePopover") && !ev.target.closest("#tab-more")){
+        $("morePopover").classList.remove("show");
+        $("tab-more").setAttribute("aria-expanded","false");
+      }
+    });
+  }
+
+  state.boardFilter = "active";
+  state.boardQuery = "";
+  function filteredCampaigns(){
+    var f = state.boardFilter || "active";
+    var q = String(state.boardQuery || "").trim().toLowerCase();
+    return state.campaigns.filter(function(c){
+      var st = c.status || "draft";
+      var matchStatus = f==="all" ? true : f==="archived" ? (st==="archived" || st==="paused") : st===f;
+      if(!matchStatus) return false;
+      if(!q) return true;
+      var hay = [c.name, c.slug, c.product, c.motion, (c.channels||[]).join(" ")].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+  function setBoardFilter(f){
+    state.boardFilter = f;
+    Array.prototype.forEach.call($("campStatusChips").querySelectorAll("[data-filter]"), function(b){
+      b.classList.toggle("on", b.getAttribute("data-filter")===f);
+    });
+    renderCampaigns();
+  }
+  Array.prototype.forEach.call($("campStatusChips").querySelectorAll("[data-filter]"), function(b){
+    b.addEventListener("click", function(){ setBoardFilter(b.getAttribute("data-filter")); });
+  });
+  $("campSearch").addEventListener("input", function(){
+    state.boardQuery = $("campSearch").value;
+    renderCampaigns();
   });
 
   function renderAll(){
     renderCampaigns(); renderChannels(); renderScorecard(); renderExperiments(); renderApprovals(); renderLedger();
-    $("cntBoard").textContent = state.campaigns.length;
-    $("cntExp").textContent = state.experiments.filter(function(e){ return e.status!=="killed" && e.status!=="scaled"; }).length;
+    var expCnt = state.experiments.filter(function(e){ return e.status!=="killed" && e.status!=="scaled"; }).length;
+    $("cntExp").textContent = expCnt;
+    if($("cntExpMore")) $("cntExpMore").textContent = expCnt;
     $("cntAppr").textContent = state.proposals.filter(function(p){ return p.status==="proposed"; }).length;
   }
 
@@ -871,11 +968,17 @@
   }
   function renderCampaigns(){
     var host=$("campList");
+    var shown = filteredCampaigns();
+    $("cntBoard").textContent = shown.length;
     if(!state.campaigns.length){
       host.innerHTML = '<div class="empty">No campaigns yet — create one, or import a campaign definition (content only; nothing switches on).</div>';
       return;
     }
-    host.innerHTML = '<div class="table-scroll"><table class="board"><thead><tr><th>Campaign</th><th>Product</th><th>Motion</th><th>Status</th><th>Budget / mo</th><th>Channels</th><th>Updated</th></tr></thead>' + state.campaigns.map(function(c){
+    if(!shown.length){
+      host.innerHTML = '<div class="empty">No '+esc(state.boardFilter==="all" ? "matching" : state.boardFilter)+' campaigns'+(state.boardQuery? ' matching "'+esc(state.boardQuery)+'"' : '')+' — switch status chips (Draft / All) to view other campaigns.</div>';
+      return;
+    }
+    host.innerHTML = '<div class="table-scroll"><table class="board"><thead><tr><th>Campaign</th><th>Product</th><th>Motion</th><th>Status</th><th>Budget / mo</th><th>Channels</th><th>Updated</th></tr></thead>' + shown.map(function(c){
       var open = state.openCamp===c.campaign_id;
       var h = '<tbody class="card" data-camp="'+escAttr(c.campaign_id)+'">';
       h += '<tr class="rowline" style="cursor:pointer" data-toggle="1" aria-expanded="'+(open?'true':'false')+'">';
@@ -885,7 +988,7 @@
       h += '<td>'+statusBadge(c.status)+'</td>';
       h += '<td>'+(c.budget_monthly_usd && Number(c.budget_monthly_usd)>0 ? '$'+esc(c.budget_monthly_usd) : '$0')+(c.target_cpa_usd ? '<span class="metaline" style="margin:0">target CPA $'+esc(c.target_cpa_usd)+'</span>' : '')+'</td>';
       h += '<td>'+esc((c.channels&&c.channels.length? c.channels.join(", ") : "none"))+'</td>';
-      h += '<td>'+esc(ago(c.updated_at))+'</td>';
+      h += '<td><span>'+esc(ago(c.updated_at))+'</span><span class="row-more-cue" aria-hidden="true">⋯</span></td>';
       h += '</tr>';
       h += '<tr class="detail-row'+(open?' show':'')+'"><td colspan="7">';
       h += '<div class="detail'+(open?' show':'')+'">';
@@ -1096,6 +1199,7 @@
         btn.disabled=false;
         if(!res.ok){ showInlineErr($("ncErr"), errText(res, null)); return; }
         $("newScrim").classList.remove("show");
+        setBoardFilter("draft");
         toast("Campaign created at stage 0 — validate");
         refresh();
       }).catch(function(e){ btn.disabled=false; showInlineErr($("ncErr"), "Request failed — "+((e&&e.message)||e)); });
@@ -1122,6 +1226,10 @@
   // ── UTM builder ───────────────────────────────────────────────────────────────────────────
   $("utmBtn").addEventListener("click", function(){
     clearInlineErr($("utmErr")); $("utmOut").textContent=""; $("utmCopy").style.display="none";
+    // No request until the form is valid (it sent empty fields and the route answered 400).
+    var missing = utmProblems({ url:$("utmUrl").value, campaign:$("utmCampaign").value, source:$("utmSource").value, medium:$("utmMedium").value });
+    ["utmUrl","utmCampaign","utmSource","utmMedium"].forEach(function(id){ $(id).removeAttribute("aria-invalid"); });
+    if(missing.length){ missing.forEach(function(m){ $(m.id).setAttribute("aria-invalid","true"); }); showInlineErr($("utmErr"), missing.map(function(m){ return m.text; }).join(" ")); $(missing[0].id).focus(); return; }
     var q = "url="+encodeURIComponent($("utmUrl").value.trim())
           + "&source="+encodeURIComponent($("utmSource").value.trim())
           + "&medium="+encodeURIComponent($("utmMedium").value.trim())

@@ -3,44 +3,152 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Storage — OSHAL</title>
-<!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
-     Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
-     matters — without it the surface would have no colors at all. -->
+<title>Storage Settings — oshal</title>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (storage--storage-settings FIX-LAYOUT &
+       storage--storage-assistant MERGE): carry the Business/Home audience view now that storage-settings is ui.static[0],
+       disable unconnected Dropbox/GitHub options with a Connections link beneath each select, save immediately on change
+       with inline 'Saved' status and role="alert" errors (removing the Save bar), display local store usage / 250 MB limit
+       in the help line rather than option labels, link to /api/files, lowercase 'oshal', and style disabled/primary buttons
+       using solid disabled and on-accent tokens on Graphite. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var SHOWN = 12;
+  var NAMES = { github: 'GitHub', dropbox: 'Dropbox', 'google-drive': 'Google Drive', 'oshal-local': 'oshal local' };
+  var STORES = [{ conn: 'github', provider: 'github' }, { conn: 'dropbox', provider: 'dropbox' }, { conn: 'google', provider: 'google-drive' }];
+  function call(path) {
+    return fetch('/api/storage' + path, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  function openAssistant() { window.location.assign('/api/storage/assistant/ui'); }
+  function storeName(provider) { return NAMES[provider] || String(provider || 'Automatic'); }
+  function size(bytes) {
+    var n = Number(bytes); if (!isFinite(n) || n < 0) return '—';
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return Math.round(n / 1024) + ' KB';
+    if (n < 1073741824) return (n / 1048576).toFixed(1).replace(/\.0$/, '') + ' MB';
+    return (n / 1073741824).toFixed(1).replace(/\.0$/, '') + ' GB';
+  }
+  function savedState(sum) {
+    var metrics = sum.ok ? sum.body.metrics || [] : [], items = sum.ok ? sum.body.items || [] : [];
+    var metric = function (id) { var m = metrics.filter(function (x) { return x.id === id; })[0]; return m ? String(m.value) : null; };
+    var pref = items.filter(function (i) { return /^Saved /.test(String(i.detail || '')); })[0];
+    var at = pref ? /^Saved (\S+)$/.exec(String(pref.detail)) : null;
+    return { code: metric('code-target'), files: metric('files-target'), savedAt: at ? at[1] : null, saved: !!pref, partial: !!(sum.ok && sum.body.partial), note: items.length ? String(items[items.length - 1].text || '') : '' };
+  }
+  function targetStat(id, label, target, saved, prefs) {
+    var known = saved !== null && saved !== 'Unavailable', isSaved = known && saved !== 'Automatic';
+    var detail = target ? (target.repo || (target.folder && target.folder !== '/' ? target.folder : '')) : '';
+    return { id: id, label: label, value: target ? storeName(target.provider) : known ? storeName(saved) : 'Unavailable',
+      hint: target ? [isSaved ? 'Saved' : known ? 'Automatic' : 'Saved state unavailable', detail].filter(Boolean).join(' · ') : 'Effective target could not be read (HTTP ' + prefs.status + ')',
+      tone: !target || !known ? 'warn' : null };
+  }
+  function usedFor(provider, code, files) {
+    var buckets = [code && code.provider === provider ? 'code' : '', files && files.provider === provider ? 'files' : ''].filter(Boolean);
+    return buckets.length ? 'Target for ' + buckets.join(' and ') : 'Not a target';
+  }
+  function storesSection(prefs, code, files) {
+    var connected = prefs.ok ? prefs.body.connected || [] : [];
+    var items = prefs.ok ? STORES.map(function (s) { var on = connected.indexOf(s.conn) >= 0; return { title: storeName(s.provider), text: usedFor(s.provider, code, files), badge: on ? 'Connected' : 'Not connected', tone: on ? 'ok' : null }; })
+      .concat([{ title: storeName('oshal-local'), text: usedFor('oshal-local', code, files), badge: 'Built in' }]) : [];
+    return { kind: 'list', id: 'stores', title: 'Stores', items: items,
+      note: 'Connected means an authorized connection is on file in Identity. It is not proof the provider is reachable, exported to or has free space.',
+      empty: refused(prefs) ? 'Sign in to see connected stores.' : 'Connected stores could not be read (HTTP ' + prefs.status + ').' };
+  }
+  function filesSection(local) {
+    var files = local.ok ? (local.body.files || []).slice() : [];
+    files.sort(function (a, b) { return String(a.name).toLowerCase() < String(b.name).toLowerCase() ? -1 : 1; });
+    return { kind: 'table', id: 'local-files', title: 'oshal local store', columns: ['File', { label: 'Size', align: 'right' }],
+      note: 'Files at the top of your oshal local store, as the assistant lists them; bot subfolders are not listed here. Browse, download and share through Files.' + (files.length > SHOWN ? ' The first ' + SHOWN + ' of ' + files.length + '.' : ''),
+      empty: local.ok ? 'No files in the oshal local store yet.' : refused(local) ? 'Sign in to see the store.' : 'The store could not be listed (HTTP ' + local.status + ').',
+      rows: files.slice(0, SHOWN).map(function (f) { return [String(f.name || ''), { text: size(f.size) }]; }) };
+  }
+  function lede(sum, s) {
+    var head = !sum.ok ? 'Saved preferences could not be checked (HTTP ' + sum.status + ').' : s.partial ? 'Some saved sources cannot be checked.'
+      : s.saved ? 'Targets saved ' + (s.savedAt ? A.when(s.savedAt) : 'earlier') + '.' : 'No target saved yet: these are the automatic choices from what is connected.';
+    return s.note ? head + ' ' + s.note : head;
+  }
+  function company() {
+    return Promise.all([call('/home-summary'), call('/prefs'), call('/local/list')]).then(function (r) {
+      var sum = r[0], prefs = r[1], local = r[2];
+      if (refused(sum) || refused(prefs)) { var status = refused(sum) ? sum.status : prefs.status;
+        return { kicker: 'Productivity · Storage', title: status === 401 ? 'Sign in to see your storage' : 'This account cannot open Storage',
+          lede: status === 401 ? 'This view shows where the signed-in person’s work saves, and this session is not signed in.' : 'The Storage routes refused this account (HTTP 403).' }; }
+      if (!sum.ok && !prefs.ok) throw new Error((sum.body && sum.body.error) || 'Storage could not read the saved targets (HTTP ' + sum.status + ').');
+      var s = savedState(sum), p = prefs.ok ? prefs.body.prefs || {} : {}, code = p.code || null, files = p.files || null;
+      var connected = prefs.ok ? (prefs.body.connected || []).filter(function (c) { return STORES.some(function (x) { return x.conn === c; }); }) : null;
+      var list = local.ok ? local.body.files || [] : null, total = (list || []).reduce(function (acc, f) { return acc + (Number(f.size) || 0); }, 0);
+      return {
+        kicker: 'Productivity · Storage',
+        title: 'Code → ' + storeName(code ? code.provider : s.code) + ' · Files → ' + storeName(files ? files.provider : s.files),
+        lede: lede(sum, s),
+        actions: [{ label: 'Open the assistant', primary: true, onClick: openAssistant }, { label: 'Storage settings', href: '/api/storage' }],
+        stats: [
+          targetStat('code', 'Code target', code, s.code, prefs), targetStat('files', 'Files target', files, s.files, prefs),
+          { id: 'connected', label: 'Connected stores', value: connected ? connected.length : 'Unavailable', tone: !connected || !connected.length ? 'warn' : null,
+            hint: !connected ? 'Could not be read (HTTP ' + prefs.status + ')' : connected.length ? connected.map(function (c) { return storeName(STORES.filter(function (x) { return x.conn === c; })[0].provider); }).join(', ') : 'Connect GitHub, Dropbox or Google Drive in Identity' },
+          { id: 'local', label: 'Files in oshal local', value: list ? list.length : 'Unavailable', tone: list ? null : 'warn', hint: list ? (list.length ? size(total) + ' in all' : 'Nothing stored locally yet') : 'Could not be listed (HTTP ' + local.status + ')' }
+        ],
+        sections: [filesSection(local), storesSection(prefs, code, files)]
+      };
+    });
+  }
+  A.boot({ app: 'storage', escapeLabel: 'Open Storage in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
-  /* Keep the surface's own short alias names, but DERIVE each from a framework theme token instead
-     of hardcoding hex — so all eleven themes work, not just the dark ones. The old palette was
-     literal (#0e0e16 …), which is why it only ever looked right in a dark theme. The success accent
-     comes from the theme too, with the old hex as a fallback so it stays legible if a theme omits it. */
   :root {
-    --bg: var(--bg-primary);
-    --panel: var(--bg-card);
-    --panel2: var(--bg-tertiary);
-    --line: var(--border-color);
-    --text: var(--text-primary);
-    --muted: var(--text-secondary);
-    --accent: var(--accent-primary);
-    --accent2: var(--status-success, #00d3a7);
+    --bg: var(--ds-page, var(--bg-primary));
+    --panel: var(--ds-surface, var(--bg-card));
+    --panel2: var(--ds-surface-2, var(--bg-tertiary));
+    --line: var(--ds-edge, var(--border-color));
+    --line-ctrl: var(--ds-line-control, var(--border-color));
+    --text: var(--ds-ink, var(--text-primary));
+    --muted: var(--ds-ink-2, var(--text-secondary));
+    --disabled-ink: var(--ds-ink-disabled, var(--text-muted, #8b92a0));
+    --accent: var(--ds-accent, var(--accent-primary));
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
+    --accent-ink: var(--ds-accent-ink, var(--accent-primary));
+    --accent2: var(--ds-ok, var(--status-success, #00d3a7));
+    --err: var(--ds-danger, var(--status-error, #ff5a5a));
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  body { margin:0; font-family: var(--ds-font, system-ui, sans-serif); background:var(--bg); color:var(--text); }
   .page { max-width:720px; margin:0 auto; padding:28px 26px 70px; }
-  h1 { font-size:22px; margin:0 0 4px; } .sub { color:var(--muted); font-size:13px; margin-bottom:22px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
-  .card h2 { font-size:15px; margin:0 0 4px; } .card .hint { color:var(--muted); font-size:12.5px; margin-bottom:13px; }
-  label { display:block; font-size:12px; color:var(--muted); margin:11px 0 5px; }
-  select, input { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:13px; }
-  .det { margin-top:4px; } .det.hide { display:none; }
-  .bar { display:flex; gap:10px; align-items:center; margin-top:18px; }
-  .btn { border:none; border-radius:9px; padding:11px 18px; font-size:13.5px; font-weight:600; cursor:pointer; }
-  .btn.primary { background:var(--accent); color:#fff; } .btn:disabled { opacity:.5; cursor:default; }
-  .result { margin-top:14px; padding:11px 13px; border-radius:9px; font-size:13px; display:none; }
-  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
-  .result.err { background:rgba(255,90,90,.1); border:1px solid var(--status-error,#ff5a5a); color:#ff9a9a; display:block; }
-  .note { color:var(--muted); font-size:12px; } .note a { color:var(--accent); }
+  h1 { font-size:22px; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:14px; line-height:20px; margin-bottom:22px; }
+  .sub a { color:var(--accent-ink); text-decoration:underline; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:var(--ds-radius-l, 14px); padding:18px; margin-bottom:16px; }
+  .card h2 { font-size:15px; margin:0 0 4px; }
+  .card .hint { color:var(--muted); font-size:13px; margin-bottom:13px; }
+  .lbl-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:11px 0 5px; }
+  label { display:block; font-size:12.5px; color:var(--muted); margin:11px 0 5px; }
+  .lbl-row label { margin:0; }
+  .saved-badge { font-size:12.5px; font-weight:600; color:var(--accent2); min-height:18px; }
+  select, input { width:100%; min-height:44px; background:var(--bg); color:var(--text); border:1px solid var(--line-ctrl); border-radius:var(--ds-radius-s, 8px); padding:9px 11px; font-size:14px; font-family:inherit; }
+  select:focus-visible, input:focus-visible, .btn:focus-visible { outline:2px solid var(--ds-focus, var(--accent)); outline-offset:2px; }
+  .conn-note { margin-top:7px; font-size:12.5px; color:var(--muted); }
+  .conn-note a { color:var(--accent-ink); text-decoration:underline; }
+  .det { margin-top:4px; }
+  .det.hide { display:none; }
+  .btn { min-height:44px; border:1px solid var(--line-ctrl); background:var(--panel2); color:var(--text); border-radius:var(--ds-radius-m, 9px); padding:10px 16px; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer; }
+  .btn.primary { background:var(--accent); color:var(--on-accent); border-color:transparent; }
+  .btn:disabled { background:var(--panel2); color:var(--disabled-ink); border-color:var(--line); opacity:1; cursor:not-allowed; }
+  .result { margin:0 0 16px; padding:11px 13px; border-radius:var(--ds-radius-m, 9px); font-size:13.5px; }
+  .result[hidden] { display:none; }
+  .result.ok { background:color-mix(in srgb, var(--accent2) 12%, var(--panel)); border:1px solid var(--accent2); color:var(--accent2); }
+  .result.err { background:color-mix(in srgb, var(--err) 12%, var(--panel)); border:1px solid var(--err); color:var(--err); }
+  .note { color:var(--muted); font-size:13px; line-height:19px; margin-top:6px; }
+  .note a { color:var(--accent-ink); text-decoration:underline; }
   .spin { color:var(--muted); font-size:13px; }
+  .newrepo-row { display:none; gap:7px; margin-top:7px; align-items:center; }
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
@@ -49,57 +157,79 @@
   @media (max-width: 640px) {
     .page { padding: 16px 14px 60px; }
     select, input { font-size: 16px; }
-    .btn { padding: 12px 16px; font-size: 14px; min-height: 44px; }
-    .bar { flex-wrap: wrap; }
+    .btn { padding: 12px 16px; font-size: 14px; }
   }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
-<body>
+<body data-ds-work>
   <div class="page">
-    <h1>🗄️ Storage</h1>
-    <div class="sub">Choose where OSHAL saves what it generates. Two buckets — your call which backend each uses.</div>
+    <h1>Storage Settings</h1>
+    <div class="sub">Choose where oshal saves what it generates, or browse your folders in <a href="/api/files" target="_top">Files</a>.</div>
+    <div class="result" id="result" role="alert" hidden></div>
     <div id="body"><span class="spin">Loading…</span></div>
-    <div class="result" id="result"></div>
-    <div class="bar"><button class="btn primary" id="saveBtn" disabled>Save</button></div>
   </div>
 <script>
 const $ = (id) => document.getElementById(id);
 let CONNECTED = [], DBX_FOLDERS = null, GH_REPOS = null;
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function toast(msg, ok){ const r=$('result'); r.className='result '+(ok?'ok':'err'); r.textContent=msg; if(ok) setTimeout(()=>{r.className='result';},3500); }
+
+function showAlert(msg){
+  const r = $('result');
+  r.className = 'result err';
+  r.setAttribute('role', 'alert');
+  r.textContent = msg;
+  r.hidden = false;
+}
+function clearAlert(){
+  const r = $('result');
+  r.hidden = true;
+  r.textContent = '';
+}
 
 function providerOpts(sel){
-  const opts = [['oshal-local','OSHAL (local, limited 250 MB)'], ['dropbox','Dropbox'], ['github','GitHub']];
-  return opts.map(([v,l]) => `<option value="${v}"${v===sel?' selected':''}>${l}${(v!=='oshal-local'&&!CONNECTED.includes(v))?' (not connected)':''}</option>`).join('');
+  const opts = [['oshal-local','oshal (local)'], ['dropbox','Dropbox'], ['github','GitHub']];
+  return opts.map(([v,l]) => {
+    const off = v !== 'oshal-local' && !CONNECTED.includes(v);
+    return `<option value="${v}"${v===sel?' selected':''}${off?' disabled':''}>${l}${off?' (not connected)':''}</option>`;
+  }).join('');
+}
+
+function connectHelp(){
+  if (CONNECTED.includes('dropbox') && CONNECTED.includes('github')) return '';
+  return `<div class="conn-note">Connect Dropbox or GitHub in <a href="/utilities" target="_top">Connections</a>.</div>`;
 }
 
 function bucketCard(id, titleTxt, hint, t){
+  const cur = (t && t.provider) || 'oshal-local';
   return `<div class="card">
     <h2>${titleTxt}</h2><div class="hint">${hint}</div>
-    <label>Backend</label>
-    <select id="${id}-provider">${providerOpts(t.provider)}</select>
-    <div class="det" id="${id}-dropbox"><label>Dropbox folder</label><select id="${id}-dbxfolder"></select></div>
-    <div class="det" id="${id}-github">
-      <label>GitHub repo</label>
+    <div class="lbl-row"><label for="${id}-provider">Backend</label><span class="saved-badge" id="${id}-saved" role="status" aria-live="polite"></span></div>
+    <select id="${id}-provider">${providerOpts(cur)}</select>
+    ${connectHelp()}
+    <div class="det hide" id="${id}-dropbox"><label for="${id}-dbxfolder">Dropbox folder</label><select id="${id}-dbxfolder"></select></div>
+    <div class="det hide" id="${id}-github">
+      <label for="${id}-ghrepo">GitHub repo</label>
       <select id="${id}-ghrepo"></select>
-      <button class="btn" id="${id}-newrepo-btn" type="button" style="margin-top:7px;background:var(--panel2);border:1px solid var(--line);color:var(--text);" onclick="toggleNewRepo('${id}',true)">+ New repo</button>
-      <div id="${id}-newrepo-row" style="display:none; gap:7px; margin-top:7px;">
+      <button class="btn" id="${id}-newrepo-btn" type="button" style="margin-top:7px;" onclick="toggleNewRepo('${id}',true)">+ New repo</button>
+      <div id="${id}-newrepo-row" class="newrepo-row">
         <input id="${id}-newrepo-name" placeholder="new-repo-name" style="flex:1" onkeydown="if(event.key==='Enter')createRepo('${id}')" />
-        <button class="btn" type="button" style="background:var(--accent);color:#fff;" onclick="createRepo('${id}')">Create</button>
-        <button class="btn" type="button" style="background:var(--panel2);border:1px solid var(--line);color:var(--text);" onclick="toggleNewRepo('${id}',false)">Cancel</button>
+        <button class="btn primary" type="button" onclick="createRepo('${id}')">Create</button>
+        <button class="btn" type="button" onclick="toggleNewRepo('${id}',false)">Cancel</button>
       </div>
-      <label>Folder in repo (optional)</label><input id="${id}-ghfolder" placeholder="e.g. decks  (blank = repo root)" />
+      <label for="${id}-ghfolder">Folder in repo (optional)</label><input id="${id}-ghfolder" placeholder="e.g. decks (blank = repo root)" />
     </div>
   </div>`;
 }
 
-function syncDetails(id, t){
+async function syncDetails(id, t){
   const prov = $(`${id}-provider`).value;
-  $(`${id}-dropbox`).className = 'det' + (prov==='dropbox'?'':' hide');
-  $(`${id}-github`).className = 'det' + (prov==='github'?'':' hide');
-  if (prov==='dropbox') loadDropbox(id, t);
-  if (prov==='github') loadGithub(id, t);
+  const dbxOn = prov === 'dropbox' && CONNECTED.includes('dropbox');
+  const ghOn = prov === 'github' && CONNECTED.includes('github');
+  $(`${id}-dropbox`).className = 'det' + (dbxOn ? '' : ' hide');
+  $(`${id}-github`).className = 'det' + (ghOn ? '' : ' hide');
+  if (dbxOn) await loadDropbox(id, t);
+  if (ghOn) await loadGithub(id, t);
 }
 
 async function loadDropbox(id, t){
@@ -108,16 +238,15 @@ async function loadDropbox(id, t){
   const cur = (t && t.provider==='dropbox' && t.folder) ? t.folder : '/';
   sel.innerHTML = `<option value="/">/ (root)</option>` + DBX_FOLDERS.map(f=>`<option value="${esc(f.path)}"${f.path===cur?' selected':''}>${esc(f.name)}</option>`).join('');
 }
+
 async function loadGithub(id, t){
   const sel = $(`${id}-ghrepo`);
   if (!GH_REPOS){ const r=await fetch('/api/storage/github/repos'); GH_REPOS = r.ok ? (await r.json()).repos : []; }
   const cur = (t && t.provider==='github' && t.repo) ? t.repo : '';
-  sel.innerHTML = `<option value="">— pick a repo —</option>` + GH_REPOS.map(rp=>`<option value="${esc(rp.name)}"${rp.name===cur?' selected':''}>${esc(rp.fullName)}${rp.private?' 🔒':''}</option>`).join('');
+  sel.innerHTML = `<option value="">— pick a repo —</option>` + GH_REPOS.map(rp=>`<option value="${esc(rp.name)}"${rp.name===cur?' selected':''}>${esc(rp.fullName)}${rp.private?' (private)':''}</option>`).join('');
   if (t && t.provider==='github' && t.folder) $(`${id}-ghfolder`).value = t.folder;
 }
 
-// Inline new-repo flow (no prompt() — modal dialogs are unreliable inside the
-// sandboxed cockpit iframe). Reveal an input row, create on Create/Enter.
 function toggleNewRepo(id, show){
   const row = $(`${id}-newrepo-row`), btn = $(`${id}-newrepo-btn`);
   if (!row || !btn) return;
@@ -125,54 +254,83 @@ function toggleNewRepo(id, show){
   btn.style.display = show ? 'none' : 'inline-block';
   if (show) $(`${id}-newrepo-name`).focus();
 }
+
 async function createRepo(id){
   const name = ($(`${id}-newrepo-name`).value || '').trim();
   if (!name){ $(`${id}-newrepo-name`).focus(); return; }
-  toast('Creating repo “'+name+'”…', true);
+  clearAlert();
   const r = await fetch('/api/storage/github/repos', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ name }) });
   const j = await r.json().catch(()=>({}));
   if (r.ok && j.ok){
-    toast('Created '+j.fullName, true);
-    GH_REPOS = null; // force reload so the new repo appears + is selectable
+    GH_REPOS = null;
     $(`${id}-newrepo-name`).value = '';
     toggleNewRepo(id, false);
     await loadGithub(id, { provider:'github', repo:j.name });
-  } else { toast('Create failed: '+((j&&j.error)||('HTTP '+r.status)), false); }
+    await savePrefs(id);
+  } else {
+    showAlert('Create failed: '+((j&&j.error)||('HTTP '+r.status)));
+  }
 }
 
 function readTarget(id){
   const provider = $(`${id}-provider`).value;
-  if (provider==='dropbox') return { provider, folder: $(`${id}-dbxfolder`).value };
+  if (provider==='dropbox') return { provider, folder: $(`${id}-dbxfolder`).value || '/' };
   if (provider==='github') return { provider, repo: $(`${id}-ghrepo`).value, folder: ($(`${id}-ghfolder`).value||'').trim() };
   return { provider };
 }
 
-async function load(){
-  const r = await fetch('/api/storage/prefs'); const j = await r.json().catch(()=>({}));
-  if (!r.ok){ $('body').innerHTML = '<div class="card">Couldn’t load storage prefs.</div>'; return; }
-  CONNECTED = j.connected || []; const prefs = j.prefs;
-  $('body').innerHTML =
-    bucketCard('code', '💻 Generated code', 'Code &amp; dev work — version control fits best (GitHub).', prefs.code)
-    + bucketCard('files', '📄 Generated files', 'PowerPoints, drafts, exports — a document store (Dropbox or local).', prefs.files)
-    + '<div class="note">Not connected to a backend? <a href="/utilities" target="_top">Open the connectors hub →</a></div>';
-  for (const id of ['code','files']){
-    $(`${id}-provider`).addEventListener('change', ()=> syncDetails(id, null));
-    syncDetails(id, prefs[id]);
+async function savePrefs(changedId){
+  clearAlert();
+  const badge = $(`${changedId}-saved`);
+  if (badge) badge.textContent = '';
+  const payload = { code: readTarget('code'), files: readTarget('files') };
+  try {
+    const r = await fetch('/api/storage/prefs', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    const j = await r.json().catch(()=>({}));
+    if (r.ok && j.ok){
+      if (badge) badge.textContent = 'Saved';
+    } else {
+      showAlert('Save failed: '+((j&&j.error)||('HTTP '+r.status)));
+    }
+  } catch (err) {
+    showAlert('Save failed: '+((err&&err.message)||'Network error'));
   }
-  $('saveBtn').disabled = false;
 }
 
-$('saveBtn').addEventListener('click', async ()=>{
-  $('saveBtn').disabled = true;
-  const payload = { code: readTarget('code'), files: readTarget('files') };
-  const r = await fetch('/api/storage/prefs', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-  const j = await r.json().catch(()=>({}));
-  $('saveBtn').disabled = false;
-  if (r.ok && j.ok) toast('Saved. Generated content will route here.', true);
-  else toast('Save failed: '+((j&&j.error)||('HTTP '+r.status)), false);
-});
+function formatLocalUsage(localRes){
+  if (localRes && localRes.ok && localRes.body && localRes.body.usage && typeof localRes.body.usage.used === 'string') {
+    return 'Local storage: ' + localRes.body.usage.used.replace(/\.0\b/g, '') + ' used.';
+  }
+  return 'Local storage limit: 250 MB.';
+}
 
-load();
+async function load(){
+  const [prefsRes, localRes] = await Promise.all([
+    fetch('/api/storage/prefs').then(async r => ({ ok: r.ok, status: r.status, body: await r.json().catch(()=>({})) })).catch(() => ({ ok: false, status: 0, body: {} })),
+    fetch('/api/storage/local/list').then(async r => ({ ok: r.ok, status: r.status, body: await r.json().catch(()=>({})) })).catch(() => ({ ok: false, status: 0, body: {} }))
+  ]);
+  if (!prefsRes.ok){
+    $('body').innerHTML = '';
+    showAlert('Could not load storage preferences (HTTP ' + (prefsRes.status || 'unreachable') + ').');
+    return;
+  }
+  const j = prefsRes.body;
+  CONNECTED = j.connected || [];
+  const prefs = j.prefs || { code: { provider: 'oshal-local' }, files: { provider: 'oshal-local' } };
+  $('body').innerHTML =
+    bucketCard('code', 'Generated code', 'Code and development work — version control fits best (GitHub).', prefs.code)
+    + bucketCard('files', 'Generated files', 'Presentations, drafts, and exports — a document store (Dropbox or oshal local).', prefs.files)
+    + `<div class="note" id="local-usage">${esc(formatLocalUsage(localRes))} Browse and manage your files in <a href="/api/files" target="_top">Files</a>.</div>`;
+  for (const id of ['code','files']){
+    await syncDetails(id, prefs[id]);
+    $(`${id}-provider`).addEventListener('change', async () => { await syncDetails(id, null); await savePrefs(id); });
+    $(`${id}-dbxfolder`).addEventListener('change', () => savePrefs(id));
+    $(`${id}-ghrepo`).addEventListener('change', () => savePrefs(id));
+    $(`${id}-ghfolder`).addEventListener('change', () => savePrefs(id));
+  }
+}
+
+if (!window.AppView || !AppView.active()) load();
 </script>
 </body>
 </html>

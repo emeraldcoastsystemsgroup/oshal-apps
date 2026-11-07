@@ -3,6 +3,8 @@
 # SEQ | AUTHOR                                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Register the package's audience view contract test (ADR-164 D6) with its runner and isolation boundaries.
+# 2   | maintainer@emeraldcoastsystemsgroup.com     | Register the design-standard browser case (contract, one primary, Back closes layers, in-page asks, planned controls).
+# 3 | maintainer@emeraldcoastsystemsgroup.com | The design-standard browser case also measures the buttons (Roger F14, 2026-11-06): one-line labels they hug, 44px and 16px on a phone, a 36px toolbar and 15px on a desktop, icon buttons with no fill or edge, saved projects as list rows.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -117,4 +119,30 @@ cases:
     sideEffects: none
     isolation: {mode: none}
     limits: {timeoutMs: 15000, maxMemoryMb: 512}
+    installation: never
+
+  - id: design-standard
+    name: The design standard on the brief editor
+    purpose: >-
+      Drive the real page in real Chromium inside a Today-like frame at 1440x900 and 412x743, with the real shared editor
+      and loopback stand-ins for the routes: the declared contract, one primary in one app row, the name once, one copy of
+      each field, layers the browser's Back closes, in-page asks, and the application's planned controls.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/design-standard-browser.test.mjs]}
+    expected:
+      - The page declares category editor and first action type, and the brief text is inside data-ds-work.
+      - Exactly one primary is visible and the app row is one row; the Today bar's name is not repeated.
+      - With no render computer online a Render press says why and sends no render request.
+      - The More menu, a scene's row menu and a phone pane close on the browser's Back and stay in the app.
+      - Replacing an unsaved brief asks in the page; no native alert, confirm or prompt opens.
+      - Each planned control is aria-disabled, says Not available yet, carries its backlog id and sends nothing when pressed.
+      - At 412x915 with touch every button keeps its label on one line and hugs it at 44px, 16px, weight 600 and radius 10, the one primary included; Undo, Redo and More have no fill or edge.
+      - At 1440x900 the app row is a 36px toolbar at 15px, content buttons are 44px at 15px with Refresh evidence on one line, and a saved source project is a list row.
+      - At 1080x800, where the Saved pane is 180px, every page button keeps one line and stays inside its pane.
+    prerequisites: [runner:node, browser:chromium, runtime:canonical-store-toolchain, source:kernel-shared-ui]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser and loopback fixture. Only synthetic data is used.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
     installation: never

@@ -2,7 +2,9 @@
 <html lang="en" data-theme="midnight">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <!-- Zoom stays on (design standard DS-42): the board itself takes no browser pinch (#board touch-action: none) and is
+       marked data-ds-game, so its screens, the drawer and the dock stay zoomable. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Dungeon Master — The Table</title>
   <!-- Follow the cockpit's standard theme: these define the framework color tokens
        and set data-theme from the operator's saved theme (live-following). The
@@ -147,22 +149,26 @@
     <div id="initiative"><span class="round" id="roundLbl">Gather your party…</span></div>
     <div id="turnflag" class="hidden" role="status" aria-live="polite"></div>
     <div id="playfield">
-      <div id="stage">
+      <div id="stage" data-ds-game>
         <canvas id="board"></canvas>
         <div id="caption" class="hidden"></div>
         <div id="banner" class="hidden"></div>
+        <!-- The HUD is one row of five (UX audit 2026-11-06); the rest of the table's controls are in More. -->
         <button class="fab" id="gamesBtn" title="Leave this table, resume, join, or start another campaign">☰ Games</button>
-        <button class="fab" id="savesBtn" title="Read-only timeline playback and confirmed rewind">⏳ Timeline</button>
         <button class="fab" id="partyBtn" title="Party seats and character sheets">🧙 Party</button>
-        <button class="fab primary-fab" id="fullscreenBtn" title="Hide the cockpit and fill the display with the game">⛶ PLAY FULL SCREEN</button>
         <button class="fab" id="diceBtn" title="Roll a die">🎲 Roll</button>
-        <button class="fab" id="helpBtn" title="How to play">? Help</button>
-        <button class="fab" id="voiceBtn" title="Narration, spoken dice, action calls, and NPC pace">⚙ DM Settings</button>
-        <button class="fab" id="storyBtn" title="Open the Dungeon Master, character, inventory, and latest story">💬 DM &amp; Story</button>
+        <button class="fab" id="storyBtn" aria-pressed="false" title="Open the Dungeon Master, character, inventory, and latest story">💬 DM &amp; Story</button>
+        <button class="fab" id="moreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu" title="Timeline, help, Dungeon Master settings and full screen">⋯ More</button>
+        <div id="moreMenu" class="hud-menu hidden" role="menu" aria-label="More table controls">
+          <button role="menuitem" class="hud-item" id="savesBtn" title="Read-only timeline playback and confirmed rewind">⏳ Timeline</button>
+          <button role="menuitem" class="hud-item" id="helpBtn" title="How to play">? Help</button>
+          <button role="menuitem" class="hud-item" id="voiceBtn" title="Narration, spoken dice, action calls, and NPC pace">⚙ DM Settings</button>
+          <button role="menuitem" class="hud-item" id="fullscreenBtn" title="Hide the cockpit and fill the display with the game">Full screen</button>
+        </div>
         <div id="overlay" class="overlay hidden"><div class="card" id="overlayCard"></div></div>
       </div>
       <div id="story">
-        <h3>Dungeon Master <span style="display:flex;gap:10px;align-items:center"><span id="voiceStatus" title="Natural Dungeon Master narrator">Algenib · Gravelly Storyteller</span><span id="recapBtn" style="cursor:pointer;font-size:12px;color:var(--muted)" title="Previously, on…">⟲ recap</span><span id="closeStory" style="cursor:pointer">✕</span></span></h3>
+        <h3>Dungeon Master <span style="display:flex;gap:10px;align-items:center"><span id="voiceStatus" title="Natural Dungeon Master narrator">Algenib · Gravelly Storyteller</span><button type="button" id="recapBtn" title="Previously, on…">⟲ recap</button><button type="button" id="closeStory" aria-label="Close the Dungeon Master drawer" title="Close">✕</button></span></h3>
         <div id="railScroll">
           <section id="railCharacter" class="rail-character hidden" aria-live="polite"></section>
           <section id="questThread" class="quest-thread hidden" aria-live="polite">
@@ -190,7 +196,7 @@
     <div id="dock">
       <div id="who"><div class="name">—</div></div>
       <div id="actions"></div>
-      <div id="turnctl">
+      <div id="turnctl" class="idle">
         <button class="big" id="endTurn">End Turn</button>
         <button class="big ghost hidden" id="stayBtn">Hold Position</button>
         <button class="big ghost" id="moveBtn">Move</button>

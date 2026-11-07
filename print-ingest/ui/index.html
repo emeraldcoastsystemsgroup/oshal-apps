@@ -11,6 +11,7 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | ADR-135 P1 inbox surface. A view over the package's store (ADR-036): it renders the recommendation and posts a decision, and holds no domain logic of its own. Two things are deliberate. Every destination is shown, including the ones NOT recommended and their reason, because hiding a low-confidence option is a decision made for someone without telling them. And each destination states who can read it at the point of choice, since a bot corpus is routing, not privacy.
   2   | maintainer@emeraldcoastsystemsgroup.com   | 0.3.2: the company audience view for the Business shells (ADR-164 D6). Studio, Orbit and Commons open this first surface with ?audience=company; the page now loads the theme bootstrap and the shared kit right after it, and the kit paints the signed-in account's own inbox from GET /documents and GET /home-summary (four stats, the newest ten documents with where each was proposed or filed, the failed or partly filed ones with their reasons, the route's notes) with every refusal and failure named. The view never approves, rejects, imports or files. The full page's start (the inbox read, the approve / reject and tab listeners) runs only when no audience view renders, and its native controls keep the browser's default colour scheme so the bootstrap leaves the full page as it was.
+  3   | maintainer@emeraldcoastsystemsgroup.com   | 0.3.9 (UX audit 2026-11-06): the selected tab is inverted ink with its count, never the accent, so Approve is the one primary; the editable Document title is the heading and the printed text a 3-line excerpt that opens on a tap; Match: medium in sentence case with a tooltip; Readable by once under a group that shares it; Approve and Reject sticky at the bottom on a phone; the in-page title is for screen readers only. Guard: tests/ux-inbox.test.cjs.
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -160,7 +161,19 @@
   .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
   .tab { border: 1px solid var(--rule); background: var(--card); color: var(--ink-2);
          padding: 6px 13px; border-radius: 999px; cursor: pointer; font-size: 13px; }
-  .tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  /* Selected is inverted ink, never the accent fill, so Approve stays the one primary (UX audit 2026-11-06, §4.1, DS-24). */
+  .tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .tab { min-height: 40px; }
+  .tab .count { margin-left: 6px; font-variant-numeric: tabular-nums; opacity: .85; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .title-edit.heading { font-size: 17px; font-weight: 600; }
+  .excerpt { font-size: 14px; color: var(--ink-2); margin: 0 0 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+  .excerpt.full { display: block; -webkit-line-clamp: unset; }
+  .readers { color: var(--ink-3); font-size: 12px; margin: 2px 0 6px; }
+  @media (max-width: 640px) {
+    .doc .actions { position: sticky; bottom: 0; background: var(--card); padding: 10px 0; margin: 14px -20px -18px; padding-left: 20px; padding-right: 20px; border-top: 1px solid var(--rule); }
+    .doc .actions button { min-height: 44px; flex: 1 1 0; }
+  }
   .doc { background: var(--card); border: 1px solid var(--rule); border-radius: 8px;
          padding: 18px 20px; margin-bottom: 14px; }
   .doc h2 { font-size: 17px; margin: 0 0 6px; }
@@ -176,8 +189,7 @@
   .dest .name { font-weight: 600; font-size: 14.5px; }
   .dest .why { color: var(--ink-2); font-size: 13px; }
   .dest .who { color: var(--ink-3); font-size: 12px; margin-top: 2px; }
-  .conf { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
-          color: var(--ink-3); margin-left: 6px; }
+  .conf { font-size: 12px; color: var(--ink-3); margin-left: 6px; }
   .title-edit { width: 100%; padding: 7px 10px; font: inherit; margin-bottom: 14px;
                 border: 1px solid var(--rule); border-radius: 5px;
                 background: var(--bg); color: var(--ink); }
@@ -197,11 +209,11 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Print Inbox</h1>
+  <h1 class="sr-only">Print Inbox</h1><!-- the shell names the screen once (DS-03) -->
   <p class="sub">Documents printed to the swarm. Nothing is filed until you approve it.</p>
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" data-state="awaiting_approval" aria-selected="true">Awaiting approval</button>
-    <button class="tab" role="tab" data-state="" aria-selected="false">All</button>
+    <button class="tab" role="tab" data-state="awaiting_approval" aria-selected="true">Awaiting approval<span class="count"></span></button>
+    <button class="tab" role="tab" data-state="" aria-selected="false">All<span class="count"></span></button>
   </div>
   <div id="list"></div>
 </div>
@@ -225,13 +237,25 @@ function metaLine(doc) {
     .filter(Boolean).map(esc).join(' · ');
 }
 
-function destinationRow(p) {
+/** 'MEDIUM' reads as sentence-case meta, 'Match: medium', with what it means on hover (§2.5). */
+function matchWords(c) {
+  const t = String(c || '').trim().toLowerCase();
+  return t ? 'Match: ' + t : '';
+}
+function destinationRow(p, sameReaders) {
   return '<label class="dest' + (p.recommended ? ' rec' : '') + '">'
     + '<input type="checkbox" value="' + esc(p.id) + '"' + (p.recommended ? ' checked' : '') + '>'
     + '<span><span class="name">' + esc(p.label) + '</span>'
-    + '<span class="conf">' + esc(p.confidence) + '</span>'
+    + '<span class="conf" title="how well the text matches this destination">' + esc(matchWords(p.confidence)) + '</span>'
     + '<div class="why">' + esc(p.reason) + '</div>'
-    + '<div class="who">Readable by ' + esc(p.readableBy) + '</div></span></label>';
+    + (sameReaders ? '' : '<div class="who">Readable by ' + esc(p.readableBy) + '</div>') + '</span></label>';
+}
+/** The destinations; when every one is readable by the same readers that line is said once under the group, not per row. */
+function destinationGroup(proposals) {
+  const readers = Array.from(new Set(proposals.map((p) => p.readableBy)));
+  const same = proposals.length > 1 && readers.length === 1;
+  return proposals.map((p) => destinationRow(p, same)).join('')
+    + (same ? '<div class="readers">Readable by ' + esc(readers[0]) + '</div>' : '');
 }
 
 function decidedView(doc) {
@@ -254,13 +278,16 @@ function render(documents) {
     const ruleNote = rec.appliedRule
       ? '<div class="banner">Matched the rule &ldquo;' + esc(rec.appliedRule.label) + '&rdquo;, which pre-ticked destinations. It cannot approve on its own.</div>'
       : '';
+    // The editable Document title is the heading; the printed text is a 3-line excerpt that opens in full on a tap.
     return '<article class="doc" data-id="' + esc(doc.intakeId) + '">'
-      + '<h2>' + esc(doc.title) + '</h2>'
+      + (pending
+        ? '<input class="title-edit heading" value="' + esc(doc.title) + '" aria-label="Document title">'
+        : '<h2>' + esc(doc.title) + '</h2>')
       + '<div class="meta">' + metaLine(doc) + ' · ' + esc(doc.state.replace(/_/g, ' ')) + '</div>'
+      + (pending ? '<p class="excerpt" tabindex="0" title="Show the whole text">' + esc(doc.title) + '</p>' : '')
       + (pending ? ruleNote : '')
       + (pending
-        ? '<input class="title-edit" value="' + esc(doc.title) + '" aria-label="Document title">'
-          + proposals.map(destinationRow).join('')
+        ? destinationGroup(proposals)
           + '<div class="actions"><button class="approve">Approve</button>'
           + '<button class="reject">Reject</button></div>'
         : decidedView(doc))
@@ -271,7 +298,17 @@ function render(documents) {
 async function load() {
   const res = await fetch(API + '/documents' + (state ? '?state=' + encodeURIComponent(state) : ''));
   if (!res.ok) { list.innerHTML = '<div class="empty">Could not load the inbox.</div>'; return; }
-  render((await res.json()).documents || []);
+  const documents = (await res.json()).documents || [];
+  showCount(state, documents.length);
+  render(documents);
+}
+
+/** The selected tab carries its count ('Awaiting approval 1'); a tab not read yet shows none rather than a guess. */
+function showCount(forState, n) {
+  document.querySelectorAll('.tab').forEach((t) => {
+    const c = t.querySelector && t.querySelector('.count');
+    if (c && t.dataset.state === forState) c.textContent = String(n);
+  });
 }
 
 async function decide(article, action) {
@@ -303,6 +340,7 @@ if (!window.AppView || !AppView.active()) {
   list.addEventListener('click', (event) => {
     const article = event.target.closest('.doc');
     if (!article) return;
+    if (event.target.classList.contains('excerpt')) event.target.classList.toggle('full');
     if (event.target.classList.contains('approve')) decide(article, 'approve');
     if (event.target.classList.contains('reject')) decide(article, 'reject');
   });

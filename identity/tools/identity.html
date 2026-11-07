@@ -16,6 +16,14 @@
   api_key) and a per-provider liveness `status` instead of per-account rows; both shapes render.
   Connect/Reconnect start consent at /api/connect/{id}/start, and fall back to the kernel's JSON
   /connectors/{id}/authorize answer when that route is not served.
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (identity--identity-home, SPLIT): two views, one job
+    each. Your accounts (the default) lists only granted and needs-attention accounts, the attention item first, with
+    one primary Add a connection, Access review as a secondary and one meta line instead of the hero and four tiles.
+    The Connector catalog has search, a category filter, the status filters, a Show unavailable switch (connectors
+    with no configured sign-in hidden by default), 48 cards per page with Show more, and Other last. An unconnected
+    card loses its pill and its "Not connected yet." line and reads Set up; Open is no longer a second primary. One
+    label set: Needs attention, Available. Desktop: a tab row; phone: a bottom bar. No request or flow changed.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -533,49 +541,88 @@
       grid-template-columns: 1fr;
     }
   }
+
+  /* UX audit 2026-11-06: the two views and their bar, the meta line, catalog controls and the two-line names. */
+  .view-bar { display:flex; gap:4px; border-bottom:1px solid var(--identity-line); margin:0 0 16px; }
+  .view-tab { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 16px; border:0; border-bottom:2px solid transparent;
+    background:none; color:var(--identity-muted); font:inherit; font-size:14px; font-weight:700; cursor:pointer; }
+  .view-tab[aria-selected="true"] { color:var(--identity-text); border-bottom-color:var(--identity-accent); }
+  .view-tab:focus-visible { outline:2px solid var(--identity-accent); outline-offset:-2px; }
+  .view[hidden] { display:none !important; }
+  .view-head { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-bottom:16px; }
+  .view-head .actions { margin-left:auto; }
+  .meta-line { margin:0; color:var(--identity-muted); font-size:14px; }
+  .meta-line .metric-label { display:inline; font-size:14px; font-weight:600; color:var(--identity-muted); }
+  .meta-line strong { margin-left:6px; color:var(--identity-text); }
+  .meta-line .metric-item { white-space:nowrap; display:inline-block; }
+  .meta-line .metric-item + .metric-item::before { content:'·'; margin:0 10px; color:var(--identity-faint); }
+  .meta-line .metric-item.attention strong { color:var(--identity-warn); }
+  .toolbar { grid-template-columns:minmax(220px, 1fr) auto auto auto; }
+  .category-select { min-height:44px; border:1px solid var(--identity-line); border-radius:8px; padding:0 12px;
+    background:var(--bg-primary, #0a1420); color:var(--identity-text); font:inherit; font-size:14px; }
+  .switch-row { display:inline-flex; align-items:center; gap:8px; min-height:44px; color:var(--identity-text); font-size:14px; font-weight:600; cursor:pointer; }
+  .switch-row input { width:20px; height:20px; accent-color:var(--identity-accent); }
+  .more-row { display:flex; justify-content:center; margin-top:16px; }
+  .card .name { white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .empty-accounts { text-align:center; padding:28px 16px; }
+  .empty-accounts .codicon { font-size:48px; color:var(--identity-muted); }
+  .empty-accounts h2 { margin:12px 0 6px; font-size:18px; }
+  .empty-accounts p { margin:0; color:var(--identity-muted); font-size:14px; }
+  @media (max-width: 900px) { .toolbar { grid-template-columns:1fr 1fr; } .toolbar .search { grid-column:1 / -1; } }
+  @media (max-width: 640px) {
+    .page { padding-bottom:calc(88px + env(safe-area-inset-bottom, 0px)); }
+    /* Phone: the view bar is the bottom bar (design standard 3.1); the right 72px stay free for the concierge button. */
+    .view-bar { position:fixed; left:0; right:0; bottom:0; z-index:20; margin:0; height:calc(56px + env(safe-area-inset-bottom, 0px));
+      padding:0 72px env(safe-area-inset-bottom, 0px) 8px; border-top:1px solid var(--identity-line-strong); border-bottom:0;
+      background:var(--bg-primary, #0a1420); }
+    .view-tab { flex:1; flex-direction:column; justify-content:center; gap:2px; min-height:56px; padding:0 4px; font-size:12px; border-bottom:0; border-top:2px solid transparent; }
+    .view-tab .codicon { font-size:20px; }
+    .view-tab[aria-selected="true"] { border-top-color:var(--identity-accent); }
+    .view-head .actions { margin-left:0; width:100%; flex-wrap:wrap; }
+    .view-head .actions .btn.primary { flex:1 1 100%; }
+    .toolbar { grid-template-columns:1fr; }
+  }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
 <div class="page">
-  <section class="identity-hero">
-    <div>
-      <p class="eyebrow">Connected Account Launcher</p>
-      <div class="head-title">
-        <span class="badge codicon codicon-key"></span>
-        <h1>Identity Hub</h1>
+  <!-- Two views, one job each (UX audit 2026-11-06, SPLIT): Your accounts launches and repairs what is already
+       authorized; the Connector catalog finds and sets up a new one. Desktop: a tab row; phone: a bottom bar. -->
+  <nav class="view-bar" id="viewBar" role="tablist" aria-label="Identity Hub views">
+    <button class="view-tab" type="button" role="tab" id="tab-accounts" data-view="accounts" aria-controls="view-accounts" aria-selected="true"><span class="codicon codicon-account"></span><span>Your accounts</span></button>
+    <button class="view-tab" type="button" role="tab" id="tab-catalog" data-view="catalog" aria-controls="view-catalog" aria-selected="false"><span class="codicon codicon-library"></span><span>Connector catalog</span></button>
+  </nav>
+  <section class="view" id="view-accounts" role="tabpanel" aria-labelledby="tab-accounts">
+    <div class="view-head">
+      <p class="meta-line" id="identityMetrics" aria-label="Identity connection summary"></p>
+      <div class="actions">
+        <button class="btn primary" type="button" id="addBtn"><span class="codicon codicon-add"></span>Add a connection</button>
+        <button class="btn ghost" type="button" id="reviewBtn"><span class="codicon codicon-shield"></span>Access review</button>
+        <button class="btn ghost" type="button" id="manageBtn"><span class="codicon codicon-settings-gear"></span>Manage connections</button>
       </div>
-      <p class="sub">Every authorized account in one place. Open connected services, reconnect expired logins, or start a new consent flow without exposing tokens or passwords.</p>
     </div>
-    <div class="actions">
-      <button class="btn ghost" id="manageBtn"><span class="codicon codicon-settings-gear"></span>Manage connections</button>
-      <button class="btn primary" id="reviewBtn"><span class="codicon codicon-shield"></span>Access review</button>
-    </div>
+    <div id="review"></div>
+    <div id="accounts"><div class="spin"><span class="dot"></span> Loading your accounts…</div></div>
   </section>
-  <section class="metric-grid" id="identityMetrics" aria-label="Identity connection summary"></section>
-  <section class="toolbar" aria-label="Connection filters">
-    <label class="search">
-      <span class="codicon codicon-search"></span>
-      <input id="identitySearch" type="search" placeholder="Search accounts, providers, or categories" autocomplete="off" />
-    </label>
-    <div class="filters" id="identityFilters">
-      <button class="filter-btn is-active" type="button" data-filter="all">All</button>
-      <button class="filter-btn" type="button" data-filter="connected">Connected</button>
-      <button class="filter-btn" type="button" data-filter="needs-attention">Needs attention</button>
-      <button class="filter-btn" type="button" data-filter="available">Available</button>
+  <section class="view" id="view-catalog" role="tabpanel" aria-labelledby="tab-catalog" hidden>
+    <div class="toolbar" aria-label="Catalog filters">
+      <label class="search">
+        <span class="codicon codicon-search"></span>
+        <input id="identitySearch" type="search" placeholder="Search providers or categories" autocomplete="off" aria-label="Search the connector catalog" />
+      </label>
+      <select id="identityCategory" class="category-select" aria-label="Category"><option value="">All categories</option></select>
+      <div class="filters" id="identityFilters">
+        <button class="filter-btn is-active" type="button" data-filter="all">All</button>
+        <button class="filter-btn" type="button" data-filter="available">Available</button>
+        <button class="filter-btn" type="button" data-filter="needs-attention">Needs attention</button>
+        <button class="filter-btn" type="button" data-filter="connected">Connected</button>
+      </div>
+      <label class="switch-row"><input type="checkbox" id="identityUnavailable" role="switch" /><span>Show unavailable</span></label>
     </div>
+    <div id="main"><div class="spin"><span class="dot"></span> Loading the catalog…</div></div>
+    <div class="more-row"><button class="btn ghost" type="button" id="catalogMore" hidden>Show more</button></div>
   </section>
-  <div class="head">
-    <span class="badge">🔑</span>
-    <h1>Identity Hub</h1>
-    <div class="actions">
-      <button class="btn ghost sm" id="legacyManageBtn">Manage connections</button>
-      <button class="btn primary sm" id="legacyReviewBtn">Access review</button>
-    </div>
-  </div>
-  <div class="sub">Every account you've connected, in one place — click <strong>Open</strong> to jump straight in, <strong>Reconnect</strong> a login that's expired, or <strong>Connect</strong> a new one. OSHAL never shows or hands back a password; this launches accounts you've already authorized.</div>
-  <div id="review"></div>
-  <div id="main"><div class="spin"><span class="dot"></span> Loading your connections…</div></div>
 </div>
 
 <script>
@@ -584,8 +631,18 @@ const main = $('main');
 const metrics = $('identityMetrics');
 const searchInput = $('identitySearch');
 const filters = $('identityFilters');
+const accountsBox = $('accounts');
+const categorySelect = $('identityCategory');
+const unavailableSwitch = $('identityUnavailable');
+const moreButton = $('catalogMore');
 let allProviders = [];
 let activeFilter = 'all';
+/** The open view ('accounts' or 'catalog'), the catalog's category, its "Show unavailable" switch and its page size. */
+let activeView = 'accounts';
+let activeCategory = '';
+let showUnavailable = false;
+const CATALOG_PAGE = 48;
+let catalogLimit = CATALOG_PAGE;
 /**
  * Per-provider liveness verdicts from /api/connect/liveness, keyed by provider id:
  * { status: 'ok' | 'needs_reconnect' | 'unknown', detail }. Empty until the probe answers, and
@@ -716,7 +773,7 @@ function actionsFor(p) {
   const openUrl = OPEN_URLS[p.id];
   const btns = [];
   if (p.connected && openUrl) {
-    btns.push(`<button class="btn primary sm" data-open="${esc(openUrl)}">Open ↗</button>`);
+    btns.push(`<button class="btn ghost sm" data-open="${esc(openUrl)}">Open ↗</button>`);
   }
   if (isTokenSetup(p)) {
     btns.push(`<button class="btn ghost sm" data-util="1">${granted(p) ? 'Manage' : 'Set up'}</button>`);
@@ -725,7 +782,7 @@ function actionsFor(p) {
   } else if (granted(p)) {
     btns.push(`<button class="btn ghost sm" data-start="${esc(p.id)}">Reconnect</button>`);
   } else {
-    btns.push(`<button class="btn ghost sm" data-start="${esc(p.id)}">Connect</button>`);
+    btns.push(`<button class="btn ghost sm" data-start="${esc(p.id)}">Set up</button>`);
   }
   return `<div class="row">${btns.join('')}</div>`;
 }
@@ -756,7 +813,9 @@ function cardFor(p) {
     llm: 'codicon-hubot',
   };
   const icon = p.id === 'any-llm' ? 'codicon-hubot' : (iconByCategory[p.category] || 'codicon-plug');
-  let pill = '<span class="pill off">Not connected</span>';
+  // A provider nobody has connected carries no pill and no "Not connected yet." line: in a catalog of 800 that
+  // repeated text was most of the page (UX audit 2026-11-06). Granted providers keep their state pill.
+  let pill = '';
   const anyExpired = needsAttention(p);
   const anyExpiring = (p.connections || []).some((c) => !!c.expiring) || p.status === 'expiring';
   if (granted(p)) {
@@ -775,7 +834,7 @@ function cardFor(p) {
         <span><span class="name">${esc(p.label)}</span>${providerIdLine(p)}<span class="provider-type">${esc(p.category || 'other')} - ${esc(AUTH_LABELS[String(p.auth || '').toLowerCase()] || p.auth || 'connection')}</span></span>
         ${pill}
       </div>
-      ${accts ? `<div class="accts">${accts}</div>` : `<div class="note">${lapsed(p) ? 'Saved sign-in has lapsed.' : p.connected ? 'Connected.' : 'Not connected yet.'}</div>`}
+      ${accts ? `<div class="accts">${accts}</div>` : (granted(p) ? `<div class="note">${lapsed(p) ? 'Saved sign-in has lapsed.' : 'Connected.'}</div>` : '')}
       ${actionsFor(p)}
     </div>`;
 }
@@ -791,22 +850,28 @@ function countExpired(providers) {
   return providers.filter(needsAttention).length;
 }
 
+/** A connector whose sign-in is not configured on this installation: it cannot be set up, so the catalog hides it by default. */
+function isStub(p) { return !p.connected && !lapsed(p) && !p.configured && !isTokenSetup(p); }
+
+/** The one meta line over Your accounts (it replaced four KPI tiles); one label set: "Needs attention", "Available". */
 function renderMetrics(providers) {
   const connected = providers.filter((p) => p.connected).length;
   const expired = countExpired(providers);
   const configured = providers.filter((p) => p.configured || isTokenSetup(p)).length;
   const categories = new Set(providers.map((p) => p.category || 'other')).size;
   metrics.innerHTML = [
-    ['Connected', connected],
-    ['Need attention', expired],
-    ['Ready to enable', configured],
-    ['Categories', categories],
-  ].map(([label, value]) => `<article class="metric-card"><span class="metric-label">${label}</span><strong>${value}</strong></article>`).join('');
+    ['Connected', connected, ''],
+    ['Needs attention', expired, expired ? ' attention' : ''],
+    ['Available', configured, ''],
+    ['Categories', categories, ''],
+  ].map(([label, value, tone]) => `<span class="metric-item${tone}"><span class="metric-label">${label}</span><strong>${value}</strong></span>`).join('');
 }
 
 function providerMatches(p) {
   const query = (searchInput?.value || '').trim().toLowerCase();
   const expired = needsAttention(p);
+  if (!showUnavailable && isStub(p)) return false;
+  if (activeCategory && (p.category || 'other') !== activeCategory) return false;
   if (activeFilter === 'connected' && !p.connected) return false;
   if (activeFilter === 'needs-attention' && !(expired || (p.connected && !p.configured))) return false;
   if (activeFilter === 'available' && p.connected) return false;
@@ -859,41 +924,105 @@ function rankedMatches(providers, query) {
     .map((x) => x.p);
 }
 
-function renderProviders() {
-  const providers = allProviders.filter(providerMatches);
-  const query = (searchInput?.value || '').trim();
-  if (query) {
-    const ranked = rankedMatches(providers, query);
-    main.innerHTML = (ranked.length
-      ? `<div class="cat">Best matches for “${esc(query)}”</div><div class="grid">${ranked.map(cardFor).join('')}</div>`
-      : '<div class="empty-card">No connections match this search or filter.</div>')
-      + `<div class="foot">${allProviders.filter((p) => p.connected).length} of ${allProviders.length} providers connected.</div>`;
-    wire(main);
-    return;
-  }
+/** The display label of a category id. */
+function categoryLabel(cat) {
+  return (CATEGORIES.find(([c]) => c === cat) || [cat, cat.charAt(0).toUpperCase() + cat.slice(1)])[1];
+}
+
+/** The catalog's category order: the known groups, then the rest by name, with "Other" last (it was first). */
+function orderedCategories(keys) {
+  const known = CATEGORIES.map(([k]) => k).filter((k) => k !== 'other' && keys.includes(k));
+  const rest = keys.filter((k) => k !== 'other' && !CATEGORIES.some(([c]) => c === k)).sort((a, b) => categoryLabel(a).localeCompare(categoryLabel(b)));
+  return [...known, ...rest, ...(keys.includes('other') ? ['other'] : [])];
+}
+
+/** Fill the category filter with every category in the catalog and its count; the choice survives a re-render. */
+function renderCategoryOptions(providers) {
+  if (!categorySelect) return;
+  const counts = new Map();
+  for (const p of providers) { const c = p.category || 'other'; counts.set(c, (counts.get(c) || 0) + 1); }
+  const cats = orderedCategories([...counts.keys()]);
+  categorySelect.innerHTML = `<option value="">All categories (${cats.length})</option>`
+    + cats.map((c) => `<option value="${esc(c)}"${c === activeCategory ? ' selected' : ''}>${esc(categoryLabel(c))} (${counts.get(c)})</option>`).join('');
+}
+
+/** The catalog list in display order: ranked when searching, else grouped by category. */
+function catalogRows(providers, query) {
+  if (query) return rankedMatches(providers, query).map((p) => ({ p, cat: null }));
   const byCat = new Map();
   for (const p of providers) {
     const cat = p.category || 'other';
     if (!byCat.has(cat)) byCat.set(cat, []);
     byCat.get(cat).push(p);
   }
-  const ordered = [...CATEGORIES.map(([k]) => k), ...[...byCat.keys()].filter((k) => !CATEGORIES.some(([c]) => c === k))];
-  const seen = new Set();
-  let html = '';
-  for (const cat of ordered) {
-    if (seen.has(cat) || !byCat.has(cat)) continue;
-    seen.add(cat);
-    const label = (CATEGORIES.find(([c]) => c === cat) || [cat, cat.charAt(0).toUpperCase() + cat.slice(1)])[1];
-    const cards = byCat.get(cat).sort((a, b) => (b.connected - a.connected) || String(a.label).localeCompare(String(b.label))).map(cardFor).join('');
-    html += `<div class="cat">${esc(label)}</div><div class="grid">${cards}</div>`;
+  const rows = [];
+  for (const cat of orderedCategories([...byCat.keys()])) {
+    byCat.get(cat).sort((a, b) => (b.connected - a.connected) || String(a.label).localeCompare(String(b.label))).forEach((p) => rows.push({ p, cat }));
   }
+  return rows;
+}
+
+/** Render the Connector catalog: one page of cards (48, then Show more), category headings when not searching. */
+function renderProviders() {
+  const providers = allProviders.filter(providerMatches);
+  const query = (searchInput?.value || '').trim();
+  const rows = catalogRows(providers, query);
+  const shown = rows.slice(0, catalogLimit);
+  let html = query && shown.length ? `<div class="cat">Best matches for “${esc(query)}”</div><div class="grid">` : '';
+  let open = !!html, current = null;
+  for (const { p, cat } of shown) {
+    if (!query && cat !== current) {
+      if (open) html += '</div>';
+      html += `<div class="cat">${esc(categoryLabel(cat))}</div><div class="grid">`;
+      open = true; current = cat;
+    }
+    html += cardFor(p);
+  }
+  if (open) html += '</div>';
+  if (!shown.length) html = '<div class="empty-card">No connections match this search or filter.</div>';
   const connected = allProviders.filter((p) => p.connected).length;
-  if (!html) {
-    html = '<div class="empty-card">No connections match this search or filter.</div>';
-  }
-  html += `<div class="foot">${connected} of ${allProviders.length} providers connected. Open launches a provider in a new tab; Reconnect and Connect run the consent flow. OSHAL stores authorization metadata for your bots without displaying secrets.</div>`;
+  html += `<div class="foot">Showing ${shown.length} of ${rows.length}. ${connected} of ${allProviders.length} providers connected. Open launches a provider in a new tab; Reconnect and Set up run the consent flow. OSHAL stores authorization metadata for your bots without displaying secrets.</div>`;
   main.innerHTML = html;
+  if (moreButton) moreButton.hidden = rows.length <= shown.length;
   wire(main);
+}
+
+/** Your accounts: granted and needs-attention providers only, the ones needing attention first. */
+function accountRows(providers) {
+  const rank = (p) => (needsAttention(p) ? 0 : ((p.connections || []).some((c) => !!c.expiring) || p.status === 'expiring') ? 1 : 2);
+  return providers.filter((p) => granted(p) || needsAttention(p))
+    .sort((a, b) => (rank(a) - rank(b)) || String(a.label || a.id).localeCompare(String(b.label || b.id)));
+}
+
+/** Render Your accounts, or its empty state when nothing is connected (the one primary stays Add a connection). */
+function renderAccounts() {
+  if (!accountsBox) return;
+  const rows = accountRows(allProviders);
+  accountsBox.innerHTML = rows.length
+    ? `<div class="grid">${rows.map(cardFor).join('')}</div>`
+    : '<div class="empty-card empty-accounts"><span class="codicon codicon-account"></span><h2>No accounts connected yet</h2><p>Add a connection to open it from here.</p></div>';
+  wire(accountsBox);
+}
+
+/** Show one view; the address keeps it (#view=catalog) so Reload opens the same view. */
+function setView(view) {
+  activeView = view === 'catalog' ? 'catalog' : 'accounts';
+  ['accounts', 'catalog'].forEach((v) => {
+    const panel = $('view-' + v), tab = $('tab-' + v);
+    if (panel) panel.hidden = v !== activeView;
+    if (tab && tab.setAttribute) tab.setAttribute('aria-selected', String(v === activeView));
+  });
+  if (typeof history !== 'undefined' && history.replaceState && typeof location !== 'undefined') {
+    history.replaceState(null, '', location.pathname + location.search + (activeView === 'catalog' ? '#view=catalog' : ''));
+  }
+}
+
+/** Re-render everything that depends on the catalog and the liveness verdicts. */
+function renderAll() {
+  renderMetrics(allProviders);
+  renderCategoryOptions(allProviders);
+  renderAccounts();
+  renderProviders();
 }
 
 /**
@@ -909,8 +1038,7 @@ async function loadLiveness() {
     const verdicts = {};
     (j.providers || []).forEach((x) => { verdicts[x.provider] = { status: x.status, detail: x.detail || '' }; });
     liveness = verdicts;
-    renderMetrics(allProviders);
-    renderProviders();
+    renderAll();
   } catch (e) {
     // Never blank a page that already rendered; say why in the console instead.
     console.warn('identity: liveness probe failed', e);
@@ -922,16 +1050,16 @@ async function load() {
   let providers;
   try {
     const r = await fetch('/api/connect/list', { credentials: 'include' });
-    if (r.status === 401) { main.innerHTML = '<div class="panel"><div class="err">Please sign in to see your connections.</div></div>'; return; }
+    if (r.status === 401) { main.innerHTML = '<div class="panel"><div class="err">Please sign in to see your connections.</div></div>'; if (accountsBox) accountsBox.innerHTML = main.innerHTML; return; }
     const j = await r.json();
     providers = j.providers || [];
     allProviders = providers;
-    renderMetrics(allProviders);
-    renderProviders();
+    renderAll();
     await loadLiveness();
     return;
   } catch (e) {
     main.innerHTML = `<div class="panel"><div class="err">Couldn't load connections: ${esc(e.message)}</div></div>`;
+    if (accountsBox) accountsBox.innerHTML = main.innerHTML;
     return;
   }
   const byCat = new Map();
@@ -975,14 +1103,22 @@ async function runReview() {
 
 $('reviewBtn').onclick = runReview;
 $('manageBtn').onclick = () => openTop('/utilities');
-searchInput?.addEventListener('input', renderProviders);
+$('addBtn').onclick = () => { setView('catalog'); if (searchInput && searchInput.focus) searchInput.focus(); };
+['accounts', 'catalog'].forEach((v) => { const tab = $('tab-' + v); if (tab) tab.onclick = () => setView(v); });
+/** A changed search or filter starts the catalog at its first page again. */
+const refilter = () => { catalogLimit = CATALOG_PAGE; renderProviders(); };
+searchInput?.addEventListener('input', refilter);
+categorySelect?.addEventListener('change', () => { activeCategory = categorySelect.value || ''; refilter(); });
+unavailableSwitch?.addEventListener('change', () => { showUnavailable = !!unavailableSwitch.checked; refilter(); });
+if (moreButton) moreButton.onclick = () => { catalogLimit += CATALOG_PAGE; renderProviders(); };
 filters?.querySelectorAll('[data-filter]').forEach((button) => {
   button.addEventListener('click', () => {
     activeFilter = button.getAttribute('data-filter') || 'all';
     filters.querySelectorAll('[data-filter]').forEach((candidate) => candidate.classList.toggle('is-active', candidate === button));
-    renderProviders();
+    refilter();
   });
 });
+setView(typeof location !== 'undefined' && /(^|[#&])view=catalog\b/.test(location.hash || '') ? 'catalog' : 'accounts');
 // The full page only: under an audience view the shared kit paints instead (see the head script).
 if (!window.AppView || !AppView.active()) load();
 </script>

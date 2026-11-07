@@ -176,6 +176,12 @@
   .sat-row .remove { margin-left: 6px; font-size: 11px; padding: 2px 8px; }
   button.danger { border-color: var(--bad); color: var(--bad); }
   button:disabled { opacity: 0.4; cursor: default; }
+  /* UX audit 2026-11-06: the globe and catalog controls measured 20-26px; each is at least 44px tall on a touch screen
+     or a phone-width page (design standard touch targets). */
+  @media (pointer: coarse), (max-width: 760px) {
+    #btnAutoRot, #btnFrame, #catAdd, .sat-row .remove { min-height: 44px; min-width: 44px; padding: 0 14px; font-size: 13px; }
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   input, select, textarea {
     background: var(--bg); color: var(--text); border: 1px solid var(--line);
     border-radius: 5px; padding: 5px 7px; font-size: 12px; width: 100%;
@@ -296,7 +302,7 @@
 </head>
 <body>
 <header>
-  <h1>🛰 Sat Ops — Fleet Plane</h1>
+  <h1 class="sr-only">Sat Ops</h1><!-- named once: the shell's app bar already says Sat Ops; the SIM FLEET badge stays -->
   <span class="sim-badge">SIM FLEET — commands cannot leave simulation</span>
   <span class="spacer"></span>
   <span class="clock" id="clock"></span>
@@ -1077,10 +1083,11 @@ if (!window.AppView || !AppView.active()) {
 }
 </script>
 
-<style>/* The hand-off panel floats beside a wide screen; on a phone it sits in the page flow after the content, so it never covers the rows above it. */
-.handoff-dock{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px))}
-@media (max-width:760px){.handoff-dock{position:static;width:auto;margin:16px}}</style>
-<details id="evidenceReview" class="handoff-dock" style="max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
+<style>/* UX audit 2026-11-06: the brief panel never floats over the map (it covered the globe as a fixed pill): the script below
+   moves it into the right pane at every width, and it takes the theme's panel and ink instead of a fixed dark fill. */
+.handoff-dock{position:static;width:auto;margin:12px;max-height:65vh;overflow:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:12px;box-sizing:border-box}
+.handoff-dock summary{min-height:44px;display:flex;align-items:center}</style>
+<details id="evidenceReview" class="handoff-dock">
  <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
  <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
  <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>
@@ -1097,6 +1104,10 @@ pick.addEventListener('change',()=>{notes.value=records[pick.selectedIndex]?.act
 panel.addEventListener('toggle',async()=>{if(!panel.open||loaded)return;try{const response=await fetch("/api/sat/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}});
 if(panel.open)panel.dispatchEvent(new Event('toggle'));
 })().catch(()=>{document.getElementById('evidenceState').textContent='Connected actions are unavailable.';});
+</script>
+<script>
+// The brief panel lives in the right pane (UX audit 2026-11-06, R3): it never floats over the globe or the map.
+(function () { var r = document.getElementById('right'), d = document.getElementById('evidenceReview'); if (r && d) r.appendChild(d); })();
 </script>
 
 </body>

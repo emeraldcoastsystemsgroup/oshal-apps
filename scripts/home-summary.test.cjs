@@ -3,6 +3,7 @@
  * 1 | Codex | Exercise packaged Home routes: session gate, unavailable sources, no secret leakage and no outbound dependencies.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Intelligent Communication's digest opens through the kernel's seal, doubled here.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: Pumpkin Review printed a saved time as a raw UTC instant ('saved 2026-10-13T10:55:35.857Z'); thirteen review pages render a summary item's detail the same way. Every page that renders item.detail formats its instants in the viewer's zone (localInstants, run as shipped).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Roger F14, 2026-11-06 (Stories: "open episode workflow buttons are large, refresh evidence... its just not following the general sizing of objects"): every review page that styles its own buttons does it on the design standard's scale (docs/ux/design-standard.md §4.1): the body text token at 600, 44px, radius m, a solid --ds-surface-2 fill; never the template's old 9px glass button (9px 13px sides, a translucent --glass-bg fill, 400 weight, 43px tall). The browser half is creative-studio/tests/design-standard-browser.test.mjs.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -123,6 +124,34 @@ test('Email: an opened saved digest becomes a review draft only', async () => {
   assert.equal(response.code,200);
   assert.equal(response.body.items[0].actions[0].context.notes,'A saved commitment to review');
   assert.deepEqual(response.body.items[0].actions.map(a=>a.integration),['prepare-document','review-sales']);
+});
+
+/** The CSS rules of a page's <style> blocks as [selectors, declarations] pairs (innermost rules, so a rule inside @media counts too). */
+function styleRules(html) {
+  const css = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1].replace(/\/\*[\s\S]*?\*\//g, '')).join('\n');
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => [m[1].split(',').map((s) => s.trim()), m[2].replace(/\s+/g, '')]);
+}
+
+test('every review page that styles its own buttons sizes them on the design standard scale, never the old 9px glass button', () => {
+  const pages = fs.readdirSync(root).map((dir) => path.join(root, dir, 'tools', 'review.html')).filter((file) => fs.existsSync(file));
+  assert.ok(pages.length >= 14, `found ${pages.length} review pages`);
+  let styled = 0;
+  for (const file of pages) {
+    const rules = styleRules(fs.readFileSync(file, 'utf8'));
+    for (const [selectors, body] of rules.filter(([s]) => s.some((x) => /(^|[\s>])button\b/.test(x)))) {
+      assert.ok(!/--glass-bg|border-radius:9px|padding:9px13px/.test(body), `${file}: ${selectors.join(',')} keeps the old glass button (${body})`);
+    }
+    const base = rules.filter(([s]) => s.some((x) => x === 'button' || x === 'main button'));
+    if (!base.length) continue; // the page draws only another kit's buttons (Little Monsters' .lm-btn)
+    styled += 1;
+    const all = base.map(([, b]) => b).join(';') + ';' + rules.filter(([s]) => s.includes('button:where(:not(.av-btn))')).map(([, b]) => b).join(';');
+    assert.match(all, /font:var\(--ds-text-body/, `${file}: button text is the body token (16px on touch, 15px on a desktop with a fine pointer)`);
+    assert.match(all, /font-weight:600/, `${file}: button labels are 600`);
+    assert.match(all, /min-height:44px/, `${file}: buttons are 44px touch targets`);
+    assert.match(all, /border-radius:var\(--ds-radius-m/, `${file}: buttons use the control radius`);
+    assert.match(all, /background:var\(--ds-surface-2/, `${file}: buttons are solid secondary fills`);
+  }
+  assert.ok(styled >= 13, `${styled} review pages style their own buttons`);
 });
 
 test('every review page shows a summary detail\'s saved instants in the viewer\'s zone, not as UTC text', () => {

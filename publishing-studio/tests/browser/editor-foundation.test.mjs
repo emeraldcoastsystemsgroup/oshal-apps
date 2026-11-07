@@ -2,12 +2,14 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the shared inspector through real browser controls, original-owner SQL revisions and native publishing operations. Assistant choice is an explicit test seam.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep primary publishing actions selectable at phone touch sizes.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.6: on a phone only Save revision stays in the one app bar row (Render, Undo, Redo and Refresh wait in More, the trial check 2026-11-06); the touch-size proof measures the drawn actions and that one row.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the design-standard screen: the rectangle is chosen by pressing it on the page and edited in Arrange (the one inspector); on a phone Arrange is a sheet the tool row opens; the app row is one row of 44 px targets; Reopen saved lives in Saved history and a discarded draft is confirmed in the page, not by a browser dialog.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fixture} from '../fixtures/fixture.mjs';
+import {choose,pick,done} from '../fixtures/publishing-ui.mjs';
 import {requireRuntime} from '../fixtures/runtime.mjs';
 const {chromium} = requireRuntime('playwright'), express = requireRuntime('express');
 const platform = resolve(process.env.OSHAL_PLATFORM_ROOT || resolve(import.meta.dirname, '../../../../oshal-kernel/platform'));
@@ -33,7 +35,7 @@ async function open(t, width = 1440) {
 }
 
 async function selectRectangle(page) {
-  await page.locator('#item').selectOption('foundation_rect');
+  await choose(page, 'foundation_rect');
   await page.locator('[data-editor-property="color"]').waitFor();
 }
 
@@ -89,34 +91,43 @@ test('focused properties flush before handoff; returned native edits stay manual
 
 test('phone keeps the document visible and opens a usable contextual inspector', {timeout: 180000}, async t => {
   const {page} = await open(t, 412);
-  await page.locator('.ef-tools').getByRole('button', {name: 'Properties', exact: true}).click();
-  await selectRectangle(page);
-  const input = page.locator('[data-editor-property="x"]');
+  await choose(page, 'foundation_rect');
+  await page.locator('.pub-toolrow').getByRole('button', {name: 'Arrange'}).click();
+  const input = page.locator('dialog[open] [data-editor-property="x"]');
   await input.fill('44'); await input.press('Tab');
-  await page.locator('.ef-close-drawer').getByText('Close inspector', {exact: true}).click();
+  await done(page);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   assert.equal(await page.locator('.ef-viewport').isVisible(), true);
-  const actions=await page.locator('.top .toolbar button').evaluateAll(buttons=>buttons.filter(button=>button.getClientRects().length).map(button=>{const box=button.getBoundingClientRect();return{id:button.id,width:box.width,height:box.height};}));assert.deepEqual(actions.map(action=>action.id),['save'],'one app bar row: Save revision, the rest in More');assert.ok(actions.every(action=>action.width>=44&&action.height>=44),'primary actions remain usable touch targets');
+  assert.equal(await page.locator('#x').inputValue(), '44');
+  const actions = await page.locator('.pub-approw > button').evaluateAll(buttons => buttons.filter(button => button.getClientRects().length).map(button => {const box = button.getBoundingClientRect(); return {id: button.id, width: box.width, height: box.height, top: box.top, bottom: box.bottom};}));
+  assert.ok(actions.length >= 4, 'the app row holds its controls ' + JSON.stringify(actions));
+  assert.ok(Math.max(...actions.map(action => action.top)) < Math.min(...actions.map(action => action.bottom)), 'one app row ' + JSON.stringify(actions));
+  for (const action of actions) assert.ok(action.width >= 44 && action.height >= 44, 'a touch-sized ' + action.id + ' ' + JSON.stringify(action));
 });
 
 test('cancelled and failed reopen preserve invalid fields; confirmed successful reopen discards them', {timeout: 180000}, async t => {
   const {f, page, id, read} = await open(t);
   await selectRectangle(page);
   const x = page.locator('[data-editor-property="x"]'); await x.fill('5000');
+  const native = []; page.on('dialog', dialog => {native.push(dialog.message()); void dialog.dismiss();}); t.after(() => assert.deepEqual(native, [], 'no browser dialog'));
   async function reopen(accept) {
-    const prompted = page.waitForEvent('dialog'), clicked = page.locator('#reopen').click();
-    const dialog = await prompted; await (accept ? dialog.accept() : dialog.dismiss()); await clicked;
+    await pick(page, '#more-menu', 'Saved history');
+    await page.locator('dialog[open] #reopen').click();
+    const confirm = page.locator('dialog.ds-confirm[open]'); await confirm.waitFor();
+    await confirm.getByRole('button', {name: accept ? 'Discard changes' : 'Cancel', exact: true}).click();
+    await confirm.waitFor({state: 'detached'});
+    if (await page.locator('dialog[open]').count()) await done(page);
   }
   await reopen(false);
   assert.equal(await x.inputValue(), '5000');
   const target = f.url + '/api/publishing-studio/documents/' + id;
   await page.route(target, route => route.fulfill({status: 503, json: {error: 'fixture_read_unavailable'}}));
   await reopen(true);
-  await page.locator('#status').filter({hasText: 'fixture_read_unavailable'}).waitFor();
+  await page.locator('.ef-error').filter({hasText: 'fixture_read_unavailable'}).waitFor();
   assert.equal(await x.inputValue(), '5000');
   await page.unroute(target);
   await reopen(true);
-  await page.locator('#status').filter({hasText: 'Opened saved revision 2'}).waitFor();
+  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Opened saved revision 2');
   assert.equal(await page.locator('.ef-discard').isVisible(), false);
   assert.equal((await read()).revision, 2);
   await selectRectangle(page); assert.equal(await x.inputValue(), '36');

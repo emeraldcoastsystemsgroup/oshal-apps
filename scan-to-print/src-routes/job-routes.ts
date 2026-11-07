@@ -65,6 +65,7 @@
  *                     |                             | fits (artifact-budget.ts). Guard: tests/reconstruct-save-bound.test.js.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind new jobs and source mutations to original-person calibration authority and expose closed durable calibration routes.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Pass scan.source.change to withCurrentJob on calibration, job patch/delete and photo upload/assign/delete routes so narrow source-editor roles match authorization.yaml.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Synthesize binary glTF 2.0 (.glb) and Apple USDZ (.usdz) downloads on demand from the job's current STL (RP-SCN-04) without inflating reconstruction commit size.
  */
 
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
@@ -90,7 +91,10 @@ import { type JobRequest, artifactPresence, requireCurrentOutput, retireOutput, 
 import type {AppContext} from '@/app/composition/app-context';
 import {createOwnedJob,readCalibration,updateCalibration,CalibrationError} from './calibration-editor';
 import { exportContours } from './engine/drawing/contour-export';
-import { downloadBytes, planArtifacts } from './artifact-budget';
+import { fromStl } from './engine/geometry/parse-stl';
+import { toGlb } from './engine/geometry/export-glb';
+import { toUsdz } from './engine/geometry/export-usdz';
+import { DOWNLOAD_LIMIT_BYTES as DOWNLOAD_LIMIT_CHECK, downloadBytes, planArtifacts } from './artifact-budget';
 
 const logger = createChildLogger({ module: 'scan-to-print-job-routes' });
 
@@ -559,14 +563,33 @@ function registerPointCloud(router: Router, deps: JobRouteDeps): void {
 function registerArtifacts(router: Router, deps: JobRouteDeps): void {
   router.get('/jobs/:jobId/artifacts/:key', withCurrentJob(deps, (req: JobRequest, res: Response) => {
     const job = req.scanJob as JobRow;
-    const key = req.params.key as ArtifactKey;
-    if (!(key in ARTIFACT_FILES)) { res.status(400).json({ error: 'unknown_artifact', keys: Object.keys(ARTIFACT_FILES) }); return; }
+    const rawKey = req.params.key;
+    const baseName = job.title.replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 60) || 'part';
+    if (rawKey === 'glb' || rawKey === 'usdz') {
+      if (!requireCurrentOutput(job, res, false)) return;
+      const stlFile = artifactPath(jobDir(deps.dataRoot, req.scanSub as string, job.job_id), 'stl');
+      if (!fs.existsSync(stlFile)) { res.status(404).json({ error: 'artifact_not_found' }); return; }
+      const mesh = fromStl(new Uint8Array(fs.readFileSync(stlFile)));
+      const payload = rawKey === 'glb' ? Buffer.from(toGlb(mesh, { name: baseName })) : Buffer.from(toUsdz(mesh, baseName));
+      if (payload.byteLength > DOWNLOAD_LIMIT_CHECK) {
+        res.status(422).json({ error: 'artifact_too_large', message: `The ${rawKey.toUpperCase()} export exceeds the single-download limit; crop or reconstruct at a lower resolution.` });
+        return;
+      }
+      res.setHeader('Cache-Control', 'private, no-store');
+      if (req.query.download !== undefined || rawKey === 'usdz') {
+        res.setHeader('Content-Disposition', `${req.query.download !== undefined ? 'attachment' : 'inline'}; filename="${baseName}.${rawKey}"`);
+      }
+      res.type(rawKey === 'glb' ? 'model/gltf-binary' : 'model/vnd.usdz+zip').send(payload);
+      return;
+    }
+    const key = rawKey as ArtifactKey;
+    if (!(key in ARTIFACT_FILES)) { res.status(400).json({ error: 'unknown_artifact', keys: [...Object.keys(ARTIFACT_FILES), 'glb', 'usdz'] }); return; }
     if (!requireCurrentOutput(job, res, key === 'gcode')) return;
     const file = artifactPath(jobDir(deps.dataRoot, req.scanSub as string, job.job_id), key);
     if (!fs.existsSync(file)) { res.status(404).json({ error: 'artifact_not_found' }); return; }
     const types: Record<ArtifactKey, string> = { stl: 'model/stl', obj: 'text/plain', svg: 'image/svg+xml', report: 'application/json', gcode: 'text/plain', contours: 'application/json' };
     res.setHeader('Cache-Control', 'private, no-store');
-    if (req.query.download !== undefined) res.setHeader('Content-Disposition', `attachment; filename="${job.title.replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 60) || 'part'}.${key === 'report' || key === 'contours' ? 'json' : key}"`);
+    if (req.query.download !== undefined) res.setHeader('Content-Disposition', `attachment; filename="${baseName}.${key === 'report' || key === 'contours' ? 'json' : key}"`);
     res.type(types[key]).send(downloadBytes(key, fs.readFileSync(file)));
   }, 'read'));
 }

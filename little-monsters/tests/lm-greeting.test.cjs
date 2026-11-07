@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Sweep 7: the home greeting read 'Up late?. Little Monsters is your study companion'. Runs the page's own daypart/greetLine/paintHero (tools/student-dashboard.html) at each hour band for a learner and a teacher: one end mark per sentence.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | US spelling (UX audit 2026-11-06): the subtitle says 'practice', not 'practise'.
  * -----------------------------------------------------------------------------
  *
  * Dependency-free (runs under the tests/*.test.cjs store-CI glob).
@@ -30,7 +31,7 @@ function hero(h, me) {
 
 test('a learner up late gets one question mark and no stray full stop', () => {
   const { sub } = hero(2, { teacher: false, name: 'Ada' });
-  assert.equal(sub, 'Up late? Little Monsters is your study companion: ask, practise, play, grow.');
+  assert.equal(sub, 'Up late? Little Monsters is your study companion: ask, practice, play, grow.');
 });
 
 test('every hour band ends each sentence with exactly one mark', () => {

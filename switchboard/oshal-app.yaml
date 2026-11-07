@@ -9,6 +9,8 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Declare the Gmail, Calendar, Graph, Slack and X hosts for the native kernel's egress, each with the caller's own connection (gmail, google-calendar, outlook, slack, twitter) applied as a Bearer token by the kernel.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Declare migrations/003 (the content calendar's scheduled-posts table in its final shape, and the workspace tables a tagged post reads) so the native kernel provisions them with their keys; POST /calendar/posts answered "SQL inserts require a declared primary key" because these tables were only declared by a router-build-time bootstrap.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.6.5: the open Streams post saves its edited title, body, tags and variants before Jarvis or the concierge reads it, and redraws the saved post when their change returns (shared document handoff), keeping edits still in progress.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 0.6.6 (UX audit 2026-11-06): Workspaces offers New workspace and a Personal desk before any account is connected (the route never needed one), and every Connect accounts link opens the Connections page at the top level instead of inside Switchboard's frame; the primary button takes the theme's on-accent ink. Calendar: 44px named day buttons, a plain Pipeline legend, and a save button that follows Status. Compose: Write variants waits for a network, chips show aria-pressed with an inverted fill, Generate is secondary, and a network that cannot post gets Copy. Streams: a named refresh, a Workspace field on New post, phone stages in one sideways row with imports under More. Every primary is the solid accent.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.6.7: UX audit batch 7 (switchboard-stage MERGE, switchboard-threads MERGE, switchboard-inbox FIX-LAYOUT, switchboard-today FIX-LAYOUT): fold Stage into Compose (Same text everywhere switch + confirmed Send to all chosen networks fan-out) and Threads into Inbox (?group=person segmented view) while retaining both surface ids for business-experience; phone list-detail + Back on Inbox, single Connect accounts sheet and time-of-day greeting on Today, and plain Connect links in route notes. Guard: tests/switchboard-ux-batch7.test.js.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — switchboard (the merged comms + social command center)
@@ -65,7 +67,7 @@ description: >-
   whole day in one place instead of app-hopping. Reads run on your own connector
   tokens; ranking and drafting run on the communications bot with cost captured
   per user. Nothing is sent or posted without your say-so.
-version: 0.6.5
+version: 0.6.7
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -161,13 +163,12 @@ ui:
       icon: codicon codicon-mail
       iframeUrl: /api/switchboard/inbox
       section: top
-    # Threads (ADR-113 next slice, shipped): one chronological timeline per counterpart
-    # over the already-ingested inbox store. Gmail rows can enter the encrypted,
-    # idempotent reply outbox only after an explicit per-reply confirmation.
+    # Threads (merged into Inbox): kept as a surface id for business-experience while
+    # opening Inbox directly in its By person grouping (?group=person).
     - toolName: switchboard-threads
       label: Threads
       icon: codicon codicon-comment-discussion
-      iframeUrl: /api/switchboard/threads
+      iframeUrl: /api/switchboard/inbox?group=person
       section: top
     - toolName: switchboard-calendar
       label: Calendar
@@ -179,12 +180,12 @@ ui:
       icon: codicon codicon-edit
       iframeUrl: /api/switchboard/compose
       section: top
-    # Stage (ADR-113 next slice, shipped): the broadcast fan-out composer — compose once,
-    # pick channels, confirm the send, fan out through Compose's own publish path.
+    # Stage (merged into Compose): kept as a surface id for business-experience while
+    # opening Compose directly with Same text everywhere + confirmed multi-network send.
     - toolName: switchboard-stage
       label: Stage
       icon: codicon codicon-megaphone
-      iframeUrl: /api/switchboard/stage
+      iframeUrl: /api/switchboard/compose
       section: top
     # Streams (2026-08-09): the CMS-grade publishing desk — drafts move through review /
     # approval / schedule / publish states with per-channel variants, revisions, and an

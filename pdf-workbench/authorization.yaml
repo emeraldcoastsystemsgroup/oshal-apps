@@ -1,4 +1,5 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Own job status is read; cancellation retains held write management.
+# CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Bind preferences, caller signatures, word-box extraction, photo-to-PDF, size-reduction and OOXML export routes fail-closed.
 version: 1
 resources:
   documents:
@@ -320,6 +321,82 @@ bindings:
       allOf:
         - document.view
         - document.read
+    - id: pdf-preferences-read
+      method: GET
+      path: /preferences
+      allOf:
+        - document.view
+    - id: pdf-preferences-save
+      method: PUT
+      path: /preferences
+      allOf:
+        - document.view
+    - id: pdf-signature-list
+      method: GET
+      path: /signatures
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-signature-save
+      method: POST
+      path: /signatures
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-signature-content
+      method: GET
+      path: /signatures/:signature/content
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-signature-place
+      method: POST
+      path: /signatures/:signature/place
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-signature-delete
+      method: DELETE
+      path: /signatures/:signature
+      allOf:
+        - document.view
+        - document.read
+        - document.delete
+    - id: pdf-documents-from-photos
+      method: POST
+      path: /documents/from-photos
+      allOf:
+        - document.view
+        - document.create
+    - id: pdf-page-words
+      method: GET
+      path: /documents/:document/pages/:page/words
+      allOf:
+        - document.view
+        - document.read
+    - id: pdf-document-compress
+      method: POST
+      path: /documents/:document/compress
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+    - id: pdf-document-convert
+      method: POST
+      path: /documents/:document/convert
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: pdf-document-export-format
+      method: GET
+      path: /documents/:document/export/:format
+      allOf:
+        - document.view
+        - document.read
+        - document.export
   tools:
     - id: pdf-editing-contract
       allOf:

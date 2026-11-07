@@ -1,3 +1,5 @@
+# 0.10.0 | maintainer@emeraldcoastsystemsgroup.com | Reference-product functionality (RP-SCN-01 to -06): interactive 3D bounding-box crop with Undo/Reset, build-plate rotation / lay-flat leveling with Z=0 snap, point-to-point 3D surface measurement, binary glTF 2.0 (.glb) and Apple USDZ (.usdz) exports, revocable forced-RLS shareable read-only viewer links, and View in AR (iOS Quick Look, Android Scene Viewer, desktop QR handoff).
+# 0.9.0 | maintainer@emeraldcoastsystemsgroup.com | The design standard (kernel docs/ux/design-standard.md; Roger, 2026-11-06, F2, F3, F12; Polycam and KIRI Engine, CONVENTIONS.md §5.8): the page declares its contract (studio, file:image, its work marked); one primary (Take a photo; New object, Printers…, Export… and Delete object are the Object ▾ menu, ⋯ More on a phone); no native prompt or confirm anywhere (in-page questions, the Bambu slice settings are fields); 1 Capture · 2 Scale · 3 Model · 4 Print and a Photos · Video · LiDAR file choice; Printers is a sheet; the viewer has Export and Print and its own Export sheet; the camera has X, a round shutter, Auto and Flip in the reference places; the reference functions Scan to Print lacks are greyed Not available yet controls (RP-SCN-01 to -06). No route, authorization or migration change.
 # 0.8.7 | maintainer@emeraldcoastsystemsgroup.com | Phones, the trial check (2026-11-06): a 2 · Measure width field sits directly above Make 3D model, which waits for it, and the 422 'knownDimensions' refusal reads as that step; a reload reopens the object open in that tab; choosing an object closes the Objects sheet; removing a photo asks first; the app bar names the open object instead of repeating Scan to Print.
 # 0.8.6 | maintainer@emeraldcoastsystemsgroup.com | A narrow scanner role in authorization.yaml (photos, Make 3D model, video, .ply and depth; no printer registration and no print), held by the trial's visitor seats so a visitor's photos end in a model.
 # 0.8.5 | maintainer@emeraldcoastsystemsgroup.com | Phones (Roger, trial.oswarm.ai, 2026-11-06, F2/F3): one primary Take photos that starts the object and opens the camera, a Front/Top/Right checklist with thumbnails above the fold, then Make 3D model and Download STL; video, .ply and silhouettes under a closed Advanced; the calibration projection carries canReconstruct (scan.edit) so a seat without it is not offered model building; the camera never scrolls the Today page.
@@ -9,6 +11,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 0.7.1: a printer access code sealed by the earlier platform is reported as "re-enter it on the Scan to Print screen" instead of a refusal Jarvis read as insufficient permissions. Guarded by scan-to-print/tests/print-tools-reentry.test.js.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Use route-backed native held approval for the new calibration read/update tools; preserve strict source CAS and original-owner HTTP authority.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: add 004-share-links.sql + native/004-share-links.sql for caller-scoped revocable read-only 3D share links, GLB/USDZ exports, 3D crop/rotate/measure tools, and AR preview.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 0.8.0: expose original-owned saved calibration read/update tools and additive provenance migrations without reconstruct or print side effects.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — scan-to-print ("Scan to Print")
@@ -93,7 +96,7 @@ description: >-
   turned auto-start on. The geometry is deterministic — silhouettes carve a voxel
   grid, the grid becomes the mesh and the drawing — and the same occupancy grid
   accepts depth and LiDAR input, so it is the building block a scanner plugs into.
-version: 0.8.7
+version: 0.10.0
 status: active
 scope: person
 
@@ -400,11 +403,16 @@ migrations:
   - migrations/002-bambu-lan-printers.sql
   - migrations/003-calibration-editor.sql
   - migrations/native/003-calibration-editor.sql
+  - migrations/004-share-links.sql
+  - migrations/native/004-share-links.sql
 
 nativeMigrations:
   - id: migrations/003-calibration-editor.sql
     native: skip
     reason: Original-person native scopes use native/003 for the same provenance table; PostgreSQL RLS and session policies are not native DDL.
+  - id: migrations/004-share-links.sql
+    native: skip
+    reason: Native personal scopes use native/004 for the share-link table; PostgreSQL RLS and session policies are not native DDL.
 
 # The right-rail chat agent when this app is focused.
 chatBot: scan-to-print-operator

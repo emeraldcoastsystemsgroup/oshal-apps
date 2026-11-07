@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The Camera Ops family view asserted as behaviour: the head block runs against a stub kit and a stub fetch, so the tests prove what it reads on open (only GET /fleet, /captures for each online camera, at most six, and /home-summary; never an offline camera, a control, chat, state, events or heartbeat call, a thumbnail or feed URL, the laptop camera or a write), that the stats, title and lede name the cameras (online, recording, offline, photos and videos, commands in 24 hours), that each camera reads as its state in plain words (ready, recording, busy, link closed, offline, no reading; simulated cameras named as practice cameras), that photos and videos read newest first with their length, file name and camera and no image, that the logged commands read as what was asked with Accepted or Refused, that nothing carries a link and the one action opens the cockpit, that a captures or command-log read failing on its own is named while the cameras still show, and that a 401, a 403, a 5xx, a failure with its own error and a non-JSON failure each read as what they are. The page's main script and its connected-actions script are run against stubs to prove that under the view nothing is wired, enumerated, fetched, imported or polled, while the full page still runs every start step.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: the diagnostic brief is a sheet opened from More and is offered only when mountConnectedActions shows this person an action. The connected-actions run now covers both: with an offer the More item is shown and the evidence select and the More item and the sheet's Done are bound (change, click, click) with nothing read until the sheet opens; with no offer (the kernel's mountConnectedActions hides its container) the More item is withheld and nothing is bound or read.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -266,18 +267,24 @@ async function runMain(activeView) {
 /**
  * @description Run the page's connected-actions script against a stub module loader, a stub DOM and a stub fetch.
  * @param {string|null} activeView What AppView.active() answers, or null for the full page.
- * @returns {Promise<{ imported: string[], mounted: number, listeners: string[], reads: string[] }>} What it loaded, mounted, bound and fetched.
+ * @param {boolean} offer Whether the stub mountConnectedActions shows an action (as an offering shell would) or hides its
+ * container (as the kernel's mountConnectedActions does today).
+ * @returns {Promise<{ imported: string[], mounted: number, listeners: string[], reads: string[], brief: object }>} What it
+ * loaded, mounted, bound and fetched, and the More item's state.
  */
-async function runActions(activeView) {
-  const calls = { imported: [], mounted: 0, listeners: [], reads: [] };
-  const el = () => ({ open: false, value: '', textContent: '', selectedIndex: 0, addEventListener: (type) => { calls.listeners.push(type); }, replaceChildren() {}, dispatchEvent() {} });
+async function runActions(activeView, offer) {
+  const calls = { imported: [], mounted: 0, listeners: [], reads: [] }, els = {};
+  const el = (id) => els[id] || (els[id] = { id, open: false, value: '', textContent: '', selectedIndex: 0, hidden: false, style: {}, dataset: {}, childElementCount: 0,
+    addEventListener: (type) => { calls.listeners.push(type); }, replaceChildren() {}, dispatchEvent() {}, showModal() {}, close() {}, hidePopover() {} });
   const src = inlineScript('mountConnectedActions').replace("await import('/cockpit/js/app-workflows.js')", "await importStub('/cockpit/js/app-workflows.js')");
   assert.ok(src.includes('importStub('), 'the connected-actions module is loaded where the test expects it');
-  const importStub = (spec) => { calls.imported.push(spec); return Promise.resolve({ mountConnectedActions: () => { calls.mounted++; return Promise.resolve(); } }); };
+  const mount = ({ element }) => { calls.mounted++; if (offer) { element.childElementCount = 1; } else { element.hidden = true; element.style.display = 'none'; } return Promise.resolve(); };
+  const importStub = (spec) => { calls.imported.push(spec); return Promise.resolve({ mountConnectedActions: mount }); };
   const fetchStub = (url) => { calls.reads.push(url); return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) }); };
   new Function('window', 'AppView', 'document', 'fetch', 'importStub', src)({ AppView: { active: () => activeView } }, { active: () => activeView }, { getElementById: el, createElement: el }, fetchStub, importStub);
   await settle();
-  return calls;
+  const item = els.menuBrief || {};
+  return Object.assign(calls, { brief: { hidden: item.hidden, offered: item.dataset && item.dataset.offered } });
 }
 
 test('under an audience view the main script wires, enumerates, fetches and polls nothing; the full page still runs every start step', async () => {
@@ -287,7 +294,8 @@ test('under an audience view the main script wires, enumerates, fetches and poll
   assert.deepEqual([full.reads, full.media, full.timers], [['GET /api/camera/fleet'], ['enumerateDevices', 'devicechange'], [1500, 250]]);
 });
 
-test('under an audience view the connected-actions script loads, mounts and binds nothing; the full page still mounts the offer', async () => {
-  assert.deepEqual(await runActions('family'), { imported: [], mounted: 0, listeners: [], reads: [] });
-  assert.deepEqual(await runActions(null), { imported: ['/cockpit/js/app-workflows.js'], mounted: 1, listeners: ['change', 'toggle'], reads: [] });
+test('under an audience view the connected-actions script loads, mounts and binds nothing; the full page mounts the offer and withholds the brief when none is offered', async () => {
+  assert.deepEqual(await runActions('family', true), { imported: [], mounted: 0, listeners: [], reads: [], brief: { hidden: undefined, offered: undefined } });
+  assert.deepEqual(await runActions(null, true), { imported: ['/cockpit/js/app-workflows.js'], mounted: 1, listeners: ['change', 'click', 'click'], reads: [], brief: { hidden: false, offered: 'true' } });
+  assert.deepEqual(await runActions(null, false), { imported: ['/cockpit/js/app-workflows.js'], mounted: 1, listeners: [], reads: [], brief: { hidden: true, offered: 'false' } });
 });

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>if (location.pathname.replace(/\/+$/, '') === '/api/education/storage') location.replace('/api/education/files?view=saved' + (location.hash || ''));</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Little Monsters</title>
@@ -10,6 +11,7 @@
   SEQ | AUTHOR                                    | DESCRIPTION
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | The Email and Storage tabs keep the Little Monsters top bar: this page mounts the page frame and shows the standard viewer below it (/api/education/email -> the email viewer /api/email/inbox, /api/education/storage -> the personal file browser /api/files). Linking the viewers directly replaced the whole frame, and a student had no way back but the browser's Back button.
+  2   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-storage MERGE): Storage is My Files -> Saved (?view=saved); /api/education/storage opens /api/education/files?view=saved at once while /api/education/email continues to frame /api/email/inbox below the Little Monsters top bar.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">

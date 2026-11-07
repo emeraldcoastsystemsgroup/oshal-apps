@@ -28,6 +28,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | api() prints a refusal's `detail` (the native host's sentence, e.g. the symbol search naming the missing market-data connector) before its bare error code.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | api() errors carry person words: a server failure (5xx) or the native runtime's not-available refusal is one plain sentence, never its internal text. The paper book's Protected lots, Timed orders and Earnings rules panels had printed "(0 , trading_pinned_lots_1.pinnedQtyBySymbol) is not a function".
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | boot() starts the paper schedule keeper (native-paper.js), so an armed paper account trades without a separate schedule press.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | The design standard, UI only: the page knows when it is framed in Today (html[data-framed]) and which view is shown (html[data-trading-view]); a loading spinner is marked as progress, so its pulse is not an endless decoration (DS-22); on a phone the sections' bottom bar tells Today how tall it is (--oshal-app-bottom-inset), so the assistant button rests above it. ⚙ Settings shows the Accounts landing's connected-login roster (Discover accounts), which the landing no longer draws.
  * 2026-10-27 | maintainer@emeraldcoastsystemsgroup.com | Clear account-page deep-link focus when navigating to a different view.
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Retain the roster capability flag so Strategies opens the native portfolio research surface.
  */
@@ -98,7 +99,7 @@ const dollarPctCell = (d, p) => {
   const pPart = p!=null ? ' <span style="font-size:11px;font-weight:700">' + pct(p) + '</span>' : '';
   return '<span class="' + klass + '">' + dPart + pPart + '</span>';
 };
-const spinner = (msg) => '<div class="spin"><span class="dot"></span> ' + esc(msg || 'Loading…') + '</div>';
+const spinner = (msg) => '<div class="spin" data-ds-progress><span class="dot"></span> ' + esc(msg || 'Loading…') + '</div>';
 /* JSON POST/PATCH options; api() injects book+mode into the body. */
 const jbody = (method, obj) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj || {}) });
 
@@ -260,7 +261,8 @@ function wireAcctContextBar() {
 /* ── header ────────────────────────────────────────────────────────────────── */
 function renderNav() {
   const navView = VIEW === 'account' ? 'accounts' : VIEW;
-  document.querySelectorAll('#nav button').forEach(b => b.className = b.getAttribute('data-view') === navView ? 'on' : '');
+  document.documentElement.setAttribute('data-trading-view', VIEW);
+  document.querySelectorAll('#nav button').forEach(b => { b.className = b.getAttribute('data-view') === navView ? 'on' : ''; if (b.className) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   const ctx = $('acctCtx'); if (ctx) ctx.hidden = VIEW !== 'account';
   if (VIEW === 'account') {
     const sel = $('bookSel');
@@ -315,6 +317,8 @@ function openSettings() {
     '<table><tbody>' + (Object.keys(g).length ? Object.entries(g).map(([k,v]) =>
       '<tr><td style="color:var(--muted)">' + esc(k) + '</td><td class="num">' + esc(typeof v==='object'?JSON.stringify(v):v) + '</td></tr>').join('')
       : '<tr><td class="foot">No guardrail config returned by /status.</td></tr>') + '</tbody></table>';
+  // The Accounts landing's connected-login roster (Discover accounts) is configuration, so it is shown here (design standard §1).
+  const roster = $('rosterPanel'); if (roster) { roster.hidden = false; $('settingsBody').append(roster); }
   $('settings').hidden = false;
 }
 function closeSettings() { $('settings').hidden = true; }
@@ -330,8 +334,30 @@ function wireShell() {
   $('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
 }
+/**
+ * @description Framed in Today (a same-origin parent), the page says so on <html> so the bar above can name the
+ *   application alone; on a phone it reports the sections' bottom bar height to Today as --oshal-app-bottom-inset, the
+ *   contract the shell's assistant button rests above, and clears it when the page goes away.
+ * @returns {void}
+ */
+function wireFrame() {
+  let outer = null;
+  try { if (window.parent !== window && window.parent.document) { document.documentElement.setAttribute('data-framed', ''); outer = window.parent.document.documentElement; } }
+  catch { document.documentElement.setAttribute('data-framed', ''); }
+  if (!outer) return;
+  const report = () => {
+    try {
+      const nav = $('nav'), phone = window.matchMedia('(max-width:720px)').matches;
+      const box = nav && phone ? nav.getBoundingClientRect() : null;
+      if (box && box.height) outer.style.setProperty('--oshal-app-bottom-inset', Math.round(box.height) + 'px'); else outer.style.removeProperty('--oshal-app-bottom-inset');
+    } catch { /* the Today page went away */ }
+  };
+  report(); window.addEventListener('resize', report);
+  window.addEventListener('pagehide', () => { try { outer.style.removeProperty('--oshal-app-bottom-inset'); } catch { /* gone */ } });
+}
 async function boot() {
   const token = RENDER_TOKEN;
+  wireFrame();
   wireShell();
   try { await loadBooks(); } catch { /* accounts surface unavailable — views degrade to the paper book */ }
   if (typeof startPaperScheduleKeeper === 'function') startPaperScheduleKeeper();

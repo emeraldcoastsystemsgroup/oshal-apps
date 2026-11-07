@@ -10,6 +10,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register brief-figures (sweep 11): the brief's figures are written in code from the stored accounts; the analyst's commentary may quote only listed amounts.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | brief-figures also expects a sentence left out after "Inc." to go whole, never leaving its tail (sweep 14).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register summary-tool: finance-summary reads the caller's saved aggregate for spending questions through the compiled route.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Register overview-layout (UX audit 2026-11-05): the read-only overview, the brief under the tiles, Assets and Liabilities, Linked banks as its own screen.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -270,4 +271,24 @@ cases:
       mode: none
     limits:
       timeoutMs: 30000
+    installation: never
+  - id: overview-layout
+    name: Finance overview is read only with the brief under the tiles
+    purpose: The shipped finance page (UX audit 2026-11-05, a live trial door) - the brief directly under the four tiles, no money-sending form or typed payment-method id, Accounts as Assets and Liabilities with owed amounts negative, one primary, Linked banks as its own screen, two columns from 1040 px.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/overview-layout.test.cjs
+    expected:
+    - The brief panel follows the tiles and precedes Accounts, Holdings and Spending; Re-analyze posts /brief/refresh.
+    - No pm_ text, no transfer form and no POST /pay anywhere; liabilities read negative in their own group; Linked banks holds Add account and the transfer history.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

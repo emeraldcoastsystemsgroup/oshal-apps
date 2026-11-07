@@ -2,6 +2,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Resumable timed practice, focused study and private progress UI.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Complete first-visit school setup before loading private progress.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Lessons show as posters with their teacher and length; the lesson page leads with the video and Try this skill, with the full transcript a press away.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-test-prep, SPLIT): Plan · Practice · Lessons views with ?view= links; the plan saves on change; lessons are searchable and grouped by section; a timed question is exam mode (body.exam-mode: one 48px bar with Question n of N, timer, Hide clock, Saved, ⋯ Save now / Reload saved session, Exit that saves and returns to Plan; the navigator pinned at the bottom; no hero, frame bars or tabs). Next question is the one primary; a failed save shows Save now in the page, a conflicting one Reload saved session.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: render the 168-topic 8-course video curriculum inside Lessons with course filter, level selector, search, posters, captions, and review tracking.
  */
 'use strict';
 (() => {
@@ -9,7 +11,8 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const url = '/api/education/prep';
   let curriculum, progress, session, trainingPack, current = 0, busy = false, blocked = false, clockHidden = false;
-  let lastTick = performance.now(), offset = 0, shownLesson = null, lastCheckpoint = 0;
+  let lastTick = performance.now(), offset = 0, shownLesson = null, lastCheckpoint = 0, view = 'plan', saveFailed = false;
+  const VIEWS = ['plan', 'practice', 'lessons'];
   const now = () => Date.now() + offset;
   const clock = seconds => `${Math.floor(Math.max(0, seconds) / 60)}:${String(Math.floor(Math.max(0, seconds) % 60)).padStart(2, '0')}`;
   const exam = () => $('exam').value;
@@ -23,7 +26,23 @@
   }
   function error(err) { $('error').textContent = err.message; $('error').hidden = false; }
   function clearError() { $('error').hidden = true; }
-  function pane(name) { for (const key of ['home', 'session', 'lesson', 'training']) $(key).hidden = key !== name; window.scrollTo(0,0); }
+  function pane(name) { for (const key of ['home', 'session', 'lesson', 'training']) $(key).hidden = key !== name; if (name !== 'session') examMode(false); window.scrollTo(0,0); }
+  /** Exam mode: only the question, the 48px exam bar and the pinned navigator; the hero, frame bars and tabs step away. */
+  function examMode(on) {
+    document.body.classList.toggle('exam-mode', on);
+    $('exambar').hidden = !on;
+    if (!on) $('exam-more').open = false;
+  }
+  /** Show one of the three in-page views (Plan, Practice, Lessons) and keep it linkable as ?view=. */
+  function setView(name, focus = false) {
+    view = VIEWS.includes(name) ? name : 'plan';
+    for (const key of VIEWS) {
+      const tab = $('tab-' + key), on = key === view;
+      $('view-' + key).hidden = !on; tab.setAttribute('aria-selected', String(on)); tab.tabIndex = on ? 0 : -1;
+      if (on && focus) tab.focus();
+    }
+    if (!session && !trainingPack) history.replaceState(null, '', view === 'plan' ? location.pathname : `?view=${view}`);
+  }
   function title(id) { return curriculum.lessons.find(l => l.id === id)?.title || id; }
   async function refresh(initial = false) {
     clearError();
@@ -81,20 +100,73 @@
     $('official-date').textContent = collection.verifiedOn;
     $('official').innerHTML = resources.filter(r => r.kind === 'test').map(r => `<article class="lm-card"><h3>${esc(r.exam)} practice test ${r.test}</h3><p>${r.exam === 'SAT' ? 'Nonadaptive paper form · 120 questions' : 'Enhanced ACT · paper scoring and Writing task included'}</p><ul>${resources.filter(x => x.test === r.test).map(x => `<li>${externalLink(x.url, ({test:'Test booklet PDF',scoring:'Paper scoring guide',explanations:'Answer explanations','online-scoring':'Online scoring key (online form only)'})[x.kind])}</li>`).join('')}</ul></article>`).join('');
   }
+  /** Lessons as a searchable list grouped by the exam's sections (Math, Reading and Writing, …). */
+  function renderLessons() {
+    if (!curriculum || !progress) return;
+    const query = $('lesson-search').value.trim().toLowerCase();
+    const lessons = curriculum.lessons.filter(l => l.sections[exam()] && (science() || l.domain !== 'science'));
+    const shown = lessons.filter(l => [l.title, l.learn, l.teacher].join(' ').toLowerCase().includes(query));
+    const groups = [...new Set(shown.map(l => l.sections[exam()]))];
+    $('lesson-count').textContent = `${shown.length} of ${lessons.length} lessons`;
+    $('lessons').innerHTML = groups.length ? groups.map(g => `<section class="prep-lesson-group" aria-label="${esc(sectionName(g))}"><h3>${esc(sectionName(g))}</h3><div class="lm-grid" style="--min:240px">${shown.filter(l => l.sections[exam()] === g).map(lessonCard).join('')}</div></section>`).join('') : '<p>No matching lessons. Try another word.</p>';
+  }
+  const LEVEL_NAMES = { beginner:'Beginner', intermediate:'Intermediate', advanced:'Advanced' };
+  function pickTopicVariant(topic, preferred) {
+    const levels = topic.levels || {};
+    const order = [preferred, topic.defaultLevel, 'intermediate', 'beginner', 'advanced'];
+    for (const key of order) if (key && levels[key]) return { level:key, ...levels[key] };
+    const first = Object.keys(levels)[0];
+    return first ? { level:first, ...levels[first] } : null;
+  }
+  function curriculumCard(t, pref) {
+    const v = pickTopicVariant(t, pref);
+    if (!v) return '';
+    const available = Object.keys(t.levels || {}).map(k => LEVEL_NAMES[k] || k).join(' · ');
+    const reviewed = progress?.profile?.lessons?.[t.id] ? ' · lesson reviewed' : '';
+    return `<article class="lm-card prep-curriculum-card"><button class="prep-poster" data-curriculum-topic="${esc(t.id)}" aria-label="Watch ${esc(t.title)}, ${esc(t.course)}"><img src="${esc(v.poster)}" alt="" loading="lazy"><span class="prep-play" aria-hidden="true"></span><span class="prep-length">${minutes(v.seconds)}</span></button><span class="prep-section-tag">${esc(t.course)} · ${esc(t.module)} · with ${esc(t.teacher)}${reviewed}</span><h3>${esc(t.title)}</h3><p class="lm-help">${esc(available)}</p><button class="lm-btn lm-btn-ghost" data-curriculum-topic="${esc(t.id)}">Watch video lesson</button></article>`;
+  }
+  function renderCurriculum() {
+    const cv = curriculum?.curriculumVideos;
+    if (!cv?.topics?.length || !$('curriculum-section')) { if ($('curriculum-section')) $('curriculum-section').hidden = true; return; }
+    $('curriculum-section').hidden = false;
+    const courseSel = $('curriculum-course'), prevCourse = courseSel.value || 'all';
+    const courses = cv.courses || [];
+    courseSel.innerHTML = `<option value="all">All courses (${cv.topics.length})</option>` + courses.map(c => `<option value="${esc(c.subject)}">${esc(c.course)} (${c.topicCount})</option>`).join('');
+    courseSel.value = courses.some(c => c.subject === prevCourse) ? prevCourse : 'all';
+    const query = $('curriculum-search').value.trim().toLowerCase(), pref = $('curriculum-level').value || 'intermediate';
+    const shown = cv.topics.filter(t => (courseSel.value === 'all' || t.subject === courseSel.value) && [t.title, t.course, t.module, t.teacher].join(' ').toLowerCase().includes(query));
+    $('curriculum-count').textContent = `${shown.length} of ${cv.topics.length} topics · ${cv.variantCount || shown.length} filmed videos`;
+    const grouped = [...new Set(shown.map(t => t.course))];
+    $('curriculum-list').innerHTML = grouped.length ? grouped.map((courseName, idx) => {
+      const items = shown.filter(t => t.course === courseName);
+      const openAttr = idx === 0 || courseSel.value !== 'all' || query ? ' open' : '';
+      return `<details class="prep-curriculum-group"${openAttr}><summary><span>${esc(courseName)}</span><span class="lm-pill">${items.length}</span></summary><div class="lm-grid" style="--min:240px">${items.map(t => curriculumCard(t, pref)).join('')}</div></details>`;
+    }).join('') : '<p>No matching curriculum topics. Try another course or search word.</p>';
+  }
+  function showCurriculumTopic(id, levelOverride) {
+    const topic = curriculum?.curriculumVideos?.topics?.find(t => t.id === id);
+    if (!topic) return;
+    const picked = pickTopicVariant(topic, levelOverride || $('curriculum-level')?.value || 'intermediate');
+    if (!picked) return;
+    shownLesson = topic.id; pane('lesson');
+    const levelKeys = Object.keys(topic.levels || {});
+    const levelButtons = levelKeys.length > 1 ? `<div class="prep-level-bar" role="group" aria-label="Explanation level">${levelKeys.map(k => `<button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" data-curriculum-topic="${esc(topic.id)}" data-curriculum-level-pick="${esc(k)}" aria-pressed="${k === picked.level}">${esc(LEVEL_NAMES[k] || k)} (${minutes(topic.levels[k].seconds)})</button>`).join('')}</div>` : '';
+    $('lesson').innerHTML = `<button class="lm-btn lm-btn-ghost" data-action="back">← Back</button><div class="lm-eyebrow">${esc(topic.course)} · ${esc(topic.module)} · Taught by ${esc(topic.teacher)}</div><h2>${esc(topic.title)}</h2>${levelButtons}<video class="prep-video" controls preload="metadata" playsinline poster="${esc(picked.poster)}"><source src="${esc(picked.video)}" type="video/mp4"><track kind="captions" srclang="en" label="English" src="${esc(picked.captions)}" default>Your browser does not support video.</video><div class="prep-controls"><button class="lm-btn lm-btn-primary" data-action="learned">Mark lesson reviewed</button></div><details class="prep-lesson-text"><summary>Lesson details</summary><p><strong>Course:</strong> ${esc(topic.course)} (${esc(topic.module)})</p><p><strong>Level:</strong> ${esc(LEVEL_NAMES[picked.level] || picked.level)} · ${minutes(picked.seconds)}</p><p>Turn on English captions in the video player controls to read along word for word.</p></details>`;
+    $('lesson').querySelector('video').addEventListener('error', () => { $('status').textContent = 'Video unavailable right now.'; $('lesson').querySelector('details').open = true; }, true);
+  }
   function renderHome() {
     const d = progress.dashboard;
     $('metrics').innerHTML = [[progress.freshQuestions,'Fresh questions'],[d.recentAccuracy === null ? '—' : d.recentAccuracy + '%','Accuracy · last 5 sessions'],[d.activeMinutes,'Active practice minutes'],[d.reviewedPacks,'Training packs reviewed']].map(([value,label]) => `<article class="lm-card"><p class="prep-metric">${esc(value)}</p><p>${esc(label)}</p></article>`).join('');
     $('coach-message').textContent = progress.coach.message;
     $('coach-tip').innerHTML = progress.coach.tip ? `<p><strong>Try this:</strong> ${esc(progress.coach.tip)}</p><p class="lm-help">${esc(progress.coach.caution)}</p>` : '';
-    $('coach-actions').innerHTML = `${progress.coach.topicId ? `<button class="lm-btn lm-btn-secondary" data-build-training="${esc(progress.coach.topicId)}">Build training for my focus</button>` : ''}<a class="lm-btn lm-btn-ghost" href="#prep-training-heading">Choose a training topic</a>`;
+    $('coach-actions').innerHTML = `${progress.coach.topicId ? `<button class="lm-btn lm-btn-secondary" data-build-training="${esc(progress.coach.topicId)}">Build training for my focus</button>` : ''}<button class="lm-btn lm-btn-ghost" data-goto="training">Choose a training topic</button>`;
     $('science-label').hidden = exam() !== 'ACT';
     $('format').textContent = exam() === 'SAT' ? '98 questions · 134 working minutes · 10-minute break.' : `English, Math, Reading${science() ? ' and Science' : ''} · ${science() ? '171 questions · 165' : '131 questions · 125'} working minutes. Section transitions allow a break.`;
     $('count').textContent = `${progress.freshQuestions} fresh questions · ${$('budget').value} minute daily goal`;
-    $('focus').innerHTML = (progress.focus.length ? progress.focus : progress.skills.slice(0, 3)).map(s => `<article class="lm-card"><span class="prep-section-tag">${esc(s.section)} · ${esc(s.status)}</span><h3>${esc(s.title)}</h3><p>${esc(s.reason)}</p>${lessonButton(s.id)}<button class="lm-btn lm-btn-primary" data-practice="${esc(s.id)}">Practice</button></article>`).join('');
+    $('focus').innerHTML = (progress.focus.length ? progress.focus : progress.skills.slice(0, 3)).map(s => `<article class="lm-card"><span class="prep-section-tag">${esc(s.section)} · ${esc(s.status)}</span><h3>${esc(s.title)}</h3><p>${esc(s.reason)}</p>${lessonButton(s.id)}<button class="lm-btn lm-btn-secondary" data-practice="${esc(s.id)}">Practice</button></article>`).join('');
     $('skills').innerHTML = progress.skills.map(s => `<tr><td>${esc(s.title)}</td><td>${s.samples}</td><td>${s.accuracy === null ? '—' : s.accuracy + '%'}</td><td>${s.medianSeconds === null ? '—' : s.medianSeconds + 's · ' + s.paceRatio + '× target'}</td><td>${s.improvement ? `${s.improvement.accuracyPoints > 0 ? '+' : ''}${s.improvement.accuracyPoints} accuracy points${s.improvement.paceRatioChange === null ? '' : ' · ' + (s.improvement.paceRatioChange > 0 ? '+' : '') + s.improvement.paceRatioChange + '× pace'}` : 'Need 10 fresh'}</td></tr>`).join('');
     $('window').textContent = progress.window + ' Lower pace ratios are faster; accuracy must hold. No score prediction.';
-    const lessons = curriculum.lessons.filter(l => l.sections[exam()] && (science() || l.domain !== 'science'));
-    $('lessons').innerHTML = lessons.map(lessonCard).join('');
+    renderLessons(); renderCurriculum();
     $('resume-section').hidden = !progress.active.length;
     $('resume').innerHTML = progress.active.map(s => `<button class="lm-btn lm-btn-secondary" data-resume="${s.id}">${s.status === 'ready' ? 'Begin prepared' : 'Resume'} ${s.exam} ${s.mode} · ${new Date(s.createdAt).toLocaleDateString()}</button>`).join('');
     $('history').innerHTML = progress.history.length ? progress.history.map(s => `<button class="lm-btn lm-btn-secondary" data-resume="${s.id}">${new Date(s.date).toLocaleDateString()} · ${esc(s.mode)} · ${s.correct}/${s.count} correct (${s.accuracy}%) · ${clock(s.activeSeconds)} active</button>`).join('') : '<p class="lm-help">Your first completed session will appear here.</p>';
@@ -146,6 +218,14 @@
       renderTraining(); $('status').textContent = 'Training progress saved.';
     } finally { busy = false; $('training').querySelectorAll('button,textarea').forEach(el => el.disabled = false); }
   }
+  /** The plan saves on every change; a quiet caption says Saved (or Not saved, with the reason in the alert). */
+  async function savePlan() {
+    $('plan-saved').textContent = 'Saving…';
+    try {
+      await api('/profile', { exam:exam(), dailyMinutes:Number($('budget').value), testDate:$('date').value });
+      $('plan-saved').textContent = 'Saved'; await refresh();
+    } catch (err) { $('plan-saved').textContent = 'Not saved'; throw err; }
+  }
   function accept(data) { session = data; $('exam').value = data.exam; $('science').checked = data.science; offset = data.serverNow - Date.now(); lastTick = performance.now(); }
   async function start(mode, skill) {
     if (busy) return;
@@ -179,15 +259,17 @@
     try {
       accept(await api('/sessions/' + session.id, { revision:session.revision, action, answers:block()?.answers || {}, ...extra }));
       if (action === 'continue') current = 0;
-      $('status').textContent = 'Saved'; lastCheckpoint = performance.now(); renderSession(); return true;
+      saveFailed = false; $('status').textContent = 'Saved'; lastCheckpoint = performance.now(); renderSession(); return true;
     } catch (err) {
       if (err.status === 409) blocked = true;
+      saveFailed = !blocked;
       if (session.status === 'active') renderSession();
       error(err); $('status').textContent = blocked ? 'Reload this session to get its saved version.' : 'Not saved. Your answers are still here; retry before leaving.';
       return false;
     } finally { busy = false; lastTick = performance.now(); $('session').querySelectorAll('button,select,input,textarea').forEach(el => el.disabled = blocked && el.dataset.action !== 'reload'); }
   }
   function renderSession() {
+    if (session.status !== 'active' || block().endedAt) examMode(false);
     if (session.status === 'ready') {
       $('session').innerHTML = `<div class="lm-eyebrow">Prepared for you · ${session.exam}</div><h2>Your ${esc(session.mode)} is ready</h2><p>The clock has not started. Begin when you are ready to work.</p><ul>${session.blocks.map(b => `<li>${esc(b.label)} · ${b.count} questions · ${Math.round(b.seconds/60)} minutes</li>`).join('')}</ul><button class="lm-btn lm-btn-primary" data-action="begin">Begin practice</button><button class="lm-btn lm-btn-ghost" data-action="home">Back to dashboard</button>`;
       return;
@@ -198,15 +280,27 @@
       $('session').innerHTML = `<h2>${esc(b.label)} saved</h2><p>Your answers are locked for this section. Rest before continuing.</p><p id="prep-break" role="status"></p><button class="lm-btn lm-btn-primary" data-action="continue">Start next section</button><button class="lm-btn lm-btn-ghost" data-action="home">Back to Study Lab</button>`;
       return;
     }
-    const q = b.questions[current], a = b.answers[q.id] || { choice:null, ms:0, confidence:'unsure', flagged:false };
-    $('session').innerHTML = `<div class="prep-top"><div><div class="lm-eyebrow">${esc(b.label)}</div><h2>Question ${current + 1} of ${b.count}</h2></div><div><span class="prep-clock" id="prep-clock" aria-label="Time remaining"></span><button class="lm-btn lm-btn-ghost" data-action="clock">${clockHidden ? 'Show' : 'Hide'} clock</button></div></div>
-      <p class="lm-help">Working time continues while this tab is hidden or closed. Active question time pauses when hidden. Answers save as you go.</p>
-      <p class="prep-question" id="prep-question">${esc(q.prompt)}</p><div role="group" aria-labelledby="prep-question">${q.options.map((o,i) => `<button class="prep-choice" data-choice="${i}" aria-pressed="${a.choice === i}">${String.fromCharCode(65+i)}. ${esc(o)}</button>`).join('')}</div>
-      <div class="prep-controls"><label>How sure are you?<select id="prep-confidence"><option value="unsure" ${a.confidence === 'unsure' ? 'selected' : ''}>Unsure</option><option value="guess" ${a.confidence === 'guess' ? 'selected' : ''}>Guessing</option><option value="sure" ${a.confidence === 'sure' ? 'selected' : ''}>Sure</option></select></label><label><input type="checkbox" id="prep-flag" ${a.flagged ? 'checked' : ''}> Mark for review</label><span class="lm-help">Practice target: ${Math.round(q.targetSeconds * session.multiplier)}s (a guide, not a per-question limit)</span></div>
-      <div class="prep-controls"><button class="lm-btn lm-btn-secondary" data-action="previous">Previous</button><button class="lm-btn lm-btn-primary" data-action="next">Next question</button><button class="lm-btn lm-btn-ghost" data-action="save">Save now</button><button class="lm-btn lm-btn-ghost" data-action="reload">Reload saved session</button></div>
-      <nav class="prep-map" aria-label="Questions in this section">${b.questions.map((item,i) => `<button data-index="${i}" aria-label="Question ${i+1}${b.answers[item.id]?.flagged ? ', flagged' : ''}" aria-current="${i === current}" class="${b.answers[item.id]?.choice != null ? 'answered' : ''}">${i+1}${b.answers[item.id]?.flagged ? ' ⚑' : ''}</button>`).join('')}</nav>
-      <details><summary>Finish this section</summary><p>${b.questions.filter(item => b.answers[item.id]?.choice == null).length} unanswered. Finishing locks these answers.</p><button class="lm-btn lm-btn-primary" data-action="finish">Submit section</button></details>`;
+    renderQuestion(b);
     tickClock();
+  }
+  /** One question in exam mode: the bar carries position, clock and the session's quiet actions. */
+  function renderQuestion(b) {
+    const q = b.questions[current], a = b.answers[q.id] || { choice:null, ms:0, confidence:'unsure', flagged:false };
+    examMode(true);
+    $('qtitle').innerHTML = `<span class="prep-q-word">Question </span>${current + 1} of ${b.count}`;
+    $('clockbtn').innerHTML = `${clockHidden ? 'Show' : 'Hide'}<span class="prep-clock-word"> clock</span>`;
+    $('menu-save').hidden = saveFailed; $('menu-reload').hidden = blocked;
+    const retry = saveFailed ? '<button class="lm-btn lm-btn-secondary" data-action="save">Save now</button>' : '';
+    const reload = blocked ? '<button class="lm-btn lm-btn-secondary" data-action="reload">Reload saved session</button>' : '';
+    $('session').innerHTML = `<div class="lm-eyebrow">${esc(b.label)}</div>
+      <p class="prep-question" id="prep-question">${esc(q.prompt)}</p><div role="group" aria-labelledby="prep-question">${q.options.map((o,i) => `<button class="prep-choice" data-choice="${i}" aria-pressed="${a.choice === i}">${String.fromCharCode(65+i)}. ${esc(o)}</button>`).join('')}</div>
+      <div class="prep-controls"><label>How sure are you?<select id="prep-confidence"><option value="unsure" ${a.confidence === 'unsure' ? 'selected' : ''}>Unsure</option><option value="guess" ${a.confidence === 'guess' ? 'selected' : ''}>Guessing</option><option value="sure" ${a.confidence === 'sure' ? 'selected' : ''}>Sure</option></select></label><label class="prep-flag"><input type="checkbox" id="prep-flag" ${a.flagged ? 'checked' : ''}> Mark for review</label></div>
+      <div class="prep-controls prep-step"><button class="lm-btn lm-btn-secondary" data-action="previous">Previous</button><button class="lm-btn lm-btn-primary" data-action="next">Next question</button>${retry}${reload}</div>
+      <p class="lm-help">Practice target: ${Math.round(q.targetSeconds * session.multiplier)}s (a guide, not a per-question limit). Working time continues while this tab is hidden or closed; active question time pauses when hidden. Answers save as you go.</p>
+      <details class="prep-finish"><summary>Finish this section</summary><p>${b.questions.filter(item => b.answers[item.id]?.choice == null).length} unanswered. Finishing locks these answers.</p><button class="lm-btn lm-btn-primary" data-action="finish">Submit section</button></details>
+      <nav class="prep-map" aria-label="Questions in this section">${b.questions.map((item,i) => `<button data-index="${i}" aria-label="Question ${i+1}${b.answers[item.id]?.flagged ? ', flagged' : ''}" aria-current="${i === current}" class="${b.answers[item.id]?.choice != null ? 'answered' : ''}">${i+1}${b.answers[item.id]?.flagged ? ' ⚑' : ''}</button>`).join('')}</nav>`;
+    const map = $('session').querySelector('.prep-map'), here = map.querySelector('[aria-current="true"]');
+    map.scrollLeft = Math.max(0, here.offsetLeft - (map.clientWidth - here.offsetWidth) / 2);
   }
   function renderReview() {
     let correct = 0, total = 0;
@@ -226,19 +320,31 @@
     if (methods.length) $('lesson').insertAdjacentHTML('beforeend', '<h3>Related methods and traps</h3>' + strategyCards(methods, false));
     $('lesson').querySelector('video').addEventListener('error', () => { $('status').textContent = 'Video unavailable. The complete lesson is readable below.'; $('lesson').querySelector('details').open = true; }, true);
   }
+  /** Leave a session, lesson or pack for one of the home views. */
+  async function leave(target) {
+    session = null; trainingPack = null; shownLesson = null; saveFailed = false;
+    pane('home'); setView(target); await refresh();
+  }
   async function home() {
     if (session?.status === 'active' && !block()?.endedAt && !await save()) return;
-    session = null; trainingPack = null; shownLesson = null; history.replaceState(null, '', location.pathname); pane('home'); await refresh();
+    await leave(view);
+  }
+  /** Exit from exam mode: save first (a conflicting copy cannot be saved, so it leaves), then the Plan. */
+  async function exitSession() {
+    if (!blocked && session?.status === 'active' && !block()?.endedAt && !await save()) return;
+    await leave('plan');
   }
   async function navigate(index) {
     if (await save()) { current = Math.max(0, Math.min(index, block().questions.length - 1)); renderSession(); }
   }
   async function action(name) {
     if (name === 'home') return home();
+    if (name === 'exit') return exitSession();
     if (name === 'back') { $('lesson').querySelector('video')?.pause(); shownLesson = null; pane(trainingPack ? 'training' : session ? 'session' : 'home'); return; }
     if (name === 'learned') { await api('/profile', { action:'lesson', lessonId:shownLesson }); $('status').textContent = 'Lesson reviewed. Now try it on a fresh question.'; await refresh(); return; }
     if (name === 'reload') return resume(session.id);
     if (name === 'clock') { clockHidden = !clockHidden; renderSession(); return; }
+    if (name === 'save' || name === 'reload') $('exam-more').open = false;
     if (name === 'previous') return navigate(current-1);
     if (name === 'next') return navigate(current+1);
     if (name === 'continue' && now() < session.availableAt) return;
@@ -260,6 +366,8 @@
     const d = button.dataset;
     if (busy) return;
     const run = async () => {
+      if (d.tab) return setView(d.tab);
+      if (d.goto === 'training') { setView('lessons'); $('training-heading').scrollIntoView({ block:'start' }); return; }
       if (d.buildTraining) return createPack(d.buildTraining, true);
       if (d.training) return openTraining(d.training);
       if (d.trainingAction) return saveTraining(d.trainingAction);
@@ -267,6 +375,7 @@
       if (d.start) return start(d.start);
       if (d.practice) { $('lesson').querySelector('video')?.pause(); return start('practice', d.practice); }
       if (d.resume) return resume(d.resume);
+      if (d.curriculumTopic) { $('lesson').querySelector('video')?.pause(); return showCurriculumTopic(d.curriculumTopic, d.curriculumLevelPick); }
       if (d.lesson) return showLesson(d.lesson);
       if (d.action) return action(d.action);
       if (d.index !== undefined) return navigate(Number(d.index));
@@ -280,7 +389,9 @@
   });
   document.addEventListener('change', event => {
     if (event.target === $('strategy-section')) { renderStrategies(); return; }
-    if (event.target === $('exam') || event.target === $('science')) { refresh().catch(error); return; }
+    if (event.target === $('curriculum-course') || event.target === $('curriculum-level')) { renderCurriculum(); return; }
+    if (event.target === $('science')) { refresh().catch(error); return; }
+    if ([$('exam'), $('date'), $('budget')].includes(event.target)) { savePlan().catch(error); return; }
     if (event.target === $('confidence') || event.target === $('flag')) {
       accrue(); const id = block().questions[current].id;
       block().answers[id] ||= { choice:null, ms:0, confidence:'unsure', flagged:false };
@@ -289,10 +400,22 @@
     }
   });
   $('strategy-search').addEventListener('input', renderStrategies);
+  $('lesson-search').addEventListener('input', renderLessons);
+  $('curriculum-search')?.addEventListener('input', renderCurriculum);
+  /** Arrow keys move between the three view tabs, as a tab list does. */
+  document.querySelector('.prep-tabs').addEventListener('keydown', event => {
+    const step = { ArrowRight:1, ArrowLeft:-1 }[event.key]; if (!step) return;
+    event.preventDefault(); setView(VIEWS[(VIEWS.indexOf(view) + step + VIEWS.length) % VIEWS.length], true);
+  });
+  /** The exam bar's quiet caption mirrors the save status: Saved, or Not saved with Save now in the page. */
+  new MutationObserver(() => {
+    const text = $('status').textContent;
+    $('saved').textContent = text === 'Saved' ? 'Saved' : /^(Not saved|Reload)/.test(text) ? 'Not saved' : '';
+  }).observe($('status'), { childList:true, characterData:true, subtree:true });
   document.addEventListener('submit', event => {
     event.preventDefault();
     if (event.target === $('training-form')) createPack($('training-topic').value).catch(err => { $('status').textContent = 'Training could not be created. Your existing packs are still saved.'; error(err); });
-    else if (event.target === $('goal')) api('/profile', { exam:exam(), dailyMinutes:Number($('budget').value), testDate:$('date').value }).then(() => { $('status').textContent = 'Study plan saved'; return refresh(); }).catch(error);
+    else if (event.target === $('goal')) savePlan().catch(error);
     else if (event.target.dataset.reflect) {
       const fields = new FormData(event.target);
       save('reflect', { questionId:event.target.dataset.reflect, reason:fields.get('reason'), note:fields.get('note') }).catch(error);
@@ -308,6 +431,6 @@
     if (window.LM?.me) await window.LM.me();
     curriculum = await api('/catalog'); await refresh(true);
     const params = new URLSearchParams(location.search), id = params.get('session'), pack = params.get('training');
-    if (id) await resume(id); else if (pack) await openTraining(pack);
+    if (id) await resume(id); else if (pack) await openTraining(pack); else setView(params.get('view') || 'plan');
   })().catch(error);
 })();

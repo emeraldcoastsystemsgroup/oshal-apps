@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Pumpkin family audience view (ADR-164 D6): the review page, its declared URL, two synthetic read-only answers shaped like GET /api/pumpkin/home-summary (the route's three counts with their ids, the tiles mirror, the newest line items with their '<expression> / saved <ISO>' detail and clip offer, the trailing note) and GET /api/pumpkin/responses (the playlist rows as the route serializes them: say, expression, source, pinned, playCount, lastPlayedAt, createdAt, updatedAt), and what the family view must show. The same summary lets the full page paint its own saved-evidence cards without an audience. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company audience (ADR-164 D6) expects the same card as the family one: the harness paints it in the company grammar over the same synthetic reads.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): pumpkin-control (/api/pumpkin/app, tools/pumpkin-app.html) is now ui.static[0] and carries the family/company audience view.
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -63,7 +64,11 @@ function summary(rows, iso) {
 module.exports = ({ iso }) => {
   const rows = playlist(iso);
   return {
-    app: 'pumpkin', file: 'pumpkin/tools/review.html', url: '/api/pumpkin/review', fullMarker: '#metrics .metric',
+    app: 'pumpkin', file: 'pumpkin/tools/pumpkin-app.html', url: '/api/pumpkin/app', fullMarker: '#btnSay',
+    assets: [
+      { url: '/api/pumpkin/assets/pumpkin-face.js', file: 'pumpkin/tools/pumpkin-face.js' },
+      { url: '/api/pumpkin/assets/pumpkin-audio.js', file: 'pumpkin/tools/pumpkin-audio.js' },
+    ],
     reads: { '/api/pumpkin/home-summary': summary(rows, iso), '/api/pumpkin/responses': { responses: rows } },
     audiences: {
       family: {

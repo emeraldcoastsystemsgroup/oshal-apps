@@ -1,12 +1,13 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Observe actual editor context through the shared production bridge and contract over a disposable project fixture.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Save automatically is turned off through the document menu.
  */
 import { createRequire } from 'node:module';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { startEditorFixture } from './create-editor-fixture.mjs';
+import { startEditorFixture, manualSaving } from './create-editor-fixture.mjs';
 
 export const coreRoot = resolve(process.env.OSHAL_CORE_ROOT || resolve(dirname(fileURLToPath(import.meta.url)), '../../../../oshal'));
 const requireCore = createRequire(resolve(coreRoot, 'package.json'));
@@ -62,7 +63,7 @@ export async function contextFixture(browser, options = {}, onCreate = () => {})
   await page.waitForFunction(() => window.contextFixtureReady === true);
   const surface = page.frameLocator('#editorFrame');
   await surface.locator('#saveStatus').filter({ hasNotText: /Checking|Loading/ }).waitFor();
-  if (await surface.locator('#autosave').isEnabled()) await surface.locator('#autosave').uncheck();
+  await manualSaving(surface);
   return { page, surface, fixture, record, external, errors, close };
 }
 

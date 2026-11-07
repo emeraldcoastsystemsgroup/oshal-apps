@@ -29,6 +29,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Mount the confirmed durable reply outbox under /replies without changing the parent authentication boundary.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Mount the Streams CMS pane under /streams (operator direction 2026-08-09: CMS-grade publishing — states, variants, revisions, review, confirm-gated publish over compose's publishTo) through its self-contained sibling module; the parent authentication boundary is unchanged.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Native kernel (OSHAL_EGRESS=kernel): the Today feed reads Gmail (gmail.googleapis.com) and Calendar (www.googleapis.com) through the kernel egress with no Authorization header, summarizes with the package-local Gmail summary (the framework one is inert there), answers a missing Google connection (connectors.metadata or the kernel's "not connected" refusal) with the same connect payload, and GET /accounts lists the caller's usable connections from connectors.metadata. The broker path is unchanged outside the kernel.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | UX audit batch 7 (switchboard--switchboard-today): name Connections instead of printing a raw route path in noGoogleConnection.
  *
  * @module switchboard-routes
  */
@@ -361,8 +362,8 @@ async function googleToken(ctx: AppContext, sub: string): Promise<string | null>
 
 /** Answer a feed request whose caller has no usable Google connection (connect payload, or 409). */
 function noGoogleConnection(req: Request, res: Response): void {
-  if (req.query.surface === '1') { res.json({ connected: false, message: 'Connect your Google account at /utilities to light up your board.' }); return; }
-  res.status(409).json({ error: 'no_google_connection', message: 'Connect your Google account at /utilities first.' });
+  if (req.query.surface === '1') { res.json({ connected: false, message: 'Connect your Google account in Connections to light up your board.' }); return; }
+  res.status(409).json({ error: 'no_google_connection', message: 'Connect your Google account in Connections first.' });
 }
 
 /** List the caller's connected accounts (the settings picker source). */

@@ -12,14 +12,54 @@
   1   | maintainer@emeraldcoastsystemsgroup.com   | Notes and files: a quick note kept in browser storage, save to / open from the computer (File System Access API with a download fallback), and links to connect cloud accounts in the hub
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, two-column layout (editor beside the saved list and cloud tiles), system fields, buttons, list items and empty state; plain copy that notes stay in this browser only, cloud tiles labelled "Connect in the hub" without implying files sync today, a confirm before deleting a saved note
   3   | maintainer@emeraldcoastsystemsgroup.com | My Files lists the Training Programs textbooks from /catalog, with the PDF and Open in editor.
+  4   | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-files, SPLIT + FIX-BROKEN). One 2,600px page carried four jobs, and 'Open in editor' silently replaced the draft with a book's raw text and showed storage ids (staged-…-notes.txt, staged_books_20261014). Now two in-page views, My notes · Textbooks (?view=notes|textbooks): notes newest first with one '+ New note' at the bottom right; a note opens full width, saves on every change ('Saved'), with Save to my computer, Open from my computer and Delete in its ⋯. Opening anything (a book, a computer file) starts a NEW note, so no note is ever overwritten. Textbooks is a full-width bookshelf, 20 at a time, showing titles, authors and subject chips only, never a storage id; a book opens a reader. The Cloud accounts card is withheld: those accounts do not sync here (DS §1).
+  5   | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-storage MERGE into lm-files): add a third view 'Saved' (My notes · Textbooks · Saved, ?view=saved) framing /api/files below the view switch, with a Little Monsters empty state ('No saved work yet' / 'Lecture PDFs and decks you make appear here.') when /api/files/list reports zero files.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
-  #ftext { min-height: 240px; }
-  .lm-item .lm-tile-icon { flex: 0 0 44px; }
+  [hidden] { display: none !important; }
+  .files-tabs { display: flex; gap: 4px; width: fit-content; max-width: 100%; margin: 0 0 22px; padding: 4px; border: 1px solid var(--lm-line); border-radius: var(--lm-radius-pill); background: var(--lm-card); }
+  .files-tabs button { min-height: var(--lm-touch); padding: 0 20px; border: 0; border-radius: var(--lm-radius-pill); background: none; color: var(--lm-ink-2); font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .files-tabs button[aria-selected="true"] { background: var(--lm-accent-soft); color: var(--lm-accent); }
+  .files-saved-wrap { border: 1px solid var(--lm-line); border-radius: var(--lm-radius-lg); background: var(--lm-card); overflow: hidden; }
+  .files-saved-frame { display: block; width: 100%; min-height: min(72vh, 680px); border: 0; background: transparent; }
+  .files-note { width: 100%; text-align: left; font: inherit; color: inherit; background: var(--lm-card); }
+  .files-new-row { display: flex; justify-content: flex-end; margin-top: 14px; }
+  .files-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .files-bar .files-saved { flex: 1; min-width: 0; color: var(--lm-muted); font-size: 13px; }
+  .files-more { position: relative; flex: 0 0 auto; }
+  .files-more summary { list-style: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; font-weight: 800; cursor: pointer; color: var(--lm-ink); }
+  .files-more summary::-webkit-details-marker { display: none; }
+  .files-more[open] summary, .files-more summary:hover { background: var(--lm-accent-wash); }
+  .files-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; display: grid; gap: 2px; min-width: 230px; padding: 8px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); box-shadow: var(--lm-shadow); }
+  .files-menu button, .files-menu a { display: block; min-height: 44px; padding: 10px 12px; text-align: left; border: 0; border-radius: 10px; background: none; color: var(--lm-ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .files-menu button:hover, .files-menu a:hover { background: var(--lm-accent-wash); }
+  .files-menu .is-danger { color: var(--lm-danger); }
+  #ftext { min-height: 52vh; }
+  .files-shelf-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .files-shelf-tools input { flex: 1 1 220px; min-width: 0; }
+  .files-shelf-tools select { flex: 0 1 220px; min-width: 0; width: auto; }
+  .files-books { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+  .files-book { position: relative; display: flex; flex-direction: column; min-width: 0; }
+  .files-book-open { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .files-cover { display: grid; place-items: center; aspect-ratio: 3 / 4; width: 100%; border-radius: 12px; border: 1px solid var(--lm-line); background: var(--lm-accent-soft); color: var(--lm-accent); font-size: 40px; }
+  .files-book-open:hover .files-cover, .files-book-open:focus-visible .files-cover { border-color: var(--lm-accent-line); }
+  .files-book-title { font-weight: 700; font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+  .files-book-meta { color: var(--lm-muted); font-size: 12.5px; line-height: 1.35; overflow-wrap: anywhere; }
+  .files-book .files-more { position: absolute; top: 6px; right: 6px; }
+  .files-book .files-more summary { background: var(--lm-card); box-shadow: 0 1px 4px color-mix(in srgb, var(--lm-ink) 18%, transparent); }
+  .files-reader-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .files-reader-text { max-width: 72ch; line-height: 1.75; font-size: 17px; overflow-wrap: anywhere; }
+  .files-reader-text p { margin: 0 0 14px; }
+  @media (max-width: 720px) {
+    .files-tabs { width: 100%; }
+    .files-tabs button { flex: 1 1 0; padding: 0 6px; font-size: 14px; }
+    .files-books { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .files-cover { aspect-ratio: 4 / 3; }
+  }
 </style>
 </head>
 <body>
@@ -28,86 +68,166 @@
     <div>
       <div class="lm-eyebrow">Notes &amp; files</div>
       <h1 class="lm-display">My Files</h1>
-      <p class="lm-lead">A home for your notes and work — keep a copy here, save it to your computer, or open a file to keep going.</p>
+      <p class="lm-lead">Your notes, the textbook library, and your saved work.</p>
     </div>
     <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
   </header>
 
-  <div class="lm-columns">
-    <section class="lm-card" aria-labelledby="noteTitle">
-      <div class="lm-section-head"><h2 id="noteTitle">📝 Quick note</h2></div>
-      <div class="lm-field"><label for="fname">File name</label><input class="lm-input" id="fname" placeholder="e.g. biology-notes.txt" value="my-note.txt" autocomplete="off"></div>
-      <div class="lm-field"><label for="ftext">Your notes</label><textarea id="ftext" class="lm-input" placeholder="Type or paste your notes here…"></textarea></div>
-      <div class="lm-row is-wrap">
-        <button type="button" class="lm-btn lm-btn-primary" onclick="saveLocal()">💾 Keep it here</button>
-        <button type="button" class="lm-btn lm-btn-ghost" onclick="saveToComputer()">⬇️ Save to my computer</button>
-        <button type="button" class="lm-btn lm-btn-ghost" onclick="openFromComputer()">📂 Open from my computer</button>
-      </div>
-      <p class="lm-status lm-mt-md" id="msg" role="status" aria-live="polite"></p>
-    </section>
-
-    <div class="lm-stack">
-      <section class="lm-card" aria-labelledby="savedTitle">
-        <div class="lm-section-head"><h2 id="savedTitle">📚 Saved here</h2><span class="lm-subtle lm-small" id="savedCount"></span></div>
-        <p class="lm-help lm-mb-md">Kept in this browser only — not in your account and not on other devices. Save important work to your computer too.</p>
-        <ul class="lm-list" id="saved"></ul>
-        <div class="lm-empty" id="empty"><div class="lm-empty-icon">🗂️</div><strong>Nothing saved here yet.</strong>Write a note and tap “Keep it here” to see it in this list.</div>
-      </section>
-
-      <section class="lm-card" aria-labelledby="tbFilesTitle">
-        <div class="lm-section-head">
-          <h2 id="tbFilesTitle">📖 Training Programs Textbooks</h2>
-          <span class="lm-pill is-info" id="tbFilesCount">79 books</span>
-        </div>
-        <p class="lm-help lm-mb-md">Browse curriculum textbooks from the training programs directory. Open any book into the editor to take study notes, or open its PDF.</p>
-        <div class="lm-row is-wrap lm-mb-md" style="gap:8px">
-          <input type="search" id="tbFilesSearch" class="lm-input" placeholder="Search 79 textbooks by title or subject…" style="flex:1;min-width:180px" oninput="renderTextbookFiles()">
-          <select id="tbFilesSubject" class="lm-input" style="width:auto;min-width:160px" onchange="renderTextbookFiles()">
-            <option value="">All subjects</option>
-            <option value="Mathematics">Mathematics</option>
-            <option value="Biology & Life Science">Biology &amp; Life Science</option>
-            <option value="Chemistry & Physics">Chemistry &amp; Physics</option>
-            <option value="History & Social Studies">History &amp; Social Studies</option>
-            <option value="English & Humanities">English &amp; Humanities</option>
-            <option value="Business & Economics">Business &amp; Economics</option>
-            <option value="Encyclopedias & Reference">Encyclopedias &amp; Reference</option>
-          </select>
-        </div>
-        <ul class="lm-list" id="tbFilesList" style="max-height:320px;overflow:auto"><li class="lm-loading">Loading textbooks…</li></ul>
-      </section>
-
-      <section class="lm-card" aria-labelledby="cloudTitle">
-        <div class="lm-section-head"><h2 id="cloudTitle">☁️ Cloud accounts</h2></div>
-        <p class="lm-help lm-mb-md">Accounts are connected in the hub. Files on this page do not sync to them today — use “Save to my computer” to move work out.</p>
-        <div class="lm-grid is-tight" style="--min:220px">
-          <a class="lm-tile" href="/utilities" target="_blank" rel="noopener"><span class="lm-tile-icon is-info">📦</span><span><strong>Dropbox</strong><small>Connect in the hub ↗</small></span></a>
-          <a class="lm-tile" href="/utilities" target="_blank" rel="noopener"><span class="lm-tile-icon">🐙</span><span><strong>GitHub</strong><small>Connect in the hub ↗</small></span></a>
-          <a class="lm-tile" href="/utilities" target="_blank" rel="noopener"><span class="lm-tile-icon is-success">📁</span><span><strong>Google Drive</strong><small>Connect in the hub ↗</small></span></a>
-        </div>
-      </section>
-    </div>
+  <div class="files-tabs" role="tablist" aria-label="My Files">
+    <button type="button" role="tab" id="tab-notes" data-tab="notes" aria-controls="view-notes" aria-selected="true">My notes</button>
+    <button type="button" role="tab" id="tab-textbooks" data-tab="textbooks" aria-controls="view-textbooks" aria-selected="false" tabindex="-1">Textbooks</button>
+    <button type="button" role="tab" id="tab-saved" data-tab="saved" aria-controls="view-saved" aria-selected="false" tabindex="-1">Saved</button>
   </div>
+
+  <section id="view-notes" role="tabpanel" aria-labelledby="tab-notes">
+    <div class="lm-card" id="notesList">
+      <div class="lm-section-head"><h2 id="savedTitle">My notes</h2><span class="lm-subtle lm-small" id="savedCount"></span></div>
+      <p class="lm-help lm-mb-md">Kept in this browser only — not in your account and not on other devices. Save important work to your computer too.</p>
+      <ul class="lm-list" id="saved" aria-labelledby="savedTitle"></ul>
+      <div class="lm-empty" id="empty"><div class="lm-empty-icon">🗂️</div><strong>No notes yet.</strong>Tap “+ New note” to start one.</div>
+      <div class="files-new-row"><button type="button" class="lm-btn lm-btn-primary" id="newNote">+ New note</button></div>
+    </div>
+
+    <div class="lm-card" id="noteEditor" hidden>
+      <div class="files-bar">
+        <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" id="backToNotes">← My notes</button>
+        <span class="files-saved" id="savedCaption" role="status" aria-live="polite"></span>
+        <details class="files-more" id="noteMore"><summary aria-label="More note actions" title="More">⋯</summary>
+          <div class="files-menu">
+            <button type="button" id="saveToComputer">⬇️ Save to my computer</button>
+            <button type="button" id="openFromComputer">📂 Open from my computer</button>
+            <button type="button" id="deleteNote" class="is-danger">Delete note</button>
+          </div>
+        </details>
+      </div>
+      <div class="lm-field"><label for="fname">Title</label><input class="lm-input" id="fname" placeholder="e.g. Biology notes" autocomplete="off"></div>
+      <div class="lm-field"><label for="ftext">Your notes</label><textarea id="ftext" class="lm-input" placeholder="Type or paste your notes here…"></textarea></div>
+    </div>
+    <p class="lm-status lm-mt-md" id="msg" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="view-textbooks" role="tabpanel" aria-labelledby="tab-textbooks" hidden>
+    <div id="shelf">
+      <div class="lm-section-head"><h2 id="tbFilesTitle">Textbooks</h2><span class="lm-pill is-info" id="tbFilesCount"></span></div>
+      <div class="files-shelf-tools">
+        <input type="search" id="tbFilesSearch" class="lm-input" placeholder="Search by title, author or subject" aria-label="Search textbooks">
+        <select id="tbFilesSubject" class="lm-input" aria-label="Subject">
+          <option value="">All subjects</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Biology & Life Science">Biology &amp; Life Science</option>
+          <option value="Chemistry & Physics">Chemistry &amp; Physics</option>
+          <option value="History & Social Studies">History &amp; Social Studies</option>
+          <option value="English & Humanities">English &amp; Humanities</option>
+          <option value="Business & Economics">Business &amp; Economics</option>
+          <option value="Encyclopedias & Reference">Encyclopedias &amp; Reference</option>
+        </select>
+      </div>
+      <ul class="files-books" id="tbFilesList" aria-labelledby="tbFilesTitle"><li class="lm-loading">Loading textbooks…</li></ul>
+      <div class="files-new-row"><button type="button" class="lm-btn lm-btn-ghost" id="moreBooks" hidden>Show more books</button></div>
+    </div>
+
+    <article class="lm-card" id="reader" hidden aria-labelledby="readerTitle">
+      <div class="files-reader-head">
+        <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" id="backToShelf">← Textbooks</button>
+      </div>
+      <h2 id="readerTitle"></h2>
+      <p class="lm-help" id="readerMeta"></p>
+      <div class="lm-row is-wrap lm-mb-md">
+        <button type="button" class="lm-btn lm-btn-primary" id="noteOnBook">📝 Start a note on this book</button>
+        <a class="lm-btn lm-btn-ghost" id="readerPdf" target="_blank" rel="noopener" hidden>📄 Open the PDF ↗</a>
+      </div>
+      <div class="files-reader-text" id="readerText"></div>
+      <button type="button" class="lm-btn lm-btn-ghost" id="readerMore" hidden>Keep reading</button>
+    </article>
+  </section>
+
+  <section id="view-saved" role="tabpanel" aria-labelledby="tab-saved" hidden>
+    <div class="lm-empty" id="savedFilesEmpty" hidden>
+      <div class="lm-empty-icon">📁</div>
+      <strong>No saved work yet</strong>
+      Lecture PDFs and decks you make appear here.
+    </div>
+    <div class="files-saved-wrap" id="savedFilesWrap" hidden>
+      <iframe class="files-saved-frame" id="savedFilesFrame" title="Saved"></iframe>
+    </div>
+  </section>
 </main>
 
 <script src="/api/education/mascot.js?v=4"></script>
 <script>
+/* My Files: notes kept in this browser (newest first) and the textbook library with a reader. */
 var KEY = 'lm-files', esc = window.LM.esc;
-var TEXTBOOK_FILES = [];
-function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
-function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { msg('This browser would not keep the note. Save it to your computer instead.'); } }
-function msg(m) { document.getElementById('msg').textContent = m || ''; }
+var BOOKS_PER_PAGE = 20, READER_CHUNK = 20000;
+var TEXTBOOK_FILES = [], booksShown = BOOKS_PER_PAGE, openNoteId = null, reader = { book: null, paragraphs: [], shown: 0 }, saveTimer = 0;
+var SUBJECT_ICONS = { 'Mathematics': '➗', 'Biology & Life Science': '🧬', 'Chemistry & Physics': '⚗️', 'History & Social Studies': '🏛️', 'English & Humanities': '📜', 'Business & Economics': '📈', 'Encyclopedias & Reference': '📚' };
+function el(id) { return document.getElementById(id); }
+function msg(m) { el('msg').textContent = m || ''; }
 function words(text) { return String(text || '').trim().split(/\s+/).filter(Boolean).length; }
+function newId() { return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
-function saveLocal() {
-  var name = document.getElementById('fname').value.trim() || 'untitled.txt';
-  var text = document.getElementById('ftext').value;
-  if (!text) { msg('Type something first.'); document.getElementById('ftext').focus(); return; }
-  var list = load(); list.unshift({ name: name, text: text }); save(list); render(); msg('Kept “' + name + '” here, in this browser.');
+/** @description Read the notes; entries saved before notes had ids get one, so nothing already kept is lost. */
+function load() {
+  var list;
+  try { list = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { list = []; }
+  if (!Array.isArray(list)) return [];
+  var changed = false;
+  list.forEach(function (n) { if (!n.id) { n.id = newId(); n.updatedAt = n.updatedAt || 0; changed = true; } });
+  if (changed) save(list);
+  return list;
 }
+/** @description Keep the notes in this browser. @returns {boolean} False when the browser refused. */
+function save(list) {
+  try { localStorage.setItem(KEY, JSON.stringify(list)); return true; }
+  catch (e) { msg('This browser would not keep the note. Save it to your computer instead.'); return false; }
+}
+function findNote(id) { return load().filter(function (n) { return n.id === id; })[0] || null; }
+
+/** @description Start a new note (never replaces another) and open it full width. */
+function createNote(name, text) {
+  var note = { id: newId(), name: name || 'Untitled note', text: text || '', updatedAt: Date.now() };
+  var list = load(); list.unshift(note);
+  if (!save(list)) return null;
+  openNote(note.id); return note;
+}
+function openNote(id) {
+  if (openNoteId && openNoteId !== id) { clearTimeout(saveTimer); saveOpenNote(); }
+  var note = findNote(id); if (!note) return;
+  openNoteId = id; setView('notes');
+  el('fname').value = note.name; el('ftext').value = note.text;
+  el('notesList').hidden = true; el('noteEditor').hidden = false;
+  el('savedCaption').textContent = note.updatedAt ? 'Saved on this device' : '';
+  el('ftext').focus();
+}
+/** @description Save the open note now: title and text, with a Saved caption. */
+function saveOpenNote() {
+  if (!openNoteId) return;
+  var list = load(), note = list.filter(function (n) { return n.id === openNoteId; })[0];
+  if (!note) return;
+  note.name = el('fname').value.trim() || 'Untitled note'; note.text = el('ftext').value; note.updatedAt = Date.now();
+  list = [note].concat(list.filter(function (n) { return n.id !== openNoteId; }));
+  el('savedCaption').textContent = save(list) ? 'Saved' : 'Not saved — save it to your computer';
+}
+function scheduleSave() { el('savedCaption').textContent = 'Saving…'; clearTimeout(saveTimer); saveTimer = setTimeout(saveOpenNote, 400); }
+/** @description Back to the list; a note left empty and untitled is not kept. */
+function closeNote() {
+  clearTimeout(saveTimer); saveOpenNote();
+  var note = openNoteId && findNote(openNoteId);
+  if (note && !note.text.trim() && note.name === 'Untitled note') save(load().filter(function (n) { return n.id !== note.id; }));
+  openNoteId = null; el('noteMore').open = false;
+  el('noteEditor').hidden = true; el('notesList').hidden = false; render();
+}
+function deleteOpenNote() {
+  var note = openNoteId && findNote(openNoteId); if (!note) return;
+  if (!confirm('Delete “' + note.name + '” from this browser? This cannot be undone.')) return;
+  save(load().filter(function (n) { return n.id !== note.id; }));
+  openNoteId = null; closeNote(); msg('Deleted “' + note.name + '”.');
+}
+function fileName(name) { var n = String(name || 'untitled').trim() || 'untitled'; return /\.[a-z0-9]{1,5}$/i.test(n) ? n : n + '.txt'; }
+
 // Real local file system save (Chrome File System Access API), with a download fallback.
 async function saveToComputer() {
-  var name = document.getElementById('fname').value.trim() || 'untitled.txt';
-  var text = document.getElementById('ftext').value;
+  saveOpenNote(); el('noteMore').open = false;
+  var name = fileName(el('fname').value), text = el('ftext').value;
   try {
     if (window.showSaveFilePicker) {
       var handle = await window.showSaveFilePicker({ suggestedName: name });
@@ -115,106 +235,166 @@ async function saveToComputer() {
       msg('Saved to your computer ✓'); return;
     }
   } catch (e) { if (e && e.name === 'AbortError') { return; } }
-  // Fallback: trigger a download
   var blob = new Blob([text], { type: 'text/plain' });
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   msg('Downloaded “' + name + '” ✓');
 }
+/** @description A file from the computer opens as a NEW note, so the open one is never replaced. */
 async function openFromComputer() {
+  el('noteMore').open = false; saveOpenNote();
+  function opened(name, text) { createNote(name, text); msg('Opened “' + name + '” as a new note ✓'); }
   try {
     if (window.showOpenFilePicker) {
       var picks = await window.showOpenFilePicker();
-      var file = await picks[0].getFile(); var text = await file.text();
-      document.getElementById('fname').value = file.name; document.getElementById('ftext').value = text;
-      msg('Opened “' + file.name + '” ✓'); return;
+      var file = await picks[0].getFile(); opened(file.name, await file.text()); return;
     }
   } catch (e) { if (e && e.name === 'AbortError') { return; } }
-  // Fallback: hidden input
   var inp = document.createElement('input'); inp.type = 'file';
-  inp.onchange = function () { var f = inp.files[0]; if (!f) return; var r = new FileReader();
-    r.onload = function () { document.getElementById('fname').value = f.name; document.getElementById('ftext').value = String(r.result); msg('Opened “' + f.name + '” ✓'); }; r.readAsText(f); };
+  inp.onchange = function () { var f = inp.files[0]; if (!f) return; var r = new FileReader(); r.onload = function () { opened(f.name, String(r.result)); }; r.readAsText(f); };
   inp.click();
 }
+function when(ms) { return ms ? new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''; }
+/** @description The notes list, newest first. */
 function render() {
-  var list = load(), ul = document.getElementById('saved'); ul.innerHTML = '';
-  document.getElementById('empty').style.display = list.length ? 'none' : '';
-  document.getElementById('savedCount').textContent = list.length ? list.length + (list.length === 1 ? ' file' : ' files') : '';
-  list.forEach(function (f, i) {
-    var li = document.createElement('li'); li.className = 'lm-item is-clickable'; li.tabIndex = 0; li.setAttribute('role', 'button');
-    var n = words(f.text);
-    li.innerHTML = '<span class="lm-tile-icon" aria-hidden="true">📄</span><div class="lm-item-body"><strong>' + esc(f.name) + '</strong><small>' + n + (n === 1 ? ' word' : ' words') + ' · tap to open</small></div>'
-      + '<button type="button" class="lm-btn lm-btn-quiet x" data-i="' + i + '" aria-label="Delete ' + esc(f.name) + '">Delete</button>';
-    function open() { document.getElementById('fname').value = f.name; document.getElementById('ftext').value = f.text; msg('Loaded “' + f.name + '”.'); }
-    li.onclick = function (e) {
-      if (e.target.closest('.x')) {
-        if (!confirm('Delete “' + f.name + '” from this browser? This cannot be undone.')) return;
-        var l = load(); l.splice(i, 1); save(l); render(); msg('Deleted “' + f.name + '”.'); return;
-      }
-      open();
-    };
-    li.onkeydown = function (e) { if (e.target === li && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } };
-    ul.appendChild(li);
+  var list = load().slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }), ul = el('saved');
+  el('empty').hidden = list.length > 0;
+  el('savedCount').textContent = list.length ? list.length + (list.length === 1 ? ' note' : ' notes') : '';
+  ul.innerHTML = list.map(function (f) {
+    var n = words(f.text), edited = when(f.updatedAt);
+    return '<li><button type="button" class="lm-item is-clickable files-note" data-note="' + esc(f.id) + '"><span class="lm-tile-icon" aria-hidden="true">📄</span>' +
+      '<span class="lm-item-body"><strong>' + esc(f.name) + '</strong><small>' + n + (n === 1 ? ' word' : ' words') + (edited ? ' · edited ' + esc(edited) : '') + '</small></span></button></li>';
+  }).join('');
+}
+
+var VIEW_ORDER = ['notes', 'textbooks', 'saved'];
+/** @description Show one of the three views and keep it linkable as ?view=. */
+function setView(name, focus) {
+  var view = VIEW_ORDER.indexOf(name) !== -1 ? name : 'notes';
+  VIEW_ORDER.forEach(function (key) {
+    var on = key === view, tab = el('tab-' + key);
+    el('view-' + key).hidden = !on; tab.setAttribute('aria-selected', String(on)); tab.tabIndex = on ? 0 : -1;
+    if (on && focus) tab.focus();
   });
+  history.replaceState(null, '', view === 'notes' ? location.pathname : '?view=' + view);
+  if (view === 'saved') loadSavedFiles();
+}
+
+/** @description Check /api/files/list for an empty personal store; otherwise frame /api/files below the view switch. */
+async function loadSavedFiles() {
+  var emptyEl = el('savedFilesEmpty'), wrap = el('savedFilesWrap'), frame = el('savedFilesFrame');
+  try {
+    var resp = await fetch('/api/files/list', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+    if (resp.ok) {
+      var data = await resp.json();
+      if (data && Array.isArray(data.files) && data.files.length === 0) {
+        wrap.hidden = true;
+        emptyEl.hidden = false;
+        return;
+      }
+    }
+  } catch (e) { /* fall through to the framed /api/files view */ }
+  emptyEl.hidden = true;
+  wrap.hidden = false;
+  if (!frame.getAttribute('src')) frame.src = '/api/files';
 }
 
 async function loadTextbookFiles() {
   try {
     var resp = await fetch('/api/education/catalog');
-    if (resp.ok) {
-      var data = await resp.json();
-      TEXTBOOK_FILES = data.textbooks || [];
-    }
+    if (resp.ok) { var data = await resp.json(); TEXTBOOK_FILES = data.textbooks || []; }
   } catch (e) { TEXTBOOK_FILES = []; }
   renderTextbookFiles();
 }
-
-function renderTextbookFiles() {
-  var ul = document.getElementById('tbFilesList');
-  var q = String((document.getElementById('tbFilesSearch') && document.getElementById('tbFilesSearch').value) || '').trim().toLowerCase();
-  var subj = String((document.getElementById('tbFilesSubject') && document.getElementById('tbFilesSubject').value) || '').trim();
-  var rows = (TEXTBOOK_FILES || []).filter(function (tb) {
+function matchingBooks() {
+  var q = el('tbFilesSearch').value.trim().toLowerCase(), subj = el('tbFilesSubject').value;
+  return TEXTBOOK_FILES.filter(function (tb) {
     if (subj && tb.subject !== subj) return false;
-    if (!q) return true;
-    var hay = [tb.title, tb.author, tb.subject, tb.collection].filter(Boolean).join(' ').toLowerCase();
-    return hay.indexOf(q) !== -1;
+    return !q || [tb.title, tb.author, tb.subject].filter(Boolean).join(' ').toLowerCase().indexOf(q) !== -1;
   });
-  document.getElementById('tbFilesCount').textContent = rows.length + (rows.length === 1 ? ' book' : ' books');
-  if (!rows.length) {
-    ul.innerHTML = '<li class="lm-empty is-compact"><strong>No matching textbooks.</strong></li>';
-    return;
-  }
-  ul.innerHTML = rows.map(function (tb) {
-    var pdfBtn = tb.hasPdf
-      ? '<a class="lm-btn lm-btn-ghost lm-btn-sm" href="/api/education/catalog?textbookId=' + encodeURIComponent(tb.id) + '&format=pdf" target="_blank" rel="noopener">📄 PDF</a>'
-      : '';
-    return '<li class="lm-item">' +
-      '<span class="lm-tile-icon is-info" aria-hidden="true">📖</span>' +
-      '<div class="lm-item-body"><strong>' + esc(tb.title) + '</strong><small>' + esc([tb.subject, tb.collection].filter(Boolean).join(' · ')) + '</small></div>' +
-      '<div class="lm-row is-wrap" style="gap:6px">' +
-        '<button type="button" class="lm-btn lm-btn-soft lm-btn-sm" onclick="openTextbookInEditor(\'' + esc(tb.id) + '\')">📝 Open in editor</button>' +
-        pdfBtn +
-      '</div>' +
-    '</li>';
-  }).join('');
+}
+/** @description One shelf tile: a cover, the title on its own line, author and subject; Open and PDF in its ⋯. Never a storage id. */
+function bookTile(tb) {
+  var pdf = tb.hasPdf ? '<a href="/api/education/catalog?textbookId=' + encodeURIComponent(tb.id) + '&format=pdf" target="_blank" rel="noopener">📄 PDF ↗</a>' : '';
+  return '<li class="files-book"><button type="button" class="files-book-open" data-book="' + esc(tb.id) + '">' +
+    '<span class="files-cover" aria-hidden="true">' + (SUBJECT_ICONS[tb.subject] || '📖') + '</span>' +
+    '<span class="files-book-title">' + esc(tb.title) + '</span>' +
+    '<span class="files-book-meta">' + esc(tb.author || '') + '</span>' +
+    (tb.subject ? '<span><span class="lm-pill is-neutral">' + esc(tb.subject) + '</span></span>' : '') + '</button>' +
+    '<details class="files-more"><summary aria-label="More for ' + esc(tb.title) + '">⋯</summary><div class="files-menu">' +
+    '<button type="button" data-book="' + esc(tb.id) + '">Open</button>' + pdf + '</div></details></li>';
+}
+function renderTextbookFiles() {
+  var rows = matchingBooks(), ul = el('tbFilesList');
+  el('tbFilesCount').textContent = rows.length + (rows.length === 1 ? ' book' : ' books');
+  el('moreBooks').hidden = rows.length <= booksShown;
+  ul.innerHTML = rows.length ? rows.slice(0, booksShown).map(bookTile).join('') : '<li class="lm-empty is-compact"><strong>No matching textbooks.</strong></li>';
 }
 
-async function openTextbookInEditor(textbookId) {
-  msg('Loading textbook into editor…');
+/** @description Open a book in the reader (its text in readable pages, not an editor). */
+async function openBook(id) {
+  var tb = TEXTBOOK_FILES.filter(function (b) { return b.id === id; })[0] || { id: id, title: 'Textbook' };
+  reader = { book: tb, paragraphs: [], shown: 0 };
+  el('shelf').hidden = true; el('reader').hidden = false; window.scrollTo(0, 0);
+  el('readerTitle').textContent = tb.title || 'Textbook';
+  el('readerMeta').textContent = [tb.author, tb.gradeLevel || tb.gradeBand, tb.subject].filter(Boolean).join(' · ');
+  el('readerPdf').hidden = !tb.hasPdf;
+  if (tb.hasPdf) el('readerPdf').href = '/api/education/catalog?textbookId=' + encodeURIComponent(tb.id) + '&format=pdf';
+  el('readerText').innerHTML = '<p class="lm-loading">Opening the book…</p>'; el('readerMore').hidden = true;
   try {
-    var resp = await fetch('/api/education/catalog?textbookId=' + encodeURIComponent(textbookId));
+    var resp = await fetch('/api/education/catalog?textbookId=' + encodeURIComponent(id));
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    var data = await resp.json();
-    var tb = data.textbook || {};
-    document.getElementById('fname').value = (tb.id || 'textbook') + '-notes.txt';
-    document.getElementById('ftext').value = tb.content || '';
-    msg('Opened “' + (tb.title || textbookId) + '” in the Quick Note editor ✓');
+    var data = await resp.json(), text = (data.textbook && data.textbook.content) || data.content || '';
+    reader.paragraphs = text.split(/\n\s*\n/).map(function (p) { return p.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+    el('readerText').innerHTML = reader.paragraphs.length ? '' : '<p>This book has no readable text here. Open the PDF instead.</p>';
+    readMore();
   } catch (e) {
-    msg('Could not load textbook: ' + e.message);
+    el('readerText').innerHTML = '<p>The book could not be opened right now. Try again in a moment.</p>';
   }
 }
+function readMore() {
+  var out = '', chars = 0;
+  while (reader.shown < reader.paragraphs.length && chars < READER_CHUNK) { var p = reader.paragraphs[reader.shown++]; chars += p.length; out += '<p>' + esc(p) + '</p>'; }
+  el('readerText').insertAdjacentHTML('beforeend', out);
+  el('readerMore').hidden = reader.shown >= reader.paragraphs.length;
+}
+function closeBook() { el('reader').hidden = true; el('shelf').hidden = false; }
+/** @description Notes on a book are a new note named for it; nothing already written is touched. */
+function noteOnBook() {
+  var title = (reader.book && reader.book.title) || 'Textbook';
+  if (createNote(title + ' notes', '')) msg('Started a new note for “' + title + '”.');
+}
+
+document.addEventListener('click', function (e) {
+  var t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.tab) { if (openNoteId) closeNote(); setView(t.dataset.tab); return; }
+  if (t.dataset.note) { openNote(t.dataset.note); return; }
+  if (t.dataset.book) { var d = t.closest('details'); if (d) d.open = false; openBook(t.dataset.book); return; }
+  var actions = { newNote: function () { createNote('Untitled note', ''); }, backToNotes: closeNote, saveToComputer: saveToComputer, openFromComputer: openFromComputer,
+    deleteNote: deleteOpenNote, backToShelf: closeBook, noteOnBook: noteOnBook, readerMore: readMore,
+    moreBooks: function () { booksShown += BOOKS_PER_PAGE; renderTextbookFiles(); } };
+  if (actions[t.id]) actions[t.id]();
+});
+document.querySelector('.files-tabs').addEventListener('keydown', function (e) {
+  var cur = VIEW_ORDER.filter(function (k) { return el('tab-' + k).getAttribute('aria-selected') === 'true'; })[0] || 'notes';
+  var idx = VIEW_ORDER.indexOf(cur), next = -1;
+  if (e.key === 'ArrowRight') next = (idx + 1) % VIEW_ORDER.length;
+  else if (e.key === 'ArrowLeft') next = (idx + VIEW_ORDER.length - 1) % VIEW_ORDER.length;
+  else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = VIEW_ORDER.length - 1;
+  if (next === -1) return;
+  e.preventDefault();
+  if (openNoteId) closeNote();
+  setView(VIEW_ORDER[next], true);
+});
+el('fname').addEventListener('input', scheduleSave);
+el('ftext').addEventListener('input', scheduleSave);
+el('tbFilesSearch').addEventListener('input', function () { booksShown = BOOKS_PER_PAGE; renderTextbookFiles(); });
+el('tbFilesSubject').addEventListener('change', function () { booksShown = BOOKS_PER_PAGE; renderTextbookFiles(); });
+window.addEventListener('pagehide', function () { if (openNoteId) { clearTimeout(saveTimer); saveOpenNote(); } });
 
 render();
+setView(new URLSearchParams(location.search).get('view') || 'notes');
 loadTextbookFiles();
 </script>
 </body>

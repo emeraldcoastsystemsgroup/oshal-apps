@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Provide actual nonJSON gateway responses and held export requests for bounded error-recovery checks.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Let a companion fixture add its own synthetic routes (the brand kit) to the same server before the error handler.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Support the shared automatic document save/read/refresh handoff and preserve concurrent drafts and editable layers.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: helpers that reach the image's document menu the way a person does (open it, then its Open submenu), rename through it, turn automatic saving off in it, and name the shared Format inspector's fields.
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -165,3 +166,42 @@ export async function syntheticImage() {
   for (let y = 0; y < 20; y++) for (let x = 0; x < 40; x++) { const offset = (y * 40 + x) * 4; bytes[offset + (x < 20 ? 0 : 2)] = 255; bytes[offset + 3] = 255; }
   return sharp(bytes, { raw: { width: 40, height: 20, channels: 4 } }).png().toBuffer();
 }
+
+/** @description Open the image's document menu, and its Open submenu when the control lives there, so the control is on screen.
+ * @param {import('playwright').Page|import('playwright').FrameLocator} root The editor page or its frame.
+ * @param {string} selector A control inside the document menu.
+ * @returns {Promise<import('playwright').Locator>} The control, now visible. */
+export async function inMenu(root, selector) {
+  if (!await root.locator('#documentMenu').evaluate(node => node.open)) await root.locator('#documentMenu > summary').click();
+  if (await root.locator(`#openMenu ${selector}`).count() && !await root.locator('#openMenu').evaluate(node => node.open)) await root.locator('#openMenu > summary').click();
+  return root.locator(selector);
+}
+
+/** @description Close the document menu if it is open.
+ * @param {import('playwright').Page|import('playwright').FrameLocator} root The editor page or its frame.
+ * @returns {Promise<void>} */
+export async function closeMenu(root) {
+  if (await root.locator('#documentMenu').evaluate(node => node.open)) await root.locator('#documentMenu > summary').click();
+}
+
+/** @description Rename the image through its document menu, as a person does, and close the menu.
+ * @param {import('playwright').Page|import('playwright').FrameLocator} root The editor page or its frame.
+ * @param {string} name The new image name.
+ * @returns {Promise<void>} */
+export async function rename(root, name) {
+  const field = await inMenu(root, '#projectName'); await field.fill(name); await field.press('Tab'); await closeMenu(root);
+}
+
+/** @description Turn Save automatically off in the document menu, so a test decides when each revision is saved.
+ * @param {import('playwright').Page|import('playwright').FrameLocator} root The editor page or its frame.
+ * @returns {Promise<void>} */
+export async function manualSaving(root) {
+  if (!await root.locator('#autosave').isEnabled() || !await root.locator('#autosave').isChecked()) return;
+  await (await inMenu(root, '#autosave')).uncheck(); await closeMenu(root);
+}
+
+/** @description The shared Format inspector's field for one property key.
+ * @param {import('playwright').Page|import('playwright').FrameLocator} root The editor page or its frame.
+ * @param {string} key Property key, such as name, text, x or width.
+ * @returns {import('playwright').Locator} The field. */
+export const field = (root, key) => root.locator(`[data-editor-property="${key}"]`);

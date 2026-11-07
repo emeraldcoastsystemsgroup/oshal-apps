@@ -18,6 +18,10 @@
  *                     |                             | budget OPEN with its reason, the bought rows' masses and prices shown as NOT PUBLISHED, the
  *                     |                             | design document link; and "Open in CAD Studio" posts EXACTLY the body GET /parts/wing serves
  *                     |                             | (to a CAD Studio double that records it) and lands on the CAD Studio tile (a cockpit stub).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | UX batch-7: verify Evaluate in air is withheld on the wave explorer; verify STAGE renders
+ *                     |                             | the expandable gate checklist with plain prose; switch to Parts & BOM (?view=parts) and open
+ *                     |                             | CAD Studio from the wing row's ⋯ menu; verify scrollWidth <= 412 px on a 412x743 phone across
+ *                     |                             | both views.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,9 +84,9 @@ after(async () => {
   await new Promise((resolve) => server.close(resolve));
 }, { timeout: 120000 });
 
-/** A fresh page on the fixture, with every non-fixture request refused. @param {(ctx: any) => Promise<void>} [routes] Extra interception. */
-async function openPage(routes) {
-  const context = await owned.browser.newContext({ viewport: { width: 1280, height: 1000 } });
+/** A fresh page on the fixture, with every non-fixture request refused. @param {(ctx: any) => Promise<void>} [routes] Extra interception. @param {{width:number, height:number}} [viewport] Optional viewport. */
+async function openPage(routes, viewport = { width: 1280, height: 1000 }) {
+  const context = await owned.browser.newContext({ viewport });
   await context.route('**/*', (route) => (new URL(route.request().url()).origin === origin ? route.fallback() : route.abort()));
   if (routes) await routes(context);
   const page = await context.newPage();
@@ -94,7 +98,7 @@ async function openPage(routes) {
 const settled = (page, pattern) => page.waitForFunction((src) => new RegExp(src).test(document.getElementById('status').textContent), pattern.source, { timeout: 20000 });
 const text = (page, selector) => page.locator(selector).textContent();
 
-test('the operator\'s walk: create, evaluate, change the stop angle, re-evaluate, refuse air by name, record the hull drop', { timeout: 120000 }, async () => {
+test('the operator\'s walk: create, evaluate, change the stop angle, re-evaluate, withhold air on the wave explorer, record the hull drop', { timeout: 120000 }, async () => {
   const { context, page } = await openPage();
   try {
     await page.locator('#create-explorer').waitFor({ timeout: 15000 });
@@ -104,6 +108,7 @@ test('the operator\'s walk: create, evaluate, change the stop angle, re-evaluate
     assert.match(await text(page, '#fabricable'), /does not mean the machine is safe to build, fly or wet/);
     assert.equal(await text(page, '#limit-count'), '8');
     assert.match(await text(page, '#table-note'), /Not evaluated yet/);
+    assert.equal(await page.locator('#evaluate-air').count(), 0, 'Evaluate in air is withheld for the wave explorer');
 
     await page.click('#evaluate');
     await settled(page, /Evaluated in seawater/);
@@ -111,6 +116,11 @@ test('the operator\'s walk: create, evaluate, change the stop angle, re-evaluate
     assert.equal(await page.locator('#sea-table tbody tr').count(), 5);
     assert.equal(await page.locator('[data-figure="km/year"]').textContent(), '7,444');
     assert.match(await text(page, '#fabricable'), /files are complete and self-consistent/);
+    assert.doesNotMatch(await text(page, '#stage-because'), /meanSpeedMs|underWayFraction/);
+    const gates = await text(page, '#stage-gates');
+    for (const label of ['Parts with no mass: 15', 'Parts with no price: 16', 'Parts on no body: 5', 'Displacement budget: open']) {
+      assert.match(gates, new RegExp(label));
+    }
 
     await page.fill('#stop-angle', '25');
     await page.click('#save-design');
@@ -122,10 +132,6 @@ test('the operator\'s walk: create, evaluate, change the stop angle, re-evaluate
     await settled(page, /Evaluated in seawater/);
     assert.equal(await text(page, '#stage-badge'), 'sized');
     assert.notEqual(await page.locator('[data-figure="km/year"]').textContent(), '7,444', 'the year moved with the stop angle');
-
-    await page.click('#evaluate-air');
-    await settled(page, /refused by name/);
-    assert.match(await text(page, '#medium-refusal'), /medium_property_unavailable: freeSurface/);
 
     await page.click('#record-hull-drop');
     await settled(page, /hull drop is recorded/);
@@ -154,11 +160,12 @@ test('a run whose fingerprints are stripped in flight is NOT drawn, and the tile
   } finally { await context.close(); }
 });
 
-test('the parts section: eleven parts, the budget OPEN, not-published rows, and Open in CAD Studio posts the exact part body', { timeout: 120000 }, async () => {
+test('the Parts & BOM view: eleven parts, the budget OPEN, not-published rows, and row ⋯ Open in CAD Studio posts the exact part body', { timeout: 120000 }, async () => {
   const { context, page } = await openPage();
   try {
     await settled(page, /Record loaded/);
     await page.waitForFunction(() => /11 watertight parts/.test(document.getElementById('parts-count').textContent), null, { timeout: 20000 });
+    await page.click('#tab-parts');
     assert.equal(await text(page, '#budget-badge'), 'budget open');
     assert.match(await text(page, '#budget-why'), /an unknown is never read as zero/);
     assert.equal(await page.locator('#printed-parts tbody tr').count(), 5);
@@ -166,12 +173,27 @@ test('the parts section: eleven parts, the budget OPEN, not-published rows, and 
     assert.equal(await page.locator('#parts-problems li').count(), 3);
     assert.match(await page.locator('#design-md').getAttribute('href'), /\/api\/ocean-lab\/vehicles\/[0-9a-f-]{36}\/design\.md$/);
     assert.match(await text(page, '#fabricable'), /does not mean the machine is safe to build, fly or wet/);
-    await page.locator('#printed-parts tbody tr[data-part="wing"]').getByRole('button', { name: 'Open in CAD Studio' }).click();
+    await page.locator('#printed-parts tbody tr[data-part="wing"] [data-part-menu="wing"]').click();
+    await page.locator('#part-menu [data-open-part="wing"]').click();
     await page.waitForURL('**/cockpit/?app=cad-studio', { timeout: 15000 });
     assert.match(await text(page, '#cockpit-stub'), /app=cad-studio/);
     const vehicleId = pool.vehicles.find((v) => v.owner_sub === 'browser-owner').vehicle_id;
     const served = await (await fetch(`${origin}/api/ocean-lab/vehicles/${vehicleId}/parts/wing`)).json();
     assert.equal(cadPosts.length, 1);
     assert.deepEqual(cadPosts[0], served.cadStudio, 'the tile posts exactly the body the route serves');
+  } finally { await context.close(); }
+});
+
+test('phone 412x743: no evaluate-air control and scrollWidth <= 412 across both views', { timeout: 120000 }, async () => {
+  const { context, page } = await openPage(undefined, { width: 412, height: 743 });
+  try {
+    await settled(page, /Record loaded/);
+    await page.waitForFunction(() => /11 watertight parts/.test(document.getElementById('parts-count').textContent), null, { timeout: 20000 });
+    assert.equal(await page.locator('#evaluate-air').count(), 0);
+    const designWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(designWidth <= 412, `Design & sea states scrollWidth ${designWidth} <= 412`);
+    await page.click('#tab-parts');
+    const partsWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(partsWidth <= 412, `Parts & BOM scrollWidth ${partsWidth} <= 412`);
   } finally { await context.close(); }
 });

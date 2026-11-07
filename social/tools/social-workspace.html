@@ -1,14 +1,95 @@
 <!doctype html>
 <html lang="en" data-theme="midnight">
+<!-- CHANGE LOG
+  SEQ | AUTHOR | DESCRIPTION
+  1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06. social-signals MERGE: the Signals screen's "Organize with AI" is one action of this Engage tab, disabled with "No signals yet" when there are none; Engage leads with the "Scan my email for social updates" switch and one sentence (no ingest wording); a signal's draft opens in this composer (Save, Copy, Publish); ?view=engage opens Engage, which is where /api/social/signals/ui now leads. social-workspace FIX-LAYOUT: on a phone a bottom bar Feed · Engage · Saved · Compose, so Compose is one tap from every view and "tap to comment" opens it with the article attached; the LinkedIn / X / Facebook tabs choose the draft's format even when unlinked and only Publish waits ("Connect X to publish"); saved drafts have a ⋯ row menu (Open, Copy); touch targets are at least 44x44; the selected tab and Draft labels use the theme's on-accent ink. Guarded by tests/workspace-browser.test.cjs.
+  2 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (social--social-composer MERGE): carry Composer's exact refine chip labels (Punchier, Shorter, More technical, Add CTA, End with a question) alongside Personal and the free Refine prompt; accept prepare-post handoffs on ?view=compose; replace raw '/utilities' paths in copy with 'Connect <network> to publish' links; use --ds-font and lowercase oshal.
+  3 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (social--social-composer MERGE): carry the company/family audience view now that social-workspace is ui.static[0], and gate full-page boot on !AppView.active().
+  4 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: unify Compose and Workspace as one surface; prefill Compose from direct prepare-post query parameters (title, notes, sourceUrl) as well as receiveHandoff, and mount connected-application offers (prepare-post, prepare-document) inside the Compose pane.
+-->
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Social Workspace — OSHAL</title>
+<title>Social Workspace — oshal</title>
 <!-- Framework theme tokens + the bootstrap that picks the operator's saved theme (and follows it
      live). Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html>
      above matters — without it the surface would have no colours at all. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/app-view.css" />
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  // GET /signals answers at most SIGNALS_LIMIT rows (LIMIT 100), so a full answer means "100 or more", not a total.
+  var FULL = '/cockpit/?app=social', SHOWN = 15, DAYS = 7, QUEUE_LIMIT = 50, SIGNALS_LIMIT = 100;
+  var STATES = { backlog: 'Backlog', approved: 'Queued', in_process: 'In progress', approval_required: 'Approval required', customer_action: 'Needs you', complete: 'Done', escalated: 'Escalated', paused: 'Paused', cancelled: 'Cancelled' };
+  var TONES = { approval_required: 'warn', customer_action: 'warn', escalated: 'bad', complete: 'ok' };
+  function call(path) {
+    return fetch('/api/social' + path, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    });
+  }
+  function refused(res) { return res.status === 401 || res.status === 403; }
+  function sender(from) { var m = String(from || '').match(/^"?([^"<]+)"?\s*</); return (m ? m[1] : String(from || '')).trim() || 'Unknown sender'; }
+  function group(t) { return t.stateGroup || t.status || ''; }
+  function isOpen(t) { var g = group(t); return g !== 'complete' && g !== 'cancelled'; }
+  // The home summary answers 503 with its full body when both of its reads fail, so read the metrics from the body.
+  function metricStat(sum, id, fallback) {
+    var m = ((sum.body && sum.body.metrics) || []).filter(function (x) { return x.id === id; })[0], v = m ? m.value : null, known = v !== null && v !== undefined && v !== 'Unavailable';
+    return { id: id, label: (m && m.label) || fallback, value: known ? A.num(v) : '—', hint: known ? null : refused(sum) ? 'Sign in to see it' : 'Could not be read', tone: known ? null : 'warn' };
+  }
+  function stats(ready, sum, queue) {
+    var tickets = queue.ok ? queue.body.tickets || [] : null, fb = ready.ok ? ready.body.facebook || {} : null, sig = ready.ok ? ready.body.signals || {} : null;
+    return [
+      metricStat(sum, 'notifications-24h', 'Social notices / 24h'), metricStat(sum, 'notifications-5d', 'Social notices / 5d'),
+      { id: 'captured', label: 'Captured / 30 days', value: sig ? A.num(sig.count || 0) : '—', hint: sig ? null : 'Could not be read', tone: sig ? null : 'warn' },
+      { id: 'queue', label: 'LinkedIn queue', value: tickets ? tickets.filter(isOpen).length : '—', hint: tickets ? 'open of ' + (tickets.length >= QUEUE_LIMIT ? 'the latest ' + QUEUE_LIMIT : tickets.length) : 'Could not be read', tone: tickets ? null : 'warn' },
+      { id: 'facebook', label: 'Facebook Pages', value: fb ? (fb.ready ? 'Connected' : 'Not connected') : '—', tone: fb && fb.ready ? null : 'warn' }
+    ];
+  }
+  function signalsSection(res) {
+    var rows = res.ok ? res.body.signals || [] : [];
+    return { kind: 'table', id: 'signals', title: 'Social notifications, last ' + DAYS + ' days',
+      note: 'Email notifications from LinkedIn, X and Facebook captured from your connected inbox: not unread totals or a complete feed.' + (rows.length > SHOWN ? ' The latest ' + SHOWN + ' of ' + (rows.length >= SIGNALS_LIMIT ? SIGNALS_LIMIT + ' or more' : rows.length) + '.' : ''),
+      empty: res.ok ? res.body.note || 'No social notifications in the last ' + DAYS + ' days.' : 'The notifications could not be read (HTTP ' + res.status + ').',
+      columns: ['From', 'Subject', 'Received'], rows: rows.slice(0, SHOWN).map(function (s) { return [sender(s.from), s.subject || '(no subject)', s.receivedAt ? A.when(s.receivedAt) : '—']; }) };
+  }
+  function queueSection(res) {
+    var tickets = (res.ok ? res.body.tickets || [] : []).slice().sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+    return { kind: 'table', id: 'queue', title: 'LinkedIn content queue', note: 'Post requests for the social writer. The queue itself never publishes.' + (tickets.length > SHOWN ? ' The latest ' + SHOWN + ' of ' + tickets.length + '.' : ''),
+      empty: res.ok ? 'No LinkedIn post requests in the queue.' : 'The LinkedIn queue could not be read (HTTP ' + res.status + ').',
+      columns: ['Topic', 'Status', 'Requested', 'Updated'],
+      rows: tickets.slice(0, SHOWN).map(function (t) { var g = group(t), meta = t.metadata || {}; return [meta.topic || t.title || 'LinkedIn post', { text: STATES[g] || g || '—', tone: TONES[g] || null }, t.createdAt ? A.when(t.createdAt) : '—', t.updatedAt ? A.when(t.updatedAt) : '—']; }) };
+  }
+  function setupSection(res) {
+    var fb = res.ok ? res.body.facebook || {} : null, sig = res.ok ? res.body.signals || {} : null, connect = function () { A.open('/utilities'); };
+    return { kind: 'list', id: 'setup', title: 'Setup', empty: 'Setup could not be checked (HTTP ' + res.status + ').', items: res.ok ? [
+      { title: 'Facebook Pages', text: fb.detail || null, badge: fb.ready ? 'Connected' : 'Not connected', tone: fb.ready ? 'ok' : 'warn', onClick: fb.ready ? null : connect },
+      { title: 'Social notifications', text: sig.detail || null, badge: sig.ready ? 'Arriving' : 'None yet', tone: sig.ready ? 'ok' : 'warn', onClick: sig.ready ? null : connect },
+      { title: 'LinkedIn and X', text: 'Checked live in the Composer; this view does not call the networks.', onClick: function () { A.open(FULL); } }
+    ] : [] };
+  }
+  function desk(ready, sig, sum, queue) {
+    var r = ready.ok ? ready.body : null, needsSetup = !!r && (!(r.facebook || {}).ready || !(r.signals || {}).ready);
+    return { kicker: 'Social', title: 'Social desk',
+      lede: r && r.signals && r.signals.detail ? r.signals.detail : 'Your social notifications, the LinkedIn queue and what is set up.',
+      actions: [{ label: 'Open the Composer', primary: true, onClick: function () { A.open(FULL); } }].concat(needsSetup ? [{ label: 'Connect accounts', onClick: function () { A.open('/utilities'); } }] : []),
+      stats: stats(ready, sum, queue), sections: [signalsSection(sig), queueSection(queue), setupSection(ready)] };
+  }
+  function company() {
+    return Promise.all([call('/readiness'), call('/signals?days=' + DAYS), call('/home-summary'), call('/linkedin-content-queue')]).then(function (r) {
+      var ready = r[0], sig = r[1];
+      if (refused(ready) && refused(sig)) return { kicker: 'Social', title: ready.status === 401 ? 'Sign in to see your social desk' : 'This account cannot open Social',
+        lede: ready.status === 401 ? 'This view shows the social notifications and queue of whoever is signed in, and this session is not signed in.' : 'The Social routes refused this account (HTTP 403).' };
+      if (!ready.ok && !sig.ok) throw new Error('Social could not read your notifications or setup (HTTP ' + sig.status + ').');
+      return desk(ready, sig, r[2], r[3]);
+    });
+  }
+  // ADR-164 D6: the other shells' audience (family) paints this same account-scoped card in its own grammar; the reads and the model do not change.
+  A.boot({ app: 'social', escapeLabel: 'Open Social in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
 <style>
   /* Short alias names are kept, but DERIVED from the framework theme rather than hardcoded hex, so
      all eleven themes work (not just the dark ones). Brand colours (LinkedIn/X/Facebook) and the
@@ -25,7 +106,7 @@
     --li:#0a66c2; --x:#1d9bf0; --fb:#1877f2;
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  body { margin:0; font-family: var(--ds-font, system-ui, sans-serif); background:var(--bg); color:var(--text); }
   .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
   .top h1 { font-size:19px; margin:0 0 6px; }
   .accounts { display:flex; gap:8px; flex-wrap:wrap; font-size:12px; }
@@ -41,7 +122,7 @@
   /* Left-pane tabs */
   .tabs { display:flex; gap:6px; margin-bottom:14px; }
   .tab { flex:1; background:var(--panel); border:1px solid var(--line); color:var(--muted); border-radius:9px; padding:8px 6px; cursor:pointer; font-size:12.5px; font-weight:600; text-align:center; }
-  .tab.sel { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .tab.sel { background:var(--accent); border-color:var(--accent); color:var(--text-on-accent, #fff); }
   .view { display:none; } .view.sel { display:block; }
   .focusrow { display:flex; gap:7px; margin-bottom:12px; }
   .focusrow input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:12px; }
@@ -73,7 +154,7 @@
   .saved .srow { display:flex; gap:8px; }
   .btn { border:none; border-radius:8px; padding:8px 13px; font-size:12.5px; font-weight:600; cursor:pointer; }
   .btn.sm { padding:6px 11px; font-size:12px; }
-  .btn.draft { background:var(--accent); color:#fff; } .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
+  .btn.draft { background:var(--accent); color:var(--text-on-accent, #fff); } .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
   .btn:disabled { opacity:.5; cursor:default; }
   .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; }
   .empty a { color:var(--accent); }
@@ -101,11 +182,42 @@
   .result.err { background:rgba(255,90,90,.1); border:1px solid #ff5a5a; color:#ff9a9a; }
   .result a, .result.ok a, .result.err a { color:inherit; }
   .spin { color:var(--muted); font-size:13px; }
+  /* UX audit 2026-11-06: Organize with AI in Engage, the publish help line, the saved-draft row menu, the phone bottom bar. */
+  .orgrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 12px; }
+  .orgrow .why { color:var(--muted); font-size:12.5px; }
+  .organized { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:14px; white-space:pre-wrap; font-size:13.5px; line-height:1.55; }
+  .organized[hidden] { display:none; }
+  .organized h3 { margin:0 0 8px; font-size:13px; }
+  .pubhelp { color:var(--muted); font-size:12.5px; margin-top:6px; }
+  .pubhelp:empty { display:none; }
+  .saved .more { margin-left:8px; background:transparent; border:1px solid var(--line); color:var(--text); border-radius:8px; min-width:36px; min-height:32px; cursor:pointer; font-size:16px; line-height:1; }
+  .rowmenu { margin:0; inset:auto; position:fixed; min-width:200px; padding:6px 0; border:1px solid var(--line); border-radius:14px; background:var(--ds-surface, var(--bg)); color:var(--text); box-shadow:0 2px 6px rgb(0 0 0 / .08), 0 12px 32px rgb(0 0 0 / .16); }
+  .rowmenu button { display:flex; width:100%; min-height:44px; align-items:center; padding:0 16px; border:0; background:transparent; color:var(--text); font-size:14px; text-align:left; cursor:pointer; }
+  .rowmenu button:hover { background:var(--panel2); }
+  .wbar { display:none; }
   ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
   ::-webkit-scrollbar-thumb:hover{background:var(--muted,rgba(255,255,255,.28))}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  /* Touch: every target at least 44x44 (Connect, source, the feed's dismiss, a saved draft's menu). */
+  @media (pointer: coarse), (max-width: 640px) {
+    .acct a, .pubhelp a { display:inline-flex; align-items:center; min-height:44px; padding:0 8px; }
+    .art .meta a { display:inline-flex; align-items:center; min-height:44px; min-width:44px; padding:0 6px; }
+    .art .dismiss { top:2px; right:2px; width:44px; height:44px; padding:0; font-size:16px; }
+    .saved .more { min-width:44px; min-height:44px; }
+    .lbl .ref { display:inline-flex; align-items:center; min-height:44px; padding:0 6px; }
+  }
   @media (max-width: 640px) {
+    /* Phone: one view at a time, chosen from a bottom bar: Feed · Engage · Saved · Compose. */
+    .tabs { display:none; }
+    body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    body:not([data-wview="compose"]) .right { display:none; }
+    body[data-wview="compose"] .left { display:none; }
+    .wbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:10; height:calc(56px + env(safe-area-inset-bottom)); padding-bottom:env(safe-area-inset-bottom); background:var(--bg); border-top:1px solid var(--line); }
+    .wbar button { flex:1; border:0; background:transparent; color:var(--muted); font:inherit; font-size:13px; font-weight:600; min-height:56px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; cursor:pointer; }
+    .wbar button .i { font-size:18px; line-height:1; }
+    .wbar button[aria-current="page"] { color:var(--text); }
+    .wbar button[aria-current="page"] .i { color:var(--accent); }
     .split { flex-direction: column; height: auto; }
     .left { flex: none; width: 100%; border-right: none; border-bottom: 1px solid var(--line); }
     .right { flex: none; width: 100%; }
@@ -154,8 +266,10 @@
       <div class="view" id="engageView">
         <div class="scanbar">
           <label class="toggle"><input type="checkbox" id="scanToggle" /> 📨 Scan my email for social updates (anniversaries, new jobs, mentions)</label>
-          <div class="hint">Reads your connected inbox for LinkedIn/X/Facebook notifications worth acting on. Off by default.</div>
+          <div class="hint">Finds the LinkedIn, X and Facebook notifications in your <a href="/api/email/inbox" target="_top" style="color:var(--accent)">connected inbox</a> worth answering. Off by default.</div>
         </div>
+        <div class="orgrow"><button class="btn ghost" id="organizeBtn" type="button" disabled aria-describedby="organizeWhy">✨ Organize with AI</button><span class="why" id="organizeWhy">No signals yet</span></div>
+        <div class="organized" id="organized" role="status" hidden></div>
         <div class="lbl">👥 Worth engaging <span class="ref" id="refreshSig">↻ refresh</span></div>
         <div id="signals"><span class="spin">…</span></div>
       </div>
@@ -184,40 +298,59 @@
       <div class="bar">
         <button class="btn pub" id="pubBtn">Publish</button>
         <button class="btn ghost" id="saveBtn">💾 Save</button>
+        <button class="btn ghost" id="copyBtn" type="button">Copy</button>
         <span class="count" id="count">0 chars</span>
       </div>
+      <div class="pubhelp" id="pubHelp"></div>
       <div class="note">Review every word — Publish posts a real public post on your behalf (LinkedIn, X, or your Facebook Page).</div>
       <div id="result"></div>
+      <div id="connectedActions"></div>
     </div>
   </div>
+  <nav class="wbar" id="wbar" aria-label="Workspace views">
+    <button type="button" data-go="feed" aria-current="page"><span class="i" aria-hidden="true">📰</span>Feed</button>
+    <button type="button" data-go="engage"><span class="i" aria-hidden="true">👥</span>Engage</button>
+    <button type="button" data-go="saved"><span class="i" aria-hidden="true">📁</span>Saved</button>
+    <button type="button" data-go="compose"><span class="i" aria-hidden="true">📝</span>Compose</button>
+  </nav>
+  <div class="rowmenu" id="rowMenu" popover role="menu" aria-label="Draft actions"></div>
 <script>
 const $ = (id) => document.getElementById(id);
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function fmtDate(d){ const t=Date.parse(d||''); if(!t) return ''; return new Date(t).toLocaleDateString(undefined,{month:'short',day:'numeric'}); }
 const LIMITS = { twitter:280, linkedin:3000, facebook:60000 }, NAMES = { twitter:'X', linkedin:'LinkedIn', facebook:'Facebook' };
-const REFINEMENTS = [['✂️ Punchier','Make it punchier and more concise — tighten every line, stronger hook.'],['📏 Shorter','Cut it down by about half while keeping the core point.'],['🔬 Technical','Make it more technical and specific for an engineering audience.'],['🙋 Personal','Make it more personal and first-person — my lived experience as a builder.'],['📣 Add CTA','Add a clear, natural call-to-action at the end.'],['❓ Question','End with one sharp question that invites discussion.']];
-let PROFILES = {}, NET = 'linkedin', ARTICLE = null;  // ARTICLE = the feed item we're commenting on (links it)
+const REFINEMENTS = [['✂️ Punchier','Make it punchier and more concise — tighten every line, stronger hook.'],['📏 Shorter','Cut it down by about half while keeping the core point.'],['🔬 More technical','Make it more technical and specific for an engineering audience.'],['🙋 Personal','Make it more personal and first-person — my lived experience as a builder.'],['📣 Add CTA','Add a clear, natural call-to-action at the end.'],['❓ End with a question','End with one sharp question that invites discussion.']];
+let PROFILES = {}, NET = 'linkedin', ARTICLE = null, CHOSE = false, SIGNALS = 0;  // ARTICLE = the feed item we're commenting on (links it)
 
 // ── Left-pane tabs ───────────────────────────────────────────────────────────
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('sel'));
+/** Show one view: Feed, Engage or Saved on the left, or Compose (on a phone its own view; on a desktop it is always beside). */
+function goView(v){
+  document.body.dataset.wview = v;
+  document.querySelectorAll('#wbar button').forEach(b=>{ if (b.dataset.go===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
+  if (v==='compose'){ return; }
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('sel', x.dataset.view===v));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('sel'));
-  t.classList.add('sel'); $(t.dataset.view+'View').classList.add('sel');
-  if (t.dataset.view==='saved') loadSaved();
-});
+  $(v+'View').classList.add('sel');
+  if (v==='saved') loadSaved();
+}
+/** Compose with the focus in `field`, from any view. */
+function toCompose(field){ goView('compose'); const f=$(field||'text'); if (f) { f.focus(); if (window.innerWidth < 900) f.scrollIntoView({behavior:'smooth', block:'center'}); } }
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => goView(t.dataset.view));
+document.querySelectorAll('#wbar button').forEach(b => b.onclick = () => b.dataset.go==='compose' ? toCompose('text') : goView(b.dataset.go));
 
 // ── Accounts + network selector ──────────────────────────────────────────────
 function setCount(){ const n=$('text').value.length, lim=LIMITS[NET]||3000; const c=$('count'); c.textContent=`${n} / ${lim}`; c.className='count'+(n>lim?' over':''); }
 function renderNetsel(){
   const conn = { twitter: !!PROFILES.twitter, linkedin: !!PROFILES.linkedin, facebook: !!PROFILES.facebook };
-  if (!conn[NET]){ NET = (['linkedin','twitter','facebook'].find(n=>conn[n])) || 'linkedin'; }
+  if (!CHOSE && !conn[NET]){ NET = (['linkedin','twitter','facebook'].find(n=>conn[n])) || 'linkedin'; }
+  // The tabs choose the draft's format (X's 280 characters) whether or not that network is linked; only Publish waits.
   $('netsel').innerHTML =
-    `<button class="nbtn ${NET==='linkedin'?'sel li':''}" data-net="linkedin" ${conn.linkedin?'':'disabled title="Connect LinkedIn at /utilities"'}>in LinkedIn</button>`+
-    `<button class="nbtn ${NET==='twitter'?'sel x':''}" data-net="twitter" ${conn.twitter?'':'disabled title="Connect X at /utilities"'}>𝕏 X</button>`+
-    `<button class="nbtn ${NET==='facebook'?'sel fb':''}" data-net="facebook" ${conn.facebook?'':'disabled title="Connect Facebook at /utilities"'}>f Facebook</button>`;
-  $('netsel').querySelectorAll('.nbtn').forEach(b=>b.onclick=()=>{ if(!b.disabled){ NET=b.dataset.net; renderNetsel(); syncPub(); setCount(); } });
+    `<button class="nbtn ${NET==='linkedin'?'sel li':''}" data-net="linkedin" aria-pressed="${NET==='linkedin'}">in LinkedIn</button>`+
+    `<button class="nbtn ${NET==='twitter'?'sel x':''}" data-net="twitter" aria-pressed="${NET==='twitter'}">𝕏 X</button>`+
+    `<button class="nbtn ${NET==='facebook'?'sel fb':''}" data-net="facebook" aria-pressed="${NET==='facebook'}">f Facebook</button>`;
+  $('netsel').querySelectorAll('.nbtn').forEach(b=>b.onclick=()=>{ NET=b.dataset.net; CHOSE=true; renderNetsel(); syncPub(); setCount(); });
 }
-function syncPub(){ const ok=!!PROFILES[NET]; $('pubBtn').className='btn pub'+(NET==='twitter'?' x':NET==='facebook'?' fb':''); $('pubBtn').textContent=`Publish to ${NAMES[NET]} ▸`; $('pubBtn').disabled=!ok; }
+function syncPub(){ const ok=!!PROFILES[NET]; $('pubBtn').className='btn pub'+(NET==='twitter'?' x':NET==='facebook'?' fb':''); $('pubBtn').textContent=`Publish to ${NAMES[NET]} ▸`; $('pubBtn').disabled=!ok; $('pubHelp').innerHTML = ok ? '' : `<a href="/utilities" target="_top" style="color:var(--accent)">Connect</a> ${esc(NAMES[NET])} to publish`; }
 
 async function loadAccounts(){
   let r; try { r = await fetch('/api/social/profiles'); } catch { $('accounts').innerHTML='<span class="spin">Error loading accounts.</span>'; return; }
@@ -268,28 +401,47 @@ function commentOnArticle(c){
   $('clearArt').onclick = clearArticle;
   $('topic').value = '';
   $('topic').placeholder = 'Your take on this article — rough notes are fine (or leave blank for a straight share)';
-  $('topic').focus();
-  if (window.innerWidth < 900) $('topic').scrollIntoView({behavior:'smooth'});
+  toCompose('topic');
 }
 function clearArticle(){ ARTICLE=null; $('artctx').className='artctx'; $('artctx').innerHTML=''; $('topic').placeholder='Topic or angle for an AI draft (or pick an article / signal on the left)'; }
 
 // ── ENGAGE: email-mined people to engage (/api/social/content/signals + /settings) ──
 async function loadSettings(){
-  try { const j = await (await fetch('/api/social/content/settings')).json(); $('scanToggle').checked = !!j.emailSocialScan; if (j.emailSocialScan) loadSignals(); else $('signals').innerHTML='<div class="empty">Turn on the scan above to surface people worth engaging from your inbox.</div>'; } catch {}
+  try { const j = await (await fetch('/api/social/content/settings')).json(); $('scanToggle').checked = !!j.emailSocialScan; if (j.emailSocialScan) loadSignals(); else signalCount(0, ''); } catch {}
 }
 $('scanToggle').onchange = async () => {
   try { await fetch('/api/social/content/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ emailSocialScan: $('scanToggle').checked }) }); } catch {}
-  if ($('scanToggle').checked) loadSignals(); else $('signals').innerHTML='<div class="empty">Scan off. Turn it on to surface people worth engaging.</div>';
+  if ($('scanToggle').checked) loadSignals(); else signalCount(0, '');
+};
+/** How many signals Engage holds: Organize with AI works only on some, and says why it is off. */
+function signalCount(n, emptyHtml){
+  SIGNALS = n;
+  $('organizeBtn').disabled = !n;
+  $('organizeWhy').textContent = n ? '' : 'No signals yet';
+  if (!n) { $('organized').hidden = true; $('signals').innerHTML = emptyHtml || ''; }
+}
+$('organizeBtn').onclick = async () => {
+  if (!SIGNALS) return;
+  const btn=$('organizeBtn'), o=$('organized'); btn.disabled=true; o.hidden=false; o.innerHTML='<h3>Organizing…</h3>Reading your signals…';
+  try {
+    const r = await fetch('/api/social/signals/organize', { method:'POST' });
+    const j = await r.json().catch(()=>({}));
+    if (r.ok && j.count===0) o.innerHTML='<h3>Nothing to organize</h3>No social notifications in the last 7 days.';
+    else if (r.ok && j.organized) o.innerHTML='<h3>📋 Your social briefing ('+esc(j.count||0)+' signals)</h3>'+esc(j.organized);
+    else o.innerHTML='<h3>Couldn’t organize</h3>'+esc((j&&j.error)||('HTTP '+r.status));
+  } catch(e){ o.innerHTML='<h3>Couldn’t organize</h3>'+esc(e.message); }
+  btn.disabled = !SIGNALS;
 };
 async function loadSignals(){
   $('signals').innerHTML='<span class="spin">Scanning your inbox for social updates…</span>';
   let r; try { r = await fetch('/api/social/content/signals'); } catch { $('signals').innerHTML='<div class="empty">Couldn\'t scan.</div>'; return; }
   const j = await r.json().catch(()=>({}));
-  if (r.status===409){ $('signals').innerHTML='<div class="empty">Connect Google to scan your social inbox.<br><a href="/utilities" target="_top">Open connectors →</a></div>'; return; }
-  if (!r.ok){ $('signals').innerHTML='<div class="empty">'+esc(j.error||'Scan failed')+'</div>'; return; }
-  if (j.enabled===false){ $('scanToggle').checked=false; $('signals').innerHTML='<div class="empty">Turn on the scan above to see who to engage.</div>'; return; }
+  if (r.status===409){ signalCount(0, '<div class="empty">Connect Google to scan your social inbox.<br><a href="/utilities" target="_top">Open connectors →</a></div>'); return; }
+  if (!r.ok){ signalCount(0, '<div class="empty">'+esc(j.error||'Scan failed')+'</div>'); return; }
+  if (j.enabled===false){ $('scanToggle').checked=false; signalCount(0, ''); return; }
   const sigs = j.signals || [];
-  if (!sigs.length){ $('signals').innerHTML='<div class="empty">No engagement signals right now'+(j.scanned?` · ${j.scanned} emails scanned`:'')+'. Noise (security/login alerts) is filtered out.</div>'; return; }
+  if (!sigs.length){ signalCount(0, '<div class="empty">No social updates worth answering right now.</div>'); return; }
+  signalCount(sigs.length);
   $('signals').innerHTML = sigs.map((s,i)=>`
     <div class="sig">
       <div class="act">${esc(s.action||'Engage')}${s.person?` · <span class="who">${esc(s.person)}</span>`:''}</div>
@@ -308,8 +460,8 @@ async function draftFromSignal(sig, btn){
     const j = await r.json();
     if (r.ok && j.note){
       clearArticle(); $('text').value = j.note; setCount(); showRefine();
-      if (sig.network==='twitter'||sig.network==='linkedin'){ NET=sig.network; renderNetsel(); syncPub(); }
-      $('text').scrollIntoView({behavior:'smooth'});
+      if (sig.network==='twitter'||sig.network==='linkedin'){ NET=sig.network; CHOSE=true; renderNetsel(); syncPub(); }
+      toCompose('text');
     } else res('Couldn\'t draft a note: '+esc(j.error||r.status), false);
   } catch(e){ res('Draft error.', false); }
   btn.disabled=false; btn.textContent=lbl;
@@ -326,10 +478,20 @@ async function loadSaved(){
     <div class="saved">
       <div class="stop"><b>${esc(d.topic||'Untitled')}</b><span class="sdate">${esc(fmtDate(d.created_at))}</span></div>
       <div class="sbody">${esc((d.draft||'').slice(0,170))}${(d.draft||'').length>170?'…':''}</div>
-      <div class="srow"><button class="btn ghost sm" data-open="${i}">Open</button><button class="btn ghost sm" data-copy="${i}">Copy</button></div>
     </div>`).join('');
-  $('saved').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ const d=drafts[+b.dataset.open]; clearArticle(); $('topic').value=d.topic||''; $('text').value=d.draft||''; setCount(); showRefine(); $('text').scrollIntoView({behavior:'smooth'}); });
-  $('saved').querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(drafts[+b.dataset.copy].draft||''); b.textContent='Copied ✓'; });
+  $('saved').querySelectorAll('.saved .stop').forEach((row,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='more'; b.textContent='⋯'; b.setAttribute('aria-haspopup','menu'); b.setAttribute('aria-label','More for '+(drafts[i].topic||'Untitled')); b.onclick=()=>draftMenu(b, drafts[i]); row.appendChild(b); });
+}
+/** A saved draft's ⋯ menu in the top layer: Open (into Compose) and Copy. */
+function draftMenu(trigger, d){
+  const m=$('rowMenu');
+  m.innerHTML='<button type="button" role="menuitem" data-m="open">Open</button><button type="button" role="menuitem" data-m="copy">Copy</button>';
+  m.onclick=(e)=>{ const b=e.target.closest('[data-m]'); if(!b) return; if (m.hidePopover) m.hidePopover();
+    if (b.dataset.m==='open'){ clearArticle(); $('topic').value=d.topic||''; $('text').value=d.draft||''; setCount(); showRefine(); toCompose('text'); }
+    else { try { navigator.clipboard.writeText(d.draft||''); res('Copied the draft.', true); } catch { res('Could not copy.', false); } } };
+  if (m.showPopover) m.showPopover();
+  const r=trigger.getBoundingClientRect(), w=m.offsetWidth||200, h=m.offsetHeight||96;
+  m.style.left=Math.max(8, Math.min(r.right-w, innerWidth-w-8))+'px';
+  m.style.top=(r.bottom+4+h>innerHeight ? Math.max(8, r.top-h-4) : r.bottom+4)+'px';
 }
 
 // ── COMPOSE: draft / refine / save / publish ─────────────────────────────────
@@ -382,6 +544,7 @@ $('saveBtn').onclick = async ()=>{
 };
 
 $('text').addEventListener('input', setCount);
+$('copyBtn').onclick = async ()=>{ const t=$('text').value.trim(); if(!t){ $('text').focus(); return; } try { await navigator.clipboard.writeText(t); $('copyBtn').textContent='Copied ✓'; setTimeout(()=>{$('copyBtn').textContent='Copy';},1400); } catch { res('Could not copy.', false); } };
 $('refreshFeed').onclick = () => loadFeed(true);
 $('refreshSig').onclick = loadSignals;
 $('refreshSaved').onclick = loadSaved;
@@ -394,14 +557,46 @@ $('pubBtn').onclick = async ()=>{
     const r = await fetch('/api/social/post', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ text, target: NET, confirm: true }) });
     const j = await r.json();
     if (r.ok && j.ok) res(`✓ Published to ${NAMES[NET]}${j.tweetId?(' · '+esc(j.tweetId)):(j.postId?(' · '+esc(j.postId)):'')}`, true);
-    else if (j.code===409||r.status===409) res(esc(j.message||('Connect '+NAMES[NET]))+' (<a href="/utilities" target="_top">/utilities</a>)', false);
+    else if (j.code===409||r.status===409) res('<a href="/utilities" target="_top">Connect</a> '+esc(NAMES[NET])+' to publish.', false);
     else res('Publish failed: '+esc(j.error||('HTTP '+r.status)), false);
   } catch(e){ res('Publish error.', false); }
   $('pubBtn').disabled=false; $('pubBtn').textContent=lbl;
 };
 function res(msg, ok){ const r=$('result'); r.className='result '+(ok?'ok':'err'); r.innerHTML=msg; }
 
-loadAccounts(); loadFocus(); loadFeed(false); loadSettings();
+// ?view=engage opens Engage (Signals merge) and ?view=compose opens Compose (Composer merge).
+if (!window.AppView || !AppView.active()) {
+  const startParams = new URLSearchParams(location.search);
+  const prefill = [startParams.get('title'), startParams.get('notes'), startParams.get('sourceUrl') ? 'Source: ' + startParams.get('sourceUrl') : ''].filter(Boolean).join('\n\n');
+  const startView = startParams.get('view') || (prefill ? 'compose' : '');
+  goView(['feed','engage','saved','compose'].includes(startView) ? startView : 'feed');
+  if (prefill) { clearArticle(); $('text').value = prefill; setCount(); showRefine(); }
+  loadAccounts(); loadFocus(); loadFeed(false); loadSettings();
+  if (startParams.has('handoff') || window.self !== window.top) {
+    import('/cockpit/js/app-handoff.js').then((m) => {
+      if (m && typeof m.receiveHandoff === 'function') {
+        m.receiveHandoff({ app: 'social', action: 'prepare-post', contextType: 'communication-brief', version: 1, fields: ['title', 'notes', 'sourceUrl'] }, (context) => {
+          clearArticle();
+          $('text').value = [context.title, context.notes, context.sourceUrl ? 'Source: ' + context.sourceUrl : ''].filter(Boolean).join('\n\n');
+          setCount(); showRefine(); toCompose('text');
+        });
+      }
+    }).catch(() => {});
+  }
+  if (window.self !== window.top) {
+    import('/cockpit/js/app-workflows.js').then((m) => {
+      if (m && typeof m.mountConnectedActions === 'function') {
+        const host = $('connectedActions');
+        const section = document.createElement('section');
+        section.className = 'connected-app-actions';
+        section.setAttribute('aria-label', 'Connected application actions');
+        section.style.cssText = 'margin:14px 0 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+        host.appendChild(section);
+        void m.mountConnectedActions({ app: 'social', element: section, contextForOffer: () => { const notes = $('text').value.trim().slice(0, 2000); return notes ? { title: 'Review my communication draft', notes } : null; } });
+      }
+    }).catch(() => {});
+  }
+}
 </script>
 </body>
 </html>

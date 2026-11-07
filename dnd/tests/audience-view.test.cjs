@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family view asserted as behaviour: the head block runs against a stub kit and a stub fetch, so the tests prove what it reads on open (only GET /campaigns, /characters and /home-summary; never a write, never the connected-actions plan, never a table, state, sync, playback or archive read), that the stats, title and lede name the saved games (in progress, finished or archived, saved heroes, last played), that each game reads as the table's own place in plain words with its players and the caller's role, that the story beats are read from the route's own offer notes (a beat ending in a period kept whole, a game with no story and the route's own notes skipped, a long beat clipped), that the join code is never painted, that nothing carries a link and the one action opens the cockpit, that a heroes or story read failing on its own is named as not checked while the games still show, and that a 401, a 403, a 5xx, a failure with its own error and a non-JSON failure each read as what they are. The page's module script (top-level await, so run as an async function body) is proved to mount no connected actions and read nothing under the view while the full page still runs every start step.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | The second page: the table (ui/table.html, the games group's first surface, which the Jarvis shell opens with ?audience=family) boots the kit in its head before the tabletop bundle and the served, script-inlined document keeps that order. Its family view is asserted over a stub kit and fetch (only GET /campaigns, /characters and /content; each game named with its adventure and chapter as the route resolves them, where it stands, its players and the caller's role; the heroes; the adventure shelf; a heroes or shelf read failing on its own named as not checked; 401, 403, 5xx, non-JSON and own-error failures each named) and over the package's REAL router with a recording pool (exactly two SELECTs pinned to the caller, the join code never painted, signed out and database unavailable named). The gates are proved by running table-voice.js, table-immersive.js and table-screens.js in a VM: under the view no audio listener, no legacy key removal, no immersive wiring, no animation loop, no narrator status, no glitch banner and no boot read; without the view, or without the kit, every one of them still runs.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: the full table also wires the HUD's More menu (its menu, its button, an outside press and Escape), still nothing under the family view; the review page's module now asks its action host whether any connected action rendered, so the stub element answers querySelector.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -202,7 +203,7 @@ test('a refusal and a failure each read as what they are', async () => {
 });
 
 /** @returns {object} A stub element with the members the page's module script touches on start. */
-function node() { return { value: '', textContent: '', className: '', disabled: false, append() {}, replaceChildren() {}, addEventListener() {} }; }
+function node() { return { value: '', textContent: '', className: '', disabled: false, hidden: false, append() {}, replaceChildren() {}, addEventListener() {}, querySelector() { return null; } }; }
 
 /**
  * @description Run the page's module script (imports stripped) against stub modules, a stub DOM and a stub fetch. The
@@ -449,7 +450,7 @@ function runVoice(view) {
 /** @returns {{ wired: string[], documentListeners: string[] }} The controls and document listeners table-immersive.js wires on load. */
 function runImmersive(view) {
   const g = kitGlobals(view), wired = [], documentListeners = [];
-  g.$ = (id) => { wired.push(id); return { classList: { contains: () => false } }; };
+  g.$ = (id) => { wired.push(id); return { classList: { contains: () => false }, addEventListener() {} }; };
   g.document = { addEventListener: (name) => documentListeners.push(name), querySelectorAll: () => [] };
   vm.runInNewContext(read('ui/table-immersive.js'), g, { filename: 'table-immersive.js' });
   return { wired, documentListeners };
@@ -477,7 +478,8 @@ test('under the family view the tabletop starts nothing; without the view, or wi
   const voice = { listeners: ['pointerdown', 'touchstart', 'keydown', 'click'], removed: ['dnd-voice', 'dnd-device-voice'] };
   assert.deepEqual([runVoice(null), runVoice(undefined)], [voice, voice]);
   assert.deepEqual(runImmersive('family'), { wired: [], documentListeners: [] });
-  const immersive = { wired: ['fullscreenBtn', 'storyBtn'], documentListeners: ['fullscreenchange', 'keydown'] };
+  // The HUD's More menu (UX audit 2026-11-06) is wired first: its menu, its button, an outside press and Escape.
+  const immersive = { wired: ['moreMenu', 'moreBtn', 'moreBtn', 'fullscreenBtn', 'storyBtn'], documentListeners: ['pointerdown', 'keydown', 'fullscreenchange', 'keydown'] };
   assert.deepEqual([runImmersive(null), runImmersive(undefined)], [immersive, immersive]);
   assert.deepEqual(await runScreens('family'), { reads: [], frames: 0, narrator: 0, listeners: ['resize'] }, 'no boot read, animation loop, narrator status or glitch banner');
   const full = { reads: ['/content'], frames: 1, narrator: 1, listeners: ['resize', 'error'] };

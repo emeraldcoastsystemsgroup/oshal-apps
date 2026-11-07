@@ -44,10 +44,15 @@
   .newrow{ display:flex;gap:9px;align-items:center;margin:20px 0 16px; }
   .newrow input{ flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--pill);padding:11px 16px;color:var(--text);font:inherit;font-size:14px; }
   .newrow input:focus{ outline:none;border-color:var(--accent); }
+  @media (max-width:520px){ .wrap{ padding:20px 16px 60px; } .newrow{ flex-wrap:wrap; } .newrow input{ flex:1 1 100%; } .newrow .btn{ min-height:44px; } }
   .btn{ appearance:none;border:1px solid var(--line);background:var(--card);color:var(--text);font:inherit;font-size:13px;font-weight:600;padding:10px 16px;border-radius:var(--pill);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:all var(--ease) .15s;white-space:nowrap; }
   .btn svg{ width:15px;height:15px; }
   .btn:hover{ border-color:var(--accent);color:var(--accent); }
-  .btn.pri{ background:var(--accent);border-color:transparent;color:#fff; } .btn.pri:hover{ filter:brightness(1.08);color:#fff; }
+  /* The primary's ink is the theme's on-accent colour (white on Graphite's pale silver failed contrast) and it carries no
+     border of its own (Light Blue drew a 1.5px black ring round it): UX audit 2026-11-06. */
+  .btn.pri{ background:var(--accent);border:0;color:var(--ds-on-accent,var(--text-on-accent,#fff)); } .btn.pri:hover{ filter:brightness(1.08);color:var(--ds-on-accent,var(--text-on-accent,#fff)); }
+  a.btn{ text-decoration:none; }
+  .noacct{ font-size:13px;color:var(--muted);padding:2px 0; } .noacct a{ color:var(--accent);font-weight:600; }
   .btn.sm{ padding:7px 12px;font-size:12px; } .btn.icon{ padding:8px;width:34px;justify-content:center; }
 
   .wscard{ background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);margin-bottom:14px;overflow:hidden; position:relative; }
@@ -110,16 +115,21 @@
   function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},1800); }
   function api(method,url,body){ return fetch("/api/switchboard"+url,{method:method,headers:{"Content-Type":"application/json",Accept:"application/json"},body:body?JSON.stringify(body):undefined}).then(function(r){ if(!r.ok) return r.json().then(function(e){throw new Error(e.error||r.status);}); return r.status===204?{}:r.json(); }); }
 
+  // The Connections page is a kernel page: it opens at the top level, never inside this frame (which nested a second
+  // cockpit header here). It takes no return address, so the browser's Back lands on this screen again.
+  var CONNECT_HREF="/utilities";
+  function connectLine(){ return '<div class="noacct">No accounts connected yet. <a href="'+CONNECT_HREF+'" target="_top">Connect accounts</a></div>'; }
   function render(){
     var c=document.getElementById("content");
-    if(!state.accounts.length){
-      c.innerHTML='<div class="hero"><div class="badge"><svg><use href="#i-board"/></svg></div><h2>Connect accounts first</h2>'
-        +'<p>Workspaces group the accounts you\'ve connected. Add a Gmail, an X handle, a Facebook Page or a Slack — then come back to organize them into brand desks.</p>'
-        +'<a class="btn pri" href="/utilities"><svg><use href="#i-plus"/></svg> Connect accounts</a></div>';
-      return;
-    }
-    var html='<div class="newrow"><input id="newname" placeholder="New workspace — e.g. Emerald Coast, a client, Personal…" maxlength="60" /><button class="btn pri" id="createBtn"><svg><use href="#i-plus"/></svg> Create</button></div>';
-    if(!state.workspaces.length){
+    // A workspace can be made before any account is linked (POST /workspaces takes a name and a colour only), so
+    // New workspace is always here; with no workspace yet the empty state offers a Personal desk to start from.
+    var html='<div class="newrow"><input id="newname" aria-label="New workspace name" placeholder="New workspace — e.g. Emerald Coast, a client, Personal…" maxlength="60" /><button class="btn pri" id="createBtn"><svg><use href="#i-plus"/></svg> New workspace</button></div>';
+    if(!state.workspaces.length && !state.accounts.length){
+      html+='<div class="wscard c-slate"><div class="wshead"><span class="wsname" style="border:0">Personal</span>'
+        +'<button class="btn sm sugbtn" data-name="Personal">Create Personal</button></div>'
+        +'<div class="wsmeta">A desk for your own accounts. Add the accounts to it once they are connected.</div>'
+        +'<div class="accts">'+connectLine()+'</div></div>';
+    } else if(!state.workspaces.length){
       html+='<div class="empty"><h3>No workspaces yet</h3><div>Create a desk for each brand or identity you run. A few to start:</div>'
         +'<div class="sugg"><button class="btn sm sugbtn">Personal</button><button class="btn sm sugbtn">My business</button><button class="btn sm sugbtn">Client</button></div></div>';
     }
@@ -130,7 +140,7 @@
         +'<div class="swatches">'+COLORS.map(function(k){return '<span class="sw'+(k===w.color?' on':'')+'" data-color="'+k+'" style="background:'+HEX[k]+'"></span>';}).join("")+'</div>'
         +'<button class="btn icon del" title="Delete workspace"><svg><use href="#i-trash"/></svg></button></div>'
         +'<div class="wsmeta">'+sel.size+' of '+state.accounts.length+' accounts</div>'
-        +'<div class="accts">'+state.accounts.map(function(a){
+        +'<div class="accts">'+(state.accounts.length?'':connectLine())+state.accounts.map(function(a){
             var on=sel.has(a.connectionId);
             return '<div class="chip'+(on?' on':'')+'" data-cid="'+esc(a.connectionId)+'"><span class="pd" style="background:'+(PROVHEX[a.provider]||"#888")+'"></span>'+esc(a.label)+'<span class="tick"><svg><use href="#i-check"/></svg></span></div>';
           }).join("")+'</div></div>';
@@ -142,7 +152,7 @@
   document.addEventListener("click",function(e){
     var t=e.target;
     if(t.closest("#createBtn")){ create(); return; }
-    if(t.closest(".sugbtn")){ var el=document.getElementById("newname"); el.value=t.closest(".sugbtn").textContent; el.focus(); return; }
+    if(t.closest(".sugbtn")){ var sb=t.closest(".sugbtn"), el=document.getElementById("newname"); el.value=sb.getAttribute("data-name")||sb.textContent; if(sb.hasAttribute("data-name")){ create(); } else { el.focus(); } return; }
     var sw=t.closest(".sw"); if(sw){ recolor(sw.closest(".wscard").dataset.id, sw.dataset.color); return; }
     var del=t.closest(".del"); if(del){ removeWs(del.closest(".wscard").dataset.id, del.closest(".wscard").querySelector(".wsname").value); return; }
     var chip=t.closest(".chip"); if(chip){ toggleAcct(chip.closest(".wscard").dataset.id, chip.dataset.cid); return; }

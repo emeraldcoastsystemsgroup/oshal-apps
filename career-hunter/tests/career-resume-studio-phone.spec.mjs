@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 6 (workspace Resume Studio tab at 412 px): the resume select ran past the right edge (right=487 in a 412 viewport, arrow hidden) and the chat placeholder was clipped mid-line. The shipped page, opened in headless Chromium at 412x915 with a long resume name in the select, keeps the select and the page inside the viewport and shows the composer's placeholder whole.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: on a phone the Resume Editor is a sheet opened from "Edit with AI", so the placeholder is measured with it open.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for playwright. Run locally:
  *   OSHAL_CORE_DIR=<core checkout> node --test tests/career-resume-studio-phone.spec.mjs
@@ -33,6 +34,7 @@ test('at 412 px the resume select and the page stay inside the viewport, and the
     document.querySelector('#pick').append(o);
     document.querySelector('#pick').value = o.value;
     document.querySelector('#msg').disabled = false;
+    document.querySelector('.chat').classList.add('open'); // the phone editor is the sheet "Edit with AI" opens
   });
   const m = await tab.evaluate(() => {
     const s = document.querySelector('#pick').getBoundingClientRect();

@@ -9,6 +9,7 @@
  *   Places double that is never called because no address is set, and the demo's own concierge reply as the scripted model). The page shows the reply
  *   as written and, on its own status line under it, "Pad Thai usually contains peanuts (you avoid peanuts)". Seams: the shell's
  *   shared assets are empty stand-ins. Needs the store toolchain (express, playwright, chromium).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2 (UX audit 2026-11-06, eats-concierge): on a phone (412x915) Eats Concierge opens as an opaque bottom half-sheet from #eatsConciergeOpen before typing into #chatInput, and Settings opens #eatsSettingsDialog.
  */
 'use strict';
 const test = require('node:test');
@@ -44,6 +45,9 @@ test('after a stated peanut allergy the page shows the Pad Thai reply with its o
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/api/eats/app`);
+  assert.equal(await page.locator('#eatsConciergeSheet').isVisible(), false, 'phone concierge starts collapsed');
+  await page.locator('#eatsConciergeOpen').click();
+  assert.equal(await page.locator('#eatsConciergeSheet').isVisible(), true, 'phone concierge opens as a half-sheet');
   await page.locator('#chatInput').fill('I am allergic to peanuts. Suggest a vegetarian dinner for tonight.');
   await page.locator('#chatSend').click();
   const check = page.locator('#messages .msg.allergy-check');

@@ -1,0 +1,145 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Named RBAC authorization catalog for Audio Studio binding all HTTP routes, UI assets, audio-engineer bot, and 12 Jarvis/Concierge tools.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bind /audio-ui-helpers.js static module alongside Audio Studio UI assets.
+# ─────────────────────────────────────────────────────────────────────────────
+# oshal named authorization catalog — audio ("Audio Studio")
+# Strict role-based access control and personal-scope isolation
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: 1
+resources:
+  studio:
+    scopes: [own]
+  editor:
+    scopes: [own]
+
+permissions:
+  studio.view: { resource: studio, effect: read, minimumTier: viewer }
+  studio.read: { resource: studio, effect: read, minimumTier: viewer }
+  studio.generate: { resource: studio, effect: execute, minimumTier: editor }
+  editor.view: { resource: editor, effect: read, minimumTier: viewer }
+  editor.read: { resource: editor, effect: read, minimumTier: viewer }
+  editor.create: { resource: editor, effect: write, minimumTier: editor }
+  editor.change: { resource: editor, effect: write, minimumTier: editor }
+  editor.delete: { resource: editor, effect: write, minimumTier: editor }
+  editor.export: { resource: editor, effect: export, minimumTier: editor }
+
+roles:
+  viewer:
+    tier: viewer
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: editor.view, scope: own }
+  reader:
+    tier: viewer
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+  producer:
+    tier: editor
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: studio.generate, scope: own }
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.create, scope: own }
+      - { permission: editor.change, scope: own }
+      - { permission: editor.export, scope: own }
+  creator:
+    tier: editor
+    grants:
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.create, scope: own }
+      - { permission: editor.delete, scope: own }
+  editor:
+    tier: editor
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.create, scope: own }
+      - { permission: editor.change, scope: own }
+      - { permission: editor.delete, scope: own }
+      - { permission: editor.export, scope: own }
+  exporter:
+    tier: editor
+    grants:
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.export, scope: own }
+  admin:
+    tier: admin
+    grants:
+      - { permission: studio.view, scope: own }
+      - { permission: studio.read, scope: own }
+      - { permission: studio.generate, scope: own }
+      - { permission: editor.view, scope: own }
+      - { permission: editor.read, scope: own }
+      - { permission: editor.create, scope: own }
+      - { permission: editor.change, scope: own }
+      - { permission: editor.delete, scope: own }
+      - { permission: editor.export, scope: own }
+
+bindings:
+  http:
+    - { id: smoke, method: GET, path: /_smoke, allOf: [studio.view] }
+    - { id: home-summary, method: GET, path: /home-summary, allOf: [studio.view, studio.read] }
+    - { id: studio-ui, method: GET, path: /ui, allOf: [studio.view] }
+    - { id: studio-ui-asset, method: GET, path: '/ui/:asset', allOf: [studio.view] }
+    - { id: studio-assets-file, method: GET, path: '/assets/:file', allOf: [studio.view] }
+    - { id: studio-css, method: GET, path: /audio.css, allOf: [studio.view] }
+    - { id: studio-style-css, method: GET, path: /style.css, allOf: [studio.view] }
+    - { id: studio-js, method: GET, path: /audio.js, allOf: [studio.view] }
+    - { id: studio-app-js, method: GET, path: /app.js, allOf: [studio.view] }
+    - { id: studio-ui-helpers-js, method: GET, path: /audio-ui-helpers.js, allOf: [studio.view] }
+    - { id: studio-dsp-js, method: GET, path: /dsp_engine.js, allOf: [studio.view] }
+    - { id: studio-dsp-synth-js, method: GET, path: /dsp_synth.js, allOf: [studio.view] }
+    - { id: studio-handoff-mjs, method: GET, path: /editor-handoff.mjs, allOf: [studio.view] }
+    - { id: studio-projects-list, method: GET, path: /projects, allOf: [studio.view, studio.read] }
+    - { id: studio-project-create, method: POST, path: /projects, allOf: [studio.view, editor.create] }
+    - { id: studio-project-get, method: GET, path: '/projects/:id', allOf: [studio.view, studio.read] }
+    - { id: studio-stem-add, method: POST, path: '/projects/:id/stems', allOf: [studio.view, editor.change] }
+    - { id: studio-mixdown-get, method: GET, path: '/projects/:id/mixdown', allOf: [studio.view, studio.read] }
+    - { id: studio-mixdown-render, method: POST, path: '/projects/:id/mixdown', allOf: [studio.view, editor.export] }
+    - { id: studio-blob-get, method: GET, path: '/blobs/:hash', allOf: [studio.view, studio.read] }
+    - { id: studio-personas-list, method: GET, path: /personas, allOf: [studio.view] }
+    - { id: studio-tts-generate, method: POST, path: /tts/generate, allOf: [studio.view, editor.create] }
+    - { id: studio-live-modulate, method: POST, path: /live/modulate, allOf: [studio.view] }
+    - { id: studio-live-publish, method: POST, path: /live/publish, allOf: [studio.view, editor.export] }
+    - { id: editor-ui, method: GET, path: /editor/ui, allOf: [editor.view] }
+    - { id: editor-ui-asset, method: GET, path: '/editor/ui/:asset', allOf: [editor.view] }
+    - { id: editor-contract, method: GET, path: /editor/editing-contract, allOf: [editor.view] }
+    - { id: editor-projects-list, method: GET, path: /editor/projects, allOf: [editor.view, editor.read] }
+    - { id: editor-project-get, method: GET, path: '/editor/projects/:id', allOf: [editor.view, editor.read] }
+    - { id: editor-agent-project, method: POST, path: /editor/agent-projects, allOf: [editor.view, editor.create] }
+    - { id: editor-apply-operations, method: POST, path: '/editor/projects/:id/operations', allOf: [editor.view, editor.read, editor.change] }
+    - { id: editor-concierge-post, method: POST, path: '/editor/concierge', allOf: [editor.view, editor.read, editor.change] }
+    - { id: editor-render-mixdown, method: POST, path: '/editor/projects/:id/render', allOf: [editor.view, editor.read, editor.export] }
+    - { id: editor-mixdowns-list, method: GET, path: '/editor/projects/:id/mixdowns', allOf: [editor.view, editor.read] }
+    - { id: editor-stem-ingest, method: POST, path: '/editor/projects/:id/stems', allOf: [editor.view, editor.read, editor.change] }
+    - { id: editor-project-delete, method: DELETE, path: '/editor/projects/:id', allOf: [editor.view, editor.delete] }
+    - { id: editor-media-cleanup, method: POST, path: /editor/media/cleanup, allOf: [editor.view, editor.delete] }
+    - { id: editor-import-artifact, method: POST, path: /editor/import-artifact, allOf: [editor.view, editor.change] }
+    - { id: editor-artifacts-list, method: GET, path: /editor/artifacts, allOf: [editor.view, editor.read] }
+
+  bots:
+    - { id: e404b2de-81f6-44c9-bad5-b4c042b7c4d7, allOf: [editor.view, editor.read] }
+
+  tools:
+    - { id: audio-editing-contract, allOf: [editor.view] }
+    - { id: audio-list-projects, allOf: [editor.view, editor.read] }
+    - { id: audio-read-project, allOf: [editor.view, editor.read] }
+    - { id: audio-new-project, allOf: [editor.view, editor.create] }
+    - { id: audio-apply-edits, allOf: [editor.view, editor.read, editor.change] }
+    - { id: audio-render-mixdown, allOf: [editor.view, editor.read, editor.export] }
+    - { id: audio-list-mixdowns, allOf: [editor.view, editor.read] }
+    - { id: audio-ingest-stem, allOf: [editor.view, editor.read, editor.change] }
+    - { id: audio-tts-generate, allOf: [studio.view, editor.create] }
+    - { id: audio-live-modulate, allOf: [studio.view] }
+    - { id: audio-live-publish, allOf: [studio.view, editor.export] }
+    - { id: audio-concierge-adjust, allOf: [editor.view, editor.read, editor.change] }

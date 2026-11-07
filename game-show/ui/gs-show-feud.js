@@ -8,6 +8,7 @@
  * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: the Host Desk's answer key now starts with the round's own question ("Round 2 question: ..."). The desk showed no current question, only the host caption from round 1, so the concierge read the round-1 question during round 2.
  * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Says whose turn it is and what to do on every beat, shows the answer box only to a seat the server would accept (typing out of turn was refused with a message nobody could read), and offers the Fast Money endgame from the stage to the room's owner (it was only on the Host Desk).
  * 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com    | The owner's button says Start Fast Money in its setup.
+ * 2026-11-06 08:55:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06 (Host Desk): the answer key's rows are buttons. A hidden answer says Reveal and force-reveals that slot through the existing override (C.override('forceReveal', {index})); a revealed one is disabled and says revealed. They looked pressable and did nothing.
  */
 
 /* global window, document, setTimeout, setInterval */
@@ -198,9 +199,12 @@
         list.appendChild(GS.el('div', { class: 'a up gsf-host-question' },
           GS.el('span', {}, 'Round ' + (st.round || 1) + ' question: ' + board2.question), GS.el('span', {}, '')));
       }
+      // Each slot is a button: pressing a hidden one reveals it through the host override; a revealed one says so.
       board2.answers.forEach(function (a, i) {
-        list.appendChild(GS.el('div', { class: 'a' + (a.revealed ? ' up' : '') },
-          GS.el('span', {}, (i + 1) + '. ' + a.text), GS.el('span', {}, a.points + (a.revealed ? ' ✓' : ''))));
+        list.appendChild(GS.el('button', { type: 'button', class: 'a gsf-key' + (a.revealed ? ' up' : ''), disabled: !!a.revealed,
+          'aria-label': (a.revealed ? 'Revealed: ' : 'Reveal ') + (i + 1) + '. ' + a.text,
+          onclick: function () { GS.controls.override('forceReveal', { index: i }); } },
+          GS.el('span', {}, (i + 1) + '. ' + a.text), GS.el('span', {}, a.revealed ? a.points + ' · revealed' : a.points + ' · Reveal')));
       });
     }
     return GS.el('div', { class: 'gs-panel', style: 'padding:12px' },

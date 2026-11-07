@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Behaviour of the Get a Ride family view over a stub kit and a stub fetch: on open it reads exactly /history and /home-summary and never the map config, address lookup, fare estimate, Uber link, concierge, conversation or profile; the rides list carries destination, pickup, ride type, the saved estimate and when, and opens nothing (a saved Uber link would start a booking); places are ranked by how often they were asked for; the usual ride, the five-day count, the capped history, the empty, unknown-summary, partial, 401, 403 and failed-read states are each named; the one action opens the cockpit entry. The page's three start paths (the map page's boot, the assistant rail module, the handoff and connected-actions module) are each run against a stub DOM to prove none starts under a view and each still starts without one and without the kit.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.5.7: the full planner boot also reads /api/rides/profile for saved Home and Work places; the audience view still reads nothing from boot.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -211,7 +212,7 @@ test('under an audience view the map page does not start; without a view, and wi
   assert.deepEqual(await runMapPage('family'), { fetched: [], touched: [] }, 'no read and no DOM touch behind the view');
   for (const activeView of [null, undefined]) {
     const full = await runMapPage(activeView);
-    assert.deepEqual(full.fetched, ['/api/rides/history', '/api/rides/config'], 'the full page starts as before (kit ' + (activeView === undefined ? 'absent' : 'rendering nothing') + ')');
+    assert.deepEqual(full.fetched, ['/api/rides/history', '/api/rides/profile', '/api/rides/config'], 'the full page starts as before (kit ' + (activeView === undefined ? 'absent' : 'rendering nothing') + ')');
     assert.ok(full.touched.includes('#pickup'), 'the full page wires its controls');
   }
   assert.doesNotMatch(html, /^\s*boot\(\);/m, 'no ungated start is left');

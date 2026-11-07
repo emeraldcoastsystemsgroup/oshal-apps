@@ -1,6 +1,7 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Register truthful isolated recorded-report completion and source admission evidence.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Rename the drifted framework-checkout prerequisites to the Test Lab's own vocabulary so these cases can run: node-test cases declare fixture:core-checkout (the sealed Node profile runs on the oshal image, where /app is the checkout); browser cases declare harness:oshal-core-root and core:dependencies, as create does. A case that imports core's tests/fixtures, which the image does not ship, also declares harness:core-test-fixtures and stays pending with that exact reason instead of an unknown name.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Register review-withheld (UX audit 2026-11-05): the brief form is withheld while no connected action mounts; review-copy now expects no overline.
 # CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: register the audience view contract of the review page (ADR-164 D6): the company view for the Business shell and the all-inclusive shells reads only GET /home-summary on open, never the framework plan for connected-actions offers and never a write, names the week's state, each closed session, the parked tickets and the refused, failed and partly unreadable states for what they are, and leaves the full page's own start ungated only when no audience view renders.
 version: 1
 cases:
@@ -77,7 +78,30 @@ cases:
         - tests/review-copy.test.cjs
     expected:
       - The empty item starts 'No trading session recorded in the last 7 days.' and no item says 'Open the app to begin'.
-      - The eyebrow reads 'Trading recap review'.
+      - The page has no overline and no second application heading.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: review-withheld
+    name: A brief with nowhere to go is withheld
+    purpose: >-
+      Run the Recap Review page module's pure rules as shipped (UX audit 2026-11-05): with the cockpit's connected
+      actions turned off (its mount hides its container and offers nothing), a filled brief is withheld and no row offers
+      to fill it; counters show only with data; a week with no session is one empty state with Open Trading.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/review-withheld.test.cjs
+    expected:
+      - With no connected action mounted the brief panel is hidden and no Use this evidence button renders.
+      - Zero counters are left out; a quiet week reads No trading sessions this week with an Open Trading link; the counting rules are a How these are counted disclosure.
     prerequisites:
       - runner:node-test
     sideEffects: none

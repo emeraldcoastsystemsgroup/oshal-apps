@@ -106,7 +106,7 @@ test('actual Systems renderer uses text nodes, exposes captured facts and select
 
 function controllerFixture(initialHash='#systems'){
  const root=path.resolve(__dirname,'../experience'),html=fs.readFileSync(path.join(root,'index.html'),'utf8'),ids=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Element('div')]));
- const document={getElementById:id=>{assert.ok(ids.has(id),'Shipped element '+id);return ids.get(id);},querySelectorAll:()=>[],createElement:tag=>new Element(tag),createElementNS:(_ns,tag)=>new Element(tag)};
+ const document={getElementById:id=>{assert.ok(ids.has(id),'Shipped element '+id);return ids.get(id);},querySelectorAll:()=>[],addEventListener(){},createElement:tag=>new Element(tag),createElementNS:(_ns,tag)=>new Element(tag)};
  const calls=[];let response=graph([asset('private-pod')]),recordsStatus=200,held=null;
  const reply=(body,status=200)=>({ok:status===200,status,json:async()=>body});
  const context=vm.createContext({document,location:{hash:initialHash},URLSearchParams,Date,console,fetch:async(url,options)=>{

@@ -22,6 +22,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make enrollment and leave writes derive their target from the actor's current tenant and the class's current publication, status, and ownership state.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind native self-enrollment to authoritative relationship snapshots while retaining legacy PostgreSQL CTE enforcement.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /catalog also lists the staged Training Programs textbooks (OSHAL_PACKAGE_DATA_DIR/textbooks/catalog.json); ?textbookId= returns one book with its text, or its PDF with format=pdf.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /catalog?lookup= resolves bibliographic metadata by ISBN, DOI, or public https URL through server-side egress (RP-LM-03).
  * ---------------------------------------------------------------------------
  *
  * @module education-catalog-routes
@@ -66,6 +67,7 @@ const path = __importStar(require("path"));
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const education_access_1 = require("./education-access");
+const education_citation_lookup_1 = require("./education-citation-lookup");
 const education_transactions_1 = require("./education-transactions");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-catalog-routes' });
 function normalizeTextbookEntry(book) {
@@ -148,10 +150,28 @@ function assertSelfEnrollmentOpen(row, actorId) {
         throw new education_access_1.EducationAccessError('this class is not currently active', 400);
     }
 }
+async function serveCitationLookup(res, query) {
+    try {
+        const source = await (0, education_citation_lookup_1.lookupCitationSource)(query);
+        res.json({ source });
+    }
+    catch (err) {
+        if (err instanceof education_citation_lookup_1.CitationLookupError) {
+            res.status(err.status).json({ error: err.message });
+            return;
+        }
+        res.status(502).json({ error: 'Could not look up that source right now.' });
+    }
+}
 /** Serve the published class bank scoped to the caller's tenant. */
 async function loadCatalog(ctx, req, res) {
     try {
         const actor = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
+        const lookupQuery = String(req.query?.lookup || '').trim();
+        if (lookupQuery) {
+            await serveCitationLookup(res, lookupQuery);
+            return;
+        }
         const textbookId = String(req.query?.textbookId || '').trim();
         if (textbookId) {
             serveTextbookDetail(req, res, textbookId);

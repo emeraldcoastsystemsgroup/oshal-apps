@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Video editor on a phone with real touch (Roger, trial.oswarm.ai, 2026-11-06, F4: "doesn't have an upload vid to edit and has a theme that I've never seen before"): an empty project shows Add a clip on the first screen without opening a pane, a tap on it opens the real picker and the clip lands in the timeline; the app bar is one row with More; and the manifest forces no theme. Real compiled routes, disposable PostgreSQL and the kernel's shared editor from OSHAL_PLATFORM_ROOT. The hidden #addClip input is never filled directly.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The trial check (2026-11-06): 181 px of bars before content, 73 px of it an empty band above the app bar (the emptied main.workspace kept its own display:grid). Content now starts within 74 px of the frame (120 px with the 46 px Today row) and the shell starts at the top.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Video 1.13.0 (the oshal design standard §3.1, §5.1): Add a clip sits inside the empty timeline as the one primary; Undo and Redo are in the transport; the bottom bar is one tool row ending in More instead of the Media / Properties / Concierge pane bar; the manifest declares graphite, the dark category look D2 allows the video editors, instead of forcing no theme.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +23,7 @@ beforeEach(async () => { await resetPostgres(database.admin); });
 test('an empty project offers Add a clip on the first screen and one tap adds the clip to the timeline', async t => {
   const { page, errors } = await openEditor(t, browser, database, { viewport: { width: 390, height: 844 }, device: PHONE, theme: 'light-blue' });
   await page.locator('#addClip:not([disabled])').waitFor({ state: 'attached' });
-  const primary = page.locator('.ef-viewport .ef-primary');
+  const primary = page.locator('.video-start .primary');
   await primary.waitFor();
   const bars = await page.evaluate(() => ({ shell: Math.round(document.querySelector('.ef-shell').getBoundingClientRect().top), viewport: Math.round(document.querySelector('.ef-viewport').getBoundingClientRect().top) }));
   assert.equal(bars.shell, 0, 'no empty band above the app bar');
@@ -38,14 +39,16 @@ test('an empty project offers Add a clip on the first screen and one tap adds th
   assert.equal(await primary.isVisible(), false, 'the start card leaves once there is media');
   const bar = await page.locator('.ef-header-slot').boundingBox();
   assert.ok(bar.height <= 72, `the app bar is one row (${bar.height}px)`);
-  assert.equal(await page.locator('#undo').isVisible(), false, 'Undo waits in More on a phone');
-  await page.getByRole('button', { name: '⋯ More', exact: true }).tap();
-  assert.equal(await page.locator('.ef-sheet #undo').isVisible(), true);
-  assert.deepEqual(await page.locator('.ef-panes button').allTextContents(), ['Media', 'Properties', 'Concierge']);
+  assert.equal(await page.locator('.preview .transport #undo').isVisible(), true, 'Undo is in the transport');
+  assert.equal(await page.locator('.ef-panes').isVisible(), false, 'no pane bar: the tool row is the bottom bar');
+  const row = await page.locator('[data-ds-toolrow]').boundingBox();
+  assert.ok(row.y + row.height >= 844 - 1 && row.width >= 389, 'the tool row is the bottom bar');
+  assert.equal(await page.locator('[data-ds-toolrow] > button').last().textContent(), '⋯More', 'More is the last tool');
   assert.deepEqual(errors, []);
 });
 
-test('the Video manifest forces no theme, so a person with none saved wears the portal default', async () => {
+test('the Video manifest declares graphite, a dark category look D2 allows, never sakura', async () => {
   const manifest = await readFile(new URL('../oshal-app.yaml', import.meta.url), 'utf8');
-  assert.doesNotMatch(manifest, /^theme:/m, 'Video follows the person\'s portal theme (screen standard §1)');
+  assert.match(manifest, /^theme: (black|graphite|midnight|amber)$/m, 'the video editors may wear one dark category look with nothing saved (design standard §2.8)');
+  assert.doesNotMatch(manifest, /^theme: sakura/m);
 });

@@ -23,6 +23,8 @@
 # 19 | maintainer@emeraldcoastsystemsgroup.com | Round 14: no narrated sentence is deleted. venture-prose-claims expects break-even facts from the real engine (reached month and run size, or not reached with the horizon net income as the gap) in the narrate prompt, conditions kept with no note, claims (including the round-13 modal forms) kept with the visible check note, and no note on a reached model; venture-run-native stores them that way through Regenerate prose.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | Register venture-landed-label: the landed figures' labels say the BOM cost is included, so a summary no longer adds the landed cost on top of the factory cost (sweep 13).
 # 21 | maintainer@emeraldcoastsystemsgroup.com | Register venture-figure-units: narrated figures read with their unit words, a ratio as a rounded percent, and a rejected section names no machine id (sweep 14); venture-numbers-ui also expects Delete to clear the deleted venture's banners.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: register venture-routing-words: a general question about the workspace ("In one short sentence, what workspace tools can you coordinate here?") claims no Venture Plan bot under the kernel's matching rules, the manifest and persona words agree, and the venture questions still claim the package (UX audit 2026-11-06, jarvis--jarvis-home).
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: register venture-home-ui (the first screen per the UX audit decision): card formulas in words for every registered figure, Break-even naming the searched run, the status line and its details, Rename through PATCH, the venture menu, one primary, the one-line stepper and the phone bottom bar.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -1051,6 +1053,57 @@ cases:
     expected:
       - Containers and weeks carry their unit word, the fill reads as a rounded percent, and a token already followed by its unit is not given it twice.
       - A misnamed figure is said by its label, an unknown one as "a figure the model did not compute", with no id shown.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: venture-routing-words
+    name: Jarvis routes only venture questions here
+    purpose: >-
+      The routing words Venture Plan declares, read with the kernel's matching rules: "In one short sentence, what
+      workspace tools can you coordinate here?" was handed to the Venture BOM Analyst on "one" (from "cost to make one")
+      and "tools" (read as "tooling").
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-routing-words.test.js
+    expected:
+      - A general question about the assistant's tools claims no Venture Plan bot.
+      - The manifest bot entries and the persona files declare the same words.
+      - No one-word keyword reads as an everyday assistant word, and no phrase carries a number word.
+      - Tooling, unit-cost, BOM, landed-cost and lead-time questions still claim the package.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: venture-home-ui
+    name: The console's first screen reads as a decision
+    purpose: >-
+      UX audit 2026-11-05 (venture-plan--venture-home): 520 px of banners before the tabs, code names on the headline
+      cards, Delete beside Run the analysts and "not computed" for a break-even the engine had searched. The page's own
+      functions run against stub elements and every figure formula the engine registers.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/venture-home-ui.test.js
+    expected:
+      - Every registered figure's card shows its formula in words or not at all, never camelCase or code.
+      - Break-even reads "Not within N units" with the engine's searched run, or "None" when each unit loses money.
+      - One status line reads the run, posture and publish state; its info button controls the details.
+      - Rename sends PATCH /ventures/:id with the new name; the venture menu holds switching, New venture, Rename and Delete.
+      - The head keeps Recompute and the one primary Run the analysts; the stepper is one line; the tabs are the phone bottom bar.
     prerequisites:
       - runner:node-test
     sideEffects: none

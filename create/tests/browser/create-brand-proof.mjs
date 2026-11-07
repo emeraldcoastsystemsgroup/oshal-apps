@@ -4,6 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the Brand Kit in real Chromium: edit, preview, logo, suggested colors, save and reload; branded templates, swatches, fonts and logo in the editor; the Home band; and read/change refusals.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the brand faces are offered by the one Format inspector's Font field (the duplicate form and its grouped list are gone), and automatic saving saves the branded design without a Save press.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Home shows one 44px "Set up your brand" row only while no kit exists, so a saved kit leaves Home's work alone (the Brand Kit rail tile edits it) and the row opens the Brand Kit page.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create-brand): on a phone the form leads and Preview opens a half sheet from the app row; the dark logo tile maintains >=4.5:1 ink in light-blue; extra-color controls are >=44px tall; edits autosave with a sticky phone Save bar; Remove brand kit confirms in-page without window.confirm.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -105,32 +108,29 @@ test('the editor opens templates in the brand and applies its swatches, fonts an
   assert.equal(project.layers.find(l => l.name === 'Brand signature').text, 'NORTHWIND');
   assert.ok(project.layers.some(l => l.name === 'Brand logo')); assert.equal(Object.keys(project.images).length, 1);
   assert.equal(await surface.locator('#brandSwatches button').count(), 6);
-  assert.ok((await surface.locator('#fontFamily optgroup[label="Your brand"] option').allTextContents()).includes('Georgia · brand heading'));
   await surface.locator('#layers button[aria-label="Select Announcement headline"]').click();
+  assert.ok((await surface.locator('[data-editor-property="fontFamily"] option').allTextContents()).includes('Georgia · brand heading'));
   await surface.locator(`#brandSwatches [data-brand-color="${KIT.colors.accent}"]`).click();
   const recolored = (await editorState(surface)).project.layers.find(l => l.name === 'Announcement headline');
   assert.equal(recolored.fill, KIT.colors.accent);
   await surface.locator('#addLogo').click();
   const withTwo = (await editorState(surface)).project;
   assert.equal(withTwo.layers.filter(l => l.name === 'Brand logo').length, 2); assert.equal(Object.keys(withTwo.images).length, 1);
-  await surface.locator('#saveProject').click();
   await surface.locator('#saveStatus').filter({ hasText: /Saved/ }).waitFor();
   assert.equal(fixture.state.successfulWrites, 1); assert.deepEqual(errors, []);
 });
 
-test('Home shows the saved brand, a setup prompt without one, and nothing without brand access', async t => {
-  const saved = await open(t, '/api/create/home', { kit: KIT, logo: true });
-  await saved.page.locator('#brandBand:not([hidden])').waitFor();
-  assert.equal(await saved.page.locator('#brandTitle').textContent(), 'Northwind');
-  assert.equal(await saved.page.locator('#brandSws span').count(), 5);
-  assert.equal(await saved.page.locator('#brandOpen').textContent(), 'Edit brand kit');
-  assert.equal(await saved.page.locator('#brandLogo img').count(), 1);
-  await saved.page.locator('#brandOpen').click(); await saved.page.waitForURL('**/api/create/brand');
+test('Home shows one Set up your brand row only without a kit, and nothing with a kit or without brand access', async t => {
   const empty = await open(t, '/api/create/home');
   await empty.page.locator('#brandBand:not([hidden])').waitFor();
-  assert.equal(await empty.page.locator('#brandOpen').textContent(), 'Set up brand kit');
+  assert.equal(await empty.page.locator('#brandTitle').textContent(), 'Set up your brand');
+  const row = await empty.page.locator('#brandBand').boundingBox(); assert.ok(row.height >= 44 && row.height <= 52, 'one 44px row');
+  await empty.page.locator('#brandBand').click(); await empty.page.waitForURL('**/api/create/brand');
+  const saved = await open(t, '/api/create/home', { kit: KIT, logo: true });
+  await saved.page.locator('#recentGrid[aria-busy="false"]').waitFor();
+  await saved.page.waitForTimeout(300); assert.equal(await saved.page.locator('#brandBand').isHidden(), true, 'a saved kit needs no prompt');
   const refused = await open(t, '/api/create/home', { brand: { read: false } });
-  await refused.page.locator('#studioGrid .card').first().waitFor();
+  await refused.page.locator('#recentGrid[aria-busy="false"]').waitFor();
   await refused.page.waitForTimeout(300); assert.equal(await refused.page.locator('#brandBand').isHidden(), true);
   assert.deepEqual([...saved.errors, ...empty.errors, ...refused.errors], []);
 });
@@ -149,10 +149,37 @@ test('without brand read the page is locked and the editor is unchanged; without
   assert.equal(viewOnly.fixture.brand.writes.length, 0);
 });
 
-test('a narrow screen keeps the Brand Kit page inside the viewport', async t => {
-  const { page } = await open(t, '/api/create/brand', { kit: KIT, width: 390, height: 844 });
+test('a narrow screen leads with the form, opens Preview in a half sheet, keeps >=4.5:1 dark-tile ink, autosaves, and confirms removal in-page', async t => {
+  const { page, fixture } = await open(t, '/api/create/brand', { kit: KIT, width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'light-blue'); });
   await page.locator('#workspace').waitFor();
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
-  const preview = await page.locator('.brand-preview').boundingBox(), editor = await page.locator('.brand-editor').boundingBox();
-  assert.ok(preview.y < editor.y, 'the preview leads on a phone');
+  assert.equal(await page.locator('.brand-preview').isVisible(), false, 'inline preview hides on phone so the form leads');
+  const editor = await page.locator('.brand-editor').boundingBox();
+  assert.ok(editor.y < 140, 'the form leads on a phone');
+  const darkTile = await page.locator('.logo-tile.on-dark').evaluate(node => {
+    const cs = getComputedStyle(node);
+    const emptyCs = getComputedStyle(node.querySelector('.logo-empty'));
+    return { bg: cs.backgroundColor, fg: emptyCs.color, opacity: Number(emptyCs.opacity) };
+  });
+  assert.equal(darkTile.bg, 'rgb(17, 24, 39)', 'dark tile fills with the kit text color even in light-blue');
+  assert.equal(darkTile.fg, 'rgb(255, 255, 255)', 'No logo yet ink stays readable >=4.5:1');
+  assert.equal(darkTile.opacity, 1);
+  const addBox = await page.locator('#addExtra').boundingBox();
+  const removeExtraBox = await page.locator('.extra button').first().boundingBox();
+  assert.ok(addBox.height >= 44 && removeExtraBox.height >= 44, 'extra color controls are >=44px tall');
+  await page.locator('#previewBtn').click();
+  await page.locator('#previewSheet[open]').waitFor();
+  await page.locator('#closePreviewSheet').click();
+  assert.equal(await page.locator('#previewSheet').evaluate(d => d.open), false);
+  await page.locator('#brandName').fill('Northwind Labs');
+  await page.locator('#saveStatus').filter({ hasText: 'Saved · revision 2' }).waitFor({ timeout: 5000 });
+  assert.equal(fixture.brand.writes.at(-1).kit.name, 'Northwind Labs');
+  let nativeDialogFired = false;
+  page.on('dialog', d => { nativeDialogFired = true; d.dismiss(); });
+  await page.locator('#removeKit').click();
+  await page.locator('#removeKitDialog[open]').waitFor();
+  await page.locator('#confirmRemoveKit').click();
+  await page.locator('#saveStatus').filter({ hasText: 'Not saved yet' }).waitFor();
+  assert.equal(nativeDialogFired, false, 'in-page confirm replaces window.confirm');
 });

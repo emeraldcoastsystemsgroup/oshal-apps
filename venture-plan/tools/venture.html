@@ -203,11 +203,10 @@
   .nums { font-variant-numeric: tabular-nums; }
 
   /* ── shell ─────────────────────────────────────────────────────────── */
-  .shell { display: grid; grid-template-columns: minmax(0, 272px) minmax(0, 1fr); gap: 16px; padding: 16px; align-items: start; }
+  .shell { display: block; max-width: 1240px; margin: 0 auto; padding: 12px 16px 16px; }
   .shell > * { min-width: 0; }
   .card { background: var(--vp-panel); border: 1px solid var(--vp-line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
   .card.tight { padding: 12px; }
-  .rail { position: sticky; top: 16px; }
 
   /* ── controls ──────────────────────────────────────────────────────── */
   button, .btn {
@@ -233,8 +232,27 @@
   .row.end { justify-content: flex-end; }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
 
-  /* ── ventures rail ─────────────────────────────────────────────────── */
-  .vlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  /* ── venture switcher (the app row's name ▾) ───────────────────────── */
+  .appbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 44px; }
+  .vswitch { position: relative; flex: 1 1 220px; min-width: 0; }
+  .vname { background: none; border: 1px solid transparent; padding: 4px 8px; margin-left: -8px; min-height: 44px; max-width: 100%;
+           font-size: 19px; font-weight: 700; justify-content: flex-start; }
+  .vname #vName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .vname:hover, .vname[aria-expanded="true"] { border-color: var(--vp-line2); background: var(--vp-control); }
+  .vmenu { position: absolute; left: -8px; top: calc(100% + 4px); z-index: 80; width: min(360px, calc(100vw - 24px));
+           max-height: min(70vh, 520px); overflow-y: auto; border: 1px solid var(--vp-line2);
+           /* Opaque (the theme's card tint over the solid page colour): a menu never shows the page through it. */
+           background: linear-gradient(var(--vp-panel), var(--vp-panel)), var(--vp-bg);
+           border-radius: 12px; padding: 8px; box-shadow: 0 16px 36px rgba(0,0,0,.35); }
+  .vmenu h2 { margin: 4px 6px 8px; }
+  .vmenu .mi { width: 100%; justify-content: flex-start; background: none; border-color: transparent; min-height: 44px; }
+  .vmenu .mi:hover { background: var(--vp-control); border-color: var(--vp-line); }
+  .vmenu .mi.danger { color: var(--vp-bad); }
+  .vmenu hr { border: none; border-top: 1px solid var(--vp-line); margin: 6px 0; }
+  .vmenu .confirm { border: 1px solid color-mix(in srgb, var(--vp-bad) 55%, var(--vp-line)); border-radius: 10px; padding: 10px; margin-top: 6px; font-size: 13px; }
+  button.danger { background: var(--vp-bad); border-color: var(--vp-bad); color: #fff; }
+  .idea-line { margin-top: 6px; }
+  .vlist { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
   .vitem { text-align: left; justify-content: flex-start; flex-direction: column; align-items: stretch; gap: 3px; padding: 10px 12px; }
   .vitem.on { border-color: var(--vp-accent); background: color-mix(in srgb, var(--vp-accent) 12%, var(--vp-control)); }
   .vitem b { font-size: 13.5px; font-weight: 700; }
@@ -244,6 +262,15 @@
   .head { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
   .head .ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; flex: 0 0 auto;
                background: color-mix(in srgb, var(--vp-accent) 20%, transparent); color: var(--vp-accent2); font-size: 19px; }
+  #headCard { padding: 8px 12px; margin-bottom: 8px; position: relative; z-index: 30; }
+  .statusline { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 12.5px; color: var(--vp-muted); min-width: 0; }
+  .statusline .txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
+  .statusline .txt b { color: var(--vp-ink); }
+  .statusline .tone-warn { color: var(--vp-warn); }
+  .statusline .tone-bad { color: var(--vp-bad); }
+  .statusline .tone-ok { color: var(--vp-good); }
+  .infobtn { min-height: 32px; min-width: 32px; padding: 2px 8px; border-radius: 16px; font-size: 12px; flex: 0 0 auto; }
+  #statusDetails { margin-top: 4px; }
   .posture { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .pstat { border: 1px solid var(--vp-line); border-radius: 9px; padding: 8px 11px; background: var(--vp-panel2); flex: 1 1 150px; }
   .pstat .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--vp-faint); }
@@ -254,14 +281,23 @@
   .banner.ok   { border-color: color-mix(in srgb, var(--vp-good) 50%, transparent); background: color-mix(in srgb, var(--vp-good) 10%, transparent); }
   .banner.info { border-color: var(--vp-line2); background: var(--vp-panel2); }
 
-  /* ── stage strip ───────────────────────────────────────────────────── */
-  .stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 8px; }
-  .stage { border: 1px solid var(--vp-line); border-radius: 10px; padding: 10px 12px; background: var(--vp-panel2); }
+  /* ── stage strip: one line, the open step says what it needs ───────── */
+  .navrow { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+  .navrow .tabs { order: 1; margin-bottom: 0; }
+  #stageCard { order: 2; background: none; border: none; padding: 0 2px; margin: 0 0 0 auto; min-width: 0; max-width: 100%; }
+  #stageCard h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .stages { display: flex; gap: 4px; align-items: center; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .stage { border: 1px solid var(--vp-line); border-radius: 999px; padding: 3px 10px; background: var(--vp-panel2);
+           display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 12px; }
+  .stage .n { display: none; }
+  .stage .t { font-weight: 700; font-size: 12px; margin: 0; }
+  .stage.done .t::before { content: '\2713  '; color: var(--vp-good); }
+  .stage.done .need, .stage:not(.current):not(.blocked) .need { display: none; }
+  .stage .need { max-width: 46ch; overflow: hidden; text-overflow: ellipsis; }
   .stage.current { border-color: var(--vp-accent); }
   .stage.done { border-color: color-mix(in srgb, var(--vp-good) 50%, var(--vp-line)); }
   .stage.blocked { border-color: color-mix(in srgb, var(--vp-bad) 55%, var(--vp-line)); }
   .stage .n { font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--vp-faint); }
-  .stage .t { font-weight: 700; font-size: 13.5px; margin: 2px 0 4px; }
   .stage .need { font-size: 11.5px; color: var(--vp-muted); line-height: 1.4; }
   .stage.done .need { color: var(--vp-good); }
   .stage.blocked .need { color: var(--vp-bad); }
@@ -287,7 +323,7 @@
   .tile .k { font-size: 11.5px; color: var(--vp-muted); line-height: 1.35; }
   .tile .v { font-size: 23px; font-weight: 700; letter-spacing: -.4px; }
   .tile .v.neg { color: var(--vp-bad); }
-  .tile .f { font-size: 10.5px; color: var(--vp-faint); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  .tile .f { font-size: 11px; color: var(--vp-faint); overflow-wrap: anywhere; }
   .figref { background: none; border: none; padding: 0; min-height: 0; color: inherit; font: inherit; cursor: pointer;
             border-bottom: 1px dotted var(--vp-line2); text-align: right; font-variant-numeric: tabular-nums; }
   .figref:hover { border-bottom-color: var(--vp-accent); color: var(--vp-accent2); }
@@ -306,7 +342,7 @@
   .pos { color: var(--vp-good); }
 
   /* ── tabs ──────────────────────────────────────────────────────────── */
-  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
   .tab { font-size: 13px; }
   .tab.on { border-color: var(--vp-accent); color: var(--vp-accent2); background: color-mix(in srgb, var(--vp-accent) 12%, var(--vp-control)); }
   .tab .cnt { font-size: 10.5px; opacity: .8; font-variant-numeric: tabular-nums; }
@@ -365,8 +401,9 @@
 
   /* ── misc ──────────────────────────────────────────────────────────── */
   .spin { color: var(--vp-muted); font-size: 13px; padding: 22px 0; text-align: center; }
-  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 90; border-radius: 10px;
-           padding: 10px 15px; font-size: 13px; font-weight: 600; border: 1px solid var(--vp-line2); background: var(--vp-panel);
+  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 90; border-radius: 10px; pointer-events: none;
+           padding: 10px 15px; font-size: 13px; font-weight: 600; border: 1px solid var(--vp-line2);
+           background: linear-gradient(var(--vp-panel), var(--vp-panel)), var(--vp-bg);
            box-shadow: 0 12px 30px rgba(0,0,0,.4); max-width: min(520px, calc(100% - 24px)); }
   #toast.bad { border-color: var(--vp-bad); color: var(--vp-bad); }
   #toast.ok { border-color: var(--vp-good); color: var(--vp-good); }
@@ -374,16 +411,27 @@
   .footnote { font-size: 11px; color: var(--vp-faint); line-height: 1.5; margin-top: 8px; }
 
   @media (max-width: 940px) {
-    .shell { grid-template-columns: minmax(0, 1fr); padding: 10px; gap: 10px; }
-    .rail { position: static; }
-    .vlist { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
-    .vitem { flex: 0 0 200px; }
+    .shell { padding: 8px 10px 10px; }
     .card { padding: 12px; margin-bottom: 10px; }
     .tile .v { font-size: 20px; }
     .drawer { width: 100%; }
     .docsplit { grid-template-columns: minmax(0, 1fr); }
     .doclist { flex-direction: row; overflow-x: auto; max-height: none; }
     .docitem { flex: 0 0 190px; }
+  }
+  @media (max-width: 640px) {
+    body.has-venture { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+    .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 85; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 2px; margin: 0; padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+            background: linear-gradient(var(--vp-panel), var(--vp-panel)), var(--vp-bg);
+            border-top: 1px solid var(--vp-line2); }
+    .tab { flex-direction: column; gap: 1px; min-height: 56px; padding: 4px 2px; font-size: 11px; border: none; border-radius: 8px;
+           background: transparent; white-space: nowrap; overflow: hidden; }
+    .tab i { font-size: 18px; }
+    .tab.on { background: color-mix(in srgb, var(--vp-accent) 12%, transparent); box-shadow: inset 0 3px 0 var(--vp-accent); }
+    body.has-venture #toast { bottom: calc(72px + env(safe-area-inset-bottom)); }
+    #stageCard { margin-left: 0; }
+    .head-actions-row button { flex: 1 1 auto; }
   }
 </style>
 <!-- Shared glass treatment (contract: tests/unit/surface-glass-assets.spec.ts); after local styles. -->
@@ -393,15 +441,7 @@
 <body>
 <div class="shell">
 
-  <!-- ══ ventures rail ═══════════════════════════════════════════════ -->
-  <aside class="rail">
-    <div class="card tight">
-      <h2>Ventures</h2>
-      <div id="vlist" class="vlist"><div class="spin">Loading…</div></div>
-      <button class="primary" style="width:100%" id="newBtn" type="button">
-        <i class="codicon codicon-add"></i> New venture from an idea
-      </button>
-    </div>
+  <main>
     <div class="card tight" id="newCard" hidden>
       <h2>Start from a plain idea</h2>
       <label class="f"><span>The idea, in your own words</span>
@@ -415,32 +455,51 @@
       <div class="footnote">Scoping is one short model call. It turns the sentence into a product spec and a list of open
         questions — it does not produce any financial number. Every number arrives later, from the engine.</div>
     </div>
-  </aside>
 
-  <!-- ══ main ════════════════════════════════════════════════════════ -->
-  <main>
     <div class="card" id="headCard">
-      <div class="head">
-        <span class="ico"><i class="codicon codicon-graph-line"></i></span>
-        <div style="flex:1 1 220px">
-          <h1 id="vName">Venture Plan</h1>
-          <div class="muted small" id="vIdea">Turn an idea into the full venture document set. The bots supply
-            assumptions with a source and a confidence; every number is computed from them in tested code.</div>
+      <div class="appbar">
+        <div class="vswitch">
+          <h1><button class="vname" id="ventureMenuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="ventureMenu"
+            title="Switch venture, start a new one, rename or delete"><span id="vName">Venture Plan</span>
+            <i class="codicon codicon-chevron-down" aria-hidden="true"></i></button></h1>
+          <div class="vmenu" id="ventureMenu" hidden>
+            <h2>Ventures</h2>
+            <div id="vlist" class="vlist"><div class="spin">Loading…</div></div>
+            <hr />
+            <button class="mi" id="newBtn" type="button"><i class="codicon codicon-add"></i> New venture from an idea</button>
+            <button class="mi" id="renameBtn" type="button" hidden><i class="codicon codicon-edit"></i> Rename…</button>
+            <button class="mi danger" id="deleteVentureBtn" type="button" hidden title="Removes this venture with its assumptions, models, runs and documents.">
+              <i class="codicon codicon-trash"></i> Delete…</button>
+            <div class="confirm" id="renameForm" hidden>
+              <label class="f"><span>New name</span><input id="renameInput" type="text" maxlength="200" /></label>
+              <div class="row"><button class="primary" id="renameSave" type="button">Save</button>
+                <button class="subtle" id="renameCancel" type="button">Cancel</button></div>
+            </div>
+            <div class="confirm" id="deleteConfirm" hidden role="alertdialog" aria-labelledby="deleteQuestion">
+              <p id="deleteQuestion" style="margin:0 0 8px"></p>
+              <div class="row"><button class="danger" id="deleteYes" type="button">Delete</button>
+                <button class="subtle" id="deleteNo" type="button">Cancel</button></div>
+            </div>
+          </div>
         </div>
-        <div class="row" id="headActions" hidden>
+        <div class="row head-actions-row" id="headActions" hidden>
           <button id="recomputeBtn" type="button" title="Pure arithmetic on the server. No model call, no spend.">
             <i class="codicon codicon-sync"></i> Recompute</button>
           <button id="researchBtn" class="primary" type="button" title="Runs the analyst bots. This spends model tokens.">
             <i class="codicon codicon-beaker"></i> Run the analysts</button>
-          <button id="deleteVentureBtn" type="button" title="Removes this venture with its assumptions, models, runs and documents.">
-            <i class="codicon codicon-trash"></i> Delete</button>
         </div>
       </div>
-      <div id="runBanner"></div>
-      <div class="posture" id="posture" hidden></div>
-      <div id="publishBanner"></div>
+      <div class="statusline" id="statusLine" hidden></div>
+      <div id="statusDetails" hidden>
+        <div class="muted small idea-line" id="vIdea">Turn an idea into the full venture document set. The bots supply
+          assumptions with a source and a confidence; every number is computed from them in tested code.</div>
+        <div id="runBanner"></div>
+        <div class="posture" id="posture" hidden></div>
+        <div id="publishBanner"></div>
+      </div>
     </div>
 
+    <div class="navrow">
     <div class="card" id="stageCard" hidden>
       <h2>Where this venture is</h2>
       <div class="stages" id="stages"></div>
@@ -452,6 +511,7 @@
       <button class="tab" data-view="numbers" type="button"><i class="codicon codicon-graph"></i> Numbers</button>
       <button class="tab" data-view="documents" type="button"><i class="codicon codicon-book"></i> Documents <span class="cnt" id="tabDocCnt"></span></button>
     </div>
+    </div>
 
     <div id="view-plan" class="view"></div>
     <div id="view-assumptions" class="view" hidden></div>
@@ -460,12 +520,13 @@
 
     <div class="card" id="emptyCard">
       <h2>No venture selected</h2>
-      <p class="muted small" style="margin:0">Pick a venture on the left, or start a new one from a sentence describing the
+      <p class="muted small" style="margin:0">Pick a venture from the menu on its name at the top (▾), or start a new one from a sentence describing the
         idea. The app then works in four moves: <b>scope</b> the idea, <b>assume</b> (the analyst bots draft every input with
         a source and a confidence), <b>model</b> (tested code does all the arithmetic), and <b>document</b>.</p>
       <p class="muted small" style="margin:10px 0 0">Editing an assumption re-runs the arithmetic on the server for free —
         no model call, no spend. That is the loop this app exists for: replace a guess with a real quote and watch which
         numbers move.</p>
+      <div class="row" style="margin-top:12px"><button id="emptyNewBtn" type="button"><i class="codicon codicon-add"></i> New venture from an idea</button></div>
     </div>
   </main>
 </div>
@@ -810,7 +871,8 @@
     S.doc = null;
     renderRail();
     $('emptyCard').hidden = true;
-    ['headActions', 'stageCard', 'tabs'].forEach(function (x) { $(x).hidden = false; });
+    ['headActions', 'stageCard', 'tabs', 'renameBtn', 'deleteVentureBtn'].forEach(function (x) { $(x).hidden = false; });
+    document.body.classList.add('has-venture');
     busy(true);
     return Promise.all([
       api('GET', '/ventures/' + encodeURIComponent(id)).catch(function (e) { return fail(e, 'Venture'); }),
@@ -858,14 +920,27 @@
 
   /* ═══ actions ════════════════════════════════════════════════════════ */
 
-  /* Delete the open venture (DELETE /ventures/:id, owner-scoped on the server) after the
-     person confirms, then return to the empty state and the refreshed list. */
+  /** The open venture's name as the list and the header show it. */
+  function ventureName() {
+    var v = (S.ventures || []).filter(function (x) { return x.id === S.ventureId; })[0];
+    return (v && v.name) || $('vName').textContent || 'this venture';
+  }
+
+  /* Delete… in the venture menu asks in the page, naming the venture and what goes with it; only its Delete button
+     (deleteYes) deletes. */
+  function askDeleteVenture() {
+    if (!S.ventureId) return;
+    $('renameForm').hidden = true;
+    $('deleteQuestion').textContent = 'Delete \u201c' + ventureName() + '\u201d with its assumptions, models, runs and documents? This cannot be undone.';
+    $('deleteConfirm').hidden = false;
+  }
+
+  /* Delete the open venture (DELETE /ventures/:id, owner-scoped on the server) once the person confirmed in the
+     page, then return to the empty state and the refreshed list. */
   function deleteVenture() {
     if (!S.ventureId) return;
-    var v = (S.ventures || []).filter(function (x) { return x.id === S.ventureId; })[0];
-    var name = (v && v.name) || $('vName').textContent || 'this venture';
-    if (!window.confirm('Delete \u201c' + name + '\u201d with its assumptions, models, runs and documents? This cannot be undone.')) return;
-    var btn = $('deleteVentureBtn'); btn.disabled = true;
+    var name = ventureName();
+    var btn = $('deleteYes'); btn.disabled = true;
     api('DELETE', '/ventures/' + encodeURIComponent(S.ventureId)).then(function () {
       S.ventureId = null; S.model = null; S.doc = null; S.tornado = null; S.assumptions = [];
       // The deleted venture's run banner, posture tiles and publish banner go with it (sweep 14: they stayed under
@@ -873,13 +948,42 @@
       clearInterval(S.runTimer); S.run = null;
       $('runBanner').innerHTML = ''; $('publishBanner').innerHTML = '';
       $('posture').hidden = true; $('posture').innerHTML = '';
-      ['headActions', 'stageCard', 'tabs'].forEach(function (x) { $(x).hidden = true; });
+      S.statusParts = null; $('statusLine').hidden = true; $('statusLine').innerHTML = ''; $('statusDetails').hidden = true;
+      $('deleteConfirm').hidden = true; $('ventureMenu').hidden = true;
+      ['headActions', 'stageCard', 'tabs', 'renameBtn', 'deleteVentureBtn'].forEach(function (x) { $(x).hidden = true; });
+      document.body.classList.remove('has-venture');
       ['plan', 'assumptions', 'numbers', 'documents'].forEach(function (k) { $('view-' + k).hidden = true; $('view-' + k).innerHTML = ''; });
       $('vName').textContent = HEAD0.name; $('vIdea').innerHTML = HEAD0.idea;
       $('emptyCard').hidden = false;
       toast('Deleted \u201c' + name + '\u201d.', 'ok');
       return loadVentures();
     }).catch(function (e) { fail(e, 'Delete'); }).then(function () { btn.disabled = false; });
+  }
+
+  /** Rename… in the venture menu: the name field, filled with the current name. */
+  function askRenameVenture() {
+    if (!S.ventureId) return;
+    $('deleteConfirm').hidden = true;
+    $('renameInput').value = ventureName() === 'this venture' ? '' : ventureName();
+    $('renameForm').hidden = false;
+    $('renameInput').focus();
+  }
+
+  /** Save the new name (PATCH /ventures/:id { name }) and show it in the header and the list. */
+  function renameVenture() {
+    var name = $('renameInput').value.trim();
+    if (!S.ventureId || !name) { toast('Type the new name first.', 'bad'); return; }
+    var id = S.ventureId;
+    $('renameSave').disabled = true;
+    return api('PATCH', '/ventures/' + encodeURIComponent(id), { name: name }).then(function (r) {
+      var v = (r && r.venture) || { name: name };
+      (S.ventures || []).forEach(function (x) { if (x.id === id) x.name = v.name || name; });
+      if (S.venture && S.ventureId === id) S.venture.name = v.name || name;
+      if (S.ventureId === id) $('vName').textContent = v.name || name;
+      renderRail();
+      $('renameForm').hidden = true; $('ventureMenu').hidden = true; $('ventureMenuBtn').setAttribute('aria-expanded', 'false');
+      toast('Renamed to \u201c' + (v.name || name) + '\u201d.', 'ok');
+    }).catch(function (e) { fail(e, 'Rename'); }).then(function () { $('renameSave').disabled = false; });
   }
 
   function newVenture() {
@@ -965,10 +1069,37 @@
       title: r.status === 'failed' ? 'The run failed.' : 'The run finished, but not every phase did.' };
   }
 
+  var PUBLISH_WORDS = { bad: 'Will not publish', warn: 'Planning instrument, not a quote', ok: 'Every money input quoted or observed' };
+
+  /**
+   * The one status line under the venture name: the run, the posture and the publish state, with the info button
+   * opening the full banners (the run's reasons, the posture tiles, the publish note). A closed run that left
+   * something undone opens them once, so its reasons are on screen as before.
+   */
+  function renderStatusLine() {
+    var line = $('statusLine'), details = $('statusDetails'), p = S.statusParts || {}, parts = [];
+    var o = runActive() ? null : runOutcome(S.run);
+    if (runActive()) parts.push('<b>Analysts running\u2026</b>');
+    else if (o) parts.push('<span class="tone-' + (o.settled ? 'ok' : o.tone === 'bad' ? 'bad' : 'warn') + '">' + esc(o.title) + '</span>');
+    if (p.note) parts.push(esc(p.note));
+    if (p.posture) {
+      parts.push('<b>' + esc(p.posture) + '</b>', esc(p.soft + ' of ' + p.computed + ' figures rest on a guess'),
+        esc(p.quoted + ' of ' + p.ledger + ' assumptions quoted or observed'),
+        esc(p.unsourced ? p.unsourced + ' unsourced inputs' : 'no unsourced input'),
+        '<span class="tone-' + p.publish + '">' + esc(PUBLISH_WORDS[p.publish]) + '</span>');
+    }
+    line.hidden = !S.ventureId || !parts.length;
+    if (o && !o.settled && S.detailsOpenedFor !== S.run.id) { details.hidden = false; S.detailsOpenedFor = S.run.id; }
+    line.innerHTML = '<span class="txt">' + parts.join(' \u00b7 ') + '</span>' +
+      '<button class="infobtn subtle" type="button" id="statusInfo" aria-controls="statusDetails" aria-expanded="' + !details.hidden +
+      '" title="' + (details.hidden ? 'Show the details' : 'Hide the details') + '" aria-label="Details">\u24d8</button>';
+  }
+
   function renderRunBanner() {
     var r = S.run;
     var b = $('researchBtn');
     if (b) b.disabled = !!S.busy || runActive();
+    renderStatusLine();
     if (runActive()) {
       var phases = (r.phases || []).map(function (p) {
         var icon = p.status === 'done' ? 'check' : p.status === 'failed' ? 'error' : 'loading';
@@ -1013,7 +1144,7 @@
           clearInterval(S.runTimer);
           var o = runOutcome(S.run);
           if (!o || o.settled) toast('Run finished. Reloading the model.', 'ok');
-          else toast(o.title + ' The reasons are listed under Run the analysts.', 'bad');
+          else toast(o.title + ' The reasons are listed under the venture name.', 'bad');
           // A document open when the run ends (Regenerate prose) is opened again once the venture reloads,
           // so its regenerated text is on screen instead of "Pick a document".
           var reopen = S.doc && S.doc.docKey;
@@ -1058,6 +1189,7 @@
     $('vIdea').textContent = v.ideaText || v.idea || '';
     var m = S.model;
     var p = $('posture');
+    S.statusParts = m ? null : { note: S.ventureId ? 'No computed model yet' : '' };
     if (!m) {
       p.hidden = true;
       $('publishBanner').innerHTML = S.ventureId
@@ -1086,6 +1218,8 @@
       pstat('Unsourced inputs', String(unsourced), unsourced ? 'these block publication' : 'nothing load-bearing is unregistered');
 
     var blockers = (m.issues || []).filter(function (i) { return i.severity === 'block'; });
+    S.statusParts = { posture: postureWord(m.posture), soft: soft, computed: computed, quoted: quotedish, ledger: ledgerTotal,
+      unsourced: unsourced, publish: (m.canPublish === false || blockers.length) ? 'bad' : m.posture === 'estimate' ? 'warn' : 'ok' };
     if (m.canPublish === false || blockers.length) {
       $('publishBanner').innerHTML = '<div class="banner bad"><b>This model will not publish.</b> ' +
         (blockers.length ? esc(String(blockers.length)) + ' blocking issue(s). The engine refuses rather than printing a ' +
@@ -1199,20 +1333,52 @@
            (opts.chip === false ? '' : ' ' + confChip(conf));
   }
 
+  /* A card says its formula in words or says nothing: the registry writes some formulas as code
+     ("buyerTotalMicros / units", "max(0, -trough)"), which is right in the derivation and wrong on a card. */
+  var FORMULA_WORDS = {
+    'landed.buyerUnitMicros': 'landed cost of the run \u00f7 units',
+    'financials.fundingRequiredMicros': 'the deepest cash position, as the amount to raise',
+    'bom.fullyLoadedUnitMicros': 'parts cost per unit + one-time tooling spread over the run',
+    'bom.recurringUnitMicros': 'parts cost of the run \u00f7 units in the run',
+    'bom.amortizedUnitMicros': 'one-time tooling cost \u00f7 units in the run',
+    'landed.containers': 'units \u00f7 units per container, rounded up',
+    'landed.containerFillRatio': 'units \u00f7 the space the containers hold',
+    'bom.moqConstrainedRunUnits': 'the smallest run every part\u2019s minimum order allows'
+  };
+  function formulaWords(id, f) {
+    if (FORMULA_WORDS[id]) return FORMULA_WORDS[id];
+    var text = String((f && f.formula) || '');
+    return /[a-z][A-Z]|\w\(|_/.test(text) ? '' : text;
+  }
+
+  /** Why a headline figure is absent. Break-even names the run the engine searched instead of "not computed". */
+  function missingFigure(id) {
+    var issues = (S.model && S.model.issues) || [];
+    var found = id === 'breakEven.units' ? issues.filter(function (i) { return i.where === 'financials:break-even'; }) : [];
+    for (var i = 0; i < found.length; i++) {
+      var upTo = /No volume up to (\d+) units/.exec(found[i].message || '');
+      if (upTo) return { v: 'Not within ' + group(upTo[1]) + ' units', note: 'No run up to the planned ' + group(upTo[1]) + ' units turns a profit over the horizon.' };
+      if (/deepens the loss/.test(found[i].message || '')) return { v: 'None', note: 'Each unit sold loses money, so no volume breaks even.' };
+    }
+    return { v: 'not computed', note: 'the engine did not produce this figure for this model' };
+  }
+
   function figTile(id, fallbackLabel) {
     var f = S.model && S.model.figures ? S.model.figures[id] : null;
     if (!f) {
+      var gap = missingFigure(id);
       return '<div class="tile"><div class="k">' + esc(fallbackLabel || id) + '</div>' +
-             '<div class="v faint">not computed</div>' +
-             '<div class="f">the engine did not produce this figure for this model</div></div>';
+             '<div class="v faint">' + esc(gap.v) + '</div>' +
+             '<div class="f">' + esc(gap.note) + '</div></div>';
     }
+    var words = formulaWords(id, f);
     var conf = figConfidence(f);
     var neg = (f.unit === 'micros' && f.value < 0) ? ' neg' : '';
     return '<button class="tile" type="button" data-fig="' + esc(id) + '">' +
            '<div class="k">' + esc(f.label || fallbackLabel || id) + '</div>' +
            '<div class="v' + neg + '">' + esc(fmtFigure(f)) + '</div>' +
            '<div>' + confChip(conf) + '</div>' +
-           '<div class="f">' + esc(f.formula || id) + '</div></button>';
+           (words ? '<div class="f">' + esc(words) + '</div>' : '') + '</button>';
   }
 
   /* ═══ view: decision ═════════════════════════════════════════════════ */
@@ -2343,6 +2509,7 @@
 
   function renderAll() {
     renderHeader();
+    renderStatusLine();
     renderStages();
     $('tabAsmCnt').textContent = S.assumptions.length ? '(' + S.assumptions.length + ')' : '';
     $('tabDocCnt').textContent = S.documents.length ? '(' + S.documents.length + ')' : '';
@@ -2364,12 +2531,16 @@
     var t = ev.target;
     var el = t.closest ? t.closest('[data-vid],[data-view],[data-fig],[data-asm],[data-doc]') : null;
     if (el) {
-      if (el.hasAttribute('data-vid')) { selectVenture(el.getAttribute('data-vid')); return; }
+      if (el.hasAttribute('data-vid')) { toggleMenu(false); selectVenture(el.getAttribute('data-vid')); return; }
       if (el.hasAttribute('data-view')) { setView(el.getAttribute('data-view')); return; }
       if (el.hasAttribute('data-fig')) { openFigure(el.getAttribute('data-fig')); return; }
       if (el.hasAttribute('data-asm')) { openAssumption(el.getAttribute('data-asm')); return; }
       if (el.hasAttribute('data-doc')) { loadDoc(el.getAttribute('data-doc')); return; }
     }
+    if (t.closest && t.closest('#statusInfo')) {
+      var d = $('statusDetails'); d.hidden = !d.hidden; renderStatusLine(); return;
+    }
+    if (t.closest && !t.closest('#ventureMenu') && !t.closest('#ventureMenuBtn') && !$('ventureMenu').hidden) toggleMenu(false);
     if (t.id === 'dClose' || (t.closest && t.closest('#dClose'))) { closeDrawer(); return; }
     if (t.id === 'scrim') { closeDrawer(); return; }
     if (t.id === 'docPrint' || (t.closest && t.closest('#docPrint'))) {
@@ -2383,18 +2554,36 @@
     }
   });
 
-  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') closeDrawer(); });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { closeDrawer(); toggleMenu(false); } });
 
-  $('newBtn').addEventListener('click', function () {
+  /** Open or close the venture menu (name ▾); closing it also closes its rename and delete panels. */
+  function toggleMenu(open) {
+    var menu = $('ventureMenu');
+    var next = open === undefined ? menu.hidden : !!open;
+    menu.hidden = !next;
+    $('ventureMenuBtn').setAttribute('aria-expanded', String(next));
+    if (!next) { $('renameForm').hidden = true; $('deleteConfirm').hidden = true; }
+  }
+  function openNewCard() {
+    toggleMenu(false);
     var c = $('newCard');
-    c.hidden = !c.hidden;
-    if (!c.hidden) $('n_idea').focus();
-  });
+    c.hidden = false;
+    $('n_idea').focus();
+  }
+  $('ventureMenuBtn').addEventListener('click', function () { toggleMenu(); });
+  $('newBtn').addEventListener('click', openNewCard);
+  $('emptyNewBtn').addEventListener('click', openNewCard);
+  $('renameBtn').addEventListener('click', askRenameVenture);
+  $('renameSave').addEventListener('click', renameVenture);
+  $('renameCancel').addEventListener('click', function () { $('renameForm').hidden = true; });
+  $('renameInput').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') renameVenture(); });
+  $('deleteNo').addEventListener('click', function () { $('deleteConfirm').hidden = true; });
   $('n_cancel').addEventListener('click', function () { $('newCard').hidden = true; });
   $('n_go').addEventListener('click', newVenture);
   $('recomputeBtn').addEventListener('click', function () { recompute(false); });
   var HEAD0 = { name: $('vName').textContent, idea: $('vIdea').innerHTML };
-  $('deleteVentureBtn').addEventListener('click', deleteVenture);
+  $('deleteVentureBtn').addEventListener('click', askDeleteVenture);
+  $('deleteYes').addEventListener('click', deleteVenture);
   $('researchBtn').addEventListener('click', function () { startRun('full'); });
 
   var rz;

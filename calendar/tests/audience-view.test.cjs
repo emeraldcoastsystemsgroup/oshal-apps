@@ -9,6 +9,7 @@
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | The family view (the Jarvis shell) beside the company view: the boot declares exactly company and family; the family builder is asserted over a stub fetch AND over the package's REAL compiled handlers (routes/home-summary.js and routes/meeting-brief-view.js with only express stubbed, over a seeded pool, every body JSON round-tripped), so its reads are exactly GET /home-summary and GET /meeting-briefs, the routes run only SELECTs pinned to the caller, and the model is proved over the fields the routes really return. Asserted: "Coming up" in plain words with each all-day start through AppView.day and each timed start through AppView.date plus the clock and AppView.when (a midnight-UTC timed start never read as a calendar day), the three-of-N note against the thirty-day tile, the briefs in plain words capped at five, and not synced ("Nothing on the calendar yet", with the full page's own Google link in a new tab), an empty snapshot, nothing in five days, no brief, the real 401, a 403, the real 503 and a non-JSON 500 each named; the page's module script mounts nothing and reads nothing under the family view.
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | The real home-summary handler also reads the caller's own events (routes/own-events.js, loaded real with its logger stubbed): the seeded pool answers that owner-pinned SELECT too, so the family view makes three reads, all SELECTs pinned to the caller, and with no own events its model is unchanged.
  * 6   | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: own-events.js loads routes/event-time.js (the zone helpers), and the full page also reads GET /api/calendar/events for its "Added in OSHAL" list with Remove.
+ * 7   | maintainer@emeraldcoastsystemsgroup.com     | The DOM stand-in answers querySelector: the full page now checks whether a connected application can take the brief before it shows the form.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -397,7 +398,7 @@ test('family over the real routes: no snapshot, a signed-out session, a failed s
 });
 
 /** @returns {object} A stub element with the members the page's module script touches on start. */
-function node() { return { value: '', textContent: '', className: '', disabled: false, append() {}, replaceChildren() {}, addEventListener() {} }; }
+function node() { return { value: '', textContent: '', className: '', disabled: false, hidden: false, append() {}, replaceChildren() {}, addEventListener() {}, querySelector() { return null; } }; }
 
 /**
  * @description Run the page's module script (imports stripped) against stub modules, a stub DOM and a stub fetch. The

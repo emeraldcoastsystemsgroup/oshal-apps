@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Regression for the identity search that listed Google Cloud APIs alphabetically ("Abusive Experience Report API" first) and buried the Google sign-in connector: the shipped searchRank/rankedMatches from tools/identity.html put an exact name or id first, then names starting with the words typed, and ids that merely contain the query last.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The catalog's list is built by catalogRows (paging split it out of renderProviders); a search still ranks. *
  *
  * Runs the two functions out of the page in a VM, so the bytes the browser runs are the bytes under test.
  */
@@ -63,7 +64,9 @@ test('category and auth kind still match, below any name match', () => {
 });
 
 test('a search renders one ranked list instead of category groups sorted by name', () => {
+  const rows = extractFunction(html, 'catalogRows');
+  assert.match(rows, /if \(query\) return rankedMatches\(providers, query\)/);
   const render = extractFunction(html, 'renderProviders');
-  assert.match(render, /rankedMatches\(providers, query\)/);
+  assert.match(render, /catalogRows\(providers, query\)/);
   assert.match(render, /Best matches for/);
 });

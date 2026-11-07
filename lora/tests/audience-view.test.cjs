@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family view asserted as behaviour: the head block runs against a stub kit and a stub fetch, so the tests prove that on open it makes exactly one read, GET /api/lora/home-summary (never /characters, whose read saves the starter character for a new account, never a version, scorecard, cell-image or dataset read, never a write), that the stats are the route's three counts plus the newest character's recorded score, that the title and lede name the account's state in plain words, that each character tile reads its latest version and status from the route's own detail and its score from the route's own evaluation sentence, and that no character, an unscored, failed or oddly named version, a partial answer, a 401, a 403, a failed read, a non-JSON answer and an unreachable server each read as what they are. The studio script is proved gated by running it against recording stubs: under the view it wires no control and reads nothing; with the kit idle or absent it wires the four controls and reads /characters as before.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | The full page also wires the Delete character control and its Keep it cancel before the first character read.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: the full studio's start also wires + New character (list and phone), the four step buttons and the phone-layout media query, and reads GET /api/lora/worker once (whether a GPU worker is registered, a read with no side effect) before the character list. The stubs answer querySelectorAll and matchMedia, and the gate still proves the audience view wires none of it and reads nothing.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -212,9 +213,10 @@ function runStudio(activeView) {
   const body = html.slice(html.indexOf('<body'));
   const open = body.indexOf('<script>') + 8, src = body.slice(open, body.indexOf('</script>', open));
   const touched = [];
-  const document = { getElementById: (id) => { touched.push('element ' + id); return { addEventListener: (type) => touched.push('listen ' + id + ' ' + type) }; } };
+  const document = { getElementById: (id) => { touched.push('element ' + id); return { addEventListener: (type) => touched.push('listen ' + id + ' ' + type) }; },
+    querySelectorAll: (selector) => { touched.push('query ' + selector); return []; } };
   const fetchStub = (url, opt) => { touched.push(((opt && opt.method) || 'GET') + ' ' + url); return new Promise(() => {}); };
-  const window = { location: { search: '' }, top: null };
+  const window = { location: { search: '' }, top: null, matchMedia: (query) => ({ matches: false, addEventListener: (type) => touched.push('media ' + query + ' ' + type) }) };
   if (activeView !== undefined) window.AppView = { active: () => activeView };
   new Function('window', 'AppView', 'document', 'fetch', src)(window, window.AppView, document, fetchStub);
   return touched;
@@ -222,7 +224,8 @@ function runStudio(activeView) {
 
 test('under an audience view the studio never starts; with the kit idle or absent it starts as before', () => {
   const started = ['element characterForm', 'listen characterForm submit', 'element cancelCharacter', 'listen cancelCharacter click',
-    'element importArtifactBtn', 'listen importArtifactBtn click', 'element refreshDatasetBtn', 'listen refreshDatasetBtn click',
+    'element newCharacterBtn', 'listen newCharacterBtn click', 'element newCharacterFab', 'listen newCharacterFab click', 'query [data-step]',
+    'media (max-width:800px) change', 'GET /api/lora/worker', 'element importArtifactBtn', 'listen importArtifactBtn click', 'element refreshDatasetBtn', 'listen refreshDatasetBtn click',
     'element deleteCharBtn', 'listen deleteCharBtn click', 'element deleteCharCancel', 'listen deleteCharCancel click', 'GET /api/lora/characters'];
   assert.deepEqual(runStudio('family'), [], 'no control is wired and /characters (which saves the starter character) is never read');
   assert.deepEqual(runStudio(null), started, 'the full page wires its controls, then reads the character list');

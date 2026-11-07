@@ -24,15 +24,15 @@ function createHomeSummaryRoutes(ctx) {
         const items = [];
         const item = (title, detail, body, actions, tone = 'neutral') => {
             const text = clip(title, 120), notes = clip(detail + '\n' + body, 2000);
-            items.push({ text, detail: clip(detail), tone, fix: "social-signals", actions: actions.map(integration => ({ integration, context: { title: text, notes } })) });
+            items.push({ text, detail: clip(detail), tone, fix: "social-workspace", actions: actions.map(integration => ({ integration, context: { title: text, notes } })) });
         };
         rows(1).forEach(r => item(r.subject || 'Social notification', 'Inbox notification / ' + date(r.received_at), clip(r.snippet, 1400) + '\nCaptured via ' + clip(r.source) + '. This is an email notification, not a complete social feed. Review the original source before drafting or posting.', ['prepare-post', 'prepare-document']));
         const failed = result.filter(r => r.status === 'rejected').length;
         if (failed)
-            items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "social-signals" });
+            items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: "social-workspace" });
         else if (!items.length)
-            items.push({ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: "social-signals" });
-        items.push({ text: "Caller-owned social-category inbox notifications, counted by received time after ingestion. They are not unread totals, a complete social feed, or posting analytics. Selected saved snippets continue into a reviewed Switchboard post or Office document. No live feed fetch, organization model call or publication happens on Home.", tone: 'neutral', fix: "social-signals" });
+            items.push({ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: "social-workspace" });
+        items.push({ text: "Caller-owned social-category inbox notifications, counted by received time after ingestion. They are not unread totals, a complete social feed, or posting analytics. Selected saved snippets continue into a reviewed Switchboard post or Office document. No live feed fetch, organization model call or publication happens on Home.", tone: 'neutral', fix: "social-workspace" });
         res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
     });
     return router;

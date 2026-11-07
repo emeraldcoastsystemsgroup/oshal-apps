@@ -1,3 +1,4 @@
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): Inbox and Sent tabs, a Send a response plan sheet, pickers that say No saved response plans or No peer connection yet, and a disabled Send that says why. Peer tokens moved to Connections & access. */
 /* CHANGE LOG: spacing | maintainer@emeraldcoastsystemsgroup.com | Separate a hand-off's time from its ticket link. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | A filed delegation shows its ticket instead of a second File button; an empty file list says so; an empty peer picker says there is no connection yet. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Swarm hand-off page (kernel ADR-194). Send: the server builds the envelope from a saved response plan and the browser relays it once through the person's own oshal-peer connection with a fresh confirmation, then reports the peer's receipt. Receive: read the person's kernel delegation inbox, inspect a delegation as data, and file it once as a canonical investigation. Peer tokens: issue (confirmed, shown once), list and revoke. Refusal clears the page. */
@@ -28,25 +29,32 @@ function mount({request,onRefused}){
   if(!v.peerTokens.length)list.append(text('p','No peer tokens. Issue one for each swarm allowed to send you work.','muted'));}
  async function load(){const run=++generation;$('swarms-status').textContent='Reading your inbox, hand-offs and peer connections…';
   try{const [box,standing,plansPage]=await Promise.all([native('/api/v1/peer-inbox'),native('/connectors'),request('/executions')]);if(run!==generation)return;inbox=box.delegations||[];plans=plansPage.items||[];renderInbox();
-   const picker=$('swarms-plan');picker.replaceChildren();for(const p of plans){const o=text('option',(p.alert?.alertType||'response plan')+' · '+(p.target?.pod||'')+' · ticket '+String(p.ticketId).slice(0,8));o.value=p.id;picker.append(o);}
+   const picker=$('swarms-plan');picker.replaceChildren();for(const p of plans){const o=text('option',(p.alert?.alertType||'response plan')+' · '+(p.target?.pod||'')+' · ticket '+String(p.ticketId).slice(0,8));o.value=p.id;picker.append(o);}if(!picker.options.length){const o=text('option','No saved response plans');o.value='';picker.append(o);}
    const acct=$('swarms-account');acct.replaceChildren();for(const c of (standing.connections||[]).filter(c=>c.connector==='oshal-peer'&&!c.shared&&['connected','expiring'].includes(c.status))){const o=text('option',c.account);o.value=c.account;acct.append(o);}
-   if(!acct.options.length){const o=text('option','No peer connection yet');o.value='';acct.append(o);}
+   if(!acct.options.length){const o=text('option','No peer connection yet');o.value='';acct.append(o);}$('swarms-no-peer').hidden=Boolean(acct.value);
    const service=(standing.httpServices||[]).find(s=>s.connector==='oshal-peer'&&s.configured);
-   $('swarms-send').disabled=!plans.length||!acct.value||!service;
+   $('swarms-send').disabled=!plans.length||!acct.value||!service;$('swarms-send').title=!service?'Your administrator has not selected a peer swarm.':!acct.value?'Save a peer connection first.':!plans.length?'Save a response plan first.':'';
    $('swarms-status').textContent=(service?'Peer swarm: '+service.baseUrl+'. ':'No peer swarm is selected by your administrator, so you can receive but not send. ')+(acct.value?'':'Connect the peer token another swarm gave you in Connections to send. ')+inbox.length+' delegation(s) in your inbox.';
    await Promise.all([loadSent(),loadTokens()]);}
   catch(e){if(run===generation)$('swarms-status').textContent=e.message;}}
  $('swarms-send').addEventListener('click',async()=>{const run=generation;$('swarms-send').disabled=true;try{
    const reserved=await request('/delegations/outbound',{planId:$('swarms-plan').value,account:$('swarms-account').value,senderName:$('swarms-name').value.trim()||'Intelligent Operations',summary:$('swarms-summary').value.trim()});if(run!==generation)return;
-   if(reserved.retry&&reserved.state==='delivered'){$('swarms-status').textContent='This plan was already delivered to that peer.';return;}
+   if(reserved.retry&&reserved.state==='delivered'){$('swarms-status').textContent='This plan was already delivered to that peer.';closeSheet();return;}
    let report;try{const receipt=await native('/connectors/oshal-peer/actions/oshal-peer-deliver-delegation?account='+encodeURIComponent(reserved.account),reserved.envelope,await proof());const value=receipt.data??receipt;report={id:reserved.id,receipt:{delegationId:value.delegationId,receivedAt:value.receivedAt,digest:value.digest,replayed:value.replayed===true}};}
    catch(e){if(e.status===401||e.status===403)return;report={id:reserved.id,error:String(e.message).slice(0,500)};}
-   const saved=await request('/delegations/outbound/result',report);if(run!==generation)return;$('swarms-status').textContent=saved.state==='delivered'?'Delivered. The peer swarm now has it in its inbox; nothing runs there until its people decide.':'Not delivered: '+saved.error;await loadSent();}
+   const saved=await request('/delegations/outbound/result',report);if(run!==generation)return;$('swarms-status').textContent=saved.state==='delivered'?'Delivered. The peer swarm now has it in its inbox; nothing runs there until its people decide.':'Not delivered: '+saved.error;closeSheet();await loadSent();}
   catch(e){if(run===generation)$('swarms-status').textContent=e.message;}finally{if(run===generation)$('swarms-send').disabled=false;}});
  $('swarms-issue').addEventListener('click',async()=>{const run=generation;$('swarms-issue').disabled=true;try{const label=$('swarms-token-label').value.trim(),days=Number($('swarms-token-days').value)||undefined;const v=await native('/api/v1/peer-tokens',{label,...(days?{expiresInDays:days}:{})},await proof());if(run!==generation)return;
    const once=$('swarms-token-once');once.replaceChildren(text('p','Give this token to '+label+' now. It is not shown again.','warning'));const code=text('pre',v.token);once.append(code);const copy=text('button','Copy token');copy.type='button';copy.addEventListener('click',()=>navigator.clipboard?.writeText(v.token));once.append(copy);await loadTokens();}
   catch(e){if(run===generation)$('swarms-status').textContent=e.message;}finally{$('swarms-issue').disabled=false;}});
- $('swarms-refresh').addEventListener('click',load);clear();return {load,clear};
+ $('swarms-refresh').addEventListener('click',load);
+ /** Inbox and Sent on one row (UX audit 2026-11-06); Send a response plan opens its sheet. */
+ function tab(name){const sent=name==='sent';$('swarms-view-inbox').hidden=sent;$('swarms-view-sent').hidden=!sent;$('swarms-tab-inbox').setAttribute('aria-selected',String(!sent));$('swarms-tab-sent').setAttribute('aria-selected',String(sent));}
+ $('swarms-tab-inbox').addEventListener('click',()=>tab('inbox'));$('swarms-tab-sent').addEventListener('click',()=>tab('sent'));
+ const sheet=$('swarms-send-sheet');$('swarms-open-send').addEventListener('click',()=>{if(typeof sheet.showModal==='function')sheet.showModal();else sheet.setAttribute('open','');});
+ function closeSheet(){if(!sheet.open)return;if(typeof sheet.close==='function')sheet.close();else sheet.removeAttribute('open');}
+ $('swarms-send-done').addEventListener('click',closeSheet);
+ clear();return {load,clear};
 }
 const api={mount};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsSwarms=api;
 })(typeof window==='object'?window:globalThis);

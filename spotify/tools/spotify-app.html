@@ -151,7 +151,13 @@
     padding:14px 16px;border-radius:14px;font-size:16px;outline:none;backdrop-filter:blur(var(--blur))}
   .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
   .btn{cursor:pointer;border:none;border-radius:12px;font-weight:700;font-size:14px;padding:13px 18px;
-    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:.15s;white-space:nowrap}
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--ds-on-accent,var(--text-on-accent,#fff));transition:.15s;white-space:nowrap}
+  /* A link styled as a button is a button: no underline, and it keeps the accent's own ink (UX audit 2026-11-06). */
+  a.btn{display:inline-block;text-decoration:none}
+  /* The gate's "Already connected?" check: a real, keyboard-reachable tertiary button that says what it found. */
+  .linkbtn{appearance:none;background:none;border:0;padding:10px 6px;min-height:44px;font:inherit;font-weight:700;color:var(--accent);cursor:pointer}
+  .linkbtn:disabled{opacity:.7;cursor:progress}
+  .linkbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
   .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
   .btn.ghost:hover{background:var(--card-hover)}
@@ -275,11 +281,6 @@
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-  <header>
-    <div class="logo">♫</div>
-    <div class="brand">OSHAL Spotify<small>Music concierge</small></div>
-    <div class="pill"><span class="dot" id="connDot"></span><span id="connTxt">checking…</span></div>
-  </header>
 <section class="col" id="planningPanel" hidden aria-label="Planning draft"><h2>Plan your music</h2><label for="planningDraft">Review your request</label><textarea id="planningDraft" rows="4" maxlength="6000" style="display:block;box-sizing:border-box;width:100%;margin:10px 0;padding:12px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:12px;font:inherit"></textarea><button type="button" class="btn" id="usePlanningDraft">Use in concierge</button><p id="planningStatus" role="status">Connect below when needed, then move this draft into the concierge. Sending remains your choice.</p></section>
 <section class="col connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
 
@@ -290,8 +291,9 @@
       <div class="logo" style="margin:0 auto;width:48px;height:48px;font-size:24px">♫</div>
       <h2>Connect your Spotify</h2>
       <p>OSHAL searches your Spotify, shows what's playing, and builds playlists right on your account. Pressing play opens in your own Spotify app — OSHAL never touches your password or payment.</p>
-      <a class="btn" href="/api/connect/spotify/start" target="_top">Connect Spotify</a>
-      <p style="margin-top:14px;font-size:12px">Already connected? <span class="play" id="recheck" style="color:var(--accent);cursor:pointer;font-weight:700">Refresh</span></p>
+      <a class="btn" id="connectSpotify" href="/api/connect/spotify/start?return=%2Fcockpit%2F%3Fapp%3Dspotify" target="_top">Connect Spotify</a>
+      <p style="margin-top:14px;font-size:12px">Already connected? <button type="button" class="linkbtn" id="recheck">Refresh</button></p>
+      <p style="font-size:12px;margin:0" id="recheckNote" role="status" aria-live="polite"></p>
     </div>
   </div>
 
@@ -308,7 +310,7 @@
         4. Come back and hit Refresh
       </p>
       <a class="btn" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Open Spotify dashboard</a>
-      <p style="margin-top:14px;font-size:12px"><span class="play" id="recheck2" style="color:var(--accent);cursor:pointer;font-weight:700">Refresh</span> · still stuck? disconnect &amp; reconnect on the <a class="play" style="color:var(--accent)" href="/utilities" target="_top">Connections</a> page</p>
+      <p style="margin-top:14px;font-size:12px"><button type="button" class="linkbtn" id="recheck2">Refresh</button> · still stuck? disconnect &amp; reconnect on the <a class="play" style="color:var(--accent)" href="/utilities" target="_top">Connections</a> page</p>
     </div>
   </div>
 
@@ -472,26 +474,33 @@ $('#sendBtn').onclick=send;
 $('#chatq').addEventListener('keydown',e=>{if(e.key==='Enter')send();});
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
-$('#recheck').onclick=()=>boot();
-$('#recheck2').onclick=()=>boot();
+// "Already connected? Refresh" says it is checking, then what it found (it fired a silent read before: UX audit 2026-11-06).
+const RECHECK_RESULT={ok:'Connected. Opening your music…',needs_allowlist:'Connected, but Spotify still blocks this account: add it on the Spotify dashboard.',
+  error:'Spotify answered with an error. Try again in a moment.',not_connected:'Still not connected. Press Connect Spotify to sign in.'};
+async function recheck(btn){
+  btn.disabled=true;const label=btn.textContent;btn.textContent='Checking…';
+  const status=await boot();
+  btn.disabled=false;btn.textContent=label;
+  const note=$('#recheckNote');if(note)note.textContent=RECHECK_RESULT[status]||RECHECK_RESULT.not_connected;
+  return status;
+}
+$('#recheck').onclick=()=>recheck($('#recheck'));
+$('#recheck2').onclick=()=>recheck($('#recheck2'));
 async function boot(){
   let c={};try{c=await jget(`${API}/config`);}catch(e){}
   const status=c.status||(c.connected?'ok':'not_connected');
   const ready=status==='ok';
   // Three states: not connected → connect gate; connected but Spotify 403s (dev-mode
   // allowlist) → the allowlist gate with the fix; ok → the full app.
-  $('#connDot').classList.toggle('on',ready);
-  $('#connTxt').textContent=ready?(c.me&&c.me.displayName?c.me.displayName:'Spotify connected')
-    :status==='needs_allowlist'?'Add your account on Spotify'
-    :status==='error'?'Spotify error':'Not connected';
   $('#gateWrap').style.display=(status==='not_connected'||status==='error')?'block':'none';
   $('#allowWrap').style.display=status==='needs_allowlist'?'block':'none';
   $('#appWrap').style.display=ready?'block':'none';
-  if(!ready)return;
+  if(!ready)return status;
   search('');loadNow();loadPlaylists();
   try{const cv=await jget(`${API}/conversation?id=${encodeURIComponent(convId||'')}`);if(cv.messages&&cv.messages.length){
     convId=cv.conversationId;if(convId)localStorage.setItem('oshalSpotifyConv',convId);$('#msgs').innerHTML='';
     cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
+  return status;
 }
 // The full page only: under an audience view the shared kit paints instead (see the head script).
 if (!window.AppView || !AppView.active()) boot();

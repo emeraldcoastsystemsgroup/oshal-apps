@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The person and the concierge edit the same project file in turn: the actual Scene Studio page and the shared document-handoff module over the compiled routes, with the package's shared fixture (the owner-keyed in-memory pool and the fake engine bridge that speaks the wire protocol, tests/scene.fixture.cjs). An unsaved file edit is saved by the handoff, the concierge's PUT /files is drawn by refresh, text the person is still editing survives refresh, and a refused save keeps the editor. The project store's SQL and RLS are the store-postgres case, not proven here.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | The source editor moved into the page's Script & build view (UX audit 2026-11-06, Scene vs Script & build); the case opens that tab before picking main.tscn. The handoff it proves is unchanged.
  *
  * FRAMEWORK-COUPLED: needs a core checkout (OSHAL_CORE_ROOT) for express, multer, tsx and the isolated browser,
  * and the kernel platform tree (OSHAL_PLATFORM_ROOT) for the shared document handoff.
@@ -88,6 +89,8 @@ beforeEach(async () => {
   await page.goto(`${origin}/api/scene-studio/app?project=${id}`);
   await page.waitForFunction(() => window.__oshalDocumentSession && /revision \d/.test(document.querySelector('#project-rev').textContent));
   await page.locator('.ef-shell').waitFor();await page.locator('.ef-shell details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));
+  // The source editor is in the Script & build view (UX audit 2026-11-06 split).
+  await page.getByRole('tab', { name: 'Script & build' }).click();
   await page.locator('#file-list .path', { hasText: 'main.tscn' }).click();
   await page.waitForFunction(() => document.querySelector('#file-text').value.includes('gd_scene'));
 });

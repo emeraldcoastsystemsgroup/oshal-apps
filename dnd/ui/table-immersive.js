@@ -8,6 +8,7 @@
  * 2026-07-23 00:31:18 | roger.murphy@emeraldcoastsystemsgroup.com  | Present recurring NPC names, roles, and player-visible personality cues in the active-character rail.
  * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Wire the full-screen, Dungeon Master panel, Escape and quick-question controls only when no audience view renders (ADR-164 D6): under the family view of table.html the table is hidden and never starts. The full table wires them exactly as before.
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The rail portrait asks only for bundled art (tokenArtUrl); a token without it shows the plain portrait frame.
+ * 2026-11-06 08:15:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): the HUD's More menu (Timeline, Help, DM Settings, Full screen) opens from ⋯ More and closes on an item, an outside press or Escape; DM & Story keeps its name and reports aria-pressed, so the drawer's ✕ is its one close control; Full screen is plain words (phone fonts have no ⛶).
  */
 
 'use strict';
@@ -54,8 +55,9 @@ function renderGameplayRail() {
 
 /** @description Keep the DM button truthful and focus chat when the rail opens. */
 function syncDmPanelButton(open, focus) {
+  // One close control: the drawer's own ✕. The HUD button keeps its name and shows that the drawer is open.
   const button = $('storyBtn');
-  if (button) button.textContent = open ? '✕ Close DM' : '💬 DM & Story';
+  if (button) button.setAttribute('aria-pressed', open ? 'true' : 'false');
   if (open && focus) setTimeout(() => $('talkInput') && $('talkInput').focus(), 0);
 }
 
@@ -66,7 +68,7 @@ function setImmersiveMode(active) {
   if (immersiveRequested) setStoryOpen(true);
   const button = $('fullscreenBtn');
   if (button) {
-    button.textContent = immersiveRequested ? '⛶ EXIT FULL SCREEN' : '⛶ PLAY FULL SCREEN';
+    button.textContent = immersiveRequested ? 'Exit full screen' : 'Full screen';
     button.title = immersiveRequested ? 'Return to the cockpit (or press Escape)' : 'Hide the cockpit and fill the display with the game';
   }
   if (content && board) requestAnimationFrame(() => layout());
@@ -101,8 +103,30 @@ function askDmPrompt(button) {
   sendTalk();
 }
 
+/** @description Open or close the HUD's More menu (Timeline, Help, DM Settings, Full screen). */
+function setMoreMenu(open) {
+  const menu = $('moreMenu'), button = $('moreBtn');
+  if (!menu || !button) return;
+  menu.classList.toggle('hidden', !open);
+  button.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) { const first = menu.querySelector('button'); if (first) first.focus({ preventScroll: true }); }
+}
+
+/** @description The More menu closes on its own items, an outside press and Escape; it never stays over the board. */
+function wireMoreMenu() {
+  const menu = $('moreMenu');
+  if (!menu || !$('moreBtn')) return;
+  $('moreBtn').onclick = (event) => { event.stopPropagation(); setMoreMenu(menu.classList.contains('hidden')); };
+  menu.addEventListener('click', (event) => { if (event.target.closest('button')) setMoreMenu(false); });
+  document.addEventListener('pointerdown', (event) => {
+    if (!menu.classList.contains('hidden') && !menu.contains(event.target) && event.target !== $('moreBtn')) setMoreMenu(false);
+  });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !menu.classList.contains('hidden')) { setMoreMenu(false); $('moreBtn').focus(); } });
+}
+
 /** @description Install discoverable gameplay rail, chat, full-screen, and Escape controls. */
 function wireImmersiveTable() {
+  wireMoreMenu();
   $('fullscreenBtn').onclick = () => void toggleImmersiveTable();
   $('storyBtn').onclick = () => {
     const open = !$('story').classList.contains('open');

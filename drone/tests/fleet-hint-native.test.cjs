@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Drone Ops Fleet hint told the person to run `npm run drone:node` with the swarm secret: a script of the retired platform checkout (its package.json), absent from the native kernel, which also refuses the legacy service-secret heartbeat (bridge authz_compat hasValidServiceSecret() is false). The page must name no npm script or swarm secret and say no drone node ships with this installation. Red on the previous page.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the no-drone sentence is the canvas's one empty state; the Fleet card no longer repeats it.
  */
 'use strict';
 const test = require('node:test');
@@ -21,6 +22,8 @@ test('the Fleet hint names no retired npm script or swarm secret', () => {
   assert.doesNotMatch(VISIBLE, /swarm secret/i);
 });
 
-test('the Fleet hint says no drone node ships with this installation', () => {
-  assert.match(VISIBLE, /No drone node (or flight simulator )?ships with this installation, so none can be added here/);
+test('with no drone the canvas says once that a drone node or flight simulator must be registered with this installation', () => {
+  // UX audit 2026-11-06: the one empty state lives on the canvas; the Fleet card no longer repeats it.
+  assert.match(VISIBLE, /<strong>No drone connected<\/strong><p id="canvasEmptyText">Flight and planning start when a drone node or flight simulator is registered with this installation\.<\/p>/);
+  assert.doesNotMatch(VISIBLE, /none can be added here/);
 });

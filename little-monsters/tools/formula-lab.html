@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>location.replace('/api/education/stem-helpers?tab=formulas' + (location.hash || ''));</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Little Monsters — Formula Lab</title>
@@ -11,6 +12,7 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Formula reference: Physics 1 and Chemistry formulas with search, a worked example per card and a deep link that prefills the tutor
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, search field, per-subject sections with generated counts, expandable cards (keyboard and aria-expanded), an empty state for a search with no match, copy that presents the sheet as a fixed reference rather than personal data
+  3   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-formula-lab MERGE): Formula Lab is the Formulas tab of STEM now; this address opens /api/education/stem-helpers?tab=formulas at once (its tile stays, because two experiences name the surface). The sheet below stays as the source the STEM test compares against. To bring the page back, delete the location.replace line at the top of <head>.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">

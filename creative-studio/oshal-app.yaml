@@ -29,6 +29,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: durable original-owned editable source projects, typed operations, saved AI selection and compact shared editor.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: the design standard (docs/ux/design-standard.md; UX audit decision creative-studio--creative-studio; REFP CONVENTIONS §5.7). The story brief is the work under one app row with Open episode workflow as its one primary; no generic subtitle; the page declares its contract and does not repeat the name under the Today bar; one copy of each field; scenes are list rows with a ⋯ row menu; the counters are one meta line; Open Vids Studio leaves the frame for the cockpit; menus are opaque popovers that Back closes; "discard unsaved changes?" asks in the page. The seven reference-product functions are greyed "Not available yet" controls in their reference places (RP-CRS-01 to -07).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble. The app row is a toolbar: 36px with 12px sides on a desktop with a fine pointer and 4px gaps on a phone, so the one primary keeps its label on one line; Undo, Redo and More are icon buttons with no fill or edge; a saved source project is a list row, not a bordered button three lines tall.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: the Saved pane is 180px beside an open concierge and under 1100px, narrower than "Refresh evidence" at 15px, so a page button now ends in an ellipsis instead of running past the pane (found on the trial at 1440x900 with the concierge open: the button ran over the pane's edge). The browser case at 1080x800 guards it.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: save titled story briefs and scene edits automatically with a Saved caption in the app row instead of a Save source button (UX audit creative-studio--creative-studio).
 name: creative-studio
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 chatBot: story-editor # Source editing is owned here; generation still uses the declared Vids worker.
@@ -48,7 +52,7 @@ description: "Edit and save story briefs and selectable storyboard scenes, with 
 scope: public
 ticketType: creative-story
 theme: amber
-version: 1.3.5
+version: 1.4.3
 authorization:
   version: 1
   catalog: authorization.yaml

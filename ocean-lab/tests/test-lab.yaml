@@ -13,6 +13,8 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register harvest-console-crosscheck-refresh: a changed control drops the server's verdict for the previous design and asks about the current one once the controls settle; an older answer never lands.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register analysis-brief-labels: Blade Studio's and Harvest Console's analysis briefs label every line in the words on screen, not element ids (sweep 13).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register explorer-handoff: the person and the concierge edit the same Explorer in turn through the shared document handoff, the shipped tile over the compiled routes on the store double. Blade Studio and Harvest Console hold no saved record and are not wired.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register lab-views (both pages two views, the parameters pane with number fields and a reset, short captions with Help, the themed brief sheet, Blade Studio Fit and one Export).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (ocean-lab--ocean-lab-explorer): update explorer-surface expectations for withheld Evaluate in air, two views, row ⋯ CAD Studio action and <=412px phone width; register explorer-ux-batch7.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -180,7 +182,7 @@ cases:
     installation: never
   - id: explorer-surface
     name: The Explorer tile in a real headless browser
-    purpose: The shipped tile over the COMPILED routes on loopback with the framework theme assets and a signed-in identity - create the Explorer, evaluate, change the stop angle, re-evaluate, evaluate in air, record the embodied hull drop - and D5 in the browser, where a run whose fingerprints are stripped in flight is not drawn and the tile names the missing field.
+    purpose: The shipped tile over the COMPILED routes on loopback with the framework theme assets and a signed-in identity - create the Explorer, evaluate, change the stop angle, re-evaluate, withhold Evaluate in air on the wave explorer, record the embodied hull drop, switch to Parts & BOM, and verify phone 412px scrollWidth - and D5 in the browser, where a run whose fingerprints are stripped in flight is not drawn and the tile names the missing field.
     level: browser
     runner:
       kind: playwright
@@ -189,9 +191,9 @@ cases:
         - tests/explorer-surface.spec.mjs
     expected:
       - The badge reads concept with the fabricable sentence beside it and eight open limits, then sized with five rows and 7,444 km/year, then concept with the table labelled STALE after a stop-angle change, then sized with a different year.
-      - "Evaluate in air shows medium_property_unavailable: freeSurface; the hull drop becomes a third run showing air, embodied:analytic and its package version."
+      - "Evaluate in air is withheld on the wave explorer; the hull drop becomes a third run showing air, embodied:analytic and its package version."
       - A run whose build hash is stripped in flight is not drawn and the tile says which field is missing.
-      - The parts section shows eleven watertight parts, the budget OPEN with its reason and the bought rows' masses and prices as not published; Open in CAD Studio on the wing posts exactly the body GET /parts/wing serves and lands on the CAD Studio tile.
+      - "The Parts & BOM view shows eleven watertight parts, the budget OPEN with its reason and the bought rows' masses and prices as not published; Open in CAD Studio from the wing row's ⋯ menu posts exactly the body GET /parts/wing serves and lands on the CAD Studio tile; phone 412x743 scrollWidth stays <= 412."
     prerequisites:
       - runner:playwright
       - browser:chromium
@@ -500,4 +502,47 @@ cases:
     limits:
       timeoutMs: 180000
       maxMemoryMb: 1024
+    installation: never
+  - id: lab-views
+    name: Harvest Console and Blade Studio are two views each with a parameters pane
+    purpose: Read the shipped tools/harvest-console.html and tools/blade-studio.html - no browser, server or model run.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/lab-views.test.cjs
+    expected:
+      - Harvest Console opens on Soil siting with the tidal reference its own view; Blade Studio opens on the studio with the analysis its own view.
+      - The parameters are a pane (a phone sheet) in groups with a number field beside each slider and a reset.
+      - Captions are one sentence and the derivation is in Help; the analysis brief is a themed sheet, not a fixed dark box.
+      - Blade Studio has a Fit button on the 3-D view and one Export sheet that drives the four exports.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: explorer-ux-batch7
+    name: Explorer two-view layout, expandable stage checklist and withheld air evaluation
+    purpose: Read tools/explorer.html and tools/explorer.js and drive the compiled stage/parts engine under plain node without a browser or database.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/engine-explorer-ux-batch7.test.js
+    expected:
+      - Evaluate in air is withheld on the wave explorer and wave-explorer is the sole vehicle kind.
+      - Explorer splits into Design & sea states (?view=design) and Parts & BOM (?view=parts) with a one-line lede, one primary button, and contained table scrollers.
+      - "STAGE renders an expandable checklist ('Parts with no mass: 15', 'Parts with no price: 16', 'Parts on no body: 5', 'Displacement budget: open') with plain prose and per-part row ⋯ CAD Studio actions."
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

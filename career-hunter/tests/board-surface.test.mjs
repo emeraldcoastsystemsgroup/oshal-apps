@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 42 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the status tabs became the pipeline stage control (tools/career-stages.js), which switches stage through selectBoardStatus and names the applied lane the neutral "Applied" stage.
  * 40 | maintainer@emeraldcoastsystemsgroup.com | Support explicit search-to-board and document-to-status transitions, preserving manual submission provenance and owner-only state.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                                      | DESCRIPTION
@@ -104,7 +105,7 @@ test('changing any filter re-queries AND re-remembers', () => {
   assert.match(body, /\$\('remote'\)\.addEventListener\('change',refilter\)/);
   assert.match(body, /qt=setTimeout\(refilter,300\)/);
   // The pipeline tabs are a filter too.
-  assert.match(body, /b\.onclick=\(\)=>selectBoardStatus\(b\.dataset\.k\)/);
+  assert.match(body, /CareerStages\.render\(tabsEl,stage\.id,counts,\(next\)=>\{ if\(next\.status==null\) return false; selectBoardStatus\(next\.status\); return true; \}\)/);
   assert.match(body, /async function selectBoardStatus\(next\)\{\s*rememberFilters\(\);applyFilters\(\{\.\.\.readFilterMemory\(next\),status:next\}\);boardPage=1;[\s\S]*?clearGeneratedPurgePreview\(\);updatePurgeVisibility\(\);rememberFilters\(\);loadStats\(\);await loadJobs\(\)/);
 });
 
@@ -202,7 +203,7 @@ test('each production renderer escapes every provenance summary field', () => {
 });
 
 test('completed lanes use neutral labels and wire the provenance renderer', () => {
-  assert.match(surfaces['career-board.html'], /applied:'Submission records'/);
+  assert.match(readFileSync(new URL('../tools/career-stages.js', import.meta.url), 'utf8'), /\{ id: 'applied', label: 'Applied', status: 'tracked'/);
   assert.match(surfaces['career-board.html'], /value="applied">Application records/);
   assert.match(surfaces['career-approvals.html'], /applicationProofHtml\(a\.application_proof\|\|a\)/);
   assert.match(surfaces['career-approvals.html'], /jobs\?status=applied/);
@@ -228,8 +229,11 @@ test('mobile startup cannot enqueue drafts and apply status comes from the durab
   assert.match(loadDeck[1], /jpost\(CH\+'\/enqueue-drafts',\{limit:20\}\)/);
   assert.doesNotMatch(loadDeck[1], /pending\.length\s*</);
   assert.match(mobile, /loadDeck\(false\); refreshBadges\(\);/);
-  assert.match(mobile, /onclick="loadDeck\(true\)"/);
-  assert.match(mobile, /jget\(AP\+'\/queue'\)/);
+  // UX audit 2026-11-06: the explicit pull-more action is the deck's ⤓ button, and the durable owner queue is the
+  // caller's own submission records (the native kernel serves no /api/apply-operator/queue).
+  assert.match(mobile, /\$\('#btnMore'\)\.onclick=\(\)=>loadDeck\(true\)/);
+  assert.match(mobile, /async function nativeQueue\(\)\{\n  const \{items=\[\]\}=await jget\(CH\+'\/submission-queue'\);/);
+  assert.doesNotMatch(mobile, /jget\(AP\+'\/queue'\)/);
   assert.doesNotMatch(mobile, /jget\(AP\+'\/inflight'\)/);
   assert.match(mobile, /authorizes this one exact task[^<]+final Submit button/);
 });

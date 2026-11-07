@@ -6,26 +6,82 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Phone & Device Control client controller conforming to docs/ux/screen-standard.md: sortable KernelTable views, portal theme inheritance, Cockpit Concierge rail handoff, and live device execution.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: the page's start. It reads your phones (this package), your computers (the kernel's /api/computers) and each computer's last bridge report, and hands them to the Devices view (phone-stage.js) and Connect a device (phone-setup.js). The concierge rail gets the page's context to read; it is not given anything to press.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: the view switch marks its choice with aria-selected only (styled as a selection, not as a primary button), and the empty line is shorter.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: when /api/phone-control/devices answers 403 (an account that holds the page view only, not the administrator's role), show #notAllowed and hide the device and connect views.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: merge Connect into a modal sheet opened by Add a device or /config/ui, preserve the non-admin 403 #notAllowed view, manage history state so Back closes sheets before the session (DS-39), hide the shell orb during an active session, and guard inert planned controls.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: attach surface-bridge-client.js cleanly without console 404 when embedded in the cockpit, keep the shell concierge orb visible at all times, open the Connect sheet on #connect-tv, pass full device/computer context snapshot to the concierge rail, and sync modal background inert state.
  */
 
-import { createComputerClient, createPackageClient } from '/api/phone-control/ui/computer-link.js';
+import { createComputerClient, createPackageClient, createRdpClient } from '/api/phone-control/ui/computer-link.js';
 import { mountStage } from '/api/phone-control/ui/phone-stage.js';
 import { mountSetup } from '/api/phone-control/ui/phone-setup.js';
-import { connectPhoneControlHandoff, buildPhoneControlContextSnapshot } from '/api/phone-control/ui/editor-handoff.mjs';
+import { buildPhoneControlContextSnapshot, connectPhoneControlHandoff } from '/api/phone-control/ui/editor-handoff.mjs';
 
 const byId = (id) => document.getElementById(id);
+
+function setShellOrbHidden(hidden) {
+  const seen = new Set();
+  for (const win of [window, window.parent, window.top]) {
+    if (!win || seen.has(win)) continue;
+    seen.add(win);
+    try {
+      const root = win.document?.documentElement;
+      if (!root) continue;
+      if (hidden) root.setAttribute('data-oshal-assistant-hidden', 'true');
+      else root.removeAttribute('data-oshal-assistant-hidden');
+      win.dispatchEvent(new win.CustomEvent('oshal:assistant-visibility', { detail: { hidden: Boolean(hidden) } }));
+    } catch { /* cross-origin frame */ }
+  }
+}
+
+function showNotAllowed(app) {
+  app.state.notAllowed = true;
+  app.state.connectOpen = false;
+  app.state.sessionSheetOpen = false;
+  app.state.selected = null;
+  setShellOrbHidden(false);
+  byId('notAllowed').hidden = false;
+  byId('devicesView').hidden = true;
+  byId('sessionView').hidden = true;
+  byId('connectSheet').hidden = true;
+  byId('connectScrim').hidden = true;
+  byId('sessionSheet').hidden = true;
+  byId('sessionSheetScrim').hidden = true;
+  byId('pageActions').hidden = true;
+  app.syncModalLayers?.();
+  app.say('Device features are for this installation’s administrator only.');
+}
 
 const app = {
   computers: createComputerClient(),
   records: createPackageClient(),
-  state: { phones: [], computerList: [], reports: new Map(), selected: null, mode: 'devices', computersRefused: '' },
+  rdp: createRdpClient(),
+  state: {
+    phones: [],
+    computerList: [],
+    rdpSessions: [],
+    reports: new Map(),
+    selected: null,
+    mode: 'devices',
+    connectOpen: false,
+    sessionSheetOpen: false,
+    computersRefused: '',
+    notAllowed: false,
+    loadedOnce: false
+  },
   byId,
   refreshTables() {
     if (window.KernelTable && typeof window.KernelTable.install === 'function') window.KernelTable.install(document);
   },
   say(text) { byId('pageLede').textContent = text; },
   async load() {
-    const [phones, reports] = await Promise.all([app.records.phones(), app.records.reports()]);
+    let phones;
+    let reports;
+    try {
+      [phones, reports] = await Promise.all([app.records.phones(), app.records.reports()]);
+    } catch (error) {
+      if (error?.status === 403) { showNotAllowed(app); return; }
+      throw error;
+    }
     app.state.phones = phones;
     app.state.reports = new Map(reports.map((item) => [item.computerNodeId, item]));
     try {
@@ -35,35 +91,47 @@ const app = {
       app.state.computerList = [];
       app.state.computersRefused = error.status === 401 ? 'Sign in through oshal to see your computers.' : `Your computers could not be read: ${error.message}`;
     }
+    app.state.rdpSessions = await app.rdp.list().catch(() => []);
+    app.state.loadedOnce = true;
     app.emit();
   },
   computer(id) { return app.state.computerList.find((item) => String(item.id) === String(id)) || null; },
-  async keepReport(node, report) {
-    const saved = await app.records.report(node, report);
-    app.state.reports.set(node, saved);
-    return saved;
-  },
+  rdpSession(id) { return app.state.rdpSessions.find((item) => String(item.sessionId) === String(id)) || null; },
   async remember(event) {
+    try { await app.records.record(event); } catch { /* history never stops the action */ }
+  },
+  async keepReport(nodeId, report) {
     try {
-      await app.records.record(event);
-    } catch (error) {
-      app.say(`What was sent could not be written to History: ${error.message}`);
+      const saved = await app.records.report(nodeId, report);
+      app.state.reports.set(nodeId, saved);
+    } catch {
+      app.state.reports.set(nodeId, { computerNodeId: nodeId, report, reportedAt: Date.now() });
     }
   },
   listeners: [],
   onChange(listener) { app.listeners.push(listener); },
   emit() {
+    if (app.state.notAllowed) return;
+    setShellOrbHidden(false);
     for (const listener of app.listeners) listener();
     surface?.emitContext?.(buildPhoneControlContextSnapshot(contextState()));
   },
-  setMode(mode) {
-    app.state.mode = mode === 'connect' ? 'connect' : 'devices';
-    const connect = app.state.mode === 'connect';
-    byId('devicesView').hidden = connect;
-    byId('connectView').hidden = !connect;
-    byId('tabDevices').setAttribute('aria-selected', String(!connect));
-    byId('tabConnect').setAttribute('aria-selected', String(connect));
-    byId('pageHeading').textContent = connect ? 'Connect a device' : 'Your devices';
+  openConnect(push = true) {
+    if (app.state.notAllowed) return;
+    app.state.connectOpen = true;
+    app.state.mode = 'connect';
+    byId('connectSheet').hidden = false;
+    byId('connectScrim').hidden = false;
+    if (push && history.state?.pcView !== 'connect') history.pushState({ pcView: 'connect' }, '');
+    app.emit();
+  },
+  closeConnect(fromPop = false) {
+    if (!app.state.connectOpen) return;
+    app.state.connectOpen = false;
+    app.state.mode = 'devices';
+    byId('connectSheet').hidden = true;
+    byId('connectScrim').hidden = true;
+    if (!fromPop && history.state?.pcView === 'connect') history.back();
     app.emit();
   }
 };
@@ -71,47 +139,98 @@ const app = {
 let surface = null;
 
 function contextState() {
-  const selected = app.state.selected;
-  const phone = selected?.kind === 'phone' ? app.state.phones.find((item) => item.id === selected.id) : null;
-  const computer = selected?.kind === 'computer' ? app.computer(selected.id) : null;
-  return { mode: app.state.mode, phone, computer, phones: app.state.phones, computers: app.state.computerList };
+  const chosen = app.state.selected;
+  const phone = chosen?.kind === 'phone' ? app.state.phones.find((item) => item.id === chosen.id) : null;
+  const computer = chosen?.kind === 'computer' ? app.computer(chosen.id) : null;
+  const rdp = chosen?.kind === 'rdp' ? app.rdpSession(chosen.id) : null;
+  return {
+    mode: app.state.mode,
+    phone,
+    computer,
+    rdp,
+    phones: app.state.phones,
+    computers: app.state.computerList,
+    rdpSessions: app.state.rdpSessions,
+    selectedPhone: phone,
+    selectedComputer: computer,
+    selectedRdp: rdp
+  };
 }
 
 function lede() {
+  if (app.state.notAllowed) return 'Device features are for this installation’s administrator only.';
   if (app.state.computersRefused) return app.state.computersRefused;
   const phones = app.state.phones.length;
   const computers = app.state.computerList.length;
-  if (!computers && !phones) return 'Phones connect through a computer you set up.';
-  return `${phones} ${phones === 1 ? 'phone' : 'phones'} and ${computers} ${computers === 1 ? 'computer' : 'computers'}.`;
+  const rdpCount = app.state.rdpSessions.length;
+  if (!phones && !computers && !rdpCount) return 'No phones, TVs or computers yet.';
+  const phoneWords = `${phones} ${phones === 1 ? 'device' : 'devices'}`;
+  const computerWords = `${computers} ${computers === 1 ? 'computer' : 'computers'}`;
+  const rdpWords = rdpCount ? ` · ${rdpCount} RDP` : '';
+  return `${phoneWords} · ${computerWords}${rdpWords}.`;
 }
 
 async function attachSurface() {
+  connectPhoneControlHandoff({ getState: contextState });
+  if (window.parent === window) return;
   try {
-    const handoff = await import('/shared/ui/js/document-handoff.js');
-    connectPhoneControlHandoff({ getState: contextState, registerSession: handoff.registerDocumentSession });
-  } catch {
-    connectPhoneControlHandoff({ getState: contextState });
-  }
-  try {
-    const bridge = await import('/shared/ui/js/surface-bridge-client.js');
-    if (typeof bridge.createSurfaceBridgeClient === 'function') {
-      surface = bridge.createSurfaceBridgeClient({ app: 'phone-control' });
+    const sdk = await import('/shared/ui/js/surface-bridge-client.js');
+    if (typeof sdk.createSurfaceBridgeClient === 'function') {
+      surface = sdk.createSurfaceBridgeClient({ app: 'phone-control' });
       surface.attach();
-      surface.emitContext(buildPhoneControlContextSnapshot(contextState()));
+      surface.emitContext?.(buildPhoneControlContextSnapshot(contextState()));
     }
   } catch {
     surface = null;
   }
 }
 
+function handlePopState(event) {
+  if (app.state.notAllowed) return;
+  const view = event.state?.pcView || 'list';
+  if (view === 'session-sheet' && event.state?.selected) {
+    app.closeConnect(true);
+    if (!app.state.selected) app.select?.(event.state.selected, false);
+    app.openSessionSheet?.(false);
+  } else if (view === 'session' && event.state?.selected) {
+    app.closeConnect(true);
+    app.closeSessionSheet?.(true);
+    if (!app.state.selected || app.state.selected.id !== event.state.selected.id) app.select?.(event.state.selected, false);
+  } else if (view === 'connect') {
+    app.closeSessionSheet?.(true);
+    app.openConnect(false);
+  } else {
+    app.closeSessionSheet?.(true);
+    app.closeConnect(true);
+    app.endSession?.(true);
+  }
+}
+
+function wireLayers() {
+  window.addEventListener('popstate', handlePopState);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!byId('rowMenu').hidden) { app.closeRowMenu?.(); return; }
+    if (app.state.sessionSheetOpen) { app.closeSessionSheet?.(false); return; }
+    if (app.state.connectOpen) app.closeConnect(false);
+  });
+  window.addEventListener('pagehide', () => setShellOrbHidden(false));
+}
+
 function start() {
-  byId('tabDevices').addEventListener('click', () => app.setMode('devices'));
-  byId('tabConnect').addEventListener('click', () => app.setMode('connect'));
-  byId('railSetUp').addEventListener('click', () => app.setMode('connect'));
+  history.replaceState({ pcView: 'list' }, '');
+  byId('addDeviceBtn').addEventListener('click', () => app.openConnect(true));
+  byId('connectCloseBtn').addEventListener('click', () => app.closeConnect(false));
+  byId('connectScrim').addEventListener('click', () => app.closeConnect(false));
+  wireLayers();
   app.onChange(() => app.say(lede()));
   mountStage(app);
   mountSetup(app);
-  app.setMode(location.pathname.includes('/config/') || location.hash === '#connect' ? 'connect' : 'devices');
+  const startConnect = location.pathname.includes('/config/')
+    || location.hash === '#connect'
+    || location.hash === '#connect-tv'
+    || new URLSearchParams(location.search).get('connect') === '1';
+  if (startConnect) app.openConnect(true);
   void attachSurface();
   app.load().catch((error) => app.say(`Your devices could not be read: ${error.message}`));
 }

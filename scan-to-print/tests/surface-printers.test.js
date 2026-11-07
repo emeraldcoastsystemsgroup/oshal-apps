@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Printers with no object open: the packaged page keeps the printer list, the registration form, the Bambu help and the slicer engine note in a Printers panel that is never hidden and sits above the object list, outside the print step (which stays hidden until an object is reconstructed); its boot, run in a Node VM with explicit DOM and HTTP ports, reads GET /printers and lists them with nothing written. No browser, server or real data is used.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0, the design standard (F12: "printer registration crushes the object list"): Printers is a modal sheet (<dialog id="printers">) reached from the Object menu's Printers… with no object open, and from the print step's Manage printers; the left pane holds only the object list. A Bambu printer's slice settings are fields in that sheet (slice-form), not prompts.
  */
 'use strict';
 const test = require('node:test');
@@ -51,20 +52,21 @@ function blockOf(tag, id) {
   throw new Error(`<${tag} id="${id}"> is never closed`);
 }
 
-test('the printers panel is never hidden, sits above the object list, and holds what the print step used to', () => {
+test('Printers is a sheet reached from the Object menu with no object open, and holds what the print step used to', () => {
   const printStep = blockOf('section', 'print-step');
-  const printers = blockOf('details', 'printers');
-  for (const id of ['printer-list', 'printer-form', 'bambu-help', 'engine-note', 'p-host', 'p-code']) {
-    assert.ok(printers.includes(`id="${id}"`), `${id} is in the Printers panel`);
+  const printers = blockOf('dialog', 'printers');
+  for (const id of ['printer-list', 'printer-form', 'bambu-help', 'engine-note', 'p-host', 'p-code', 'slice-form']) {
+    assert.ok(printers.includes(`id="${id}"`), `${id} is in the Printers sheet`);
     assert.ok(!printStep.includes(`id="${id}"`), `${id} is not inside the print step, which stays hidden until an object is reconstructed`);
   }
-  const opening = printers.slice(0, printers.indexOf('>') + 1);
-  assert.doesNotMatch(opening, /\bhidden\b/, 'the Printers panel itself is never hidden');
   const asideStart = HTML.indexOf('<aside>'), asideEnd = HTML.indexOf('</aside>');
-  const inAside = HTML.indexOf('<details id="printers"');
-  assert.ok(asideStart >= 0 && inAside > asideStart && inAside < asideEnd, 'the Printers panel is in the object-list column, visible with no object open');
-  assert.ok(inAside < HTML.indexOf('<div id="job-list">'), 'it sits above the object list, so a long list cannot push it out of view');
-  assert.doesNotMatch(HTML.slice(asideStart, inAside), /\bhidden\b/, 'nothing that wraps it is hidden');
+  assert.ok(asideStart >= 0, 'the page has its object-list column');
+  assert.equal(HTML.slice(asideStart, asideEnd).trim(), '<aside>\n    <div id="job-list"></div>', 'the left pane is the object list alone, at its full width (F12)');
+  const menu = blockOf('div', 'object-menu-items');
+  const item = menu.match(/<button id="open-printers"[^>]*>/);
+  assert.ok(item && /role="menuitem"/.test(item[0]) && !/\b(hidden|disabled)\b/.test(item[0]), 'Printers… is an item of the Object menu that is never hidden or disabled');
+  assert.match(item[0], /data-ef-phone="more"/, 'on a phone it is in the More sheet');
+  assert.match(printStep, /id="print-printers"/, 'the print step reaches the same sheet');
   assert.match(printers, /Settings → Settings → LAN Only/, 'the Bambu help names the P2S and H2 path');
 });
 

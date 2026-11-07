@@ -15,6 +15,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Running banner and disabled button before the POST answers; a closed run's failed, skipped and deferred phases shown with their reasons (and again on reopening), a clean run still says finished, a refused start clears the banner.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A deferred Documents phase reads as its own sentence, never "Documents not run yet": live the banner said "Documents not run yet: documents were rendered from the computed numbers" while all 17 documents opened.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: a run whose only open item is the Documents phase's by-design deferral says "The run finished." (not "not every phase did"), and a Regenerate prose run that ends with a document open opens that document again after the reload instead of leaving "Pick a document".
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3, UX audit venture-plan--venture-home: the run's state is also the first part of the one status line under the venture name (renderStatusLine, in this block); a closed run that left something undone opens the details under it, where its reasons are, and the toast points there; a run that finished whole adds nothing to the line.
  */
 'use strict';
 
@@ -44,7 +45,8 @@ const LIVE_RUN = {
 
 /** The run-status block wired to stub elements, a stub API whose answers the test releases, and a manual timer. */
 function page() {
-  const els = { researchBtn: { disabled: false }, runBanner: { innerHTML: '' } };
+  const els = { researchBtn: { disabled: false }, runBanner: { innerHTML: '' }, statusLine: { hidden: true, innerHTML: '' },
+    statusDetails: { hidden: true } };
   const world = { posts: [], toasts: [], failures: [], selected: [], loaded: [], timer: null, answers: [] };
   const S = { ventureId: 'v1', run: null, runTimer: null, busy: false };
   const api = (method, url, body) => new Promise((resolve, reject) => {
@@ -75,6 +77,7 @@ test('pressing Run shows the running banner and disables the button before the P
   p.fns.startRun('full');
   assert.deepEqual(p.world.posts, [{ url: '/ventures/v1/runs', body: { kind: 'full' } }]);
   assert.match(text(p.els.runBanner.innerHTML), /Analysts running… starting/);
+  assert.match(p.els.statusLine.innerHTML, /<b>Analysts running…<\/b>/, 'the status line says so too');
   assert.equal(p.els.researchBtn.disabled, true, 'a second press cannot start a second run');
   p.fns.startRun('full');
   assert.equal(p.world.posts.length, 1, 'pressing again while the first is running sends nothing');
@@ -97,7 +100,11 @@ test('a closed run with a failed and deferred phases names each reason and the r
   assert.doesNotMatch(shown, /Documents not run yet/);
   assert.match(p.els.runBanner.innerHTML, /class="banner bad"/);
   assert.ok(!p.world.toasts.some(([m]) => /^Run finished/.test(m)), 'no plain "Run finished" toast');
-  assert.deepEqual(p.world.toasts.at(-1), ['The run finished, but not every phase did. The reasons are listed under Run the analysts.', 'bad']);
+  assert.deepEqual(p.world.toasts.at(-1), ['The run finished, but not every phase did. The reasons are listed under the venture name.', 'bad']);
+  // The status line names it, and the details holding the reasons open under it.
+  assert.match(p.els.statusLine.innerHTML, /<span class="tone-bad">The run finished, but not every phase did\.<\/span>/);
+  assert.equal(p.els.statusLine.hidden, false);
+  assert.equal(p.els.statusDetails.hidden, false, 'the reasons are on screen without a press');
   assert.equal(p.els.researchBtn.disabled, false);
   assert.deepEqual(p.world.selected, ['v1'], 'the model is reloaded');
   assert.equal(p.world.timer, null, 'polling stops');
@@ -130,6 +137,8 @@ test('a run that finished every phase still says finished and leaves no banner',
   await p.reply({ run: { id: 'run-2', status: 'done', error: null, phases: [{ name: 'bom', status: 'done' }, { name: 'compute', status: 'done' }] } });
   assert.equal(p.els.runBanner.innerHTML, '');
   assert.deepEqual(p.world.toasts.at(-1), ['Run finished. Reloading the model.', 'ok']);
+  assert.doesNotMatch(p.els.statusLine.innerHTML, /run/i, 'a whole run adds nothing to the status line');
+  assert.equal(p.els.statusDetails.hidden, true);
 });
 
 test('a refused start clears the banner, re-enables the button and names the refusal', async () => {
@@ -168,6 +177,9 @@ test('a run whose only open item is the deferred Documents phase says it finishe
   assert.match(shown, /Documents were rendered from the computed numbers/);
   assert.match(p.els.runBanner.innerHTML, /class="banner info"/);
   assert.deepEqual(p.world.toasts.at(-1), ['Run finished. Reloading the model.', 'ok']);
+  // "The run finished." collapses into the status line; its note waits under the info button.
+  assert.match(p.els.statusLine.innerHTML, /<span class="tone-ok">The run finished\.<\/span>/);
+  assert.equal(p.els.statusDetails.hidden, true, 'a settled run does not open the details');
 });
 
 test('Regenerate prose opens the same document again once the venture reloads', async () => {

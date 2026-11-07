@@ -8,6 +8,9 @@
  *                     |                             | vm with stub elements and a recording fetch (plain node, so it runs with the engine-* suites the
  *                     |                             | store gate runs): Delete asks first, a declined confirm sends nothing, a confirmed one sends
  *                     |                             | DELETE for the open vehicle and returns to the create card; a refusal keeps the record on screen.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | UX batch-7: Delete moves into the Stage card's ⋯ overflow menu with destructive styling and
+ *                     |                             | opens an in-page confirm dialog (#delete-dialog, no native window.confirm); Cancel closes
+ *                     |                             | without sending DELETE, and Delete explorer sends DELETE /api/ocean-lab/vehicles/:id.
  */
 'use strict';
 
@@ -22,10 +25,10 @@ const HTML = fs.readFileSync(path.join(__dirname, '..', 'tools', 'explorer.html'
 const VEHICLE = '925f0106-1111-4222-8333-444455556666';
 
 /** A minimal element: hidden flag, text, html, value, listeners and a query for the tables' tbody. */
-function element() {
+function element(initialHidden = false) {
   const listeners = {};
   const self = {
-    hidden: false, textContent: '', innerHTML: '', value: '', href: '', listeners,
+    hidden: initialHidden, textContent: '', innerHTML: '', value: '', href: '', listeners,
     addEventListener(type, fn) { listeners[type] = fn; },
     querySelector() { return self; },
   };
@@ -47,8 +50,8 @@ const RECORD = {
 const KINDS = { stages: ['concept', 'sized'], seed: { provenance: {} }, evaluationPlant: 'wave-explorer-plant' };
 
 /** Run the shipped script with stubbed DOM and a fetch that serves the caller's one explorer. */
-async function boot({ confirmAnswer, deleteStatus }) {
-  const els = {};
+async function boot({ deleteStatus }) {
+  const els = { 'delete-dialog': element(true), 'stage-more-menu': element(true) };
   const document = { getElementById: (id) => { if (!els[id]) els[id] = element(); return els[id]; } };
   const calls = [];
   const answer = (status, body) => Promise.resolve({ status, text: () => Promise.resolve(body === undefined ? '' : JSON.stringify(body)) });
@@ -61,35 +64,41 @@ async function boot({ confirmAnswer, deleteStatus }) {
     if (url === `/api/ocean-lab/vehicles/${VEHICLE}`) return answer(200, RECORD);
     return answer(404, { error: 'not_found' });
   };
-  const confirms = [];
-  const window = { confirm: (msg) => { confirms.push(msg); return confirmAnswer; } };
+  const window = {};
   vm.runInNewContext(SCRIPT, { window, document, fetch, Promise, Object, String, JSON, isFinite });
   window.OceanExplorer.start();
   for (let i = 0; i < 6; i += 1) await new Promise((resolve) => setImmediate(resolve));
   assert.equal(els.record.hidden, false, 'the explorer record is on screen before Delete');
   calls.length = 0;
-  return { els, calls, confirms };
+  return { els, calls };
 }
 
 const settle = async () => { for (let i = 0; i < 4; i += 1) await new Promise((resolve) => setImmediate(resolve)); };
 
-test('the tile carries a Delete control wired to deleteExplorer', () => {
-  assert.match(HTML, /<button class="btn" id="delete-explorer" type="button">Delete this explorer<\/button>/);
+test('the tile carries a destructive Delete control inside the Stage card overflow menu and an in-page confirm dialog', () => {
+  assert.match(HTML, /id="stage-more-menu"[\s\S]*?<button class="menu-item destructive" id="delete-explorer" type="button"[^>]*>Delete this explorer<\/button>/);
+  assert.match(HTML, /<dialog class="confirm-dialog" id="delete-dialog"[\s\S]*?id="delete-cancel"[\s\S]*?id="delete-confirm"/);
+  assert.doesNotMatch(SCRIPT, /global\.confirm\(/, 'no native window.confirm is used');
   assert.match(SCRIPT, /el\('delete-explorer'\)\.addEventListener\('click', deleteExplorer\)/);
+  assert.match(SCRIPT, /el\('delete-confirm'\)\.addEventListener\('click', confirmDeleteExplorer\)/);
 });
 
 test('a declined confirm sends nothing', async () => {
-  const page = await boot({ confirmAnswer: false, deleteStatus: 204 });
+  const page = await boot({ deleteStatus: 204 });
   page.els['delete-explorer'].listeners.click();
+  assert.equal(page.els['delete-dialog'].hidden, false, 'in-page confirm opens first');
+  assert.deepEqual(page.calls, []);
+  page.els['delete-cancel'].listeners.click();
   await settle();
-  assert.match(page.confirms[0], /Delete this explorer/);
+  assert.equal(page.els['delete-dialog'].hidden, true);
   assert.deepEqual(page.calls, []);
   assert.equal(page.els.record.hidden, false);
 });
 
 test('a confirmed delete removes the open vehicle and offers to create one again', async () => {
-  const page = await boot({ confirmAnswer: true, deleteStatus: 204 });
+  const page = await boot({ deleteStatus: 204 });
   page.els['delete-explorer'].listeners.click();
+  page.els['delete-confirm'].listeners.click();
   await settle();
   assert.deepEqual(page.calls, [{ url: `/api/ocean-lab/vehicles/${VEHICLE}`, method: 'DELETE' }]);
   assert.equal(page.els.record.hidden, true);
@@ -98,8 +107,9 @@ test('a confirmed delete removes the open vehicle and offers to create one again
 });
 
 test('a refused delete keeps the record on screen and says why', async () => {
-  const page = await boot({ confirmAnswer: true, deleteStatus: 404 });
+  const page = await boot({ deleteStatus: 404 });
   page.els['delete-explorer'].listeners.click();
+  page.els['delete-confirm'].listeners.click();
   await settle();
   assert.equal(page.els.record.hidden, false);
   assert.match(page.els.status.textContent, /was not deleted \(404: vehicle_not_found\)/);

@@ -20,6 +20,10 @@
  *                     |                             | and its files are removed and the reply carries the build
  *                     |                             | outcome with `model: null`, so a stopped engine no longer
  *                     |                             | fills the list with empty failed parts.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.0: synthesize Wavefront OBJ + MTL, 3MF OPC ZIP, glTF 2.0 GLB,
+ *                     |                             | and Apple USDZ mesh artifacts from each built revision's STL
+ *                     |                             | alongside STEP, STL, hidden-line SVGs and the kernel report
+ *                     |                             | (RP-CAD-03, RP-CAD-04).
  */
 
 import fs from 'node:fs';
@@ -30,6 +34,7 @@ import { ContractError, validateBase, validateFeature, validateFeatureBudget, va
 import { ARTIFACT_TYPES, artifactPath, isArtifactKey, modelDir, requireUuid, revisionDir, type ArtifactKey } from './data-dir';
 import { createModel, deleteModel, getModel, getRevision, listModels, listRevisions, updateModel, type ModelRow, type QueryablePool } from './model-store';
 import { buildStatus, cancelRebuild, rebuildModel, storeMeshBase, type BuildOutcome, type RebuildDeps } from './rebuild-service';
+import { fromStl, to3mf, toGlb, toMtl, toObj, toUsdz } from './mesh-formats';
 
 const logger = createChildLogger({ module: 'cad-studio-model-routes' });
 export const UPLOAD_LIMITS = Object.freeze({ meshBytes: 64 * 1024 * 1024 });
@@ -43,11 +48,37 @@ export interface ModelRouteDeps extends RebuildDeps {
 
 type ModelRequest = Request & { cadSub?: string; cadModel?: ModelRow };
 
+const DERIVED_MESH_TYPES: Readonly<Record<string, string>> = Object.freeze({
+  obj: 'model/obj; charset=utf-8',
+  mtl: 'model/mtl; charset=utf-8',
+  '3mf': 'model/3mf',
+  glb: 'model/gltf-binary',
+  usdz: 'model/vnd.usdz+zip',
+});
+
 /** @description The model as the API returns it (a mesh base never carries its bytes). */
 export function publicModel(model: ModelRow): Record<string, unknown> {
   const base = model.base.kind === 'mesh' ? { kind: 'mesh', bytes: model.base.bytes, sha256: model.base.sha256 } : model.base;
-  const artifacts = model.revision > 0 ? Object.fromEntries(['step', 'stl', 'svg-front', 'svg-top', 'svg-right', 'svg-iso', 'report'].map((k) => [k, `${BASE}/models/${model.model_id}/artifacts/${k}?revision=${model.revision}`])) : {};
+  const keys = ['step', 'stl', 'obj', 'mtl', '3mf', 'glb', 'usdz', 'svg-front', 'svg-top', 'svg-right', 'svg-iso', 'report'];
+  const artifacts = model.revision > 0 ? Object.fromEntries(keys.map((k) => [k, `${BASE}/models/${model.model_id}/artifacts/${k}?revision=${model.revision}`])) : {};
   return { ...model, base, artifacts };
+}
+
+function sendDerivedMeshArtifact(res: Response, stlFile: string, model: ModelRow, revision: number, key: string, download: boolean): void {
+  if (!fs.existsSync(stlFile)) { res.status(404).json({ error: 'artifact_not_found' }); return; }
+  const safeBase = model.title.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 60) || 'model';
+  const fileStem = `${safeBase}-r${revision}`;
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.type(DERIVED_MESH_TYPES[key]);
+  if (download || key === 'usdz') {
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileStem}.${key}"`);
+  }
+  if (key === 'mtl') { res.send(toMtl('cad_part_mat')); return; }
+  const mesh = fromStl(new Uint8Array(fs.readFileSync(stlFile)));
+  if (key === 'obj') { res.send(toObj(mesh, safeBase, `${fileStem}.mtl`)); return; }
+  if (key === '3mf') { res.send(Buffer.from(to3mf(mesh, model.title))); return; }
+  if (key === 'glb') { res.send(Buffer.from(toGlb(mesh, safeBase))); return; }
+  res.send(Buffer.from(toUsdz(mesh, safeBase)));
 }
 
 function refuse(res: Response, error: unknown): boolean {
@@ -300,10 +331,16 @@ export function createModelRoutes(deps: ModelRouteDeps): Router {
   router.get('/models/:modelId/artifacts/:key', (req: ModelRequest, res) => {
     const model = req.cadModel as ModelRow;
     const key = req.params.key;
-    if (!isArtifactKey(key)) { res.status(404).json({ error: 'unknown_artifact' }); return; }
+    const derived = Object.prototype.hasOwnProperty.call(DERIVED_MESH_TYPES, key);
+    if (!isArtifactKey(key) && !derived) { res.status(404).json({ error: 'unknown_artifact' }); return; }
     const revision = req.query.revision === undefined ? model.revision : Number(req.query.revision);
     if (!Number.isInteger(revision) || revision < 1 || revision > model.revision) { res.status(404).json({ error: 'revision_not_found' }); return; }
-    const file = artifactPath(revisionDir(deps.dataRoot, req.cadSub as string, model.model_id, revision), key as ArtifactKey);
+    const revDir = revisionDir(deps.dataRoot, req.cadSub as string, model.model_id, revision);
+    if (derived) {
+      sendDerivedMeshArtifact(res, artifactPath(revDir, 'stl'), model, revision, key, req.query.download !== undefined);
+      return;
+    }
+    const file = artifactPath(revDir, key as ArtifactKey);
     if (!fs.existsSync(file)) { res.status(404).json({ error: 'artifact_not_found' }); return; }
     res.setHeader('Cache-Control', 'private, no-store');
     res.type(ARTIFACT_TYPES[key as ArtifactKey]);

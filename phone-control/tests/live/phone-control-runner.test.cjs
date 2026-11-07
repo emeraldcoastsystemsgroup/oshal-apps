@@ -6,6 +6,9 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0 T1 under the kernel's real package runner (crates/host-process/bridge/runner.js) over its stdio protocol, with this package's real catalog: the routes that remain answer through the runner's express shim and HTTP response encoding, the store persists in OSHAL_PACKAGE_DATA_DIR and never in the package folder, a caller without the route's grants is refused 403 application_resource_denied by the runner's own gate, a caller-chosen tenant is 400, and a second person reads another's phone as 404. The kernel's side of the protocol (auth.caller, auth.application) is played by this harness, as in the 1.0.0 dev-shim test it replaces. Needs the runner: OSHAL_BRIDGE_RUNNER, or OSHAL_KERNEL_ROOT naming a kernel checkout; it fails when neither is set.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: the readiness answer names version 1.1.1.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: and now 1.1.2.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: readiness reports 1.2.0, and viewer/operator role grants are refused 403 on /devices while admitted 200 on /ui.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: readiness reports 1.3.0 and bridge manifest serves oshal_phone_mirror.py.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: readiness reports 1.4.0, serves session-*.js UI modules, and verifies /sessions/* grant enforcement and cross-user isolation.
  */
 'use strict';
 
@@ -206,7 +209,8 @@ function startBridgeHarness({ dataDir, grantedPermissions, principal: who }) {
   async function callHttp(method, route, { body, query, headers, overridePermissions } = {}) {
     const id = nextCallId++;
     const requiredNames = resolveBindingPermissions(method, route);
-    const permissions = overridePermissions ?? buildPermissionCandidates(requiredNames);
+    const routeAdmitted = requiredNames.every((name) => grantedPermissions.includes(name));
+    const permissions = overridePermissions ?? (routeAdmitted ? buildPermissionCandidates(requiredNames) : []);
     const proof = {
       principal,
       app: 'phone-control',
@@ -256,13 +260,18 @@ test('phone-control 1.1.0 under the kernel runner: real routes, real catalog gat
     assert.equal((await alice.readyPromise).t, 'ready');
     const smoke = await alice.callHttp('GET', '/api/phone-control/_smoke');
     assert.equal(smoke.status, 200, alice.getStderr());
-    assert.deepEqual(smoke.body, { status: 'ready', package: 'phone-control', version: '1.1.2', manifest: 'verified' });
+    assert.deepEqual(smoke.body, { status: 'ready', package: 'phone-control', version: '1.4.0', manifest: 'verified' });
     const page = await alice.callHttp('GET', '/api/phone-control/ui');
     assert.equal(page.status, 200);
     assert.match(text(page), /Pair an Android phone/);
-    for (const asset of ['computer-link.js', 'phone-stage.js', 'phone-setup.js', 'phone-control.js', 'phone-control.css', 'editor-handoff.mjs']) {
+    for (const asset of ['computer-link.js', 'phone-stage.js', 'phone-setup.js', 'session-computer.js', 'session-media.js', 'session-collab.js', 'phone-control.js', 'phone-control.css', 'editor-handoff.mjs']) {
       assert.equal((await alice.callHttp('GET', `/api/phone-control/ui/${asset}`)).status, 200, asset);
     }
+    const prefSaved = await alice.callHttp('POST', '/api/phone-control/sessions/preferences', { body: { targetKey: `computer:${NODE}`, quality: 'high', lockOnEnd: true } });
+    assert.equal(prefSaved.status, 200);
+    assert.equal(prefSaved.body.preferences.quality, 'high');
+    const chatSaved = await alice.callHttp('POST', '/api/phone-control/sessions/chat', { body: { targetKey: `computer:${NODE}`, sender: 'operator', body: 'Hello from runner test' } });
+    assert.equal(chatSaved.status, 201);
     const created = await alice.callHttp('POST', '/api/phone-control/devices', { body: { name: 'Pixel', platform: 'android', computerNodeId: NODE, address: '10.0.0.2:5555' } });
     assert.equal(created.status, 201, JSON.stringify(created.body));
     const id = created.body.device.id;
@@ -272,6 +281,8 @@ test('phone-control 1.1.0 under the kernel runner: real routes, real catalog gat
     assert.equal(manifest.status, 200);
     const file = await alice.callHttp('GET', '/api/phone-control/bridge/files/oshal_phone_bridge.py');
     assert.equal(crypto.createHash('sha256').update(text(file)).digest('hex'), manifest.body.files.find((f) => f.name === 'oshal_phone_bridge.py').sha256);
+    const mirrorFile = await alice.callHttp('GET', '/api/phone-control/bridge/files/oshal_phone_mirror.py');
+    assert.equal(crypto.createHash('sha256').update(text(mirrorFile)).digest('hex'), manifest.body.files.find((f) => f.name === 'oshal_phone_mirror.py').sha256);
     const denied = await alice.callHttp('POST', '/api/phone-control/history', { body: { computerNodeId: NODE, action: 'x', summary: 'x', ok: true }, overridePermissions: [] });
     assert.equal(denied.status, 403);
     assert.equal(denied.body.error, 'application_resource_denied');
@@ -285,8 +296,22 @@ test('phone-control 1.1.0 under the kernel runner: real routes, real catalog gat
     await bob.readyPromise;
     assert.deepEqual((await bob.callHttp('GET', '/api/phone-control/devices')).body.devices, [], 'bob sees none of alice\'s phones');
     assert.deepEqual((await bob.callHttp('GET', '/api/phone-control/history')).body.history, []);
+    assert.deepEqual((await bob.callHttp('GET', '/api/phone-control/sessions/chat', { query: { targetKey: `computer:${NODE}` } })).body.messages, []);
+    assert.equal((await bob.callHttp('GET', '/api/phone-control/sessions/preferences', { query: { targetKey: `computer:${NODE}` } })).body.preferences.quality, 'balanced');
   } finally {
     await bob.close();
+  }
+  const viewer = startBridgeHarness({ dataDir, grantedPermissions: ['execution.view', 'configuration.view'], principal: person('carol') });
+  try {
+    await viewer.readyPromise;
+    assert.equal((await viewer.callHttp('GET', '/api/phone-control/ui')).status, 200);
+    assert.equal((await viewer.callHttp('GET', '/api/phone-control/config/ui')).status, 200);
+    const blocked = await viewer.callHttp('GET', '/api/phone-control/devices');
+    assert.equal(blocked.status, 403);
+    assert.equal(blocked.body.error, 'application_resource_denied');
+    assert.equal((await viewer.callHttp('GET', '/api/phone-control/sessions/chat', { query: { targetKey: `computer:${NODE}` } })).status, 403);
+  } finally {
+    await viewer.close();
   }
   assert.ok(fs.existsSync(path.join(dataDir, 'phone_control.sqlite')));
   assert.equal(fs.readdirSync(PKG_DIR).some((name) => /sqlite|vault|blobs/.test(name)), false, 'nothing written in the package folder');

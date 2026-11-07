@@ -1,5 +1,7 @@
 # OSHAL Home Workspace — an ADR-141 group of six required, existing applications.
 # Every tile borrows a member's declared surface; this package owns no route, bot or business logic.
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.0.1: the Social Signals tile is merged into Social's Workspace · Engage (UX audit 2026-11-06, social--social-signals): its tile is removed here and the signals setup step opens the Workspace.
 name: workspace
 kind: group
 suite: ai-home
@@ -12,7 +14,7 @@ displayName: Home Workspace
 description: >-
   One home ribbon for Smart Home, Switchboard, Social, Intelligent Career,
   Storage and Video Studio. Each destination remains owned by its member app.
-version: 1.0.0
+version: 1.0.1
 status: active
 scope: public
 chatBot: home-bot # Metadata-only concierge borrowed from the required Smart Home member.
@@ -36,7 +38,6 @@ toolbar:
   - { app: switchboard,   surface: switchboard-today,   group: My Day }
   - { app: switchboard,   surface: switchboard-inbox,   group: My Day }
   - { app: social,        surface: social-workspace,    group: Community }
-  - { app: social,        surface: social-signals,      group: Community }
   - { app: career-hunter, surface: career-board,        group: Career }
   - { app: career-hunter, surface: career-strengthen,   group: Career }
   - { app: storage,       surface: storage-files,       group: Files }
@@ -50,7 +51,7 @@ toolbar:
 setup:
   - { label: Add your resume,            app: career-hunter, readiness: resume,   fix: career-resume-studio }
   - { label: Connect your social account, app: social,        readiness: facebook, fix: social-accounts }
-  - { label: Choose social signals,       app: social,        readiness: signals,  fix: social-signals }
+  - { label: Choose social signals,       app: social,        readiness: signals,  fix: social-workspace }
 
 ribbon:
   defaultView: home-dashboard

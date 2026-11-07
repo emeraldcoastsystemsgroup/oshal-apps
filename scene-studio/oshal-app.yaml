@@ -35,6 +35,9 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: the open project file saves before Jarvis or the concierge reads it, and the project and its open file are read again when their change returns (shared document handoff), keeping text still being edited.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Put executable fresh native text reads and changed-only writes in the actual model-visible Blender description; preserve automatic source authority.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, UX audit 2026-11-06: Render preview, Run, Import, Set keyframe, Undo and Save stay disabled until a project is open and a preview never posts for no project; New makes a ready scene with its first preview; a first screen of project types or projects; Scene and Script & build views; no route or permission change.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: + New carries data-ef-floating (kernel PR #197) so the shell orb rests above it on a phone.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger F13): a concierge turn begun with no project open lists the projects again and opens the one project it made; no route, tool or permission change.
 name: scene-studio
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -49,7 +52,7 @@ rating:
       degrade: disable
 displayName: Scene Studio
 description: "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects."
-version: 0.3.3
+version: 0.4.2
 status: active
 scope: person
 

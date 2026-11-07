@@ -2,6 +2,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register real browser/SQL automatic document handoff proofs with explicit prerequisites.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Cover complete saved history replay, redo retention and old-view refusal.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.6: register phone-start (one app bar row, New publication as the one first action, More choices close the sheet).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: register workbench-older-platform (the studio opens on a platform without the planned-control helper).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register design-standard (the oshal design standard's screen, real Chromium over real routes and SQL) and bring phone-start's first-screen expectations to the blank Letter page.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7: phone-start also proves touch scrolling over the open page, tap-to-select and the Move handle, no preview request for an unrendered revision, and the mouse-only desktop guard.
 version: 1
 cases:
@@ -42,15 +44,15 @@ cases:
     installation: never
   - id: phone-start
     name: Publishing Studio on a phone starts in one tap
-    purpose: At 390x844 with touch the app bar is one row and content starts within 74 px of the frame, New publication is the empty state's one first action with no dead document control drawn, one tap creates and opens a publication, and a choice in More runs and closes it (Roger F6 and the trial check, 2026-11-06); with a publication open a finger scrolls the page and only the chosen frame's Move handle drags it (the round-2 trial check).
+    purpose: At 390x844 with touch the app row is one row and the page starts within 74 px of the frame, a blank Letter page's one first action is Add text frame with only Undo and Redo disabled, one tap makes a Letter publication with a frame and asks for no preview, and a choice in More runs and closes it (Roger F6, the trial check and the 0.4.0 design standard); with a publication open a finger scrolls the page and only the chosen frame's Move handle drags it (the round-2 trial check).
     level: browser
     runner:
       kind: external
       scope: package
       files: [tests/browser/phone-start.test.mjs]
     expected:
-      - Only Save revision and More in the one app bar row; New publication is the only drawn control before a publication exists.
-      - One tap opens Revision 1 with its page boards; Refresh files from More closes the sheet and returns to its toolbar.
+      - 'The app row: the publication menu, Undo, Redo, More and Add text frame in one row; only Undo and Redo are disabled; a blank Letter page, no pane band.'
+      - One tap opens Revision 1 of an untitled Letter publication with the Text sheet open and no refused request; Refresh files from More closes the menu.
       - '0.3.7, with a publication open: a CDP touch swipe that starts on the story frame, on the page margin or on the page body scrolls the editor and moves nothing; no swipe leaves a draft.'
       - '0.3.7: a tap selects a frame without moving it or the scroll; only its 44 px opaque Move handle (touch-action none) drags it into an unsaved draft.'
       - '0.3.7, desktop guard: at 1440x900 with a mouse no handle is drawn and dragging the outline still moves the frame.'
@@ -61,6 +63,46 @@ cases:
       mode: disposable
       cleanup: Remove only unique fixture databases, roles, engine children and temp directories; preserve shared services and user documents.
     limits: {timeoutMs: 180000, maxMemoryMb: 1536}
+    installation: never
+  - id: design-standard
+    name: Publishing Studio to the oshal design standard
+    purpose: The UX audit decision publishing-studio--publishing-studio (P0) and REFP CONVENTIONS §5.5, proved by a person's presses in real Chromium over the real routes, the real publishing engine and disposable SQL, at 412x915 with touch and 1440x900.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/browser/design-standard.test.mjs]
+    expected:
+      - A blank Letter page opens ready, declaring its contract, with one primary (Add text frame) and one tool row along the bottom with More last and the planned Brand.
+      - Typed text is drawn in its frame before any save; Download PDF saves, renders and downloads by itself; no page preview is asked for before a render; nothing is refused.
+      - The chosen frame raises an opaque selection float within 48 px and the row switches to Done, Text, Font, Size, Colour, Align, Arrange, More; Duplicate and Delete undo.
+      - Menus and sheets are opaque modal dialogs that Back closes inside the studio; Delete confirms in the page; no browser dialog; planned controls (RP-PUB-01, 02, 04, 06) are greyed and inert.
+      - With publications the first screen lists them newest first with one New at the bottom right; New makes a blank A4 page.
+      - 'Desktop: Pages 240 | page | Properties·Concierge 320 with the concierge as a tab, not a fourth column; one app row; one X field (no second geometry form); a one-page publication folds Pages to 48 px.'
+    prerequisites: [runner:node, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique fixture databases, roles, engine children and temp directories; preserve shared services and user documents.
+    limits: {timeoutMs: 180000, maxMemoryMb: 1536}
+    installation: never
+  - id: workbench-older-platform
+    name: Publishing Studio opens on a platform without the planned-control helper
+    purpose: A regression guard for 0.4.1. Real Chromium over the real routes and disposable SQL, with only the shared planned-control helper's address answering 404, as on an older kernel platform.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/workbench-older-platform.test.mjs]
+    expected:
+      - The studio reaches ready, draws no greyed placeholder and its tool row is Text, Image, Shape, Concierge, More.
+      - Add text frame still makes a publication and opens the Text sheet; no page error.
+    prerequisites: [runner:node, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique fixture databases, roles, engine children and temp directories; preserve shared services and user documents.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
     installation: never
   - id: model
     name: Closed human/agent model and actual Python parity

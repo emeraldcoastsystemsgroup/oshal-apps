@@ -210,3 +210,24 @@ cases:
       timeoutMs: 30000
       maxMemoryMb: 256
     installation: never
+  - id: ux-controls
+    name: World has one window control, names only and 15 By source rows with Show more
+    purpose: >-
+      UX audit 2026-11-06: both copies of the served page carry four window buttons and no select, human() turns ids into names, a subject search, and By source shows 15 rows then Show more.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ux-controls.test.js
+    expected:
+      - 30 d, 90 d, 1 y and All are the only window control.
+      - world:ticker:nvda reads NVDA and the subject list shows no raw id.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

@@ -2,6 +2,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise original guarded HTTP inspection and native artifact chunk contracts without a pretend renderer.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Bootstrap the genuine pinned toolchain before dynamic application loading, including clean archives.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify RP-PDF-01..10 model operations (insert-blank, QuadPoints markup, ink strokeWidth, check/cross) and fail-closed authorization bindings.
  * Named unit seam: artifact metadata/chunks and application grant callbacks. Genuine kernel handle acceptance is separate.
  */
 import test from 'node:test';import assert from 'node:assert/strict';import {resolve} from 'node:path';import {randomUUID} from 'node:crypto';
@@ -37,4 +38,38 @@ test('PDF contract keys satisfy actual backend and manifest assertions before a 
  const {editingContract,id,CONTRACT}=await import('../routes/model.mjs'),first=editingContract(),second=editingContract();assert.notEqual(first.requestKey,second.requestKey);assert.equal(id(first.requestKey),first.requestKey);assert.equal(Object.hasOwn(CONTRACT,'requestKey'),false);
  const yaml=require('js-yaml'),fs=require('node:fs'),manifest=yaml.load(fs.readFileSync(resolve(import.meta.dirname,'../oshal-app.yaml'),'utf8')),schema=manifest.tools.find(t=>t.name==='pdf-apply-operations').inputSchema.properties.requestKey;assert.equal(schema.format,'uuid');const pattern=new RegExp(schema.pattern);assert.ok(pattern.test(first.requestKey));
  for(const bad of ['not-a-uuid'.padEnd(36,'x'),'11111111-1111-7111-8111-111111111111','00000000-0000-0000-0000-000000000000']){assert.equal(pattern.test(bad),false);assert.throws(()=>id(bad),{code:'pdf_invalid_id'});}
+});
+
+test('model validates adjacent-sized blank pages, QuadPoints text markup, ink strokeWidth and check/cross marks',()=>{
+ const source={id:randomUUID(),pages:[{index:0,cropBox:[0,0,612,792],rotation:0,objects:[]}],fields:[]},base=initial(source);
+ const pageId=base.pages[0].id,blankId=randomUUID(),hlId=randomUUID(),ulId=randomUUID(),stId=randomUUID(),inkId=randomUUID(),chkId=randomUUID(),crsId=randomUUID();
+ const rotated=apply(base,[{op:'rotate',page:pageId,degrees:90},{op:'insert-blank',position:1,id:blankId}],[source]);
+ assert.deepEqual(rotated.pages[1].cropBox,[0,0,792,612]);assert.equal(rotated.pages[1].blank,true);
+ const edited=apply(rotated,[
+  {op:'annotate',annotation:{id:hlId,page:pageId,kind:'highlight',rect:[40,700,200,720],quadPoints:[[40,720,200,720,40,700,200,700]],color:'ffcc00'}},
+  {op:'annotate',annotation:{id:ulId,page:pageId,kind:'underline',rect:[40,660,180,680],quadPoints:[[40,680,180,680,40,660,180,660]],color:'2563eb'}},
+  {op:'annotate',annotation:{id:stId,page:pageId,kind:'strikethrough',rect:[40,620,180,640],quadPoints:[[40,640,180,640,40,620,180,620]],color:'dc2626'}},
+  {op:'annotate',annotation:{id:inkId,page:blankId,kind:'ink',rect:[50,50,150,120],points:[[50,50],[100,90],[150,120]],color:'1d4ed8',strokeWidth:3.5}},
+  {op:'add-object',page:blankId,item:{id:chkId,kind:'check',rect:[200,200,224,224],stroke:'111827',strokeWidth:2.2}},
+  {op:'add-object',page:blankId,item:{id:crsId,kind:'cross',rect:[260,200,284,224],stroke:'dc2626',strokeWidth:2.2}}
+ ],[source]);
+ assert.equal(edited.annotations.length,4);assert.equal(edited.objects.length,2);
+ assert.throws(()=>apply(base,[{op:'annotate',annotation:{id:randomUUID(),page:pageId,kind:'underline',rect:[40,700,200,720],quadPoints:[[10,720,200,720,10,700,200,700]]}}],[source]),/pdf_annotation_geometry/);
+});
+
+test('authorization.yaml binds every new preference, signature, photo-to-PDF, compression, words and conversion route fail-closed',()=>{
+ const fs=require('node:fs'),yaml=require('js-yaml'),auth=yaml.load(fs.readFileSync(resolve(import.meta.dirname,'../authorization.yaml'),'utf8'));
+ const http=new Map(auth.bindings.http.map(b=>[`${b.method} ${b.path}`,b.allOf]));
+ assert.deepEqual(http.get('GET /preferences'),['document.view']);
+ assert.deepEqual(http.get('PUT /preferences'),['document.view']);
+ assert.deepEqual(http.get('GET /signatures'),['document.view','document.read']);
+ assert.deepEqual(http.get('POST /signatures'),['document.view','document.read','document.change']);
+ assert.deepEqual(http.get('GET /signatures/:signature/content'),['document.view','document.read']);
+ assert.deepEqual(http.get('POST /signatures/:signature/place'),['document.view','document.read','document.change']);
+ assert.deepEqual(http.get('DELETE /signatures/:signature'),['document.view','document.read','document.delete']);
+ assert.deepEqual(http.get('POST /documents/from-photos'),['document.view','document.create']);
+ assert.deepEqual(http.get('GET /documents/:document/pages/:page/words'),['document.view','document.read']);
+ assert.deepEqual(http.get('POST /documents/:document/compress'),['document.view','document.read','document.change']);
+ assert.deepEqual(http.get('POST /documents/:document/convert'),['document.view','document.read','document.export']);
+ assert.deepEqual(http.get('GET /documents/:document/export/:format'),['document.view','document.read','document.export']);
 });

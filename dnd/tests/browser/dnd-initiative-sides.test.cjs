@@ -18,6 +18,7 @@
  *     |                                             | And while "Tallow is defeated!" showed as Pip's result, the bar still read "Enemies: 4/4"
  *     |                                             | and Tallow 7/7: the Result stage (table-automation.js showOutcomeResultStage) repainted
  *     |                                             | the dock only. Showing a result now repaints the bar from the board it reports.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Match both space and slash field separators emitted by shell_screen_state.js captureScreenState.
  */
 'use strict';
 const test = require('node:test');
@@ -54,8 +55,8 @@ test('the concierge\'s snapshot of the initiative bar says which side each comba
       const box = chip.getBoundingClientRect();
       return { text: window.captureScreenState({ contentDocument: document }).text, width: box.width, height: box.height };
     });
-    assert.match(r.text, /^.*Vesh \(enemy\) Ambush archer 7\/7$/m, r.text);
-    assert.match(r.text, /^.*Della \(party\) AI Companion 12\/12$/m, r.text);
+    assert.match(r.text, /^.*Vesh(?:\s*\/\s*|\s+)\(enemy\)(?:\s*\/\s*|\s+)Ambush archer(?:\s*\/\s*|\s+)7\/7$/m, r.text);
+    assert.match(r.text, /^.*Della(?:\s*\/\s*|\s+)\(party\)(?:\s*\/\s*|\s+)AI Companion(?:\s*\/\s*|\s+)12\/12$/m, r.text);
     assert.ok(r.width <= 1 && r.height <= 1, 'the side mark is visually hidden');
     assert.deepEqual(writes, []);
   } finally {

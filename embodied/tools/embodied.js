@@ -28,6 +28,7 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com   | K4: the native kernel lets only a POST write, so a task the world finished during a GET /state read (or on the timer) was never stored. When the state read reports control.pendingWrites, the surface posts /writes/settle once (one in flight) and refreshes the task; leaving the page with writes pending sends the same POST with keepalive.
  * 17 | maintainer@emeraldcoastsystemsgroup.com   | The physics status line said 'rail: no node has heartbeat in', which reads as cut off. railStatus() now says 'node rail: no physics node is online (none has sent a heartbeat)', or names the online nodes as before.
  * 18 | maintainer@emeraldcoastsystemsgroup.com   | Demo sweep 1: with no MuJoCo engine the status line showed the person the engine failure and an operator install command ('— install: docker exec <api-container> sh .../install-engine.sh'). physicsLine() now says 'physics engine: not available on this installation'; the install hint stays in the route's answer for operators.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (embodied--embodied): each part row of the drone and arm BOMs has one row menu (⋯) holding Open in CAD Studio, instead of 18 buttons; the same hand-off runs. Explore the room cancelled at its question now says it did not start (the audit's 0 voxels after 2 s: its browser dismissed the question, so nothing ran and nothing said so).
  */
 /**
  * @description The whole Embodied Swarm surface: binds every control, makes the start reads and starts the polls.
@@ -201,6 +202,21 @@ function embodiedSurface() {
       ['truth (sim only)', `off by ${((loc.errorM || 0) * 100).toFixed(1)} cm, ${(((loc.yawErrorRad || 0) * 180) / Math.PI).toFixed(2)}°`]]);
   }
   // ── The drone designer: the parts model behind the sim, each part a CAD Studio program ─────
+  /** A part row's actions in one row menu (UX audit 2026-11-06: 18 "Open in CAD Studio" buttons became a ⋯ per row).
+   * The menu is a top-layer popover anchored under its button; its one item opens the part in CAD Studio. */
+  let menuSeq = 0;
+  function partMenu(partName, onOpen) {
+    const td = document.createElement('td'); const id = `part-menu-${++menuSeq}`;
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'row-menu'; more.textContent = '\u22ef';
+    more.setAttribute('aria-label', `Actions for ${partName}`); more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('popovertarget', id);
+    const menu = document.createElement('div'); menu.id = id; menu.className = 'menu'; menu.setAttribute('popover', ''); menu.setAttribute('role', 'menu');
+    const item = document.createElement('button'); item.type = 'button'; item.className = 'build-open'; item.setAttribute('role', 'menuitem'); item.textContent = 'Open in CAD Studio';
+    item.title = 'Creates the part as a real CAD model (STEP, STL, drawings) in CAD Studio and opens it there.';
+    item.addEventListener('click', () => { if (menu.hidePopover) menu.hidePopover(); onOpen(); });
+    menu.append(item);
+    menu.addEventListener('toggle', (e) => { if (e.newState !== 'open') return; const r = more.getBoundingClientRect(); menu.style.position = 'fixed'; menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - 60)}px`; menu.style.left = `${Math.max(8, Math.min(r.right - 200, window.innerWidth - 208))}px`; });
+    td.append(more, menu); return td;
+  }
   async function pollBuild() {
     const fit = $('build-fit').value;
     try {
@@ -214,8 +230,7 @@ function embodiedSurface() {
         const base = b.kind === 'box' ? `box ${b.sizeX}×${b.sizeY}×${b.sizeZ}` : b.kind === 'cylinder' ? `Ø${b.diameter}×${b.height}` : `sketch ${b.points.length} pts ×${b.height}`;
         const tr = document.createElement('tr');
         for (const v of [p.name, String(p.qty), base, String(p.cad.features.length), p.material, `${p.massEachG} g`]) { const td = document.createElement('td'); td.textContent = v; tr.append(td); }
-        const td = document.createElement('td'); const btn = document.createElement('button'); btn.className = 'jog build'; btn.textContent = 'Open in CAD Studio'; btn.title = 'Creates the part as a real CAD model (STEP, STL, drawings) in CAD Studio and opens it there.';
-        btn.addEventListener('click', () => openInCadStudio(fit, p.id)); td.append(btn); tr.append(td); tb.append(tr);
+        tr.append(partMenu(p.name, () => openInCadStudio(fit, p.id))); tb.append(tr);
       }
       $('build-bought').textContent = 'Bought: ' + d.bought.map((b) => `${b.name}${b.qty > 1 ? ' ×' + b.qty : ''}`).join(' · ');
     } catch (e) { $('build-summary').textContent = `Design unavailable: ${e.message}`; }
@@ -256,8 +271,7 @@ function embodiedSurface() {
       for (const p of d.parts) {
         const tr = document.createElement('tr');
         for (const v of [p.name, String(p.qty), p.material, `${p.massEachG} g`]) { const td = document.createElement('td'); td.textContent = v; tr.append(td); }
-        const td = document.createElement('td'); const btn = document.createElement('button'); btn.className = 'jog build'; btn.textContent = 'Open in CAD Studio';
-        btn.addEventListener('click', () => openArmPartInCadStudio(fit, p.id)); td.append(btn); tr.append(td); pb.append(tr);
+        tr.append(partMenu(p.name, () => openArmPartInCadStudio(fit, p.id))); pb.append(tr);
       }
       $('arm-bought').textContent = 'Bought: ' + d.bought.map((b) => `${b.name}${b.qty > 1 ? ' \u00d7' + b.qty : ''}`).join(' \u00b7 ');
     } catch (e) { $('arm-summary').textContent = `Arm design unavailable: ${e.message}`; }
@@ -387,7 +401,7 @@ function embodiedSurface() {
   });
   $('explore').addEventListener('click', async () => {
     const droneFirst = $('drone-first').checked;
-    if (!window.confirm(droneFirst ? 'Explore the room — drone first?\n\nThe rover stays parked. The drone clears its own climb with its upward ranger, maps the room frontier to frontier, and registers every sweep against the map it has built. You can abort or E-STOP at any time.' : 'Explore the room?\n\nThe base LiDAR and the drone will map it: the drone flies frontier to frontier through space it has already seen free. You can abort or E-STOP at any time.')) return;
+    if (!window.confirm(droneFirst ? 'Explore the room — drone first?\n\nThe rover stays parked. The drone clears its own climb with its upward ranger, maps the room frontier to frontier, and registers every sweep against the map it has built. You can abort or E-STOP at any time.' : 'Explore the room?\n\nThe base LiDAR and the drone will map it: the drone flies frontier to frontier through space it has already seen free. You can abort or E-STOP at any time.')) { toast('Explore not started: it was cancelled at the question.', 'error'); return; }
     try { const row = await draft({ task: 'explore', maxScans: Number($('max-scans').value) || 12, droneFirst }); if (!row.rehearsal.ok) throw new Error(row.rehearsal.issues.join('; ')); await execute(row); toast('Exploring.', 'ok'); } catch (e) { toast(`Explore refused: ${e.message}`, 'error'); }
   });
   $('execute').addEventListener('click', async () => {

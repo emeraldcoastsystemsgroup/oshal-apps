@@ -11,6 +11,7 @@
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Resolve approved and owner-only per-material RAG collections under row locks
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Bound tutor XP with a server-time deduplication bucket
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Route text tutoring through the caller-scoped bot boundary and fence class, material, and student text as bounded untrusted data
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | Persist owner-scoped tutoring threads (RP-LM-02) with list/get/delete actions and prior-turn continuity while enforcing school teacher-visibility policy
  * ---------------------------------------------------------------------------
  *
  * @module education-tutor-routes
@@ -23,6 +24,7 @@ const logger_1 = require("@/shared/logger");
 const prompt_containment_1 = require("@/features/swarm-orchestration/services/prompt-containment");
 const education_access_1 = require("./education-access");
 const education_progress_1 = require("./education-progress");
+const education_tutor_history_1 = require("./education-tutor-history");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-tutor-routes' });
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -269,24 +271,64 @@ function callerSub(req) {
         throw new TutorRequestError(401, 'Not authenticated');
     return String(sub);
 }
+async function dispatchTutorHistoryAction(ctx, req, input) {
+    if (!input?.action)
+        return null;
+    const actor = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
+    if (input.action === 'list') {
+        return (0, education_tutor_history_1.listTutorThreads)(ctx.pool, actor, {
+            action: 'list',
+            classId: input.classId,
+            studentId: input.studentId,
+        });
+    }
+    if (input.action === 'get') {
+        return (0, education_tutor_history_1.getTutorThread)(ctx.pool, actor, { action: 'get', threadId: input.threadId });
+    }
+    if (input.action === 'delete') {
+        return (0, education_tutor_history_1.deleteTutorThread)(ctx.pool, actor, { action: 'delete', threadId: input.threadId });
+    }
+    throw new TutorRequestError(400, 'Unsupported tutor history action');
+}
+async function persistTutorConversation(ctx, student, params) {
+    try {
+        return await (0, education_tutor_history_1.recordTutorTurn)(ctx.pool, student, params);
+    }
+    catch (err) {
+        logger.error({ err, classId: params.classId }, 'Tutor thread persistence failed');
+        return params.threadId;
+    }
+}
 async function processTutorChat(ctx, req) {
-    const input = req.body;
+    const input = (req.body || {});
+    const historyReply = await dispatchTutorHistoryAction(ctx, req, input);
+    if (historyReply)
+        return historyReply;
     validateTutorInput(input);
     const student = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
     const userSub = callerSub(req);
     const prompt = input.message || IMAGE_ONLY_PROMPT;
     const classContext = await loadClassContext(ctx, student, input.classId);
+    const prior = await (0, education_tutor_history_1.loadPriorThreadContext)(ctx.pool, student, input.threadId, input.classId);
     // Credential availability is deployment-sensitive. Resolve the principal and
     // prove class access first so an unauthorised caller cannot use this endpoint
     // as a credential-state oracle for the shared tutor runtime.
     assertTutorCredential(input);
     const grounding = await loadGrounding(ctx, input.classId, student, prompt);
     const systemPrompt = buildSystemPrompt();
-    const modelPrompt = buildTutorPrompt(classContext, grounding.context, prompt);
+    const modelPrompt = buildTutorPrompt(`${classContext}${prior.contextBlock}`, grounding.context, prompt);
     logger.info({ classId: input.classId, messageLength: prompt.length }, 'Tutor chat message');
     let response = await generateTutorResponse(ctx, userSub, student.studentId, input, modelPrompt, systemPrompt);
     if (!response)
         response = 'I had trouble processing that. Could you rephrase your question?';
+    const savedThreadId = await persistTutorConversation(ctx, student, {
+        threadId: prior.resolvedThreadId,
+        nextIndex: prior.nextIndex,
+        classId: input.classId,
+        question: prompt,
+        response,
+        sources: grounding.sources,
+    });
     try {
         // A student may ask as many questions as they need; gamification credit is
         // bounded independently so repeated requests cannot mint unlimited rewards.
@@ -299,7 +341,8 @@ async function processTutorChat(ctx, req) {
     return {
         success: true,
         response,
-        conversationId: input.conversationId || `tutor-${(0, crypto_1.randomUUID)()}`,
+        threadId: savedThreadId,
+        conversationId: savedThreadId || input.conversationId || `tutor-${(0, crypto_1.randomUUID)()}`,
         grounded: grounding.sources.length > 0,
         sources: grounding.sources,
     };

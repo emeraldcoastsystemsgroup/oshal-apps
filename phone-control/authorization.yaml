@@ -4,6 +4,8 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.0.0 as delivered on 2026-11-05.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: bindings for the routes and tools that remain; the drawn screen, frame ingest, operations batch, concierge, screenshot import, control contract, blobs, artifacts, enrol and every pair-* and verify route are gone with their bindings. New: history.write (what the page sent and what the computer answered), bridge.read (the bridge files the page installs on the person's own computer), the device update and the computer reports.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0, device features are for the administrator only (Roger, 2026-11-06: "this has to be an admin only me role and saved to the profile who is configuring it"): every permission but the two page views needs the admin tier; viewer, reader, operator and editor open the page only, which says the features are not available on their account. Every record stays the configuring person's own (scope own).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: bind /sessions routes and concierge session tools (preferences, chat, whiteboard, saved captures, and transfers) to the existing admin-tier own-scope permissions so operator-phone-control-admin authority remains unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 
 version: 1
@@ -15,15 +17,15 @@ resources:
 
 permissions:
   execution.view: { resource: execution, effect: read, minimumTier: viewer }
-  execution.read: { resource: execution, effect: read, minimumTier: viewer }
-  execution.operate: { resource: execution, effect: execute, minimumTier: editor }
-  history.write: { resource: execution, effect: write, minimumTier: editor }
+  execution.read: { resource: execution, effect: read, minimumTier: admin }
+  execution.operate: { resource: execution, effect: execute, minimumTier: admin }
+  history.write: { resource: execution, effect: write, minimumTier: admin }
   configuration.view: { resource: configuration, effect: read, minimumTier: viewer }
-  configuration.read: { resource: configuration, effect: read, minimumTier: viewer }
-  configuration.pair: { resource: configuration, effect: write, minimumTier: editor }
-  configuration.manage: { resource: configuration, effect: write, minimumTier: editor }
-  configuration.revoke: { resource: configuration, effect: write, minimumTier: editor }
-  bridge.read: { resource: configuration, effect: read, minimumTier: editor }
+  configuration.read: { resource: configuration, effect: read, minimumTier: admin }
+  configuration.pair: { resource: configuration, effect: write, minimumTier: admin }
+  configuration.manage: { resource: configuration, effect: write, minimumTier: admin }
+  configuration.revoke: { resource: configuration, effect: write, minimumTier: admin }
+  bridge.read: { resource: configuration, effect: read, minimumTier: admin }
 
 roles:
   viewer:
@@ -35,35 +37,17 @@ roles:
     tier: viewer
     grants:
       - { permission: execution.view, scope: own }
-      - { permission: execution.read, scope: own }
       - { permission: configuration.view, scope: own }
-      - { permission: configuration.read, scope: own }
   operator:
     tier: editor
     grants:
       - { permission: execution.view, scope: own }
-      - { permission: execution.read, scope: own }
-      - { permission: execution.operate, scope: own }
-      - { permission: history.write, scope: own }
       - { permission: configuration.view, scope: own }
-      - { permission: configuration.read, scope: own }
-      - { permission: configuration.pair, scope: own }
-      - { permission: configuration.manage, scope: own }
-      - { permission: configuration.revoke, scope: own }
-      - { permission: bridge.read, scope: own }
   editor:
     tier: editor
     grants:
       - { permission: execution.view, scope: own }
-      - { permission: execution.read, scope: own }
-      - { permission: execution.operate, scope: own }
-      - { permission: history.write, scope: own }
       - { permission: configuration.view, scope: own }
-      - { permission: configuration.read, scope: own }
-      - { permission: configuration.pair, scope: own }
-      - { permission: configuration.manage, scope: own }
-      - { permission: configuration.revoke, scope: own }
-      - { permission: bridge.read, scope: own }
   admin:
     tier: admin
     grants:
@@ -89,6 +73,8 @@ bindings:
     - { id: devices-list, method: GET, path: /devices, allOf: [execution.view, execution.read] }
     - { id: devices-create, method: POST, path: /devices, allOf: [configuration.view, configuration.pair] }
     - { id: device-get, method: GET, path: '/devices/:id', allOf: [execution.view, execution.read] }
+    - { id: device-command-plan, method: POST, path: '/devices/:id/command-plan', allOf: [execution.view, execution.operate] }
+    - { id: rdp-command-plan, method: POST, path: /rdp/command-plan, allOf: [execution.view, execution.operate] }
     - { id: device-update, method: POST, path: '/devices/:id', allOf: [configuration.view, configuration.manage] }
     - { id: device-delete, method: DELETE, path: '/devices/:id', allOf: [configuration.view, configuration.revoke] }
     - { id: history-list, method: GET, path: /history, allOf: [execution.view, execution.read] }
@@ -97,12 +83,41 @@ bindings:
     - { id: computer-report-write, method: POST, path: '/computers/:node/report', allOf: [configuration.view, configuration.manage] }
     - { id: bridge-manifest, method: GET, path: /bridge/manifest.json, allOf: [configuration.view, bridge.read] }
     - { id: bridge-file, method: GET, path: '/bridge/files/:file', allOf: [configuration.view, bridge.read] }
+    - { id: session-preferences-list, method: GET, path: /sessions/preferences, allOf: [configuration.view, configuration.read] }
+    - { id: session-preferences-save, method: POST, path: /sessions/preferences, allOf: [configuration.view, configuration.manage] }
+    - { id: session-chat-list, method: GET, path: /sessions/chat, allOf: [execution.view, execution.read] }
+    - { id: session-chat-send, method: POST, path: /sessions/chat, allOf: [execution.view, execution.operate] }
+    - { id: session-chat-clear, method: DELETE, path: /sessions/chat, allOf: [execution.view, execution.operate] }
+    - { id: session-whiteboard-list, method: GET, path: /sessions/whiteboard, allOf: [execution.view, execution.read] }
+    - { id: session-whiteboard-add, method: POST, path: /sessions/whiteboard, allOf: [execution.view, execution.operate] }
+    - { id: session-whiteboard-clear, method: DELETE, path: /sessions/whiteboard, allOf: [execution.view, execution.operate] }
+    - { id: session-captures-list, method: GET, path: /sessions/captures, allOf: [execution.view, execution.read] }
+    - { id: session-captures-save, method: POST, path: /sessions/captures, allOf: [execution.view, execution.operate] }
+    - { id: session-capture-read, method: GET, path: '/sessions/captures/:id', allOf: [execution.view, execution.read] }
+    - { id: session-capture-delete, method: DELETE, path: '/sessions/captures/:id', allOf: [configuration.view, configuration.revoke] }
+    - { id: session-transfers-list, method: GET, path: /sessions/transfers, allOf: [execution.view, execution.read] }
+    - { id: session-transfers-save, method: POST, path: /sessions/transfers, allOf: [execution.view, execution.operate] }
+    - { id: session-transfer-read, method: GET, path: '/sessions/transfers/:id', allOf: [execution.view, execution.read] }
+    - { id: session-transfer-delete, method: DELETE, path: '/sessions/transfers/:id', allOf: [configuration.view, configuration.revoke] }
+    - { id: concierge-turn, method: POST, path: /concierge/turn, allOf: [execution.view, execution.operate] }
 
   bots:
-    - { id: f518c3e9-92a4-47d6-85c1-d827a93c1058, allOf: [execution.view, execution.read, configuration.view, configuration.read] }
+    - { id: f518c3e9-92a4-47d6-85c1-d827a93c1058, allOf: [execution.view, execution.read, execution.operate, configuration.view, configuration.read, configuration.manage] }
 
   tools:
     - { id: phone-control-list-devices, allOf: [execution.view, execution.read] }
     - { id: phone-control-read-device, allOf: [execution.view, execution.read] }
     - { id: phone-control-hardware-status, allOf: [configuration.view, configuration.read] }
     - { id: phone-control-history, allOf: [execution.view, execution.read] }
+    - { id: phone-control-session-preferences, allOf: [configuration.view, configuration.read] }
+    - { id: phone-control-update-preferences, allOf: [configuration.view, configuration.manage] }
+    - { id: phone-control-list-chat, allOf: [execution.view, execution.read] }
+    - { id: phone-control-send-chat, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-list-whiteboard, allOf: [execution.view, execution.read] }
+    - { id: phone-control-add-whiteboard, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-clear-whiteboard, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-list-captures, allOf: [execution.view, execution.read] }
+    - { id: phone-control-list-transfers, allOf: [execution.view, execution.read] }
+    - { id: phone-control-stage-transfer, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-plan-command, allOf: [execution.view, execution.operate] }
+    - { id: phone-control-rdp-command, allOf: [execution.view, execution.operate] }

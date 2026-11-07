@@ -24,6 +24,7 @@
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | tokenArtUrl / mapArtUrl / artStyle: art is requested only for ids /content lists in content.art; an id without bundled art keeps the drawn fallback instead of a request that 404s (on the native kernel, "application asset not found").
  * 2026-10-12 10:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: a shown voiceover caption is kept above the sticky action dock (liftCaption, run on show, scroll and resize). The dock (z-index 21) covers the bottom of the stage whenever the stage runs past the screen less the dock; during an AI turn in the 392 x 641 cockpit frame the whole caption sat behind it, and at 412 x 859 its last line. Guard: tests/browser/dnd-caption-phone.test.cjs.
  * 2026-10-13 15:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 14: the DM narration caption printed raw Markdown ('... eastern woods. **What do you do?**'). captionExcerpt reads plainNarration(): bold, italic and heading marks out, the words kept. Guard: tests/browser/dnd-caption-phone.test.cjs.
+ * 2026-11-06 08:20:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): a token's nameplate is its short name (and a star on your own hero); 'Fenwick · AI Companion' plates printed over each other on a crowded board, and the controller is already in the sheet, the rail and the initiative chip.
  */
 
 'use strict';
@@ -373,7 +374,8 @@ function drawToken(t) {
   else { ctx.fillStyle = 'rgba(230,210,180,.9)'; ctx.font = `${Math.floor(cell * 0.5)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t.fled ? '»' : '✕', p.x, p.y); }
   const owner = t.kind === 'pc' && claimedBy(t.slug);
   const condition = isDowned(t) ? (t.stable ? ' · STABLE' : ' · DOWN') : t.kind === 'pc' && t.dead ? ' · FALLEN' : '';
-  nameplate(p, r, shortTokenLabel(t) + (owner ? ' · ' + (owner.me ? 'You' : owner.name.split(/[\s@]/)[0]) : t.kind === 'pc' ? ' · AI Companion' : '') + condition);
+  // A short name per token (the full name and who plays it are in the token's sheet); your own hero carries a star.
+  nameplate(p, r, shortTokenLabel(t) + (owner && owner.me ? ' ★' : '') + condition);
 }
 function hpArc(p, r, t) {
   const frac = Math.max(0, t.hp / t.maxHp);

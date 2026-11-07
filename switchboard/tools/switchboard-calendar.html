@@ -40,7 +40,9 @@
     --text2:   var(--text-secondary,  var(--sb-text2));
     --muted:   var(--text-muted,      var(--sb-muted));
     --accent:  var(--accent-primary,  var(--sb-accent));
-    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    /* Solid accent, no gradient or glow (UX audit 2026-11-06; the themes' --accent-gradient is still a gradient). */
+    --accent-grad: var(--ds-accent, var(--accent));
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
     --ok:      var(--status-success,  var(--sb-ok));
     --warn:    var(--status-warning,  var(--sb-warn));
     --err:     var(--status-error,    var(--sb-err));
@@ -113,8 +115,8 @@
 
   .newbtn {
     appearance:none; border:0; cursor:pointer; font:inherit; font-size:13.5px; font-weight:620;
-    background:var(--accent-grad); color:#fff; padding:0 18px; height:34px; border-radius:var(--pill);
-    display:inline-flex; align-items:center; gap:8px; box-shadow:0 8px 20px rgba(0,0,0,.16);
+    background:var(--accent-grad); color:var(--on-accent); padding:0 18px; height:34px; border-radius:var(--pill);
+    display:inline-flex; align-items:center; gap:8px;
     transition:filter var(--ease) .15s, transform var(--ease) .15s;
   }
   .newbtn:hover { filter:brightness(1.07); transform:translateY(-1px); }
@@ -145,11 +147,13 @@
   .col.today .colhead .dnum { color:var(--accent); }
   .colhead .addday {
     appearance:none; border:0; background:transparent; color:var(--muted); cursor:pointer;
-    width:22px; height:22px; border-radius:7px; display:grid; place-items:center; opacity:0; transition:all var(--ease) .15s;
+    width:44px; height:44px; margin:-10px -8px -10px 0; border-radius:10px; display:grid; place-items:center; transition:all var(--ease) .15s;
   }
-  .col:hover .colhead .addday { opacity:1; }
   .colhead .addday:hover { color:var(--accent); background:var(--surface); }
-  .colhead .addday svg { width:14px; height:14px; }
+  .colhead .addday svg { width:16px; height:16px; }
+  .colhead { align-items:center; }
+  /* The Pipeline line is a legend, not filters: a dot and a word per stage. */
+  .legend .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
   .colbody { display:flex; flex-direction:column; gap:8px; flex:1; }
   .dayempty { flex:1; display:grid; place-items:center; color:var(--muted); opacity:.35; font-size:20px; user-select:none; }
 
@@ -222,8 +226,8 @@
     transition:all var(--ease) .15s;
   }
   .mbtn:hover { border-color:var(--accent); color:var(--accent); }
-  .mbtn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
-  .mbtn.primary:hover { filter:brightness(1.07); color:#fff; }
+  .mbtn.primary { background:var(--accent-grad); border-color:transparent; color:var(--on-accent); }
+  .mbtn.primary:hover { filter:brightness(1.07); color:var(--on-accent); }
   .mbtn.danger { color:var(--err); }
   .mbtn.danger:hover { border-color:var(--err); color:var(--err); }
   .mbtn[disabled] { opacity:.5; cursor:not-allowed; }
@@ -233,7 +237,6 @@
   @media (max-width:920px) {
     .grid { grid-template-columns:1fr; gap:10px; }
     .col { min-height:auto; }
-    .colhead .addday { opacity:1; }
     .dayempty { display:none; }
   }
   @media (max-width:620px) {
@@ -270,12 +273,12 @@
     <div class="controls">
       <select class="wsfilter" id="wsfilter" title="Filter by workspace"><option value="">All workspaces</option></select>
       <div class="nav">
-        <button id="prevBtn" title="Previous week"><svg><use href="#i-prev"/></svg></button>
+        <button id="prevBtn" title="Previous week" aria-label="Previous week"><svg><use href="#i-prev"/></svg></button>
         <button class="today" id="todayBtn">Today</button>
-        <button id="nextBtn" title="Next week"><svg><use href="#i-next"/></svg></button>
+        <button id="nextBtn" title="Next week" aria-label="Next week"><svg><use href="#i-next"/></svg></button>
       </div>
       <span class="wkrange tnum" id="wkrange">—</span>
-      <button class="btn" id="refreshBtn" title="Refresh"><svg><use href="#i-refresh"/></svg></button>
+      <button class="btn" id="refreshBtn" title="Refresh" aria-label="Refresh"><svg><use href="#i-refresh"/></svg></button>
       <button class="newbtn" id="newBtn"><svg><use href="#i-plus"/></svg> New post</button>
     </div>
   </header>
@@ -423,7 +426,7 @@
       html+='<div class="col'+(isToday?" today":"")+'" style="animation-delay:'+(i*35)+'ms">'
         +   '<div class="colhead"><span><span class="dow">'+DOW[d.getDay()]+'</span></span>'
         +     '<span class="dnum tnum">'+d.getDate()+'</span>'
-        +     '<button class="addday" data-day="'+k+'" title="Add a post"><svg><use href="#i-plus"/></svg></button></div>'
+        +     '<button class="addday" data-day="'+k+'" title="New post on '+DOW[d.getDay()]+' '+d.getDate()+'" aria-label="New post on '+DOW[d.getDay()]+' '+d.getDate()+'"><svg><use href="#i-plus"/></svg></button></div>'
         +   '<div class="colbody">';
       if(!list.length){ html+='<div class="dayempty">·</div>'; }
       else { list.forEach(function(p){ html+=postHTML(p); }); }
@@ -437,10 +440,10 @@
     var order=["linkedin","x","facebook","instagram","slack"], out="";
     order.forEach(function(k){ out+='<span class="k"><span class="sw" style="background:var('+PL[k].v+')"></span>'+PL[k].label+'</span>'; });
     return '<div class="legend"><span class="k" style="color:var(--text2)"><b>Pipeline:</b></span>'
-      +'<span class="k"><span class="pill draft">Draft</span></span>'
-      +'<span class="k"><span class="pill needs_approval">Needs approval</span></span>'
-      +'<span class="k"><span class="pill scheduled">Scheduled</span></span>'
-      +'<span class="k"><span class="pill published">Published</span></span>'
+      +'<span class="k"><span class="dot" style="background:var(--muted)"></span>Draft</span>'
+      +'<span class="k"><span class="dot" style="background:var(--warn)"></span>Needs approval</span>'
+      +'<span class="k"><span class="dot" style="background:var(--active)"></span>Scheduled</span>'
+      +'<span class="k"><span class="dot" style="background:var(--ok)"></span>Published</span>'
       +'<span class="bot"><svg><use href="#i-bot"/></svg>Draft on the comms bot in the Composer</span></div>';
   }
 
@@ -485,7 +488,9 @@
     el("fWorkspace").value=post&&post.workspaceId? post.workspaceId : currentWs();
     el("fBody").value=post? post.body : "";
     el("delBtn").style.display=post?"inline-flex":"none";
-    el("saveBtn").textContent=post?"Save changes":"Schedule post";
+    // A new post cannot start as Published; the button names what Save does with the chosen status.
+    var pub=el("fStatus").querySelector('option[value="published"]'); if(pub){ pub.hidden=!post; pub.disabled=!post; }
+    syncSaveLabel();
     updateCount(); clearErr();
     el("scrim").classList.add("show");
     setTimeout(function(){ el("fBody").focus(); },40);
@@ -495,6 +500,8 @@
     if(!dayKeyStr){ d.setMinutes(0,0,0); d.setHours(d.getHours()+1); }
     return d;
   }
+  var SAVE_LABEL={draft:"Save draft",needs_approval:"Send for approval",scheduled:"Schedule post",published:"Save changes"};
+  function syncSaveLabel(){ el("saveBtn").textContent=editing?"Save changes":(SAVE_LABEL[el("fStatus").value]||"Save draft"); }
   function closeModal(){ el("scrim").classList.remove("show"); editing=null; }
   function updateCount(){ var n=el("fBody").value.length; var c=el("cc"); c.textContent=n; c.classList.toggle("over",n>8000); }
   function showErr(m){ var e=el("merr"); e.textContent=m; e.classList.add("show"); }
@@ -543,6 +550,7 @@
   el("newBtn").addEventListener("click",function(){ openModal(null,null); });
   el("cancelBtn").addEventListener("click",closeModal);
   el("saveBtn").addEventListener("click",save);
+  el("fStatus").addEventListener("change",syncSaveLabel);
   el("delBtn").addEventListener("click",del);
   el("fBody").addEventListener("input",updateCount);
   el("scrim").addEventListener("click",function(e){ if(e.target===el("scrim")) closeModal(); });

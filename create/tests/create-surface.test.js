@@ -15,6 +15,8 @@
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Permit the inline editing concierge while preserving no generation schedules/workflow; show its Concierge control.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: New is Home's sheet, so Home leads the rail and no create-new tile exists; the Blank row and templates replace the quick-start list and name catalog studios; the boot gate is applyAccess → artifact → profile → summaries; the hero, section pills, quick-start grid and studios grid are gone and one New button opens the sheet.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | The access probe waits ACCESS_TIMEOUT_MS (10 s, sixteen studios answered in turn) instead of 3 s.
  */
 'use strict';
 const test = require('node:test');
@@ -94,15 +96,16 @@ function surfaceStudios(source) {
   assert.ok(m, 'surface declares the STUDIOS catalog');
   return vm.runInNewContext('(' + m[1] + ')');
 }
-function surfaceStarters(source) {
-  const m = /var STARTERS = (\[[\s\S]*?\n  \]);/.exec(source);
-  assert.ok(m, 'surface declares the STARTERS list');
+/** The New sheet's Blank row and template list (each names a rail tool). */
+function surfaceList(source, name) {
+  const m = new RegExp('var ' + name + ' = (\\[[\\s\\S]*?\\n  \\]);').exec(source);
+  assert.ok(m, `surface declares the ${name} list`);
   return vm.runInNewContext('(' + m[1] + ')');
 }
 
 /** The single incoming handoff belongs inside the resolved access gate, before ordinary data probes. */
 function assertAccessBoot(source) {
-  assert.match(source, /Promise\.all\(STUDIOS\.map\(function \(s\) \{ return accessFor\(s\.app\)[\s\S]*?\}\)\)\.then\(function \(\) \{\s*applyAccessToStarters\(\);\s*openIncomingArtifact\(\);\s*loadProfile\(\);\s*loadSummaries\(\);/);
+  assert.match(source, /Promise\.all\(STUDIOS\.map\(function \(s\) \{ return accessFor\(s\.app\)[\s\S]*?\}\)\)\.then\(function \(\) \{\s*applyAccess\(\);\s*openIncomingArtifact\(\);\s*loadProfile\(\);\s*loadSummaries\(\);/);
   assert.equal([...source.matchAll(/\bopenIncomingArtifact\(\);/g)].length, 1, 'one access-gated boot handoff');
 }
 
@@ -152,7 +155,8 @@ test('the studio catalog and every starter name a rail tile the manifest declare
   const text = manifest();
   const rail = railTools(text);
   const urls = railUrls(text);
-  assert.deepEqual(rail.slice(0, 2), ['create-new', 'create-home'], 'the New tile leads the rail, then Home');
+  assert.deepEqual(rail.slice(0, 2), ['create-home', 'create-brand'], 'Home leads the rail, then the Brand Kit');
+  assert.ok(!rail.includes('create-new'), 'New is the sheet behind Home\'s New button, not a rail tile');
   const studios = surfaceStudios(source);
   assert.ok(studios.length >= 4);
   for (const s of studios) {
@@ -160,14 +164,14 @@ test('the studio catalog and every starter name a rail tile the manifest declare
     assert.equal(urls.get(s.tool), s.url, `standalone fallback for ${s.tool} equals the rail tile URL`);
     assert.match(s.app, /^[a-z0-9-]+$/);
   }
-  for (const st of surfaceStarters(source)) {
-    assert.ok(studios.some((s) => s.tool === st.tool), `starter ${st.id} opens a catalog studio`);
-    assert.ok(['documents', 'images', 'video', 'story', 'training', '3d'].includes(st.cat), `starter ${st.id} has a known category`);
+  const categories = vm.runInNewContext('(' + /var CATEGORIES = (\[[\s\S]*?\n  \]);/.exec(source)[1] + ')').map((c) => c.id);
+  for (const blank of surfaceList(source, 'BLANKS')) assert.ok(studios.some((s) => s.tool === blank.tool), `blank ${blank.id} opens a catalog studio`);
+  for (const card of surfaceList(source, 'OTHER')) {
+    assert.ok(studios.some((s) => s.tool === card.tool), `template ${card.id} opens a catalog studio`);
+    assert.ok(categories.includes(card.cat), `template ${card.id} has a known format`);
   }
-  // Every rail tile after Home is fronted by the catalog (no orphan tile the home page cannot open),
-  // except Create's own Brand Kit page, which Home opens from its Your brand band.
-  assert.equal(rail[2], 'create-brand', 'the Brand Kit tile follows Home');
-  for (const tool of rail.slice(3)) assert.ok(studios.some((s) => s.tool === tool), `rail tile ${tool} is in the catalog`);
+  // Every rail tile after Home and the Brand Kit is fronted by the catalog (no orphan tile the home page cannot open).
+  for (const tool of rail.slice(2)) assert.ok(studios.some((s) => s.tool === tool), `rail tile ${tool} is in the catalog`);
 });
 
 test('every rail tile and summary belongs to Create or a declared member app', () => {
@@ -176,7 +180,6 @@ test('every rail tile and summary belongs to Create or a declared member app', (
   const urls = railUrls(text);
   for (const [tool, url] of urls) {
     if (tool === 'create-home') { assert.equal(url, '/api/create/home'); continue; }
-    if (tool === 'create-new') { assert.equal(url, '/api/create/new'); continue; }
     if (tool === 'create-editor') { assert.equal(url, '/api/create/editor'); continue; }
     if (tool === 'create-brand') { assert.equal(url, '/api/create/brand'); continue; }
     const app = /^\/api\/([a-z0-9-]+)\//.exec(url)?.[1];
@@ -197,7 +200,7 @@ test('the surface speaks the ribbon app-navigate dialect and asks the probes its
   assert.match(source, /'\/api\/' \+ studio\.app \+ '\/home-summary'/);
   assert.match(source, /credentials: 'same-origin'/);
   assert.match(source, /AbortController/);
-  for (const id of ['heroTitle', 'q', 'chips', 'starterTiles', 'recentGrid', 'studioGrid', 'metrics']) {
+  for (const id of ['q', 'recentGrid', 'metrics', 'newBtn', 'newSheet', 'blankRow', 'cats', 'chips', 'sections']) {
     assert.ok(source.includes(`id="${id}"`), `surface keeps #${id}`);
   }
 });
@@ -223,15 +226,15 @@ test('the manifest preserves the creative shell and declares its owned image-pro
 
 test('the home asks access first, locks a studio that is not provisioned, and never probes it', () => {
   const source = html();
-  assert.match(source, /fetchJson\('\/api\/authorization\/me\?app=' \+ encodeURIComponent\(app\), 3000\)/);
+  assert.match(source, /fetchJson\('\/api\/authorization\/me\?app=' \+ encodeURIComponent\(app\), ACCESS_TIMEOUT_MS\)/);
   assert.match(source, /if \(studio && studio\.app && ACCESS\[studio\.app\] === 'locked'\) \{ toast\(/);
-  assert.match(source, /if \(ACCESS\[studio\.app\] === 'locked'\) return Promise\.resolve\(\);/);
+  assert.match(source, /if \(ACCESS\[studio\.app\] === 'locked'\) return false;   \/\/ not provisioned: nothing to ask, nothing to show/);
   // Access answers gate the incoming artifact as well as profile/summary reads.
   assertAccessBoot(source);
   const beforeAccess = source.replace(/^([ \t]*)Promise\.all\(STUDIOS\.map/m, '$1openIncomingArtifact();\n$1Promise.all(STUDIOS.map');
   assert.notEqual(beforeAccess, source);
   assert.throws(() => assertAccessBoot(beforeAccess), 'an extra handoff before access must fail');
-  const beforeStarters = source.replace(/applyAccessToStarters\(\);\s*openIncomingArtifact\(\);/, 'openIncomingArtifact();\n    applyAccessToStarters();');
+  const beforeStarters = source.replace(/applyAccess\(\);\s*openIncomingArtifact\(\);/, 'openIncomingArtifact();\n    applyAccess();');
   assert.notEqual(beforeStarters, source);
   assert.throws(() => assertAccessBoot(beforeStarters), 'a handoff before starter gating must fail');
   assert.match(source, /a\.href = '\/access\?app=' \+ encodeURIComponent\(app\)/);
@@ -243,7 +246,17 @@ test('Edit video opens Video Studio\'s own editor and never reads Video\'s summa
   assert.equal(urls.get('create-video'), '/api/video/editor', 'the default studio opens the editable timeline');
   const editor = surfaceStudios(source).find((s) => s.tool === 'create-video-editor');
   assert.deepEqual([editor.app, editor.url, editor.summary], ['video', '/api/video/editor', false]);
-  assert.deepEqual(JSON.parse(JSON.stringify(surfaceStarters(source).filter((s) => s.tool === 'create-video-editor').map((s) => [s.id, s.cat]))), [['edit-video', 'video']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(surfaceList(source, 'OTHER').filter((s) => s.tool === 'create-video-editor').map((s) => [s.id, s.cat]))), [['edit-video', 'video']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(surfaceList(source, 'BLANKS').filter((s) => s.tool === 'create-video-editor').map((s) => s.id))), ['video'], 'Blank video opens the empty timeline');
   assert.equal(surfaceStudios(source).filter((s) => s.app === 'video' && s.summary !== false).length, 1, 'one summary reader per app');
-  assert.match(source, /if \(studio\.summary === false\) return Promise\.resolve\(\);/);
+  assert.match(source, /if \(studio\.summary === false\) return false;   \/\/ another catalog entry already reads this app's summary/);
+});
+
+test('Home is your work with one New: no hero, no section pills, no quick-start or studios grid', () => {
+  const source = html();
+  for (const gone of [/class="hero"/, /class="seg"/, /id="starterTiles"/, /id="studioGrid"/, /id="seeAll"/, /var STARTERS = /]) assert.doesNotMatch(source, gone);
+  assert.equal(source.split('id="newBtn"').length - 1, 1, 'one New button');
+  assert.match(source, /<dialog class="sheet" id="newSheet"/, 'New opens a top-layer sheet/dialog');
+  assert.match(source, /document\.getElementById\('newBtn'\)\.addEventListener\('click', function \(\) \{ openNew\(\{\}\); \}\);/);
+  assert.doesNotMatch(source, /tool: 'create-new'|go\('create-new'/, 'Home never navigates to a create-new tile');
 });

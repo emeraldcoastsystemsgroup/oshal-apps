@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0 T5, the whole chain on a throwaway installation, nobody's data involved: the given oshald with a disposable Postgres and its own folders, phone-control from this branch (git archive), the real package sandbox and runner; the published OSHAL Node AppImage on a plain Ubuntu desktop in a container (real sign-in, the real Allow dialog, host network); then a real browser on the page presses Set up this computer, Pair with a wrong address, opens Devices and the computer's picture. Browser -> kernel -> command queue -> the Node app -> bash -> the bridge -> adb. Everything it starts is stopped and removed on the way out; only OUT stays.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: read the expected version from phone-control/oshal-app.yaml instead of hardcoding 1.1.0.
 # Usage: OUT=<dir> OSHALD=<bin> OSHAL_BRIDGE_RUNNER=<runner.js> OSHAL_PACKAGE_NODE_MODULES=<dir> OSHAL_PLATFORM_DIR=<dir> \
 #        NODE_APPIMAGE=<OSHAL-Node-*.AppImage> NODE_APP_SOURCE=<desktop/oshal-node with dist/ and node_modules/> \
 #        NODE_APP_SCRIPTS=<desktop/oshal-node/scripts> [REF=HEAD] bash tests/live/chain-proof.sh
@@ -44,8 +45,9 @@ kernel=$!
 base="http://127.0.0.1:$port"
 for _ in $(seq 1 120); do curl -sf -m 2 "$base/readyz" >/dev/null && break; kill -0 "$kernel" || { tail -5 "$out/kernel.log"; exit 1; }; sleep 1; done
 curl -sf -H "authorization: Bearer $token" "$base/packages" > "$out/packages.json"
-python3 -c 'import json,sys; p=[x for x in json.load(open(sys.argv[1]))["packages"] if x["name"]=="phone-control"]; sys.exit(0 if p and p[0]["state"]=="active" and p[0]["version"]=="1.1.0" else 1)' "$out/packages.json" \
-  || { echo "phone-control 1.1.0 is not active"; exit 1; }
+expected_version=$(awk '/^version:/{print $2; exit}' "$pkg/oshal-app.yaml")
+python3 -c 'import json,sys; p=[x for x in json.load(open(sys.argv[1]))["packages"] if x["name"]=="phone-control"]; sys.exit(0 if p and p[0]["state"]=="active" and p[0]["version"]==sys.argv[2] else 1)' "$out/packages.json" "$expected_version" \
+  || { echo "phone-control $expected_version is not active"; exit 1; }
 python3 "$pkg/tests/live/chain-grant.py" "$base" "$token" > "$out/grant.json"
 docker build -q -t oshal-phone-chain-desktop -f "$pkg/tests/live/chain-desktop.Dockerfile" "$pkg/tests/live" > "$out/image.txt"
 docker run -d --rm --name "$desk" --network host --shm-size=512m -e KERNEL="$base" -e TOKEN="$token" -e APPIMAGE_EXTRACT_AND_RUN=1 \

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Drive region selection with a real pointer in the real editor: the same lasso at two zoom levels names the same source pixels, rotation keeps it, a crop change makes it stale in words, ambiguous and locked targets are refused, and the read-only Jarvis context carries only the bounded summary.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: layer values are edited in the one Format inspector, Whole image is one of the Select tool's options, and with nothing selected Format shows the canvas.
  */
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +34,7 @@ async function upload(value, name) {
 /** A 40x20 synthetic image stretched to 400x200 at (200,200), showing only its left half. */
 async function placedImage(value) {
   await upload(value, 'synthetic-region.png');
-  for (const [selector, next] of [['#layerX', 200], ['#layerY', 200], ['#layerWidth', 400], ['#layerHeight', 200]]) await change(value, selector, next);
+  for (const [selector, next] of [['[data-editor-property="x"]', 200], ['[data-editor-property="y"]', 200], ['[data-editor-property="w"]', 400], ['[data-editor-property="h"]', 200]]) await change(value, selector, next);
   await value.surface.locator('#cropW').fill('50'); await value.surface.locator('#applyCrop').click();
 }
 
@@ -76,7 +77,7 @@ test('rotation keeps the region, a crop change makes it stale in words, and whol
   const first = await latest(value, () => window.contextMessages.at(-1)?.fields?.regionState === 'ready');
   const alpha = (x, y) => value.surface.locator('#selection').evaluate((canvas, at) => canvas.getContext('2d').getImageData(at.x, at.y, 1, 1).data[3], { x, y });
   assert.equal(await alpha(400, 170), 0); assert.ok(await alpha(270, 300) > 0);
-  await change(value, '#layerRotation', 90); await value.page.evaluate(() => window.requestContext());
+  await change(value, '[data-editor-property="rotation"]', 90); await value.page.evaluate(() => window.requestContext());
   const turned = await latest(value, epoch => window.contextMessages.at(-1)?.fields?.contextEpoch > epoch, first.fields.contextEpoch);
   assert.equal(turned.fields.regionState, 'ready'); assert.deepEqual(bounds(turned.fields), bounds(first.fields));
   assert.ok(await alpha(400, 170) > 0, 'the outline turned with the layer'); assert.equal(await alpha(270, 300), 0);
@@ -95,7 +96,7 @@ test('stacked images with none selected, and a locked image, are refused before 
   const value = await open(t); await upload(value, 'synthetic-lower.png'); await upload(value, 'synthetic-upper.png');
   const box = await value.surface.locator('#artboard').boundingBox();
   await value.page.mouse.click(box.x + box.width * .9, box.y + box.height * .9);
-  assert.equal(await value.surface.locator('#noSelection').isVisible(), true);
+  assert.equal(await value.surface.locator('[data-editor-property="width"]').isVisible(), true);
   await value.surface.locator('#regionMode').click(); await drag(value, [{ x: 2, y: 2 }, { x: 30, y: 2 }, { x: 30, y: 18 }, { x: 2, y: 18 }]);
   await value.surface.locator('#editorError').filter({ hasText: /More than one image/ }).waitFor();
   assert.equal(await value.surface.locator('#clearRegion').isDisabled(), true);

@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the Connect a computer dialog had unstyled 21px browser buttons, no close and no scrim. It is the kit's sheet (opaque, a scrim behind, a full sheet on a phone) with an X close, a primary "Create and connect worker" and a tertiary Cancel, both 44px.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recover interrupted approval/bind/start requests with the same frozen packet and ticket, synchronizing first and refusing expired approvals or uncertain outcomes.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Review exact job documents and applicant facts in place, then publish approval, bind and start one recoverable native submission intent.
  */
@@ -36,13 +37,17 @@
   }
   async function connectWorker(){
     return new Promise(resolve=>{
-      const dialog=document.createElement('dialog');dialog.style.cssText='width:min(620px,calc(100vw - 32px));max-height:85vh;overflow:auto;padding:24px;border:1px solid #ccd1df;border-radius:16px';
-      text('h2','Connect your Career browser worker',dialog);
-      text('p','Create a dedicated worker credential for your Career account. It can process jobs you specifically approve, read their resume, cover letter and application facts, and click final Submit once.',dialog);
-      text('p','The worker uses its own private browser profile on the bare-metal computer. Your ordinary Chrome tabs stay separate. You can revoke this worker from Nodes. This step does not send an application to an employer.',dialog);
-      text('p','A private configuration file will download for the local worker installer. Keep it private.',dialog);
-      const status=text('p','',dialog),cancel=text('button','Cancel',dialog),connect=text('button','Create and connect worker',dialog);connect.style.marginLeft='12px';
-      const done=value=>{dialog.close();dialog.remove();resolve(value);};cancel.onclick=()=>done(false);
+      const dialog=document.createElement('dialog');dialog.className='ck-sheet';dialog.setAttribute('aria-labelledby','connectWorkerTitle');
+      const head=text('header','',dialog),body=text('div','',dialog),foot=text('footer','',dialog);body.className='ck-sheet-body';
+      const title=text('h2','Connect your Career browser worker',head);title.id='connectWorkerTitle';
+      const close=text('button','✕',head);close.type='button';close.className='ck-icon';close.setAttribute('aria-label','Close');
+      text('p','Create a dedicated worker credential for your Career account. It can process jobs you specifically approve, read their resume, cover letter and application facts, and click final Submit once.',body);
+      text('p','The worker uses its own private browser profile on the bare-metal computer. Your ordinary Chrome tabs stay separate. You can revoke this worker from Nodes. This step does not send an application to an employer.',body);
+      text('p','A private configuration file will download for the local worker installer. Keep it private.',body);
+      const status=text('p','',body),cancel=text('button','Cancel',foot),connect=text('button','Create and connect worker',foot);
+      status.setAttribute('role','status');cancel.type='button';connect.type='button';cancel.className='ck-tertiary';connect.className='ck-primary';
+      const done=value=>{dialog.close();dialog.remove();resolve(value);};cancel.onclick=()=>done(false);close.onclick=()=>done(false);
+      dialog.addEventListener('click',event=>{if(event.target===dialog)done(false);});
       connect.onclick=async()=>{
         connect.disabled=true;cancel.disabled=true;status.textContent='Connecting your dedicated worker…';
         try{

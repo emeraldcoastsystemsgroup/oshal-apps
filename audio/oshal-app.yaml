@@ -1,0 +1,625 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Audio Studio oshal application manifest with process runtime, lastingStorage, native migrations, surface bridge, and 12 route-backed Jarvis tools.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Bump Audio Studio to 1.2.0 for ADR-208 real DSP channel strip, K-weighted LUFS mastering, Kokoro voice synthesis, and emoji-free design standard compliance.
+# ─────────────────────────────────────────────────────────────────────────────
+# oshal app package — audio ("Audio Studio")
+# Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing,
+# and high-fidelity mixdown rendering with Jarvis and concierge voice integration.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: audio
+suite: ai-creative
+runtime: process
+lastingStorage: true
+rating:
+  memoryMb: { low: 64, high: 256, basis: declared }
+  features:
+    - id: audio-editing-command
+      unit: editing command
+      tier: T1
+      generation: none
+      degrade: disable
+    - id: stem-mixdown
+      unit: audio mixdown
+      tier: T2
+      generation: none
+      degrade: disable
+
+displayName: Audio Studio
+description: >-
+  Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and
+  mastering with Jarvis and concierge voice assistant.
+version: 1.2.0
+status: active
+scope: person
+chatBot: audio-engineer
+theme: deep-space
+
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: audio
+  ref: main
+
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/audio/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+
+uses:
+  - storage
+  - app-dependencies
+  - test-catalog
+  - application-authorization
+  - experience-roles
+
+authorization:
+  version: 1
+  catalog: authorization.yaml
+  roleTemplates:
+    - id: admin
+      version: 1
+      label: Audio Studio Administrator
+      members:
+        - { app: audio, role: admin }
+    - id: producer
+      version: 1
+      label: Audio Producer
+      members:
+        - { app: audio, role: producer }
+    - id: engineer
+      version: 1
+      label: Audio Engineer
+      members:
+        - { app: audio, role: editor }
+        - { app: audio, role: exporter }
+
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+
+bots:
+  - agentId: e404b2de-81f6-44c9-bad5-b4c042b7c4d7
+    name: audio-engineer
+    persona: personas/audio-engineer.yaml
+    posture: inline
+    role: creative/audio-engineer
+    capabilities:
+      - audio-project-inspection
+      - audio-stem-mixing
+      - audio-dsp-effects
+      - audio-revision-editing
+    selectorDescriptor: >-
+      Select for owned Audio multitrack projects: stem tracks, DSP effects (EQ, reverb, compressor, distortion, ducking),
+      volume/pan automation, and mixdown renders.
+    routingKeywords:
+      - audio studio
+      - audio project
+      - multitrack audio
+      - audio mixing
+      - stems
+      - mastering
+      - audio effects
+      - equalizer
+
+migrations:
+  - migrations/001_initial_audio_studio.sql
+  - migrations/native/001-audio.sql
+
+nativeMigrations:
+  - id: migrations/001_initial_audio_studio.sql
+    native: skip
+    reason: >-
+      Native tables and constraints are in migrations/native/001-audio.sql;
+      PostgreSQL alone applies the forced-RLS policy loop.
+
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/audio/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+
+  - module: routes/application.mjs
+    factory: createAudioRoutes
+    mountPath: /api/audio
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
+ui:
+  static:
+    - toolName: audio-studio
+      label: Audio Studio
+      icon: codicon codicon-unmute
+      iframeUrl: /api/audio/ui
+      section: top
+    - toolName: audio-editor
+      label: Audio Editor
+      icon: codicon codicon-graph-line
+      iframeUrl: /api/audio/editor/ui
+      section: top
+
+ribbon:
+  hideFrameworkItems:
+    - terminal
+    - tasks
+    - problems
+    - debug
+    - ports
+  hideChatPanel: false
+  hideStatusBar: true
+  defaultView: audio-studio
+
+surface:
+  ops: [context, set_field, set_content, render_options, propose, notify, custom]
+
+summary:
+  path: /api/audio/home-summary
+  tilesPointer: /tiles
+  metricsPointer: /metrics
+  itemsPointer: /items
+
+artifacts:
+  accepts:
+    - id: import-audio
+      label: Import Audio Stem
+      icon: codicon codicon-unmute
+      types: [audio/*, application/octet-stream]
+      mode: post
+      endpoint: /api/audio/editor/import-artifact
+  provides:
+    - types: [audio/wav, audio/mpeg]
+      list: /api/audio/editor/artifacts
+
+tools:
+  - name: audio-editing-contract
+    displayName: Audio Editing Contract
+    type: api
+    category: creative
+    description: Read the installed audio editing operations, DSP effects, limits and unsupported features.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/audio/editor/editing-contract
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: >-
+      Read this before constructing edits. It describes the installed audio DSP operations and constraints.
+    routingTags:
+      - creative
+      - audio
+      - editing
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-list-projects
+    displayName: Audio List Projects
+    type: api
+    category: creative
+    description: List this person’s own saved audio projects.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/audio/editor/projects
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties: {}
+      additionalProperties: false
+    usageInstructions: Choose a project returned here; never guess an id or ownership.
+    routingTags:
+      - creative
+      - audio
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-read-project
+    displayName: Audio Read Project
+    type: api
+    category: creative
+    description: Inspect an owned project document, its stems, DSP settings, and exact current revision.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/audio/editor/projects/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Read before editing; use actual stem/track ids and returned revision.
+    routingTags:
+      - creative
+      - audio
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-new-project
+    displayName: New audio project
+    type: api
+    category: creative
+    description: Create an empty owned editable audio project.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/editor/agent-projects
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Creates an empty multitrack audio project you can open from the Audio Studio tab.
+    inputSchema:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 120
+        tempo:
+          type: integer
+          minimum: 20
+          maximum: 300
+        sampleRate:
+          type: integer
+          enum: [44100, 48000]
+      required:
+        - title
+      additionalProperties: false
+    usageInstructions: >-
+      Create only when requested. Returns an owned saved project with empty tracks.
+    routingTags:
+      - creative
+      - audio
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-apply-edits
+    displayName: Apply audio edits
+    type: api
+    category: creative
+    description: Apply a bounded batch of immutable audio editing and DSP operations as one new owned revision.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/editor/projects/{input.id}/operations
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Saves these edits and DSP parameter updates to your audio project as a new revision.
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        baseRevision:
+          type: integer
+          minimum: 1
+          maximum: 100000
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items:
+            type: object
+            required:
+              - type
+            properties:
+              type:
+                type: string
+                enum:
+                  - rename
+                  - setTempo
+                  - setMaster
+                  - addTrack
+                  - track
+                  - addStem
+                  - stem
+                  - setVolume
+                  - setPan
+                  - mute
+                  - solo
+                  - setEffect
+                  - setChannelStrip
+                  - applyMacro
+                  - removeTrack
+                  - moveClip
+                  - trimClip
+                  - splitClip
+    usageInstructions: >-
+      Propose edits using baseRevision from a fresh read. Kernel holds write proposals on an approval card.
+    routingTags:
+      - creative
+      - audio
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-render-mixdown
+    displayName: Render audio mixdown
+    type: api
+    category: creative
+    description: Render and master active stems into a high-fidelity stereo mixdown.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/editor/projects/{input.id}/render
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Masters all active stems and DSP effects into a high-fidelity stereo mixdown.
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        format:
+          type: string
+          enum: [wav, mp3]
+        normalize:
+          type: boolean
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: >-
+      Offer mixdown rendering only when a project has active stems.
+    routingTags:
+      - creative
+      - audio
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-list-mixdowns
+    displayName: Audio List Mixdowns
+    type: api
+    category: creative
+    description: List rendered stereo mixdowns for an owned project.
+    executor:
+      executorType: api
+      apiEndpoint: GET /api/audio/editor/projects/{input.id}/mixdowns
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+      required:
+        - id
+      additionalProperties: false
+    usageInstructions: Lists mixdowns for download or streaming.
+    routingTags:
+      - creative
+      - audio
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-ingest-stem
+    displayName: Ingest audio stem
+    type: api
+    category: creative
+    description: Ingest and deduplicate an audio stem file into an owned project track.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/editor/projects/{input.id}/stems
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Ingests an audio stem into the multitrack timeline.
+    inputSchema:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 36
+          maxLength: 36
+        trackName:
+          type: string
+        name:
+          type: string
+        audioBase64:
+          type: string
+        mimeType:
+          type: string
+      required:
+        - id
+        - trackName
+        - name
+      additionalProperties: false
+    usageInstructions: Ingests stem audio data; stores content-addressable deduplicated blob.
+    routingTags:
+      - creative
+      - audio
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-tts-generate
+    displayName: Synthesize Famous Voice
+    type: api
+    category: creative
+    description: Synthesize speech via the platform TTS engine with persona acoustic timbre, formant EQ, and broadcast limiting.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/tts/generate
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        persona:
+          type: string
+          enum: [morgan_freeman, david_attenborough, freddie_mercury, vintage_radio, hal_9000, action_hero]
+        projectId:
+          type: string
+        trackName:
+          type: string
+      required:
+        - text
+        - persona
+      additionalProperties: false
+    usageInstructions: >-
+      Generates spoken audio via Kokoro TTS with persona DSP timbre shaping and stores it in CAS.
+    routingTags:
+      - creative
+      - audio
+      - tts
+      - voice
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-live-modulate
+    displayName: Modulate Live Stream
+    type: api
+    category: creative
+    description: Real-time DSP voice and stream modulation rack for live audio feeds.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/live/modulate
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        audioBase64:
+          type: string
+        persona:
+          type: string
+        pitchShiftSemitones:
+          type: number
+        tubeDriveDb:
+          type: number
+        gateThresholdDb:
+          type: number
+      required:
+        - audioBase64
+      additionalProperties: false
+    usageInstructions: Modulates live input audio with noise gating, pitch/formant shifting, tube warmth, and broadcast limiting.
+    routingTags:
+      - creative
+      - audio
+      - streaming
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-live-publish
+    displayName: Live Record and Publish
+    type: api
+    category: creative
+    description: Executes the record -> synthesize -> publish pipeline from live mic takes directly into mastered broadcast releases.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/live/publish
+    defaultAuthMode: ask
+    requiresApproval: true
+    cardText: Synthesizes and masters live audio into a broadcast release published to storage.
+    inputSchema:
+      type: object
+      properties:
+        projectId:
+          type: string
+        audioBase64:
+          type: string
+        name:
+          type: string
+        synthesizePersona:
+          type: string
+      required:
+        - projectId
+        - audioBase64
+      additionalProperties: false
+    usageInstructions: Ingests live recording, runs persona voice DSP, masters to -14 LUFS, and publishes to CAS catalog.
+    routingTags:
+      - creative
+      - audio
+      - publishing
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed
+
+  - name: audio-concierge-adjust
+    displayName: Concierge Side-by-Side Audio Adjustment
+    type: api
+    category: creative
+    description: Side-by-side concierge assistant that adjusts mixer faders, 3-band EQ, compression, reverb, pan, tempo, and macro recipes in lockstep with the user.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/audio/editor/concierge
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        projectId:
+          type: string
+        instruction:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        targetTrack:
+          type: string
+        adjustments:
+          type: object
+      required:
+        - instruction
+      additionalProperties: false
+    usageInstructions: >-
+      Adjusts mixer parameters, EQ, dynamics, reverb, tempo, or macro presets side-by-side with the user and returns surface-bridge directives plus the updated project revision.
+    routingTags:
+      - creative
+      - audio
+      - concierge
+      - mixing
+    skills:
+      - creative-audio-editing
+    tags:
+      - route-backed

@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Behaviour of the Shopping family view over a stub kit and a stub fetch: on open it reads exactly /lists, the active list's /items and /home-summary and never the catalog (search, deals, resolve), the concierge or the profile; the active list is the oldest active one and an archived list is never picked; pending lines carry quantity, price and when, purchased lines are left out, other lists are tiles; the no-list, empty-list, unknown-summary, partial, 401, 403 and failed-read states are each named; the one action opens the cockpit entry. The dashboard script itself is run against a stub DOM to prove its tab router does not start under a view (?view=deals fetches nothing) while it still opens the tab and reads the deals feed without one, and with no kit at all.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | The concierge chat page, Shopping's first surface (the one the Studio, Orbit, Commons and Jarvis shells frame), gains its own company and family views, so this suite covers it beside the dashboard: the page is the manifest's first ui.static entry and the route serves it; the kit follows the theme bootstrap once and the viewport-pinned body scrolls under a view; the boot names this application and exactly company and family; the block parses, has one fetch site on /api/purchasing and no write, new tab or HTML from data. Behaviour runs the head block against the package's REAL handlers (the compiled router's GET /lists and GET /lists/:id/items over a stub pool, the home-summary route over another, every body JSON round-tripped): exactly the three reads and only SELECTs; the company cart table newest first with the counted quantity, unit and line price, and a total equal to the routes' own cart-totals module on edge lines (float cents, a quantity over ten, an oversized price); the lists table with the cart's list marked; the family list in the dashboard's words; no list, an empty list, a partial or failed summary, more lines than the table shows, the real 401, a 403 and the real 500 with its raw database message each named. The page's own scripts are run against a stub DOM to prove that under either view the concierge start reads nothing (the list-creating GET /cart and the Walmart deals feed included), the assistant rail is not attached and no handoff listener or connected-actions mount runs, while without a view and without the kit every start step still runs.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-05 (shop-lists, shop-concierge): List is Shopping's one screen, so the dashboard (?view=lists) is the manifest's first and only ui.static entry and the shells frame it; the chat page stays served and keeps its company and family views. The dashboard start is one readiness read (GET /deals) and the list, gated on the kit as before, with no tab router; as the first surface it also paints its list card for the company audience the all-inclusive shells frame it with.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -17,7 +18,7 @@ const test = require('node:test');
 
 const APP = 'purchasing';
 const PAGE = 'tools/shopping-dashboard.html';
-const AUDIENCES = ["family"];
+const AUDIENCES = ["company", "family"];
 const ALLOWED_PREFIXES = ["/api/purchasing"];
 const GATE_FILE = 'tools/shopping-dashboard.html';
 
@@ -166,7 +167,7 @@ test('a refusal is named, and a failed list read fails with its status, not a da
 function runDashboard(activeView, search) {
   const s = html.lastIndexOf('<script>'); const src = html.slice(s + 8, html.indexOf('</script>', s));
   const views = [], fetched = [];
-  const node = (selector) => { if (/^#view-/.test(selector || '')) views.push(selector); return { classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, appendChild() {}, querySelector: node, dataset: {}, textContent: '', innerHTML: '', value: '' }; };
+  const node = (selector) => { if (/^#view-|^#storefront$/.test(selector || '')) views.push(selector); return { classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, appendChild() {}, replaceChildren() {}, append() {}, querySelector: node, dataset: {}, textContent: '', innerHTML: '', value: '' }; };
   const documentStub = { querySelector: node, querySelectorAll: () => [], createElement: () => node() };
   const fetchStub = (url) => { fetched.push(url); return Promise.resolve({ json: () => Promise.resolve({ items: [], lists: [] }) }); };
   const kit = activeView === undefined ? undefined : { active: () => activeView };
@@ -174,11 +175,11 @@ function runDashboard(activeView, search) {
   return { views, fetched };
 }
 
-test('under an audience view the dashboard start does not run: ?view=deals reads nothing; without a view, and without the kit, the tab opens and its feed is read', () => {
-  assert.deepEqual(runDashboard('family', '?view=deals&audience=family'), { views: [], fetched: [] });
-  assert.deepEqual(runDashboard(null, '?view=deals'), { views: ['#view-deals'], fetched: ['/api/purchasing/deals?feed=rollback'] });
-  assert.deepEqual(runDashboard(undefined, ''), { views: ['#view-shop'], fetched: [] }, 'a core without the kit runs the dashboard as before');
-  assert.doesNotMatch(html, /^\s*showView\(new URLSearchParams/m, 'no ungated start is left');
+test('under an audience view the List start does not run; without a view, and without the kit, it makes its one readiness read first', () => {
+  assert.deepEqual(runDashboard('family', '?view=lists&audience=family'), { views: [], fetched: [] });
+  assert.deepEqual(runDashboard(null, '?view=lists'), { views: [], fetched: ['/api/purchasing/deals?feed=rollback'] });
+  assert.deepEqual(runDashboard(undefined, ''), { views: [], fetched: ['/api/purchasing/deals?feed=rollback'] }, 'a core without the kit runs the List screen');
+  assert.match(html, /if \(!window\.AppView \|\| !AppView\.active\(\)\) start\(\);/, 'the start is gated on the kit');
 });
 
 // ── The concierge chat page: Shopping's first surface, framed by every shell (company and family) ─────────────────────
@@ -192,12 +193,13 @@ const harness = require('./shopping-routes-harness.js');
 const cartTotals = require('../routes/cart-totals.js');
 const cells = (row) => row.map((c) => (c && typeof c === 'object' ? c.text : c));
 
-test('the chat page is the first surface the shells frame, and the package route serves it', () => {
+test('List is the first surface the shells frame, and the Assistant address leads to it', () => {
   const manifest = fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8');
   const ui = manifest.slice(manifest.search(/^ui:\s*$/m));
-  assert.equal((ui.match(/iframeUrl: (\S+)/) || [])[1], '/api/purchasing/chat', 'the first ui.static entry');
+  assert.equal((ui.match(/iframeUrl: (\S+)/) || [])[1], '/api/purchasing/dashboard?view=lists', 'the first ui.static entry');
   const routes = fs.readFileSync(path.join(ROOT, 'routes', 'purchasing-routes.js'), 'utf8');
-  assert.match(routes, /router\.get\('\/chat', serveFile\(surfaceDir, 'shopping-chat\.html'\)\)/);
+  assert.match(routes, /router\.get\('\/dashboard', serveFile\(surfaceDir, 'shopping-dashboard\.html'\)\)/);
+  assert.match(routes, /router\.get\('\/chat', serveFile\(surfaceDir, 'shopping-dashboard\.html'\)\);/, 'the merged-away Assistant address shows List');
 });
 
 test('chat page: the shared kit follows the theme bootstrap once, ahead of the page\x27s own styles and scripts', () => {

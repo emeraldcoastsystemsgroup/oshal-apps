@@ -7,6 +7,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Bind POST /characters/starter to lora.configure. GET /characters no longer provisions the caller's starter character (a GET is admitted read-only and must not write), so the studio asks for it explicitly with this write; a viewer, who may only read, cannot create one.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Bind DELETE /characters/:subject to lora.configure. A character could not be deleted at all; deleting one is a write like creating it, so a viewer cannot.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the director's read tools lora-characters (GET /characters) and lora-models (GET /models) to lora.read, the permission their routes need.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Bind GET /worker to lora.read. The studio reads it once on open to learn whether a GPU worker is registered and withholds its training actions where none is (UX audit 2026-11-06).
 #
 # One resource with `own` scope only. Row ownership is still enforced by each route's owner
 # predicate and the tables' forced row-level security; the catalog decides which named permission a
@@ -49,6 +50,7 @@ bindings:
     - { id: studio, method: GET, path: /ui, allOf: [app.open] }
     - { id: summary, method: GET, path: /, allOf: [lora.read] }
     - { id: characters-read, method: GET, path: /characters, allOf: [lora.read] }
+    - { id: worker-read, method: GET, path: /worker, allOf: [lora.read] }
     - { id: models-read, method: GET, path: /models, allOf: [lora.read] }
     - { id: scorecard-read, method: GET, path: /scorecard, allOf: [lora.read] }
     - { id: cell-image-read, method: GET, path: /cell-image, allOf: [lora.read] }

@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Native port of the platform's Bot Forge (codex-packer). The native kernel held only its migrated declaration, so it could not open. The Forge screen (/api/forge) and its one-click Inject were platform TypeScript routes that wrote packs into the platform workspace; neither exists natively, so Bot Forge opens as its concierge: the same interview, ending in a draft package (manifest plus persona) the operator commits to the store and installs from App Loader. The persona no longer teaches workspace paths, the codex CLI or shell commands.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: add the native Bot Forge workspace (/api/codex-packer/app) with 1-click caller-scoped Inject over native publish_authored and a mandatory Permission Preview dialog before publication; zero git commit or manual App Loader step required.
 name: codex-packer
 suite: ai-engineering
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -20,12 +21,13 @@ displayName: Bot Forge
 description: >-
   Describe a task you want automated and the Forge interviews you (the task, its input, what it
   produces, how you know it worked, the trigger, what it may change and what it must not keep), then
-  drafts a single-purpose application for it: an oshal-app.yaml manifest and the bot's persona. On this
-  installation the Forge does not install anything: you commit the draft to your store checkout and
-  install it from App Loader, which previews its permissions first.
-version: 1.2.0
+  drafts a single-purpose application and lets you Inject it live into your personal scope after
+  reviewing a clear Permission Preview — with zero git commit or manual App Loader step required.
+version: 1.3.0
+runtime: process
 status: active
 scope: public
+theme: light-blue
 access:
   supported: [deny, viewer, editor, admin]
   defaultTier: editor
@@ -36,6 +38,10 @@ source:
   ref: main
 uses:
   - app-dependencies
+  - test-catalog
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
 smoke:
   - name: package-readiness
     method: GET
@@ -53,6 +59,23 @@ routes:
     auth: service
     requiresContext: true
     requiresAi: false
+  - module: routes/forge-routes.mjs
+    factory: createBotForgeRoutes
+    mountPath: /api/codex-packer
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+ui:
+  static:
+    - toolName: bot-forge
+      label: Bot Forge
+      icon: codicon codicon-tools
+      iframeUrl: /api/codex-packer/app
+      section: top
+ribbon:
+  defaultView: bot-forge
+  hideChatPanel: false
 dependencies:
   required:
     apps: []

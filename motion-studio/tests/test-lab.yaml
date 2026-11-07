@@ -16,6 +16,7 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Register actual model-facing text example execution, Unicode source preservation and strict invalid-range refusal.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: register phone-start (one app bar row, New composition as the one first action, no dead playback, sheets clear of the pane bar).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: phone-start also proves the Concierge composer: Send and Read latest reply aloud on screen and under the finger on a phone and at 1440x900.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: register design-standard (the blank composition, + Add, the bottom bar, Back, composition settings, keyframe diamonds, Undo and Redo, the list and the in-page confirm); phone-start follows the new layout (Add layer is the first action, the panes come from the bottom bar).
 version: 1
 cases:
   - id: storage-busy-retry
@@ -1397,14 +1398,31 @@ cases:
     installation: never
   - id: phone-start
     name: Motion Studio on a phone starts on a blank composition in one tap
-    purpose: At 390x844 with touch the app bar is one row and content starts within 74 px of the frame, New composition is the empty state's one first action with no dead control drawn, one tap opens a blank composition with live playback, and a pane sheet stays clear of the pane bar (Roger F7 and the trial check, 2026-11-06).
+    purpose: At 390x844 with touch the app bar is one row and content starts within 74 px of the frame, Add layer is the blank composition's one first action with no dead control drawn, Add layer then Text saves the composition with live playback, and a pane sheet stays clear of the bottom bar (Roger F7 and the trial check, 2026-11-06; 0.3.0 layout).
     level: browser
     runner: {kind: external, scope: package, files: [tests/browser/phone-start.test.mjs]}
     expected:
-      - No band above the app bar and no repeated name; New composition is the only drawn control before a composition exists; the first pane is Layers.
-      - One tap opens revision 1 with Play enabled; the Properties sheet overlaps neither the app bar nor the pane bar.
+      - No band above the app bar and no repeated name; Add layer is the only drawn control before a composition exists; the bottom bar is Layers, Add, Properties, Concierge, More.
+      - Add layer then Text saves revision 2 with Play enabled; the Properties sheet overlaps neither the app bar nor the bottom bar.
       - '0.2.4, the Concierge sheet at 390x844 and the Concierge column at 1440x900: Attach, Read latest reply aloud and Send lie inside the panel and a tap at each centre lands on it.'
       - '0.2.4: the + and the speaker are icon buttons (56 px or less, transparent), not Motion''s full-width filled field; Send is live once a message is typed.'
+    prerequisites: [runner:node, runtime:motion-engine-reviewed, runtime:sharp-playwright, service:postgres-disposable-35689, runtime:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: Close the fixture compositor and browser; drop only its unique SQL schema and role.}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: design-standard
+    name: Motion Studio follows the design standard
+    purpose: 0.3.0 (docs/ux/design-standard.md §3, §4, §5.1; REFP CONVENTIONS §5.4; Roger F7). The blank composition, + Add and its greyed Video and Audio, the phone's bottom bar and Back, the composition's own settings with a greyed Motion blur, a keyframe diamond on a property row, Undo and Redo, the list of saved compositions with one + New, and Delete asking in the page.
+    level: browser
+    runner: {kind: external, scope: package, files: [tests/browser/design-standard.test.mjs]}
+    expected:
+      - With nothing saved the page declares editor / tap with the stage as its work, draws no "create or open" box, and its one primary is Add layer; the bottom bar is Layers, Add, Properties, Concierge, More in one row at the bottom, and no pane band sits above the work.
+      - Add layer opens + Add with Text, Shape, Solid, Photo… and Camera or light…, then Video and Audio greyed with RP-MOT-01; the sheet stays clear of the bottom bar; Text saves an untitled 1920×1080 composition whose layer is a timeline row, with Render the one primary and Play live.
+      - The phone's Back closes an open sheet and the app stays; with the Composition row chosen the panel shows 1920 × 1080, 30 fps, 10 s, the work area and Motion blur greyed with RP-MOT-02, never "No object selected".
+      - A diamond on the Position row adds a key at the current time and opens its editor; Undo removes it, Redo brings it back and is then disabled; Delete composition asks in a page sheet and Cancel keeps it; no browser alert, confirm or prompt opens.
+      - After a reload the first screen lists the saved composition with one + New, which opens a blank composition; Open… in the document menu reopens the saved one.
     prerequisites: [runner:node, runtime:motion-engine-reviewed, runtime:sharp-playwright, service:postgres-disposable-35689, runtime:kernel-shared-ui]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: Close the fixture compositor and browser; drop only its unique SQL schema and role.}

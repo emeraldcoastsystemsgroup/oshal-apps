@@ -1,7 +1,9 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Adapt the shared editor shell and typed inspector to Publishing's owned draft operations and immutable revisions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Share the saved-document concierge and controller-owned cards, preserving selection, manual follow-up and history.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard (docs/ux/design-standard.md §3, §4, §5.1; CONVENTIONS §5.5): the shared editor carries Publishing's own screen (publishing-shell.mjs) instead of the start card and the Navigation / Properties / Concierge band: one app row, one tool row, sheets on a phone and the Pages | canvas | Properties·Concierge panes on a desktop. The typed inspector moves into the Arrange section, and for a text frame it shows geometry only (its story is edited in the Text sheet), so there is one inspector.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.6, phones (Roger, trial.oswarm.ai, 2026-11-06, F6, and the trial check: no visible first action, a two-row toolbar, two empty-looking boxes): with no publication open the empty state's one primary action is New publication (the rail's own Create publication form, its defaults), with Your publications as a text link; the dead document buttons, the history and the empty-page text wait until a publication is open; the first pane is named Publications.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: the planned-control helper is optional: a platform without it opens the studio without its placeholders.
  */
 const geometry = ['x', 'y', 'width', 'height'];
 const textOf = paragraph => paragraph?.runs?.map(run => run.text).join('') ?? '';
@@ -66,6 +68,9 @@ export function publishingPropertyOperation(model, selectedPage, item, key, valu
 export async function bindPublishingFoundation(adapter) {
   const {createEditorFoundation} = await import('/shared/ui/js/editor-foundation.js');
   const {createEditorAssistant} = await import('/shared/ui/js/editor-assistant.js');
+  // The planned-control helper is a newer platform file: on a platform without it the studio still opens, without its greyed placeholders.
+  const {plannedControl} = await import('/shared/ui/js/planned-control.js').catch(() => ({plannedControl: null}));
+  const {createPublishingShell} = await import('./publishing-shell.mjs');
   const {state, selected, page, hasDraft, requireAppliedFields, edit, actions} = adapter;
   const root = document.body, main = document.querySelector('main');
   const selection = () => publishingSelection(state.document, page(), selected());
@@ -79,14 +84,8 @@ export async function bindPublishingFoundation(adapter) {
   assistant.element.querySelector('.ef-assistant-log').id = 'chat-log';
   assistant.element.querySelector('.ef-assistant-help').id = 'chat-context';
   document.querySelector('.chat').replaceChildren(assistant.element);
-  const workspace = main.querySelector('.workspace'), count = () => document.querySelectorAll('#documents button').length;
-  const start = {when: () => !state.document, lede: 'Lay out a booklet, flyer or newsletter, then download it as a print-ready PDF.',
-    label: 'New publication', run: () => document.getElementById('new').requestSubmit(),
-    replaces: [workspace.querySelector('.document-bar'), document.getElementById('draft-note'), document.getElementById('spread'),
-      document.getElementById('preflight'), ...workspace.querySelectorAll(':scope > .toolbar, :scope > details')],
-    secondary: [{label: () => count() ? `Your publications (${count()})` : '', panel: 'navigation'}]};
   const foundation = createEditorFoundation({
-    root, navigationLabel: 'Publications', start, header: document.querySelector('header.top'), navigation: main.querySelector('.rail'),
+    root, header: document.querySelector('header.top'), navigation: main.querySelector('.rail'),
     viewport: main.querySelector('.workspace'), inspector: main.querySelector('.inspector'),
     ai: document.querySelector('.chat'), status: document.getElementById('status'),
     getState: () => ({documentId: state.document?.id ?? null, revision: state.document?.revision ?? null,
@@ -96,7 +95,8 @@ export async function bindPublishingFoundation(adapter) {
       status: document.getElementById('status').textContent,
       error: document.getElementById('status').dataset.error === 'true' ? document.getElementById('status').textContent : null}),
     getSelection: selection,
-    getProperties: () => publishingProperties(state.model, page(), selected()),
+    // One inspector (design standard §5.1): a frame's story text is edited in the Text sheet, so Arrange shows its geometry.
+    getProperties: () => publishingProperties(state.model, page(), selected()).filter(field => !(field.key === 'text' && selected()?.storyId)),
     applyProperty: (key, value, context) => {
       const current = selection();
       if (context.documentId !== state.document?.id || context.revision !== state.document?.revision
@@ -107,9 +107,14 @@ export async function bindPublishingFoundation(adapter) {
   });
   main.hidden = true;
   root.classList.add('publishing-foundation');
+  // The typed inspector is the Arrange section's (one inspector, not a second geometry form).
+  document.getElementById('pub-arrange-host').append(root.querySelector('.ef-common-properties'));
+  const shell = createPublishingShell(adapter, {foundation, assistant, plannedControl});
+  Object.assign(adapter.ui, {confirm: shell.confirm, float: shell.float, painted: shell.painted, placed: shell.placed});
   root.dataset.editorFoundation = 'ready';
   const refresh = foundation.refresh, destroy = foundation.destroy;
   foundation.refresh = () => {assistant.refresh();refresh();};
   foundation.destroy = () => {assistant.destroy();destroy();};
+  adapter.paint();
   return foundation;
 }

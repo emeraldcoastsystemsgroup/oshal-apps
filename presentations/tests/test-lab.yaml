@@ -18,6 +18,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | Register the Word phone proof: the pane bar on screen, an empty first paragraph with a placeholder, typing replaces it.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 2.18.7: the phone case also proves one app bar row, Insert from More and drawn Navigation items under the finger.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 2.18.8: register the Word desktop first-click proof (one mouse click focuses a not-yet-selected paragraph and keeps the typing).
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): register unit, OOXML round-trip, multipage PDF/plain-text export, forced-RLS two-person sharing and phone/desktop Chromium browser suites for Highlight, Comments, Suggest changes, Find and replace, PDF/plain-text export, Mobile reflow view and Share.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -575,6 +576,7 @@ cases:
       - Every pane button is inside the screen and hit-testable; the first paragraph is empty with a placeholder; typing gives exactly the typed text.
       - '2.18.7: one app bar row (title with its save state, Save, More) and content within 74 px of the frame; Insert waits in More and a choice there runs and closes More.'
       - '2.18.7: every drawn Navigation item is under the finger with Your documents open.'
+      - '2.19.0: the bottom bar is the app''s own and under the finger; the caret is on line 1 and the placeholder shows without it; the app row is Back, the name, Undo, Redo, Save and Export in one row; Insert is a sheet whose choice runs and closes it; Your documents is its own first screen with every card and New under the finger.'
     prerequisites:
       - runner:node
       - runtime:chromium
@@ -614,4 +616,70 @@ cases:
     installation: never
     limits:
       timeoutMs: 120000
+      maxMemoryMb: 1024
+  - id: office-design-standard-browser
+    name: AI Office to the oshal design standard on a phone and a desktop
+    purpose: >-
+      AI Office 2.19.0 against docs/ux/design-standard.md (§3.1, §3.3, §4.3, §4.4, §4.10, §5.1) and the AI Office checklist of REFP
+      CONVENTIONS §5.1, at 412x743 with real touch and at 1440x900: the contract, a blank Word page with the caret on line 1, one
+      app row, the bottom bar, opaque sheets that Back closes, Format's Text and Paragraph tabs, the inert planned controls,
+      the in-page Delete confirm, Your documents and a document opened to read with one Edit, the docked Format | Concierge pane
+      with Zoom Fit keeping the whole slide in view (the regression), and the selection bar. Real routes over disposable
+      PostgreSQL, the kernel's shared editor from OSHAL_PLATFORM_ROOT (a platform with planned-control.js and design-tokens.css).
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/office/design-standard-browser.test.mjs
+    expected:
+      - Nothing saved opens a Word page with the caret on line 1 and no create-or-open box; typing lands in the document and Export becomes the one primary; Save is secondary.
+      - The bottom bar is Format, Insert, Comment, Concierge and More in one row; Slides comes first for a presentation.
+      - Format, Insert, More, Concierge and Export open as opaque modal sheets from the bottom and the browser's Back closes each inside the editor; Highlight follows Text colour; RP-ALL-01 Summarize remains an inert planned control.
+      - Delete asks in the page and no native dialog opens; with a document saved the first screen is Your documents with one New at the bottom right; an existing document opens to read with one Edit, and Edit shows the tools.
+      - At 1440x900 the Slides pane is 240px, the Format | Concierge pane is beside the canvas and the whole slide stays in view with Format, with Concierge and with a selected shape (red on 2.18.8, where the inspector floated over the canvas).
+      - A text selection raises Cut, Copy, Paste, Comment and More on the float layer next to it, never over it, and Cut removes the selected words.
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture databases, roles, browser contexts and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 300000
+      maxMemoryMb: 1024
+  - id: office-rp-01-07
+    name: AI Office RP-OFF-01..07 collaboration, export, mobile reflow and sharing
+    purpose: >-
+      Verify RP-OFF-01 through RP-OFF-07 across model/OOXML round-trip, multipage PDF and plain-text export, forced-RLS
+      two-person sharing with access auditing and refusal boundaries, and Chromium browser journeys at 412x743 and 1440x900.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/office/rp-office-features.test.mjs
+        - tests/office/rp-office-browser.test.mjs
+    expected:
+      - Run highlight applies to selected runs, renders on page and round-trips through native and external DOCX and PPTX while refusing invalid colours.
+      - Anchored comments with replies and resolved state round-trip through OOXML word/comments.xml and refuse invalid anchors.
+      - Tracked insertions and deletions record author and timestamp, support per-change and bulk accept/reject, and round-trip through OOXML w:ins and w:del.
+      - Find and replace highlights hits on page, respects Match case, cycles next/previous and undoes Replace all in a single undo step.
+      - Multipage PDF 1.7 and plain-text exports render styled pages, lists, tables and embedded images and open cleanly in PDF Workbench.
+      - Mobile view reflows Word pages to frame width without mutating the document model, supports editing and restores page layout when switched off.
+      - Two-person forced-RLS sharing enforces view, comment and edit roles, blocks cross-tenant access, revokes cleanly and records immutable access audit entries.
+    prerequisites:
+      - runner:node
+      - runtime:chromium
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture databases, roles, browser contexts and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 300000
       maxMemoryMb: 1024

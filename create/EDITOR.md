@@ -1,18 +1,34 @@
 # Create image editor
 
-The shared editor foundation places the open canvas between a navigation/layer
-rail and a contextual property inspector. On narrow screens Navigation and
-Properties open drawers above the canvas. The common inspector edits supported
-geometry, opacity, fill, outline and text values through Create's existing
-validated operations; More tools retains masks, vectors and the advanced controls.
-Save and the existing concierge/Jarvis handoff settle focused property edits first.
-Invalid or stale fields remain available to correct or explicitly discard. Locked
-layers and withdrawn permissions retain the same refusal behavior as other edits.
+The shared editor foundation places the open canvas between the Layers pane and
+the Format inspector. One app row holds the image's document menu (its name ▾:
+New, Open…, My projects, Save a copy, Export…, the image name, Save automatically,
+PSD original and report, and Delete image last), Undo, Redo, a Saved caption and
+one primary: **Add** on a phone, which opens the Insert sheet, and **Export** on a
+desktop once the canvas has content. On a desktop the Insert tools (Image, Text,
+Rectangle, Ellipse, Draw, Vector pen, Adjustment layer, OSHAL files, Templates)
+are a 48px icon rail beside the Layers list; on a phone the panes open from the
+shell's bottom bar (Layers, Properties, Concierge) as sheets. The canvas bar holds
+the **Select** tool and Zoom; Select's shape, Whole image and Clear region, and
+the pen's Closed path, Finish vector and Cancel vector, appear there only while
+their tool is on, and the bar keeps one height so the canvas never moves.
+
+Format is the shared inspector, the only layer form: layer name, geometry,
+appearance, outline, shadow and text (with the brand, basic and Office fonts)
+through Create's existing validated operations. With nothing selected it shows
+the canvas: width, height, background and Transparent. Its More tools holds the
+selected layer's advanced tools (image mask, filters and crop; vector path;
+adjustment), the brand swatches and the region and generate panels. The concierge
+starts closed; its one entry opens it. Save and the existing concierge/Jarvis
+handoff settle focused property edits first. Invalid or stale fields remain
+available to correct or explicitly discard. Locked layers and withdrawn
+permissions retain the same refusal behavior as other edits.
 
 The reusable UI is served by the kernel at `/shared/ui/js/editor-foundation.js`
 and `/shared/ui/css/editor-foundation.css`; this package owns its adapter, model,
 history, rendering, original-owner storage and AI tools. An older kernel without
-these assets retains the existing editor layout. The source browser fixture uses
+these assets keeps the canvas, Layers and Insert tools but has no layer form,
+because Format is the shared inspector. The source browser fixture uses
 isolated synthetic projects and a named assistant-update seam; it does not prove
 an installed provider's natural-language tool selection or format parity.
 
@@ -45,12 +61,15 @@ timelines, shared projects and desktop-editor interchange remain in [BACKLOG.md]
    ellipse and freehand drawing layers retain their own properties. Image crop
    percentages select the source region without replacing the original image;
    brightness, contrast and the image filters below remain editable adjustments.
-4. Set canvas dimensions and background under **Canvas settings**. On narrow
-   screens, expand that disclosure. Zoom affects the workspace preview only.
-5. **Save** creates a private project. Subsequent edits autosave after a pause
-   when that option is enabled and the role permits changes. Undo/redo is local
-   and bounded; saved revisions survive reopening. **My projects → Revisions**
-   restores an earlier snapshot as a new edit.
+4. Set canvas dimensions and background in **Format** with nothing selected
+   (press an empty part of the canvas). Zoom affects the workspace preview only.
+5. Saving is automatic: once a new image has content it is saved as a private
+   project after a pause, and later edits save the same way, when the role
+   permits it. The caption beside Redo says Saved, Saving… or Not saved. Turning
+   **Save automatically** off in the document menu brings back a **Save** button;
+   Ctrl+S saves at any time. Undo/redo is local and bounded; saved revisions
+   survive reopening. **My projects → Revisions** restores an earlier snapshot as
+   a new edit.
 6. Export a PNG, a JPEG, or an **Editable project** JSON file. Export saves pending
    edits first and checks current server export permission. PNG retains alpha;
    JPEG composites transparent pixels onto white. Editable JSON embeds the raster
@@ -58,11 +77,12 @@ timelines, shared projects and desktop-editor interchange remain in [BACKLOG.md]
 
 A conflicting save does not overwrite a newer revision. Autosave pauses and the
 draft stays in the current canvas. Reopen the saved project or use **Save a copy**.
-Network failures stop automatic retries until another edit or an explicit Save.
+Network failures stop automatic retries until another edit or an explicit Save
+(the Save button returns beside the caption after a failed save).
 
 ## Image filters (1.8.3)
 
-Select an image layer to see its filters under **Selected layer**. **Filter look**
+Select an image layer to see its filters under Format's **More tools**. **Filter look**
 applies a named look in one step: None, Black and white, Vintage, Vivid, Muted or
 Soft focus. Each look sets all four filters, so choosing another look replaces the
 previous one rather than stacking on it. The sliders adjust each filter directly:
@@ -89,8 +109,8 @@ route or permission.
 
 ## Region selection (1.8.4)
 
-Choose part of an image to change later. Select an image layer, then **Select region**
-in the canvas toolbar:
+Choose part of an image to change later. Select an image layer, then **Select**
+in the canvas bar (its Shape, Whole image and Clear region appear beside it):
 
 - drag a **lasso** around the area (the outline closes itself),
 - hold **Shift** and drag for a **box**, or

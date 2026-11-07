@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove actual CAD model, revision and WebGL selection survive late local HTTP responses without engine or live-data access.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The generated form authors revolve, sweep and loft from the real contract: JSON path and sections, a plane select for the path and a boolean ruled reach the server as typed values.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Stop rebuild (BACKLOG B5): offered only while the SELECTED part has a rebuild in flight, it cancels that part (not another) and goes away when the rebuild settles.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: Rebuild and Delete part are items of the Part menu, and Delete asks in an in-page sheet (Delete), not a native confirm.
  */
 import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,6 +14,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startFixture, launchIsolatedBrowser, observeStlRendering, IDS, model } from './surface-lifecycle.core.fixture.mjs';
 let owned, browser, context, page, f;
+/** A part's commands are items of the Part menu (0.4.0): open it, then press the item. */
+const partMenu = async (item) => { await page.locator('#part-menu').click(); await page.locator(item).click(); };
 before(async () => { owned = await launchIsolatedBrowser({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }); browser = owned.browser; });
 after(async () => {
   const receipt = await owned.close();
@@ -76,20 +79,20 @@ test('late STL bytes cannot replace the newer selected part geometry', async () 
 });
 test('late prior-revision STL cannot replace a completed current rebuild', async () => {
   const held = await hold('GET', stlUrl(IDS[0])); await select('Alpha part'); await held.ready;
-  await page.locator('#rebuild-model').click(); await rendered(80, 2); await held.release(); await rendered(80, 2);
+  await partMenu('#rebuild-model'); await rendered(80, 2); await held.release(); await rendered(80, 2);
   assert.match(await page.locator('#model-state').innerText(), /revision 2/);
 });
 test('late rebuild response cannot select its old part or discard another part feature draft', async () => {
   await select('Alpha part'); await rendered(60);
   const held = await hold('POST', url => url.pathname.endsWith('/' + IDS[0] + '/rebuild'));
-  await page.locator('#rebuild-model').click(); await held.ready; await select('Beta part'); await rendered(100);
+  await partMenu('#rebuild-model'); await held.ready; await select('Beta part'); await rendered(100);
   await page.locator('#feature-label').fill('Unsaved Beta feature'); await page.locator('[data-param="height"]').fill('17');
   await held.release(); assert.equal(await page.locator('#model-heading').innerText(), 'Beta part'); await rendered(100);
   assert.equal(await page.locator('#feature-label').inputValue(), 'Unsaved Beta feature'); assert.equal(await page.locator('[data-param="height"]').inputValue(), '17');
 });
 test('deleting a part clears preview and a late STL cannot restore it', async () => {
   const held = await hold('GET', stlUrl(IDS[0])); await select('Alpha part'); await held.ready;
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#delete-model').click(); await page.locator('#empty-panel').waitFor();
+  await partMenu('#delete-model'); await page.locator('#ask-yes').click(); await page.locator('#empty-panel').waitFor();
   const draws = await page.evaluate(() => window.stlProof.frames.length); await held.release();
   assert.equal(await page.locator('#model-panel').isVisible(), false); assert.equal(await page.locator('#viewer-info').innerText(), '');
   assert.equal(await page.evaluate(() => window.stlProof.frames.length), draws); assert.equal(f.models.has(IDS[0]), false);
@@ -97,7 +100,7 @@ test('deleting a part clears preview and a late STL cannot restore it', async ()
 });
 test('late delete completion cannot clear another selected part', async () => {
   await select('Alpha part'); await rendered(60); const held = await hold('DELETE', detailUrl(IDS[0]));
-  page.once('dialog', dialog => dialog.accept()); await page.locator('#delete-model').click(); await held.ready;
+  await partMenu('#delete-model'); await page.locator('#ask-yes').click(); await held.ready;
   await select('Beta part'); await rendered(100); await held.release();
   assert.equal(await page.locator('#model-panel').isVisible(), true); assert.equal(await page.locator('#model-heading').innerText(), 'Beta part'); await rendered(100);
 });
@@ -110,14 +113,14 @@ test('late poll cannot select its old part', async () => {
 test('late poll cannot roll a newer rebuild back to an older revision or reset draft fields', async () => {
   await select('Alpha part'); await rendered(60); f.models.set(IDS[0], model(IDS[0], 70, 2));
   const held = await hold('GET', detailUrl(IDS[0])); await page.evaluate(() => { window.cadFixturePoll(); }); await held.ready;
-  await page.locator('#rebuild-model').click(); await rendered(80, 3);
+  await partMenu('#rebuild-model'); await rendered(80, 3);
   await page.locator('#feature-label').fill('Current unsaved draft'); await page.locator('[data-param="height"]').fill('23');
   await held.release(); await rendered(80, 3); assert.match(await page.locator('#model-state').innerText(), /revision 3/);
   assert.equal(await page.locator('#feature-label').inputValue(), 'Current unsaved draft'); assert.equal(await page.locator('[data-param="height"]').inputValue(), '23');
 });
 test('late revision-list refresh cannot attach old-part restore controls to another part', async () => {
   await select('Alpha part'); await rendered(60); const held = await hold('GET', detailUrl(IDS[0]));
-  await page.locator('#rebuild-model').click(); await held.ready; await rendered(80, 2);
+  await partMenu('#rebuild-model'); await held.ready; await rendered(80, 2);
   await select('Beta part'); await rendered(100); await held.release();
   assert.equal(await page.locator('#revisions li').count(), 1); assert.equal(await page.locator('#revisions button').count(), 0);
   assert.equal(await page.locator('#model-heading').innerText(), 'Beta part');
@@ -185,7 +188,7 @@ test('Stop is offered only while the selected part rebuilds and cancels that par
   await select('Alpha part'); await rendered(60);
   assert.equal(await page.locator('#cancel-rebuild').isVisible(), false, 'nothing is rebuilding');
   const held = await hold('POST', url => url.pathname.endsWith('/' + IDS[0] + '/rebuild'));
-  await page.locator('#rebuild-model').click(); await held.ready;
+  await partMenu('#rebuild-model'); await held.ready;
   await page.locator('#cancel-rebuild').waitFor({ state: 'visible' });
   await select('Beta part'); await rendered(100);
   assert.equal(await page.locator('#cancel-rebuild').isVisible(), false, 'Beta is not rebuilding');

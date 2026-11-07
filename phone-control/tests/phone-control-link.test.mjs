@@ -4,6 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0 computer link, the module the page runs: only a closed verb and base64 reach the command string, whatever a person types; the install command, run by real bash and the system python3 in a throwaway home, installs the package's bridge files exactly (the bridge then reports the same sha256) and refuses a damaged file before writing any; a bridge command run the same way answers in one JSON line; tap and swipe scaling; a picture read in parts is checked by sha256; and one command at a time with a press ahead of a waiting refresh.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: bridgeSupport refuses Windows and macOS with Linux-only guidance and accepts Linux or empty; computerStanding names Let Jarvis control this computer; adb-connect-tv and ble-remove are closed verbs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: installer carries oshal_phone_mirror.py, lowercase oshal Node guidance, closed setup-mirror / mirror-start / mirror-stop / mirror-frame verbs, readFrame custom verb support, and phoneReachable with mirror.hasFrame.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: cover computerPoint coordinate mapping (normalized and multi-monitor physical offset), desktopControlSupport capability gating, safeFileName, bytesToBase64, QUALITY_PRESETS, and adb-files/adb-push/adb-pull/adb-clipboard-* verbs.
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,8 +18,9 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  bridgeCommand, installCommand, parseReply, bridgeMatches, tapPoint, swipeFromDrag, readFrame, createQueue,
-  toBase64, fromBase64, VERBS, workHref, computerStanding, phoneReachable
+  bridgeCommand, installCommand, parseReply, bridgeMatches, tapPoint, swipeFromDrag, iosGestureFromDrag,
+  readFrame, createQueue, toBase64, fromBase64, bytesToBase64, safeFileName, computerPoint,
+  desktopControlSupport, QUALITY_PRESETS, VERBS, workHref, computerStanding, bridgeSupport, phoneReachable
 } from '../tools/computer-link.js';
 
 const PKG = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -56,7 +60,9 @@ test('the install command installs exactly the package bridge, and the bridge re
   const manifest = bridgeManifest(PKG);
   const installed = parseReply(shell(installCommand(manifest)));
   assert.equal(installed.ok, true, installed.message);
-  assert.deepEqual(installed.installed.sort(), ['oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py']);
+  assert.deepEqual(installed.installed.sort(), [
+    'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
+  ]);
   for (const file of manifest.files) {
     const where = file.name === 'oshal-phone-bridge' ? join(home, '.local', 'bin', file.name) : join(home, '.local', 'share', 'oshal-phone-bridge', file.name);
     assert.equal(createHash('sha256').update(readFileSync(where)).digest('hex'), file.sha256, file.name);
@@ -118,6 +124,15 @@ test('a picture read in parts is assembled and checked by sha256', async () => {
   const frame = await readFrame(send, '10.0.0.2:5555');
   assert.deepEqual(asked, [['adb-frame', null], ['frame-chunk', 1], ['frame-chunk', 2]]);
   assert.deepEqual(frame.bytes, bytes);
+  const mirrorAsked = [];
+  const mirrorSend = async (verb, args) => {
+    mirrorAsked.push([verb, args.index ?? null, args.serial ?? null]);
+    if (verb === 'mirror-frame') return { ok: true, id: 'abcdef0123456789', sha256, mime: 'image/jpeg', bytes: bytes.length, chunks: 1, data: text, deviceWidth: 1170, deviceHeight: 2532 };
+    return { ok: false, message: 'unexpected' };
+  };
+  const mirrored = await readFrame(mirrorSend, '', 432, 'mirror-frame');
+  assert.deepEqual(mirrorAsked, [['mirror-frame', null, null]]);
+  assert.equal(mirrored.deviceWidth, 1170);
   const damaged = async (verb, args) => (verb === 'adb-frame' ? send(verb, args) : { ok: true, data: parts[args.index].replace(/^./, 'A') });
   await assert.rejects(readFrame(damaged, 's'), /damaged/);
   await assert.rejects(readFrame(async () => ({ ok: false, message: 'The phone is not connected' }), 's'), /not connected/);
@@ -141,11 +156,57 @@ test('one command at a time: a press goes before a waiting refresh, and only one
 
 test('computers and phones are described from what the kernel and the bridge said', () => {
   assert.equal(workHref('a b'), '/cockpit/tools/computer.html?id=a%20b');
-  assert.equal(computerStanding({ connected: false }).usable, false);
-  assert.equal(computerStanding({ connected: true, can_control: false }).usable, false);
+  const disconnected = computerStanding({ name: 'Desk', connected: false });
+  assert.equal(disconnected.usable, false);
+  assert.match(disconnected.fix, /open oshal Node and sign in/);
+  const controlOff = computerStanding({ name: 'Spark', connected: true, can_control: false });
+  assert.equal(controlOff.usable, false);
+  assert.match(controlOff.fix, /Let Jarvis control this computer/);
+  assert.equal(computerStanding({ connected: true, can_control: true, tools: [] }).usable, false);
   assert.equal(computerStanding({ connected: true, can_control: true, tools: ['shell.exec'] }).usable, true);
+  for (const platform of ['windows', 'Windows', 'macos']) {
+    const support = bridgeSupport({ name: 'PC', platform });
+    assert.equal(support.ok, false, platform);
+    assert.match(support.text, /Linux computer only/);
+  }
+  for (const platform of ['linux', 'Linux', '', undefined]) {
+    assert.equal(bridgeSupport({ name: 'Spark', platform }).ok, true, String(platform));
+  }
+  assert.match(bridgeCommand('adb-connect-tv', { address: '192.168.1.138' }), / adb-connect-tv --b64 /);
+  assert.match(bridgeCommand('ble-remove', { address: '7C:4B:26:00:00:01' }), / ble-remove --b64 /);
+  assert.match(bridgeCommand('setup-mirror'), / setup-mirror --b64 e30=$/);
+  assert.match(bridgeCommand('mirror-start'), / mirror-start --b64 e30=$/);
+  assert.match(bridgeCommand('mirror-stop'), / mirror-stop --b64 e30=$/);
+  assert.match(bridgeCommand('mirror-frame', { width: 432 }), / mirror-frame --b64 /);
   const report = { adb: { devices: [{ serial: '10.0.0.2:5555', state: 'device' }] }, ble: { phones: [{ address: 'AA', connected: false }] } };
   assert.equal(phoneReachable({ platform: 'android', address: '10.0.0.2:5555' }, report), true);
   assert.equal(phoneReachable({ platform: 'ios', address: 'AA' }, report), false);
-  assert.ok(VERBS.includes('adb-frame') && !VERBS.includes('serve-ble'), 'the resident server is never a page verb');
+  assert.equal(phoneReachable({ platform: 'ios', address: 'AA' }, { ...report, mirror: { hasFrame: true } }), true);
+  assert.ok(VERBS.includes('adb-frame') && VERBS.includes('mirror-frame') && !VERBS.includes('serve-ble'), 'the resident server is never a page verb');
+  assert.deepEqual(computerPoint({ x: 100, y: 50 }, { width: 200, height: 100 }, { width: 1920, height: 1080 }), { x: 960, y: 540, coordinateSpace: 'screenshot' });
+  assert.deepEqual(tapPoint({ x: 200, y: 200 }, { width: 400, height: 400 }, { deviceWidth: 1920, deviceHeight: 1080 }), { x: 960, y: 540 });
+  assert.deepEqual(tapPoint({ x: 200, y: 40 }, { width: 400, height: 400 }, { deviceWidth: 1920, deviceHeight: 1080 }), { x: 960, y: 0 });
+  assert.deepEqual(
+    computerPoint({ x: 100, y: 50 }, { width: 200, height: 100 }, { width: 1920, height: 1080 }, { originX: 1920, originY: 0, width: 2560, height: 1440 }),
+    { x: 2880, y: 540, coordinateSpace: 'physical' }
+  );
+  const iosTap = iosGestureFromDrag({ x: 100, y: 200 }, { x: 100, y: 200 }, { width: 200, height: 400 }, { deviceWidth: 500, deviceHeight: 1000 }, 60);
+  assert.equal(iosTap.verb, 'ble-tap');
+  assert.deepEqual(iosTap.pixel, { x: 250, y: 500, width: 500, height: 1000 });
+  const iosSwipe = iosGestureFromDrag({ x: 160, y: 200 }, { x: 40, y: 200 }, { width: 200, height: 400 }, { deviceWidth: 500, deviceHeight: 1000 }, 220);
+  assert.equal(iosSwipe.verb, 'ble-swipe');
+  assert.equal(iosSwipe.pixel.x1, 400);
+  assert.equal(iosSwipe.pixel.x2, 100);
+  assert.equal(desktopControlSupport({ name: 'Spark', connected: true, can_control: true, tools: ['shell.exec'] }).ok, false);
+  assert.equal(desktopControlSupport({ name: 'Spark', connected: true, can_control: true, tools: ['shell.exec', 'desktop.control'] }).ok, true);
+  assert.equal(safeFileName('C:\\fakepath\\My Report 1.pdf'), 'My Report 1.pdf');
+  assert.throws(() => safeFileName('C:\\fakepath\\../bad.sh'));
+  assert.equal(bytesToBase64(new Uint8Array([1, 2, 3, 4])), Buffer.from([1, 2, 3, 4]).toString('base64'));
+  assert.equal(QUALITY_PRESETS.high.width > QUALITY_PRESETS.balanced.width && QUALITY_PRESETS.balanced.width > QUALITY_PRESETS.low.width, true);
+  for (const verb of [
+    'adb-files', 'adb-push', 'adb-pull', 'adb-clipboard-get', 'adb-clipboard-set',
+    'ble-calibrate', 'rdp-probe', 'screen-info', 'pointer-move', 'pointer-click', 'pointer-drag', 'keyboard-type', 'keyboard-key'
+  ]) {
+    assert.match(bridgeCommand(verb, { serial: '10.0.0.2:5555' }), new RegExp(` ${verb} --b64 `));
+  }
 });

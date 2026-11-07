@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloud Accounts</title>
+<!--
+  CHANGE LOG
+  ---------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  ---------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Cloud's own first screen (UX audit 2026-11-05, cloud-accounts, D). Opening Cloud landed on the global Jarvis chat list, and its accounts tile was the whole platform Connections page. This page reads GET /api/cloud/home-summary and shows one thing: Google Cloud not connected, with one primary Connect Google Cloud (the kernel's /api/connect/gcp/start, in its own window because the provider refuses a frame); or connected, with the account tiles and one primary Ask the cloud bot, which hands a first question to the application's concierge (cloud-ops-bot) through the cockpit's app-ask message.
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Say what failed (trial check 2026-11-06): where the kernel refuses the connection (the trial has no public web address, so the connect window landed on Connections with connect_error) the screen kept saying "finish signing in". It now listens on the same-origin channel the Connections page announces each connect outcome on (oshal-connections, connect-outcome) and shows the kernel's reason as an alert, or reloads the tiles when the connection is saved.
+-->
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<script src="cloud-model.js"></script>
+<style>
+  html, body { margin: 0; }
+  body { background: var(--bg-primary, #f5f8ff); color: var(--text-primary, #142034); font: 16px/1.5 system-ui, sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+  .card { background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #d6e0f0); border-radius: 14px; padding: 20px; }
+  h2 { margin: 0 0 6px; font-size: 20px; }
+  p { margin: 0 0 16px; color: var(--text-secondary, #4a5a73); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 16px; }
+  .tile { border: 1px solid var(--border-color, #d6e0f0); border-radius: 12px; padding: 14px; }
+  .tile strong { display: block; font-size: 26px; }
+  .tile span { color: var(--text-secondary, #4a5a73); font-size: 14px; }
+  .tile.warn strong { color: var(--status-warning, #b45309); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button { font: inherit; min-height: 44px; padding: 0 18px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border-color, #d6e0f0); background: var(--bg-secondary, #eef3fb); color: inherit; }
+  button.primary { background: var(--accent-primary, #2563eb); border-color: var(--accent-primary, #2563eb); color: var(--ds-on-accent, var(--text-on-accent, #ffffff)); font-weight: 600; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent-primary, #2563eb); outline-offset: 3px; }
+  a { color: var(--accent-primary, #2563eb); }
+  .note { margin: 14px 0 0; font-size: 14px; color: var(--text-secondary, #4a5a73); }
+  .alert { color: var(--status-error, #b91c1c); margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <section class="card" id="card" aria-live="polite">
+    <p id="loading">Reading your Google Cloud connection…</p>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+  var C = window.CloudHome, card = document.getElementById('card'), waiting = null;
+  var framed = (function () { try { return window.top !== window.self; } catch (_) { return true; } })();
+
+  function el(tag, attrs, text) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (key) { node.setAttribute(key, attrs[key]); });
+    if (text) node.textContent = text;
+    return node;
+  }
+
+  function read() {
+    return fetch('/api/cloud/home-summary', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function (error) { console.error(JSON.stringify({ module: 'cloud-home', event: 'summary_failed', error: { message: error.message } })); return null; });
+  }
+
+  function connect() {
+    var url = C.connectUrl('/apps/cloud/ui/index.html?connected=gcp');
+    if (!framed) { window.location.assign(url); return; }
+    window.open(url, '_blank', 'noopener');
+    var note = document.getElementById('connect-note') || card.appendChild(el('p', { id: 'connect-note', class: 'note', role: 'status' }));
+    note.textContent = 'Finish signing in to Google in the window that opened. This screen updates when the connection is saved.';
+    if (waiting) clearInterval(waiting);
+    listen();
+    var tries = 0;
+    waiting = setInterval(function () {
+      tries += 1;
+      read().then(function (summary) {
+        var v = C.view(summary);
+        if (v.state === 'connected' || tries >= 45) { clearInterval(waiting); waiting = null; if (v.state === 'connected') render(v); }
+      });
+    }, 4000);
+  }
+
+  /** The Connections page the connect window lands on announces how it went on this same-origin channel. */
+  function listen() {
+    if (typeof BroadcastChannel !== 'function') return;
+    try {
+      var channel = new BroadcastChannel('oshal-connections');
+      channel.onmessage = function (event) {
+        var m = event.data || {};
+        if (m.type !== 'connect-outcome' || m.connector !== 'gcp') return;
+        channel.close();
+        if (waiting) { clearInterval(waiting); waiting = null; }
+        if (m.ok) { load(); return; }
+        var note = document.getElementById('connect-note');
+        if (note) note.remove();
+        var alert = document.getElementById('connect-alert') || card.insertBefore(el('p', { id: 'connect-alert', class: 'alert', role: 'alert' }), card.querySelector('.actions'));
+        alert.textContent = String(m.text || 'Google Cloud was not connected.');
+      };
+    } catch (error) {
+      console.error(JSON.stringify({ module: 'cloud-home', event: 'listen_failed', error: { message: error.message } }));
+    }
+  }
+
+  function ask() {
+    if (!framed) { window.location.assign('/cockpit/?app=cloud'); return; }
+    window.parent.postMessage({ type: 'app-ask', app: 'cloud', text: C.FIRST_QUESTION }, window.location.origin);
+  }
+
+  function render(v) {
+    card.replaceChildren();
+    var actions = el('div', { class: 'actions' });
+    if (v.state === 'error') {
+      card.append(el('p', { class: 'alert', role: 'alert' }, 'Your Google Cloud connection could not be read just now.'));
+      var retry = el('button', { type: 'button', class: 'primary', id: 'retry' }, 'Try again');
+      retry.addEventListener('click', load);
+      actions.append(retry);
+    } else if (v.state === 'not-connected') {
+      card.append(el('h2', {}, 'Google Cloud: not connected'));
+      card.append(el('p', {}, 'Connect your Google Cloud account, then ask the cloud bot about your projects, services and instances. It reads with your own access, and only reads unless you ask it to change something.'));
+      var go = el('button', { type: 'button', class: 'primary', id: 'connect' }, 'Connect Google Cloud');
+      go.addEventListener('click', connect);
+      actions.append(go);
+    } else {
+      card.append(el('h2', {}, 'Google Cloud: connected'));
+      var tiles = el('div', { class: 'tiles' });
+      v.tiles.forEach(function (t) {
+        var tile = el('div', { class: 'tile' + (t.tone === 'warn' ? ' warn' : '') });
+        tile.append(el('strong', {}, t.value), el('span', {}, t.label));
+        tiles.append(tile);
+      });
+      card.append(tiles);
+      var askButton = el('button', { type: 'button', class: 'primary', id: 'ask' }, 'Ask the cloud bot');
+      askButton.addEventListener('click', ask);
+      actions.append(askButton);
+      if (v.reconnect) {
+        var again = el('button', { type: 'button', id: 'reconnect' }, 'Reconnect Google Cloud');
+        again.addEventListener('click', connect);
+        actions.append(again);
+      }
+    }
+    card.append(actions);
+  }
+
+  function load() { return read().then(function (summary) { render(C.view(summary)); }); }
+  load();
+})();
+</script>
+</body>
+</html>

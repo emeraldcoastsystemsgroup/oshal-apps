@@ -38,6 +38,7 @@
 # 34 | maintainer@emeraldcoastsystemsgroup.com | B29 closed: the mass target re-based on the parts model (2100 g); the design and real-routes texts say so.
 # 35 | maintainer@emeraldcoastsystemsgroup.com | 0.19.8 (ADR-203 D5): the Spider Design Studio cases (spider-studio-browser, spider-studio-real-routes) retire with the screen; the spider's posters live in the design-studio package, proven there over this package's routes' shapes.
 # 36 | maintainer@emeraldcoastsystemsgroup.com | 0.20.0 (ADR-203 D9, lane @ds-plant): the plant generated from a design - the builder and the bridge dispatch, the reach task and its gate on the real engine (both self-running), and the plant routes with a fake bridge in the engine's real reply shapes with the runtime-file parity guard.
+# 37 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register surface-views (three views, E-STOP outside them, the physics chip in the lab only, part row menus); the browser proof presses each view's tab.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -1103,4 +1104,25 @@ cases:
       timeoutMs: 300000
       maxMemoryMb: 2048
     installation: never
-
+  - id: surface-views
+    name: Embodied Swarm is three views with E-STOP always in the header
+    purpose: tests/surface-views.test.cjs reads the shipped tools/embodied.html and tools/embodied.js - no browser, server, engine or robot.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-views.test.cjs
+    expected:
+      - Mission console is the default view; Hardware sizing and Physics & medium lab are hidden until their tab is pressed.
+      - E-STOP and Take command sit in the header outside every view; the console holds the map, cameras, planner, log and the manual pad beside the map.
+      - The physics engine's state shows once, in the lab; each BOM part opens CAD Studio from a row menu; the setup choices left the header; no heading carries an essay subtitle.
+      - Every control id the surface script reads is on the page exactly once.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

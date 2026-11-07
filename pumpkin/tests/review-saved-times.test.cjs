@@ -10,6 +10,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The review page lists records as a sortable table (2026-10-29 UX standard): the stub DOM learns the
  *   table API the page uses (createTHead, createTBody, insertRow, insertCell, setAttribute) and the detail is read from each
  *   body row's second cell. The intent is unchanged: a saved instant reads as the local date and time, never as UTC text.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the review page gates its brief on a mounted action (actionHost.querySelector, hasActions), so the stubs carry them.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): Refresh evidence button removed; slice refresh() up to await refresh().
  */
 'use strict';
 process.env.TZ = 'America/Chicago';
@@ -39,7 +41,7 @@ function summaryHandler(pool) {
 async function pageDetails(body) {
   const html = fs.readFileSync(path.join(__dirname, '..', 'tools', 'review.html'), 'utf8');
   const start = html.indexOf('const localInstants=');
-  const end = html.indexOf("document.querySelector('#refresh')", start);
+  const end = html.indexOf('await refresh();', start);
   assert.ok(start > 0 && end > start, 'the page formats instants before refresh');
   const made = [];
   const node = () => { const n = { children: [], textContent: '', className: '', attributes: {}, append: (...c) => n.children.push(...c), replaceChildren: (...c) => { n.children = c; }, addEventListener() {},
@@ -48,7 +50,7 @@ async function pageDetails(body) {
   const list = node(), metrics = node();
   const document = { createElement: () => node(), querySelector: (q) => (q === '#records' ? list : metrics) };
   const fetch = async () => ({ ok: true, json: async () => body });
-  await new Function('document', 'fetch', 'fill', 'status', 'app', `${html.slice(start, end)}\nreturn refresh();`)(document, fetch, () => {}, {}, 'pumpkin');
+  await new Function('document', 'fetch', 'fill', 'status', 'app', 'hasActions', `${html.slice(start, end)}\nreturn refresh();`)(document, fetch, () => {}, {}, 'pumpkin', true);
   assert.ok(list.children.length && made.some((n) => n.className === 'records' && n.children[1] && n.children[1].children.length), `the page listed records: ${list.textContent}`);
   // The records are the rows of the table's body (the table sits in a scroll wrapper; thead first, tbody second); the detail is each row's second cell.
   const table = made.find((n) => n.className === 'records'), tbody = table.children[1];

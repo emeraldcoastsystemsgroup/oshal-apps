@@ -7,6 +7,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Phone proof that the sticky dock leaves the map and Ask DM in reach: with the dock filled as table-dock.js renders a player's own turn (name, controller badge, inventory button, race/class, hit points, two or four actions), every action is on screen and takes the tap with no sideways scroll (a fourth action started off screen in a row that scrolled sideways), the whole board and the dock fit one screen together, with two actions at the top of the page the whole board is above the dock, drawer open and closed (the 168px dock covered the board's bottom 52px in the 392 x 641 frame), and with the drawer open the Ask DM input starts within 150px of the board's bottom (it was under the whole story log, ~420px below) and, scrolled to or focused, stops above the dock.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Phone proof that the sticky dock stays bounded however many actions it holds: with 10 and with 32 actions on a player's own turn (32 is the character import's cap, lib/character-import-common.js ACTION_COUNT) and while watching another player's four-action hero (a full-width view-only note above the cards, as table-dock.js renders it), the dock is at most 220px (about 215px: two rows of cards, the top of a third, the identity line), the whole board and the dock fit one screen together, End Turn and the first action are on screen and take the tap, and every action can be scrolled into the dock's list and then takes the tap. The wrapping action grid grew with every three actions: 10 actions made a 324px dock over 69px of the board, 32 an 833px dock taller than the 641px frame with 8 actions out of reach.
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | My Games: Delete Campaign and Leave Campaign read at 4.5:1 or better on an opaque background under the default (dark) and a light cockpit theme. Under a light theme they were #ffb2a5 over an 18% red tint of the pale --bg-tertiary row, pale pink on a pale card.
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | The dock scenarios run a hero's turn, so they show the turn buttons (#turnctl.idle hides them while no campaign runs, UX audit 2026-11-06). The HUD is one row of five; the map row checks are unchanged.
  */
 'use strict';
 const test = require('node:test');
@@ -31,6 +32,7 @@ async function battleLayout(page, storyOpen) {
   await page.evaluate(({ flag, open }) => {
     document.getElementById('overlay').classList.add('hidden');
     const turn = document.getElementById('turnflag'); turn.className = 'yours'; turn.innerHTML = flag;
+    document.getElementById('turnctl').classList.remove('idle'); // a campaign is running: its turn buttons show
     window.SC = () => ({ grid: { w: 18, h: 12 } });
     setStoryOpen(open);
     layout();

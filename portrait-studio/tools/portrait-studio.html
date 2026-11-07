@@ -5,6 +5,15 @@ CHANGE LOG
 2 | maintainer@emeraldcoastsystemsgroup.com | Find faces locally in a bounded worker while preserving newer photos and manual boxes.
 3 | maintainer@emeraldcoastsystemsgroup.com | 1.15.0: a Use my brand colors button adds the Create brand kit's colors, in words, to the portrait notes.
 4 | maintainer@emeraldcoastsystemsgroup.com | 1.15.2: the family audience view (ADR-164 D6) for the Home shell. With ?audience=family the shared kit paints the signed-in account's saved portraits in plain words from GET /portraits (the gallery read) and GET /catalog (static style names): ready, waiting or being made and did-not-finish counts, the newest portraits as tiles that open the picture in a new tab, and honest signed-out, refused and failure states. Both body scripts (the brand-kit read and the studio start) are gated on the kit's decision, so the view never probes the image provider, reads permissions or the brand kit, polls, redeems an artifact handle or installs the camera and face finder.
+5 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (grade D, P0): Generate sat near y=11,800 behind a duplicate settings column. The three steps now live in the work area behind a '1 Photo · 2 Style · 3 Generate' stepper, one step at a time, and the inspector holds only the face crop's properties; the 'Generation brief / Generation settings' copy is gone, so Step 3's #notes and #tune* (the set Generate reads) are the one set.
+6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05: the source-document wrapper leaves the first screen. Source title, New source, Save source, Save copy and Reload saved open from one document menu named by the source in the app row; Undo crop and Redo crop are icons drawn only once a photo is loaded (§5.1, DS-27).
+7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05: Mode is a segmented control whose selected segment is inverted ink, not the accent fill (§4.1, DS-24); the Style step is a grid of picture tiles with one-line names, 44px category chips, and the chosen profile's description shown on tap, above the grid, instead of every description inline; Back and Next stay at the bottom of the work while a long step scrolls; the engine banner becomes one meta line beside Generate, shown only while the image model is asleep (§4.8).
+8 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 SPLIT (N2, R2): Your portraits and the studio are two views of the page. Once portraits exist, Your portraits is the first screen (the portraits newest first as a grid, saved photo sources as a second row, one New portrait at the bottom right); with none the studio opens on Step 1. The 150px gallery strip and the embedded 'Ask about this document' Concierge column are gone; the shell's Concierge reads the same registered document session.
+9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05: Add a photo (This device, Use camera, Choose from OSHAL) leads the drop zone as Step 1's primary, in the top third of the work; on a phone the app row drops the repeated page heading, Step 1 its heading (the stepper names it) and the drop zone its large camera glyph, to keep it there.
+10 | maintainer@emeraldcoastsystemsgroup.com | The production check (412x915): at Step 3 the sticky step bar showed only Back while Generate sat just below the fold. Generate portrait now sits in that sticky bar beside Back, so Step 3's one primary is always on screen; the engine line sits directly under it while the model is asleep.
+11 | maintainer@emeraldcoastsystemsgroup.com | New portrait carries data-ef-floating (kernel PR #197), so on a phone the shell orb rests above it instead of on it.
+12 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06 (F15): "when you get to the last step there is no way to generate the image". Step 3 hid Generate from anyone without the create permission (every trial visitor holds source editing only), leaving Back alone. Generate is now always drawn at Step 3 under its own name, disabled with one plain line beside it that says why and what makes it work (access, no image model, no photo yet, no style, the group's face count). The stepper is numbered circles with the current step in ink, Step 1 says what the next two steps do, each step's sticky bar is marked data-ef-floating so the orb rests above Next and Generate, the asleep line also reads the native kernel's answer (which carries no ready field), and a first press that only wakes the image model waits for it and sends the same portrait again once, instead of asking the person to press twice.
+13 | maintainer@emeraldcoastsystemsgroup.com | 1.17.4: Roger, 2026-11-06: bound Step 1's cropper inside a compact centered frame (#cropStage max-width 520px, #cropCanvas width:auto capped to <=460x340px) so uploading a photo never expands across the full page, and convert Step 3 into a compact two-column stage pairing a live cropped/generated image preview (#step3Preview) with a two-column minor-adjustment grid (#tuneOpts) while keeping Generate on the first screen.
 
   Portrait Studio — upload a photo, crop the head, generate a portrait.
   Three modes: Professional (studio headshot), Character (the fun side:
@@ -162,10 +171,11 @@ CHANGE LOG
   header h1 { font-size: 22px; margin: 0; letter-spacing: .3px; }
   header .sub { color: var(--dim); font-size: 13px; }
 
-  .mode-toggle { margin-left: auto; display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
-  .mode-toggle button { border: 0; background: transparent; color: var(--dim); padding: 7px 18px; border-radius: 999px; cursor: pointer; font-size: 13.5px; font-weight: 600; }
-  .mode-toggle button.active { background: var(--accent); color: #06121f; }
-  .mode-toggle button#modeCharacter.active { background: var(--accent2); }
+  /* Mode is a segmented control: the selected segment is inverted ink, never the accent fill, so it never reads as a
+     second primary (design standard §4.1 Selected, DS-24). */
+  .mode-toggle { margin-left: auto; display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 2px; gap: 2px; }
+  .mode-toggle button { border: 0; background: transparent; color: var(--text); min-height: 40px; padding: 0 16px; border-radius: 8px; cursor: pointer; font-size: 13.5px; font-weight: 600; }
+  .mode-toggle button.active { background: var(--text-primary, var(--text)); color: var(--bg-primary, var(--bg)); }
 
   .grid { display: grid; grid-template-columns: minmax(340px, 520px) 1fr; gap: 18px; align-items: start; }
   @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
@@ -181,7 +191,7 @@ CHANGE LOG
   .src-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
   .src-row button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
   .src-row button:hover { border-color: var(--accent); }
-  #cropStage { display: none; }
+  #cropStage { display: none; max-width: 520px; margin: 0 auto; }
 
   /* Live camera */
   #camModal { display: none; position: fixed; inset: 0; z-index: 40; background: rgba(4,8,12,.82); align-items: center; justify-content: center; padding: 18px; }
@@ -197,8 +207,8 @@ CHANGE LOG
   #camStatus { color: var(--dim); font-size: 12px; margin-top: 8px; min-height: 16px; }
   #camStatus.err { color: var(--err); }
 
-  #cropCanvasWrap { position: relative; width: 100%; user-select: none; touch-action: none; }
-  #cropCanvas { width: 100%; display: block; border-radius: 8px; background: #000; }
+  #cropCanvasWrap { position: relative; width: 100%; max-width: 480px; margin: 0 auto; padding: 8px; display: flex; justify-content: center; align-items: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; user-select: none; touch-action: none; }
+  #cropCanvas { width: auto; max-width: 100%; height: auto; display: block; border-radius: 6px; background: var(--bg-primary, #000); }
   .crop-tools { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
   .crop-tools .aspect { display: flex; gap: 4px; }
   .crop-tools .aspect button { background: var(--panel2); color: var(--dim); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: 12.5px; }
@@ -206,7 +216,6 @@ CHANGE LOG
   .hint { color: var(--dim); font-size: 12px; margin-top: 8px; }
 
   /* Group mode: a third accent + the face toolbar */
-  .mode-toggle button#modeGroup.active { background: var(--ok); }
   body.mode-group .card.active { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok); }
   body.mode-group #generateBtn { background: var(--ok); }
   body.mode-group .cam-actions button#camSnap { background: var(--ok); }
@@ -235,13 +244,13 @@ CHANGE LOG
   .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   body.mode-character .card.active { border-color: var(--accent2); box-shadow: 0 0 0 1px var(--accent2); }
   .card .ico { font-size: 26px; }
-  .card .name { font-weight: 600; font-size: 12.5px; margin-top: 6px; }
-  .card .desc { color: var(--dim); font-size: 11px; margin-top: 2px; min-height: 26px; }
+  .card { font: inherit; color: var(--text); min-height: 44px; min-width: 0; }
+  .card .name { font-weight: 600; font-size: 12.5px; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  .opts { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
-  .opt-group { flex: 1; min-width: 170px; }
-  .opt-group label { display: block; color: var(--dim); font-size: 12px; margin-bottom: 5px; }
-  .opt-group select, .opt-group input[type=text] { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  .opts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .opt-group { flex: 1; min-width: 0; }
+  .opt-group label { display: block; color: var(--dim); font-size: 11.5px; margin-bottom: 3px; line-height: 1.25; }
+  .opt-group select, .opt-group input[type=text] { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; }
 
   #generateBtn { margin-top: 16px; width: 100%; padding: 13px; border: 0; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; background: var(--accent); color: #06121f; }
   body.mode-character #generateBtn { background: var(--accent2); }
@@ -287,8 +296,21 @@ CHANGE LOG
 .wrap.ef-editor{max-width:none;padding:0;margin:0}.ef-editor #studioComposer{display:contents}.ef-editor .ef-header-slot>header{margin:0;padding:12px 16px;gap:10px;flex-wrap:wrap}
 .ef-editor .ef-header-slot h1{font-size:20px}.ef-editor .ef-header-slot .sub{display:none}.ef-editor .ef-viewport>.panel,.ef-editor .ef-more-tools>.panel{padding:14px;border:0;border-radius:0;overflow:auto;background:transparent}
 .ef-editor .ef-viewport>.panel{height:100%}.ef-editor #gallery{margin:0;padding:14px}.ef-editor .g-grid{grid-template-columns:minmax(0,1fr)}.ef-editor .g-item .acts{display:flex;flex-wrap:wrap;gap:5px}
-.ef-editor #styleCards{grid-template-columns:minmax(0,1fr)}.ef-editor .opts{display:block}.ef-editor .opt-group{margin:12px 0}.ef-editor #cropCanvasWrap{max-width:100%;overflow:hidden}
-.ef-editor #cropCanvas{max-width:100%;height:auto}.ef-editor #providerBanner{margin:0!important}.ef-editor .mode-toggle{flex-wrap:wrap}
+.ef-editor #styleCards{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}.ef-editor #cropCanvasWrap{max-width:480px;overflow:hidden}
+.ef-editor #cropCanvas{width:auto;max-width:100%;height:auto}.ef-editor #providerBanner{margin:0!important}.ef-editor .mode-toggle{flex-wrap:wrap}
+#stepGenerate{max-width:820px}
+.gen-stage{display:grid;grid-template-columns:216px minmax(0,1fr);gap:14px;align-items:start}
+.gen-preview{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.gen-preview-frame{width:100%;min-height:148px;max-height:228px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:6px}
+#step3PreviewCanvas,#step3PreviewImg{max-width:100%;max-height:212px;width:auto;height:auto;display:block;border-radius:6px;object-fit:contain}
+.gen-preview-empty{color:var(--dim);font-size:12px;text-align:center;padding:10px 6px}
+.gen-preview-body{min-width:0}
+.gen-preview-title{font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gen-preview-meta{color:var(--dim);font-size:11.5px;line-height:1.35;margin-top:2px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.gen-controls{min-width:0;display:flex;flex-direction:column;gap:8px}
+.ef-editor #tuneOpts,#tuneOpts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin:0}
+.ef-editor .opt-group{margin:0;min-width:0}.ef-editor .gen-notes{margin:0}
+@media(max-width:760px){.gen-stage{grid-template-columns:1fr;gap:10px}.gen-preview{flex-direction:row;align-items:center;padding:8px 10px;gap:10px}.gen-preview-frame{width:72px;height:84px;min-height:0;max-height:84px;flex:none;padding:4px}#step3PreviewCanvas,#step3PreviewImg{max-height:74px}.ef-editor #stepGenerate>h2{display:none}}
 @media(max-width:800px){.ef-editor button,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor input,.ef-editor select{font-size:16px}.ef-editor .mode-toggle{display:flex;width:100%}.ef-editor .mode-toggle button{flex:1}}
 
 
@@ -296,18 +318,65 @@ CHANGE LOG
 .ef-editor .crop-history-actions button,.ef-editor .source-actions input{min-height:44px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:8px 12px;font:inherit}
 .ef-editor .crop-history-actions button:disabled{opacity:.5}.ef-editor .source-actions label{display:flex;flex-direction:column;gap:4px;flex:1 1 240px;min-width:0}.ef-editor .source-actions input{width:100%;min-width:0}.ef-editor .source-actions button{flex:0 1 auto}
 @media(max-width:800px){.ef-editor .source-actions label{flex-basis:100%}.ef-editor .source-actions button{flex:1 1 auto;font-size:14px}}
+/* Two views: Your portraits (full width, New portrait bottom right) and the studio editor. The editor's navigation
+   column is only the way back, which the app row's "Your portraits" button already is, so it is not drawn. */
+.wrap[data-portrait-view=portraits]>.ef-shell{display:none}.wrap[data-portrait-view=studio]>#gallery{display:none}
+.wrap.ef-editor>#gallery{padding:16px 16px 96px;margin:0}.wrap.ef-editor .g-item .meta{flex-wrap:wrap}.wrap.ef-editor .g-item .meta .lbl{flex-basis:100%}.wrap.ef-editor .g-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.wrap.ef-editor .ef-navigation,.wrap.ef-editor .ef-panes>button[aria-controls$="-navigation"]{display:none!important}
+@media(min-width:801px){.wrap.ef-editor .ef-body{grid-template-columns:minmax(0,1fr) 300px}}
+.source-library h3{font-size:14px;margin:22px 0 8px}.source-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.source-row button{flex:none;min-height:44px;border:1px solid var(--border-color,var(--line));border-radius:10px;background:var(--bg-card,var(--panel));color:var(--text-primary,var(--text));padding:0 14px;font:inherit;cursor:pointer}
+.new-portrait{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:25;min-height:48px;padding:0 20px;border:0;border-radius:12px;background:var(--accent-primary,var(--accent));color:var(--text-on-accent,#fff);font:inherit;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+.back-to-portraits{min-height:44px;border:0;background:transparent;color:var(--text-primary,var(--text));font:inherit;font-weight:600;padding:0 8px;border-radius:8px;cursor:pointer}
+/* The document menu in the app row: the source's name opens its commands. */
+.doc-menu{position:relative}.doc-menu>summary{list-style:none;min-height:44px;display:flex;align-items:center;padding:0 10px;border-radius:8px;cursor:pointer;font-weight:600;color:var(--text-primary,var(--text))}
+.doc-menu>summary::-webkit-details-marker{display:none}.doc-menu>summary:hover{background:var(--bg-card,var(--panel))}
+.doc-menu-panel{position:absolute;z-index:30;top:calc(100% + 4px);left:0;width:min(360px,90vw);display:flex;flex-wrap:wrap;gap:8px;padding:12px;background:var(--bg-card,var(--panel));border:1px solid var(--border-color,var(--line));border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.ef-editor .doc-menu-panel label{flex-basis:100%}
+.icon-button{min-width:44px;font-size:20px!important;line-height:1}
+#cropHistory{display:flex;gap:4px}#cropHistory[hidden]{display:none}
+/* Step 1's primary: Add a photo, This device filled as the one primary. */
+#dropzone .dz-title{font-size:15px;color:var(--text-primary,var(--text))}#dropzone .src-row{margin:10px 0 14px}
+#dropzone .src-row button{min-height:44px;font-size:14px}#dropzone #pickFileBtn{background:var(--accent-primary,var(--accent));color:var(--text-on-accent,#fff);border-color:transparent;font-weight:700}
+.ef-editor #dropzone{padding:18px 14px}
+@media(max-width:800px){.ef-editor #dropzone .big{display:none}.ef-editor .ef-header-slot h1,.ef-editor #stepPhoto>h2{display:none}.ef-editor .ef-header-slot>header{padding:8px 12px;gap:6px}}
+/* The stepper and its steps: only the current step's pane is drawn. */
+/* A numbered stepper, as image and portrait generators draw one: a circle per step, the current one filled with ink, a rule between. */
+.stepper{display:flex;align-items:center;gap:4px;color:var(--dim);font-size:13.5px}
+.stepper button{min-height:44px;border:0;background:transparent;color:var(--dim);font:inherit;font-weight:600;padding:0 6px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.stepper .step-num{display:inline-block;box-sizing:border-box;width:26px;height:26px;line-height:23px;text-align:center;vertical-align:middle;border-radius:50%;border:1.5px solid currentColor;font-size:13px;font-weight:700;margin:0 2px 2px 0}
+.stepper button[aria-current=step]{color:var(--text-primary,var(--text))}
+.stepper button[aria-current=step] .step-num{background:var(--text-primary,var(--text));border-color:var(--text-primary,var(--text));color:var(--bg-primary,var(--bg))}
+.stepper .step-sep{flex:1 1 12px;min-width:10px;max-width:40px;height:2px;border-radius:1px;background:var(--border-color,var(--line))}
+#dropzone .steps-lead{margin:0 0 10px;color:var(--text-secondary,var(--dim));font-size:13.5px}
+.step-nav-generate #generateWhy{margin:0;flex:1 1 100%;order:4;color:var(--text-secondary,var(--dim))}
+#providerBanner.at-generate{display:none!important}
+#portraitSteps>.step-pane{display:none}#portraitSteps[data-step="1"]>[data-step-pane="1"],#portraitSteps[data-step="2"]>[data-step-pane="2"],#portraitSteps[data-step="3"]>[data-step-pane="3"]{display:block}
+/* Back and Next stay in reach at the bottom of the work while a long step scrolls. */
+.step-nav{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;position:sticky;bottom:0;z-index:2;padding:10px 0;background:var(--bg-primary,var(--bg))}
+.step-nav button{min-height:44px;border-radius:10px;padding:0 18px;font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--border-color,var(--line));background:var(--bg-card,var(--panel));color:var(--text-primary,var(--text))}
+.step-nav .step-back{margin-right:auto}
+.step-nav-generate{align-items:center;flex-wrap:wrap}.step-nav-generate #generateBtn{margin-top:0;width:auto;flex:1 1 180px;min-height:48px}.step-nav-generate #engineMeta{margin:0;flex:1 1 100%;order:3}
+@media(max-width:800px){.ef-editor .stepper{width:100%;justify-content:space-between}}
 
 </style>
 </head>
 <body class="mode-professional">
-<div class="wrap">
+<div class="wrap" data-portrait-view="studio">
   <header>
+    <button type="button" class="back-to-portraits" id="toPortraits" hidden>‹ Your portraits</button>
     <h1>🎨 Portrait Studio</h1>
     <span class="sub">Upload a photo → crop the head (or every head) → get a portrait worth framing.</span>
-    <div class="mode-toggle">
-      <button id="modeProfessional" class="active">💼 Professional</button>
-      <button id="modeCharacter">🎭 Character</button>
-      <button id="modeGroup">👥 Group</button>
+    <!-- One step at a time (docs/ux/design-standard.md §5.3): the stepper names the three steps and shows where you are. -->
+    <nav class="stepper" id="stepper" aria-label="Portrait steps">
+      <button type="button" data-step-go="1" aria-current="step"><span class="step-num">1</span> Photo</button><span class="step-sep" aria-hidden="true"></span>
+      <button type="button" data-step-go="2"><span class="step-num">2</span> Style</button><span class="step-sep" aria-hidden="true"></span>
+      <button type="button" data-step-go="3"><span class="step-num">3</span> Generate</button>
+    </nav>
+    <div class="mode-toggle" role="group" aria-label="Mode">
+      <button type="button" id="modeProfessional" class="active" aria-pressed="true">💼 Professional</button>
+      <button type="button" id="modeCharacter" aria-pressed="false">🎭 Character</button>
+      <button type="button" id="modeGroup" aria-pressed="false">👥 Group</button>
     </div>
   </header>
 
@@ -316,19 +385,24 @@ CHANGE LOG
        phone page, so a person picked a style and a photo before learning nothing could be generated. -->
   <div id="providerBanner" role="status" style="display:none;margin:0 0 12px;padding:10px 12px;border:1px solid #6b4a1f;background:rgba(255,180,84,.08);border-radius:8px;color:#ffb454;font-size:12.5px;"></div>
   <div class="grid" id="studioComposer" hidden>
-    <!-- LEFT: photo + crop -->
-    <div class="panel">
+    <!-- The work: the three steps, one shown at a time (data-step). Generate reads Step 3's #notes and #tune* only. -->
+    <div class="panel" id="portraitSteps" data-step="1">
+    <section class="step-pane" id="stepPhoto" data-step-pane="1" aria-label="Step 1, Photo">
       <h2><span class="step">Step 1</span> Photo</h2>
+      <!-- Add a photo is Step 1's primary, first in the drop zone so it sits in the top third of the work. -->
       <div id="dropzone">
-        <div class="big">📷</div>
-        <div><b>Drop a photo here</b> or click to choose</div>
-        <div class="hint">A person for a headshot, your pet for a character portrait — or a group of up to six faces. In Group mode you can add several photos and pull a face from each. JPEG/PNG/WebP, up to 20&nbsp;MB.</div>
+        <div class="dz-title"><b>Add a photo</b></div>
         <div class="src-row">
           <button type="button" id="pickFileBtn">🗂️ This device</button>
           <button type="button" id="useCameraBtn" style="display:none">📷 Use camera</button>
           <button type="button" id="browseFilesBtn">Choose from OSHAL</button>
         </div>
+        <!-- What happens after the photo, in one line, so the first screen names the whole flow (Roger, 2026-11-06). -->
+        <p class="steps-lead" id="stepsLead">Next you pick a style, then press Generate to make the portrait.</p>
         <div class="hint" id="cameraHint" style="display:none"></div>
+        <div class="big">📷</div>
+        <div>or <b>drop a photo here</b></div>
+        <div class="hint">A person for a headshot, your pet for a character portrait — or a group of up to six faces. In Group mode you can add several photos and pull a face from each. JPEG/PNG/WebP, up to 20&nbsp;MB.</div>
         <input type="file" id="fileInput" accept="image/*" hidden>
         <input type="file" id="cameraInput" accept="image/*" capture="user" hidden>
       </div>
@@ -353,59 +427,86 @@ CHANGE LOG
         <div class="photo-strip" id="photoStrip"></div>
         <div class="hint" id="cropHint">Drag the box over the face/head (include a little space above the head). Drag corners to resize.</div>
       </div>
-    </div>
+      <div class="step-nav" data-ef-floating><button type="button" class="step-next" data-step-go="2">Next: Style</button></div>
+    </section>
 
-    <!-- RIGHT: style + generate -->
-    <div class="panel">
+    <section class="step-pane" id="stepStyle" data-step-pane="2" aria-label="Step 2, Style">
       <h2><span class="step">Step 2</span> <span id="styleTitle">Pick a profile</span></h2>
-      <div id="groupChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+      <div id="groupChips" style="display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;margin-bottom:10px;padding-bottom:2px;"></div>
+      <p class="hint" id="styleDetail" role="status" hidden></p>
       <div class="cards" id="styleCards"></div>
+      <div class="step-nav" data-ef-floating><button type="button" class="step-back" data-step-go="1">Back</button><button type="button" class="step-next" data-step-go="3">Next: Generate</button></div>
+    </section>
 
-      <h2 style="margin-top:18px"><span class="step">Step 3</span> Generation settings</h2>
-      <div class="opts" id="tuneOpts">
-        <div class="opt-group">
-          <label for="tuneBackground">Background</label>
-          <select id="tuneBackground" data-layer="background"></select>
-        </div>
-        <div class="opt-group">
-          <label for="tuneAttire">Clothing</label>
-          <select id="tuneAttire" data-layer="attire"></select>
-        </div>
-        <div class="opt-group">
-          <label for="tuneHeadwear">Hat</label>
-          <select id="tuneHeadwear" data-layer="headwear"></select>
-        </div>
-        <div class="opt-group">
-          <label for="tuneProp">Prop (in hand)</label>
-          <select id="tuneProp" data-layer="prop"></select>
-        </div>
-        <div class="opt-group">
-          <label for="tuneFinish">Finish</label>
-          <select id="tuneFinish" data-layer="finish"></select>
-        </div>
-        <div class="opt-group">
-          <label for="tuneFraming">Framing</label>
-          <select id="tuneFraming" data-layer="framing"></select>
+    <section class="step-pane" id="stepGenerate" data-step-pane="3" aria-label="Step 3, Generate">
+      <h2><span class="step">Step 3</span> Preview &amp; minor adjustments</h2>
+      <div class="gen-stage" id="step3Stage">
+        <aside class="gen-preview" id="step3Preview" aria-label="Portrait preview">
+          <div class="gen-preview-frame" id="step3PreviewFrame">
+            <canvas id="step3PreviewCanvas" hidden></canvas>
+            <img id="step3PreviewImg" alt="Generated portrait preview" hidden>
+            <div class="gen-preview-empty" id="step3PreviewEmpty">Add a photo in Step 1 to preview your crop here.</div>
+          </div>
+          <div class="gen-preview-body">
+            <div class="gen-preview-title" id="step3PreviewTitle">Pick a style</div>
+            <div class="gen-preview-meta" id="step3PreviewMeta">Preset defaults are loaded — adjust only what you want to customize.</div>
+          </div>
+        </aside>
+        <div class="gen-controls">
+          <div class="opts" id="tuneOpts">
+            <div class="opt-group">
+              <label for="tuneBackground">Background</label>
+              <select id="tuneBackground" data-layer="background"></select>
+            </div>
+            <div class="opt-group">
+              <label for="tuneAttire">Clothing</label>
+              <select id="tuneAttire" data-layer="attire"></select>
+            </div>
+            <div class="opt-group">
+              <label for="tuneHeadwear">Hat</label>
+              <select id="tuneHeadwear" data-layer="headwear"></select>
+            </div>
+            <div class="opt-group">
+              <label for="tuneProp">Prop (in hand)</label>
+              <select id="tuneProp" data-layer="prop"></select>
+            </div>
+            <div class="opt-group">
+              <label for="tuneFinish">Finish</label>
+              <select id="tuneFinish" data-layer="finish"></select>
+            </div>
+            <div class="opt-group">
+              <label for="tuneFraming">Framing</label>
+              <select id="tuneFraming" data-layer="framing"></select>
+            </div>
+          </div>
+
+          <div class="opts gen-notes">
+            <div class="opt-group" style="flex-basis:100%">
+              <label for="notes">Anything else? (optional)</label>
+              <input type="text" id="notes" maxlength="300" placeholder="e.g. warm smile, glasses on, teal background…">
+              <button type="button" class="brand-chip" id="brandNotes" data-brand-target="notes" hidden>🎨 Use my brand colors</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="opts">
-        <div class="opt-group" style="flex-basis:100%">
-          <label for="notes">Anything else? (optional)</label>
-          <input type="text" id="notes" maxlength="300" placeholder="e.g. warm smile, glasses on, teal background…">
-          <button type="button" class="brand-chip" id="brandNotes" data-brand-target="notes" hidden>🎨 Use my brand colors</button>
-        </div>
-      </div>
-
-      <button id="generateBtn" disabled>Upload a photo first</button>
-      <div id="genStatus"></div>
+      <!-- Generate is ALWAYS drawn here under its own name; when it cannot run, #generateWhy says why and what makes it work. -->
+      <div class="step-nav step-nav-generate" data-ef-floating><button type="button" class="step-back" data-step-go="2">Back</button><p class="hint" id="engineMeta" hidden></p><button id="generateBtn" disabled>✨ Generate my headshot</button><p class="hint" id="generateWhy" role="status" hidden></p></div>
+    </section>
+    <!-- One status line under whichever step is shown: saving a source, finding faces and generating all report here. -->
+    <div id="genStatus" role="status" aria-live="polite"></div>
     </div>
+    <!-- The inspector: the selected face crop's properties (the shared editor draws them). Generation settings live in Step 3 only. -->
+    <div class="panel" id="portraitInspector"></div>
   </div>
 
+  <!-- Your portraits (N2): the first screen once portraits exist. Generated portraits newest first as a grid, saved
+       photo sources as a second row, one New portrait at the bottom right. With none, the studio opens on Step 1 (R2). -->
   <div id="gallery" hidden>
     <h2>Your portraits</h2><p class="hint">Generated portraits are rendered images. Edit or send an image to add editable text, shapes and image layers in an editor.</p>
     <div class="g-grid" id="galleryGrid"></div>
     <div class="empty" id="galleryEmpty" style="display:none">Nothing here yet — your generated portraits will appear in this gallery.</div>
+    <button type="button" class="new-portrait" id="newPortraitBtn" hidden data-ef-floating>＋ New portrait</button>
   </div>
 </div>
 
@@ -503,7 +604,9 @@ if (!window.AppView || !AppView.active()) (function () {
     photo: 0,             // index of the photo being edited (img/crops/active above are its working set)
     aspect: 0.8,          // w/h of the crop box
     generating: false,
-    pollTimer: null
+    pollTimer: null,
+    lastGeneratedUrl: '',
+    pendingPreviewId: null
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -519,7 +622,7 @@ if (!window.AppView || !AppView.active()) (function () {
     if (portraitSettingsPanel) portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId;
     portraitEditor?.refresh(); updateCropButtons();
     $('gallery').hidden = !can('read');
-    document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId;
+    document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId; $('stepper').hidden = !canCreateSource() && !portraitSourceId;
     // Plain words: what this person can do, what they cannot, and who can change it (no role or broker names).
     $('accessBanner').textContent = !can('view') ? 'Portrait Studio is not open to your account. Ask an administrator for access.' :
       !can('read') ? 'You can open the studio, but your saved portraits are not shown to your account. Ask an administrator for access to them.' :
@@ -568,6 +671,7 @@ if (!window.AppView || !AppView.active()) (function () {
     if (history.past[history.past.length - 1] !== value) { history.past.push(value); if (history.past.length > 50) history.past.shift(); history.future = []; } updateCropButtons(); }
   function updateCropButtons() {
     var history = cropHistory();
+    if ($('cropHistory')) $('cropHistory').hidden = !state.img;
     if ($('undoCrop')) $('undoCrop').disabled = !sourceEditable() || !history || history.past.length < 2;
     if ($('redoCrop')) $('redoCrop').disabled = !sourceEditable() || !history || !history.future.length;
   }
@@ -577,10 +681,11 @@ if (!window.AppView || !AppView.active()) (function () {
     state.crops = JSON.parse(history.past[history.past.length - 1]); state.active = Math.min(state.active, state.crops.length - 1);
     syncPhoto(); drawCrop(); updateFaceTools();
   }
+  // The inspector holds the selected face crop only. Generation notes and settings are Step 3's #notes and #tune*
+  // (what Generate reads); a second copy of them here was the duplicate column the 2026-11-05 audit found.
   function portraitProperties() {
-    var fields = [{ key: 'notes', label: 'Generation notes', type: 'text', value: $('notes').value, group: 'Generation brief' }], box = cur();
+    var fields = [], box = cur();
     if (box) ['x', 'y', 'w', 'h'].forEach(function (key) { fields.push({ key: 'crop-' + key, label: ({ x: 'X', y: 'Y', w: 'Width', h: 'Height' })[key], type: 'number', value: Math.round(box[key] * 100000) / 100000, min: key === 'x' || key === 'y' ? 0 : 1, max: key === 'x' || key === 'w' ? imgW() : imgH(), step: 'any', unit: 'source px', group: 'Face crop' }); });
-    document.querySelectorAll('#tuneOpts select').forEach(function (field) { if (field.options.length) fields.push({ key: field.id, label: field.closest('.opt-group').querySelector('label').textContent, type: 'select', value: field.value, options: [...field.options].map(function (option) { return { value: option.value, label: option.textContent }; }), group: 'Generation settings' }); });
     return fields;
   }
   function applyPortraitProperty(key, value, expected) {
@@ -592,11 +697,38 @@ if (!window.AppView || !AppView.active()) (function () {
       if (![next.x, next.y, next.w, next.h].every(Number.isFinite) || next.x < 0 || next.y < 0 || next.w < 1 || next.h < 1 || next.x + next.w > imgW() || next.y + next.h > imgH()) throw Error('Keep the complete crop inside the source photo. Width and height retain the selected aspect ratio.');
       Object.assign(box, next); syncPhoto(); drawCrop(); return;
     }
-    var control = $(key); if (!portraitProperties().some(function (field) { return field.key === key; }) || !control) throw Error('This portrait property is unavailable.');
-    if (control.tagName === 'SELECT' && ![...control.options].some(function (option) { return option.value === value; })) throw Error('Choose a generation setting from its catalog.');
-    if (control.maxLength > 0 && String(value).length > control.maxLength) throw Error('Shorten the generation notes.');
-    control.value = value; control.dispatchEvent(new Event('input', { bubbles: true })); control.dispatchEvent(new Event('change', { bubbles: true }));
+    throw Error('This portrait property is unavailable.');
   }
+  // ── two views in one package: Your portraits, and the studio (N2, R2) ─────
+  var portraitViewChosen = false;
+  function showView(view) {
+    var portraits = view === 'portraits' && can('read');
+    document.querySelector('.wrap').dataset.portraitView = portraits ? 'portraits' : 'studio';
+    $('toPortraits').hidden = portraits || !can('read'); $('newPortraitBtn').hidden = !portraits || !canCreateSource();
+    if (!portraits) { showStep(portraitStep); portraitEditor?.refresh(); }
+  }
+  /** @description The first screen, decided once from the first gallery read: Your portraits once any exist, else Step 1. @param {Array} rows - The gallery rows. @returns {void} */
+  function chooseFirstView(rows) {
+    if (portraitViewChosen) return; portraitViewChosen = true;
+    showView(!canCreateSource() || rows.length ? 'portraits' : 'studio');
+  }
+  $('toPortraits').onclick = function () { showView('portraits'); refreshGallery(); };
+  // New portrait starts a fresh source (newSource asks before discarding an unsaved one) and opens Step 1.
+  $('newPortraitBtn').onclick = function () { if (portraitSourceTitle) newSource(); showStep(1); showView('studio'); };
+  // ── the stepper: one step's controls at a time (§5.3) ──────────────────────
+  var portraitStep = 1;
+  function showStep(step) {
+    portraitStep = [1, 2, 3].indexOf(Number(step)) < 0 ? 1 : Number(step);
+    $('portraitSteps').dataset.step = String(portraitStep);
+    document.querySelectorAll('#stepper [data-step-go]').forEach(function (button) { if (Number(button.dataset.stepGo) === portraitStep) button.setAttribute('aria-current', 'step'); else button.removeAttribute('aria-current'); });
+    var scroller = $('portraitSteps').closest('.ef-viewport') || $('portraitSteps'); scroller.scrollTop = 0; $('portraitSteps').scrollTop = 0;
+    if (portraitStep === 1 && state.img) { sizeCanvas(); drawCrop(); }
+    if (portraitStep === 3) renderStep3Preview();
+    // Step 3 carries the engine's reason beside Generate, so the banner above the work would say it twice.
+    $('providerBanner').classList.toggle('at-generate', portraitStep === 3);
+    portraitEditor?.refresh();
+  }
+  document.addEventListener('click', function (event) { var go = event.target.closest && event.target.closest('[data-step-go]'); if (go) showStep(go.dataset.stepGo); });
   // The original photo Blob is retained until an owned immutable source asset is acknowledged.
   var originalPhotoFiles = new WeakMap(), photoAssets = new WeakMap(), photoAssetRequests = new WeakMap();
   var photoLoadEpoch = 0, portraitSourceId = null, portraitSourceRevision = 0, portraitSourceBaseline = null;
@@ -610,8 +742,8 @@ if (!window.AppView || !AppView.active()) (function () {
   function sourceDirty() { return JSON.stringify(sourceDraft()) !== portraitSourceBaseline || Boolean(portraitEditor?.hasPending()); }
   async function sourceRequest(path, options) { var response = await fetch(API + path, Object.assign({ credentials: 'same-origin', cache: 'no-store' }, options)); var body = await response.json().catch(function () { return {}; }); if (!response.ok) throw Error(body.error || 'Source request refused (' + response.status + ').'); return body; }
   function sourceEditable() { return canCreateSource() || Boolean(portraitSourceId && can('change')); }
-  function sourceNotify() { $('studioComposer').hidden = !canCreateSource() && !portraitSourceId; document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId; if (portraitPhotoPanel) portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; if (portraitSettingsPanel) portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId; $('generateBtn').hidden = !can('create'); if (portraitSourceTitle) portraitSourceTitle.disabled = !sourceEditable(); portraitEditor?.refresh(); portraitAssistant?.refresh(); if (portraitSourceSaveButton) portraitSourceSaveButton.disabled = portraitSourceBusy || !(portraitSourceId ? can('change') : canCreateSource()); }
-  async function listSources() { if (!portraitSourceLibrary) return; try { var data = await sourceRequest('/source-projects'); portraitSourceLibrary.replaceChildren(); data.projects.forEach(function (project) { var button = document.createElement('button'); button.type = 'button'; button.textContent = project.title + ' · revision ' + project.revision; button.onclick = function () { openSource(project.id).catch(function (error) { setStatus(error.message, true); }); }; portraitSourceLibrary.append(button); }); if (!data.projects.length) portraitSourceLibrary.textContent = 'No saved photo sources yet.'; } catch (error) { portraitSourceLibrary.textContent = 'Saved photo sources unavailable: ' + error.message; } }
+  function sourceNotify() { $('studioComposer').hidden = !canCreateSource() && !portraitSourceId; document.querySelector('.mode-toggle').hidden = !canCreateSource() && !portraitSourceId; $('stepper').hidden = !canCreateSource() && !portraitSourceId; if (portraitPhotoPanel) portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; if (portraitSettingsPanel) portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId; $('generateBtn').hidden = false; if (portraitSourceTitle) portraitSourceTitle.disabled = !sourceEditable(); if (portraitSourceName && portraitSourceTitle) portraitSourceName.textContent = portraitSourceTitle.value.trim() || 'Portrait source'; portraitEditor?.refresh(); portraitAssistant?.refresh(); if (portraitSourceSaveButton) portraitSourceSaveButton.disabled = portraitSourceBusy || !(portraitSourceId ? can('change') : canCreateSource()); }
+  async function listSources() { if (!portraitSourceLibrary) return; try { var data = await sourceRequest('/source-projects'); portraitSourceLibrary.replaceChildren(); data.projects.forEach(function (project) { var button = document.createElement('button'); button.type = 'button'; button.textContent = project.title + ' · revision ' + project.revision; button.onclick = function () { showView('studio'); openSource(project.id).catch(function (error) { setStatus(error.message, true); }); }; portraitSourceLibrary.append(button); }); if (!data.projects.length) portraitSourceLibrary.textContent = 'No saved photo sources yet.'; } catch (error) { portraitSourceLibrary.textContent = 'Saved photo sources unavailable: ' + error.message; } }
   async function saveSource(copy) {
     if (portraitSourceBusy || state.generating) throw Error('Wait for the current source operation.');
     document.activeElement?.blur(); await portraitEditor?.flushPending();
@@ -657,34 +789,40 @@ if (!window.AppView || !AppView.active()) (function () {
     } finally { portraitSourceBusy = false; sourceNotify(); }
   }
   function newSource() { if (portraitSourceBusy || state.generating || !sourceReplaceAllowed()) return; portraitEditor?.discardPending(); ++photoLoadEpoch; faceFinder?.cancel(); closeCamera(); portraitSourceId = null; portraitSourceRevision = 0; emptyPortraitDraft = 'portrait-draft:' + crypto.randomUUID(); portraitSourcePending = null; state.photos = []; state.img = null; state.crops = []; state.active = 0; state.photo = 0; portraitSourceTitle.value = 'Portrait source'; $('notes').value = ''; $('cropStage').style.display = 'none'; dz.style.display = ''; renderPhotoStrip(); updateGenerateBtn(); portraitSourceBaseline = JSON.stringify(sourceDraft()); sourceNotify(); }
-  var portraitSourceSaveButton;
+  var portraitSourceSaveButton, portraitSourceName;
   async function mountPortraitSource() {
-    var header = document.querySelector('.wrap header'), row = document.createElement('div'); row.className = 'crop-history-actions source-actions';
+    // The source document's commands live in ONE document menu in the app row, named by the source (§5.1, DS-27),
+    // not as a title field and four buttons above the work.
+    var header = document.querySelector('.wrap header'), row = document.createElement('div'), menu = document.createElement('details'), summary = document.createElement('summary'); row.className = 'crop-history-actions source-actions doc-menu-panel';
+    menu.className = 'doc-menu'; menu.id = 'sourceMenu'; portraitSourceName = document.createElement('span'); portraitSourceName.className = 'doc-name'; portraitSourceName.textContent = 'Portrait source'; summary.append(portraitSourceName, document.createTextNode(' ▾')); menu.append(summary, row);
     var label = document.createElement('label'); label.textContent = 'Source title'; portraitSourceTitle = document.createElement('input'); portraitSourceTitle.maxLength = 120; portraitSourceTitle.value = 'Portrait source'; portraitSourceTitle.addEventListener('input', sourceNotify); label.append(portraitSourceTitle); row.append(label);
-    [['New source', newSource], ['Save source', function () { return saveSource(false); }], ['Save copy', function () { return saveSource(true); }], ['Reload saved', function () { if (portraitSourceId) return openSource(portraitSourceId); }]].forEach(function (entry) { var button = document.createElement('button'); button.type = 'button'; button.textContent = entry[0]; if (entry[0] === 'Save source') portraitSourceSaveButton = button; button.onclick = function () { Promise.resolve().then(entry[1]).catch(function (error) { setStatus(error.message, true); }); }; row.append(button); }); header.append(row);
-    var library = document.createElement('section'), heading = document.createElement('h3'); heading.textContent = 'Saved photo sources'; portraitSourceLibrary = document.createElement('div'); library.append(heading, portraitSourceLibrary); $('gallery').prepend(library); portraitSourceBaseline = JSON.stringify(sourceDraft()); sourceNotify(); await listSources();
+    [['New source', newSource], ['Save source', function () { return saveSource(false); }], ['Save copy', function () { return saveSource(true); }], ['Reload saved', function () { if (portraitSourceId) return openSource(portraitSourceId); }]].forEach(function (entry) { var button = document.createElement('button'); button.type = 'button'; button.textContent = entry[0]; if (entry[0] === 'Save source') portraitSourceSaveButton = button; button.onclick = function () { menu.open = false; Promise.resolve().then(entry[1]).catch(function (error) { setStatus(error.message, true); }); }; row.append(button); }); header.querySelector('h1').after(menu);
+    var library = document.createElement('section'), heading = document.createElement('h3'); heading.textContent = 'Saved photo sources'; portraitSourceLibrary = document.createElement('div'); library.className = 'source-library'; portraitSourceLibrary.className = 'source-row'; library.append(heading, portraitSourceLibrary); $('galleryEmpty').after(library); portraitSourceBaseline = JSON.stringify(sourceDraft()); sourceNotify(); await listSources();
     var handoff = await import('/shared/ui/js/document-handoff.js'); portraitSourceSession = { app: 'portrait-studio', prepare: async function () { for (var attempt = 0; attempt < 3 && (!portraitSourceId || sourceDirty()); attempt++) await saveSource(); if (sourceDirty() || !portraitSourceId) throw Error('Finish your source edit before asking the assistant.'); return { app: 'portrait-studio', selection: portraitContext().selection, screen: 'source-editor', surface: 'portrait-source', title: sourceDraft().title, recordId: portraitSourceId, digest: 'Owned original photo/crop source. Use the typed source tools and current revision. Generated portraits remain separate outputs.', can: [], customOps: [], fields: { available: true, readOnly: !can('change'), revision: portraitSourceRevision, saved: true, draft: false, cropId: cur() ? portraitIdentity(cur(), cropIdentities) : null } }; }, refresh: async function (expected) { if (expected?.recordId && expected.recordId !== portraitSourceId) return; if (portraitSourceId) await openSource(portraitSourceId, true); } }; handoff.registerDocumentSession(portraitSourceSession); portraitAssistant?.refresh();
     document.querySelector('.wrap').addEventListener('editor-foundation:draft', sourceNotify); window.addEventListener('beforeunload', function (event) { if (sourceDirty()) { event.preventDefault(); event.returnValue = ''; } });
   }
 
   async function mountPortraitWorkspace() {
     var foundation = await import('/shared/ui/js/editor-foundation.js');
-    var assistant = await import('/shared/ui/js/editor-assistant.js');
     var root = document.querySelector('.wrap'), panels = [...$('studioComposer').querySelectorAll(':scope > .panel')];
     portraitPhotoPanel = panels[0]; portraitSettingsPanel = panels[1];
     portraitPhotoPanel.hidden = !canCreateSource() && !portraitSourceId; portraitSettingsPanel.hidden = !canCreateSource() && !portraitSourceId;
     var actions = document.createElement('div'); actions.className = 'crop-history-actions';
-    [['undoCrop','Undo crop',false],['redoCrop','Redo crop',true]].forEach(function (entry) { var button = document.createElement('button'); button.id = entry[0]; button.type = 'button'; button.textContent = entry[1]; button.disabled = true; button.onclick = function () { moveCropHistory(entry[2]); }; actions.append(button); });
+    // Undo and redo crop are icons, drawn only once a photo is loaded (updateCropButtons).
+    actions.id = 'cropHistory'; actions.hidden = true;
+    [['undoCrop','Undo crop',false,'↶'],['redoCrop','Redo crop',true,'↷']].forEach(function (entry) { var button = document.createElement('button'); button.id = entry[0]; button.type = 'button'; button.className = 'icon-button'; button.textContent = entry[3]; button.setAttribute('aria-label', entry[1]); button.title = entry[1]; button.disabled = true; button.onclick = function () { moveCropHistory(entry[2]); }; actions.append(button); });
     root.querySelector('header').append(actions);
     var note = document.createElement('p'); note.className = 'hint'; note.textContent = 'A finished portrait opens as a single image layer. Original photos, crops and generation settings stay in this source project.'; portraitSettingsPanel.prepend(note);
-    portraitAssistant = assistant.createEditorAssistant({ app: 'portrait-studio', bot: 'portrait-artist', title: 'Portrait source AI partner', root: root, prepare: function () { return portraitSourceSession.prepare(); }, refresh: function (context) { return portraitSourceSession.refresh(context); }, getState: function () { return { documentId: portraitContext().documentId, revision: portraitSourceRevision, selection: portraitContext().selection, dirty: portraitSourceTitle ? sourceDirty() : false, busy: !portraitSourceSession || state.generating || portraitSourceBusy }; } });
-    portraitEditor = foundation.createEditorFoundation({ root: root, ai: portraitAssistant.element, navigation: $('gallery'), viewport: portraitPhotoPanel, inspector: portraitSettingsPanel, header: root.querySelector('header'), status: $('accessBanner'),
+    // No embedded "Ask about this document" column: the shell's one Concierge reads the document session registered in
+    // mountPortraitSource (document-handoff). Your portraits is its own view, so the editor's navigation is only the way back.
+    var studioNav = document.createElement('nav'); studioNav.className = 'panel'; studioNav.id = 'studioNav'; studioNav.setAttribute('aria-label', 'Portrait Studio'); root.append(studioNav);
+    portraitEditor = foundation.createEditorFoundation({ root: root, navigation: studioNav, viewport: portraitPhotoPanel, inspector: portraitSettingsPanel, header: root.querySelector('header'),
       getState: function () { var history = cropHistory(); return { documentId: portraitContext().documentId, revision: portraitSourceRevision, title: portraitSourceTitle?.value || 'Portrait Studio', readOnly: !sourceEditable(), busy: state.generating || portraitSourceBusy, dirty: portraitSourceTitle ? sourceDirty() : Boolean(state.img || $('notes').value), canUndo: Boolean(history && history.past.length > 1), canRedo: Boolean(history && history.future.length), status: portraitSourceId ? 'Photo source revision ' + portraitSourceRevision + (sourceDirty() ? ' · unsaved changes' : ' · saved') : 'Unsaved photo source' }; },
       getSelection: function () { return portraitContext().selection; }, getProperties: portraitProperties, applyProperty: applyPortraitProperty,
       actions: { save: function () { return saveSource(false); }, undo: function () { moveCropHistory(false); }, redo: function () { moveCropHistory(true); } } });
     await mountPortraitSource();
     root.addEventListener('input', function () { portraitEditor.refresh(); }); root.addEventListener('change', function () { portraitEditor.refresh(); });
-    new ResizeObserver(function () { if (state.img) { sizeCanvas(); drawCrop(); } }).observe(portraitPhotoPanel);
+    new ResizeObserver(function () { if (state.img && portraitStep === 1) { sizeCanvas(); drawCrop(); } }).observe($('stepPhoto'));
     window.addEventListener('pagehide', function (event) { if (!event.persisted) { portraitAssistant?.destroy(); portraitEditor.destroy(); } }, { once: true });
   }
 
@@ -792,7 +930,8 @@ if (!window.AppView || !AppView.active()) (function () {
       var chip = document.createElement('button');
       var active = state.presetGroup === g;
       chip.textContent = g;
-      chip.style.cssText = 'border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;border:1px solid ' +
+      chip.type = 'button'; chip.setAttribute('aria-pressed', String(active));
+      chip.style.cssText = 'flex:none;border-radius:999px;min-height:44px;padding:0 14px;font-size:13px;cursor:pointer;border:1px solid ' +
         (active ? 'var(--accent);color:#06121f;background:var(--accent);font-weight:700' : 'var(--line);color:var(--dim);background:var(--panel2)');
       chip.onclick = function () { state.presetGroup = g; renderGroupChips(); renderStyles(); };
       host.appendChild(chip);
@@ -804,13 +943,16 @@ if (!window.AppView || !AppView.active()) (function () {
     var list = state.presetGroup === 'All' ? all : all.filter(function (p) { return p.group === state.presetGroup; });
     var host = $('styleCards');
     host.innerHTML = '';
+    // A grid of picture tiles with one-line names; only the chosen profile's description shows (on tap), not all inline.
     list.forEach(function (s) {
-      var el = document.createElement('div');
-      el.className = 'card' + (state.style === s.id ? ' active' : '');
-      el.innerHTML = '<div class="ico">' + s.icon + '</div><div class="name">' + s.label + '</div><div class="desc">' + s.blurb + '</div>';
+      var el = document.createElement('button');
+      el.type = 'button'; el.className = 'card' + (state.style === s.id ? ' active' : ''); el.setAttribute('aria-pressed', String(state.style === s.id)); el.title = s.label;
+      el.innerHTML = '<div class="ico">' + s.icon + '</div><div class="name">' + s.label + '</div>';
       el.onclick = function () { state.style = s.id; renderStyles(); syncTuneToPreset(); updateGenerateBtn(); };
       host.appendChild(el);
     });
+    var chosen = all.find(function (s) { return s.id === state.style; });
+    $('styleDetail').hidden = !chosen; $('styleDetail').textContent = chosen ? chosen.label + ': ' + chosen.blurb : '';
     if (!all.some(function (s) { return s.id === state.style; })) {
       state.style = all.length ? all[0].id : null;
       if (state.style) { renderStyles(); syncTuneToPreset(); }
@@ -869,6 +1011,7 @@ if (!window.AppView || !AppView.active()) (function () {
     $('modeProfessional').classList.toggle('active', mode === 'professional');
     $('modeCharacter').classList.toggle('active', mode === 'character');
     $('modeGroup').classList.toggle('active', mode === 'group');
+    ['Professional', 'Character', 'Group'].forEach(function (name) { $('mode' + name).setAttribute('aria-pressed', String(mode === name.toLowerCase())); });
     $('styleTitle').textContent = mode === 'professional' ? 'Pick a profile' : mode === 'character' ? 'Pick a character' : 'Pick a scene';
     state.presetGroup = 'All';
     renderGroupChips();
@@ -1115,21 +1258,19 @@ if (!window.AppView || !AppView.active()) (function () {
   var view = { scale: 1 }; // canvas px per image px
 
   function sizeCanvas() {
-    var maxW = canvas.parentElement.clientWidth || 480;
+    var wrapW = Math.max(220, (canvas.parentElement.clientWidth || 480) - 16);
+    var maxW = Math.min(wrapW, 460);
+    var maxH = Math.max(200, Math.min(340, Math.round((window.innerHeight || 800) * 0.40)));
     var iw = state.img.naturalWidth, ih = state.img.naturalHeight;
-    view.scale = maxW / iw;
-    canvas.width = maxW;
-    canvas.height = Math.round(ih * view.scale);
-    if (canvas.height > 560) { // very tall photos: cap height, letterbox scale
-      view.scale = 560 / ih;
-      canvas.height = 560;
-      canvas.width = Math.round(iw * view.scale);
-    }
+    view.scale = Math.min(maxW / iw, maxH / ih);
+    canvas.width = Math.max(1, Math.round(iw * view.scale));
+    canvas.height = Math.max(1, Math.round(ih * view.scale));
   }
 
   function drawCrop() {
     if (!state.img) return;
     if (!drag) rememberCrop(); sourceNotify();
+    state.lastGeneratedUrl = '';
     var s = view.scale;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(state.img, 0, 0, canvas.width, canvas.height);
@@ -1315,20 +1456,90 @@ if (!window.AppView || !AppView.active()) (function () {
   });
 
   // ── generate ───────────────────────────────────────────────────────────────
-  function updateGenerateBtn() {
-    portraitEditor?.refresh(); portraitAssistant?.refresh();
-    var btn = $('generateBtn');
-    if (!can('create')) { btn.disabled = true; btn.textContent = 'Creating portraits requires permission'; return; }
-    if (state.engineUnavailable) { btn.disabled = true; btn.textContent = 'Image generation is not available here'; return; }
-    if (!state.img) { btn.disabled = true; btn.textContent = 'Upload a photo first'; return; }
-    if (state.generating) { btn.disabled = true; btn.textContent = 'Generating…'; return; }
-    var total = isGroup() ? totalFaces() : state.crops.length;
-    var reason = isGroup() ? CAP.subjectsRejectReason(total, groupMax()) : null;
-    btn.disabled = !state.style || !!reason;
-    if (reason) { btn.textContent = total < CAP.MIN_GROUP_SUBJECTS ? '👥 Add at least ' + CAP.MIN_GROUP_SUBJECTS + ' faces' : '👥 Too many faces'; return; }
-    btn.textContent = state.mode === 'professional' ? '✨ Generate my headshot'
+  /** @description The Generate button's own name for the current mode. @returns {string} The label. */
+  function generateLabel() {
+    return state.mode === 'professional' ? '✨ Generate my headshot'
       : state.mode === 'character' ? '🎭 Generate my character portrait'
       : '👥 Generate our group portrait';
+  }
+  /**
+   * @description Why Generate cannot run right now, in one plain line that also says what makes it work; empty when it
+   * can. Roger, 2026-11-06: a hidden Generate left Step 3 with Back alone, so the button stays and this line explains it.
+   * @returns {string} The reason, or ''.
+   */
+  function generateBlocker() {
+    if (!can('create')) return 'Generating portraits is not included in your access here. This server\'s administrator can add it.';
+    if (state.engineUnavailable) return state.engineReason || 'Generating needs an image model, and this server has none running.';
+    if (!state.img) return 'Add a photo in Step 1 first.';
+    if (!state.style) return 'Pick a style in Step 2 first.';
+    return isGroup() ? CAP.subjectsRejectReason(totalFaces(), groupMax()) || '' : '';
+  }
+  function drawPreviewCrop(pCanvas) {
+    if (!state.img) return false;
+    if (isGroup()) {
+      var srcs = flatCropSources();
+      if (!srcs.length) return false;
+      var tileW = 104, tileH = Math.max(1, Math.round(tileW / state.aspect));
+      var layout = CAP.sheetLayout(srcs.length, tileW, tileH, 4);
+      pCanvas.width = layout.width; pCanvas.height = layout.height;
+      var g = pCanvas.getContext('2d');
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, pCanvas.width, pCanvas.height);
+      layout.tiles.forEach(function (t) { var sref = srcs[t.index], c = sref.crop; g.drawImage(sref.img, c.x, c.y, c.w, c.h, t.x, t.y, t.w, t.h); });
+      return true;
+    }
+    var c = cur();
+    if (!c) return false;
+    var scale = Math.min(200 / c.w, 220 / c.h);
+    pCanvas.width = Math.max(1, Math.round(c.w * scale));
+    pCanvas.height = Math.max(1, Math.round(c.h * scale));
+    pCanvas.getContext('2d').drawImage(state.img, c.x, c.y, c.w, c.h, 0, 0, pCanvas.width, pCanvas.height);
+    return true;
+  }
+
+  function describeStep3Layers(preset) {
+    var parts = [], over = tuneOverrides();
+    ['attire', 'headwear', 'background', 'finish', 'framing', 'prop'].forEach(function (k) {
+      var id = over[k] || (preset && preset[k]) || '';
+      if (!id || id === 'none') return;
+      var hit = (state.catalog[LAYER_LISTS[k]] || []).find(function (i) { return i.id === id; });
+      if (hit) parts.push(hit.label);
+    });
+    var note = $('notes') ? $('notes').value.trim() : '';
+    if (note) parts.push('“' + note.slice(0, 40) + (note.length > 40 ? '…”' : '”'));
+    return parts.length ? parts.join(' · ') : 'Preset defaults active — tweak any dropdown to customize.';
+  }
+
+  function renderStep3Preview() {
+    var pCanvas = $('step3PreviewCanvas'), pImg = $('step3PreviewImg'), pEmpty = $('step3PreviewEmpty');
+    if (!pCanvas || !pImg || !pEmpty) return;
+    var preset = currentPresets().find(function (s) { return s.id === state.style; });
+    $('step3PreviewTitle').textContent = preset ? preset.icon + ' ' + preset.label : 'Pick a style in Step 2';
+    var summary = describeStep3Layers(preset);
+    if (state.lastGeneratedUrl) {
+      pCanvas.hidden = true; pEmpty.hidden = true; pImg.hidden = false;
+      if (pImg.getAttribute('src') !== state.lastGeneratedUrl) pImg.src = state.lastGeneratedUrl;
+      $('step3PreviewMeta').textContent = 'Finished portrait · ' + summary;
+      return;
+    }
+    pImg.hidden = true;
+    var hasCrop = drawPreviewCrop(pCanvas);
+    pCanvas.hidden = !hasCrop; pEmpty.hidden = hasCrop;
+    var faces = isGroup() && hasCrop ? totalFaces() + ' faces · ' : '';
+    $('step3PreviewMeta').textContent = faces + summary;
+  }
+  $('step3PreviewImg').onerror = function () { state.lastGeneratedUrl = ''; renderStep3Preview(); };
+  $('tuneOpts').addEventListener('change', function () { state.lastGeneratedUrl = ''; renderStep3Preview(); });
+  $('notes').addEventListener('input', function () { state.lastGeneratedUrl = ''; renderStep3Preview(); });
+
+  function updateGenerateBtn() {
+    portraitEditor?.refresh(); portraitAssistant?.refresh(); updateCropButtons();
+    var btn = $('generateBtn'), why = $('generateWhy');
+    var blocker = state.generating ? '' : generateBlocker();
+    btn.hidden = false;
+    btn.disabled = state.generating || !!blocker;
+    btn.textContent = state.generating ? 'Generating…' : generateLabel();
+    why.textContent = blocker; why.hidden = !blocker;
+    renderStep3Preview();
   }
 
   /**
@@ -1417,21 +1628,56 @@ if (!window.AppView || !AppView.active()) (function () {
       opts.notes = $('notes').value.trim();
       fd.append('options', JSON.stringify(opts));
       setStatus('Uploading + queuing generation…');
-      fetch(API + '/portraits', { method: 'POST', body: fd })
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-        .then(function (res) {
-          state.generating = false; updateGenerateBtn();
-          if (!res.ok) { setStatus(refusalText(res.j) || 'Generation failed to start.', true); if (res.j && res.j.portraitId) refreshGallery(); return; }
-          // The native kernel's local image model answers when the portrait is already finished.
-          if (res.j && res.j.status === 'done') { setStatus('Done! Your portrait is in the gallery below.'); refreshGallery(); return; }
-          setStatus(isGroup()
-            ? 'Queued! Your group portrait will appear in the gallery below (a few minutes for several faces).'
-            : 'Queued! Your portrait will appear in the gallery below (usually under a minute).');
-          refreshGallery(true);
-        })
-        .catch(function (e) { state.generating = false; updateGenerateBtn(); setStatus('Upload failed: ' + e.message, true); });
+      sendPortrait(fd, false);
     });
   };
+
+  /**
+   * @description Send one portrait request. The native kernel's local image model may be asleep: its first request only
+   * wakes it and answers 503 "the image model is starting". That press then waits for the model (wakeThenResend) and
+   * sends the same request once more, so one press of Generate makes the portrait.
+   * @param {FormData} fd - The photo, mode, style and options. @param {boolean} afterWake - True on the one resend.
+   * @returns {void}
+   */
+  function sendPortrait(fd, afterWake) {
+    fetch(API + '/portraits', { method: 'POST', body: fd })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok && !afterWake && res.j && res.j.error === 'portrait_generation_failed' && /\bstarting\b/i.test(res.j.detail || '')) { wakeThenResend(fd, res.j.portraitId); return; }
+        state.generating = false; updateGenerateBtn();
+        if (!res.ok) { setStatus(refusalText(res.j) || 'Generation failed to start.', true); if (res.j && res.j.portraitId) refreshGallery(); return; }
+        // The native kernel's local image model answers when the portrait is already finished.
+        if (res.j && res.j.status === 'done') {
+          $('engineMeta').hidden = true;
+          if (res.j.portraitId) { state.lastGeneratedUrl = API + '/portraits/' + encodeURIComponent(res.j.portraitId) + '/image?v=' + Date.now(); renderStep3Preview(); }
+          setStatus('Done! Your portrait is in Your portraits.'); refreshGallery(); return;
+        }
+        if (res.j && res.j.portraitId) state.pendingPreviewId = res.j.portraitId;
+        setStatus(isGroup()
+          ? 'Queued! Your group portrait will appear in Your portraits (a few minutes for several faces).'
+          : 'Queued! Your portrait will appear in Your portraits (usually under a minute).');
+        refreshGallery(true);
+      })
+      .catch(function (e) { state.generating = false; updateGenerateBtn(); setStatus('Upload failed: ' + e.message, true); });
+  }
+  /**
+   * @description The first request woke the image model. Remove the empty record that wake left (when this person may
+   * delete), read GET /provider every 5 s until the model runs (at most 3 minutes), then send the same request once.
+   * @param {FormData} fd - The request to resend. @param {string} wakeId - The failed record the wake left, if any.
+   * @returns {void}
+   */
+  function wakeThenResend(fd, wakeId) {
+    setStatus('Waking the image model. Your portrait starts by itself in about a minute.');
+    if (wakeId && can('delete')) fetch(API + '/portraits/' + encodeURIComponent(wakeId), { method: 'DELETE' }).catch(function () { });
+    var deadline = Date.now() + 180000;
+    (function check() {
+      fetch(API + '/provider', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j.configured && !engineAsleep(j)) { setStatus('The image model is awake. Making your portrait…'); sendPortrait(fd, true); return; }
+        if (Date.now() > deadline) { state.generating = false; updateGenerateBtn(); refreshGallery(); setStatus('The image model did not wake within 3 minutes. Press Generate to try again.', true); return; }
+        setTimeout(check, 5000);
+      }).catch(function () { setTimeout(check, 5000); });
+    })();
+  }
 
   // ── gallery ────────────────────────────────────────────────────────────────
   function styleLabel(row) {
@@ -1447,6 +1693,11 @@ if (!window.AppView || !AppView.active()) (function () {
     if (!can('read')) return;
     fetch(API + '/portraits').then(function (r) { if (!r.ok) { loadAccess(); throw new Error('Portrait read refused'); } return r.json(); }).then(function (j) {
       var rows = j.portraits || [];
+      if (state.pendingPreviewId) {
+        var finished = rows.find(function (r2) { return r2.portrait_id === state.pendingPreviewId && r2.status === 'done'; });
+        if (finished) { state.pendingPreviewId = null; state.lastGeneratedUrl = API + '/portraits/' + encodeURIComponent(finished.portrait_id) + '/image?v=' + (finished.updated_at || Date.now()); renderStep3Preview(); }
+      }
+      chooseFirstView(rows);
       var grid = $('galleryGrid');
       grid.innerHTML = '';
       $('galleryEmpty').style.display = rows.length ? 'none' : 'block';
@@ -1615,6 +1866,16 @@ if (!window.AppView || !AppView.active()) (function () {
   }
   function refreshGalleryFromRows() { refreshGallery(); }
 
+  /**
+   * @description Whether the provider answer says the image model is asleep (it wakes on the first image). The platform
+   * sends ready:false; the native kernel's answer carries no ready field, only its own words ("... is asleep ...").
+   * @param {object} j - GET /provider's answer. @returns {boolean} True while the model is asleep or starting.
+   */
+  function engineAsleep(j) {
+    if (!j || !j.configured || !j.detail) return false;
+    return j.ready === false || (j.ready === undefined && /\b(asleep|starting)\b/i.test(j.detail));
+  }
+
   // ── boot ───────────────────────────────────────────────────────────────────
   loadAccess().then(function (allowed) {
   if (!allowed) return;
@@ -1632,13 +1893,10 @@ if (!window.AppView || !AppView.active()) (function () {
     if (!j.configured) {
       b.style.display = 'block';
       b.textContent = '⚠ ' + engineUnavailableText(j);
-      state.engineUnavailable = true; updateGenerateBtn();
-    } else if (j.detail) {
-      b.style.display = 'block';
-      b.style.borderColor = '#2c5a3f';
-      b.style.background = 'rgba(78,207,138,.07)';
-      b.style.color = '#4ecf8a';
-      b.textContent = '✓ Engine: ' + j.provider + ' — ' + j.detail;
+      state.engineUnavailable = true; state.engineReason = engineUnavailableText(j); updateGenerateBtn();
+    } else if (engineAsleep(j)) {
+      // One meta line beside Generate, only while the image model is asleep (design standard §4.8); a running engine shows nothing.
+      var meta = $('engineMeta'); meta.textContent = j.detail.charAt(0).toUpperCase() + j.detail.slice(1).replace(/\.?$/, '.'); meta.hidden = false;
     }
   }).catch(function () { });
   refreshGallery();

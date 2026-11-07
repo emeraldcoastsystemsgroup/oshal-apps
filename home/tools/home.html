@@ -18,7 +18,17 @@
        to add one, and Add schedule says a schedule runs a device or scene action.
      3 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: the assistant reply printed markdown asterisks ('Go to the **Hubs tab**')
        and sat flush on the screen edge at 412 px. **bold** now renders as bold text (text nodes only, nothing becomes markup)
-       and the reply has 16 px side padding. Guard: tests/browser/home-reply-words.test.cjs. -->
+       and the reply has 16 px side padding. Guard: tests/browser/home-reply-words.test.cjs.
+     4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (home-dashboard, D): with no hub the page opens on one empty
+       state (No devices yet, one primary Connect a hub that opens the hub rows, each with its status pill); Schedules stay
+       hidden until there is a device or a scene; devices come first, then scenes, then schedules; Refresh shows only once a
+       hub has reported, and a refused refresh (409, not connected) is an alert with the fix, never silence. The inline Ask
+       bar is gone (the shell's concierge button is the one assistant entry), the in-frame 'Smart Home' heading is gone (the
+       shell names the app), and the diagnostic brief is withheld while the cockpit offers no connected action. Guards:
+       tests/browser/home-empty-state.test.cjs.
+     5 | maintainer@emeraldcoastsystemsgroup.com | The split (UX audit 2026-11-05): Schedules are the Automations screen (?view=automations,
+       the home-automations tile): the schedule list and New schedule, or with nothing to run one empty state (No automations
+       yet, Connect a hub). The Smart Home screen keeps devices, scenes and the hubs. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
      (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
      kit in the family grammar. Any other request runs the full Smart Home page below unchanged. -->
@@ -110,9 +120,16 @@
   .count { color:var(--muted); font-size:12.5px; }
   .spacer { flex:1; }
   .btn { border:1px solid var(--line); background:var(--panel2); color:var(--text); border-radius:9px;
-         padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer; }
+         padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; }
   .btn:hover { border-color:var(--accent); }
-  .btn.solid { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.solid { background:var(--accent); color:var(--ds-on-accent, #fff); border-color:var(--accent); }
+  .alert { color:var(--status-error, #ff7a7a); background:var(--panel); border:1px solid var(--status-error, #ff7a7a); border-radius:12px; padding:12px 14px; margin:10px 0; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .alert[hidden], .home-empty[hidden], section[hidden], .btn[hidden], details[hidden] { display:none; }
+  .home-empty { text-align:center; padding:40px 16px 20px; }
+  .home-empty .icon { font-size:40px; line-height:1; }
+  .home-empty h2 { font-size:20px; margin:12px 0 6px; }
+  .home-empty p { color:var(--muted); margin:0 auto 16px; max-width:420px; font-size:14px; }
+  .hubs .pill.ok { background:color-mix(in srgb, var(--accent2) 22%, transparent); color:var(--accent2); }
   .sectitle { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:22px 2px 10px; }
   /* Scene tiles */
   .scenes { display:flex; flex-wrap:wrap; gap:10px; }
@@ -137,6 +154,7 @@
   .dim input { flex:1; accent-color:var(--accent); }
   .dim .lvl { font-size:11.5px; color:var(--muted); width:34px; text-align:right; }
   .sel, .tin { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; }
+  .sel { padding-right:30px; text-overflow:ellipsis; }
   .schf { display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--muted); min-width:0; }
   .schf .sel, .schf .tin { max-width:100%; box-sizing:border-box; }
   .lnk { color:var(--accent); cursor:pointer; }
@@ -154,6 +172,7 @@
   .hubs .hubrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
   .hubs[hidden] { display:none; }
   body.view-hubs .dash-only { display:none !important; }
+  body.view-automations #devicesSection, body.view-automations #scenes, body.view-automations #scenes-title { display:none !important; }
   .toast { position:fixed; z-index:21; bottom:78px; left:50%; transform:translateX(-50%); background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:9px 15px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
   .toast.show { opacity:1; }
   ::-webkit-scrollbar{width:10px;height:10px}
@@ -172,24 +191,37 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Smart Home</h1>
     <span class="count" id="count"></span>
     <span class="spacer"></span>
-    <button class="btn" id="refresh" onclick="refresh()">↻ Refresh</button>
+    <button class="btn" id="refresh" onclick="refresh()" hidden>↻ Refresh</button>
   </header>
+  <div class="alert" id="alert" role="alert" hidden></div>
+
+  <section class="home-empty dash-only" id="emptyState" hidden aria-labelledby="empty-title">
+    <div class="icon" aria-hidden="true">🏠</div>
+    <h2 id="empty-title">No devices yet</h2>
+    <p>Connect your smart-home hub to see your lights, plugs and scenes here and switch them from this screen.</p>
+    <button class="btn solid" id="connectHub" type="button">Connect a hub</button>
+  </section>
 
   <section class="card hubs" id="hubsPanel" hidden aria-labelledby="hubs-title">
     <div class="nm" id="hubs-title">Hubs</div>
     <p class="dim" id="hubsReporting" role="status">Checking which hubs have reported devices…</p>
-    <div class="hubrow"><span>Samsung SmartThings</span><a class="btn solid" href="/api/connect/smartthings/start" target="_top">Connect SmartThings</a></div>
-    <div class="hubrow"><span>Google Home</span><a class="btn" href="/utilities" target="_top">Set up in Connections</a></div>
+    <div class="hubrow"><span>Samsung SmartThings <span class="pill" id="pill-smartthings">Not connected</span></span><a class="btn solid" href="/api/connect/smartthings/start" target="_top">Connect SmartThings</a></div>
+    <div class="hubrow"><span>Google Home <span class="pill" id="pill-google-home">Not connected</span></span><a class="btn" href="/utilities" target="_top">Set up in Connections</a></div>
     <p class="dim">After connecting, press Refresh to read the hub's devices.</p>
   </section>
 
   <div class="dash-only">
+  <section id="devicesSection" hidden>
+  <div class="sectitle">Devices</div>
+  <div class="grid" id="grid"><div class="empty">Loading…</div></div>
+  </section>
+
   <div class="sectitle" id="scenes-title" style="display:none">Scenes</div>
   <div class="scenes" id="scenes"></div>
 
+  <section id="schedSection" hidden>
   <div class="sectitle">Schedules <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted)">— timers (also on the Calendar)</span></div>
   <div class="scenes" id="schedules"></div>
   <div class="card" style="max-width:600px;margin-top:8px;gap:8px">
@@ -209,16 +241,10 @@
     <div class="crow"><button class="btn solid" onclick="createSchedule()">Add schedule</button></div>
   </div>
 
-  <div class="sectitle">Devices</div>
-  <div class="grid" id="grid"><div class="empty">Loading…</div></div>
+  </section>
   </div>
 </div>
 
-<div class="reply dash-only" id="reply" role="log" aria-live="polite"></div>
-<div class="chat dash-only"><div class="inner">
-  <input id="msg" placeholder='Ask: "make it cozy", "create a Movie Night scene", "I&apos;m home"…' onkeydown="if(event.key==='Enter')ask()" />
-  <button class="btn solid" id="send" onclick="ask()">Send</button>
-</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -234,19 +260,13 @@ async function api(path, body, method) {
   if (body) { opt.method = method || 'POST'; opt.body = JSON.stringify(body); }
   const r = await fetch('/api/home' + path, opt);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  if (!r.ok) { const err = new Error(j.error || ('HTTP ' + r.status)); err.status = r.status; throw err; }
   return j;
 }
 
 function deviceName(d) { return d.userName || d.name; }
 function isOn(d) { return d.switch === 'on'; }
 function hasDim(d) { return (d.capabilities || []).includes('switchLevel'); }
-function homeMightWrite(message) {
-  const text = String(message || '').toLowerCase();
-  return /\b(turn|switch|set|dim|brighten|run|start|stop|open|close|lock|unlock|arm|disarm|schedule|create|save|delete)\b/.test(text)
-    && /\b(light|lights|lamp|plug|switch|thermostat|lock|door|garage|scene|routine|device|smartthings|home)\b/.test(text);
-}
-
 function cardHtml(d) {
   const on = isOn(d);
   const dim = hasDim(d) ? `<div class="dim"><input type="range" min="1" max="100" value="50"
@@ -263,22 +283,55 @@ function cardHtml(d) {
 
 async function loadDevices() {
   const data = await api('/devices');
-  DEVICES = data.devices || [];
+  DEVICES = data.devices || []; DEVICES_LOADED = true;
   $('count').textContent = DEVICES.length ? `${DEVICES.length} devices${data.hubs && data.hubs.length ? ' · ' + data.hubs.join(', ') : ''}` : '';
-  $('grid').innerHTML = DEVICES.length
-    ? DEVICES.map(cardHtml).join('')
-    : '<div class="empty">No devices yet. Connect a hub at <b>Hubs</b> (or hit Refresh).</div>';
+  $('grid').innerHTML = DEVICES.map(cardHtml).join('');
   buildWhatOptions();
-  renderHubsReporting(data.hubs || [], DEVICES.length);
+  renderHubsReporting(data.hubs || [], DEVICES.length, data.generatedAt);
+  layout();
+}
+
+/** What the dashboard shows, by what exists: no device and no scene is one empty state; Schedules need something to run. */
+function layout() {
+  const scenes = (window.__scenes || []).length, devices = DEVICES.length, any = devices > 0 || scenes > 0;
+  $('devicesSection').hidden = AUTOMATIONS_VIEW || devices === 0;
+  $('schedSection').hidden = !AUTOMATIONS_VIEW || !any;
+  $('emptyState').hidden = any || !DEVICES_LOADED;
+  $('refresh').hidden = !HUBS_SEEN;
+}
+let HUBS_SEEN = false, DEVICES_LOADED = false;
+/** Show the hub rows (the empty state's Connect a hub, a refused refresh). */
+function showHubs() { $('hubsPanel').hidden = false; $('hubsPanel').scrollIntoView({ block: 'nearest' }); }
+$('connectHub').onclick = showHubs;
+/** A refused or failed read, said where the work is, with the fix when there is one. */
+function showAlert(text, withConnect) {
+  const box = $('alert');
+  box.replaceChildren(document.createTextNode(text));
+  if (withConnect) { const b = document.createElement('button'); b.className = 'btn solid'; b.type = 'button'; b.textContent = 'Connect a hub'; b.onclick = showHubs; box.append(b); }
+  box.hidden = false;
 }
 
 /** The Hubs tab opens this page with ?view=hubs: the hub connections, not the whole catalog of connectors. */
 const HUBS_VIEW = new URLSearchParams(location.search).get('view') === 'hubs';
 if (HUBS_VIEW) { document.body.classList.add('view-hubs'); $('hubsPanel').hidden = false; }
-function renderHubsReporting(hubs, deviceCount) {
+/** The Automations tab opens this page with ?view=automations: the schedules, which need a device or a scene to run. */
+const AUTOMATIONS_VIEW = new URLSearchParams(location.search).get('view') === 'automations';
+if (AUTOMATIONS_VIEW) {
+  document.body.classList.add('view-automations');
+  $('empty-title').textContent = 'No automations yet';
+  $('emptyState').querySelector('p').textContent = 'An automation switches a light, a plug or a scene at a time you choose or at sunset. Connect your hub first.';
+}
+function renderHubsReporting(hubs, deviceCount, readAt) {
   $('hubsReporting').textContent = hubs.length
     ? 'Reporting devices: ' + hubs.join(', ') + ' (' + deviceCount + ' device' + (deviceCount === 1 ? '' : 's') + ').'
     : 'No hub has reported devices yet.';
+  HUBS_SEEN = hubs.length > 0 || deviceCount > 0;
+  const when = readAt ? ' · read ' + new Date(readAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  for (const [id, re] of [['pill-smartthings', /smartthings/i], ['pill-google-home', /google/i]]) {
+    const on = hubs.some((h) => re.test(String(h)));
+    $(id).textContent = on ? 'Connected' + when : 'Not connected';
+    $(id).className = on ? 'pill ok' : 'pill';
+  }
 }
 
 async function loadScenes() {
@@ -287,6 +340,7 @@ async function loadScenes() {
     const scenes = data.scenes || [];
     window.__scenes = scenes;
     $('scenes-title').style.display = scenes.length ? '' : 'none';
+    layout();
     $('scenes').innerHTML = scenes.map((s) =>
       `<div class="scene" onclick="runScene('${esc(s.name).replace(/'/g, "\\'")}')">
         <div class="nm">${esc(s.name)}</div><div class="st">${(s.steps||[]).length} steps · run</div></div>`).join('');
@@ -374,41 +428,17 @@ async function runScene(name) {
   catch (e) { toast('Failed: ' + e.message); }
 }
 async function refresh() {
-  const b = $('refresh'); b.disabled = true; b.textContent = '↻ Refreshing…';
+  const b = $('refresh'); b.disabled = true; b.textContent = '↻ Refreshing…'; $('alert').hidden = true;
   try { await api('/refresh', {}); await loadDevices(); await loadScenes(); toast('Refreshed'); }
-  catch (e) { toast('Failed: ' + e.message); }
+  catch (e) {
+    if (e.status === 409) showAlert("SmartThings isn't connected yet. Connect it above.", true);
+    else showAlert('Your hubs could not be read just now: ' + e.message, false);
+  }
   finally { b.disabled = false; b.textContent = '↻ Refresh'; }
 }
 
-async function ask() {
-  const input = $('msg'); const message = input.value.trim(); if (!message) return;
-  const confirmWrite = homeMightWrite(message);
-  if (confirmWrite && !confirm('Run this smart-home action now?')) return;
-  const send = $('send'); input.value = ''; send.disabled = true; showTurn(message, 'Thinking…');
-  try {
-    const r = await api('/assistant', { message, confirm: confirmWrite });
-    showTurn(message, r.reply || '');
-    await loadDevices(); await loadScenes(); // the bot may have changed state/scenes
-  } catch (e) { showTurn(message, 'Error: ' + e.message); }
-  finally { send.disabled = false; }
-}
-/** The assistant's words as text nodes: **bold** becomes a strong element (the reply printed the asterisks), every
- *  other character stays text, so nothing in a reply can become markup. */
-function replyNodes(reply) {
-  return String(reply || '').split(/\*\*([^*\n]+)\*\*/).map((part, index) => {
-    if (index % 2 === 0) return document.createTextNode(part);
-    const strong = document.createElement('strong'); strong.textContent = part; return strong;
-  });
-}
-/** The last exchange: what the person asked, then the answer (the reply alone read as if out of nowhere). */
-function showTurn(message, reply) {
-  const you = document.createElement('div'); you.className = 'you'; you.textContent = 'You: ' + message;
-  const answer = document.createElement('div'); answer.className = 'answer'; answer.append(...replyNodes(reply));
-  $('reply').replaceChildren(you, answer);
-}
-
 // The full page only: under an audience view the shared kit paints instead (see the head script).
-if (!window.AppView || !AppView.active()) { loadDevices(); loadScenes(); loadSchedules(); }
+if (!window.AppView || !AppView.active()) { loadDevices().catch((e) => showAlert('Your devices could not be read just now: ' + e.message, false)); loadScenes(); loadSchedules(); }
 </script>
 
 <!-- TV mode (?tv=1): D-pad spatial navigation for big-screen surfaces that load this dashboard
@@ -467,7 +497,7 @@ if (!window.AppView || !AppView.active()) { loadDevices(); loadScenes(); loadSch
 </script>
 
 <!-- In the page flow, not position:fixed: a fixed panel sat on top of the Ask bar (input and Send) at the bottom of the screen on a phone. Guard: scripts/phone-screens.browser.cjs (home). -->
-<details id="evidenceReview" style="position:relative;margin:16px auto 96px;width:min(560px,calc(100% - 32px));background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
+<details id="evidenceReview" hidden style="position:relative;margin:16px auto 96px;width:min(560px,calc(100% - 32px));background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:12px;box-sizing:border-box">
  <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
  <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
  <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>
@@ -478,7 +508,10 @@ if (!window.AppView || !AppView.active()) { loadDevices(); loadScenes(); loadSch
 (async()=>{
 const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
 const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
-await mountConnectedActions({element:document.getElementById('evidenceActions'),app:"home",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});
+const actions=document.getElementById('evidenceActions');
+await mountConnectedActions({element:actions,app:"home",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});
+// Withheld while the cockpit offers no connected action for this person (none mounts while continuation is off).
+panel.hidden=!(actions&&!actions.hidden&&actions.style.display!=='none'&&actions.children.length);
 pick.addEventListener('change',()=>{notes.value=records[pick.selectedIndex]?.actions?.find(a=>a.integration==='prepare-document')?.context?.notes||'';});
 panel.addEventListener('toggle',async()=>{if(!panel.open||loaded)return;try{const response=await fetch("/api/home/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}});
 if(panel.open)panel.dispatchEvent(new Event('toggle'));

@@ -1,3 +1,4 @@
+// CHANGE LOG: ux audit | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): the not-connected Git explorer is one empty state with Open Connections & access, the cluster links come first and open, and Link by URL is a planned control.
 /* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Hold the provider switch's last read while the person pastes a GitHub token for GitLab: the refusal must survive the load finishing late. */
 /* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | A GitHub token pasted for GitLab is refused before saving and the field is cleared. */
 /* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | A GitLab connection browses projects through GitLab reads only: merge requests, pipelines and files. */
@@ -65,8 +66,15 @@ test('with no GitHub connection the explorer saves the person\'s own token and t
   server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));browser=await chromium.launch({headless:true,args:['--disable-gpu']});const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app#git');await page.getByText('Save your own GitHub token below',{exact:false}).waitFor();
   assert.equal(await page.locator('#git-filter').getAttribute('autocomplete'),'off','the repository filter refuses browser autofill');
+  // UX audit 2026-11-06 (P1): with no connection one empty state stands where the blank search and pickers were, and the cluster links come first, open.
+  assert.equal(await page.locator('#git-empty').isVisible(),true);assert.equal(await page.locator('#git-empty-title').textContent(),'Connect GitHub to browse your repositories');
+  assert.equal(await page.getByRole('link',{name:'Open Connections & access',exact:true}).getAttribute('href'),'#connections');
+  for(const id of ['#git-filter','#git-account-field','#git-load'])assert.equal(await page.locator(id).isVisible(),false,id+' waits for a connection');
+  assert.equal(await page.locator('#git-provider-label').textContent(),'GitHub','a provider list of one is a label');assert.equal(await page.locator('#git-provider-field').isVisible(),false);
+  assert.equal(await page.locator('#git-explorer > details.git-links-box').evaluate(d=>d.open&&d.parentElement.firstElementChild===d),true);
+  assert.equal(await page.getByRole('button',{name:'Link by URL, not available yet',exact:true}).getAttribute('aria-disabled'),'true');
   const token='github_pat_'+'y'.repeat(40);await page.locator('#git-token').fill(token);await page.getByRole('button',{name:'Save as my GitHub connection',exact:true}).click();await page.getByText('Connected to GitHub as alice-gh',{exact:false}).waitFor();
-  assert.deepEqual(connects,[{token}]);assert.equal(await page.locator('#git-token').inputValue(),'');assert.equal(await page.locator('#git-connect').isHidden(),false,'the token field stays available');assert.equal(await page.getByRole('button',{name:'Replace my GitHub token',exact:true}).isVisible(),true);assert.equal(await page.getByRole('button',{name:'Load my repositories',exact:true}).isDisabled(),false);assert.deepEqual(errors,[]);
+  assert.deepEqual(connects,[{token}]);assert.equal(await page.locator('#git-token').inputValue(),'');assert.equal(await page.locator('#git-connect').isHidden(),false,'the token field stays available');assert.equal(await page.getByRole('button',{name:'Replace my GitHub token',exact:true}).isVisible(),true);assert.equal(await page.getByRole('button',{name:'Load my repositories',exact:true}).isDisabled(),false);assert.equal(await page.locator('#git-empty').isVisible(),false,'the empty state leaves once connected');assert.equal(await page.locator('#git-filter').isVisible(),true);assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
 });
 test('a token GitHub rejects is named plainly and can be replaced in place',async()=>{

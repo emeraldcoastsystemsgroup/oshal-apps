@@ -1,4 +1,5 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Digest-pinned Python and dated Debian repositories with hash-pinned PDF library.
+# CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Copy pdf_transforms.py and ooxml_export.py into engine container image.
 FROM python@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
 RUN rm -f /etc/apt/sources.list.d/debian.sources && printf '%s\n' \
   'deb [check-valid-until=no] https://snapshot.debian.org/archive/debian/20261006T000000Z bookworm main' \
@@ -8,7 +9,7 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources && printf '%s\n' \
 WORKDIR /opt/pdf-engine
 COPY requirements.txt ./
 RUN pip install --no-cache-dir --require-hashes --no-deps -r requirements.txt
-COPY worker.py server.py page_content.py THIRD-PARTY.md ./
+COPY worker.py server.py page_content.py pdf_transforms.py ooxml_export.py THIRD-PARTY.md ./
 ENV PDF_ENGINE_HOST=0.0.0.0 PDF_ENGINE_PORT=7415 PYTHONDONTWRITEBYTECODE=1
 USER 10001:10001
 EXPOSE 7415

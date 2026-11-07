@@ -7,6 +7,7 @@
  * 2026-07-25 22:55:00 | roger.murphy@emeraldcoastsystemsgroup.com  | ?lobby=1 skips the resume-last-room boot. The auto-resume made the lobby (and its show picker) unreachable once you had ever hosted a game — there was no way to start a NEW show without ending the old room from psql.
  * 2026-07-26 [rebuild] | roger.murphy@emeraldcoastsystemsgroup.com  | ?join=CODE now finishes the gesture: the QR/link auto-joins and seats you (the audit counted the one tap the deep link existed to remove); a failed auto-join falls back to the prefilled lobby. Plus a global-error recovery toast so one bad render can never leave a dead screen.
  * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Opening the app resumes a game in progress, but never drops its owner into an empty room they abandoned before starting: the show picker is what they came for. ?solo=1 finishes the poster's one press once the room has loaded.
+ * 2026-11-06 09:10:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06 (game-show-review MERGE): start() returns when the audience kit paints a view (if (!window.AppView || !AppView.active()) in stage.html's terms), because Play is now the first tile the Home shell opens with ?audience=family.
  */
 
 /* global window, document */
@@ -36,6 +37,8 @@
 
   /** @description Decide which room to open on load, then boot or show the lobby. */
   function start() {
+    // Under the Home shell's audience view the kit paints the family card instead (stage.html head); the game never starts.
+    if (window.AppView && window.AppView.active()) return;
     // Load the show catalog so the lobby picker lists whatever the server registers.
     GS.api.get('/shows').then(function (r) {
       if (r.body && r.body.shows) { GS.shows = r.body.shows; if (!GS.roomId && GS.render) GS.render(); }

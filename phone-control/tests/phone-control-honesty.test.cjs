@@ -4,6 +4,8 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0 honesty guard: goes red if a fake comes back. The package server reaches no network, process or radio; no mirroring key, receiver, drawn screen or OCR claim remains in what a person or the concierge reads; there is no public default secret; every button on the page is wired to a handler that runs a bridge verb or a package route, every verb the page uses exists in the bridge, every route has exactly one catalog binding, and the bridge stays small enough for its one install command. migrations/ is left out of the word scan: those two files are checksum-pinned 1.0.0 declarations the kernel keeps, not anything a person reads.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: keep 1.0.0 fake-key, fake-receiver and OCR bans while allowing real UxPlay AirPlay mirroring, lowercase oshal Node download link, mirror-* bridge verbs, and oshal_phone_mirror.py size budget.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: scan session-computer.js, session-media.js, session-collab.js, and phone-control-session-routes.js across button wiring, verb parity, catalog bindings, and package-only concierge tool endpoints.
  */
 'use strict';
 
@@ -36,18 +38,13 @@ test('the package server reaches no network, process or radio', () => {
   }
 });
 
-test('nothing a person or the concierge reads claims mirroring, a receiver, a key or OCR', () => {
+test('nothing a person or the concierge reads claims a fake key, fake receiver or OCR', () => {
   const read_by_people = [...files('tools', /\.(html|js|mjs|css)$/), ...files('lib', /\.js$/), ...files('routes', /\.js$/),
     'oshal-app.yaml', 'authorization.yaml', 'personas/device-concierge.yaml', 'README.md'];
   for (const file of read_by_people) {
     const text = spoken(file);
-    for (const banned of [/\bTBS\b/, /MIRROR LIVE/i, /\bOCR\b/, /mirror(ing)? key/i, /pairingKey|pairingPin/, /OSHAL-Mirror/, /receiver credential/i,
-      /screen mirroring/i, /RAOP/]) {
+    for (const banned of [/\bTBS\b/, /MIRROR LIVE/i, /\bOCR\b/, /mirror(ing)? key/i, /pairingKey|pairingPin/, /OSHAL-Mirror/, /receiver credential/i, /RAOP/]) {
       assert.doesNotMatch(text, banned, `${file}: ${banned}`);
-    }
-    for (const match of text.matchAll(/AirPlay/g)) {
-      const around = text.slice(Math.max(0, match.index - 60), match.index + 30);
-      assert.match(around, /Apple mirrors only to AirPlay receivers/, `${file}: AirPlay appears only in the sentence that says it is not supported`);
     }
   }
 });
@@ -64,7 +61,10 @@ test('there is no public default secret and no bearer fallback', () => {
 
 test('every button on the page is wired to a handler that sends something real', () => {
   const html = read('tools/phone-control.html');
-  const scripts = ['tools/phone-control.js', 'tools/phone-stage.js', 'tools/phone-setup.js'].map(read).join('\n');
+  const scripts = [
+    'tools/phone-control.js', 'tools/phone-stage.js', 'tools/phone-setup.js', 'tools/phone-rdp.js',
+    'tools/phone-concierge.js', 'tools/session-computer.js', 'tools/session-media.js', 'tools/session-collab.js'
+  ].map(read).join('\n');
   // A submit button is wired through its form's submit handler, checked below.
   const ids = [...html.matchAll(/<button(?![^>]*type="submit")[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
   assert.ok(ids.length >= 9, `buttons found: ${ids.join(', ')}`);
@@ -82,8 +82,12 @@ test('every button on the page is wired to a handler that sends something real',
     if (key) assert.ok(androidKeys.has(key), `the bridge has no Android key ${key}`);
     if (ios) assert.ok(iosKeys.has(ios), `the iPhone keyboard has no key ${ios}`);
   }
-  for (const link of ['askJarvis', 'workOnIt']) assert.match(scripts, new RegExp(`\\$\\('${link}'\\)\\.href = workHref\\(`), `${link} opens the kernel's computer page`);
-  assert.match(html, /href="\/cockpit\/tools\/devices\.html"[^>]*>Download OSHAL Node/);
+  assert.doesNotMatch(html, /id="askJarvis"/, 'generic computer Jarvis link is removed for phones');
+  for (const link of ['workOnIt', 'computerConciergeWorkBtn', 'rdpWorkLink']) {
+    assert.match(scripts, new RegExp(`\\$\\('${link}'\\)\\.href = `), `${link} opens the kernel's computer page`);
+  }
+  assert.match(scripts, /\$\('rdpWorkLink'\)\.href = `\$\{workHref\(/);
+  assert.match(html, /href="\/cockpit\/tools\/devices\.html"[^>]*>Download oshal Node/);
 });
 
 test('every verb the page sends is one the bridge has, and the lists agree', async () => {
@@ -93,8 +97,11 @@ test('every verb the page sends is one the bridge has, and the lists agree', asy
   const bridgeVerbs = new Set([...table.matchAll(/'([a-z-]+)': (?:verb_|ble_passthrough|\(lambda)/g)].map((match) => match[1]));
   bridgeVerbs.delete('help');
   assert.deepEqual([...bridgeVerbs].sort(), [...link.VERBS].sort());
-  const scripts = ['tools/phone-stage.js', 'tools/phone-setup.js'].map(read).join('\n');
-  const used = new Set([...scripts.matchAll(/(?:bridge\(|'(?:adb|ble)-[a-z-]+')/g)].map((m) => m[0]).filter((m) => m.startsWith("'")).map((m) => m.slice(1, -1)));
+  const scripts = [
+    'tools/phone-stage.js', 'tools/phone-setup.js', 'tools/phone-rdp.js', 'tools/phone-concierge.js',
+    'tools/session-computer.js', 'tools/session-media.js', 'tools/session-collab.js'
+  ].map(read).join('\n');
+  const used = new Set([...scripts.matchAll(/(?:bridge\(|'(?:adb|ble|mirror|setup)-[a-z-]+')/g)].map((m) => m[0]).filter((m) => m.startsWith("'")).map((m) => m.slice(1, -1)));
   for (const verb of [...scripts.matchAll(/bridge\('([a-z-]+)'/g)].map((m) => m[1])) used.add(verb);
   assert.ok(used.size >= 15, [...used].join(', '));
   for (const verb of used) assert.ok(link.VERBS.includes(verb), `the page sends ${verb}, which the bridge does not have`);
@@ -105,8 +112,14 @@ test('every route has exactly one catalog binding and every tool is bound', () =
   const catalog = yaml.load(read('authorization.yaml'));
   const manifest = yaml.load(read('oshal-app.yaml'));
   const routes = [];
-  for (const file of ['routes/phone-control-routes.js', 'routes/home-summary.js', 'routes/phone-control-config-routes.js']) {
-    const prefix = file.includes('home-summary') ? '/home-summary' : file.includes('config-routes') ? '/config' : '';
+  for (const file of [
+    'routes/phone-control-routes.js', 'routes/phone-control-session-routes.js',
+    'routes/phone-control-concierge-routes.js', 'routes/home-summary.js', 'routes/phone-control-config-routes.js'
+  ]) {
+    const prefix = file.includes('home-summary') ? '/home-summary'
+      : file.includes('config-routes') ? '/config'
+        : file.includes('session-routes') ? '/sessions'
+          : file.includes('concierge-routes') ? '/concierge' : '';
     for (const match of read(file).matchAll(/router\.(get|post|delete)\('([^']+)'/g)) {
       routes.push([match[1].toUpperCase(), (prefix + (match[2] === '/' ? '' : match[2])) || '/']);
     }
@@ -120,7 +133,10 @@ test('every route has exactly one catalog binding and every tool is bound', () =
   }
   assert.equal(catalog.bindings.http.length, routes.length, 'no binding for a route that does not exist');
   assert.deepEqual(manifest.tools.map((tool) => tool.name).sort(), catalog.bindings.tools.map((tool) => tool.id).sort());
-  assert.deepEqual(manifest.tools.map((tool) => tool.executor.apiEndpoint.split(' ')[0]), ['GET', 'GET', 'GET', 'GET'], 'the concierge only reads');
+  for (const tool of manifest.tools) {
+    assert.match(tool.executor.apiEndpoint, /^(GET|POST|DELETE) \/api\/phone-control\//, `${tool.name} stays inside package routes`);
+    assert.doesNotMatch(tool.executor.apiEndpoint, /\/api\/computers/, `${tool.name} never drives /api/computers`);
+  }
   assert.deepEqual(manifest.surface.ops, ['context', 'notify']);
 });
 
@@ -134,9 +150,12 @@ test('every file the package needs has an extension the kernel stages into the p
   for (const file of [...walk('bridge'), ...walk('lib'), ...walk('routes'), ...walk('tools')]) assert.match(file, staged, `${file} would not reach the installed package`);
 });
 
-test('the bridge fits its one install command and its version is the package version', () => {
-  const sizes = ['oshal_phone_bridge.py', 'oshal_phone_ble.py'].map((name) => fs.statSync(path.join(PKG, 'bridge', name)).size);
-  assert.ok(sizes.reduce((a, b) => a + b, 0) < 90 * 1024, `bridge sources are ${sizes.join(' + ')} bytes`);
+test('the bridge fits its one install command and its version is the package version', async () => {
+  const sizes = ['oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'].map((name) => fs.statSync(path.join(PKG, 'bridge', name)).size);
+  assert.ok(sizes.reduce((a, b) => a + b, 0) < 140 * 1024, `bridge sources are ${sizes.join(' + ')} bytes`);
+  const { bridgeManifest } = require(path.join(PKG, 'lib', 'bridge-files.js'));
+  const link = await import(path.join(PKG, 'tools', 'computer-link.js'));
+  assert.ok(link.installCommand(bridgeManifest(PKG)).length < 100 * 1024, 'gzipped install command fits well under 100 KiB');
   const version = /^version: (\S+)$/m.exec(read('oshal-app.yaml'))[1];
   assert.equal(/^VERSION = '([^']+)'/m.exec(read('bridge/oshal_phone_bridge.py'))[1], version);
 });

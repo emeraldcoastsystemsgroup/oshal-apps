@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for this package's audience views (ADR-164 D6): the page, its declared URL, synthetic read-only answers for its own routes and what each audience must show. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family audience (ADR-164 D6) expects the same card as the company one: the harness paints it in the family grammar over the same synthetic reads.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 0.5.0: include cad-viewport-tools.js in the served surface asset list alongside cad-studio-gl.js and cad-studio.js.
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -12,7 +13,7 @@
 /** @param {{ iso: (hours: number) => string }} h Helpers from the harness. @returns {object} The page entry. */
 module.exports = ({ iso }) => ({
     app: 'cad-studio', file: 'cad-studio/tools/cad-studio.html', url: '/api/cad-studio/app', fullMarker: 'body',
-    assets: [{ url: '/api/cad-studio/assets/cad-studio-gl.js', file: 'cad-studio/tools/cad-studio-gl.js' }, { url: '/api/cad-studio/assets/cad-studio.js', file: 'cad-studio/tools/cad-studio.js' }],
+    assets: [{ url: '/api/cad-studio/assets/cad-studio-gl.js', file: 'cad-studio/tools/cad-studio-gl.js' }, { url: '/api/cad-studio/assets/cad-studio.js', file: 'cad-studio/tools/cad-studio.js' }, { url: '/api/cad-studio/assets/cad-viewport-tools.js', file: 'cad-studio/tools/cad-viewport-tools.js' }],
     reads: {
       '/api/cad-studio/capabilities': { app: 'cad-studio', kernel: 'synthetic', exports: { formats: [], views: [] }, defaults: {}, upload: {}, engine: { ready: false } },
       '/api/cad-studio/models': { models: [

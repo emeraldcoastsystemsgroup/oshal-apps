@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * DATE/TIME           | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 2026-11-06 07:50:00 | maintainer@emeraldcoastsystemsgroup.com   | UX audit split: the four tiles became one meta line with one label set, so the count is read as "Needs attention".
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 8: three 'Account API' cards (Adyen, two eBay entries) read the same. The rendered card carries the provider id beneath its name, as Connections does, and omits it when it only restates the name.
  * 2026-09-24 17:35:00 | maintainer@emeraldcoastsystemsgroup.com   | Add 'expiring' to CONNECTION_KEYS and assert that an expiring unrenewable connection renders the Expiring pill and · expiring marker while leaving healthy connections unaffected.
  * 2026-09-16 00:00:00 | maintainer@emeraldcoastsystemsgroup.com   | Run the shipped surface instead of counting `c.expired` matches in it. Four regex hits could never show that the marker, the pill, the tile and the filter actually RENDER, and they could not see the case the hub missed entirely: a grant the provider has revoked keeps its refresh token, so `expired` is false for it forever and the one screen built to show a broken login showed nothing. The surface script now runs in a vm over a stub DOM and a stub fetch, and the assertions read what it produced.
@@ -141,10 +142,10 @@ function providerFixture(overrides = {}, connection = {}) {
   };
 }
 
-/** The "Need attention" tile's rendered value. */
+/** The "Needs attention" count's rendered value (the meta line that replaced the tiles uses one label set). */
 function needAttentionCount(metricsHtml) {
-  const m = metricsHtml.match(/Need attention<\/span><strong>(\d+)<\/strong>/);
-  assert.ok(m, 'the metrics strip did not render a "Need attention" tile: ' + metricsHtml);
+  const m = metricsHtml.match(/Needs attention<\/span><strong>(\d+)<\/strong>/);
+  assert.ok(m, 'the meta line did not render a "Needs attention" count: ' + metricsHtml);
   return Number(m[1]);
 }
 

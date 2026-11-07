@@ -6,6 +6,12 @@
   server is a cross-check, never a dependency) and the mode badge says which one is in play.
   Consumes the framework theme tokens READ-ONLY; every rule below either reads a framework token or
   defines a surface-local alias. (.html is exempt from the CHANGE LOG header and the file-size rules.)
+  UX audit 2026-11-06 (ocean-lab--ocean-lab-blade-studio): two views, Blade studio (parameters, the 3-D blade, the Cp
+  curve, Export) and Blade analysis (spanwise distributions, the closed loop, both tables). The parameters are a 320px
+  pane with a number field beside each slider and Reset blade, a Parameters sheet on a phone; the verdict and KPIs sit
+  above the 3-D view; Re-frame became a Fit button on the view's right edge; one Export opens a sheet listing STL, OBJ,
+  OpenSCAD and DXF with one Export at its foot; the Low-Reynolds warning is one line; the derivation and long captions
+  moved to Help; the analysis brief is a sheet painted with the theme. Every control keeps its id; the solver is unchanged.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -155,20 +161,94 @@
     font-variant-numeric: tabular-nums; box-shadow: var(--card-shadow);
   }
   #tooltip[hidden] { display: none; }
+
+  /* UX audit 2026-11-06: two views; the parameters as a 320px pane (a half sheet on a phone) in four groups, a number
+     field beside each slider and Reset to defaults; one-sentence captions with the derivation in Help; the analysis
+     brief as a sheet painted with the theme; the first chart above the fold. */
+  .hero-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .hero-row .spacer { flex: 1; }
+  .btn, .link { min-height: 44px; }
+  .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0 6px; font: inherit; }
+  .view-bar { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
+  .view-tab { min-height: 44px; padding: 0 16px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+  .view-tab[aria-pressed="true"], .view-tab[aria-expanded="true"] { color: var(--text, inherit); border-bottom-color: var(--accent); }
+  .phone-only { display: none !important; }
+  .lab { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .lab.one { grid-template-columns: minmax(0, 1fr); }
+  .lab[hidden] { display: none; }
+  .controls.params { display: block; margin: 0; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--panel, var(--bg-card, #0c1120)); }
+  .pgroup { border: 0; border-top: 1px solid var(--line); margin: 0 0 6px; padding: 8px 0 0; display: grid; gap: 10px; }
+  .pgroup:first-of-type { border-top: 0; padding-top: 0; }
+  .pgroup legend { font-size: 12px; font-weight: 700; color: var(--dim); padding: 0; margin-bottom: 4px; }
+  .ctl .row input[type=range] { flex: 1; min-width: 0; }
+  .ctl .row input.num { width: 76px; min-height: 36px; padding: 0 6px; font: inherit; font-size: 13px; text-align: right; border: 1px solid var(--line); border-radius: 6px; background: var(--bg, transparent); color: inherit; }
+  .ctl .row .unit { font-size: 12px; color: var(--dim); min-width: 34px; }
+  .ctl .row output.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .ctl select { min-height: 40px; width: 100%; }
+  .results { min-width: 0; }
+  .results .verdict { margin-top: 0; }
+    dialog#help, dialog#brief { max-width: 760px; width: calc(100% - 32px); max-height: 85vh; overflow: auto; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel, var(--bg-card, #0c1120)); color: var(--text, inherit); padding: 0 18px 18px; }
+  dialog#brief { max-width: 520px; }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog .sheet-head, .params .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 56px; position: sticky; top: 0; background: inherit; }
+  dialog h3 { font-size: 14px; margin: 14px 0 4px; }
+  .brief-label { display: block; margin-top: 10px; font-size: 13px; }
+  .brief-label textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; font: inherit; background: var(--bg, transparent); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  @media (max-width: 760px) {
+    .phone-only { display: inline-flex !important; align-items: center; justify-content: center; }
+    .params .sheet-head.phone-only { display: flex !important; }
+    .lab { grid-template-columns: minmax(0, 1fr); }
+    .controls.params { display: none; }
+    body.params-open .controls.params { display: block; position: fixed; left: 0; right: 0; top: auto; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); max-height: 50vh; z-index: 30;
+      border-radius: 16px 16px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.35); }
+    .view-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 72px env(safe-area-inset-bottom, 0px) 4px;
+      background: var(--panel, var(--bg-card, #0c1120)); border-top: 1px solid var(--line); border-bottom: 0; }
+    .view-tab { flex: 1; padding: 0 2px; font-size: 12px; border-bottom: 0; border-top: 2px solid transparent; }
+    .view-tab[aria-pressed="true"], .view-tab[aria-expanded="true"] { border-top-color: var(--accent); }
+    body.params-open .view-tab[aria-pressed="true"] { border-top-color: transparent; }
+    .page { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); flex-basis: 100%; }
+    .verdict .word { font-size: 30px; }
+  }
+  .studio-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  @media (min-width: 1100px) {
+    .studio-pair { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .studio-pair #gl { height: 380px !important; }
+    .results .verdict .word { font-size: 30px; }
+    .results .verdict { padding: 12px 16px; gap: 10px 20px; }
+  }
+  .hero .badge { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+  .gl-wrap { position: relative; }
+  .gl-wrap .fit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); min-width: 56px; z-index: 2;
+    background: var(--panel, var(--bg-card, #0c1120)); }
+  .callout.warn#lowre { padding: 8px 12px; margin-bottom: 12px; }
+  .link.inline { min-height: 0; padding: 0; text-decoration: underline; }
+  dialog#export { max-width: 420px; }
+  .export-list { border: 0; padding: 0; margin: 8px 0 16px; display: grid; gap: 4px; }
+  .export-list .radio { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; }
+  .export-list .radio input { width: 20px; height: 20px; accent-color: var(--accent); }
+  .btn.primary { width: 100%; background: var(--accent); color: var(--text-on-accent, #06080f); border-color: var(--accent); font-weight: 600; }
+  /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
+     sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
+  .controls.params, dialog#help, dialog#brief, dialog#export, .gl-wrap .fit { background: linear-gradient(var(--panel), var(--panel)), var(--bg); }
+  dialog .sheet-head, .params .sheet-head { background: linear-gradient(var(--panel), var(--panel)), var(--bg); }
+  @media (max-width: 760px) { .view-bar { background: linear-gradient(var(--panel), var(--panel)), var(--bg) !important; } }
 </style>
 </head>
 <body>
 <div class="page">
 
   <header class="hero">
-    <h1>Blade Studio</h1>
-    <p>
-      A rotor blade, solved rather than drawn. Every control below re-runs blade element momentum
-      theory over the whole span — an inviscid vortex panel solution for lift, a Viterna extension
-      past stall, Prandtl tip and hub losses, and the Glauert/Buhl correction that stops the answer
-      walking through the Betz limit. The blade you see is the blade the solver used and the blade
-      the export writes, so what prints is what was analysed.
-    </p>
+    <div class="hero-row">
+      <h1>Blade Studio</h1>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="export-open" aria-haspopup="dialog">Export</button>
+      <button type="button" class="btn" id="brief-open" aria-haspopup="dialog">Brief</button>
+      <button type="button" class="btn" id="help-open" aria-haspopup="dialog">Help</button>
+    </div>
+    <p>A rotor blade, solved rather than drawn: what you see is what the solver used and what the export writes.</p>
     <p>
       <span class="badge">illustrative parameters — not survey data</span>
       <span class="badge" id="mode-badge">local mirror</span>
@@ -180,8 +260,17 @@
     <code>blade-studio-gl.js</code> and <code>blade-studio.js</code> must be served next to this page.
   </div>
 
-  <!-- One filter band, above everything it scopes. Never a filter inside a chart card. -->
-  <section class="controls glass-panel" aria-label="Blade design controls">
+  <!-- Two views, one job each (UX audit 2026-11-06, SPLIT): the studio, and the analysis behind it. -->
+  <nav class="view-bar" aria-label="Blade studio views">
+    <button type="button" class="view-tab" id="tab-studio" data-view="studio" aria-pressed="true">Blade studio</button>
+    <button type="button" class="view-tab" id="tab-analysis" data-view="analysis" aria-pressed="false">Blade analysis</button>
+    <button type="button" class="view-tab phone-only" id="tab-params" aria-expanded="false" aria-controls="params">Parameters</button>
+  </nav>
+
+  <div class="lab" id="view-studio">
+    <aside class="controls params" id="params" aria-label="Blade design controls">
+      <div class="sheet-head phone-only"><strong>Parameters</strong><button type="button" class="link" id="params-done">Done</button></div>
+
     <div class="ctl">
       <label for="c-tipr">Tip radius</label>
       <div class="row"><input type="range" id="c-tipr" min="40" max="400" step="5" value="150" /><output id="c-tipr-out">150 mm</output></div>
@@ -238,13 +327,11 @@
       <label for="c-lambda">Operating tip-speed ratio</label>
       <div class="row"><input type="range" id="c-lambda" min="1" max="12" step="0.25" value="5" /><output id="c-lambda-out">5.0</output></div>
     </div>
-    <div class="ctl">
-      <label for="c-reset">View</label>
-      <button class="btn" id="c-reset" type="button">Re-frame the 3-D view</button>
-    </div>
-  </section>
+      <button type="button" class="link" id="reset-blade">Reset blade</button>
+    </aside>
 
-  <section class="verdict summary-card" id="verdict" aria-live="polite">
+    <div class="results">
+<section class="verdict summary-card" id="verdict" aria-live="polite">
     <div class="lead">
       <span class="icon" id="verdict-icon">●</span>
       <span class="word" id="verdict-word">—</span>
@@ -258,32 +345,19 @@
       <div class="stat-card"><div class="v" id="kpi-minsoc">—</div><div class="k">Deepest charge</div></div>
     </div>
   </section>
+      <div class="callout warn" id="lowre" hidden>
+        <b>Low-Reynolds warning:</b> Re <b id="lowre-value">—</b> at 75 % span, so treat the Cp as an upper bound
+        (<button type="button" class="link inline" data-help>why</button>).
+      </div>
 
-  <div class="callout warn" id="lowre" hidden>
-    <b>Low-Reynolds warning.</b> The section at 75 % span is running at Re
-    <b id="lowre-value">—</b>, below about 1×10⁵. <b>The polar is outside its reliable range at this
-    scale.</b> A NACA 4-digit aerofoil was drawn for Reynolds numbers an order of magnitude higher;
-    down here a laminar separation bubble dominates, lift-to-drag collapses into the low twenties,
-    and the drag figures on this page are correlations rather than a solved boundary layer. Treat
-    the Cp below as an upper bound and expect a real print to under-perform it. Shrinking a
-    utility-scale design point onto a print bed is the classic small-rotor mistake; this is where it
-    shows up.
-  </div>
-
+  <div class="studio-pair">
   <section class="section-card">
     <h2>The blade, in three dimensions</h2>
-    <p class="cap">
-      The lofted solid itself — one NACA section per design station, scaled by that station's chord
-      and rotated about the <b>quarter-chord</b> by its total blade angle, then capped at both ends
-      so the result is a closed solid rather than an open shell. Flat shading with real facet
-      normals, because a smoothed normal averages across the leading edge and hides the one thing
-      worth seeing: the <b>twist</b>, which reads as the steady change in facet brightness from the
-      thick root to the thin tip. Every blade is drawn, so blade count is visible too. The floor is a
-      <b>10 mm build-plate lattice</b> with every tenth line at 100 mm. Drag to orbit, right-drag to
-      pan, scroll to zoom, arrow keys to rotate.
-    </p>
-    <canvas id="gl" tabindex="0" role="img"
+    <div class="gl-wrap">
+      <canvas id="gl" tabindex="0" role="img"
       aria-label="Interactive three-dimensional view of the rotor blades above a ten-millimetre reference grid"></canvas>
+      <button class="btn fit" id="c-reset" type="button" title="Fit the blade in the view" aria-label="Fit the 3-D view">Fit</button>
+    </div>
     <div class="viewer-foot">
       <span>Printed envelope of one blade: <span class="size" id="gl-size">—</span></span>
       <span>Solid exports are written in millimetres.</span>
@@ -292,25 +366,12 @@
       WebGL2 is not available in this browser, so the 3-D view is blank. Every number, chart and
       export on this page is independent of it and still works.
     </div>
-    <div class="btn-row">
-      <button class="btn" id="x-stl" type="button">Export STL (binary)</button>
-      <button class="btn" id="x-obj" type="button">Export OBJ</button>
-      <button class="btn" id="x-scad" type="button">Export OpenSCAD</button>
-      <button class="btn" id="x-dxf" type="button">Export DXF station drawing</button>
-    </div>
   </section>
 
   <section class="section-card">
     <h2>Power coefficient against tip-speed ratio</h2>
-    <p class="cap">
-      The rotor's whole character in one curve. Cp rises as the blades start doing work, peaks where
-      the twist schedule matches the inflow, and falls again once the sections stall or the drag
-      penalty outgrows the lift. The <b>Betz limit</b> is drawn as a hard ceiling: 16/27 is what
-      momentum theory permits any open-flow rotor, and a curve that crossed it would be a solver bug,
-      not a discovery — which is exactly why the Glauert/Buhl correction above a = 0.4 is not
-      optional. The marked point is where the operating tip-speed-ratio control currently sits, and
-      it is the Cp that feeds the energy verdict at the foot of the page.
-    </p>
+    <p class="cap">Cp peaks where the twist matches the inflow and never crosses the Betz limit; the marked point feeds the energy verdict.</p>
+
     <div class="chart"><canvas id="cv-cp" role="img"
       aria-label="Power coefficient against tip-speed ratio, with the Betz limit as a ceiling and the current operating point marked"></canvas></div>
     <div class="legend">
@@ -318,21 +379,15 @@
       <span><i class="rule"></i> Betz limit, 16/27</span>
     </div>
   </section>
+  </div>
+    </div>
+  </div>
 
-  <section class="section-card">
+  <div class="lab one" id="view-analysis" hidden>
+    <div class="results">
+<section class="section-card">
     <h2>Spanwise distributions</h2>
-    <p class="cap">
-      What each annulus of the blade is actually doing at the operating point, hub to tip. Six panels
-      rather than one chart with six lines: angle of attack, lift, drag, lift-to-drag, Reynolds and
-      the induction factors carry five different units and five different magnitudes, and overlaying
-      them would need a second y-axis — which is never the answer. Read them together. <b>α</b> falls
-      outboard because the twist takes it out; <b>Reynolds</b> rises outboard because rotational speed
-      dominates the relative wind, so the tip is the only part of a small blade flying in a regime the
-      aerofoil recognises; <b>a</b> should sit near ⅓ over the working span (that is the Betz optimum)
-      and collapse at both ends, which is the Prandtl tip and hub loss doing its job. Each panel is
-      labelled at <b>75 % span</b> — the station a rotor is designed around, and the one the
-      low-Reynolds warning is taken at.
-    </p>
+    <p class="cap">Chord, angle of attack, lift, drag, Reynolds number and induction across the span, one small multiple each.</p>
     <div class="chart"><canvas id="cv-span" role="img"
       aria-label="Six panels of spanwise distribution: angle of attack, lift coefficient, drag coefficient, lift-to-drag, section Reynolds number, and the axial and tangential induction factors"></canvas></div>
     <div class="legend">
@@ -341,19 +396,9 @@
       <span><i data-series="0"></i> value at 75 % span</span>
     </div>
   </section>
-
-  <section class="section-card">
+<section class="section-card">
     <h2>The closed loop — what the blade is worth to a node that has to live out there</h2>
-    <p class="cap">
-      This is the point of the whole page. The Cp above is not a score; it is an input. It becomes a
-      harvest curve against flow speed, that curve is integrated against a real tidal schedule for a
-      full <b>spring/neap beat</b>, and the result decides how big a battery the node needs. Note
-      what the flow envelope does without anyone setting it: the beat is emergent, from the lunar and
-      solar semidiurnal constituents drifting in and out of phase every 14.77 days. Sizing off the
-      thirty-day <em>mean</em> is the classic error — the binding constraint is the longest stretch
-      the environment gives the node nothing, which is a property of the schedule, not of its
-      average. Move a twist slider and watch the minimum store move with it.
-    </p>
+    <p class="cap">What the blade is worth to a moored node over a spring/neap beat: the store as the tide gives and withholds.</p>
     <div class="chart"><canvas id="cv-energy" role="img"
       aria-label="Harvested power and state of charge over a thirty-day spring and neap beat, with brownout regions shaded"></canvas></div>
     <div class="legend">
@@ -362,14 +407,9 @@
       <span><i style="background: #d03b3b; opacity: .5;"></i> ▲ brownout — the pack is on its floor with an unmet load</span>
     </div>
   </section>
-
-  <section class="section-card">
+<section class="section-card">
     <h2>Table view</h2>
-    <p class="cap">
-      Every value the charts encode in colour or position, as text. This is the accessible twin, and
-      it is also the relief channel the light-mode palette requires: two of the three series colours
-      sit below 3:1 against the light surface, so no value on this page is ever carried by hue alone.
-    </p>
+    <p class="cap">Every value the charts encode in colour or position, as text.</p>
     <div class="scroller">
       <table>
         <caption class="cap" style="text-align: left; caption-side: bottom; padding-top: 8px;">
@@ -382,8 +422,7 @@
       </table>
     </div>
   </section>
-
-  <section class="section-card">
+<section class="section-card">
     <h2>Spanwise table</h2>
     <p class="cap">The text twin of the six small multiples, sampled across the span.</p>
     <div class="scroller">
@@ -405,9 +444,72 @@
       </table>
     </div>
   </section>
+    </div>
+  </div>
 
-  <section class="section-card">
-    <h2>The model</h2>
+  <dialog id="export" aria-labelledby="export-title">
+    <div class="sheet-head"><strong id="export-title">Export the blade</strong><button type="button" class="link" id="export-close">Done</button></div>
+    <p class="cap">Solid exports are written in millimetres.</p>
+    <fieldset class="export-list">
+      <label class="radio"><input type="radio" name="export-kind" value="x-stl" checked> STL (binary)</label>
+      <label class="radio"><input type="radio" name="export-kind" value="x-obj"> OBJ</label>
+      <label class="radio"><input type="radio" name="export-kind" value="x-scad"> OpenSCAD</label>
+      <label class="radio"><input type="radio" name="export-kind" value="x-dxf"> DXF station drawing</label>
+    </fieldset>
+    <div hidden><button class="btn" id="x-stl" type="button">Export STL (binary)</button>
+      <button class="btn" id="x-obj" type="button">Export OBJ</button>
+      <button class="btn" id="x-scad" type="button">Export OpenSCAD</button>
+      <button class="btn" id="x-dxf" type="button">Export DXF station drawing</button></div>
+    <button type="button" class="btn primary" id="export-go">Export</button>
+  </dialog>
+
+  <dialog id="help" aria-labelledby="help-title">
+    <div class="sheet-head"><strong id="help-title">How Blade Studio works</strong><button type="button" class="link" id="help-close">Done</button></div>
+    <h3>The solver</h3>
+    <p class="cap">A rotor blade, solved rather than drawn. Every control re-runs blade element momentum theory over the whole span — an inviscid vortex panel solution for lift, a Viterna extension past stall, Prandtl tip and hub losses, and the Glauert/Buhl correction that stops the answer walking through the Betz limit. The blade you see is the blade the solver used and the blade the export writes, so what prints is what was analysed.</p>
+    <h3>Low-Reynolds warning</h3>
+    <p class="cap"><b>Low-Reynolds warning.</b> The section at 75 % span is running at Re below 1×10⁵, below about 1×10⁵. <b>The polar is outside its reliable range at this scale.</b> A NACA 4-digit aerofoil was drawn for Reynolds numbers an order of magnitude higher; down here a laminar separation bubble dominates, lift-to-drag collapses into the low twenties, and the drag figures on this page are correlations rather than a solved boundary layer. Treat the Cp below as an upper bound and expect a real print to under-perform it. Shrinking a utility-scale design point onto a print bed is the classic small-rotor mistake; this is where it shows up.</p>
+    <h3>The blade, in three dimensions</h3>
+    <p class="cap">The lofted solid itself — one NACA section per design station, scaled by that station's chord
+      and rotated about the <b>quarter-chord</b> by its total blade angle, then capped at both ends
+      so the result is a closed solid rather than an open shell. Flat shading with real facet
+      normals, because a smoothed normal averages across the leading edge and hides the one thing
+      worth seeing: the <b>twist</b>, which reads as the steady change in facet brightness from the
+      thick root to the thin tip. Every blade is drawn, so blade count is visible too. The floor is a
+      <b>10 mm build-plate lattice</b> with every tenth line at 100 mm. Drag to orbit, right-drag to
+      pan, scroll to zoom, arrow keys to rotate.</p>
+    <h3>Power coefficient against tip-speed ratio</h3>
+    <p class="cap">The rotor's whole character in one curve. Cp rises as the blades start doing work, peaks where
+      the twist schedule matches the inflow, and falls again once the sections stall or the drag
+      penalty outgrows the lift. The <b>Betz limit</b> is drawn as a hard ceiling: 16/27 is what
+      momentum theory permits any open-flow rotor, and a curve that crossed it would be a solver bug,
+      not a discovery — which is exactly why the Glauert/Buhl correction above a = 0.4 is not
+      optional. The marked point is where the operating tip-speed-ratio control currently sits, and
+      it is the Cp that feeds the energy verdict at the foot of the page.</p>
+    <h3>Spanwise distributions</h3>
+    <p class="cap">What each annulus of the blade is actually doing at the operating point, hub to tip. Six panels
+      rather than one chart with six lines: angle of attack, lift, drag, lift-to-drag, Reynolds and
+      the induction factors carry five different units and five different magnitudes, and overlaying
+      them would need a second y-axis — which is never the answer. Read them together. <b>α</b> falls
+      outboard because the twist takes it out; <b>Reynolds</b> rises outboard because rotational speed
+      dominates the relative wind, so the tip is the only part of a small blade flying in a regime the
+      aerofoil recognises; <b>a</b> should sit near ⅓ over the working span (that is the Betz optimum)
+      and collapse at both ends, which is the Prandtl tip and hub loss doing its job. Each panel is
+      labelled at <b>75 % span</b> — the station a rotor is designed around, and the one the
+      low-Reynolds warning is taken at.</p>
+    <h3>The closed loop — what the blade is worth to a node that has to live out there</h3>
+    <p class="cap">This is the point of the whole page. The Cp above is not a score; it is an input. It becomes a
+      harvest curve against flow speed, that curve is integrated against a real tidal schedule for a
+      full <b>spring/neap beat</b>, and the result decides how big a battery the node needs. Note
+      what the flow envelope does without anyone setting it: the beat is emergent, from the lunar and
+      solar semidiurnal constituents drifting in and out of phase every 14.77 days. Sizing off the
+      thirty-day <em>mean</em> is the classic error — the binding constraint is the longest stretch
+      the environment gives the node nothing, which is a property of the schedule, not of its
+      average. Move a twist slider and watch the minimum store move with it.</p>
+    <h3>Table view</h3>
+    <p class="cap">This is the accessible twin, and it is also the relief channel the light-mode palette requires: two of the three series colours sit below 3:1 against the light surface, so no value on this page is ever carried by hue alone.</p>
+<h3>The model</h3>
+
     <p class="cap">
       <b>Section.</b> NACA 4-digit in closed form, with the −0.1036 thickness coefficient so the
       trailing edge closes exactly — the −0.1015 form of the original report leaves a 0.2 %c gap that
@@ -444,11 +546,86 @@
       appear as a cross-check row in the table and in the mode badge — the headline verdict is always
       the one computed here, so the page cannot contradict itself.
     </p>
-  </section>
+  </dialog>
+
+  <dialog id="brief" class="brief-sheet" aria-labelledby="brief-title">
+    <div class="sheet-head"><strong id="brief-title">Prepare an analysis document</strong><button type="button" class="link" id="brief-close">Done</button></div>
+    <p class="cap">Capture the visible simulation verdict, then edit the brief. These are modeled results, not measured performance.</p>
+    <button type="button" class="btn" id="captureLabEvidence">Use visible results</button>
+    <label class="brief-label">Analysis brief<textarea id="labNotes" rows="6"></textarea></label>
+    <div id="labActions"></div><p id="labReviewState" role="status"></p>
+  </dialog>
 
   <div id="tooltip" role="status" hidden></div>
 </div>
 
+<script>
+// Views, the parameters pane or sheet, number fields beside the sliders, Reset to defaults, Help and Brief
+// (UX audit 2026-11-06). harvest-console.js still owns every control's value and the model.
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function setView(v) {
+    var view = v === 'analysis' ? 'analysis' : 'studio';
+    $('view-studio').hidden = view !== 'studio'; $('view-analysis').hidden = view !== 'analysis';
+    $('tab-studio').setAttribute('aria-pressed', String(view === 'studio')); $('tab-analysis').setAttribute('aria-pressed', String(view === 'analysis'));
+    closeParams();
+    try { history.replaceState(null, '', location.pathname + location.search + (view === 'analysis' ? '#view=analysis' : '')); } catch (_) {}
+    window.dispatchEvent(new Event('resize'));
+  }
+  function closeParams() { document.body.classList.remove('params-open'); $('tab-params').setAttribute('aria-expanded', 'false'); }
+  $('tab-studio').addEventListener('click', function () { setView('studio'); });
+  $('tab-analysis').addEventListener('click', function () { setView('analysis'); });
+  $('tab-params').addEventListener('click', function () {
+    if (document.body.classList.contains('params-open')) return closeParams();
+    setView('studio'); document.body.classList.add('params-open'); $('tab-params').setAttribute('aria-expanded', 'true');
+  });
+  $('params-done').addEventListener('click', closeParams);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeParams(); });
+  // A number field beside each slider: it shows the slider's value and drives it (input/change, as the slider does).
+  var defaults = {};
+  document.querySelectorAll('#params input[type=range]').forEach(function (range) {
+    defaults[range.id] = range.value;
+    var out = $(range.id + '-out'), unit = document.createElement('span'), num = document.createElement('input');
+    num.type = 'number'; num.className = 'num'; num.min = range.min; num.max = range.max; num.step = range.step; num.value = range.value;
+    num.setAttribute('aria-label', (document.querySelector('label[for="' + range.id + '"]') || {}).textContent || range.id);
+    unit.className = 'unit'; unit.textContent = out ? out.textContent.replace(/^[-\d.,:]+\s*/, '') : '';
+    if (/^%/.test(unit.textContent)) unit.textContent = '\u00d7 ' + unit.textContent.replace(/^%\s*(of\s+)?/, '');
+    if (range.id === 'c-hour') unit.textContent = 'h'; if (range.id === 'c-day') unit.textContent = 'day';
+    if (out) out.classList.add('sr');
+    range.insertAdjacentElement('afterend', num); num.insertAdjacentElement('afterend', unit);
+    range.addEventListener('input', function () { num.value = range.value; });
+    num.addEventListener('change', function () {
+      var v = Math.min(Number(range.max), Math.max(Number(range.min), Number(num.value)));
+      if (!Number.isFinite(v)) { num.value = range.value; return; }
+      range.value = String(v); num.value = range.value;
+      range.dispatchEvent(new Event('input', { bubbles: true })); range.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  // A picker's default is its value before the person first touches it (the engine fills the pickers after load).
+  var firstSelect = {};
+  document.querySelectorAll('#params select').forEach(function (sel) {
+    var keep = function () { if (!(sel.id in firstSelect)) firstSelect[sel.id] = sel.value; };
+    sel.addEventListener('focus', keep); sel.addEventListener('pointerdown', keep); sel.addEventListener('keydown', keep);
+  });
+  $('reset-blade').addEventListener('click', function () {
+    document.querySelectorAll('#params select').forEach(function (sel) {
+      if (firstSelect[sel.id] !== undefined && sel.value !== firstSelect[sel.id]) { sel.value = firstSelect[sel.id]; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    document.querySelectorAll('#params input[type=range]').forEach(function (range) {
+      range.value = defaults[range.id]; range.dispatchEvent(new Event('input', { bubbles: true })); range.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  function dlg(open, close, id) { $(open).addEventListener('click', function () { var d = $(id); closeParams(); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }); $(close).addEventListener('click', function () { $(id).close(); }); }
+  dlg('help-open', 'help-close', 'help'); dlg('brief-open', 'brief-close', 'brief'); dlg('export-open', 'export-close', 'export');
+  document.querySelectorAll('[data-help]').forEach(function (b) { b.addEventListener('click', function () { $('help').showModal(); }); });
+  // One Export: the chosen format runs the same export the four buttons ran (they stay, hidden, as the bound targets).
+  $('export-go').addEventListener('click', function () { var pick = document.querySelector('input[name="export-kind"]:checked'); if (pick) $(pick.value).click(); $('export').close(); });
+  // Reset blade also puts the NACA section back.
+  var naca = $('c-naca'), nacaDefault = naca ? naca.value : null;
+  $('reset-blade').addEventListener('click', function () { if (naca && naca.value !== nacaDefault) { naca.value = nacaDefault; naca.dispatchEvent(new Event('input', { bubbles: true })); naca.dispatchEvent(new Event('change', { bubbles: true })); } });
+  setView(/(^|[#&])view=analysis\b/.test(location.hash) ? 'analysis' : 'studio');
+})();
+</script>
 <script>
   /*
    * Engine loader. This page may be served from a router-owned path, a static mount, or straight out
@@ -483,13 +660,6 @@
   }());
 </script>
 
-<details id="labReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box">
- <summary>Prepare an analysis document</summary>
- <p>Capture the visible simulation verdict, then edit the brief. These are modeled results, not measured performance.</p>
- <button type="button" id="captureLabEvidence">Use visible results</button>
- <label>Analysis brief<textarea id="labNotes" rows="6" style="width:100%;box-sizing:border-box"></textarea></label>
- <div id="labActions"></div><p id="labReviewState" role="status"></p>
-</details>
 <script>
 (async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const notes=document.getElementById('labNotes');
 document.getElementById('captureLabEvidence').addEventListener('click',()=>{notes.value=('SIMULATION REVIEW. Illustrative inputs; no field measurements or hardware validation. Snapshot '+new Date().toISOString()+'\n'+[["verdict-word","Verdict"],["verdict-note","Verdict note"],["kpi-cp","Cp at operating point"],["kpi-harvest","Mean harvest"],["kpi-margin","Harvest margin"],["kpi-store","Min store"],["kpi-minsoc","Deepest charge"],["mode-badge","Engine mode"]].map(([id,label])=>label+': '+(document.getElementById(id)?.textContent.trim().replace(/\s+/g,' ')||'Not available')).join('\n')+'\nReview assumptions, source revision and convergence before drawing conclusions. Visible results can belong to a previous input configuration; check the run status.').slice(0,2000);});

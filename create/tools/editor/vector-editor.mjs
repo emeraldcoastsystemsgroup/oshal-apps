@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bind cubic pen/node controls, stroke/gradient/clip properties and cancellable worker booleans to private Create projects.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): Closed path, Finish vector and Cancel vector sit in the canvas bar and show only while the pen is on or a path is being drawn.
  */
 import { $, state, canEdit, edit, notify, handle, error, subscribe } from './editor-state.mjs';
 import { clientToCanvas } from './region-select.mjs';
@@ -105,8 +106,10 @@ async function booleanEdit() {
 export function renderVector() {
   $('cancelVectorBoolean').disabled = !running;
   $('vectorPen').setAttribute('aria-pressed', String(state.vectorMode));
+  $('vectorBar').hidden = !state.vectorMode && !state.vectorDraft.length;
   $('finishVector').disabled = !canEdit() || state.vectorDraft.length < 2;
-  $('vectorDraftStatus').textContent = state.vectorMode ? `${state.vectorDraft.length} nodes. Click for corners; drag for handles; Finish creates the path.` : '';
+  $('vectorNodeCount').textContent = state.vectorMode ? `${state.vectorDraft.length} nodes.` : '';
+  $('vectorDraftStatus').querySelector('.vector-help').textContent = state.vectorMode ? ' Click for corners; drag for handles; Finish creates the path.' : '';
   const layer = selected(); $('vectorProperties').hidden = !layer; if (!layer) return;
   const contourIndex = Math.min(Number($('vectorContour').value) || 0, layer.contours.length - 1);
   const nodeIndex = Math.min(Number($('vectorNode').value) || 0, layer.contours[contourIndex].nodes.length - 1);

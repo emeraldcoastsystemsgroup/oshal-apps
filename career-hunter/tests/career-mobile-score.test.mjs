@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Ready reads the caller's submission records through nativeQueue (with queueAlert for a failed read), so the runtime loads both.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Load the real unit-aware salary helper while testing the mobile score renderers.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Verify all mobile views label AI and keyword scores distinctly and retain saved assessment dates.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Execute all three mobile fit renderers with zero, missing and keyword-fallback scores.
@@ -33,7 +34,7 @@ function runtime(scores) {
     stopReadyPoll(){},draftInFlight:()=>false,selectTab(){},renderPacketPane(){},renderReviewFoot(){},
   };
   vm.createContext(context);
-  vm.runInContext([source('salary'),source('fitEvidence'),source('cardHTML'),source('section'),source('loadReady'),source('openReview')].join('\n'),context);
+  vm.runInContext([source('salary'),source('fitEvidence'),source('cardHTML'),source('section'),source('nativeQueue'),source('queueAlert'),source('loadReady'),source('openReview')].join('\n'),context);
   return {context,elements,job};
 }
 

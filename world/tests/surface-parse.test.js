@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-31 00:00:00 | roger.murphy@emeraldcoastsystemsgroup.com | Guard for the 1.0.1 defect: the surface is one inline <script> inside a served string, so a SyntaxError there has no build step to catch it and no console a user reads — the page just never loads. Parse both copies (the .ts source and the compiled .js the runtime actually serves) with classic-script semantics, and pin the load() entrypoint the broken edit deleted.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The page now carries two inline scripts: the audience-view head script (ADR-164 D6) and the dashboard's own. Both copies must hold exactly those two, each must parse as a classic script, and load() must still be declared and invoked with its failure path, now only behind the kit's gate so an audience view never starts the dashboard.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (UX audit 2026-11-06): the window select is gone, so the audience-view gate holds load() alone.
  */
 
 /**
@@ -46,7 +47,8 @@ for (const rel of COPIES) {
 
   test('surface script keeps its load() entrypoint behind the audience-view gate (' + rel + ')', () => {
     assert.match(scripts.dashboard, /async function load\(/, rel + ': load() must be declared');
-    assert.match(scripts.dashboard, /\nif \(!window\.AppView \|\| !AppView\.active\(\)\) \{\n  document\.getElementById\('win'\)\.onchange = [^\n]+\n  load\(\)\.catch\([^\n]+\n\}\n/,
+    // 1.4.7: the window select is gone (one window control, its pills bound by load()), so the gate holds load() alone.
+    assert.match(scripts.dashboard, /\nif \(!window\.AppView \|\| !AppView\.active\(\)\) \{\n  load\(\)\.catch\([^\n]+\n\}\n/,
       rel + ': load() must be invoked with a failure path, and only when no audience view renders');
     assert.doesNotMatch(scripts.dashboard, /^load\(\)/m, rel + ': no ungated load() is left');
   });

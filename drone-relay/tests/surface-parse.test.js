@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The surface parse guard (the world 1.0.1 lesson: a served script no compiler ever parses): the tile's script parses as a classic script, every element id the script reads exists in the page, the page loads the script from the package's asset route, and the script builds nodes with textContent only (no innerHTML / insertAdjacentHTML with API data).
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: the editor's Radio, Fleet and Flight groups and closed Advanced, Plan | Simulate, Delete asked in the page (no native dialog) and advisories in words stay on the page.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -34,4 +35,14 @@ test('every element id the script reads exists in the page', () => {
 test('nothing from the API is interpolated into markup', () => {
   assert.doesNotMatch(js, /innerHTML|insertAdjacentHTML|outerHTML|document\.write/);
   assert.ok(js.includes('textContent'));
+});
+
+test('UX audit 2026-11-06: the editor is grouped, Delete asks in the page and advisories read in words', () => {
+  for (const legend of ['Radio', 'Fleet', 'Flight']) assert.ok(html.includes('<legend>' + legend + '</legend>'), legend);
+  assert.ok(html.includes('<details class="advanced"><summary>Advanced: control plane and courier</summary>'));
+  assert.ok(html.includes('id="tab-plan"') && html.includes('id="tab-sim"'));
+  assert.ok(!js.includes('window.confirm('), 'no native confirm');
+  const words = new vm.Script('(' + js.match(/function words\(text\) \{[\s\S]*?\n  \}/)[0] + ')').runInNewContext();
+  assert.equal(words('or plan on pathLossExponent 3 instead'), 'or plan on a path-loss exponent of 3 instead');
+  assert.equal(words('lengthen heartbeatS to leave air'), 'lengthen the heartbeat interval to leave air');
 });

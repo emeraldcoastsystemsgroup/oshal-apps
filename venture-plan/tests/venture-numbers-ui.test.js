@@ -14,6 +14,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Flat waterfall rows group into one card per channel with the engine's contribution figure; sweep rows show the sweep's own baseline and each assumption in its unit, and name a stale saved model; Delete calls DELETE /ventures/:id only after a confirm and returns to the empty state.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: after Delete the deleted venture's run banner, posture tiles and publish banner stayed on screen; Delete now clears them and stops a watched run.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3, UX audit venture-plan--venture-home: Delete lives in the venture menu and asks in the page (askDeleteVenture fills the confirm naming the venture; only its Delete button deletes), never through the browser's confirm dialog; a delete also clears the status line and closes the menu.
  */
 'use strict';
 
@@ -37,7 +38,7 @@ function fnSource(name) {
 }
 
 const HELPERS = ['esc', 'isNum', 'group', 'usd', 'roundHalfUp', 'pctOfBps', 'pctOfRatio', 'count', 'fmtUnit', 'fmtLoose'];
-const UNDER_TEST = ['groupWaterfalls', 'waterfallMarks', 'assumptionFormatter', 'tornadoBaselineNote', 'deleteVenture'];
+const UNDER_TEST = ['groupWaterfalls', 'waterfallMarks', 'assumptionFormatter', 'tornadoBaselineNote', 'ventureName', 'askDeleteVenture', 'deleteVenture'];
 
 /** The page's functions bound to a state object, stub elements and a recording API. */
 function page(S, world) {
@@ -45,12 +46,14 @@ function page(S, world) {
   const $ = (id) => { if (!els[id]) els[id] = { hidden: false, innerHTML: '', textContent: '', disabled: false }; return els[id]; };
   const api = (method, url) => { world.calls.push([method, url]); return Promise.resolve({ ok: true }); };
   const window = { confirm: (msg) => { world.confirms.push(msg); return world.confirmAnswer; } };
+  const body0 = new Set(['has-venture']);
+  const document = { body: { classList: { add: (c) => body0.add(c), remove: (c) => body0.delete(c), contains: (c) => body0.has(c) } } };
   const body = `var MICROS_PER_CENT = 10000; var MICROS_PER_DOLLAR = 1000000;\n${
     [...HELPERS, ...UNDER_TEST].map(fnSource).join('\n')}\nreturn { ${UNDER_TEST.join(', ')} };`;
-  const fns = new Function('S', '$', 'api', 'toast', 'fail', 'loadVentures', 'window', 'HEAD0', body)(
+  const fns = new Function('S', '$', 'api', 'toast', 'fail', 'loadVentures', 'window', 'HEAD0', 'document', body)(
     S, $, api, (msg) => world.toasts.push(msg), (e) => world.failures.push(e.message),
-    () => { world.reloaded += 1; return Promise.resolve(); }, window, { name: 'Venture Plan', idea: 'Turn an idea…' });
-  return { fns, els, $ };
+    () => { world.reloaded += 1; return Promise.resolve(); }, window, { name: 'Venture Plan', idea: 'Turn an idea…' }, document);
+  return { fns, els, $, document };
 }
 
 const newWorld = (confirmAnswer = true) => ({ calls: [], confirms: [], toasts: [], failures: [], reloaded: 0, confirmAnswer });
@@ -95,12 +98,15 @@ test('the sweep table says what its outcomes are measured against and reads valu
   assert.match(html, /esc\(usd\(b\.baseObjectiveMicros\)\)/);
 });
 
-test('Delete removes the open venture only after a confirm and returns to the empty state', async () => {
-  const declined = newWorld(false);
-  const a = page({ ventureId: 'v1', ventures: [{ id: 'v1', name: 'sweep3 venture' }] }, declined);
-  a.fns.deleteVenture();
-  assert.deepEqual(declined.calls, []);
-  assert.match(declined.confirms[0], /Delete “sweep3 venture”/);
+test('Delete removes the open venture only after the in-page confirm and returns to the empty state', async () => {
+  const asked = newWorld(false);
+  const a = page({ ventureId: 'v1', ventures: [{ id: 'v1', name: 'sweep3 venture' }] }, asked);
+  a.$('deleteConfirm').hidden = true;
+  a.fns.askDeleteVenture();
+  assert.deepEqual(asked.calls, [], 'asking deletes nothing');
+  assert.deepEqual(asked.confirms, [], 'never the browser confirm dialog');
+  assert.equal(a.$('deleteConfirm').hidden, false);
+  assert.match(a.$('deleteQuestion').textContent, /^Delete “sweep3 venture” with its assumptions, models, runs and documents\? This cannot be undone\.$/);
 
   const world = newWorld(true);
   const S = { ventureId: 'v1', ventures: [{ id: 'v1', name: 'sweep3 venture' }], model: {}, assumptions: [1] };
@@ -121,6 +127,13 @@ test('Delete removes the open venture only after a confirm and returns to the em
   assert.equal(b.$('posture').hidden, true);
   assert.equal(S.run, null);
   assert.equal(world.reloaded, 1);
+  assert.equal(b.$('statusLine').hidden, true, 'the status line goes with the venture');
+  assert.equal(b.$('deleteConfirm').hidden, true);
+  assert.equal(b.$('ventureMenu').hidden, true);
+  assert.equal(b.document.body.classList.contains('has-venture'), false, 'the phone bottom bar goes too');
+  assert.deepEqual(world.confirms, []);
   assert.match(html, /id="deleteVentureBtn"/);
-  assert.match(html, /\$\('deleteVentureBtn'\)\.addEventListener\('click', deleteVenture\)/);
+  assert.match(html, /\$\('deleteVentureBtn'\)\.addEventListener\('click', askDeleteVenture\)/);
+  assert.match(html, /\$\('deleteYes'\)\.addEventListener\('click', deleteVenture\)/);
+  assert.doesNotMatch(html, /window\.confirm\(/);
 });

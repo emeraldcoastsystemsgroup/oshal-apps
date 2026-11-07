@@ -28,6 +28,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 # 0.20.1: the certified gait ships in the engine image and reports live on a named volume (ADR-203); no engine runtime file changed.
+# 0.20.2: UX audit split (embodied--embodied): Mission console (map with cameras over it, planner, log, the manual pad beside the map or as a phone sheet that opens on Take command), Hardware sizing (assemblies, part row menus, policies) and Physics & medium lab (hull drop, the physics chip); setup choices in a Setup row or sheet; Help holds the heading explanations. No command or request changed.
 name: embodied
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -78,7 +79,8 @@ description: >-
   hidden scenes (the kitchen, a studio) are plain data the discovery never reads;
   a drone that reports itself lost recovers by a global search and its registered
   trail back to the pad. Deterministic, no hardware — every view says simulated.
-version: 0.20.1
+# 0.20.3: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
+version: 0.20.3
 
 # ADR-139 — "Send to…" destination: a Spaces scan built into this engine's scene shape becomes a
 # scenario this owner can reset a world onto (BACKLOG B23). The endpoint redeems the handle as the

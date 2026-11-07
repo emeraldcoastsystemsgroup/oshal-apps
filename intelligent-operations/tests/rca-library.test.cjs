@@ -1,11 +1,17 @@
+// CHANGE LOG: ux audit library | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: a report-files refusal names its fix (no shared workspace), states as words, severity from the alert label.
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Verify historical RCA citations, exact original-ticket downloads, partial lineage, refusal and stale selection clearing in shipped UI. */
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
-const {catalogue,artifactUrl}=require('../experience/rca-library.js'),{dependency}=require('./fixtures/intake.cjs');
+const {catalogue,artifactUrl,refusal,severityOf,STATES}=require('../experience/rca-library.js'),{dependency}=require('./fixtures/intake.cjs');
 const one='11111111-1111-4111-8111-111111111111',two='22222222-2222-4222-8222-222222222222',work='33333333-3333-4333-8333-333333333333';
 test('catalogue uses source ticket metadata, preserves state and rejects invalid or repeated IDs',()=>{
  const rows=catalogue({tickets:[{id:one,kind:'intelligent-operations',title:'Untitled',description:'  API\nfailed ',status:'done'},{id:two,kind:'other',title:'Private elsewhere'}]});assert.equal(rows.length,1);assert.equal(rows[0].title,'API failed');assert.equal(rows[0].status,'done');
  assert.throws(()=>catalogue({}),/unavailable/);assert.throws(()=>catalogue({tickets:[{id:'bad',kind:'intelligent-operations'}]}),/identity/);assert.throws(()=>catalogue({tickets:[{id:one,kind:'intelligent-operations'},{id:one,kind:'intelligent-operations'}]}),/repeated/);
+});
+test('UX audit 2026-11-06: a report-files refusal says its fix, states read as words, severity comes from the alert label',()=>{
+ assert.match(refusal(503,{detail:'shared workspace is not configured; set OSHAL_WORKSPACE_ROOT',refused:'store_unavailable'}),/shared workspace is not configured. An administrator sets OSHAL_WORKSPACE_ROOT/);
+ assert.equal(refusal(500,{}),'Historical source is unavailable (HTTP 500).');assert.match(refusal(502,{detail:'upstream down'}),/: upstream down\.$/);
+ assert.equal(STATES.awaiting_approval,'Awaiting approval');assert.equal(severityOf('[critical] SiteDown · host'),'critical');assert.equal(severityOf('Untitled'),'');
 });
 test('artifact links require this original ticket and an exact accepted-work selector',()=>{
  const valid='/api/v1/workspace/'+one+'/files?work='+work+'&artifact=0';assert.equal(artifactUrl(valid,one),true);

@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove real native inspector saves before concierge reads and editable same-project refresh with actual Chromium, original-owner SQL and the pinned compositor. Assistant operations use the real app routes; no provider inference is claimed.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0 layout: the native New, Add and Add-key forms now sit behind the + Add menu, the first layer and the property diamonds, so these handoff proofs submit the same native forms directly (native()) and open a saved composition through its select (choose()); on a desktop a layer is chosen from its timeline row (the layer tree is the Layers sheet); what they prove about the handoff is unchanged.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,9 +16,12 @@ async function page(t){
  const page=await context.newPage(),errors=[];page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));
  await page.goto(fixture.origin+'/api/motion-studio/app');await page.waitForFunction(()=>window.__oshalDocumentSession);await page.locator('.ef-shell').waitFor();await page.locator('details').evaluateAll(nodes=>nodes.forEach(node=>{node.open=true;}));return {page,errors,context};
 }
+/** Submit one of the workbench's native forms with these values, as the + Add menu, the first layer and the diamonds do. */
+const native=async(page,id,values={})=>{await page.locator('#'+id+' button:enabled').waitFor({state:'attached'});return page.evaluate(([id,values])=>{const form=document.getElementById(id);for(const [name,value] of Object.entries(values))form.elements[name].value=value;form.requestSubmit();},[id,values]);};
+const choose=(page,id)=>page.locator('#projects').evaluate((select,id)=>{select.value=id;select.dispatchEvent(new Event('change'));},id);
 async function saved(page,n){await page.locator('#revision').filter({hasText:'revision '+n}).waitFor();await page.locator('#status').filter({hasText:'Saved'}).waitFor();}
-async function create(page,title){await page.locator('#new').evaluate(form=>{form.closest('details').open=true;});await page.locator('#new [name=title]').fill(title);await page.locator('#new [name=width]').fill('160');await page.locator('#new [name=height]').fill('90');await page.locator('#new button').click();await saved(page,1);}
-async function caption(page,text){await page.locator('#add [name=text]').fill(text);await page.locator('#add button').click();await saved(page,2);await page.locator('#textEdit [name=content]:enabled').waitFor();}
+async function create(page,title){await native(page,'new',{title,width:'160',height:'90'});await page.locator('#revision').filter({hasText:title+' · revision 1'}).waitFor();await saved(page,1);}
+async function caption(page,text){await native(page,'add',{kind:'text',text});await saved(page,2);await page.locator('#textEdit [name=content]:enabled').waitFor();}
 const begin=page=>page.evaluate(async()=>{const api=await import('/shared/ui/js/document-handoff.js');window.handoff=await api.beginDocumentHandoff();return window.handoff.context;});
 async function api(path,body){const response=await fetch(fixture.origin+'/api/motion-studio'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:stringifyNative(body)}:{});const result=parseNative(await response.text());assert.ok(response.ok,stringifyNative(result));return result;}
 async function project(id){return readProject((await api('/projects/'+id)).project);}
@@ -55,10 +59,10 @@ test('a Motion refresh keeps a concurrent focused inspector field and permits a 
 });
 
 test('Motion automatically saves effect, mask and selected keyframe values without replacing their native structures',async t=>{
- const {page:p,errors}=await page(t);await create(p,'Native controls');await p.locator('#add [name=kind]').selectOption('solid');await p.locator('#add [name=text]').fill('Native plane');await p.locator('#add button').click();await saved(p,2);
+ const {page:p,errors}=await page(t);await create(p,'Native controls');await native(p,'add',{kind:'solid',text:'Native plane'});await saved(p,2);
  await p.locator('#effectCatalog').selectOption('ec.blur.gaussian');await p.locator('#addEffect button').click();await saved(p,3);
  await p.locator('#mask [name=width]').fill('40');await p.locator('#mask [name=height]').fill('40');await p.locator('#mask button').click();await saved(p,4);
- await p.locator('#key [name=value]').fill('100');await p.locator('#key button').click();await saved(p,5);
+ await native(p,'key',{value:'100'});await saved(p,5);
  const before=await begin(p),beforeProject=await project(before.recordId),originalLayer=comp(beforeProject).kind.layers[0];
  await p.locator('#effectFields fieldset[data-param="blurriness"] input:enabled').fill('8');await p.locator('#maskSettings [name=opacity]:enabled').fill('40');
  await p.locator('#timeline .keyButton').first().click();await p.locator('#editKey [name=value]:enabled').fill('25');
@@ -79,9 +83,9 @@ test('a historical Motion question retains the visible revision and cannot silen
 
 test('unapplied Motion drafts on two layers are both saved and the selected layer is retained',async t=>{
  const {page:p}=await page(t);await create(p,'Two layer drafts');await caption(p,'First native text');
- await p.locator('#add [name=text]').fill('Second native text');await p.locator('#add button').click();await saved(p,3);
- await p.locator('#layers button').filter({hasText:'First native text'}).click();await p.locator('#textEdit [name=content]:enabled').fill('My first layer draft');
- await p.locator('#layers button').filter({hasText:'Second native text'}).click();await p.locator('#textEdit [name=content]:enabled').fill('My second layer draft');
+ await native(p,'add',{kind:'text',text:'Second native text'});await saved(p,3);
+ await p.locator('#timeline .motion-row-name').filter({hasText:'First native text'}).click();await p.locator('#textEdit [name=content]:enabled').fill('My first layer draft');
+ await p.locator('#timeline .motion-row-name').filter({hasText:'Second native text'}).click();await p.locator('#textEdit [name=content]:enabled').fill('My second layer draft');
  const snapshot=await begin(p),document=await project(snapshot.recordId),layers=comp(document).kind.layers;
  assert.deepEqual(new Set(layers.map(layer=>prop(layer,'text','sourceText').value.v.text)),new Set(['My first layer draft','My second layer draft']));
  assert.equal(snapshot.fields.layerId,String(layers.find(layer=>layer.name==='Second native text').id));assert.equal(await p.locator('#textEdit [name=content]').inputValue(),'My second layer draft');
@@ -89,11 +93,11 @@ test('unapplied Motion drafts on two layers are both saved and the selected laye
 
 test('a delayed automatic native save cannot replace a newly opened Motion project',async t=>{
  const {page:p}=await page(t);await create(p,'First project');await caption(p,'First caption');const first=await begin(p);await create(p,'Other project');const other=await begin(p);
- await p.locator('#projects').selectOption(first.recordId);await saved(p,2);
+ await choose(p,first.recordId);await saved(p,2);
  let arrived,release;const seen=new Promise(resolve=>{arrived=resolve;}),gate=new Promise(resolve=>{release=resolve;});t.after(()=>release());
  await p.route('**/projects/'+first.recordId+'/operations',async route=>{const response=await route.fetch();arrived();await gate;await route.fulfill({response});});
  await p.locator('#textEdit [name=content]:enabled').fill('Saved before switching');const handoff=begin(p).then(value=>({value}),error=>({error:error.message}));await seen;
- await p.locator('#projects').selectOption(other.recordId);await p.locator('#revision').filter({hasText:'Other project'}).waitFor();release();assert.match((await handoff).error,/open composition changed/);
+ await choose(p,other.recordId);await p.locator('#revision').filter({hasText:'Other project'}).waitFor();release();assert.match((await handoff).error,/open composition changed/);
  assert.match(await p.locator('#revision').textContent(),/Other project/);assert.equal((await begin(p)).recordId,other.recordId);
 });
 
@@ -113,7 +117,7 @@ test('the concierge creates an editable native layer and gray effect, then reads
 
 
 test('automatic Motion saves retain a full effect text file when only a hidden section changes',async t=>{
- const {page:p}=await page(t);await create(p,'Full effect text');await p.locator('#add [name=kind]').selectOption('solid');await p.locator('#add button').click();await saved(p,2);
+ const {page:p}=await page(t);await create(p,'Full effect text');await native(p,'add',{kind:'solid'});await saved(p,2);
  await p.locator('#effectCatalog').selectOption('ec.utility.applylut');await p.locator('#addEffect button').click();await saved(p,3);
  const header='# shared visible header '+('x'.repeat(95000))+'\nLUT_1D_SIZE 2\n0 0 0\n',first=header+'1 1 1\n',next=header+'0 1 0\n';
  const file=p.locator('#effectFields fieldset[data-param="lut"] input[type=file]');await file.setInputFiles({name:'first.cube',mimeType:'text/plain',buffer:Buffer.from(first)});
@@ -128,7 +132,7 @@ test('reopening a newer Motion revision never silently rebases an older inspecto
  const {page:p}=await page(t);await create(p,'Original draft project');await caption(p,'Initial caption');const first=await begin(p);
  await p.locator('#textEdit [name=content]').fill('My older unsent draft');await create(p,'Another open project');
  await edit(first,[{command:'text.patchAt',params:{layer:first.fields.layerId,compTimeTicks:first.fields.compTimeTicks,attributes:{text:'Newer saved caption'}}}]);
- await p.locator('#projects').selectOption(first.recordId);await saved(p,3);await p.locator('#textEdit [name=content]:enabled').waitFor();
+ await choose(p,first.recordId);await saved(p,3);await p.locator('#textEdit [name=content]:enabled').waitFor();
  await assert.rejects(begin(p),/newer saved revision/);assert.equal(await p.locator('#textEdit [name=content]').inputValue(),'My older unsent draft');
  const latest=await project(first.recordId);assert.equal(prop(comp(latest).kind.layers[0],'text','sourceText').value.v.text,'Newer saved caption');
  await p.locator('#textEdit [name=content]').fill('Newer saved caption');assert.equal((await begin(p)).fields.revision,3);
@@ -136,7 +140,7 @@ test('reopening a newer Motion revision never silently rebases an older inspecto
 
 
 test('distinct native color parameters with repeated control names retain independent drafts',async t=>{
- const {page:p}=await page(t);await create(p,'Independent effect colors');await p.locator('#add [name=kind]').selectOption('solid');await p.locator('#add button').click();await saved(p,2);
+ const {page:p}=await page(t);await create(p,'Independent effect colors');await native(p,'add',{kind:'solid'});await saved(p,2);
  await p.locator('#effectCatalog').selectOption('ec.color.tint');await p.locator('#addEffect button').click();await saved(p,3);const initial=await begin(p);
  const before=await project(initial.recordId),original=comp(before).kind.layers[0].props.children.find(group=>group.match==='effects').children[0],white=original.children.find(prop=>prop.match==='white').value.v;
  await p.locator('#effectFields fieldset[data-param="black"] input[type=color]:enabled').evaluate(field=>{field.value='#808080';field.dispatchEvent(new Event('input',{bubbles:true}));});

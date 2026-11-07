@@ -10,7 +10,21 @@
      1 | maintainer@emeraldcoastsystemsgroup.com | The Fleet hint told the person to run `npm run camera:node`, a script of the retired
        platform checkout; the native kernel ships no camera node and refuses the legacy service-secret heartbeat. It now
        says no camera node ships with this installation (the fleet answers no_camera_node) and points to this browser's camera; an empty fleet
-       shows the fleet route's own detail instead of "start a camera node". -->
+       shows the fleet route's own detail instead of "start a camera node".
+     2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade D, FIX-LAYOUT + SPLIT + HIDE): the page is split into two
+       screens. Camera, always: this device's full-width live preview from the browser camera, one round 72px shutter at the
+       bottom centre as the one primary, Photo · Video · Timelapse as a segmented control beside it (above it on a phone), and
+       the captures as a strip below, each saved to this computer as before (the laptop card's getUserMedia, MediaRecorder and
+       canvas capture kept; Timelapse is new for this camera: a frame a second, played back 30 times faster). Cameras, shown
+       only after the first GET /fleet lists a camera: the fleet, remote control, telemetry, live preview, settings, captures
+       and event log, unchanged in behaviour; with no camera node they are withheld, not disabled. The inline Concierge card is
+       removed (the shell's concierge button is the one assistant entry). Every control is at least 44px. Delete all media
+       moves into the Cameras screen's More with an in-page confirm, and Clear the captures list into the Camera screen's More
+       (no window.confirm). A refused or failed camera shows role="alert" saying how to allow the camera. The diagnostic brief
+       is a sheet from More painted with theme tokens, offered only when the cockpit's connected actions show this person one.
+     3 | maintainer@emeraldcoastsystemsgroup.com | The More menu, the in-page confirm, the diagnostic brief sheet and the camera stage
+       carry data-no-glass: the portal's glass layer marked them as glass in light-blue, so the confirm showed the screen
+       through it and the live camera sat on a pale card instead of black. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's cameras (online,
      recording or offline, battery, mode), the photos and videos they reported since Camera Ops last started, and the
      latest recorded commands, from the SAME /api/camera routes the full page reads, painted by the shared kit in the
@@ -155,7 +169,9 @@
     --c-text: var(--text-primary, #1a1f2b);
     --c-muted: var(--text-secondary, #5b6474);
     --c-accent: var(--accent-primary, #2f6df6);
+    --c-on-accent: var(--text-on-accent, #fff);
     --c-ok: #1f9d57; --c-warn: #c98a12; --c-bad: #d63a54; --c-rec: #e23b53;
+    --c-alert: var(--status-error, var(--c-bad));
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -197,21 +213,81 @@
     background: var(--c-bg); color: var(--c-text);
     font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px;
   }
-  .btn, input, select, button { font: inherit; }
+  [hidden] { display: none !important; }
+  .btn, input, select, button, textarea { font: inherit; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .muted { color: var(--c-muted); font-size: 12px; }
-  .hint { color: var(--c-muted); font-size: 11px; margin-top: 6px; }
+  .hint { color: var(--c-muted); font-size: 12px; margin-top: 6px; }
   code { background: var(--c-surface-2); border: 1px solid var(--c-line); border-radius: 5px; padding: 1px 5px; font-size: 12px; }
 
-  .app { height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+  .app { height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); }
+  /* The app row: the app's name, the Camera | Cameras tabs (only with a camera node), More at the trailing end. */
   .topbar {
-    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px; padding: 4px 12px; min-height: 52px;
     border-bottom: 1px solid var(--c-line); background: var(--c-surface);
   }
   .topbar h1 { font-size: 16px; margin: 0; letter-spacing: .3px; white-space: nowrap; }
   .spacer { flex: 1; }
-  .subline { color: var(--c-muted); font-size: 12px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tabs { display: inline-flex; gap: 4px; }
+  .tabs button { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--c-muted); font-weight: 600; cursor: pointer; }
+  .tabs button[aria-selected="true"] { color: var(--c-text); border-color: var(--c-line); background: var(--c-surface-2); }
+  .icon-btn { width: 44px; height: 44px; border-radius: 8px; border: none; background: none; color: var(--c-text); font-size: 22px; line-height: 1; cursor: pointer; }
+  .icon-btn:hover { background: var(--c-surface-2); }
 
+  /* More: a top-layer menu, opaque, 44px rows, the destructive item last. */
+  .menu { margin: 0; inset: auto; position: fixed; min-width: 220px; padding: 6px; border: 1px solid var(--c-line); border-radius: 12px;
+    background: var(--c-bg); background-image: linear-gradient(var(--c-surface), var(--c-surface)); color: var(--c-text); box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+  .menu button { display: block; width: 100%; min-height: 44px; padding: 0 12px; text-align: left; border: none; border-radius: 8px; background: none; color: var(--c-text); font-weight: 600; cursor: pointer; }
+  .menu button:hover:not([disabled]) { background: var(--c-surface-2); }
+  .menu button.danger { color: var(--c-bad); border-top: 1px solid var(--c-line); border-radius: 0 0 8px 8px; }
+  .menu button[disabled] { color: var(--c-muted); cursor: not-allowed; }
+
+  .screen { min-height: 0; overflow-y: auto; }
+
+  /* ── Camera: this device's live preview, shutter, mode and captures (DS §5.3 capture anatomy, N12). ── */
+  .cam-screen { max-width: 1100px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .stage { position: relative; width: 100%; aspect-ratio: 4 / 3; max-height: 64vh; border-radius: 14px; overflow: hidden;
+    border: 1px solid var(--c-line); background: var(--c-surface-2); display: flex; align-items: center; justify-content: center; }
+  /* The live camera is dark because it is the camera (C-SCN-8); the stage takes the picture's own shape. */
+  .stage.live { background: #000; aspect-ratio: auto; }
+  .stage video { width: 100%; height: auto; max-height: 64vh; object-fit: contain; display: none; }
+  .stage.live video { display: block; }
+  .stage-off { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; text-align: center; max-width: 420px; }
+  .stage.live .stage-off { display: none; }
+  .stage-off p { margin: 0; color: var(--c-muted); line-height: 1.45; }
+  .stage-close { position: absolute; top: 8px; left: 8px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--c-line);
+    background: var(--c-surface); color: var(--c-text); font-size: 18px; cursor: pointer; }
+  .stage-opts { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .stage-opts select { min-height: 44px; max-width: 220px; border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-surface); color: var(--c-text); padding: 0 10px; }
+  .stage-rec { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; font-weight: 700;
+    background: var(--c-rec); color: #fff; font-family: ui-monospace, Consolas, monospace; }
+  .alert { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--c-alert); color: var(--c-text);
+    background: color-mix(in srgb, var(--c-alert) 10%, var(--c-surface)); line-height: 1.45; }
+  .alert strong { color: var(--c-alert); display: block; margin-bottom: 2px; }
+
+  .transport { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+  .transport .seg { justify-self: end; }
+  .transport-side { justify-self: start; color: var(--c-muted); font-size: 13px; }
+  .shutter { width: 72px; height: 72px; border-radius: 50%; border: 4px solid var(--c-accent); background: var(--c-surface); padding: 0;
+    display: grid; place-items: center; cursor: pointer; }
+  .shutter::after { content: ""; width: 52px; height: 52px; border-radius: 50%; background: var(--c-accent); transition: all .15s; }
+  .shutter[data-mode="video"]::after, .shutter[data-mode="timelapse"]::after { background: var(--c-rec); }
+  .shutter[data-mode="video"], .shutter[data-mode="timelapse"] { border-color: var(--c-rec); }
+  .shutter.busy::after { width: 26px; height: 26px; border-radius: 6px; }
+  .shutter[disabled] { border-color: var(--c-line); cursor: not-allowed; }
+  .shutter[disabled]::after { background: var(--c-line); }
+  .guide { margin: 0; min-height: 20px; text-align: center; color: var(--c-muted); }
+
+  .strip-box h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--c-muted); }
+  .strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .strip-item { flex: 0 0 auto; width: 112px; min-height: 44px; border-radius: 10px; border: 1px solid var(--c-line); background: var(--c-surface-2);
+    color: var(--c-text); text-decoration: none; overflow: hidden; display: flex; flex-direction: column; }
+  .strip-item img, .strip-ph { width: 112px; height: 72px; object-fit: cover; display: grid; place-items: center; font-size: 24px; background: var(--c-surface); }
+  .strip-cap { padding: 4px 8px; font-size: 12px; font-weight: 600; }
+
+  /* ── Cameras: the fleet, remote control, telemetry, event log and storage (only with a camera node). ── */
+  .cams-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--c-line); }
+  .subline { color: var(--c-muted); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pill {
     padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
     background: var(--c-surface-2); border: 1px solid var(--c-line); text-transform: uppercase; white-space: nowrap;
@@ -224,16 +300,16 @@
   @keyframes blink { to { opacity: .25; } }
 
   .main { display: grid; grid-template-columns: 320px 1fr 340px; min-height: 0; }
-  .col { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  .col.left { border-right: 1px solid var(--c-line); background: var(--c-bg); }
-  .col.right { border-left: 1px solid var(--c-line); background: var(--c-bg); }
+  .col { padding: 12px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .col.left { border-right: 1px solid var(--c-line); }
+  .col.right { border-left: 1px solid var(--c-line); }
 
   .panel-box { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 12px; padding: 12px; }
   .panel-box h2 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--c-muted); }
 
   /* Fleet cards */
   .cam-row {
-    border: 1px solid var(--c-line); border-radius: 10px; padding: 9px 10px; margin-bottom: 8px;
+    border: 1px solid var(--c-line); border-radius: 10px; padding: 9px 10px; margin-bottom: 8px; min-height: 44px;
     background: var(--c-surface-2); cursor: pointer; transition: border-color .12s;
   }
   .cam-row:hover { border-color: var(--c-accent); }
@@ -258,35 +334,32 @@
   .tele .k { font-size: 10px; text-transform: uppercase; color: var(--c-muted); letter-spacing: .5px; }
   .tele .v { font-size: 15px; font-weight: 600; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Controls */
+  /* Controls: every one at least 44px (DS §4.1). */
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .row + .row { margin-top: 8px; }
   .btn {
-    padding: 8px 12px; border-radius: 8px; border: 1px solid var(--c-line);
-    background: var(--c-surface-2); color: var(--c-text); cursor: pointer; font-weight: 600; font-size: 13px;
+    min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--c-line);
+    background: var(--c-surface-2); color: var(--c-text); cursor: pointer; font-weight: 600; font-size: 14px;
   }
   .btn:hover:not([disabled]) { border-color: var(--c-accent); }
-  .btn.primary { background: var(--c-accent); border-color: var(--c-accent); color: #fff; }
+  .btn.primary { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-accent); }
   .btn.danger { color: var(--c-bad); border-color: color-mix(in srgb, var(--c-bad) 55%, var(--c-line)); }
-  .btn.danger:hover:not([disabled]) { border-color: var(--c-bad); }
-  .btn.small { padding: 5px 9px; font-size: 12px; }
+  .btn.danger.solid { background: var(--c-bad); border-color: var(--c-bad); color: var(--c-bg); }
+  .btn.tertiary { border: none; background: none; color: var(--c-accent); padding: 0 8px; }
   .btn[disabled] { opacity: .42; cursor: not-allowed; }
 
-  .rec-btn { flex: 1; min-width: 150px; padding: 12px; font-size: 15px; background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
-  .rec-btn.recording { background: var(--c-rec); border-color: var(--c-rec); }
+  .rec-btn { flex: 1; min-width: 150px; min-height: 48px; font-size: 15px; background: var(--c-accent); color: var(--c-on-accent); border-color: var(--c-accent); }
+  .rec-btn.recording { background: var(--c-rec); border-color: var(--c-rec); color: #fff; }
   .rec-btn[disabled] { background: var(--c-surface-2); color: var(--c-text); border-color: var(--c-line); }
   .rec-elapsed { font-family: ui-monospace, Consolas, monospace; font-size: 15px; font-weight: 700; color: var(--c-rec); min-width: 66px; }
 
-  .seg { display: inline-flex; border: 1px solid var(--c-line); border-radius: 8px; overflow: hidden; }
-  .seg button { border: none; background: var(--c-surface-2); color: var(--c-text); padding: 7px 12px; cursor: pointer; font-weight: 600; font-size: 13px; border-right: 1px solid var(--c-line); }
+  .seg { display: inline-flex; border: 1px solid var(--c-line); border-radius: 10px; overflow: hidden; }
+  .seg button { min-height: 44px; border: none; background: var(--c-surface-2); color: var(--c-text); padding: 0 14px; cursor: pointer; font-weight: 600; font-size: 14px; border-right: 1px solid var(--c-line); }
   .seg button:last-child { border-right: none; }
-  .seg button.active { background: var(--c-accent); color: #fff; }
+  .seg button.active, .seg button[aria-pressed="true"] { background: var(--c-text); color: var(--c-bg); }
   .seg button[disabled] { opacity: .42; cursor: not-allowed; }
 
   .ctl-label { color: var(--c-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 2px; }
-  .danger-zone { border-top: 1px dashed color-mix(in srgb, var(--c-bad) 40%, var(--c-line)); padding-top: 10px; margin-top: 10px; }
-  .confirm-box { display: none; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; padding: 9px 10px; border: 1px solid var(--c-bad); border-radius: 8px; background: color-mix(in srgb, var(--c-bad) 10%, var(--c-surface)); font-size: 12px; }
-  .confirm-box .warn-txt { flex: 1; min-width: 150px; color: var(--c-bad); font-weight: 600; }
   .status-line { min-height: 16px; margin-top: 8px; font-size: 12px; }
   .status-line.err { color: var(--c-bad); font-weight: 600; }
   .status-line.ok { color: var(--c-ok); }
@@ -297,16 +370,16 @@
   .set-k { font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .set-v { font-size: 13px; font-weight: 600; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* Preview */
-  .preview-frame { border: 1px solid var(--c-line); border-radius: 10px; overflow: hidden; background: #000; position: relative; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
-  #previewImg { width: 100%; height: 100%; object-fit: contain; display: none; }
+  /* Remote preview */
+  .preview-frame { border: 1px solid var(--c-line); border-radius: 10px; overflow: hidden; background: var(--c-surface-2); position: relative; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
+  #previewImg { width: 100%; height: 100%; object-fit: contain; display: none; background: #000; }
   .preview-note { color: var(--c-muted); font-size: 12px; text-align: center; padding: 14px; line-height: 1.5; }
   .preview-note.active { color: var(--c-accent); }
 
-  /* Captures */
+  /* Remote captures */
   .cap-list { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
   .cap-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--c-line); border-radius: 9px; padding: 7px; background: var(--c-surface-2); }
-  .cap-thumb { width: 72px; height: 44px; flex: 0 0 auto; border-radius: 6px; border: 1px solid var(--c-line); object-fit: cover; background: #000; }
+  .cap-thumb { width: 72px; height: 44px; flex: 0 0 auto; border-radius: 6px; border: 1px solid var(--c-line); object-fit: cover; background: var(--c-surface); }
   .cap-thumb.ph { display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--c-muted); background: var(--c-bg); }
   .cap-body { min-width: 0; flex: 1; }
   .cap-title { display: flex; align-items: center; gap: 8px; }
@@ -321,153 +394,185 @@
   .ev.warn { color: var(--c-warn); }
   .ev.alert { color: var(--c-bad); font-weight: 600; }
 
-  /* Chat */
-  .chat-log { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; margin-bottom: 8px; }
-  .msg { padding: 8px 10px; border-radius: 10px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
-  .msg.user { background: var(--c-surface-2); border: 1px solid var(--c-line); align-self: flex-end; max-width: 92%; }
-  .msg.bot { background: color-mix(in srgb, var(--c-accent) 12%, var(--c-surface)); border: 1px solid var(--c-line); align-self: flex-start; max-width: 92%; }
-  .msg-note { margin-top: 5px; font-size: 11px; color: var(--c-muted); border-top: 1px solid var(--c-line); padding-top: 4px; }
-  input.wide { flex: 1; min-width: 0; background: var(--c-surface-2); border: 1px solid var(--c-line); color: var(--c-text); border-radius: 8px; padding: 8px 10px; }
-  input.wide:focus { outline: none; border-color: var(--c-accent); }
+  /* Sheets, the menu and the in-page confirm: opaque (data-no-glass keeps the glass layer off), painted with theme tokens (DS §4.3, §4.4). */
+  dialog.sheet { border: 1px solid var(--c-line); border-radius: 16px; padding: 0; width: min(480px, calc(100vw - 24px)); max-height: 85vh;
+    background: var(--c-bg); background-image: linear-gradient(var(--c-surface), var(--c-surface)); color: var(--c-text); }
+  dialog.sheet::backdrop { background: rgba(0,0,0,.35); }
+  .sheet-head { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--c-line); }
+  .sheet-head h2 { margin: 0; flex: 1; font-size: 16px; }
+  .sheet-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+  .sheet-body p { margin: 0; line-height: 1.45; }
+  .sheet-body label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+  .sheet-body select, .sheet-body textarea { min-height: 44px; border-radius: 8px; border: 1px solid var(--c-line); background: var(--c-surface-2); color: var(--c-text); padding: 8px 10px; font-weight: 400; }
+  .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
   @media (max-width: 980px) {
-    body { overflow: auto; }
+    body { overflow: auto; height: auto; }
     .app { height: auto; min-height: 100vh; }
-    .main { grid-template-columns: 1fr; }
-    .col { overflow-y: visible; }
-    .col.left, .col.right { border: none; border-bottom: 1px solid var(--c-line); }
-    /* A grid track sized to its content let the top bar's no-wrap pills and subline push the page to 421px on a
-       412px phone. The tracks may shrink, the bar wraps, and the subline gives way first. */
-    .app { grid-template-columns: minmax(0, 1fr); }
+    .screen { overflow-y: visible; }
     .main { grid-template-columns: minmax(0, 1fr); }
-    .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
-    .subline { min-width: 0; max-width: 100%; text-align: left; }
+    .col.left, .col.right { border: none; border-bottom: 1px solid var(--c-line); }
+  }
+  @media (max-width: 600px) {
+    /* A phone: mode first, above the shutter (C-SCN-2), the shutter at the bottom centre. */
+    .transport { grid-template-columns: 1fr; justify-items: center; gap: 10px; }
+    .transport .seg { justify-self: center; order: -1; }
+    .transport-side { display: none; }
+    .stage { aspect-ratio: 3 / 4; max-height: 58vh; }
+    .stage video { max-height: 58vh; }
+    .topbar h1 { font-size: 15px; }
   }
 </style>
 </head>
 <body>
 <div class="app">
   <div class="topbar">
-    <h1>🎥 Camera Ops</h1>
-    <span id="statusPill" class="pill">…</span>
-    <span id="recPill" class="pill rec" style="display:none">REC <span id="recTime" class="mono">0:00</span></span>
-    <span id="kindPill" class="pill" style="display:none"></span>
+    <h1>🎥 Camera</h1>
+    <div class="tabs" id="screenTabs" role="tablist" aria-label="Screens" hidden>
+      <button role="tab" id="tabCamera" data-screen="camera" aria-selected="true" aria-controls="screenCamera">Camera</button>
+      <button role="tab" id="tabCameras" data-screen="cameras" aria-selected="false" aria-controls="screenCameras">Cameras</button>
+    </div>
     <div class="spacer"></div>
-    <div class="subline" id="subline">select a camera</div>
+    <button class="icon-btn" id="btnMore" aria-haspopup="menu" aria-label="More" title="More" popovertarget="moreMenu" hidden>⋯</button>
+  </div>
+  <div id="moreMenu" class="menu" popover role="menu" aria-label="More" data-no-glass>
+    <button role="menuitem" id="menuBrief" hidden>Prepare a diagnostic brief</button>
+    <button role="menuitem" id="menuClear" disabled>Clear the captures list</button>
+    <button role="menuitem" class="danger" id="btnDeleteAll" disabled hidden>Delete all media</button>
   </div>
 
-  <div class="main">
-    <!-- LEFT: this-device camera + fleet + concierge -->
-    <div class="col left">
-      <div class="panel-box">
-        <h2>This device</h2>
-        <div class="row">
-          <button class="btn primary" id="btnLocalConnect">Connect my laptop camera</button>
-          <button class="btn small" id="btnLocalStop" disabled>Stop</button>
+  <!-- CAMERA: this device's live preview, shutter, mode and captures. -->
+  <main class="screen" id="screenCamera" role="tabpanel" aria-labelledby="tabCamera">
+    <div class="cam-screen">
+      <div class="stage" id="stage" data-no-glass>
+        <video id="localVideo" playsinline autoplay muted></video>
+        <div class="stage-off" id="stageOff">
+          <p id="stageNote">Uses this browser's camera (laptop or USB webcam). Photos and videos save to this computer; nothing is uploaded.</p>
+          <button class="btn primary" id="btnLocalConnect">Turn on camera</button>
         </div>
-        <div class="row" id="localPickRow" style="display:none; margin-top:8px">
-          <select id="localDeviceSel" class="wide"></select>
+        <button class="stage-close" id="btnLocalStop" aria-label="Turn off the camera" title="Turn off the camera" hidden>✕</button>
+        <div class="stage-opts"><select id="localDeviceSel" aria-label="Camera" hidden></select></div>
+        <span class="stage-rec" id="localRecTime" hidden>0:00</span>
+      </div>
+      <div class="alert" id="localAlert" role="alert" hidden></div>
+      <div class="transport">
+        <div class="seg" id="localModeSeg" role="group" aria-label="Capture mode">
+          <button data-mode="photo" aria-pressed="true">Photo</button>
+          <button data-mode="video" aria-pressed="false">Video</button>
+          <button data-mode="timelapse" aria-pressed="false">Timelapse</button>
         </div>
-        <div id="localList" style="margin-top:8px"></div>
-        <div class="hint" id="localHint">Uses this browser's camera (laptop or USB webcam). Photos &amp; video save to your computer — nothing is uploaded to the swarm.</div>
+        <button class="shutter" id="btnShutter" data-mode="photo" aria-label="Take a photo" disabled></button>
+        <span class="transport-side" id="localSide"></span>
       </div>
-      <div class="panel-box">
-        <h2>Fleet</h2>
-        <div id="fleetList"></div>
-        <div class="hint" id="fleetHint">Real cameras (GoPro etc.) join through a camera node. No camera node ships with this installation, so none can be added here; use this browser's camera above.</div>
-      </div>
-      <div class="panel-box">
-        <h2>Concierge</h2>
-        <div class="chat-log" id="chatLog"></div>
-        <div class="row">
-          <input id="chatInput" class="wide" type="text" placeholder='e.g. "start recording" or "switch to photo mode"'>
-          <button class="btn primary" id="chatSend">Send</button>
-        </div>
-        <div class="hint">The camera bot reasons over your request and may run a control op — it always confirms before deleting.</div>
-      </div>
+      <p class="guide" id="localStatus" role="status"></p>
+      <section class="strip-box" aria-label="Captures">
+        <h2>Captures</h2>
+        <div class="strip" id="localStrip"></div>
+        <div class="hint">Saved to this computer as you take them. Press one to save it again.</div>
+      </section>
+      <canvas id="localCanvas" hidden></canvas>
     </div>
+  </main>
 
-    <!-- CENTER: control + preview -->
-    <div class="col">
-      <div class="panel-box">
-        <h2>Control — <span id="ctlCam">—</span></h2>
-        <div class="row">
-          <button class="btn rec-btn" id="btnRecord" disabled>● Record</button>
-          <span class="rec-elapsed" id="recElapsed" style="display:none"></span>
-          <button class="btn" id="btnPhoto" disabled>📷 Photo</button>
+  <!-- CAMERAS: shown only when a camera node is registered (the fleet lists a camera). -->
+  <main class="screen" id="screenCameras" role="tabpanel" aria-labelledby="tabCameras" hidden>
+    <div class="cams-head">
+      <span id="statusPill" class="pill">…</span>
+      <span id="recPill" class="pill rec" style="display:none">REC <span id="recTime" class="mono">0:00</span></span>
+      <span id="kindPill" class="pill" style="display:none"></span>
+      <span class="subline" id="subline">select a camera</span>
+    </div>
+    <div class="main">
+      <div class="col left">
+        <div class="panel-box">
+          <h2>Fleet</h2>
+          <div id="fleetList"></div>
+          <div class="hint" id="fleetHint">Real cameras (GoPro etc.) join through a camera node. No camera node ships with this installation, so none can be added here; use this browser's camera on the Camera screen.</div>
         </div>
-        <div class="row">
-          <div>
-            <div class="ctl-label">Capture mode</div>
-            <div class="seg" id="modeSeg">
-              <button data-mode="video" disabled>Video</button>
-              <button data-mode="photo" disabled>Photo</button>
-              <button data-mode="timelapse" disabled>Timelapse</button>
+      </div>
+
+      <div class="col">
+        <div class="panel-box">
+          <h2>Control — <span id="ctlCam">—</span></h2>
+          <div class="row">
+            <button class="btn rec-btn" id="btnRecord" disabled>● Record</button>
+            <span class="rec-elapsed" id="recElapsed" style="display:none"></span>
+            <button class="btn" id="btnPhoto" disabled>📷 Photo</button>
+          </div>
+          <div class="row">
+            <div>
+              <div class="ctl-label">Capture mode</div>
+              <div class="seg" id="modeSeg">
+                <button data-mode="video" disabled>Video</button>
+                <button data-mode="photo" disabled>Photo</button>
+                <button data-mode="timelapse" disabled>Timelapse</button>
+              </div>
             </div>
           </div>
+          <div class="row">
+            <button class="btn" id="btnPreviewStart" disabled>Start preview</button>
+            <button class="btn" id="btnPreviewStop" disabled>Stop preview</button>
+            <span style="flex:1"></span>
+            <button class="btn" id="btnConnect" disabled title="Opens the link to the camera selected in the list; select a camera first">Connect</button>
+            <button class="btn" id="btnDisconnect" disabled title="Closes the link to the camera selected in the list">Disconnect</button>
+          </div>
+          <div class="status-line" id="statusLine" role="status"></div>
         </div>
-        <div class="row">
-          <button class="btn small" id="btnPreviewStart" disabled>Start preview</button>
-          <button class="btn small" id="btnPreviewStop" disabled>Stop preview</button>
-          <span style="flex:1"></span>
-          <button class="btn small" id="btnConnect" disabled title="Opens the link to the camera selected in the list; select a camera first">Connect</button>
-          <button class="btn small" id="btnDisconnect" disabled title="Closes the link to the camera selected in the list">Disconnect</button>
+
+        <div class="panel-box">
+          <h2>Telemetry</h2>
+          <div class="tele-grid">
+            <div class="tele"><div class="k">Battery</div><div class="v" id="tBatt">—</div></div>
+            <div class="tele"><div class="k">SD photos</div><div class="v" id="tSdP">—</div></div>
+            <div class="tele"><div class="k">SD video</div><div class="v" id="tSdV">—</div></div>
+            <div class="tele"><div class="k">Status</div><div class="v" id="tStatus">—</div></div>
+            <div class="tele"><div class="k">Mode</div><div class="v" id="tMode">—</div></div>
+            <div class="tele"><div class="k">Link</div><div class="v" id="tLink">—</div></div>
+            <div class="tele"><div class="k">Firmware</div><div class="v" id="tFw">—</div></div>
+            <div class="tele"><div class="k">Serial</div><div class="v" id="tSerial">—</div></div>
+            <div class="tele"><div class="k">Preview</div><div class="v" id="tPrev">—</div></div>
+          </div>
         </div>
-        <div class="row danger-zone">
-          <button class="btn danger" id="btnDeleteAll" disabled>🗑 Delete all media</button>
+
+        <div class="panel-box">
+          <h2>Live preview</h2>
+          <div class="preview-frame">
+            <img id="previewImg" alt="camera live preview">
+            <div class="preview-note" id="previewNote">Select a camera in the fleet list.</div>
+          </div>
         </div>
-        <div class="confirm-box" id="deleteConfirm">
-          <span class="warn-txt">This permanently erases ALL photos and video on the camera. This cannot be undone.</span>
-          <button class="btn danger small" id="btnDeleteConfirm">Confirm delete</button>
-          <button class="btn small" id="btnDeleteCancel">Cancel</button>
+
+        <div class="panel-box">
+          <h2>Settings</h2>
+          <div class="settings-grid" id="settingsGrid"></div>
         </div>
-        <div class="status-line" id="statusLine"></div>
       </div>
 
-      <div class="panel-box">
-        <h2>Telemetry</h2>
-        <div class="tele-grid">
-          <div class="tele"><div class="k">Battery</div><div class="v" id="tBatt">—</div></div>
-          <div class="tele"><div class="k">SD photos</div><div class="v" id="tSdP">—</div></div>
-          <div class="tele"><div class="k">SD video</div><div class="v" id="tSdV">—</div></div>
-          <div class="tele"><div class="k">Status</div><div class="v" id="tStatus">—</div></div>
-          <div class="tele"><div class="k">Mode</div><div class="v" id="tMode">—</div></div>
-          <div class="tele"><div class="k">Link</div><div class="v" id="tLink">—</div></div>
-          <div class="tele"><div class="k">Firmware</div><div class="v" id="tFw">—</div></div>
-          <div class="tele"><div class="k">Serial</div><div class="v" id="tSerial">—</div></div>
-          <div class="tele"><div class="k">Preview</div><div class="v" id="tPrev">—</div></div>
+      <div class="col right">
+        <div class="panel-box">
+          <h2>Captures</h2>
+          <div class="cap-list" id="capList"></div>
         </div>
-      </div>
-
-      <div class="panel-box">
-        <h2>Live preview</h2>
-        <div class="preview-frame">
-          <video id="localVideo" playsinline autoplay muted style="width:100%;height:100%;object-fit:contain;display:none;background:#000"></video>
-          <img id="previewImg" alt="camera live preview">
-          <div class="preview-note" id="previewNote">Select a camera, or press “Connect my laptop camera”.</div>
+        <div class="panel-box">
+          <h2>Event log</h2>
+          <div class="events" id="events"></div>
         </div>
-        <canvas id="localCanvas" style="display:none"></canvas>
-      </div>
-
-      <div class="panel-box">
-        <h2>Settings</h2>
-        <div class="settings-grid" id="settingsGrid"></div>
       </div>
     </div>
+  </main>
+</div>
 
-    <!-- RIGHT: captures + events -->
-    <div class="col right">
-      <div class="panel-box">
-        <h2>Captures</h2>
-        <div class="cap-list" id="capList"></div>
-      </div>
-      <div class="panel-box">
-        <h2>Event log</h2>
-        <div class="events" id="events"></div>
-      </div>
+<!-- The in-page confirm for a destructive action (DS §4.8; never window.confirm). -->
+<dialog class="sheet" id="deleteConfirm" aria-labelledby="confirmTitle" data-no-glass>
+  <div class="sheet-head"><h2 id="confirmTitle">Are you sure?</h2></div>
+  <div class="sheet-body">
+    <p id="confirmText"></p>
+    <div class="sheet-actions">
+      <button class="btn tertiary" id="btnDeleteCancel">Cancel</button>
+      <button class="btn danger solid" id="btnDeleteConfirm">Delete</button>
     </div>
   </div>
-</div>
+</dialog>
 
 <script>
 'use strict';
@@ -477,22 +582,27 @@
 const $ = (id) => document.getElementById(id);
 
 let fleet = [];            // GET /fleet → FleetSummary[]
-let selCam = null;         // selected cameraId
+let fleetRead = false;     // true after the first fleet read: the Cameras screen is decided once it answers
+let screen = 'camera';     // 'camera' (this device) | 'cameras' (the fleet; only with a camera node)
+let selCam = null;         // selected fleet cameraId
 let tele = null;           // selected camera's CameraTelemetry (or null)
 let captures = [];         // accumulated captures, newest first
 let capSince = 0;          // captures cursor
 let evSince = 0;           // events cursor
 let rec = { active: false, baseS: 0, baseMs: 0 };  // live record-timer interpolation
 
-// ── Local (this-device) cameras — getUserMedia; capture is 100% client-side, no upload. ──
+// ── This device's camera — getUserMedia; capture is 100% client-side, no upload. ──
 let localCams = [];        // [{cameraId:'local:'+deviceId, deviceId, label}] from enumerateDevices
 let localStream = null;    // active MediaStream
+let localStarting = false; // a getUserMedia request is in flight
 let activeLocalId = '';    // cameraId of the streaming local camera
 let localRecorder = null, localChunks = [], localRecStartMs = 0;
 let localCaptures = [];    // [{seq, ts, kind, name, url, sizeKB, durationS}] newest first
-let localEvents = [];      // [{ts, level, message}]
 let localCapSeq = 0;
-const isLocal = (id) => typeof id === 'string' && id.startsWith('local:');
+let localMode = 'photo';   // 'photo' | 'video' | 'timelapse'
+let lapse = null;          // a running timelapse: { timer, frames: Blob[], startMs, rendering }
+const LAPSE_EVERY_MS = 1000, LAPSE_FPS = 30, LAPSE_MAX_FRAMES = 900;
+const KIND_WORD = { photo: 'Photo', video: 'Video', timelapse: 'Timelapse' };
 function haveMedia() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -542,6 +652,7 @@ function relTime(ts) {
   if (h < 24) return h + 'h ago';
   return new Date(ts).toLocaleDateString();
 }
+function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 function selInfo() { return fleet.find((f) => f.cameraId === selCam) || null; }
 function status(kind, msg) {
   const el = $('statusLine');
@@ -554,6 +665,48 @@ async function getJson(path) {
   const res = await fetch(path, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return res.json();
+}
+
+// ── Screens: Camera always; Cameras only while the fleet lists a camera (withheld, never deleted) ──
+function applyScreens() {
+  const hasNode = fleetRead && fleet.length > 0;
+  $('screenTabs').hidden = !hasNode;
+  if (!hasNode && screen === 'cameras') screen = 'camera';
+  $('screenCamera').hidden = screen !== 'camera';
+  $('screenCameras').hidden = screen !== 'cameras';
+  for (const t of $('screenTabs').querySelectorAll('[role="tab"]')) t.setAttribute('aria-selected', String(t.dataset.screen === screen));
+  renderMore();
+}
+function showScreen(name) { screen = name === 'cameras' ? 'cameras' : 'camera'; applyScreens(); }
+/** More holds this screen's own items; it is withheld when none of them is shown. */
+function renderMore() {
+  const onCams = screen === 'cameras';
+  $('menuClear').hidden = onCams;
+  $('menuClear').disabled = !localCaptures.length;
+  $('btnDeleteAll').hidden = !onCams;
+  $('menuBrief').hidden = $('menuBrief').dataset.offered !== 'true';
+  $('btnMore').hidden = ![...$('moreMenu').querySelectorAll('[role="menuitem"]')].some((b) => !b.hidden);
+}
+function placeMore() {
+  const r = $('btnMore').getBoundingClientRect(), m = $('moreMenu');
+  m.style.top = Math.round(r.bottom + 4) + 'px';
+  m.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + 'px';
+}
+function closeMore() { try { $('moreMenu').hidePopover(); } catch (e) { /* already closed */ } }
+
+// ── In-page confirm (a destructive action never uses window.confirm) ─────────
+let confirmResolve = null;
+function askConfirm(text, yesLabel) {
+  $('confirmText').textContent = text;
+  $('btnDeleteConfirm').textContent = yesLabel;
+  const d = $('deleteConfirm');
+  if (!d.open) d.showModal();
+  return new Promise((resolve) => { confirmResolve = resolve; });
+}
+function answerConfirm(yes) {
+  $('deleteConfirm').close();
+  const r = confirmResolve; confirmResolve = null;
+  if (r) r(yes);
 }
 
 // ── Fleet ────────────────────────────────────────────────────────────────────
@@ -592,22 +745,15 @@ function renderFleet() {
   }
 }
 function selectCam(id) {
-  if (selCam === id && !isLocal(id)) return;
+  if (selCam === id) return;
   selCam = id;
-  hideDeleteConfirm();
-  if (isLocal(id)) {
-    // A local camera that isn't the live stream → connect it; otherwise just show it.
-    if (id !== activeLocalId) { localConnect(id); return; }
-    renderFleet(); renderLocalPanel(); applyLocalView();
-    return;
-  }
   capSince = 0; evSince = 0; captures = [];
   rec = { active: false, baseS: 0, baseMs: 0 };
   $('capList').innerHTML = ''; $('events').innerHTML = '';
   $('ctlCam').textContent = id || '—';
   const f = selInfo();
   applyTelemetry(f ? f.telemetry : null);
-  renderFleet(); renderLocalPanel();
+  renderFleet();
   pollState(); pollCaptures(); pollEvents();
 }
 
@@ -683,7 +829,6 @@ function renderSettings(t) {
   }
 }
 function renderControls() {
-  if (isLocal(selCam)) return renderLocalControls();
   const f = selInfo();
   const online = !!(f && f.online);
   const t = tele;
@@ -709,8 +854,6 @@ function renderControls() {
   $('btnDeleteAll').disabled = !connected || recording || busy;
 }
 function renderPreview() {
-  if (isLocal(selCam)) return renderLocalPreview();
-  $('localVideo').style.display = 'none';
   const f = selInfo();
   const img = $('previewImg');
   const note = $('previewNote');
@@ -780,8 +923,9 @@ async function op(name, extra) {
   }
   return r;
 }
-// Delete-all: destructive → server answers 428, we show a confirm affordance, then re-send confirm:true.
+// Delete-all: destructive → server answers 428, we show the in-page confirm, then re-send confirm:true.
 async function startDeleteAll() {
+  closeMore();
   if (!selCam) { status('err', 'No camera selected'); return; }
   const r = await sendControl({ cameraId: selCam, op: 'deleteAll' });
   if (r.status === 428 || (r.body && r.body.confirmationRequired)) { showDeleteConfirm(); return; }
@@ -789,13 +933,14 @@ async function startDeleteAll() {
   else handleErr(r);
 }
 async function confirmDeleteAll() {
-  hideDeleteConfirm();
   const r = await sendControl({ cameraId: selCam, op: 'deleteAll', confirm: true });
   if (r.ok) { if (r.body.telemetry) applyTelemetry(r.body.telemetry); status('ok', 'All media deleted'); resetCaptures(); }
   else handleErr(r);
 }
-function showDeleteConfirm() { $('deleteConfirm').style.display = 'flex'; $('btnDeleteAll').disabled = true; }
-function hideDeleteConfirm() { $('deleteConfirm').style.display = 'none'; renderControls(); }
+async function showDeleteConfirm() {
+  const yes = await askConfirm('This permanently erases ALL photos and video on ' + (selCam || 'the camera') + '. This cannot be undone.', 'Delete all media');
+  if (yes) confirmDeleteAll();
+}
 function resetCaptures() {
   captures = []; capSince = 0;
   $('capList').innerHTML = '';
@@ -809,22 +954,23 @@ async function pollFleet() {
     const r = await getJson('/api/camera/fleet');
     fleet = Array.isArray(r.fleet) ? r.fleet : [];
     fleetDetail = typeof r.detail === 'string' ? r.detail : '';
-    if (!isLocal(selCam) && !fleet.find((f) => f.cameraId === selCam)) selCam = fleet.length ? fleet[0].cameraId : (activeLocalId || null);
+    fleetRead = true;
+    if (!fleet.find((f) => f.cameraId === selCam)) selCam = fleet.length ? fleet[0].cameraId : null;
     renderFleet();
     // Fleet telemetry is a fallback readout; /state stays authoritative when it answers.
-    // A local (browser) camera is never in the server fleet — leave its view alone.
-    if (!isLocal(selCam)) { const f = selInfo(); applyTelemetry(f ? f.telemetry : null); }
+    const f = selInfo(); applyTelemetry(f ? f.telemetry : null);
+    applyScreens();
   } catch (e) { /* transient — keep last state */ }
 }
 async function pollState() {
-  if (!selCam || isLocal(selCam)) return;
+  if (!selCam) return;
   try {
     const r = await getJson('/api/camera/state?cameraId=' + encodeURIComponent(selCam));
     if (r && r.telemetry) applyTelemetry(r.telemetry);
   } catch (e) { /* transient */ }
 }
 async function pollCaptures() {
-  if (!selCam || isLocal(selCam)) return;
+  if (!selCam) return;
   try {
     const r = await getJson('/api/camera/captures?cameraId=' + encodeURIComponent(selCam) + '&since=' + capSince);
     const list = Array.isArray(r.captures) ? r.captures : [];
@@ -836,7 +982,7 @@ async function pollCaptures() {
   } catch (e) { /* transient */ }
 }
 async function pollEvents() {
-  if (!selCam || isLocal(selCam)) return;
+  if (!selCam) return;
   try {
     const r = await getJson('/api/camera/events?cameraId=' + encodeURIComponent(selCam) + '&since=' + evSince);
     const list = Array.isArray(r.events) ? r.events : [];
@@ -853,7 +999,7 @@ async function pollEvents() {
   } catch (e) { /* transient */ }
 }
 
-// ── Captures gallery ─────────────────────────────────────────────────────────
+// ── Remote captures gallery ──────────────────────────────────────────────────
 function renderCaptures() {
   const box = $('capList');
   box.innerHTML = '';
@@ -890,7 +1036,7 @@ function renderCaptures() {
   }
 }
 
-// ── Record timer (smooth local interpolation between polls) ───────────────────
+// ── Record timers (smooth local interpolation between polls) ──────────────────
 function tickTimer() {
   const el = $('recElapsed');
   const pill = $('recPill');
@@ -906,50 +1052,38 @@ function tickTimer() {
     el.style.display = 'none';
     pill.style.display = 'none';
   }
+  const busy = localRecording() || !!(lapse && !lapse.rendering);
+  const since = localRecording() ? localRecStartMs : lapse ? lapse.startMs : 0;
+  $('localRecTime').hidden = !busy;
+  if (busy) $('localRecTime').textContent = fmtElapsed((Date.now() - since) / 1000) + (lapse ? ' · ' + lapse.frames.length + ' frames' : '');
 }
 
-// ── Concierge chat ───────────────────────────────────────────────────────────
-function addMsg(cls, text) {
-  const div = mk('div', 'msg ' + cls, text);
-  $('chatLog').appendChild(div);
-  $('chatLog').scrollTop = $('chatLog').scrollHeight;
-  return div;
-}
-async function sendChat() {
-  const input = $('chatInput');
-  const message = input.value.trim();
-  if (!message) return;
-  input.value = '';
-  addMsg('user', message);
-  const pending = addMsg('bot', '…');
-  try {
-    const res = await fetch('/api/camera/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'same-origin',
-      body: JSON.stringify({ message, cameraId: selCam }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) { pending.textContent = 'Error: ' + (body.error || ('HTTP ' + res.status)); return; }
-    pending.textContent = body.reply != null ? String(body.reply) : '(no reply)';   // reply: untrusted → textContent
-
-    const notes = [];
-    if (body.executed && body.executed.op) notes.push('▶ executed: ' + String(body.executed.op));
-    if (body.confirmNeededOp) notes.push('needs confirmation — use the Delete button');
-    if (Array.isArray(body.actionErrors) && body.actionErrors.length) notes.push('⚠ ' + body.actionErrors.map(String).join('; '));
-    if (notes.length) pending.appendChild(mk('div', 'msg-note', notes.join('   ·   ')));
-
-    if (body.executed && body.executed.telemetry) applyTelemetry(body.executed.telemetry);
-    pollFleet(); pollCaptures();
-  } catch (e) {
-    pending.textContent = 'Error: ' + e.message;
-  }
-}
-
-// ── Local (this-device) camera: getUserMedia device picker + client-side capture ──
-function logLocal(level, message) { localEvents.push({ ts: Date.now(), level, message }); if (localEvents.length > 200) localEvents.splice(0, localEvents.length - 200); }
+// ── This device: the live preview, the shutter, the mode and the captures strip ─────────────────────────────────
 function stamp() { const d = new Date(), p = (n) => String(n).padStart(2, '0'); return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); }
 function localRecording() { return !!(localRecorder && localRecorder.state === 'recording'); }
+function localBusy() { return localRecording() || !!lapse; }
+function localSay(msg) { $('localStatus').textContent = msg || ''; }
+/** Say what failed, with the fix, in the screen's role="alert" (DS §1 "Say what failed"). */
+function localFail(title, how) {
+  const box = $('localAlert');
+  box.replaceChildren(mk('strong', null, title), document.createTextNode(how || ''));
+  box.hidden = false;
+}
+function clearLocalFail() { $('localAlert').hidden = true; $('localAlert').replaceChildren(); }
+/** What a refused or failed getUserMedia means for the person, and how to fix it. */
+function cameraRefusal(e) {
+  const name = e && e.name;
+  if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
+    return ['Camera access is blocked for this page.', 'To allow it, press the camera or lock icon at the left of the address bar, set Camera to Allow, then press Turn on camera again. On a phone, also allow the camera for this browser in the phone\'s Settings, under Apps.'];
+  }
+  if (name === 'NotFoundError' || name === 'OverconstrainedError' || name === 'DevicesNotFoundError') {
+    return ['No camera was found on this computer.', 'Plug in a webcam or open this page on a device with a camera, then press Turn on camera again.'];
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError') {
+    return ['The camera is in use by another application.', 'Close the other application that uses the camera, then press Turn on camera again.'];
+  }
+  return ['The camera could not be turned on.', String((e && e.message) || e || '') + ' Press Turn on camera to try again.'];
+}
 
 async function refreshLocalDevices() {
   if (!haveMedia() || !navigator.mediaDevices.enumerateDevices) return;
@@ -957,254 +1091,254 @@ async function refreshLocalDevices() {
   const cams = devs.filter((d) => d.kind === 'videoinput');
   localCams = cams.map((d, i) => ({ cameraId: 'local:' + (d.deviceId || ('cam' + i)), deviceId: d.deviceId, label: d.label || ('Camera ' + (i + 1)) }));
   const sel = $('localDeviceSel');
-  sel.innerHTML = '';
+  sel.replaceChildren();
   for (const c of localCams) { const o = document.createElement('option'); o.value = c.cameraId; o.textContent = c.label; if (c.cameraId === activeLocalId) o.selected = true; sel.appendChild(o); }
-  $('localPickRow').style.display = localCams.length ? 'flex' : 'none';
-  renderLocalPanel();
-}
-function renderLocalPanel() {
-  const box = $('localList');
-  if (!box) return;
-  box.innerHTML = '';
-  if (!localCams.length) { box.appendChild(mk('div', 'muted', 'No camera detected yet. Press “Connect my laptop camera” and allow access.')); return; }
-  for (const c of localCams) {
-    const live = c.cameraId === activeLocalId;
-    const row = mk('div', 'cam-row' + (c.cameraId === selCam ? ' sel' : ''));
-    row.addEventListener('click', () => (c.cameraId === activeLocalId ? selectCam(c.cameraId) : localConnect(c.cameraId)));
-    const top = mk('div', 'cam-top');
-    top.appendChild(mk('span', 'dot ' + (live ? 'on' : 'off')));
-    top.appendChild(mk('span', 'cam-id', c.label));
-    top.appendChild(mk('span', 'badge', 'browser'));
-    if (live && localRecording()) top.appendChild(mk('span', 'rec-mini', '● REC'));
-    row.appendChild(top);
-    row.appendChild(mk('div', 'cam-model', live ? 'streaming to preview' : 'click to connect'));
-    box.appendChild(row);
-  }
+  renderLocal();
 }
 async function localConnect(cameraId) {
-  if (!haveMedia()) { $('localHint').textContent = 'Browser camera API unavailable — open over https:// or http://localhost.'; return; }
+  if (!haveMedia()) { localFail('This browser cannot reach a camera from this page.', 'Open oshal over https:// (or http://localhost), then press Turn on camera again.'); return; }
+  if (localStarting) return;
   const target = localCams.find((c) => c.cameraId === cameraId);
   stopLocalStream(true);
+  localStarting = true; localSay('Turning on the camera…');
   try {
     const video = target && target.deviceId ? { deviceId: { exact: target.deviceId } } : true;
     localStream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
-  } catch (e) { $('localHint').textContent = 'Permission denied or no camera available: ' + e.message; return; }
+  } catch (e) {
+    localStarting = false; localSay('');
+    const [title, how] = cameraRefusal(e); localFail(title, how); renderLocal(); return;
+  }
+  localStarting = false; clearLocalFail();
   const track = localStream.getVideoTracks()[0];
   const s = track ? track.getSettings() : {};
   activeLocalId = 'local:' + (s.deviceId || (target && target.deviceId) || 'default');
   $('localVideo').srcObject = localStream;
-  $('btnLocalStop').disabled = false;
   await refreshLocalDevices();
   if (!localCams.find((c) => c.cameraId === activeLocalId)) localCams.unshift({ cameraId: activeLocalId, deviceId: s.deviceId || '', label: (track && track.label) || 'Camera' });
   $('localDeviceSel').value = activeLocalId;
-  logLocal('info', 'Connected ' + ((track && track.label) || 'camera'));
-  $('localHint').textContent = 'Live. Use Record / Photo in the center — files download to this computer.';
-  selCam = activeLocalId;
-  renderLocalPanel(); renderFleet();
-  applyLocalView();
+  localSay('Live: ' + ((track && track.label) || 'camera') + '. Choose a mode and press the shutter.');
+  renderLocal();
 }
 function stopLocalStream(silent) {
+  if (lapse) { clearInterval(lapse.timer); lapse = null; }
   if (localRecorder && localRecorder.state !== 'inactive') { try { localRecorder.stop(); } catch (e) { /* ignore */ } }
   localRecorder = null;
   if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
   $('localVideo').srcObject = null;
-  $('btnLocalStop').disabled = true;
-  const was = activeLocalId;
   activeLocalId = '';
-  rec.active = false;
-  if (!silent) {
-    logLocal('info', 'Camera stopped');
-    $('localHint').textContent = 'Camera stopped.';
-    renderLocalPanel();
-    if (selCam === was) applyLocalView();
-  }
+  if (!silent) { localSay('Camera off.'); renderLocal(); }
 }
 function pickMime() {
   const prefs = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
   return prefs.find((m) => MediaRecorder.isTypeSupported(m)) || '';
 }
-function localRecord() {
-  if (!localStream) { status('err', 'Connect a camera on this device first.'); return; }
-  if (typeof MediaRecorder === 'undefined') { status('err', 'This browser has no MediaRecorder — use Photo, or a newer browser.'); return; }
-  if (localRecording()) return;
+function newRecorder(stream) {
   const mime = pickMime();
+  return mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+}
+function localRecord() {
+  if (!localStream) return;
+  if (typeof MediaRecorder === 'undefined') { localFail('This browser cannot record video.', 'Use Photo, or open this page in a newer browser.'); return; }
+  if (localRecording()) return;
   localChunks = [];
-  try { localRecorder = mime ? new MediaRecorder(localStream, { mimeType: mime }) : new MediaRecorder(localStream); }
-  catch (e) { status('err', 'Could not start recording: ' + e.message); return; }
+  try { localRecorder = newRecorder(localStream); }
+  catch (e) { localFail('Recording could not start.', String(e.message || e)); return; }
   localRecorder.ondataavailable = (e) => { if (e.data && e.data.size) localChunks.push(e.data); };
   localRecorder.onstop = () => {
     const type = (localRecorder && localRecorder.mimeType) || 'video/webm';
     const blob = new Blob(localChunks, { type });
     const dur = Math.max(0, Math.round((Date.now() - localRecStartMs) / 100) / 10);
     const ext = type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+    localRecorder = null;
     addLocalCapture('video', 'clip-' + stamp() + '.' + ext, blob, dur);
-    applyLocalView();
   };
   localRecStartMs = Date.now();
   localRecorder.start();
-  logLocal('info', 'Recording started');
-  status('ok', 'Recording started');
-  applyLocalView();
+  localSay('Recording. Press the shutter again to stop.');
+  renderLocal();
 }
 function localStop() {
-  if (!localRecording()) { status('err', 'Not recording.'); return; }
+  if (!localRecording()) return;
   localRecorder.stop();
-  logLocal('info', 'Recording stopped');
-  status('ok', 'Recording stopped');
+  localSay('Recording stopped.');
+}
+function grabFrame(canvas, maxWidth) {
+  const v = $('localVideo');
+  const scale = maxWidth && v.videoWidth > maxWidth ? maxWidth / v.videoWidth : 1;
+  canvas.width = Math.round(v.videoWidth * scale); canvas.height = Math.round(v.videoHeight * scale);
+  canvas.getContext('2d').drawImage(v, 0, 0, canvas.width, canvas.height);
+  return canvas;
 }
 function localPhoto() {
   const v = $('localVideo');
-  if (!localStream || !v.videoWidth) { status('err', 'Connect a camera on this device first.'); return; }
-  const cv = $('localCanvas');
-  cv.width = v.videoWidth; cv.height = v.videoHeight;
-  cv.getContext('2d').drawImage(v, 0, 0, cv.width, cv.height);
-  cv.toBlob((b) => {
-    if (!b) { status('err', 'Snapshot failed.'); return; }
+  if (!localStream || !v.videoWidth) { localSay('The camera is still starting. Try again in a moment.'); return; }
+  grabFrame($('localCanvas')).toBlob((b) => {
+    if (!b) { localFail('The photo could not be taken.', 'Press the shutter again.'); return; }
     addLocalCapture('photo', 'photo-' + stamp() + '.png', b);
-    applyLocalView();
   }, 'image/png');
+}
+// Timelapse: one frame a second while it runs; on stop the frames play back at 30 a second into one video.
+function lapseGrab() {
+  const run = lapse;
+  if (!run || run.rendering || !$('localVideo').videoWidth) return;
+  grabFrame(document.createElement('canvas'), 1280).toBlob((b) => {
+    if (!b || lapse !== run || run.rendering) return;
+    run.frames.push(b);
+    if (run.frames.length >= LAPSE_MAX_FRAMES) stopLapse();
+  }, 'image/jpeg', 0.85);
+}
+function startLapse() {
+  if (!localStream || lapse) return;
+  if (typeof MediaRecorder === 'undefined' || !HTMLCanvasElement.prototype.captureStream) {
+    localFail('This browser cannot make a timelapse.', 'Use Photo or Video, or open this page in a newer browser.'); return;
+  }
+  lapse = { frames: [], startMs: Date.now(), rendering: false, timer: 0 };
+  lapseGrab();
+  lapse.timer = setInterval(lapseGrab, LAPSE_EVERY_MS);
+  localSay('Timelapse: one frame a second, played back ' + LAPSE_FPS + ' times faster. Press the shutter to finish.');
+  renderLocal();
+}
+async function stopLapse() {
+  const run = lapse;
+  if (!run || run.rendering) return;
+  clearInterval(run.timer); run.rendering = true; renderLocal();
+  if (!run.frames.length) { lapse = null; localSay('No frame was taken yet. Let the timelapse run a little longer.'); renderLocal(); return; }
+  try {
+    const blob = await renderLapse(run.frames);
+    addLocalCapture('timelapse', 'timelapse-' + stamp() + '.' + (blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm'), blob, run.frames.length / LAPSE_FPS);
+  } catch (e) {
+    localFail('The timelapse could not be made.', String((e && e.message) || e));
+  }
+  lapse = null; renderLocal();
+}
+async function renderLapse(frames) {
+  const cv = $('localCanvas'), first = await createImageBitmap(frames[0]);
+  cv.width = first.width; cv.height = first.height;
+  const ctx = cv.getContext('2d'), stream = cv.captureStream(LAPSE_FPS), recd = newRecorder(stream), chunks = [];
+  recd.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise((r) => { recd.onstop = r; });
+  ctx.drawImage(first, 0, 0); first.close();
+  recd.start();
+  for (let i = 0; i < frames.length; i++) {
+    const bmp = await createImageBitmap(frames[i]);
+    ctx.drawImage(bmp, 0, 0, cv.width, cv.height); bmp.close();
+    localSay('Making the timelapse: frame ' + (i + 1) + ' of ' + frames.length + '…');
+    await wait(1000 / LAPSE_FPS);
+  }
+  await wait(120);
+  recd.stop(); await stopped;
+  stream.getTracks().forEach((t) => t.stop());
+  return new Blob(chunks, { type: recd.mimeType || 'video/webm' });
 }
 function addLocalCapture(kind, name, blob, durationS) {
   localCapSeq += 1;
   const url = URL.createObjectURL(blob);
   localCaptures.unshift({ seq: localCapSeq, ts: Date.now(), kind, name, url, sizeKB: Math.round(blob.size / 1024), durationS });
   if (localCaptures.length > 60) { const drop = localCaptures.splice(60); drop.forEach((c) => URL.revokeObjectURL(c.url)); }
-  logLocal('info', (kind === 'video' ? 'Video' : 'Photo') + ' saved: ' + name + (durationS ? ' (' + durationS + 's)' : ''));
   const a = document.createElement('a');
   a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
-  status('ok', (kind === 'video' ? 'Video' : 'Photo') + ' saved to your computer');
+  localSay(KIND_WORD[kind] + ' saved to this computer: ' + name);
+  renderLocal();
 }
-function clearLocalCaptures() {
+async function clearLocalCaptures() {
+  closeMore();
   if (!localCaptures.length) return;
-  if (!confirm('Clear the captures list on this page? (Files already downloaded stay on your computer.)')) return;
+  if (!(await askConfirm('Clear the captures list on this page? Files already saved stay on this computer.', 'Clear the list'))) return;
   localCaptures.forEach((c) => URL.revokeObjectURL(c.url));
   localCaptures = [];
-  logLocal('warn', 'Cleared the captures list');
-  applyLocalView();
+  localSay('The captures list is cleared.');
+  renderLocal();
 }
-function localControl(name) {
-  switch (name) {
-    case 'record': return localRecord();
-    case 'stop': return localStop();
-    case 'photo': return localPhoto();
-    case 'connect': return localConnect(selCam);
-    case 'disconnect': return stopLocalStream(false);
-    case 'deleteAll': return clearLocalCaptures();
-    default: status('err', 'Modes/preset/preview apply to GoPro & simulator cameras, not a browser camera. Use Record or Photo.');
+/** The one primary: in Photo it takes a photo; in Video and Timelapse it starts, and pressed again, finishes. */
+function localShutter() {
+  if (!localStream) return;
+  if (localMode === 'photo') return localPhoto();
+  if (localMode === 'video') return localRecording() ? localStop() : localRecord();
+  return lapse ? stopLapse() : startLapse();
+}
+function setLocalMode(mode) {
+  if (localBusy() || !KIND_WORD[mode]) return;
+  localMode = mode;
+  renderLocal();
+}
+function renderShutter(live) {
+  const sh = $('btnShutter'), busy = localBusy();
+  sh.dataset.mode = localMode;
+  sh.classList.toggle('busy', busy);
+  sh.disabled = !live || !!(lapse && lapse.rendering);
+  const label = localMode === 'photo' ? 'Take a photo'
+    : localMode === 'video' ? (localRecording() ? 'Stop recording' : 'Start recording')
+      : lapse ? 'Finish the timelapse' : 'Start a timelapse';
+  sh.setAttribute('aria-label', label); sh.title = live ? label : 'Turn on the camera first';
+  for (const b of $('localModeSeg').querySelectorAll('button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.mode === localMode));
+    b.disabled = busy;
   }
 }
-function renderLocalControls() {
-  const live = !!localStream && activeLocalId === selCam;
-  const recording = localRecording();
-  const rb = $('btnRecord');
-  rb.textContent = recording ? '■ Stop recording' : '● Record';
-  rb.classList.toggle('recording', recording);
-  rb.disabled = !live;
-  $('btnPhoto').disabled = !live || recording;
-  for (const b of $('modeSeg').querySelectorAll('button')) { b.classList.remove('active'); b.disabled = true; }
-  $('btnPreviewStart').disabled = true;
-  $('btnPreviewStop').disabled = true;
-  $('btnConnect').disabled = live;
-  $('btnDisconnect').disabled = !live;
-  $('btnDeleteAll').disabled = !localCaptures.length;
-}
-function renderLocalPreview() {
-  const v = $('localVideo'), img = $('previewImg'), note = $('previewNote');
-  img.style.display = 'none'; img.removeAttribute('src');
-  if (localStream && activeLocalId === selCam) {
-    v.style.display = ''; note.textContent = ''; note.className = 'preview-note';
-  } else {
-    v.style.display = 'none';
-    note.className = 'preview-note';
-    note.textContent = 'This camera is not connected — press Connect.';
-  }
-}
-function renderLocalTiles(live, recording) {
-  const set = (id, val) => { $(id).textContent = val; };
-  set('tBatt', '—'); $('tBatt').style.color = '';
-  set('tSdP', '—'); set('tSdV', '—');
-  set('tStatus', recording ? 'recording' : live ? 'live' : 'idle');
-  set('tMode', '—'); set('tLink', 'browser'); set('tFw', '—'); set('tSerial', '—');
-  set('tPrev', live ? 'on' : 'off');
-}
-function renderLocalCaptures() {
-  const box = $('capList');
-  box.innerHTML = '';
-  if (!localCaptures.length) { box.appendChild(mk('div', 'muted', 'No captures yet. Press Photo or Record.')); return; }
+function renderStrip() {
+  const box = $('localStrip');
+  box.replaceChildren();
+  if (!localCaptures.length) { box.appendChild(mk('p', 'muted', 'No captures yet. Press the shutter.')); return; }
   for (const c of localCaptures) {
-    const item = mk('div', 'cap-item');
-    item.appendChild(mk('div', 'cap-thumb ph', c.kind === 'video' ? '🎞' : '📷'));
-    const body = mk('div', 'cap-body');
-    const title = mk('div', 'cap-title');
-    title.appendChild(mk('span', 'cap-kind', c.kind === 'video' ? '🎞 video' : '📷 photo'));
-    if (c.kind === 'video' && c.durationS != null) title.appendChild(mk('span', 'cap-dur', fmtClip(c.durationS)));
-    body.appendChild(title);
-    const a = document.createElement('a');
-    a.className = 'cap-path'; a.href = c.url; a.download = c.name; a.textContent = '⤓ ' + c.name;
-    a.style.color = 'var(--c-accent)'; a.style.textDecoration = 'none';
-    body.appendChild(a);
-    body.appendChild(mk('div', 'cap-meta', relTime(c.ts) + (c.sizeKB ? ' · ' + c.sizeKB + ' KB' : '')));
-    item.appendChild(body);
-    box.appendChild(item);
+    const a = mk('a', 'strip-item');
+    a.href = c.url; a.download = c.name; a.title = c.name + (c.sizeKB ? ' · ' + c.sizeKB + ' KB' : '');
+    a.setAttribute('aria-label', KIND_WORD[c.kind] + ' ' + c.name + ', save again');
+    if (c.kind === 'photo') { const img = mk('img'); img.src = c.url; img.alt = ''; a.appendChild(img); }
+    else a.appendChild(mk('span', 'strip-ph', c.kind === 'timelapse' ? '⏱' : '🎞'));
+    a.appendChild(mk('span', 'strip-cap', KIND_WORD[c.kind] + (c.durationS ? ' ' + fmtClip(c.durationS) : '')));
+    box.appendChild(a);
   }
 }
-function renderLocalEvents() {
-  const box = $('events');
-  box.innerHTML = '';
-  const items = localEvents.slice(-60).reverse();
-  if (!items.length) { box.appendChild(mk('div', 'ev', 'No events yet — connect a camera.')); return; }
-  for (const e of items) {
-    const level = ['info', 'warn', 'alert'].includes(e.level) ? e.level : 'info';
-    box.appendChild(mk('div', 'ev ' + level, new Date(e.ts).toLocaleTimeString() + ' — ' + String(e.message)));
-  }
+function renderLocal() {
+  const live = !!localStream;
+  $('stage').classList.toggle('live', live);
+  $('btnLocalStop').hidden = !live;
+  $('btnLocalConnect').disabled = localStarting;
+  $('localDeviceSel').hidden = localCams.length < 2;
+  $('localSide').textContent = live ? (localCaptures.length ? localCaptures.length + ' saved' : '') : '';
+  renderShutter(live);
+  renderStrip();
+  renderMore();
 }
-function applyLocalView() {
-  const c = localCams.find((x) => x.cameraId === selCam);
-  const live = !!localStream && activeLocalId === selCam;
-  const recording = localRecording();
-  $('localVideo').style.display = live ? '' : 'none';
-  $('ctlCam').textContent = (c && c.label) || 'This device';
-  $('kindPill').textContent = 'BROWSER';
-  const pill = $('statusPill');
-  pill.textContent = ((c && c.label) || 'camera') + ' · ' + (recording ? 'RECORDING' : live ? 'LIVE' : 'IDLE');
-  pill.className = 'pill ' + (recording ? 'rec' : live ? 'ok' : 'off');
-  $('subline').textContent = (c ? c.label : '') + ' — this device (browser camera, local only)';
-  renderLocalTiles(live, recording);
-  $('settingsGrid').innerHTML = '';
-  $('settingsGrid').appendChild(mk('div', 'muted', 'Browser camera — resolution/exposure are handled by your OS.'));
-  if (recording) rec = { active: true, baseS: (Date.now() - localRecStartMs) / 1000, baseMs: Date.now() };
-  else rec.active = false;
-  renderControls();
-  renderPreview();
-  renderLocalCaptures();
-  renderLocalEvents();
+/** A camera already allowed turns on by itself; a refused one says how to allow it before anything is pressed. */
+async function readCameraPermission() {
+  if (!navigator.permissions || !navigator.permissions.query) return;
+  let p;
+  try { p = await navigator.permissions.query({ name: 'camera' }); } catch (e) { return; /* this browser has no camera permission name; the button still asks */ }
+  const act = () => {
+    if (p.state === 'denied') { stopLocalStream(true); const [title, how] = cameraRefusal({ name: 'NotAllowedError' }); localFail(title, how); renderLocal(); }
+    else if (p.state === 'granted' && !localStream && !localStarting) localConnect(activeLocalId || '');
+  };
+  act();
+  p.onchange = act;
 }
 
 // ── Wiring + boot ────────────────────────────────────────────────────────────
 function wire() {
-  // Control buttons dispatch to the local (browser) handlers when a local camera is selected,
-  // otherwise to the server control ops (GoPro / simulator).
-  $('btnRecord').addEventListener('click', () => (isLocal(selCam) ? localControl(localRecording() ? 'stop' : 'record') : op(tele && tele.recording ? 'stop' : 'record')));
-  $('btnPhoto').addEventListener('click', () => (isLocal(selCam) ? localControl('photo') : op('photo')));
-  for (const b of $('modeSeg').querySelectorAll('button')) {
-    b.addEventListener('click', () => (isLocal(selCam) ? localControl('setMode') : op('setMode', { mode: b.dataset.mode })));
-  }
-  $('btnPreviewStart').addEventListener('click', () => (isLocal(selCam) ? localControl('startPreview') : op('startPreview')));
-  $('btnPreviewStop').addEventListener('click', () => (isLocal(selCam) ? localControl('stopPreview') : op('stopPreview')));
-  $('btnConnect').addEventListener('click', () => (isLocal(selCam) ? localControl('connect') : op('connect')));
-  $('btnDisconnect').addEventListener('click', () => (isLocal(selCam) ? localControl('disconnect') : op('disconnect')));
-  $('btnDeleteAll').addEventListener('click', () => (isLocal(selCam) ? localControl('deleteAll') : startDeleteAll()));
-  $('btnDeleteConfirm').addEventListener('click', confirmDeleteAll);
-  $('btnDeleteCancel').addEventListener('click', hideDeleteConfirm);
-  $('chatSend').addEventListener('click', sendChat);
-  $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+  // The Cameras screen drives the fleet's cameras (GoPro / simulator) through the server control ops.
+  $('btnRecord').addEventListener('click', () => op(tele && tele.recording ? 'stop' : 'record'));
+  $('btnPhoto').addEventListener('click', () => op('photo'));
+  for (const b of $('modeSeg').querySelectorAll('button')) b.addEventListener('click', () => op('setMode', { mode: b.dataset.mode }));
+  $('btnPreviewStart').addEventListener('click', () => op('startPreview'));
+  $('btnPreviewStop').addEventListener('click', () => op('stopPreview'));
+  $('btnConnect').addEventListener('click', () => op('connect'));
+  $('btnDisconnect').addEventListener('click', () => op('disconnect'));
+  $('btnDeleteAll').addEventListener('click', startDeleteAll);
+  $('btnDeleteConfirm').addEventListener('click', () => answerConfirm(true));
+  $('btnDeleteCancel').addEventListener('click', () => answerConfirm(false));
+  $('deleteConfirm').addEventListener('cancel', () => answerConfirm(false));
+  for (const t of $('screenTabs').querySelectorAll('[role="tab"]')) t.addEventListener('click', () => showScreen(t.dataset.screen));
+  $('moreMenu').addEventListener('beforetoggle', (e) => { if (e.newState === 'open') placeMore(); });
+  $('menuClear').addEventListener('click', clearLocalCaptures);
 
-  // Local (this-device) camera controls.
+  // This device's camera.
   $('btnLocalConnect').addEventListener('click', () => localConnect(activeLocalId || (localCams[0] && localCams[0].cameraId) || ''));
   $('btnLocalStop').addEventListener('click', () => stopLocalStream(false));
   $('localDeviceSel').addEventListener('change', (e) => localConnect(e.target.value));
+  $('btnShutter').addEventListener('click', localShutter);
+  for (const b of $('localModeSeg').querySelectorAll('button')) b.addEventListener('click', () => setLocalMode(b.dataset.mode));
 
   const img = $('previewImg');
   img.addEventListener('error', () => {
@@ -1217,10 +1351,11 @@ function wire() {
 function tick() { pollFleet(); pollState(); pollCaptures(); pollEvents(); }
 async function boot() {
   wire();
+  renderLocal();
   if (haveMedia()) {
     try { await refreshLocalDevices(); } catch (e) { /* labels appear after the first permission grant */ }
-    renderLocalPanel();
     if (navigator.mediaDevices.addEventListener) navigator.mediaDevices.addEventListener('devicechange', () => refreshLocalDevices().catch(() => {}));
+    readCameraPermission();
   }
   await pollFleet();
   await pollState();
@@ -1234,24 +1369,33 @@ async function boot() {
 if (!window.AppView || !AppView.active()) boot();
 </script>
 
-<details id="evidenceReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
- <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
- <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
- <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>
- <label>Brief<textarea id="evidenceNotes" rows="5" style="width:100%;box-sizing:border-box;margin:6px 0"></textarea></label>
- <div id="evidenceActions"></div>
-</details>
+<!-- Prepare a diagnostic brief: a sheet opened from More, painted with theme tokens, offered only when the connected
+     actions (/cockpit/js/app-workflows.js) offer this person an action. -->
+<dialog class="sheet" id="evidenceReview" aria-labelledby="evidenceTitle" data-no-glass>
+  <div class="sheet-head"><h2 id="evidenceTitle">Prepare a diagnostic brief</h2><button class="btn tertiary" id="evidenceDone">Done</button></div>
+  <div class="sheet-body">
+    <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
+    <label>Saved evidence<select id="evidenceChoice"></select></label>
+    <label>Brief<textarea id="evidenceNotes" rows="5"></textarea></label>
+    <div id="evidenceActions" class="sheet-actions"></div>
+  </div>
+</dialog>
 <script>
 // The full page only: under an audience view no connected-actions offer is fetched and no saved-evidence read is wired.
 if (!window.AppView || !AppView.active()) {
 (async()=>{
 const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
-const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
-await mountConnectedActions({element:document.getElementById('evidenceActions'),app:"camera",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});
+const sheet=document.getElementById('evidenceReview'),item=document.getElementById('menuBrief'),actions=document.getElementById('evidenceActions'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
+await mountConnectedActions({element:actions,app:"camera",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});
+// Withheld when the connected actions offer this person nothing: the container stays hidden and empty.
+const offered=actions.hidden!==true&&actions.style?.display!=='none'&&actions.childElementCount>0;
+item.dataset.offered=String(offered);item.hidden=!offered;if(typeof renderMore==='function')renderMore();
+if(!offered)return;
+const load=async()=>{if(loaded)return;try{const response=await fetch("/api/camera/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}};
 pick.addEventListener('change',()=>{notes.value=records[pick.selectedIndex]?.actions?.find(a=>a.integration==='prepare-document')?.context?.notes||'';});
-panel.addEventListener('toggle',async()=>{if(!panel.open||loaded)return;try{const response=await fetch("/api/camera/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}});
-if(panel.open)panel.dispatchEvent(new Event('toggle'));
-})().catch(()=>{document.getElementById('evidenceState').textContent='Connected actions are unavailable.';});
+item.addEventListener('click',()=>{try{document.getElementById('moreMenu').hidePopover();}catch{}sheet.showModal();load();});
+document.getElementById('evidenceDone').addEventListener('click',()=>sheet.close());
+})().catch(()=>{const item=document.getElementById('menuBrief');item.hidden=true;item.dataset.offered='false';if(typeof renderMore==='function')renderMore();});
 }
 </script>
 

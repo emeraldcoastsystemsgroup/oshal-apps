@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Two phone regressions on the Smart Home page (tools/home.html) at 412 x 915 and in the 392 px cockpit frame. (a) The chat transcript showed only the bot's reply after Send, never what the person asked; it now shows "You: <message>" above the answer. (b) The Hubs tab opened the generic Connections page with every connector declaration; the manifest now opens this page's hubs view (?view=hubs), which shows the SmartThings connect link, the Google Home set-up link and the hubs that reported devices, and hides the dashboard.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-05 (home-dashboard): the inline Ask bar is removed (the shell's concierge button is the one assistant entry), so the transcript case goes; the dashboard case now proves there is no Ask bar and no empty state when devices exist.
  */
 'use strict';
 const test = require('node:test');
@@ -23,27 +24,6 @@ test.before(async () => { browser = await playwright().chromium.launch({ headles
 test.after(async () => { await browser?.close(); });
 
 for (const viewport of VIEWPORTS) {
-  test(`the chat shows the person's own message above the reply on a ${viewport.width} px screen`, async () => {
-    const { page, context } = await openPage(browser, viewport, { url: '/api/home/ui', files: { '/api/home/ui': PAGE }, reads: READS });
-    try {
-      const asked = [];
-      await page.route('**/api/home/assistant', async (route) => {
-        asked.push(JSON.parse(route.request().postData() || '{}').message);
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ reply: 'Three lamps are off.' }) });
-      });
-      await page.waitForFunction(() => document.querySelectorAll('#grid .card').length === 3);
-      await page.fill('#msg', 'what is on right now?');
-      await page.click('#send');
-      await page.waitForFunction(() => /Three lamps are off\./.test(document.getElementById('reply').textContent));
-      assert.deepEqual(asked, ['what is on right now?']);
-      assert.equal(await page.textContent('#reply .you'), 'You: what is on right now?');
-      assert.equal(await page.textContent('#reply .answer'), 'Three lamps are off.');
-      assert.equal(await page.inputValue('#msg'), '', 'the input clears once the message is in the transcript');
-    } finally {
-      await context.close();
-    }
-  });
-
   test(`the Hubs view shows the hub connections, not the dashboard, on a ${viewport.width} px screen`, async () => {
     const { page, context, writes } = await openPage(browser, viewport, { url: '/api/home/ui?view=hubs', files: { '/api/home/ui': PAGE }, reads: READS });
     try {
@@ -69,7 +49,8 @@ test('the dashboard keeps the hubs panel hidden', async () => {
   try {
     await page.waitForFunction(() => document.querySelectorAll('#grid .card').length === 3);
     assert.equal(await page.isVisible('#hubsPanel'), false);
-    assert.ok(await page.isVisible('#msg'));
+    assert.equal(await page.isVisible('#emptyState'), false, 'devices exist, so no empty state');
+    assert.equal(await page.locator('#msg, #send').count(), 0, 'no inline Ask bar: the shell concierge is the one assistant entry');
   } finally {
     await context.close();
   }

@@ -13,6 +13,7 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the surface loads the shared kit right after the theme bootstrap and paints the signed-in account's own saved videos (waiting or being made, finished in the last five days, not finished, whether the video maker is connected, the newest eight with where each one stands; a finished video whose export is attached opens its private preview in a new tab) from GET /jobs, /home-summary and a finished job's artifact record only. The inline start (control bindings, the job-list read, the four-second poll) and the module script (handoff listener, connected-actions section and offer) run only when no audience view renders, so the view never dispatches a job and never attaches, publishes, revokes or removes an export. The block holds no backtick, dollar-brace or backslash, so the template literal serves it byte for byte.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | The Studio page says what a Vids worker is and who starts one (an administrator runs `npx oshal-vids worker` on a computer with a screen and Chrome signed in to Google Vids) whenever none is registered, instead of a lone "no worker registered" beside a disabled Generate.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | The export routes are registered at their full /jobs/:jobId/artifact paths (registerVidsPublishRoutes) instead of a sub-router mounted at a parameterised use() path, which the native kernel's bridge router matched literally, so attach, preview, publish, revoke and remove all answered 404 "No matching application route". The page reads the artifact record's `attach` state: where exports cannot be kept (the native sandbox) a finished job says so instead of offering a file input, and a refused attach shows the server's sentence rather than its code.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: single brief form (remove duplicate Generation source/settings Properties), withhold Generate clip when no worker is online with setup in Help, close inline Concierge on load, and style one top action row with Saved caption.
  */
 
 /*
@@ -608,7 +609,8 @@ const SURFACE_HTML = `<!doctype html>
     .idea{max-width:none;overflow-wrap:anywhere}
   }
 
-.ef-editor .vids-source-actions{display:flex;align-items:end;flex-wrap:wrap;gap:8px;margin-top:10px}.ef-editor .vids-source-actions label{display:flex;flex-direction:column;gap:4px;flex:1 1 240px}.ef-editor .vids-source-actions input{min-height:44px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);border-radius:8px;padding:8px 12px;font:inherit}.ef-editor .vids-source-actions button,.ef-editor .vids-brief-library button{min-height:44px}.ef-editor .vids-brief-library button{width:100%;text-align:left;margin-bottom:8px}.ef-editor .vids-brief-library h2{font-size:16px}
+.ef-editor .vids-source-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:8px}.ef-editor .vids-source-actions input{flex:1 1 200px;min-height:44px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);border-radius:8px;padding:8px 12px;font:inherit}.ef-editor .vids-source-actions button,.ef-editor .vids-brief-library button{min-height:44px}.ef-editor .vids-save-caption{font-size:12.5px;color:var(--muted);min-width:48px}.ef-editor .vids-brief-library button{width:100%;text-align:left;margin-bottom:8px}.ef-editor .vids-brief-library h2{font-size:16px}
+.worker-help{margin-top:8px;font-size:12.5px;color:var(--muted)}.worker-help summary{cursor:pointer;display:inline-flex;align-items:center;min-height:36px;font-weight:600;color:var(--text)}
 .wrap.ef-editor{max-width:none;padding:0;margin:0}.ef-editor .ef-header-slot>header{padding:12px 16px}.ef-editor .ef-header-slot h1{font-size:20px}.ef-editor .ef-header-slot>.sub{display:none}
 .ef-editor .vids-navigation,.ef-editor .vids-viewport,.ef-editor .vids-inspector{padding:14px;min-width:0;overflow:auto}.ef-editor .card{padding:0;margin:0;border:0;border-radius:0;background:transparent}
 .ef-editor .ef-navigation th:nth-child(n+3),.ef-editor .ef-navigation td:nth-child(n+3){display:none}.ef-editor .ef-navigation .idea{max-width:none;overflow-wrap:anywhere}.ef-editor .ef-navigation table{table-layout:fixed}.ef-editor .ef-navigation th:first-child{width:70px}
@@ -627,10 +629,13 @@ const SURFACE_HTML = `<!doctype html>
     <div class="row">
       <select id="orientation"><option>Landscape</option><option>Portrait</option><option>Square</option></select>
       <select id="insertMode"><option value="Insert">Insert (new scene)</option><option value="Extend">Extend</option><option value="none">Don't place</option></select>
-      <button class="primary" id="go">Generate clip</button>
+      <button class="primary" id="go" hidden>Generate clip</button>
       <span class="worker"><span class="dot" id="wdot"></span><span id="wtxt">checking worker…</span></span>
     </div>
-    <p class="sub" id="whint" hidden>No Vids worker is registered, so Generate is off. A Vids worker is a computer with a screen and Chrome signed in to Google Vids, started by an administrator with <code>npx oshal-vids worker</code>; it shows here as online once it registers with this installation.</p>
+    <details class="worker-help" id="workerHelp" hidden>
+      <summary>Help</summary>
+      <p class="sub" id="whint">No Vids worker is registered. A Vids worker is a computer with a screen and Chrome signed in to Google Vids, started by an administrator with <code>npx oshal-vids worker</code>; it shows here as online once it registers with this installation.</p>
+    </details>
   </div>
   <div class="card">
     <table><thead><tr><th>Status</th><th>Idea</th><th>Orientation</th><th>Worker</th><th>When</th><th>Finished export</th></tr></thead>
@@ -645,7 +650,7 @@ const SURFACE_HTML = `<!doctype html>
   var vidsEditor, vidsSource, selectedJob=null, listedJobs=[], listedArtifacts=[], exportActions={}, dispatching=false;
   var vidsDraft='video-brief:'+crypto.randomUUID();
   function vidsState(){if(vidsSource)return vidsSource.getState();return{documentId:vidsDraft,revision:null,title:'Next clip brief',dirty:Boolean(document.getElementById('prompt').value)||Boolean(vidsEditor?.hasPending()),readOnly:false,busy:dispatching,status:'Generation brief · finished exports are separate media'};}
-  function vidsProperties(){if(vidsSource)return vidsSource.getProperties();return[{key:'prompt',label:'Next clip brief',type:'textarea',value:document.getElementById('prompt').value,group:'Generation source'},...['orientation','insertMode'].map(function(key){var field=document.getElementById(key);return{key:key,label:key==='orientation'?'Orientation':'Placement',type:'select',value:field.value,options:[...field.options].map(function(option){return{value:option.value,label:option.textContent};}),group:'Generation settings'};})];}
+  function vidsProperties(){if(vidsSource)return vidsSource.getProperties();return[];}
   function applyVidsProperty(key,value,expected){
     if(vidsSource)return vidsSource.applyProperty(key,value,expected);
     if(expected.documentId!==vidsState().documentId||!['prompt','orientation','insertMode'].includes(key))throw Error('The selected video changed.');
@@ -682,6 +687,7 @@ const SURFACE_HTML = `<!doctype html>
     var status=document.createElement('p');status.id='vidsStatus';status.setAttribute('role','status');root.append(header,navigation,viewport,inspector,status);
     try{var source=await import('/api/vids/source-project-editor.mjs');vidsSource=source.createVidsSourceEditor({root:root,header:header,navigation:navigation,getFoundation:function(){return vidsEditor;},status:vidsStatus,getBusy:function(){return dispatching;}});}catch(error){vidsStatus('Saved brief editing is unavailable here. Your generation draft is still usable.');}
     vidsEditor=shared.createEditorFoundation({root:root,navigation:navigation,viewport:viewport,inspector:inspector,header:header,status:status,ai:vidsSource&&vidsSource.ai,actions:vidsSource?vidsSource.actions:{},getState:vidsState,getSelection:function(){return vidsSource?vidsSource.getSelection():{kind:'video brief',ids:[vidsDraft]};},getProperties:vidsProperties,applyProperty:applyVidsProperty});
+    root.querySelector('.ef-shell')?.dispatchEvent(new CustomEvent('editor-concierge:hide'));
     root.addEventListener('input',function(){vidsEditor.refresh();});root.addEventListener('change',function(){vidsEditor.refresh();});
     root.addEventListener('click',function(event){var button=event.target.closest('[data-select-job]');if(button){selectedJob=button.dataset.selectJob;showSelectedJob();}});
     showSelectedJob();window.addEventListener('pagehide',function(event){if(!event.persisted){vidsSource?.destroy();vidsEditor.destroy();}},{once:true});
@@ -694,10 +700,10 @@ const SURFACE_HTML = `<!doctype html>
       var r = await fetch('/api/vids/jobs'); var d = await r.json();
       var w = (d.workers||[]).find(function(x){return x.status==='online'||x.healthy;});
       var dot = document.getElementById('wdot'), txt = document.getElementById('wtxt');
-      if (w){ dot.className='dot on'; txt.textContent = (w.name||w.clientId)+' · online'; go.disabled=dispatching; }
-      else { dot.className='dot'; txt.textContent='no worker registered'; go.disabled=true; }
-      // Say what a worker is and who starts one, instead of a lone "no worker registered" beside a dead button.
-      document.getElementById('whint').hidden = !!w;
+      if (w){ dot.className='dot on'; txt.textContent = (w.name||w.clientId)+' · online'; go.hidden=false; go.disabled=dispatching; }
+      else { dot.className='dot'; txt.textContent='no worker registered'; go.hidden=true; go.disabled=true; }
+      // Withhold Generate clip when no worker is registered, and keep worker setup instructions in Help.
+      document.getElementById('workerHelp').hidden = !!w;
       var tb = document.getElementById('rows');
       if (!d.jobs || !d.jobs.length){ listedJobs=[];listedArtifacts=[];selectedJob=null;exportActions={};tb.innerHTML='<tr><td colspan="6" class="empty">No jobs yet.</td></tr>';showSelectedJob();return; }
       var artifacts = await Promise.all(d.jobs.map(async function(j){

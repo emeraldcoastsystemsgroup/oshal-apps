@@ -19,6 +19,8 @@
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: initiative-sides adds the full eight-chip bar (the page never scrolls sideways at 412 and 392 px) and the Result stage repainting the bar (Enemies 3/4, Defeated); the persona case adds the turn line, the Result line and no thinking aloud.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: dm-directive-lines also expects no directive template line anywhere in the served persona.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | dnd-caption-phone also expects the caption to show narration without Markdown marks (sweep 14).
+# 18 | maintainer@emeraldcoastsystemsgroup.com | Register theme-contrast: every text on the table (drawer, status strip, HUD and More menu, dock, banner, My Games) reads at 4.5:1 under all twenty themes, and My Games is opaque (UX audit 2026-11-06, dnd-table FIX-BROKEN).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | Register ux-audit: the table's HUD and More menu, My Games' row menu, How to play, My Characters and TV Mode after the 2026-11-06 UX audit.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -249,4 +251,56 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 60000 }
+    installation: never
+  - id: theme-contrast
+    name: The table reads under every theme
+    purpose: >-
+      Load the shipped table.html, dnd.css and scripts in headless Chromium with each of the twenty themes' tokens
+      (tests/browser/theme-tokens.json) and measure every text on the dark set against what is painted under it.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/dnd-theme-contrast.test.cjs
+    expected:
+      - The Dungeon Master drawer (Current Quest, Table Talk, quick questions, Ask DM), the status strip, the five HUD controls and the More menu, the dock, End Turn and a waiting Move, and the banner read at 4.5:1 (3:1 for large text) under every theme.
+      - My Games' heading, rows, Resume, the row's ⋯ menu and Delete Campaign read at 4.5:1 on an opaque card under every theme.
+      - Under light-blue the same holds at 412 px and at 1440 px, and nothing is written.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 180000
+    installation: never
+  - id: ux-audit
+    name: The table's controls after the UX audit
+    purpose: >-
+      Load the shipped table.html, dnd.css and scripts in headless Chromium at 1440 x 900 and 412 x 915 with synthetic
+      read-only answers and press the HUD, My Games, How to play, My Characters and TV Mode controls.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/browser/dnd-ux-audit.test.cjs
+    expected:
+      - The HUD is one row of Games, Party, Roll, DM & Story and More; More lists Timeline, Help, DM Settings and Full screen and closes on Escape; with no campaign End Turn is not shown.
+      - A My Games row shows one action, Resume; its ⋯ menu holds Recap and Delete Campaign, and Delete still confirms in the page.
+      - How to play has four headed sections in upright type, names DM & Story and TV Mode, keeps Got it on screen, and its ✕ returns to My Games.
+      - A My Characters card's one action is Use in new game, a hero without art shows its initials, and the import form's Save character is on screen at 1440 x 900.
+      - TV Mode's lobby card names the game once and shows the join code at 48px or more; its corner bar shows Full screen and Sound on, and Sound turns the narration on and off.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

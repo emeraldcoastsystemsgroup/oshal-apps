@@ -11,15 +11,32 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Citation builder: MLA and APA entries from author, title, source, year and URL; a Works Cited list kept in browser storage with copy and remove
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, two-column layout (builder and Works Cited), system fields and buttons, list items with a remove button, an empty state, LM.toast for save/copy/remove notices, the list rendered alphabetized as its copy already promised, and a plain line saying citations live in this browser only
+  3   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-citations, FIX-BROKEN): APA author names become initials ('Carson, R. (1962).'), and the style applies to the whole list: each source keeps its fields and every entry is re-rendered in the chosen style, under 'References' (APA) or 'Works Cited' (MLA); one list mixed MLA and APA entries before. A Source type (Book, Website, Journal article) shows the fields that type needs and formats titles in italics or quotation marks. 'Add source' (was 'Generate & save') clears the form and returns focus to Author; each saved source's ⋯ offers Edit and Remove. The file input that only read a file name is a plain 'Paper title' field. The formatter is the pure LMCite block, unit-tested by tests/lm-ux-citations.test.cjs.
+  4   | maintainer@emeraldcoastsystemsgroup.com   | Add Look up control beside the Title field for bibliographic lookup
+  5   | maintainer@emeraldcoastsystemsgroup.com   | Look up a source by ISBN, DOI, or public https URL via server-side catalog lookup and fill the citation form without page-held keys (RP-LM-03)
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
+  .title-row { display: flex; gap: 8px; align-items: center; }
+  .title-row .lm-input { flex: 1 1 auto; min-width: 0; }
+  .title-row .lm-btn { flex: 0 0 auto; }
   .cite { font-family: var(--lm-font-display); font-size: 15px; line-height: 1.55; overflow-wrap: anywhere; }
   .cite .lm-pill { font-family: var(--lm-font-body); vertical-align: middle; }
   .lm-item .cite { flex: 1; min-width: 0; }
+  .cite-row { align-items: flex-start; }
+  .cite-menu { position: relative; flex: 0 0 auto; }
+  .cite-menu summary { list-style: none; display: grid; place-items: center; width: var(--lm-touch); height: var(--lm-touch); border-radius: 50%; cursor: pointer; font-size: 20px; font-weight: 800; color: var(--lm-ink-2); }
+  .cite-menu summary::-webkit-details-marker { display: none; }
+  .cite-menu summary:hover, .cite-menu[open] summary { background: var(--lm-accent-wash); color: var(--lm-ink); }
+  .cite-menu-list { position: absolute; right: 0; top: calc(100% + 4px); min-width: 150px; display: grid; gap: 2px; padding: 6px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); box-shadow: var(--lm-shadow); z-index: 20; }
+  .cite-menu-list button { min-height: var(--lm-touch); text-align: left; padding: 8px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--lm-ink); font: inherit; font-weight: 600; cursor: pointer; }
+  .cite-menu-list button:hover { background: var(--lm-accent-wash); }
+  .style-switch { display: inline-flex; gap: 4px; padding: 4px; background: var(--lm-bg-2); border-radius: var(--lm-radius-pill); }
+  .style-switch button { min-height: var(--lm-touch); padding: 6px 16px; border: 0; border-radius: var(--lm-radius-pill); background: transparent; color: var(--lm-ink-2); font: inherit; font-weight: 700; cursor: pointer; }
+  .style-switch button[aria-pressed="true"] { background: var(--lm-card); color: var(--lm-accent); box-shadow: var(--lm-shadow-soft); }
 </style>
 </head>
 <body>
@@ -28,101 +45,291 @@
     <div>
       <div class="lm-eyebrow">Writing</div>
       <h1 class="lm-display">My Citations</h1>
-      <p class="lm-lead">Build clean MLA and APA citations and keep your Works Cited in one place. For tricky sources, <a href="https://www.citationmachine.net/" target="_blank" rel="noopener">Citation Machine ↗</a> opens in a new tab.</p>
+      <p class="lm-lead">Build clean MLA and APA citations and keep your list in one place. For tricky sources, <a href="https://www.citationmachine.net/" target="_blank" rel="noopener">Citation Machine ↗</a> opens in a new tab.</p>
     </div>
     <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
   </header>
 
   <div class="lm-columns">
-    <div class="lm-stack">
-      <section class="lm-card" aria-labelledby="addTitle">
-        <div class="lm-section-head"><h2 id="addTitle">➕ Add a source you used</h2></div>
-        <div class="lm-grid is-tight" style="--min:180px">
-          <div class="lm-field"><label for="style">Style</label><select id="style" class="lm-input"><option>MLA</option><option>APA</option></select></div>
-          <div class="lm-field"><label for="author">Author (Last, First)</label><input id="author" class="lm-input" placeholder="Smith, Jane" autocomplete="off"></div>
+    <section class="lm-card" aria-labelledby="addTitle">
+      <div class="lm-section-head"><h2 id="addTitle">➕ Add a source you used</h2></div>
+      <form id="citeForm" novalidate>
+        <div class="lm-field"><label for="type">Source type</label>
+          <select id="type" class="lm-input"><option value="book">Book</option><option value="website">Website</option><option value="journal">Journal article</option></select></div>
+        <div class="lm-field"><label for="author">Author (Last, First)</label><input id="author" class="lm-input" placeholder="Carson, Rachel" autocomplete="off">
+          <p class="lm-help">A person: Last, First. A group: its full name, such as NASA.</p></div>
+        <div class="lm-field"><label for="title" id="titleLabel">Book title</label><div class="title-row"><input id="title" class="lm-input" placeholder="Silent Spring" autocomplete="off"><button type="button" class="lm-btn lm-btn-soft" id="lookupBtn" aria-expanded="false" aria-controls="lookupPanel">🔎 Look up</button></div></div>
+        <div class="lm-callout lm-mb-md hide" id="lookupPanel">
+          <label for="lookupInput" class="lm-small" style="display:block;font-weight:700;margin-bottom:6px">Look up by ISBN, DOI, or https:// URL</label>
+          <div class="title-row">
+            <input id="lookupInput" class="lm-input" placeholder="9780618249060, 10.1038/…, or https://…" autocomplete="off">
+            <button type="button" class="lm-btn lm-btn-soft lm-btn-sm" id="lookupRunBtn">Find source</button>
+          </div>
+          <div class="lm-status lm-mt-sm" id="lookupStatus" role="status" aria-live="polite"></div>
         </div>
-        <div class="lm-field"><label for="title">Title</label><input id="title" class="lm-input" placeholder="The Great Gatsby" autocomplete="off"></div>
         <div class="lm-grid is-tight" style="--min:180px">
-          <div class="lm-field"><label for="source">Source / Publisher</label><input id="source" class="lm-input" placeholder="Scribner" autocomplete="off"></div>
-          <div class="lm-field"><label for="year">Year</label><input id="year" class="lm-input" inputmode="numeric" placeholder="2024" autocomplete="off"></div>
+          <div class="lm-field"><label for="source" id="sourceLabel">Publisher</label><input id="source" class="lm-input" placeholder="Houghton Mifflin" autocomplete="off"></div>
+          <div class="lm-field"><label for="year">Year</label><input id="year" class="lm-input" inputmode="numeric" placeholder="1962" autocomplete="off"></div>
         </div>
-        <div class="lm-field"><label for="url">URL (optional)</label><input id="url" class="lm-input" type="url" placeholder="https://…" autocomplete="off"></div>
-        <div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-primary" onclick="gen()">Generate &amp; save</button></div>
+        <div class="lm-grid is-tight hide" style="--min:110px" id="journalFields">
+          <div class="lm-field"><label for="volume">Volume</label><input id="volume" class="lm-input" inputmode="numeric" placeholder="12" autocomplete="off"></div>
+          <div class="lm-field"><label for="issue">Issue</label><input id="issue" class="lm-input" inputmode="numeric" placeholder="3" autocomplete="off"></div>
+          <div class="lm-field"><label for="pages">Pages</label><input id="pages" class="lm-input" placeholder="45-67" autocomplete="off"></div>
+        </div>
+        <div class="lm-field"><label for="url" id="urlLabel">URL (optional)</label><input id="url" class="lm-input" type="url" placeholder="https://…" autocomplete="off"></div>
+        <div class="lm-row is-wrap">
+          <button type="submit" class="lm-btn lm-btn-primary" id="addBtn">Add source</button>
+          <button type="button" class="lm-btn lm-btn-ghost hide" id="cancelEdit">Cancel</button>
+        </div>
         <div class="lm-callout cite lm-mt-md" id="out" style="display:none" role="status" aria-live="polite"></div>
-      </section>
-
-      <section class="lm-card" aria-labelledby="paperTitle">
-        <div class="lm-field" style="margin:0">
-          <label for="paper" id="paperTitle">📄 Your paper (optional)</label>
-          <input type="file" id="paper" accept=".doc,.docx,.pdf,.txt" onchange="setPaper(event)">
-          <p class="lm-help">Only the file name is read, so you remember which paper these sources belong to. The file stays on your computer.</p>
-          <p class="lm-status" id="paperName" role="status"></p>
-        </div>
-      </section>
-    </div>
+      </form>
+    </section>
 
     <section class="lm-card" aria-labelledby="citedTitle">
-      <div class="lm-section-head"><h2 id="citedTitle">📚 Works Cited</h2><span class="lm-subtle lm-small" id="citedCount"></span></div>
-      <p class="lm-help lm-mb-md">Saved in this browser only — not in your account or your classes. Copy the list into your paper when you are done.</p>
+      <div class="lm-section-head">
+        <h2 id="citedTitle">📚 Works Cited</h2>
+        <div class="style-switch" role="group" aria-label="Citation style">
+          <button type="button" data-style="MLA" aria-pressed="true">MLA</button>
+          <button type="button" data-style="APA" aria-pressed="false">APA</button>
+        </div>
+      </div>
+      <div class="lm-field"><label for="paperTitle">Paper title (optional)</label><input id="paperTitle" class="lm-input" placeholder="My report on bees" autocomplete="off"></div>
+      <p class="lm-help lm-mb-md">Saved in this browser only — not in your account or your classes. <span id="citedCount"></span></p>
       <ul class="lm-list lm-mb-md" id="saved"></ul>
       <div class="lm-empty" id="empty"><div class="lm-empty-icon">📖</div><strong>Nothing cited yet.</strong>Add the sources you used and they line up here, alphabetized.</div>
-      <button type="button" class="lm-btn lm-btn-soft" id="copyAll" style="display:none" onclick="copyAll()">Copy Works Cited</button>
+      <button type="button" class="lm-btn lm-btn-soft" id="copyAll" style="display:none">Copy list</button>
     </section>
   </div>
 </main>
 
 <script src="/api/education/mascot.js?v=4"></script>
-<script>
-var KEY = 'lm-citations', esc = window.LM.esc;
-function setPaper(e) { var f = e.target.files && e.target.files[0]; document.getElementById('paperName').textContent = f ? ('Citing sources for: ' + f.name) : ''; }
-function plain(html) { var d = document.createElement('div'); d.innerHTML = html; return d.textContent || ''; }
-/** Works Cited is alphabetized; each entry keeps its index in storage so remove targets the right one. */
-function sorted(list) {
-  return list.map(function (c, i) { return { c: c, i: i }; })
-    .sort(function (a, b) { return plain(a.c.html).localeCompare(plain(b.c.html), undefined, { sensitivity: 'base' }); });
-}
-function copyAll() {
-  var text = sorted(load()).map(function (e) { return plain(e.c.html); }).join('\n');
-  var blocked = function () { window.LM.toast('Copy is blocked here — select the list and copy it by hand.'); };
-  try { navigator.clipboard.writeText(text).then(function () { window.LM.toast('Works Cited copied — paste it into your paper.'); }, blocked); }
-  catch (e) { blocked(); }
-}
-function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
-function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) { window.LM.toast('This browser would not keep the citation. It is still shown above.'); } }
-function val(id) { return document.getElementById(id).value; }
-function build(style, a, t, s, y, u) {
-  a = a.trim(); t = t.trim(); s = s.trim(); y = y.trim(); u = u.trim();
-  var out = '';
-  if (style === 'APA') {
-    // Author, A. (Year). Title. Source. URL
-    out = (a ? esc(a) + ' ' : '') + (y ? '(' + esc(y) + '). ' : '') + (t ? '<i>' + esc(t) + '</i>. ' : '') + (s ? esc(s) + '. ' : '') + (u ? esc(u) : '');
-  } else {
-    // MLA: Author. Title. Source, Year. URL.
-    out = (a ? esc(a) + '. ' : '') + (t ? '<i>' + esc(t) + '</i>. ' : '') + (s ? esc(s) + ', ' : '') + (y ? esc(y) + '. ' : '') + (u ? esc(u) + '.' : '');
+<script id="lm-cite-format">
+/**
+ * LMCite: pure MLA (9th) and APA (7th) formatting of one source's fields. No DOM; tests load this block.
+ * Fields: { type: 'book'|'website'|'journal', author, title, source, year, url, volume, issue, pages }.
+ */
+var LMCite = (function () {
+  'use strict';
+  function clean(v) { return String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); }
+  function esc(v) { return clean(v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  /** A sentence-ending stop unless the text already ends in one. */
+  function stop(text) { return /[.?!]$/.test(text) ? text : text + '.'; }
+  function ital(text) { return '<i>' + esc(text) + '</i>'; }
+  /** "Last, First Middle" is a person; a name without a comma is a group and stays exactly as written. */
+  function nameParts(raw) {
+    var a = clean(raw);
+    if (!a) return null;
+    var i = a.indexOf(',');
+    if (i === -1) return { last: a, given: '' };
+    return { last: clean(a.slice(0, i)), given: clean(a.slice(i + 1)) };
   }
-  return out.trim();
+  /** APA initials: "Rachel Louise" → "R. L.", "Jean-Paul" → "J.-P.". */
+  function initials(given) {
+    return given.split(' ').filter(Boolean).map(function (w) {
+      return w.split('-').filter(Boolean).map(function (p) { return p.charAt(0).toUpperCase() + '.'; }).join('-');
+    }).join(' ');
+  }
+  function apaAuthor(raw) { var n = nameParts(raw); return n ? n.last + (n.given ? ', ' + initials(n.given) : '') : ''; }
+  function mlaAuthor(raw) { var n = nameParts(raw); return n ? n.last + (n.given ? ', ' + n.given : '') : ''; }
+  /** APA journal container: Journal, Volume(Issue), pages. */
+  function apaJournal(f) {
+    var j = clean(f.source), v = clean(f.volume), n = clean(f.issue), p = clean(f.pages);
+    if (!j) return '';
+    var out = ital(j) + (v ? ', ' + ital(v) : '') + (n ? '(' + esc(n) + ')' : '') + (p ? ', ' + esc(p) : '');
+    return out + '.';
+  }
+  function apa(f) {
+    var type = f.type || 'book', who = apaAuthor(f.author), t = clean(f.title), s = clean(f.source), u = clean(f.url);
+    var date = '(' + (clean(f.year) || 'n.d.') + ').';
+    var title = !t ? '' : type === 'journal' ? esc(stop(t)) : ital(t) + (/[.?!]$/.test(t) ? '' : '.');
+    var parts = who ? [esc(stop(who)), date, title] : [title, date];
+    parts.push(type === 'journal' ? apaJournal(f) : (s ? esc(stop(s)) : ''));
+    if (u) parts.push(esc(u));
+    return parts.filter(Boolean).join(' ');
+  }
+  /** MLA container elements, comma separated, ending in a stop. */
+  function mlaContainer(f) {
+    var type = f.type || 'book', s = clean(f.source), y = clean(f.year), u = clean(f.url), p = clean(f.pages), tail = [];
+    if (s) tail.push(type === 'book' ? esc(s) : ital(s));
+    if (type === 'journal' && clean(f.volume)) tail.push('vol. ' + esc(f.volume));
+    if (type === 'journal' && clean(f.issue)) tail.push('no. ' + esc(f.issue));
+    if (y) tail.push(esc(y));
+    if (type === 'journal' && p) tail.push((/[-–]/.test(p) ? 'pp. ' : 'p. ') + esc(p));
+    if (u) tail.push(esc(u));
+    return tail.length ? tail.join(', ') + '.' : '';
+  }
+  function mla(f) {
+    var type = f.type || 'book', who = mlaAuthor(f.author), t = clean(f.title);
+    var title = !t ? '' : type === 'book' ? ital(t) + (/[.?!]$/.test(t) ? '' : '.') : '“' + esc(stop(t)) + '”';
+    return [who ? esc(stop(who)) : '', title, mlaContainer(f)].filter(Boolean).join(' ');
+  }
+  /** One source in the chosen style, as HTML (italics are <i>). */
+  function format(style, f) { return style === 'APA' ? apa(f || {}) : mla(f || {}); }
+  /** The list heading each style uses. */
+  function heading(style) { return style === 'APA' ? 'References' : 'Works Cited'; }
+  /** True when a source has something to cite. */
+  function hasContent(f) { return Boolean(f && (clean(f.author) || clean(f.title))); }
+  return { format: format, heading: heading, apaAuthor: apaAuthor, mlaAuthor: mlaAuthor, hasContent: hasContent };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = LMCite;
+</script>
+<script>
+var KEY = 'lm-citations', STYLE_KEY = 'lm-citations-style', PAPER_KEY = 'lm-citations-paper';
+var FIELDS = ['type', 'author', 'title', 'source', 'year', 'url', 'volume', 'issue', 'pages'];
+var TYPE_COPY = {
+  book: { title: 'Book title', titleHint: 'Silent Spring', source: 'Publisher', sourceHint: 'Houghton Mifflin', url: 'URL (optional)' },
+  website: { title: 'Page title', titleHint: 'How Bees See Color', source: 'Website name', sourceHint: 'National Geographic Kids', url: 'URL' },
+  journal: { title: 'Article title', titleHint: 'Sleep and memory', source: 'Journal name', sourceHint: 'Journal of Kids Science', url: 'DOI or URL (optional)' },
+};
+var esc = window.LM.esc, editingId = null;
+function $(id) { return document.getElementById(id); }
+function plain(html) { var d = document.createElement('div'); d.innerHTML = html; return d.textContent || ''; }
+function store(key, value) { try { localStorage.setItem(key, value); return true; } catch (e) { return false; } }
+function read(key, fallback) { try { var v = localStorage.getItem(key); return v == null ? fallback : v; } catch (e) { return fallback; } }
+function currentStyle() { return read(STYLE_KEY, 'MLA') === 'APA' ? 'APA' : 'MLA'; }
+/** Saved sources; entries from before 2026-11-06 kept only their HTML and get an id here. */
+function load() {
+  var list; try { list = JSON.parse(read(KEY, '[]')); } catch (e) { list = []; }
+  if (!Array.isArray(list)) list = [];
+  return list.map(function (c, i) { if (!c.id) c.id = 'old-' + i; return c; });
 }
-function gen() {
-  var style = val('style');
-  var c = build(style, val('author'), val('title'), val('source'), val('year'), val('url'));
-  if (!c) { window.LM.toast('Add at least an author or a title first.'); document.getElementById('author').focus(); return; }
-  var o = document.getElementById('out'); o.style.display = 'block'; o.innerHTML = c + ' <span class="lm-pill is-neutral">' + esc(style) + '</span>';
-  var list = load(); list.unshift({ html: c, style: style }); save(list); render();
-  window.LM.toast('Added to your Works Cited.');
+function save(list) { if (!store(KEY, JSON.stringify(list))) window.LM.toast('This browser would not keep the citation.'); }
+/** One entry's HTML in the list's style; an older entry without fields keeps the text it was saved with. */
+function entryHtml(c, style) { return c.fields ? LMCite.format(style, c.fields) : String(c.html || ''); }
+function sorted(list, style) {
+  return list.slice().sort(function (a, b) { return plain(entryHtml(a, style)).localeCompare(plain(entryHtml(b, style)), undefined, { sensitivity: 'base' }); });
+}
+function readForm() { var f = {}; FIELDS.forEach(function (k) { f[k] = $(k).value; }); return f; }
+function fillForm(f) { FIELDS.forEach(function (k) { $(k).value = k === 'type' ? (f[k] || 'book') : (f[k] || ''); }); applyType(); }
+/** Show the fields a source type needs, with its labels. */
+function applyType() {
+  var type = $('type').value, copy = TYPE_COPY[type] || TYPE_COPY.book;
+  $('titleLabel').textContent = copy.title; $('title').placeholder = copy.titleHint;
+  $('sourceLabel').textContent = copy.source; $('source').placeholder = copy.sourceHint;
+  $('urlLabel').textContent = copy.url;
+  $('journalFields').classList.toggle('hide', type !== 'journal');
+}
+/** After Add source or Save changes: an empty form, focus back on Author. */
+function resetForm() {
+  var type = $('type').value;
+  FIELDS.forEach(function (k) { if (k !== 'type') $(k).value = ''; });
+  $('type').value = type; editingId = null;
+  $('addBtn').textContent = 'Add source'; $('cancelEdit').classList.add('hide');
+  setLookupOpen(false); $('lookupInput').value = ''; setLookupStatus('', false);
+  applyType(); $('author').focus();
+}
+function looksLikeIdentifier(raw) {
+  var q = String(raw || '').trim();
+  if (!q) return false;
+  return /^https?:\/\/\S+$/i.test(q) || /^(?:doi:\s*|https?:\/\/(?:dx\.)?doi\.org\/)?10\.\d{4,9}\/\S+$/i.test(q) || /^(?:isbn[:\s-]*)?[\dXx\s-]{10,20}$/i.test(q);
+}
+function setLookupOpen(open) {
+  $('lookupPanel').classList.toggle('hide', !open);
+  $('lookupBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function setLookupStatus(msg, isError) {
+  var el = $('lookupStatus');
+  el.textContent = msg || '';
+  el.className = 'lm-status lm-mt-sm' + (msg ? (isError ? ' is-error' : ' is-success') : '');
+}
+async function runSourceLookup() {
+  var q = ($('lookupInput').value || '').trim() || ($('title').value || '').trim();
+  if (!q) { setLookupStatus('Enter an ISBN, DOI, or https:// URL first.', true); $('lookupInput').focus(); return; }
+  $('lookupRunBtn').disabled = true;
+  setLookupStatus('Looking up source…', false);
+  try {
+    var resp = await fetch('/api/education/catalog?lookup=' + encodeURIComponent(q));
+    var body = await resp.json().catch(function () { return {}; });
+    if (!resp.ok || !body.source) throw new Error(body.error || 'No matching source found.');
+    fillForm(body.source);
+    setLookupStatus('Filled details for “' + (body.source.title || q) + '”.', false);
+  } catch (err) {
+    setLookupStatus(err.message, true);
+  } finally {
+    $('lookupRunBtn').disabled = false;
+  }
+}
+function toggleSourceLookup() {
+  var hidden = $('lookupPanel').classList.contains('hide');
+  var fromTitle = ($('title').value || '').trim();
+  if (hidden && looksLikeIdentifier(fromTitle)) {
+    $('lookupInput').value = fromTitle;
+    setLookupOpen(true);
+    runSourceLookup();
+    return;
+  }
+  setLookupOpen(hidden);
+  if (hidden) $('lookupInput').focus();
+}
+function submitSource(e) {
+  if (e) e.preventDefault();
+  var f = readForm();
+  if (!LMCite.hasContent(f)) { window.LM.toast('Add at least an author or a title first.'); $('author').focus(); return; }
+  var list = load(), style = currentStyle(), wasEditing = Boolean(editingId);
+  if (wasEditing) list = list.map(function (c) { return c.id === editingId ? { id: c.id, fields: f } : c; });
+  else list.unshift({ id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), fields: f });
+  save(list);
+  var o = $('out'); o.style.display = 'block'; o.innerHTML = LMCite.format(style, f) + ' <span class="lm-pill is-neutral">' + esc(style) + '</span>';
+  render(); resetForm();
+  window.LM.toast(wasEditing ? 'Source updated.' : 'Added to your ' + LMCite.heading(style) + '.');
+}
+function editSource(id) {
+  var c = load().filter(function (x) { return x.id === id; })[0];
+  if (!c || !c.fields) return;
+  fillForm(c.fields); editingId = id;
+  $('addBtn').textContent = 'Save changes'; $('cancelEdit').classList.remove('hide');
+  $('author').focus();
+}
+function removeSource(id) {
+  save(load().filter(function (c) { return c.id !== id; }));
+  if (editingId === id) resetForm();
+  render(); window.LM.toast('Removed from your ' + LMCite.heading(currentStyle()) + '.');
+}
+/** The ⋯ menu: Edit for sources that kept their fields, Remove for every source. */
+function rowMenu(c) {
+  return '<details class="cite-menu"><summary aria-label="Options for this source">⋯</summary><div class="cite-menu-list">' +
+    (c.fields ? '<button type="button" data-act="edit">Edit</button>' : '') +
+    '<button type="button" data-act="remove">Remove</button></div></details>';
+}
+function renderRow(c, style) {
+  var li = document.createElement('li'); li.className = 'lm-item cite-row'; li.setAttribute('data-id', c.id);
+  var old = c.fields ? '' : ' <span class="lm-pill is-neutral">Saved before styles matched · ' + esc(c.style || 'MLA') + '</span>';
+  li.innerHTML = '<div class="cite">' + entryHtml(c, style) + old + '</div>' + rowMenu(c);
+  li.querySelectorAll('[data-act]').forEach(function (b) {
+    b.addEventListener('click', function () { b.closest('details').open = false; if (b.getAttribute('data-act') === 'edit') editSource(c.id); else removeSource(c.id); });
+  });
+  return li;
 }
 function render() {
-  var list = load(), ul = document.getElementById('saved'); ul.innerHTML = '';
-  document.getElementById('empty').style.display = list.length ? 'none' : '';
-  document.getElementById('copyAll').style.display = list.length ? '' : 'none';
-  document.getElementById('citedCount').textContent = list.length ? list.length + (list.length === 1 ? ' source' : ' sources') : '';
-  sorted(list).forEach(function (e) {
-    var li = document.createElement('li'); li.className = 'lm-item';
-    li.innerHTML = '<div class="cite">' + e.c.html + ' <span class="lm-pill is-neutral">' + esc(e.c.style) + '</span></div>'
-      + '<button type="button" class="lm-btn lm-btn-quiet" data-i="' + e.i + '" aria-label="Remove this source">Remove</button>';
-    li.querySelector('button').onclick = function () { var l = load(); l.splice(e.i, 1); save(l); render(); window.LM.toast('Removed from your Works Cited.'); };
-    ul.appendChild(li);
-  });
+  var list = load(), style = currentStyle(), ul = $('saved'); ul.innerHTML = '';
+  $('citedTitle').textContent = '📚 ' + LMCite.heading(style);
+  document.querySelectorAll('.style-switch [data-style]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-style') === style ? 'true' : 'false'); });
+  $('empty').style.display = list.length ? 'none' : '';
+  $('copyAll').style.display = list.length ? '' : 'none';
+  $('copyAll').textContent = 'Copy ' + LMCite.heading(style);
+  $('citedCount').textContent = list.length ? list.length + (list.length === 1 ? ' source.' : ' sources.') : '';
+  sorted(list, style).forEach(function (c) { ul.appendChild(renderRow(c, style)); });
 }
+function copyAll() {
+  var style = currentStyle();
+  var text = [LMCite.heading(style)].concat(sorted(load(), style).map(function (c) { return plain(entryHtml(c, style)); })).join('\n');
+  var blocked = function () { window.LM.toast('Copy is blocked here — select the list and copy it by hand.'); };
+  try { navigator.clipboard.writeText(text).then(function () { window.LM.toast(LMCite.heading(style) + ' copied — paste it into your paper.'); }, blocked); }
+  catch (e) { blocked(); }
+}
+$('citeForm').addEventListener('submit', submitSource);
+$('lookupBtn').addEventListener('click', toggleSourceLookup);
+$('lookupRunBtn').addEventListener('click', runSourceLookup);
+$('lookupInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runSourceLookup(); } });
+$('type').addEventListener('change', applyType);
+$('cancelEdit').addEventListener('click', resetForm);
+$('copyAll').addEventListener('click', copyAll);
+document.querySelectorAll('.style-switch [data-style]').forEach(function (b) {
+  b.addEventListener('click', function () { store(STYLE_KEY, b.getAttribute('data-style')); render(); });
+});
+$('paperTitle').value = read(PAPER_KEY, '');
+$('paperTitle').addEventListener('input', function () { store(PAPER_KEY, $('paperTitle').value); });
+applyType();
 render();
 </script>
 </body>

@@ -8,6 +8,7 @@
 6 | maintainer@emeraldcoastsystemsgroup.com | Add the Change a region panel (what is sent and what it costs, instruction, regenerate, cancel) and the side-by-side compare dialog with explicit accept and reject.
 7 | maintainer@emeraldcoastsystemsgroup.com | Offer reviewed PSD import and separately guarded immutable original/report controls.
 8 | maintainer@emeraldcoastsystemsgroup.com | Load shared editor styles and retain opaque disclosures above the canvas.
+9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor, grade D): one app row (the image's document menu with New, Open, My projects, Save a copy, Export, autosave and Delete last; Undo, Redo, a Saved caption and one primary Add that opens the Insert tools); the save footer goes; the Insert tools (Image, Text, Rectangle, Ellipse, Draw, Vector pen, Adjustment layer, OSHAL files, Templates) are one group that is a sheet on a phone and a tool rail on a desktop; the pen's Closed path, Finish and Cancel and the Select tool's shape, Whole image and Clear appear in the canvas bar only while their tool is on; the duplicate Selected layer form is deleted (the shared Format inspector edits those fields); Canvas settings move into Format when nothing is selected; the brand swatches sit with the other Format tools.
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -21,67 +22,62 @@
   <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 </head>
 <body>
-  <header class="editor-header">
-    <div class="identity"><span class="eyebrow">CREATE STUDIO</span><h1>Image editor</h1></div>
-    <label class="project-title"><span class="sr-only">Project name</span><input id="projectName" maxlength="160" value="Untitled image" autocomplete="off" disabled></label>
-    <div class="header-actions">
-      <button id="newProject" disabled>New</button><button id="openProjects" disabled>My projects</button>
-      <button id="saveProject" class="primary" disabled>Save</button>
-      <details id="exportMenu"><summary>Export</summary><div class="popover" data-no-glass>
-        <button id="exportPng" disabled>PNG image</button><button id="exportJpeg" disabled>JPEG image</button>
-        <button id="exportSvg" disabled>Vector SVG</button><button id="exportJson" disabled>Editable project</button>
+  <header class="editor-header" data-no-glass>
+    <div class="identity" data-ef-phone="brand"><span class="eyebrow">CREATE STUDIO</span><h1>Image editor</h1></div>
+    <details id="documentMenu" class="document-menu"><summary aria-label="Image menu"><span id="documentTitle" class="document-title">Untitled image</span></summary><div class="popover menu-list" data-no-glass>
+      <button id="newProject" type="button" disabled>New</button>
+      <details id="openMenu" class="submenu"><summary>Open…</summary><div class="menu-list">
+        <button id="importProject" type="button" data-edit disabled>Editable project file</button>
+        <button id="importVectorSvg" type="button" disabled>Vector SVG file</button><input id="vectorSvgFile" type="file" accept=".svg,image/svg+xml" hidden>
+        <button id="importPsd" type="button" disabled>PSD file</button><input id="psdFile" type="file" accept=".psd,image/vnd.adobe.photoshop,image/x-photoshop" hidden>
+        <button id="choosePsdArtifact" type="button" disabled>PSD from OSHAL files</button>
       </div></details>
+      <input id="projectFile" type="file" accept="application/json,.json" hidden>
+      <button id="openProjects" type="button" disabled>My projects</button>
+      <button id="saveCopy" type="button" disabled>Save a copy</button>
+      <button id="exportFromMenu" type="button" disabled>Export…</button>
+      <label class="project-title">Image name<input id="projectName" maxlength="160" value="Untitled image" autocomplete="off" disabled></label>
+      <button id="psdSource" type="button" disabled>PSD original and report</button>
+      <label class="check menu-check"><input id="autosave" type="checkbox" checked> Save automatically</label>
+      <button id="deleteProject" type="button" class="danger" disabled>Delete image…</button>
+    </div></details>
+    <div class="app-row" role="toolbar" aria-label="Image actions">
+      <button id="undo" type="button" class="icon-button" aria-label="Undo" title="Undo" disabled><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5 3 9l4 4"/><path d="M3 9h9a5 5 0 0 1 0 10h-2"/></svg></button>
+      <button id="redo" type="button" class="icon-button" aria-label="Redo" title="Redo" disabled><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m13 5 4 4-4 4"/><path d="M17 9H8a5 5 0 0 0 0 10h2"/></svg></button>
+      <span id="saveStatus" class="save-caption" role="status" aria-live="polite">Checking your access…</span>
+      <button id="saveProject" type="button" hidden disabled>Save</button>
+      <details id="exportMenu" class="export-menu"><summary>Export</summary><div class="popover menu-list" data-no-glass>
+        <button id="exportPng" type="button" disabled>PNG image</button><button id="exportJpeg" type="button" disabled>JPEG image</button>
+        <button id="exportSvg" type="button" disabled>Vector SVG</button><button id="exportJson" type="button" disabled>Editable project</button>
+        <p class="hint">PNG keeps transparency. JPEG uses a white background.</p>
+      </div></details>
+      <button id="addPrimary" type="button" class="primary" aria-haspopup="dialog" disabled>Add</button>
     </div>
   </header>
-  <div class="status-strip"><span id="saveStatus" role="status" aria-live="polite">Checking your access…</span>
-    <label><input id="autosave" type="checkbox" checked> Autosave saved projects</label>
-    <button id="saveCopy" disabled>Save a copy</button>
-  </div>
   <p id="editorError" class="notice" role="alert" hidden></p>
   <main class="editor-workspace">
-    <aside class="tool-panel" aria-label="Add to your image">
-      <button id="openTemplates" class="wide template-launcher" type="button" disabled>Browse image templates</button>
-      <h2>Add to canvas</h2>
-      <div class="tool-grid">
-        <button id="uploadImage" data-edit disabled><span aria-hidden="true">＋</span> Image</button>
-        <button id="chooseArtifact" data-edit disabled><span aria-hidden="true">▧</span> OSHAL files</button>
-        <button id="addText" data-edit disabled><span aria-hidden="true">T</span> Text</button>
-        <button id="vectorPen" data-edit disabled aria-pressed="false">Vector pen</button><label><input id="vectorClosed" type="checkbox" checked>Closed path</label><button id="finishVector" disabled>Finish vector</button><button id="cancelVector">Cancel vector</button><p id="vectorDraftStatus" class="hint" role="status"></p>
-        <button id="addAdjustment" data-edit disabled>Adjustment layer</button>
-        <button id="addRectangle" data-edit disabled><span aria-hidden="true">□</span> Rectangle</button>
-        <button id="addEllipse" data-edit disabled><span aria-hidden="true">○</span> Ellipse</button>
-        <button id="drawMode" data-edit aria-pressed="false" disabled><span aria-hidden="true">✎</span> Draw</button>
-      </div>
-      <input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-      <button id="importVectorSvg" disabled>Import vector SVG</button><input id="vectorSvgFile" type="file" accept=".svg,image/svg+xml" hidden>
-      <button id="importPsd" disabled>Import PSD</button><input id="psdFile" type="file" accept=".psd,image/vnd.adobe.photoshop,image/x-photoshop" hidden>
-      <button id="choosePsdArtifact" disabled>PSD from OSHAL files</button>
-      <button id="psdSource" disabled>PSD original and report</button>
-      <input id="projectFile" type="file" accept="application/json,.json" hidden>
-      <section id="brandPanel" class="brand-panel" aria-labelledby="brandPanelTitle" hidden>
-        <h2 id="brandPanelTitle">Your brand <button id="editBrand" type="button">Edit kit</button></h2>
-        <div id="brandSetup" hidden><p class="hint">Save your colors, fonts and logo once and they appear here.</p><button id="setupBrand" type="button" class="wide">Set up your brand kit</button></div>
-        <div id="brandTools" hidden>
-          <div id="brandSwatches" class="brand-swatches" role="group" aria-label="Brand colors"></div>
-          <p class="hint">Select a layer, then a color. With nothing selected, a color fills the canvas.</p>
-          <button id="addLogo" type="button" class="wide" hidden>Add logo</button>
+    <aside class="tool-panel" aria-label="Layers and insert tools">
+      <details id="insertMenu" class="insert-tools" data-ef-menu open><summary>Add</summary>
+        <div class="tool-grid" role="group" aria-label="Insert">
+          <button id="uploadImage" type="button" data-edit disabled title="Image"><span class="tool-icon" aria-hidden="true">＋</span><span class="tool-label">Image</span></button>
+          <button id="addText" type="button" data-edit disabled title="Text"><span class="tool-icon" aria-hidden="true">T</span><span class="tool-label">Text</span></button>
+          <button id="addRectangle" type="button" data-edit disabled title="Rectangle"><span class="tool-icon" aria-hidden="true">□</span><span class="tool-label">Rectangle</span></button>
+          <button id="addEllipse" type="button" data-edit disabled title="Ellipse"><span class="tool-icon" aria-hidden="true">○</span><span class="tool-label">Ellipse</span></button>
+          <button id="drawMode" type="button" data-edit aria-pressed="false" disabled title="Draw"><span class="tool-icon" aria-hidden="true">✎</span><span class="tool-label">Draw</span></button>
+          <button id="vectorPen" type="button" data-edit disabled aria-pressed="false" title="Vector pen"><span class="tool-icon" aria-hidden="true">✒</span><span class="tool-label">Vector pen</span></button>
+          <button id="addAdjustment" type="button" data-edit disabled title="Adjustment layer"><span class="tool-icon" aria-hidden="true">◐</span><span class="tool-label">Adjustment layer</span></button>
+          <button id="chooseArtifact" type="button" data-edit disabled title="OSHAL files"><span class="tool-icon" aria-hidden="true">▧</span><span class="tool-label">OSHAL files</span></button>
+          <button id="openTemplates" type="button" disabled title="Templates"><span class="tool-icon" aria-hidden="true">▦</span><span class="tool-label">Templates</span></button>
         </div>
-      </section>
-      <button id="importProject" data-edit class="wide" disabled>Import editable project</button>
-      <p class="hint">Add an image, place a title, or draw directly on the canvas. Each element stays on its own layer.</p>
-      <details id="canvasOptions" open><summary>Canvas settings</summary><fieldset id="canvasSettings" disabled><legend>Canvas</legend>
-        <div class="pair"><label>Width<input id="canvasWidth" type="number" min="1" max="8192" value="1200"></label>
-          <label>Height<input id="canvasHeight" type="number" min="1" max="8192" value="800"></label></div>
-        <label>Background<input id="canvasBackground" type="color" value="#ffffff"></label>
-        <label class="check"><input id="transparentBackground" type="checkbox" checked> Transparent</label>
-        <button id="applyCanvas" type="button">Apply canvas size</button>
-      </fieldset></details>
-      <p class="hint">PNG preserves transparency. JPEG uses a white background. Projects are private to your account.</p>
+      </details>
+      <input id="imageFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
     </aside>
     <section class="canvas-panel" aria-label="Image canvas">
-      <div class="canvas-toolbar"><div><button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button></div>
-        <div class="region-tools" role="group" aria-label="Image region"><label>Region shape<select id="regionShape"><option value="lasso">Lasso</option><option value="box">Rectangle</option><option value="ellipse">Ellipse</option></select></label><button id="regionMode" type="button" aria-pressed="false" disabled>Select region</button><button id="selectWholeImage" type="button" disabled>Whole image</button><button id="clearRegion" type="button" disabled>Clear region</button></div>
-        <label>Zoom <select id="zoom"><option value="fit">Fit</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select></label>
+      <div class="canvas-toolbar" role="toolbar" aria-label="Canvas tools">
+        <div class="region-tools" role="group" aria-label="Select"><button id="regionMode" type="button" aria-pressed="false" disabled title="Select part of an image">Select</button>
+          <span id="regionOptions" class="tool-options" hidden><label>Shape<select id="regionShape"><option value="lasso">Lasso</option><option value="box">Rectangle</option><option value="ellipse">Ellipse</option></select></label><button id="selectWholeImage" type="button" disabled>Whole image</button><button id="clearRegion" type="button" disabled>Clear region</button></span></div>
+        <div id="vectorBar" class="tool-options" role="group" aria-label="Vector pen" hidden><label class="check"><input id="vectorClosed" type="checkbox" checked>Closed path</label><button id="finishVector" type="button" disabled>Finish vector</button><button id="cancelVector" type="button">Cancel vector</button><span id="vectorDraftStatus" class="hint" role="status"><span id="vectorNodeCount"></span><span class="vector-help"></span></span></div>
+        <label class="zoom">Zoom <select id="zoom"><option value="fit">Fit</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select></label>
       </div>
       <div id="canvasViewport" class="canvas-viewport"><div id="canvasFrame" class="canvas-frame">
         <canvas id="artboard" width="1200" height="800" aria-label="Editable image canvas" tabindex="0"></canvas>
@@ -103,6 +99,15 @@
           <button id="deleteLayer" data-selected disabled aria-label="Delete selected layer" title="Delete selected layer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h14M7 5V2h6v3M5 5l1 12h8l1-12M8 8v6m4-6v6"/></svg></button>
         </div>
       </section>
+      <section id="brandPanel" class="brand-panel" aria-labelledby="brandPanelTitle" hidden>
+        <h2 id="brandPanelTitle">Your brand <button id="editBrand" type="button">Edit kit</button></h2>
+        <div id="brandSetup" hidden><p class="hint">Save your colors, fonts and logo once and they appear here.</p><button id="setupBrand" type="button" class="wide">Set up your brand kit</button></div>
+        <div id="brandTools" hidden>
+          <div id="brandSwatches" class="brand-swatches" role="group" aria-label="Brand colors"></div>
+          <p class="hint">Select a layer, then a color. With nothing selected, a color fills the canvas.</p>
+          <button id="addLogo" type="button" class="wide" hidden>Add logo</button>
+        </div>
+      </section>
       <section id="generateImagePanel" class="region-edit-panel" aria-labelledby="generateImageTitle" hidden>
         <h2 id="generateImageTitle">Generate an image</h2>
         <label>What should it show?<textarea id="generatePrompt" maxlength="1000" rows="3" placeholder="For example: a cartoon rocket ship over a night sky"></textarea></label>
@@ -118,19 +123,8 @@
           <button id="regionCancel" type="button" hidden>Cancel</button><button id="regionCompare" type="button" hidden>Compare and decide</button></div>
         <p id="regionEditStatus" class="hint" role="status" aria-live="polite"></p>
       </section>
-      <fieldset id="properties" disabled><legend>Selected layer</legend>
-        <p id="noSelection" class="hint">Select an element on the canvas or in the layer list.</p>
+      <fieldset id="properties" disabled><legend class="sr-only">Tools for the selected layer</legend>
         <div id="propertyFields" hidden>
-          <label>Name<input id="layerName" data-property="name" maxlength="120"></label>
-          <div class="pair"><label>X<input id="layerX" data-property="x" type="number" min="-32768" max="32768"></label><label>Y<input id="layerY" data-property="y" type="number" min="-32768" max="32768"></label></div>
-          <div class="pair"><label>Width<input id="layerWidth" data-property="w" type="number" min="0.1" max="32768"></label><label>Height<input id="layerHeight" data-property="h" type="number" min="0.1" max="32768"></label></div>
-          <div class="pair"><label>Rotation<input id="layerRotation" data-property="rotation" type="number" min="-360" max="360"></label><label>Opacity<input id="layerOpacity" data-property="opacity" type="number" min="0" max="1" step="0.05"></label></div>
-          <div id="textProperties" hidden><label>Text<textarea id="layerText" data-property="text" maxlength="20000" rows="3"></textarea></label>
-            <div class="pair"><label>Size<input id="fontSize" data-property="fontSize" type="number" min="1" max="1024"></label><label>Weight<select id="fontWeight" data-property="fontWeight"><option value="400">Regular</option><option value="700">Bold</option></select></label></div>
-            <label>Font<select id="fontFamily" data-property="fontFamily"><option value="sans-serif">Sans serif</option><option value="serif">Serif</option><option value="monospace">Monospace</option></select></label>
-          </div>
-          <label id="fillProperty">Color<input id="layerFill" data-property="fill" type="color"></label>
-          <div id="strokeProperties" hidden><label>Stroke color<input id="layerStroke" data-property="stroke" type="color" value="#111827"></label><label>Stroke width<input id="strokeWidth" data-property="strokeWidth" type="number" min="0" max="512"></label></div>
           <div id="vectorProperties" hidden>
             <h3>Vector path</h3>
             <label>Fill rule<select data-property="fillRule"><option value="nonzero">Nonzero</option><option value="evenodd">Even-odd</option></select></label>

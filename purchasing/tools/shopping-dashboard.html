@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Shop — Concierge</title>
+  <title>List</title>
   <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
   <script src="/shared/ui/js/surface-theme.js"></script>
   <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's shopping list
@@ -77,107 +77,146 @@
           lede: e.status === 401 ? 'Shopping shows the list of whoever is signed in, and this session is not signed in.' : 'The Shopping routes refused this account (HTTP 403).' };
       });
     }
-    A.boot({ app: 'purchasing', escapeLabel: 'Open Shopping in the cockpit', audiences: { family: family } });
+    // List is Shopping's first surface since the UX audit (the chat page was), so the all-inclusive shells that frame it
+    // with ?audience=company get the same list card instead of the full page.
+    A.boot({ app: 'purchasing', escapeLabel: 'Open Shopping in the cockpit', audiences: { company: family, family: family } });
   })();
   </script>
   <link rel="stylesheet" href="/api/purchasing/purchasing.css" />
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-  <header class="shop-header">
-    <div class="brand"><span class="dot"></span> Shopping Concierge</div>
-    <nav class="tabs">
-      <button class="tab" data-view="shop">Shop</button>
-      <button class="tab" data-view="lists">List</button>
-      <button class="tab" data-view="deals">Deals</button>
-    </nav>
-    <div id="status" class="status"></div>
-  </header>
-
-  <!-- SHOP -->
-  <section id="view-shop" class="view">
-    <form id="search-form" class="searchbar">
-      <input id="q" type="text" placeholder='Try "milk", "dish soap", "coffee"…' autocomplete="off" />
-      <button id="mic" type="button" title="Speak">🎙️</button>
-      <button type="submit">Search</button>
+  <!-- UX audit 2026-11-05 (shop-lists, shop-concierge, shop-browse, shop-deals): this page is Shopping's one screen, List.
+       An Add an item field (free text, the one primary) writes to POST /lists/:id/items; each row ticks off, steps its
+       quantity (POST /lists/:id/items/:itemId) and is removed from its ⋯ menu. The storefront (search, deals) and
+       Checkout are shown only when the readiness read (GET /deals) says this installation has a retail rail; without
+       one they are not rendered at all. Errors are an alert in the error colour where the work is, never green header
+       text. No inner Shop | List | Deals bar: the application's screens are the navigation. -->
+  <main class="list-screen">
+    <form id="add-form" class="add-item" autocomplete="off">
+      <label class="sr-only" for="add-title">Add an item</label>
+      <input id="add-title" type="text" maxlength="300" placeholder="Add an item" enterkeyhint="done" />
+      <button type="submit" class="primary" id="add-btn">Add</button>
     </form>
-    <p id="resolve-line" class="resolve-line"></p>
-    <div id="results" class="grid"></div>
-  </section>
-
-  <!-- LIST -->
-  <section id="view-lists" class="view hidden">
-    <div class="list-head">
-      <h2>My List</h2>
-      <button id="checkout" class="primary">Checkout →</button>
-    </div>
+    <div id="alert" class="alert hidden" role="alert"></div>
+    <p id="status" class="status-line" role="status"></p>
     <div id="list-items"></div>
+    <div class="list-foot">
+      <button id="checkout" class="secondary hidden" type="button" disabled>Checkout</button>
+    </div>
     <div id="checkout-result" class="checkout-result hidden"></div>
-  </section>
 
-  <!-- DEALS -->
-  <section id="view-deals" class="view hidden">
-    <div class="list-head"><h2>Rollbacks &amp; Deals</h2></div>
-    <div id="deals" class="grid"></div>
-  </section>
+    <details id="prefs" class="prefs">
+      <summary>Shopping preferences</summary>
+      <div class="pref-row hidden" id="pref-retailer-row"><span>Store</span><b id="pref-retailer">Walmart</b></div>
+      <label class="pref-row" for="pref-diet"><span>Household notes</span><input id="pref-diet" type="text" maxlength="300" placeholder="e.g. no peanuts, vegetarian" /></label>
+      <label class="pref-row" for="pref-budget"><span>Monthly budget ($)</span><input id="pref-budget" type="number" min="0" step="1" inputmode="numeric" placeholder="No budget" /></label>
+      <div class="pref-row"><span>Usuals</span><span id="pref-usuals" class="pref-usuals">None yet</span></div>
+      <p id="pref-saved" class="status-line" role="status"></p>
+    </details>
+
+    <section id="storefront" class="hidden" aria-label="Shop">
+      <form id="search-form" class="searchbar">
+        <input id="q" type="text" placeholder='Find a product, e.g. "coffee"' autocomplete="off" />
+        <button id="mic" type="button" title="Speak">🎙️</button>
+        <button type="submit">Search</button>
+      </form>
+      <p id="resolve-line" class="resolve-line"></p>
+      <div id="results" class="grid"></div>
+      <h2 class="deals-title">Deals</h2>
+      <div id="deals" class="grid"></div>
+    </section>
+  </main>
+
+  <style>
+    .list-screen { padding: 16px; max-width: 760px; margin: 0 auto; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .add-item { display: flex; gap: 8px; margin-bottom: 12px; }
+    .add-item input { flex: 1; min-width: 0; min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; background: var(--card); color: var(--ink); }
+    .add-item .primary { min-height: 44px; }
+    .alert { color: var(--status-error, #b91c1c); border: 1px solid var(--status-error, #b91c1c); background: var(--card); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+    .status-line { color: var(--muted); font-size: 13px; min-height: 0; margin: 4px 2px; }
+    .status-line:empty { display: none; }
+    .list-row { gap: 8px; padding: 6px 8px; }
+    .list-row.done .lr-title { text-decoration: line-through; color: var(--muted); }
+    .tick { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .tick input { width: 22px; height: 22px; }
+    .stepper { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+    .stepper button { width: 44px; height: 44px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; font-size: 18px; cursor: pointer; }
+    .stepper output { min-width: 24px; text-align: center; font-weight: 600; }
+    .row-more { position: relative; flex: none; }
+    .row-more summary { list-style: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 10px; font-size: 20px; }
+    .row-more summary::-webkit-details-marker { display: none; }
+    .row-more .menu { position: absolute; right: 0; top: 46px; z-index: 5; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 4px; min-width: 140px; }
+    .row-more .menu button { width: 100%; min-height: 44px; text-align: left; background: none; border: 0; color: var(--status-error, #b91c1c); font: inherit; cursor: pointer; padding: 0 12px; }
+    .list-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+    .secondary { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; font-weight: 700; cursor: pointer; }
+    .secondary:disabled { opacity: 1; color: var(--muted); background: var(--subtle, var(--card)); cursor: default; }
+    .deals-title { font-size: 16px; margin: 22px 0 0; }
+    .prefs { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 10px; }
+    .prefs summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; }
+    .pref-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--line); }
+    .pref-row input { width: 55%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; background: var(--card); color: var(--ink); }
+    .pref-usuals { color: var(--muted); text-align: right; }
+  </style>
 
   <script>
     const $ = (s) => document.querySelector(s);
     // The parsed body carries the HTTP status, so a refused provider call is never read as an empty result.
     const api = (p, opts) => fetch('/api/purchasing' + p, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
       .then((r) => r.json().catch(() => ({})).then((body) => Object.defineProperty(body && typeof body === 'object' ? body : {}, 'httpStatus', { value: r.status })));
-    // Products, deals and checkout come from Walmart; where the installation has no Walmart rail the server refuses them (HTTP 503).
-    const NOT_CONNECTED = 'Unavailable: this installation has no Walmart rail (it runs no Walmart operations), so products, deals and checkout links cannot be searched or opened here.';
+    // Products, deals and checkout come from a retailer; where the installation has no retail rail the server refuses them (HTTP 503).
+    const NOT_CONNECTED = 'Shopping at a store is not connected on this installation. Ask your administrator to connect a retailer.';
     const providerRefused = (r) => Boolean(r && (r.httpStatus === 503 || r.error === 'native_executor_unavailable'));
-    let listId = null;
+    let listId = null, RAIL = false, ITEMS = [];
 
     function setStatus(msg) { $('#status').textContent = msg || ''; }
-
-    function showView(v) {
-      document.querySelectorAll('.view').forEach((el) => el.classList.add('hidden'));
-      $('#view-' + v).classList.remove('hidden');
-      document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === v));
-      if (v === 'lists') loadList();
-      if (v === 'deals') loadDeals();
-    }
-    document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showView(t.dataset.view)));
+    function showAlert(msg) { const box = $('#alert'); box.textContent = msg || ''; box.classList.toggle('hidden', !msg); }
 
     function card(item, onAdd) {
       const el = document.createElement('div');
       el.className = 'card';
       const price = typeof item.price === 'number' ? '$' + item.price.toFixed(2) : '—';
-      const sale = item.onSale ? '<span class="sale">rollback</span>' : '';
-      el.innerHTML =
-        (item.imageUrl ? '<img src="' + item.imageUrl + '" alt="" />' : '<div class="noimg"></div>') +
-        '<div class="title">' + (item.title || '') + '</div>' +
-        '<div class="meta"><span class="price">' + price + '</span> ' + sale +
-        '<span class="retailer">' + (item.retailer || '') + '</span></div>' +
-        '<button class="add">Add to list</button>';
-      el.querySelector('.add').addEventListener('click', () => onAdd(item, el));
+      const img = document.createElement(item.imageUrl ? 'img' : 'div');
+      if (item.imageUrl) { img.src = item.imageUrl; img.alt = ''; } else img.className = 'noimg';
+      const title = document.createElement('div'); title.className = 'title'; title.textContent = item.title || '';
+      const meta = document.createElement('div'); meta.className = 'meta';
+      const pr = document.createElement('span'); pr.className = 'price'; pr.textContent = price; meta.append(pr);
+      const add = document.createElement('button'); add.className = 'add'; add.textContent = 'Add to list';
+      add.addEventListener('click', () => onAdd(item, el));
+      el.append(img, title, meta, add);
       return el;
     }
 
     async function ensureList() {
       if (listId) return listId;
       const { lists } = await api('/lists');
-      if (lists[0]) {
-        listId = lists[0].list_id;
-        return listId;
-      }
+      if (lists && lists[0]) { listId = lists[0].list_id; return listId; }
       const created = await api('/lists', { method: 'POST', body: '{}' });
-      if (!created.list) {
-        setStatus('Lists are read-only in guest mode. Sign in to create one.');
-        return null;
-      }
+      if (!created.list) { showAlert('Lists are read-only in guest mode. Sign in to keep a list.'); return null; }
       listId = created.list.list_id;
       return listId;
     }
+
+    // The one primary: a free-text item, as written (no product, no price; checkout leaves it out until it is matched).
+    $('#add-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = $('#add-title').value.replace(/\s+/g, ' ').trim();
+      if (!title) { $('#add-title').focus(); return; }
+      if (!await ensureList()) return;
+      $('#add-btn').disabled = true;
+      try {
+        const r = await api('/lists/' + listId + '/items', { method: 'POST', body: JSON.stringify({ title, quantity: 1 }) });
+        if (r.httpStatus >= 400 || !r.item) { showAlert('“' + title + '” was not added: ' + (r.error || 'HTTP ' + r.httpStatus) + '.'); return; }
+        showAlert(''); $('#add-title').value = ''; await loadList();
+      } finally { $('#add-btn').disabled = false; $('#add-title').focus(); }
+    });
 
     let lastQuery = '';
     async function addToList(item, basis) {
       if (!await ensureList()) return;
       const reason = basis || (item.onSale ? 'on rollback' : 'best match');
-      await api('/lists/' + listId + '/items', {
+      const r = await api('/lists/' + listId + '/items', {
         method: 'POST',
         body: JSON.stringify({
           productId: item.productId, title: item.title, brand: item.brand, retailer: item.retailer,
@@ -185,36 +224,40 @@
           itemKey: lastQuery || item.title, reason: 'Added ' + (item.title || '') + ' — ' + reason + '.',
         }),
       });
+      if (r.httpStatus >= 400) { showAlert((item.title || 'That product') + ' was not added: ' + (r.message || r.error || 'HTTP ' + r.httpStatus) + '.'); return; }
       setStatus('Added ' + (item.title || '') + ' (' + reason + ')');
+      loadList();
     }
 
-    // Search — first ask the brain to resolve to the shopper's usual.
+    // Search (only with a retail rail): first ask for the shopper's usual.
     $('#search-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const q = $('#q').value.trim();
       if (!q) return;
       lastQuery = q;
-      setStatus('Searching…');
+      setStatus('Searching…'); showAlert('');
       $('#resolve-line').textContent = '';
       const resolved = await api('/resolve', { method: 'POST', body: JSON.stringify({ item: q }) });
       if (resolved.hasUsual && resolved.item) {
-        $('#resolve-line').innerHTML = '🧠 ' + resolved.reason +
-          ' <button id="add-usual" class="link">Add it</button>';
-        $('#add-usual').addEventListener('click', () => addToList(resolved.item, 'your usual'));
+        $('#resolve-line').textContent = '🧠 ' + resolved.reason + ' ';
+        const b = document.createElement('button'); b.className = 'link'; b.textContent = 'Add it';
+        b.addEventListener('click', () => addToList(resolved.item, 'your usual'));
+        $('#resolve-line').append(b);
       }
       const found = await api('/search?q=' + encodeURIComponent(q));
       const grid = $('#results');
       grid.innerHTML = '';
-      if (providerRefused(found)) { setStatus(NOT_CONNECTED); return; }
+      setStatus('');
+      if (providerRefused(found)) { showAlert(NOT_CONNECTED); return; }
       const { items, source } = found;
-      setStatus(source === 'mock' ? 'Demo catalog, not live Walmart results' : '');
+      setStatus(source === 'mock' ? 'Demo catalog, not live store results' : '');
       (items || []).forEach((it) => grid.appendChild(card(it, (item) => addToList(item))));
     });
 
     // Voice — "listening" via the browser speech API.
     $('#mic').addEventListener('click', () => {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) { setStatus('Voice not supported in this browser'); return; }
+      if (!SR) { setStatus('Voice is not supported in this browser'); return; }
       const rec = new SR();
       rec.lang = 'en-US';
       setStatus('Listening…');
@@ -223,62 +266,122 @@
       rec.start();
     });
 
+    /** One row's own change (tick off, quantity), then the list again. */
+    async function updateRow(item, change) {
+      const r = await api('/lists/' + listId + '/items/' + encodeURIComponent(item.item_id), { method: 'POST', body: JSON.stringify(change) });
+      if (r.httpStatus >= 400) showAlert('“' + (item.title || 'That item') + '” could not be changed: ' + (r.error || 'HTTP ' + r.httpStatus) + '.');
+      await loadList();
+    }
+
+    function rowFor(i) {
+      const done = i.status === 'done', qty = Number(i.quantity) || 1;
+      const row = document.createElement('div');
+      row.className = 'list-row' + (done ? ' done' : '');
+      const tick = document.createElement('label'); tick.className = 'tick';
+      const box = document.createElement('input'); box.type = 'checkbox'; box.checked = done; box.setAttribute('aria-label', 'Got ' + (i.title || 'it'));
+      box.addEventListener('change', () => updateRow(i, { checked: box.checked }));
+      tick.append(box);
+      const main = document.createElement('div'); main.className = 'lr-main';
+      const t = document.createElement('span'); t.className = 'lr-title'; t.textContent = i.title || ''; main.append(t);
+      if (i.unit_price != null) { const pr = document.createElement('span'); pr.className = 'lr-why'; pr.textContent = '$' + Number(i.unit_price).toFixed(2) + ' each'; main.append(pr); }
+      const step = document.createElement('div'); step.className = 'stepper';
+      const minus = document.createElement('button'); minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label', 'One fewer ' + (i.title || ''));
+      minus.disabled = qty <= 1; minus.addEventListener('click', () => updateRow(i, { quantity: qty - 1 }));
+      const out = document.createElement('output'); out.textContent = String(qty);
+      const plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', 'One more ' + (i.title || ''));
+      plus.addEventListener('click', () => updateRow(i, { quantity: qty + 1 }));
+      step.append(minus, out, plus);
+      const more = document.createElement('details'); more.className = 'row-more';
+      const sum = document.createElement('summary'); sum.textContent = '⋯'; sum.setAttribute('aria-label', 'More for ' + (i.title || 'this item'));
+      const menu = document.createElement('div'); menu.className = 'menu';
+      const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.textContent = 'Remove';
+      rm.addEventListener('click', async () => { await api('/lists/' + listId + '/items/' + encodeURIComponent(i.item_id), { method: 'DELETE' }); loadList(); });
+      menu.append(rm); more.append(sum, menu);
+      row.append(tick, main, step, more);
+      return row;
+    }
+
     async function loadList() {
       if (!await ensureList()) {
-        $('#list-items').innerHTML = '<p class="empty">Sign in to create and manage a shopping list.</p>';
+        $('#list-items').innerHTML = '<p class="empty">Sign in to keep a shopping list.</p>';
         return;
       }
       const { items } = await api('/lists/' + listId + '/items');
+      ITEMS = items || [];
       const wrap = $('#list-items');
-      if (!items.length) { wrap.innerHTML = '<p class="empty">Your list is empty.</p>'; return; }
-      wrap.innerHTML = '';
-      items.forEach((i) => {
-        const row = document.createElement('div');
-        row.className = 'list-row';
-        const price = i.unit_price != null ? '$' + Number(i.unit_price).toFixed(2) : '—';
-        row.innerHTML =
-          '<div class="lr-main"><span class="lr-title">' + (i.title || '') + '</span>' +
-          '<span class="lr-why">' + (i.reason || '') + '</span></div>' +
-          '<span class="lr-qty">×' + i.quantity + '</span><span class="lr-price">' + price + '</span>' +
-          '<button class="rm" data-id="' + i.item_id + '">remove</button>';
-        row.querySelector('.rm').addEventListener('click', async (e) => {
-          await api('/lists/' + listId + '/items/' + e.target.dataset.id, { method: 'DELETE' });
-          loadList();
-        });
-        wrap.appendChild(row);
-      });
+      wrap.replaceChildren();
+      const pending = ITEMS.filter((i) => i.status !== 'done'), done = ITEMS.filter((i) => i.status === 'done');
+      if (!ITEMS.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = 'Your list is empty. Add the first thing above.'; wrap.append(p); }
+      [...pending, ...done].forEach((i) => wrap.appendChild(rowFor(i)));
+      // Checkout only with a retail rail; solid-disabled while nothing is left to buy.
+      $('#checkout').classList.toggle('hidden', !RAIL);
+      $('#checkout').disabled = !pending.length;
     }
 
     $('#checkout').addEventListener('click', async () => {
-      if (!await ensureList()) return;
-      setStatus('Building your cart…');
+      if (!RAIL || !await ensureList()) return;
+      setStatus('Building your cart…'); showAlert('');
       const r = await api('/checkout', { method: 'POST', body: JSON.stringify({ listId }) });
       const box = $('#checkout-result');
-      box.classList.remove('hidden');
-      if (providerRefused(r)) { box.textContent = NOT_CONNECTED; setStatus(''); return; }
-      if (r.error) { box.innerHTML = '<p>' + r.error + '</p>'; setStatus(''); return; }
-      window.open(r.checkoutUrl, '_blank', 'noopener');
-      box.innerHTML =
-        '<p><strong>Cart ready — $' + r.total + '.</strong> ' + r.note + '</p>' +
-        '<a class="primary" href="' + r.checkoutUrl + '" target="_blank" rel="noopener">Open checkout at Walmart →</a>';
       setStatus('');
+      if (providerRefused(r)) { showAlert(NOT_CONNECTED); return; }
+      if (r.error) { showAlert('Checkout could not start: ' + r.error + '.'); return; }
+      window.open(r.checkoutUrl, '_blank', 'noopener');
+      box.classList.remove('hidden');
+      box.replaceChildren();
+      const p = document.createElement('p'); const strong = document.createElement('strong'); strong.textContent = 'Cart ready — $' + r.total + '.'; p.append(strong, ' ' + (r.note || ''));
+      const a = document.createElement('a'); a.className = 'primary'; a.href = r.checkoutUrl; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open checkout →';
+      box.append(p, a);
     });
 
-    async function loadDeals() {
-      setStatus('Loading deals…');
-      const found = await api('/deals?feed=rollback');
+    function showDeals(found) {
       const grid = $('#deals');
       grid.innerHTML = '';
-      if (providerRefused(found)) { setStatus(NOT_CONNECTED); return; }
-      const { items, source } = found;
-      setStatus(source === 'mock' ? 'Demo deals, not live Walmart rollbacks' : '');
+      const { items } = found;
       (items || []).forEach((it) => grid.appendChild(card(it, (item) => addToList(item, 'on rollback'))));
     }
 
-    // Open to the view named in ?view=, default shop.
-    // Under an audience view (ADR-164 D6) the kit paints the family view instead and this start, the tab router whose
-    // List and Deals tabs read, does not run; without the kit or without an audience the dashboard starts as before.
-    if (!window.AppView || !AppView.active()) showView(new URLSearchParams(location.search).get('view') || 'shop');
+    /** Preferences, from the chat page's read-only cards (UX audit 2026-11-05): rows that edit in place and save on change. */
+    async function loadPrefs() {
+      const [p, u] = await Promise.all([api('/profile'), api('/preferences')]);
+      const profile = (p && p.profile) || {};
+      $('#pref-diet').value = Array.isArray(profile.dietary) ? profile.dietary.join(', ') : '';
+      $('#pref-budget').value = profile.budget_monthly ? String(Math.round(Number(profile.budget_monthly))) : '';
+      $('#pref-retailer').textContent = String(profile.preferred_retailer || 'walmart').replace(/^./, (c) => c.toUpperCase());
+      $('#pref-retailer-row').classList.toggle('hidden', !RAIL);
+      const usuals = ((u && u.preferences) || []).slice(0, 5).map((x) => x.title || x.item_key).filter(Boolean);
+      $('#pref-usuals').textContent = usuals.length ? usuals.join(', ') : 'None yet';
+    }
+    async function savePref(body) {
+      const r = await api('/profile', { method: 'POST', body: JSON.stringify(body) });
+      $('#pref-saved').textContent = r.httpStatus >= 400 || !r.profile ? '' : 'Saved';
+      if (r.httpStatus >= 400 || !r.profile) showAlert('Your preference was not saved: ' + (r.error || 'HTTP ' + r.httpStatus) + '.');
+    }
+    $('#pref-diet').addEventListener('change', () => savePref({ dietary: $('#pref-diet').value.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20) }));
+    $('#pref-budget').addEventListener('change', () => { const n = Math.round(Number($('#pref-budget').value)); if (Number.isFinite(n) && n >= 0) savePref({ budgetMonthly: n }); });
+
+    /** One readiness read on load: GET /deals answers 503 (native_executor_unavailable) when there is no retail rail. */
+    async function start() {
+      const deals = await api('/deals?feed=rollback').catch(() => ({ httpStatus: 503 }));
+      RAIL = !providerRefused(deals) && deals.httpStatus < 400;
+      $('#storefront').classList.toggle('hidden', !RAIL);
+      if (RAIL) showDeals(deals);
+      await loadList();
+      loadPrefs().catch(() => {});
+      if (new URLSearchParams(location.search).get('view') === 'shop' && RAIL) $('#q').focus();
+    }
+
+    // Under an audience view (ADR-164 D6) the kit paints the family view instead and this start does not run; without
+    // the kit or without an audience the List screen starts (old ?view=shop and ?view=deals addresses land here too).
+    if (!window.AppView || !AppView.active()) start();
+  </script>
+  <script type="module">
+    import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+    // A planning brief handed to Shopping lands on List with its title in Add an item, for the shopper to add or edit.
+    if (!window.AppView || !AppView.active()) {
+      receiveHandoff({ app: 'purchasing', action: 'plan-purchase', contextType: 'planning-brief', version: 1, fields: ['title', 'notes', 'sourceUrl'] },
+        (context) => { const field = document.getElementById('add-title'); field.value = String(context.title || '').slice(0, 300); field.focus(); });
+    }
   </script>
 </body>
 </html>

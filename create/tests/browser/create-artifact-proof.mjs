@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove real artifact dispatch, Home landing, isolated image layers and stale/denied import refusal with synthetic HTTP.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the name, My projects and Save automatically are reached through the document menu, and layer values are edited in the one Format inspector (the duplicate form is gone); automatic saving saves the received image without a Save press.
  */
+import { inMenu, manualSaving } from './create-editor-fixture.mjs';
 import { test as nodeTest, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
@@ -86,7 +88,7 @@ test('shared open dispatch reaches actual Home/controller and creates one editab
     }; check();
   }));
   await incoming(value); await completed(value); assert.equal(value.fixture.state.reads, 1);
-  await value.surface.locator('#saveProject').click(); await value.surface.locator('#saveStatus').filter({ hasText: /Saved/ }).waitFor();
+  await value.surface.locator('#saveStatus').filter({ hasText: /Saved/ }).waitFor();
   assert.equal(value.fixture.editor.state.projects.size, 1);
   assert.equal(new URL(value.page.url()).searchParams.has('artifact'), false);
   await value.page.locator('#home').click(); await value.surface.locator('#heroTitle').waitFor(); await frames(value);
@@ -123,7 +125,7 @@ test('standalone Home forwards only the valid handle and leaves unrelated contex
 });
 
 for (const refusal of [403, 410]) test(`artifact ${refusal} preserves the current saved document and creates no upload or revision`, async t => {
-  const value = await open(t, { seed: seed(), refusal }); await value.surface.locator('#autosave').uncheck();
+  const value = await open(t, { seed: seed(), refusal }); await manualSaving(value.surface);
   const before = await snapshot(value); await incoming(value); await completed(value);
   await value.surface.locator('#editorError').filter({ hasText: /no longer available/ }).waitFor();
   assert.deepEqual(await snapshot(value), before); assert.equal(value.fixture.editor.state.uploads, 0);
@@ -158,9 +160,9 @@ test('a role without create/change cannot redeem an incoming image or write an a
 });
 
 test('typing while artifact content is held preserves the newer draft and never uploads stale bytes', async t => {
-  const value = await open(t); await value.surface.locator('#autosave').uncheck();
+  const value = await open(t); await manualSaving(value.surface);
   const held = await hold(value, `/api/artifacts/handles/${REF}/content`); await incoming(value); await held.seen;
-  await value.surface.locator('#addText').click(); await value.surface.locator('#layerText').fill('Newer draft must win'); await value.surface.locator('#layerText').press('Tab');
+  await value.surface.locator('#addText').click(); await value.surface.locator('[data-editor-property="text"]').fill('Newer draft must win'); await value.surface.locator('[data-editor-property="text"]').press('Tab');
   const latest = await snapshot(value); await held.release(); await completed(value);
   assert.deepEqual(await snapshot(value), latest); assert.equal(value.fixture.editor.state.uploads, 0);
   assert.equal(value.fixture.editor.state.successfulWrites, 0); clean(value);
@@ -168,9 +170,9 @@ test('typing while artifact content is held preserves the newer draft and never 
 
 test('opening another saved design during a held artifact read preserves that design without importing the old file', async t => {
   const value = await open(t, { seed: seed() }); const next = value.fixture.seed(seed('Second design'));
-  await value.surface.locator('#autosave').uncheck();
+  await manualSaving(value.surface);
   const held = await hold(value, `/api/artifacts/handles/${REF}/content`); await incoming(value); await held.seen;
-  await value.surface.locator('#openProjects').click(); await value.surface.locator(`[data-project-id="${next.id}"]`).getByRole('button', { name: 'Open', exact: true }).click();
+  await (await inMenu(value.surface, '#openProjects')).click(); await value.surface.locator(`[data-project-id="${next.id}"]`).getByRole('button', { name: 'Open', exact: true }).click();
   await value.surface.locator('#projectDialog').waitFor({ state: 'hidden' }); await ready(value);
   const latest = await snapshot(value); assert.equal(latest.id, next.id); await held.release(); await completed(value);
   assert.deepEqual(await snapshot(value), latest); assert.equal(value.fixture.editor.state.uploads, 0); clean(value);

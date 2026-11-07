@@ -11,6 +11,7 @@
  *   '2099-11-07T00:00:00.000Z / added in OSHAL'. Named seams: the in-memory pool (row ownership and SQL are proved on
  *   PostgreSQL in own-events-postgres.test.cjs), a signed-in caller stub for OIDC, and empty stand-ins for the shell's shared
  *   theme scripts and connected-action modules the page imports. Needs the store toolchain (express, playwright, chromium).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The design standard (DS-30): Remove asks in the page, not with window.confirm; Cancel removes nothing.
  */
 'use strict';
 const test = require('node:test');
@@ -66,6 +67,7 @@ async function serve(p) {
   app.use(express.json());
   app.use((req, _res, next) => { req.oidc = { user: { sub: 'sweep10-person' }, isAuthenticated: () => true }; next(); });
   app.get('/api/calendar/review', (_req, res) => res.sendFile(path.join(ROOT, 'tools', 'review.html')));
+  app.get(['/api/calendar/review/calendar-workspace.mjs', '/api/calendar/review/calendar-workspace.css'], (req, res) => res.sendFile(path.join(ROOT, 'tools', path.basename(req.path))));
   app.use('/api/calendar/events', own.createOwnEventsRoutes({ pool: p }));
   app.use('/api/calendar/home-summary', summary.createHomeSummaryRoutes({ pool: p }));
   app.get('/api/calendar/meeting-briefs', (_req, res) => res.json({ briefs: [] }));
@@ -93,12 +95,16 @@ test('an added event reads in its own zone and Remove asks first, then takes it 
   assert.match(records, /Fri, Nov 6, 2099, 6:00 PM CST \/ added in OSHAL/);
   assert.doesNotMatch(records + (await own.innerText()), /T\d{2}:\d{2}:\d{2}\.\d{3}Z/, 'no raw UTC instant on the page');
   const remove = own.getByRole('button', { name: 'Remove sweep10 Denver drive from your OSHAL calendar' });
-  page.once('dialog', (d) => { assert.match(d.message(), /Remove "sweep10 Denver drive" \(Fri, Nov 6, 2099, 6:00 PM CST\)/); d.dismiss(); });
+  // Remove asks in the page (never window.confirm), naming the event and its time in its own zone.
+  page.on('dialog', (d) => { assert.fail('native dialog: ' + d.message()); });
   await remove.click();
+  const ask = page.locator('dialog.calendar-confirm');
+  assert.match(await ask.innerText(), /Remove "sweep10 Denver drive" \(Fri, Nov 6, 2099, 6:00 PM CST\)/);
+  await ask.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.waitForTimeout(200);
-  assert.equal(p.rows.length, 1, 'a dismissed dialog removes nothing');
-  page.once('dialog', (d) => d.accept());
+  assert.equal(p.rows.length, 1, 'Cancel removes nothing');
   await remove.click();
+  await page.locator('dialog.calendar-confirm').getByRole('button', { name: 'Remove', exact: true }).click();
   await page.locator('#ownStatus').getByText('Removed "sweep10 Denver drive".').waitFor();
   assert.equal(p.rows.length, 0);
   assert.match(await own.innerText(), /Nothing added here yet/);

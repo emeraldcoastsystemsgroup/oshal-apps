@@ -1,5 +1,11 @@
 <!DOCTYPE html>
 <!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                  | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (payroll--payroll-home): semantic role="tab" module buttons with arrow-key navigation, phone (<600px) 4+More bottom bar and sheet, 4-step Add employee dialog/sheet with blur validation and supported-state select, 44px W-4 switch rows, and single-sentence scope lede.
+  -----------------------------------------------------------------------------
   Payroll surface — run an ADP-style payroll over your own roster. Self-contained
   iframe page served by createPayrollRoutes at /api/payroll/. All work is
   auth-gated server-side; every dollar is computed by the deterministic engine
@@ -88,38 +94,117 @@
   }
   * { box-sizing:border-box; }
   body {
-    margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; color:var(--pr-text);
-    background:
-      radial-gradient(circle at 18% 14%, color-mix(in srgb, var(--pr-accent) 14%, transparent), transparent 32rem),
-      linear-gradient(135deg, var(--pr-bg), color-mix(in srgb, var(--pr-bg) 72%, var(--pr-panel)));
+    margin:0; font-family:var(--ds-font, system-ui, sans-serif); color:var(--pr-text);
+    background:var(--pr-bg);
   }
-  .page { width:min(1080px, calc(100% - 36px)); margin:0 auto; padding:26px 0 70px; }
-  .head { display:flex; align-items:center; gap:14px; padding:20px 22px; border:1px solid var(--pr-line); border-radius:14px;
-          background:color-mix(in srgb, var(--pr-panel) 86%, transparent); box-shadow:var(--pr-shadow); margin-bottom:6px; }
+  .page { width:min(1080px, calc(100% - 36px)); margin:0 auto; padding:26px 0 84px; }
+  .head { display:flex; align-items:center; gap:14px; padding:16px 20px; border:1px solid var(--pr-line); border-radius:14px;
+          background:var(--ds-surface, var(--pr-panel)); margin-bottom:6px; }
   .head .ico { display:grid; place-items:center; width:44px; height:44px; border-radius:12px;
-               background:color-mix(in srgb, var(--pr-accent) 22%, transparent); color:var(--pr-accent-2); font-size:22px; }
+               background:color-mix(in srgb, var(--pr-accent) 18%, var(--pr-panel-2)); color:var(--pr-accent); font-size:22px; }
   h1 { font-size:22px; margin:0; }
   .sub { color:var(--pr-muted); font-size:13px; margin:10px 2px 16px; line-height:1.5; }
-  .tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
-  .tab { background:var(--pr-panel-2); border:1px solid var(--pr-line); border-radius:10px; padding:10px 16px; cursor:pointer;
-         font-size:14px; font-weight:600; color:var(--pr-text); display:flex; gap:8px; align-items:center; }
-  .tab.active { border-color:var(--pr-accent); color:var(--pr-accent-2); }
-  .panel { background:color-mix(in srgb, var(--pr-panel) 92%, transparent); border:1px solid var(--pr-line); border-radius:14px;
+  .tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:nowrap; overflow-x:auto; }
+  .tab { appearance:none; font-family:inherit; background:var(--pr-panel-2); border:1px solid var(--pr-line); border-radius:10px;
+         min-height:44px; padding:10px 16px; cursor:pointer; font-size:14px; font-weight:600; color:var(--pr-text);
+         display:inline-flex; gap:8px; align-items:center; white-space:nowrap; flex-shrink:0; }
+  .tab[aria-selected="true"], .tab.active { background:var(--ds-accent, var(--pr-accent)); border-color:transparent; color:var(--ds-on-accent, var(--text-on-accent, #03121f)); }
+  .tab:focus-visible { outline:2px solid var(--pr-accent); outline-offset:2px; }
+  .panel { background:var(--ds-surface, var(--pr-panel)); border:1px solid var(--pr-line); border-radius:14px;
            padding:22px; margin-bottom:16px; }
   .panel h2 { font-size:16px; margin:0 0 12px; }
-  .btn { border:none; border-radius:8px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; }
-  .btn.primary { background:var(--pr-accent); color:#03121f; }
+  .btn { font-family:inherit; border:none; border-radius:8px; min-height:44px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  .btn[hidden] { display:none; }
+  .btn.primary { background:var(--ds-accent, var(--pr-accent)); color:var(--ds-on-accent, var(--text-on-accent, #03121f)); }
   .btn.ghost { background:var(--pr-control); border:1px solid var(--pr-line); color:var(--pr-text); }
+  .btn.tertiary { background:transparent; border:1px solid transparent; color:var(--pr-muted); }
+  .btn.tertiary:hover { color:var(--pr-text); }
   .btn.danger { background:transparent; border:1px solid var(--pr-danger); color:var(--pr-danger); }
-  .btn:disabled { opacity:.5; cursor:default; }
+  .btn:disabled { opacity:1; background:var(--ds-surface-2, var(--pr-panel-2)); color:var(--ds-ink-disabled, var(--pr-muted)); cursor:not-allowed; }
   .row { display:flex; gap:12px; flex-wrap:wrap; align-items:end; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
   .field { display:block; }
+  .field[hidden] { display:none; }
   .field span { display:block; font-size:12px; color:var(--pr-muted); margin-bottom:5px; }
-  .field input, .field select { width:100%; padding:9px; background:var(--pr-control); border:1px solid var(--pr-line);
-    border-radius:8px; color:var(--pr-text); font-size:14px; }
-  .field.chk { display:flex; align-items:center; gap:8px; }
-  .field.chk input { width:auto; }
+  .field .req { color:var(--ds-bad, var(--pr-danger)); text-decoration:none; margin-left:3px; font-weight:700; }
+  .field input, .field select { width:100%; min-height:44px; padding:9px 10px; background:var(--pr-control); border:1px solid var(--pr-line);
+    border-radius:8px; color:var(--pr-text); font-size:14px; font-family:inherit; }
+  .field input.invalid, .field select.invalid, .field input[aria-invalid="true"], .field select[aria-invalid="true"] {
+    border-color:var(--ds-bad, var(--pr-danger));
+  }
+  .field .field-err { display:block; min-height:0; margin:4px 0 0; font-size:12px; color:var(--ds-bad, var(--pr-danger)); }
+  .field .field-err:empty { display:none; }
+  .field.chk { display:flex; align-items:center; gap:8px; min-height:44px; }
+  .field.chk input { width:auto; min-height:auto; }
+  .switch-row {
+    display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px;
+    padding:8px 12px; border:1px solid var(--pr-line); border-radius:8px; background:var(--pr-control);
+    cursor:pointer; position:relative; user-select:none;
+  }
+  .switch-row .switch-label { font-size:13px; color:var(--pr-text); margin:0; }
+  .switch-row .switch-input { position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+  .switch-row .switch-track {
+    width:38px; height:22px; border-radius:999px; background:var(--pr-line); position:relative; flex-shrink:0;
+    transition:background .15s ease;
+  }
+  .switch-row .switch-thumb {
+    width:18px; height:18px; border-radius:50%; background:var(--pr-text); position:absolute; top:2px; left:2px;
+    transition:transform .15s ease;
+  }
+  .switch-row .switch-input:checked + .switch-track { background:var(--ds-accent, var(--pr-accent)); }
+  .switch-row .switch-input:checked + .switch-track .switch-thumb { background:var(--ds-on-accent, #03121f); transform:translateX(16px); }
+  .switch-row:focus-within { outline:2px solid var(--pr-accent); outline-offset:2px; }
+
+  /* 4-step Add employee dialog on desktop / bottom sheet on phone */
+  dialog.emp-dialog {
+    background:var(--ds-surface-raised, var(--pr-panel)); color:var(--pr-text); border:1px solid var(--pr-line);
+    border-radius:14px; padding:22px; width:min(720px, calc(100% - 32px)); max-height:88dvh; overflow-y:auto;
+    margin:auto;
+  }
+  dialog.emp-dialog::backdrop { background:rgba(0,0,0,.55); }
+  dialog.emp-dialog:not([open]) { display:none; }
+  .sheet-handle { display:none; width:36px; height:4px; border-radius:999px; background:var(--pr-line); margin:0 auto 12px; }
+  .emp-dialog-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .emp-dialog-head h2 { margin:0; font-size:18px; }
+  .emp-stepper {
+    list-style:none; padding:0; margin:0 0 16px; display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px;
+  }
+  .emp-step-btn {
+    width:100%; min-height:44px; padding:6px 8px; border-radius:8px; border:1px solid var(--pr-line);
+    background:var(--pr-panel-2); color:var(--pr-muted); font:inherit; font-size:12px; font-weight:600;
+    cursor:pointer; text-align:left; display:flex; align-items:center; gap:6px;
+  }
+  .emp-step-btn .step-num {
+    width:20px; height:20px; border-radius:50%; display:inline-grid; place-items:center; font-size:11px;
+    background:var(--pr-control); color:var(--pr-text); flex-shrink:0;
+  }
+  .emp-step-btn[aria-current="step"] {
+    border-color:var(--ds-accent, var(--pr-accent)); color:var(--pr-text); background:var(--pr-control);
+  }
+  .emp-step-btn[aria-current="step"] .step-num {
+    background:var(--ds-accent, var(--pr-accent)); color:var(--ds-on-accent, #03121f);
+  }
+  .emp-step-pane[hidden] { display:none; }
+  .emp-dialog-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:18px; padding-top:12px; border-top:1px solid var(--pr-line); }
+  .emp-dialog-foot .step-actions { display:flex; gap:10px; align-items:center; margin-left:auto; }
+
+  /* Phone (<600px) 4 + More bottom bar and opaque More sheet */
+  .phone-nav { display:none; }
+  .sheet-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:40; }
+  .sheet-backdrop[hidden] { display:none; }
+  .bottom-sheet {
+    position:fixed; left:0; right:0; bottom:0; z-index:41; background:var(--ds-surface-raised, var(--pr-panel));
+    border-top:1px solid var(--pr-line); border-radius:16px 16px 0 0; padding:12px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+  .bottom-sheet[hidden] { display:none; }
+  .bottom-sheet .sheet-handle { display:block; }
+  .more-sheet-list { display:flex; flex-direction:column; gap:6px; }
+  .more-sheet-item {
+    appearance:none; width:100%; min-height:48px; padding:10px 14px; border-radius:10px; border:1px solid var(--pr-line);
+    background:var(--pr-panel-2); color:var(--pr-text); font:inherit; font-size:14px; font-weight:600;
+    display:flex; align-items:center; gap:10px; cursor:pointer; text-align:left;
+  }
+  .more-sheet-item.active { background:var(--ds-accent, var(--pr-accent)); border-color:transparent; color:var(--ds-on-accent, #03121f); }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th { text-align:left; color:var(--pr-muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px;
        padding:6px 8px; border-bottom:1px solid var(--pr-line); }
@@ -152,8 +237,30 @@
   @media (max-width:640px) {
     .page { width:calc(100% - 20px); }
     .panel { padding:14px 12px; }
-    .field input { font-size:16px; }
+    .field input, .field select { font-size:16px; }
     table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  }
+  @media (max-width:599px) {
+    .page { padding-bottom:104px; }
+    .tabs { display:none; }
+    .phone-nav {
+      display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); position:fixed; left:0; right:0; bottom:0; z-index:30;
+      background:var(--ds-surface, var(--pr-panel)); border-top:1px solid var(--pr-line);
+      padding:4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+    }
+    .phone-nav-btn {
+      appearance:none; border:0; background:transparent; color:var(--pr-muted); font:inherit; font-size:11px; font-weight:600;
+      min-height:48px; padding:4px 2px; border-radius:8px; display:flex; flex-direction:column; align-items:center;
+      justify-content:center; gap:3px; cursor:pointer;
+    }
+    .phone-nav-btn .codicon { font-size:16px; }
+    .phone-nav-btn.active { color:var(--ds-accent, var(--pr-accent)); background:var(--pr-panel-2); }
+    dialog.emp-dialog {
+      width:100%; max-width:100%; margin:auto 0 0 0; border-radius:16px 16px 0 0;
+      padding:14px 16px calc(20px + env(safe-area-inset-bottom, 0px)); max-height:90dvh;
+    }
+    dialog.emp-dialog .sheet-handle { display:block; }
+    .emp-stepper { grid-template-columns:repeat(2, minmax(0, 1fr)); }
   }
 </style>
 </head>
@@ -166,84 +273,145 @@
       <div class="muted" style="font-size:12px" id="hdrCompany">&nbsp;</div>
     </div>
   </div>
-  <div class="sub">Employees → pay runs → stubs → reports. Every dollar comes from the deterministic tax engine
-    (tax year <span id="taxYear">—</span>) — oshal records payroll; it does not move funds or file returns.</div>
+  <p class="sub" id="payrollLede">oshal records payroll from the <span id="taxYear">2026</span> tax engine; it never moves money or files returns.</p>
 
-  <div class="tabs">
-    <div class="tab active" data-tab="employees"><i class="codicon codicon-account"></i> Employees</div>
-    <div class="tab" data-tab="runs"><i class="codicon codicon-play-circle"></i> Run payroll</div>
-    <div class="tab" data-tab="stubs"><i class="codicon codicon-file"></i> Pay stubs</div>
-    <div class="tab" data-tab="reports"><i class="codicon codicon-graph"></i> Reports</div>
-    <div class="tab" data-tab="filing"><i class="codicon codicon-law"></i> Pay &amp; file</div>
-    <div class="tab" data-tab="settle"><i class="codicon codicon-inbox"></i> Settlement</div>
-    <div class="tab" data-tab="settings"><i class="codicon codicon-gear"></i> Settings</div>
+  <div class="tabs" id="moduleTabs" role="tablist" aria-label="Payroll modules">
+    <button type="button" class="tab active" role="tab" id="tab-employees" aria-selected="true" aria-controls="view-employees" tabindex="0" data-tab="employees"><i class="codicon codicon-account" aria-hidden="true"></i> Employees</button>
+    <button type="button" class="tab" role="tab" id="tab-runs" aria-selected="false" aria-controls="view-runs" tabindex="-1" data-tab="runs"><i class="codicon codicon-play-circle" aria-hidden="true"></i> Run payroll</button>
+    <button type="button" class="tab" role="tab" id="tab-stubs" aria-selected="false" aria-controls="view-stubs" tabindex="-1" data-tab="stubs"><i class="codicon codicon-file" aria-hidden="true"></i> Pay stubs</button>
+    <button type="button" class="tab" role="tab" id="tab-reports" aria-selected="false" aria-controls="view-reports" tabindex="-1" data-tab="reports"><i class="codicon codicon-graph" aria-hidden="true"></i> Reports</button>
+    <button type="button" class="tab" role="tab" id="tab-filing" aria-selected="false" aria-controls="view-filing" tabindex="-1" data-tab="filing"><i class="codicon codicon-law" aria-hidden="true"></i> Pay &amp; file</button>
+    <button type="button" class="tab" role="tab" id="tab-settle" aria-selected="false" aria-controls="view-settle" tabindex="-1" data-tab="settle"><i class="codicon codicon-inbox" aria-hidden="true"></i> Settlement</button>
+    <button type="button" class="tab" role="tab" id="tab-settings" aria-selected="false" aria-controls="view-settings" tabindex="-1" data-tab="settings"><i class="codicon codicon-gear" aria-hidden="true"></i> Settings</button>
   </div>
 
   <div id="msg"></div>
 
   <!-- ── Employees ─────────────────────────────────────────────────────── -->
-  <div class="view" id="view-employees">
+  <div class="view" id="view-employees" role="tabpanel" aria-labelledby="tab-employees">
     <div class="panel">
       <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:10px">
         <h2 style="margin:0">Roster</h2>
-        <button class="btn primary" onclick="openEmpForm()">Add employee</button>
+        <button type="button" class="btn primary" id="addEmpBtn" onclick="openEmpForm()">Add employee</button>
       </div>
       <div id="empList" class="spin">Loading…</div>
     </div>
-    <div class="panel" id="empForm" style="display:none">
-      <h2 id="empFormTitle">Add employee</h2>
-      <div class="grid">
-        <label class="field"><span>First name</span><input id="e_first" /></label>
-        <label class="field"><span>Last name</span><input id="e_last" /></label>
-        <label class="field"><span>Email</span><input id="e_email" /></label>
-        <label class="field"><span>Pay type</span>
-          <select id="e_type" onchange="empTypeSwap()"><option value="hourly">Hourly</option><option value="salary">Salary</option></select></label>
-        <label class="field" id="f_salary" style="display:none"><span>Annual salary ($)</span><input id="e_salary" type="number" min="0" step="0.01" /></label>
-        <label class="field" id="f_rate"><span>Hourly rate ($)</span><input id="e_rate" type="number" min="0" step="0.01" /></label>
-        <label class="field" id="f_hours"><span>Default hours / period</span><input id="e_hours" type="number" min="0" step="0.01" value="80" /></label>
-        <label class="field"><span>Birth date (401k catch-up tier)</span><input id="e_birth" type="date" /></label>
-        <label class="field"><span>Hire date</span><input id="e_hire" type="date" /></label>
-        <label class="field"><span>Termination date</span><input id="e_term" type="date" /></label>
-        <label class="field"><span>W-4 filing status</span>
-          <select id="e_filing"><option value="single">Single / MFS</option><option value="married">Married filing jointly</option><option value="hoh">Head of household</option></select></label>
-        <label class="field chk"><input id="e_step2" type="checkbox" /><span style="margin:0">W-4 Step 2 (two jobs)</span></label>
-        <label class="field chk"><input id="e_exempt" type="checkbox" /><span style="margin:0">W-4 exempt from federal withholding</span></label>
-        <label class="field"><span>W-4 Step 3 credits ($/yr)</span><input id="e_dep" type="number" min="0" step="0.01" value="0" /></label>
-        <label class="field"><span>W-4 4a other income ($/yr)</span><input id="e_other" type="number" min="0" step="0.01" value="0" /></label>
-        <label class="field"><span>W-4 4b deductions ($/yr)</span><input id="e_ded" type="number" min="0" step="0.01" value="0" /></label>
-        <label class="field"><span>W-4 4c extra withholding ($/period)</span><input id="e_extra" type="number" min="0" step="0.01" value="0" /></label>
-        <label class="field"><span>401(k) pre-tax (%)</span><input id="e_k401" type="number" min="0" max="100" step="0.1" value="0" /></label>
-        <label class="field"><span>Roth (%)</span><input id="e_roth" type="number" min="0" max="100" step="0.1" value="0" /></label>
-        <label class="field"><span>Health premium ($/period)</span><input id="e_health" type="number" min="0" step="0.01" value="0" /></label>
-        <label class="field"><span>Other post-tax ($/period)</span><input id="e_post" type="number" min="0" step="0.01" value="0" /></label>
-        <label class="field"><span>Garnishment ($/period) — CCPA-capped</span><input id="e_garn" type="number" min="0" step="0.01" value="0" /></label>
-        <label class="field"><span>Work state</span><input id="e_statecode" maxlength="2" placeholder="FL" oninput="stateHint()" /></label>
-        <label class="field"><span>State tax rate (%) — used only if unsupported</span><input id="e_state" type="number" min="0" max="100" step="0.01" value="0" /></label>
-        <label class="field"><span>State allowances (e.g. IL-W-4)</span><input id="e_allow" type="number" min="0" step="1" value="0" /></label>
-        <label class="field"><span>Tipped occupation code (W-2 14b)</span><input id="e_occ" maxlength="8" /></label>
+
+    <dialog class="emp-dialog" id="empForm" data-ds-sheet aria-labelledby="empFormTitle">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="emp-dialog-head">
+        <h2 id="empFormTitle">Add employee</h2>
       </div>
-      <div class="notice" id="stateHint">Enter a work state to see whether payroll has a verified withholding table for it.</div>
-      <details style="margin-top:12px">
-        <summary class="muted" style="cursor:pointer;font-size:13px">Prior year-to-date (only if you switched payroll systems mid-year)</summary>
-        <div class="notice">These feed the wage-base caps so Social Security, FUTA and the 401(k) limit stay correct for the rest of the year.
-          They are deliberately <b>excluded</b> from the W-2 preview — your previous provider issues its own W-2.</div>
-        <div class="grid" style="margin-top:10px">
-          <label class="field"><span>Prior YTD tax year</span><input id="p_year" type="number" min="2000" step="1" /></label>
-          <label class="field"><span>Prior YTD taxable wages ($)</span><input id="p_wages" type="number" min="0" step="0.01" value="0" /></label>
-          <label class="field"><span>Prior YTD SS-taxable ($)</span><input id="p_sstax" type="number" min="0" step="0.01" value="0" /></label>
-          <label class="field"><span>Prior YTD 401(k) deferrals ($)</span><input id="p_def" type="number" min="0" step="0.01" value="0" /></label>
-          <label class="field"><span>Prior YTD supplemental ($)</span><input id="p_supp" type="number" min="0" step="0.01" value="0" /></label>
+      <ol class="emp-stepper" id="empStepper" aria-label="Employee onboarding steps">
+        <li><button type="button" class="emp-step-btn" data-step="1" aria-current="step"><span class="step-num">1</span><span>Person &amp; pay</span></button></li>
+        <li><button type="button" class="emp-step-btn" data-step="2"><span class="step-num">2</span><span>Federal W-4</span></button></li>
+        <li><button type="button" class="emp-step-btn" data-step="3"><span class="step-num">3</span><span>Benefits &amp; deductions</span></button></li>
+        <li><button type="button" class="emp-step-btn" data-step="4"><span class="step-num">4</span><span>State</span></button></li>
+      </ol>
+
+      <div class="emp-step-pane" id="empStep1" data-step-pane="1">
+        <div class="grid">
+          <label class="field" for="e_first"><span>First name<abbr class="req" title="Required" aria-hidden="true">*</abbr></span><input id="e_first" required aria-required="true" /><span class="field-err" id="err_first" role="alert"></span></label>
+          <label class="field" for="e_last"><span>Last name<abbr class="req" title="Required" aria-hidden="true">*</abbr></span><input id="e_last" required aria-required="true" /><span class="field-err" id="err_last" role="alert"></span></label>
+          <label class="field" for="e_email"><span>Email</span><input id="e_email" type="email" /></label>
+          <label class="field" for="e_type"><span>Pay type</span>
+            <select id="e_type" onchange="empTypeSwap()"><option value="hourly">Hourly</option><option value="salary">Salary</option></select></label>
+          <label class="field" id="f_salary" for="e_salary" style="display:none"><span>Annual salary ($)<abbr class="req" title="Required" aria-hidden="true">*</abbr></span><input id="e_salary" type="number" min="0" step="0.01" aria-required="true" /><span class="field-err" id="err_salary" role="alert"></span></label>
+          <label class="field" id="f_rate" for="e_rate"><span>Hourly rate ($)<abbr class="req" title="Required" aria-hidden="true">*</abbr></span><input id="e_rate" type="number" min="0" step="0.01" aria-required="true" /><span class="field-err" id="err_rate" role="alert"></span></label>
+          <label class="field" id="f_hours" for="e_hours"><span>Default hours / period</span><input id="e_hours" type="number" min="0" step="0.01" value="80" /></label>
+          <label class="field" for="e_birth"><span>Birth date (401k catch-up tier)</span><input id="e_birth" type="date" /></label>
+          <label class="field" for="e_hire"><span>Hire date</span><input id="e_hire" type="date" /></label>
+          <label class="field" id="f_term" for="e_term" hidden style="display:none"><span>Termination date</span><input id="e_term" type="date" /></label>
         </div>
-      </details>
-      <div class="row" style="margin-top:14px">
-        <button class="btn primary" id="empSaveBtn" onclick="saveEmployee(this)">Save</button>
-        <button class="btn ghost" onclick="closeEmpForm()">Cancel</button>
       </div>
-    </div>
+
+      <div class="emp-step-pane" id="empStep2" data-step-pane="2" hidden>
+        <div class="grid">
+          <label class="field" for="e_filing"><span>W-4 filing status</span>
+            <select id="e_filing"><option value="single">Single / MFS</option><option value="married">Married filing jointly</option><option value="hoh">Head of household</option></select></label>
+          <label class="field" for="e_dep"><span>W-4 Step 3 credits ($/yr)</span><input id="e_dep" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field" for="e_other"><span>W-4 4a other income ($/yr)</span><input id="e_other" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field" for="e_ded"><span>W-4 4b deductions ($/yr)</span><input id="e_ded" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field" for="e_extra"><span>W-4 4c extra withholding ($/period)</span><input id="e_extra" type="number" min="0" step="0.01" value="0" /></label>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px">
+          <label class="switch-row" for="e_step2">
+            <span class="switch-label">W-4 Step 2 (two jobs)</span>
+            <input id="e_step2" type="checkbox" role="switch" class="switch-input" aria-checked="false" />
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          </label>
+          <label class="switch-row" for="e_exempt">
+            <span class="switch-label">W-4 exempt from federal withholding</span>
+            <input id="e_exempt" type="checkbox" role="switch" class="switch-input" aria-checked="false" />
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="emp-step-pane" id="empStep3" data-step-pane="3" hidden>
+        <div class="grid">
+          <label class="field" for="e_k401"><span>401(k) pre-tax (%)</span><input id="e_k401" type="number" min="0" max="100" step="0.1" value="0" /></label>
+          <label class="field" for="e_roth"><span>Roth (%)</span><input id="e_roth" type="number" min="0" max="100" step="0.1" value="0" /></label>
+          <label class="field" for="e_health"><span>Health premium ($/period)</span><input id="e_health" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field" for="e_post"><span>Other post-tax ($/period)</span><input id="e_post" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field" for="e_garn"><span>Garnishment ($/period) — CCPA-capped</span><input id="e_garn" type="number" min="0" step="0.01" value="0" /></label>
+          <label class="field" for="e_occ"><span>Tipped occupation code (W-2 14b)</span><input id="e_occ" maxlength="8" /></label>
+        </div>
+        <details style="margin-top:12px">
+          <summary class="muted" style="cursor:pointer;font-size:13px">Prior year-to-date (only if you switched payroll systems mid-year)</summary>
+          <div class="notice">These feed the wage-base caps so Social Security, FUTA and the 401(k) limit stay correct for the rest of the year.
+            They are deliberately <b>excluded</b> from the W-2 preview — your previous provider issues its own W-2.</div>
+          <div class="grid" style="margin-top:10px">
+            <label class="field" for="p_year"><span>Prior YTD tax year</span><input id="p_year" type="number" min="2000" step="1" /></label>
+            <label class="field" for="p_wages"><span>Prior YTD taxable wages ($)</span><input id="p_wages" type="number" min="0" step="0.01" value="0" /></label>
+            <label class="field" for="p_sstax"><span>Prior YTD SS-taxable ($)</span><input id="p_sstax" type="number" min="0" step="0.01" value="0" /></label>
+            <label class="field" for="p_def"><span>Prior YTD 401(k) deferrals ($)</span><input id="p_def" type="number" min="0" step="0.01" value="0" /></label>
+            <label class="field" for="p_supp"><span>Prior YTD supplemental ($)</span><input id="p_supp" type="number" min="0" step="0.01" value="0" /></label>
+          </div>
+        </details>
+      </div>
+
+      <div class="emp-step-pane" id="empStep4" data-step-pane="4" hidden>
+        <div class="grid">
+          <label class="field" for="e_statecode">
+            <span>Work state<abbr class="req" title="Required" aria-hidden="true">*</abbr></span>
+            <select id="e_statecode" required aria-required="true" onchange="stateHint()">
+              <option value="">Select work state</option>
+              <option value="AK">AK — Alaska</option>
+              <option value="FL">FL — Florida</option>
+              <option value="IL">IL — Illinois</option>
+              <option value="KY">KY — Kentucky</option>
+              <option value="MO">MO — Missouri</option>
+              <option value="NH">NH — New Hampshire</option>
+              <option value="NV">NV — Nevada</option>
+              <option value="PA">PA — Pennsylvania</option>
+              <option value="SD">SD — South Dakota</option>
+              <option value="TN">TN — Tennessee</option>
+              <option value="TX">TX — Texas</option>
+              <option value="WA">WA — Washington</option>
+              <option value="WY">WY — Wyoming</option>
+            </select>
+            <span class="field-err" id="err_statecode" role="alert"></span>
+          </label>
+          <label class="field" for="e_allow"><span>State allowances (e.g. IL-W-4)</span><input id="e_allow" type="number" min="0" step="1" value="0" /></label>
+          <label class="field" id="f_state_manual" for="e_state" hidden style="display:none"><span>State tax rate (%) — used only if unsupported</span><input id="e_state" type="number" min="0" max="100" step="0.01" value="0" /></label>
+        </div>
+        <div class="notice" id="stateHint">Select a work state to view its verified 2026 withholding rule.</div>
+      </div>
+
+      <div class="emp-dialog-foot">
+        <button type="button" class="btn tertiary" id="empCancelBtn" onclick="closeEmpForm()">Cancel</button>
+        <div class="step-actions">
+          <button type="button" class="btn ghost" id="empBackBtn" onclick="prevEmpStep()" hidden>Back</button>
+          <button type="button" class="btn primary" id="empNextBtn" onclick="nextEmpStep()">Next</button>
+          <button type="button" class="btn primary" id="empSaveBtn" onclick="saveEmployee(this)" hidden>Save</button>
+        </div>
+      </div>
+    </dialog>
   </div>
 
   <!-- ── Runs ──────────────────────────────────────────────────────────── -->
-  <div class="view" id="view-runs" style="display:none">
+  <div class="view" id="view-runs" role="tabpanel" aria-labelledby="tab-runs" style="display:none">
     <div class="panel">
       <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:10px">
         <h2 style="margin:0">Pay runs</h2>
@@ -261,7 +429,7 @@
   </div>
 
   <!-- ── Stubs ─────────────────────────────────────────────────────────── -->
-  <div class="view" id="view-stubs" style="display:none">
+  <div class="view" id="view-stubs" role="tabpanel" aria-labelledby="tab-stubs" style="display:none">
     <div class="panel">
       <h2>Pay stub</h2>
       <div class="row">
@@ -275,7 +443,7 @@
   </div>
 
   <!-- ── Reports ───────────────────────────────────────────────────────── -->
-  <div class="view" id="view-reports" style="display:none">
+  <div class="view" id="view-reports" role="tabpanel" aria-labelledby="tab-reports" style="display:none">
     <div class="panel">
       <h2>Tax liability by quarter</h2>
       <div class="row">
@@ -295,7 +463,7 @@
   </div>
 
   <!-- ── Pay & file ────────────────────────────────────────────────────── -->
-  <div class="view" id="view-filing" style="display:none">
+  <div class="view" id="view-filing" role="tabpanel" aria-labelledby="tab-filing" style="display:none">
     <div class="panel">
       <h2>Direct deposit (ACH)</h2>
       <div class="notice">oshal generates the NACHA file; <b>your own bank executes it</b>. No money moves
@@ -348,7 +516,7 @@
   </div>
 
   <!-- ── Settlement ────────────────────────────────────────────────────── -->
-  <div class="view" id="view-settle" style="display:none">
+  <div class="view" id="view-settle" role="tabpanel" aria-labelledby="tab-settle" style="display:none">
     <div class="panel">
       <h2>Did everyone actually get paid?</h2>
       <div class="notice">Approving a run says who <i>should</i> be paid. A deposit can still come back
@@ -402,7 +570,7 @@
   </div>
 
   <!-- ── Settings ──────────────────────────────────────────────────────── -->
-  <div class="view" id="view-settings" style="display:none">
+  <div class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" style="display:none">
     <div class="panel">
       <h2>Company settings</h2>
       <div class="grid">
@@ -450,10 +618,29 @@
   </div>
 </div>
 
+<!-- Phone (<600px) bottom module bar: 4 primary modules + More sheet -->
+<nav class="phone-nav" id="phoneNavBar" aria-label="Payroll modules">
+  <button type="button" class="phone-nav-btn active" data-phone-tab="employees"><i class="codicon codicon-account" aria-hidden="true"></i><span>Employees</span></button>
+  <button type="button" class="phone-nav-btn" data-phone-tab="runs"><i class="codicon codicon-play-circle" aria-hidden="true"></i><span>Run payroll</span></button>
+  <button type="button" class="phone-nav-btn" data-phone-tab="stubs"><i class="codicon codicon-file" aria-hidden="true"></i><span>Pay stubs</span></button>
+  <button type="button" class="phone-nav-btn" data-phone-tab="reports"><i class="codicon codicon-graph" aria-hidden="true"></i><span>Reports</span></button>
+  <button type="button" class="phone-nav-btn" id="phoneMoreBtn" aria-expanded="false" aria-controls="moreModulesSheet"><i class="codicon codicon-ellipsis" aria-hidden="true"></i><span>More</span></button>
+</nav>
+<div class="sheet-backdrop" id="moreSheetBackdrop" hidden></div>
+<section class="bottom-sheet" id="moreModulesSheet" data-ds-sheet aria-label="More payroll modules" hidden>
+  <div class="sheet-handle" aria-hidden="true"></div>
+  <div class="more-sheet-list">
+    <button type="button" class="more-sheet-item" data-more-tab="filing"><i class="codicon codicon-law" aria-hidden="true"></i> Pay &amp; file</button>
+    <button type="button" class="more-sheet-item" data-more-tab="settle"><i class="codicon codicon-inbox" aria-hidden="true"></i> Settlement</button>
+    <button type="button" class="more-sheet-item" data-more-tab="settings"><i class="codicon codicon-gear" aria-hidden="true"></i> Settings</button>
+    <button type="button" class="btn tertiary" id="closeMoreSheetBtn">Close</button>
+  </div>
+</section>
+
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const state = { company: null, employees: [], runs: [], editingEmp: null, currentRun: null };
+const state = { company: null, employees: [], runs: [], editingEmp: null, currentRun: null, empStep: 1, supportedStates: ['AK','FL','IL','KY','MO','NH','NV','PA','SD','TN','TX','WA','WY'] };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const fmt$ = (c) => (Number(c || 0) / 100).toLocaleString('en-US', { style:'currency', currency:'USD' });
@@ -502,16 +689,69 @@ async function api(path, opts) {
   return body;
 }
 
-/* ── tabs ─────────────────────────────────────────────────────────────── */
-document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
-  document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === t));
+/* ── tabs + phone bottom bar + More sheet ─────────────────────────────── */
+const MORE_TABS = new Set(['filing', 'settle', 'settings']);
+function toggleMoreSheet(open) {
+  const sheet = $('moreModulesSheet'), back = $('moreSheetBackdrop'), btn = $('phoneMoreBtn');
+  if (sheet) sheet.hidden = !open;
+  if (back) back.hidden = !open;
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function selectModule(tabId, focusTab) {
+  const tabs = Array.from(document.querySelectorAll('.tab[role="tab"]'));
+  tabs.forEach((x) => {
+    const active = x.dataset.tab === tabId;
+    x.classList.toggle('active', active);
+    x.setAttribute('aria-selected', active ? 'true' : 'false');
+    x.tabIndex = active ? 0 : -1;
+    if (active && focusTab && typeof x.focus === 'function') x.focus();
+  });
+  document.querySelectorAll('.phone-nav-btn[data-phone-tab]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.phoneTab === tabId);
+  });
+  const moreBtn = $('phoneMoreBtn');
+  if (moreBtn) moreBtn.classList.toggle('active', MORE_TABS.has(tabId));
+  document.querySelectorAll('.more-sheet-item[data-more-tab]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.moreTab === tabId);
+  });
+  toggleMoreSheet(false);
   document.querySelectorAll('.view').forEach((v) => { v.style.display = 'none'; });
-  $('view-' + t.dataset.tab).style.display = '';
-  if (t.dataset.tab === 'stubs') fillStubSelectors();
-  if (t.dataset.tab === 'reports') fillReportSelectors();
-  if (t.dataset.tab === 'filing') fillFilingSelectors();
-  if (t.dataset.tab === 'settle') fillSettleSelectors();
-}));
+  const target = $('view-' + tabId);
+  if (target) target.style.display = '';
+  if (tabId === 'stubs') fillStubSelectors();
+  if (tabId === 'reports') fillReportSelectors();
+  if (tabId === 'filing') fillFilingSelectors();
+  if (tabId === 'settle') fillSettleSelectors();
+}
+document.querySelectorAll('.tab[role="tab"]').forEach((t) => {
+  t.addEventListener('click', () => selectModule(t.dataset.tab, false));
+  t.addEventListener('keydown', (ev) => {
+    const tabs = Array.from(document.querySelectorAll('.tab[role="tab"]'));
+    const idx = tabs.indexOf(t);
+    if (idx < 0) return;
+    let next = -1;
+    if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') next = (idx + 1) % tabs.length;
+    else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') next = (idx - 1 + tabs.length) % tabs.length;
+    else if (ev.key === 'Home') next = 0;
+    else if (ev.key === 'End') next = tabs.length - 1;
+    if (next >= 0) {
+      ev.preventDefault();
+      selectModule(tabs[next].dataset.tab, true);
+    }
+  });
+});
+document.querySelectorAll('.phone-nav-btn[data-phone-tab]').forEach((b) => {
+  b.addEventListener('click', () => selectModule(b.dataset.phoneTab, false));
+});
+document.querySelectorAll('.more-sheet-item[data-more-tab]').forEach((b) => {
+  b.addEventListener('click', () => selectModule(b.dataset.moreTab, false));
+});
+if ($('phoneMoreBtn')) $('phoneMoreBtn').addEventListener('click', () => toggleMoreSheet($('moreModulesSheet').hidden));
+if ($('closeMoreSheetBtn')) $('closeMoreSheetBtn').addEventListener('click', () => toggleMoreSheet(false));
+if ($('moreSheetBackdrop')) $('moreSheetBackdrop').addEventListener('click', () => toggleMoreSheet(false));
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && $('moreModulesSheet') && !$('moreModulesSheet').hidden) toggleMoreSheet(false);
+});
 
 /* ── company ──────────────────────────────────────────────────────────── */
 async function loadCompany() {
@@ -582,6 +822,115 @@ async function loadEmployees() {
             <a class="link" onclick="removeEmployee('${e.employee_id}')">remove</a></td></tr>`).join('') +
       `</tbody></table><div class="muted" style="font-size:12px;margin-top:8px">${active.length} active</div>`;
 }
+const STATE_LABELS = {
+  AK: 'AK — Alaska', FL: 'FL — Florida', IL: 'IL — Illinois', KY: 'KY — Kentucky',
+  MO: 'MO — Missouri', NH: 'NH — New Hampshire', NV: 'NV — Nevada', PA: 'PA — Pennsylvania',
+  SD: 'SD — South Dakota', TN: 'TN — Tennessee', TX: 'TX — Texas', WA: 'WA — Washington', WY: 'WY — Wyoming',
+};
+function renderStateOptions(extraCode) {
+  const sel = $('e_statecode');
+  if (!sel) return;
+  const codes = [...new Set(state.supportedStates.map((c) => String(c).toUpperCase()))].sort();
+  let html = '<option value="">Select work state</option>' +
+    codes.map((c) => `<option value="${esc(c)}">${esc(STATE_LABELS[c] || c)}</option>`).join('');
+  const extra = String(extraCode || '').trim().toUpperCase();
+  if (extra && !codes.includes(extra)) {
+    html += `<option value="${esc(extra)}">${esc(extra)} (unsupported — manual rate)</option>`;
+  }
+  sel.innerHTML = html;
+}
+async function syncSupportedStates() {
+  try {
+    const r = await api('/states');
+    if (Array.isArray(r.supported) && r.supported.length) {
+      state.supportedStates = r.supported;
+      const cur = $('e_statecode') ? $('e_statecode').value : '';
+      renderStateOptions(cur);
+      if (cur && $('e_statecode')) $('e_statecode').value = cur;
+    }
+  } catch (_) { /* retain verified default list */ }
+}
+function setFieldValidity(inputId, errId, errMsg) {
+  const inp = $(inputId), err = $(errId);
+  if (inp) {
+    inp.classList.toggle('invalid', !!errMsg);
+    if (errMsg) inp.setAttribute('aria-invalid', 'true');
+    else inp.removeAttribute('aria-invalid');
+  }
+  if (err) err.textContent = errMsg || '';
+  return !errMsg;
+}
+function validateEmpField(kind) {
+  if (kind === 'first') return setFieldValidity('e_first', 'err_first', $('e_first').value.trim() ? '' : 'Enter a first name.');
+  if (kind === 'last') return setFieldValidity('e_last', 'err_last', $('e_last').value.trim() ? '' : 'Enter a last name.');
+  if (kind === 'pay') {
+    const salary = $('e_type').value === 'salary';
+    setFieldValidity(salary ? 'e_rate' : 'e_salary', salary ? 'err_rate' : 'err_salary', '');
+    const id = salary ? 'e_salary' : 'e_rate';
+    const errId = salary ? 'err_salary' : 'err_rate';
+    const raw = $(id).value.trim();
+    const ok = raw !== '' && Number.isFinite(Number(raw)) && Number(raw) > 0;
+    return setFieldValidity(id, errId, ok ? '' : (salary ? 'Enter an annual salary greater than 0.' : 'Enter an hourly rate greater than 0.'));
+  }
+  if (kind === 'statecode') {
+    return setFieldValidity('e_statecode', 'err_statecode', $('e_statecode').value.trim() ? '' : 'Select a work state.');
+  }
+  return true;
+}
+function clearEmpErrors() {
+  ['first', 'last', 'pay', 'statecode'].forEach((k) => {
+    const map = { first: ['e_first', 'err_first'], last: ['e_last', 'err_last'], pay: ['e_rate', 'err_rate'], statecode: ['e_statecode', 'err_statecode'] }[k];
+    setFieldValidity(map[0], map[1], '');
+  });
+  setFieldValidity('e_salary', 'err_salary', '');
+}
+function setEmpStep(step) {
+  const n = Math.max(1, Math.min(4, Number(step) || 1));
+  state.empStep = n;
+  for (let i = 1; i <= 4; i++) {
+    const pane = $('empStep' + i);
+    if (pane) pane.hidden = i !== n;
+  }
+  document.querySelectorAll('.emp-step-btn[data-step]').forEach((b) => {
+    if (Number(b.dataset.step) === n) b.setAttribute('aria-current', 'step');
+    else b.removeAttribute('aria-current');
+  });
+  if ($('empBackBtn')) $('empBackBtn').hidden = n === 1;
+  if ($('empNextBtn')) $('empNextBtn').hidden = n === 4;
+  if ($('empSaveBtn')) $('empSaveBtn').hidden = n !== 4;
+}
+function validateStep1() {
+  const okFirst = validateEmpField('first');
+  const okLast = validateEmpField('last');
+  const okPay = validateEmpField('pay');
+  if (!okFirst) { $('e_first').focus(); return false; }
+  if (!okLast) { $('e_last').focus(); return false; }
+  if (!okPay) { ($('e_type').value === 'salary' ? $('e_salary') : $('e_rate')).focus(); return false; }
+  return true;
+}
+function nextEmpStep() {
+  if (state.empStep === 1 && !validateStep1()) return;
+  setEmpStep(state.empStep + 1);
+}
+function prevEmpStep() { setEmpStep(state.empStep - 1); }
+document.querySelectorAll('.emp-step-btn[data-step]').forEach((b) => {
+  b.addEventListener('click', () => {
+    const target = Number(b.dataset.step);
+    if (target > 1 && state.empStep === 1 && !validateStep1()) return;
+    setEmpStep(target);
+  });
+});
+[['e_first', 'first'], ['e_last', 'last'], ['e_rate', 'pay'], ['e_salary', 'pay'], ['e_statecode', 'statecode']].forEach(([id, kind]) => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('blur', () => validateEmpField(kind));
+  el.addEventListener(id === 'e_statecode' ? 'change' : 'input', () => { if (el.classList.contains('invalid')) validateEmpField(kind); });
+});
+['e_step2', 'e_exempt'].forEach((id) => {
+  const el = $(id);
+  if (el) el.addEventListener('change', () => el.setAttribute('aria-checked', el.checked ? 'true' : 'false'));
+});
+
 function empTypeSwap() {
   const salary = $('e_type').value === 'salary';
   $('f_salary').style.display = salary ? '' : 'none';
@@ -590,12 +939,18 @@ function empTypeSwap() {
 }
 async function stateHint() {
   const code = ($('e_statecode').value || '').toUpperCase();
-  if (!code || code.length < 2) { $('stateHint').textContent = 'Enter a work state to see whether payroll has a verified withholding table for it.'; return; }
+  const manualField = $('f_state_manual');
+  if (manualField) {
+    const unsupported = !!code && !state.supportedStates.includes(code);
+    manualField.hidden = !unsupported;
+    manualField.style.display = unsupported ? '' : 'none';
+  }
+  if (!code || code.length < 2) { $('stateHint').textContent = 'Select a work state to view its verified 2026 withholding rule.'; return; }
   try {
     const r = await api('/states?code=' + encodeURIComponent(code));
     const d = r.detail || {};
     $('stateHint').innerHTML = d.supported
-      ? `<b class="ok">${esc(code)} is supported</b> (${esc(d.kind)}) — ${esc(d.note)} The manual rate below is ignored.`
+      ? `<b class="ok">${esc(code)} is supported</b> (${esc(d.kind)}) — ${esc(d.note)}`
       : `<b class="err">${esc(code)} has no verified table.</b> ${esc(d.note)}`;
   } catch (_) { /* hint only */ }
 }
@@ -607,39 +962,55 @@ function openEmpForm(id) {
   $('e_first').value = e ? e.first_name : ''; $('e_last').value = e ? e.last_name : ''; $('e_email').value = e ? (e.email || '') : '';
   $('e_type').value = e ? e.comp_type : 'hourly'; $('e_salary').value = e ? fromC(e.annual_salary_cents) : '';
   $('e_rate').value = e ? fromC(e.hourly_rate_cents) : ''; $('e_hours').value = e ? Number(e.default_hours) : 80;
-  $('e_filing').value = e ? e.filing_status : 'single'; $('e_step2').checked = !!(e && e.w4_step2);
+  $('e_filing').value = e ? e.filing_status : 'single';
+  $('e_step2').checked = !!(e && e.w4_step2); $('e_step2').setAttribute('aria-checked', $('e_step2').checked ? 'true' : 'false');
   $('e_dep').value = e ? fromC(e.w4_dependents_credit_cents) : 0; $('e_other').value = e ? fromC(e.w4_other_income_cents) : 0;
   $('e_ded').value = e ? fromC(e.w4_deductions_cents) : 0; $('e_extra').value = e ? fromC(e.w4_extra_withholding_cents) : 0;
   $('e_k401').value = e ? Number(e.k401_pct) : 0; $('e_roth').value = e ? Number(e.roth_pct) : 0;
   $('e_health').value = e ? fromC(e.health_per_period_cents) : 0; $('e_post').value = e ? fromC(e.other_posttax_cents) : 0;
   $('e_garn').value = e ? fromC(e.garnishment_cents) : 0;
   $('e_state').value = e ? Number(e.state_rate_pct) : 0;
-  $('e_statecode').value = e ? (e.state_code || '') : '';
+  const savedState = e ? String(e.state_code || '').toUpperCase() : '';
+  renderStateOptions(savedState);
+  $('e_statecode').value = savedState;
   $('e_allow').value = e ? Number(e.state_allowances || 0) : 0;
-  $('e_exempt').checked = !!(e && e.w4_exempt);
+  $('e_exempt').checked = !!(e && e.w4_exempt); $('e_exempt').setAttribute('aria-checked', $('e_exempt').checked ? 'true' : 'false');
   $('e_occ').value = e ? (e.tipped_occupation_code || '') : '';
   $('e_birth').value = e ? fmtD(e.birth_date) : '';
   $('e_hire').value = e ? fmtD(e.hire_date) : '';
   $('e_term').value = e ? fmtD(e.termination_date) : '';
+  if ($('f_term')) { $('f_term').hidden = !e; $('f_term').style.display = e ? '' : 'none'; }
   $('p_year').value = e && e.prior_ytd_year ? e.prior_ytd_year : '';
   $('p_wages').value = e ? fromC(e.prior_ytd_taxable_wages_cents) : 0;
   $('p_sstax').value = e ? fromC(e.prior_ytd_ss_taxable_cents) : 0;
   $('p_def').value = e ? fromC(e.prior_ytd_deferral_cents) : 0;
   $('p_supp').value = e ? fromC(e.prior_ytd_supplemental_cents) : 0;
+  clearEmpErrors();
+  setEmpStep(1);
   stateHint();
   empTypeSwap();
-  $('empForm').style.display = '';
-  $('empForm').scrollIntoView({ behavior:'smooth' });
+  const dlg = $('empForm');
+  dlg.style.display = '';
+  if (typeof dlg.showModal === 'function' && !dlg.open) dlg.showModal();
+  else dlg.setAttribute('open', '');
 }
-function closeEmpForm() { $('empForm').style.display = 'none'; state.editingEmp = null; }
+function closeEmpForm() {
+  const dlg = $('empForm');
+  if (typeof dlg.close === 'function' && dlg.open) dlg.close();
+  dlg.removeAttribute('open');
+  dlg.style.display = 'none';
+  state.editingEmp = null;
+}
 async function saveEmployee(btn) {
   return once('saveEmp', btn, () => saveEmployeeInner());
 }
 async function saveEmployeeInner() {
+  if (!validateStep1()) { setEmpStep(1); return; }
+  if (!validateEmpField('statecode')) { setEmpStep(4); $('e_statecode').focus(); return; }
   let body;
   try {
   body = {
-    firstName: $('e_first').value, lastName: $('e_last').value, email: $('e_email').value,
+    firstName: $('e_first').value.trim(), lastName: $('e_last').value.trim(), email: $('e_email').value,
     compType: $('e_type').value, annualSalaryCents: toC($('e_salary').value), hourlyRateCents: toC($('e_rate').value),
     defaultHours: Number($('e_hours').value), filingStatus: $('e_filing').value, w4Step2: $('e_step2').checked,
     w4DependentsCreditCents: toC($('e_dep').value), w4OtherIncomeCents: toC($('e_other').value),
@@ -650,7 +1021,7 @@ async function saveEmployeeInner() {
     stateAllowances: Number($('e_allow').value), w4Exempt: $('e_exempt').checked,
     tippedOccupationCode: $('e_occ').value,
     birthDate: $('e_birth').value || null, hireDate: $('e_hire').value || null,
-    terminationDate: $('e_term').value || null,
+    terminationDate: state.editingEmp ? ($('e_term').value || null) : null,
     priorYtdYear: $('p_year').value || null,
     priorYtdTaxableWagesCents: toC($('p_wages').value), priorYtdSsTaxableCents: toC($('p_sstax').value),
     priorYtdDeferralCents: toC($('p_def').value), priorYtdSupplementalCents: toC($('p_supp').value),
@@ -1227,7 +1598,7 @@ async function loadHolidays(btn) {
 /* ── boot ─────────────────────────────────────────────────────────────── */
 // The full page only: under an audience view the shared kit paints instead (see the head script).
 if (!window.AppView || !AppView.active()) (async () => {
-  try { await loadCompany(); await loadEmployees(); await loadRuns(); }
+  try { await syncSupportedStates(); await loadCompany(); await loadEmployees(); await loadRuns(); }
   catch (e) { msg(e.status === 401 ? 'Sign in to use Payroll.' : e.message, true); }
 })();
 </script>

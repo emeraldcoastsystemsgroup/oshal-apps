@@ -12,6 +12,8 @@
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register home-reply-words: an assistant reply shows **bold** as bold text without asterisks, markup stays text, and the transcript sits off the screen edge at 412 px (demo sweep 1).
 # 9 | maintainer@emeraldcoastsystemsgroup.com | home-connect-copy also expects the prompt to name the data as the Smart Home app's, never a snapshot (sweep 14).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register home-weather: the NWS forecast chain and its egress and tool declaration.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (home-dashboard): the inline Ask bar is removed, so home-phone-layout and home-reply-words (which proved it) are retired; home-empty-state registers the empty state, the refused refresh and the dashboard order; home-hubs-and-transcript keeps its Hubs view cases.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | home-empty-state also covers the Automations screen (the split).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -72,44 +74,32 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
-  - id: home-phone-layout
-    name: Ask bar on a phone
-    purpose: Scroll the real Smart Home page with a synthetic ten-device list in Chromium at 412 x 915 and in the 392 x 641 cockpit frame.
+  - id: home-empty-state
+    name: Smart Home with no hub, a refused refresh, and the dashboard order
+    purpose: Drive the real Smart Home page in Chromium at 412 x 915, in the 392 x 641 cockpit frame and at 1440 x 900 with synthetic reads (UX audit 2026-11-05, home-dashboard).
     level: browser
-    runner: { kind: node-test, scope: package, files: [tests/browser/home-phone-layout.test.cjs] }
+    runner: { kind: node-test, scope: package, files: [tests/browser/home-empty-state.test.cjs] }
     expected:
-      - At every scroll position a tap on the Ask input or Send lands on it, never on the diagnostic-brief panel.
-      - Nothing is wider than the screen and nothing is written.
+      - With no hub the page is one empty state (No devices yet) with one primary, Connect a hub, which opens the SmartThings and Google Home rows with Not connected pills; no schedule form, no Refresh, no inline Ask bar, no heading.
+      - A refused refresh (409) is an alert reading "SmartThings isn't connected yet. Connect it above." with Connect a hub, never a /utilities path.
+      - With devices the Smart Home screen is devices then scenes; the SmartThings pill says when it was read; the diagnostic brief stays withheld while no connected action mounts.
+      - Automations (?view=automations) holds the schedules and New schedule, or one empty state (No automations yet, Connect a hub) when nothing can run.
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
     limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
     installation: never
   - id: home-hubs-and-transcript
-    name: Chat transcript and Hubs view on a phone
-    purpose: Drive the real Smart Home page in Chromium at 412 x 915 and in the 392 x 641 cockpit frame with synthetic reads and a synthetic assistant answer.
+    name: Hubs view on a phone
+    purpose: Drive the real Smart Home page in Chromium at 412 x 915 and in the 392 x 641 cockpit frame with synthetic reads.
     level: browser
     runner: { kind: node-test, scope: package, files: [tests/browser/home-hubs-and-transcript.test.cjs] }
     expected:
-      - 'After Send the transcript shows "You: <message>" above the assistant''s answer and the input clears.'
       - With ?view=hubs the page shows the SmartThings connect link, the Google Home set-up link and the hubs that reported devices, hides the dashboard and chat, fits the screen and writes nothing.
-      - The plain dashboard keeps the hubs panel hidden, and the manifest Hubs tab opens /api/home/ui?view=hubs.
+      - The plain dashboard keeps the hubs panel hidden and has no inline Ask bar, and the manifest Hubs tab opens /api/home/ui?view=hubs.
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
     sideEffects: none
     isolation: { mode: none, cleanup: Each case closes its browser context; pages and answers are synthetic and served inside the browser with no network or server. }
-    limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
-    installation: never
-  - id: home-reply-words
-    name: Assistant reply words on a phone
-    purpose: Run the real Smart Home page's showTurn in Chromium at 412 x 915 with a synthetic reply.
-    level: browser
-    runner: { kind: node-test, scope: package, files: [tests/browser/home-reply-words.test.cjs] }
-    expected:
-      - A reply's **bold** words show as bold text with no asterisks, and markup in a reply stays text.
-      - The You line starts at least 12 px from the screen edge.
-    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
-    sideEffects: none
-    isolation: { mode: none, cleanup: The case closes its browser context; the page and answers are synthetic and served inside the browser with no network or server. }
     limits: { timeoutMs: 60000, maxMemoryMb: 1024 }
     installation: never
   - id: home-weather

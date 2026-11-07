@@ -10,6 +10,7 @@
  *   lands in the editor; a bot that never fits gets its draft with the limit said in words. Seams: the platform imports
  *   (bot dispatch, connector tokens, logger) are stand-ins and the shell's shared assets are empty. Needs the store toolchain
  *   (express, playwright, chromium).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (social--social-composer MERGE): /api/social/composer redirects to Workspace's Compose (/api/social/workspace?view=compose), where the person selects the X tab and drafts within the 280-character limit.
  */
 'use strict';
 const test = require('node:test');
@@ -57,6 +58,8 @@ async function serve() {
 async function draftOnce(browser, base) {
   const page = await (await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true })).newPage();
   await page.goto(`${base}/api/social/composer`);
+  await page.waitForURL(/\/api\/social\/workspace\?view=compose$/);
+  await page.getByRole('button', { name: /𝕏 X/ }).click();
   await page.locator('#topic').fill('round21 our new trail map');
   await page.locator('#draftBtn').click();
   await page.waitForFunction(() => document.getElementById('draftBtn').textContent.includes('Draft') && !document.getElementById('draftBtn').disabled && document.getElementById('text').value.length > 0);

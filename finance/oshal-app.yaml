@@ -9,6 +9,8 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | uses: specialist-context and the finance_facts read tool. Jarvis now hands "how is my finance doing?" to the finance-analyst, which had no data channel and asked the person to provide their data; routes/finance-routes.js registers a reader of the caller's saved finance state (routes/finance-facts.js) under finance_facts. Version unchanged.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5: finance-summary (GET /api/finance/summary) gives the analyst the saved aggregate, so a spending question is answered from the person's categorized transactions; it had only finance_facts and said it could not query transactions. Guarded by finance/tests/finance-summary-tool.test.cjs.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: a demo installation's accounts: with the FINANCE_DEMO_DATA setting, POST /demo-data writes a curated sample aggregate (named banks, healthy balances, holdings, spending, dated relative to now; its notes say it is sample data) and Re-analyze writes the real analyst's brief over it. Off by default; a real link and sync always overwrite it (Roger, 2026-11-02: clean up the demo's data and screens).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (UX audit 2026-11-05, finance-home, C): the overview is read only and its brief sits under the four tiles, so Re-analyze's spinner and answer appear where the button is (the button did post /brief/refresh; the answer landed 2,400 px down). Accounts in Assets and Liabilities (owed amounts negative), sortable, with Holdings and Spending beside them from 1040 px; Sync is an icon beside the synced date. A new Linked banks tile (?view=banks) holds the linked institutions, Add account and the transfer history. The money-sending form is withheld: POST /pay takes only a typed payment-method id and no route lists the person's own payment methods, so it cannot offer a funding-source select.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: the sortable column headers read as plain header text (the kernel table kit's sort button kept the browser's button box on this page; trial check 2026-11-06).
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — finance ("Finance")
@@ -69,7 +71,7 @@ description: >-
   Link your banks and brokerages (via Plaid — OSHAL never sees your bank password)
   and see everything in one place: net worth, accounts, holdings, and spending, with
   a plain-English brief. Read-only — nothing is traded or moved. No crypto.
-version: 1.3.0
+version: 1.4.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -225,6 +227,12 @@ ui:
       icon: codicon codicon-graph-line
       iframeUrl: /api/finance/
       section: top
+    # Linked banks: connect and remove banks, and the transfer history, off the read-only overview (UX audit 2026-11-05).
+    - toolName: finance-banks
+      label: Linked banks
+      icon: codicon codicon-plug
+      iframeUrl: /api/finance/?view=banks
+      section: bottom
     # Money bundle (operator decision 2026-07-31): finance.oshal.ai is the front door for
     # everything money — trading, macro/geo context, prediction markets. Distinct toolNames
     # from each sibling app's own tile (ADR-085 D11: tile/tool names are effectively global).

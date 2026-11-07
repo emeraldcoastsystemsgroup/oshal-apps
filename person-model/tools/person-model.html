@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light-blue">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ambient Recall</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <link rel="stylesheet" href="/api/person-model/ui/person-model.css" />
+  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>Ambient Recall</h1>
+    <p class="sub">
+      Ask what someone said. Answers are counted from your own transcripts — the number is exact,
+      the lines are quoted verbatim, and playback re-speaks them in the assistant voice. Topics,
+      asks and trends are oshal's read of those words, always shown beside them, and can be deleted.
+      No audio is ever stored.
+    </p>
+
+    <nav class="tabs" role="tablist" aria-label="Ambient Recall sections">
+      <button type="button" role="tab" data-tab="recall" aria-selected="true">Recall</button>
+      <button type="button" role="tab" data-tab="asks" aria-selected="false">Asks</button>
+      <button type="button" role="tab" data-tab="people" aria-selected="false">People</button>
+      <button type="button" role="tab" data-tab="trends" aria-selected="false">Trends</button>
+    </nav>
+
+    <section data-panel="recall">
+      <div class="ask">
+        <input id="q" type="text" autocomplete="off"
+               placeholder="How many times has Ella mentioned volleyball today?" />
+        <button id="go" type="button">Recall</button>
+      </div>
+      <p class="examples">Try:
+        <code data-ex="How many times has Ella mentioned volleyball today?">count a topic</code> ·
+        <code data-ex="What did Sam say about the school trip?">what did they say</code> ·
+        <code data-ex="What has Ella asked me?">open asks</code>
+      </p>
+      <div id="answer" class="answer">
+        <div class="note" data-testid="recall-initial-empty">
+          Ask a question above to count exact mentions and view verbatim transcript quotes.
+        </div>
+      </div>
+    </section>
+
+    <section data-panel="asks" hidden>
+      <div class="row">
+        <input id="asks-person" type="text" autocomplete="off" placeholder="Person (blank = anyone)" />
+        <button id="asks-load" type="button" class="btn">Show open asks</button>
+      </div>
+      <p class="meta">
+        Asks and commitments are inferences — oshal's read of what was said — and each one is shown
+        beside the words it came from so you can judge it. Marking one done is your call.
+      </p>
+      <div id="asks-list"></div>
+    </section>
+
+    <section data-panel="people" hidden>
+      <div id="people-list"></div>
+      <div id="profile" hidden></div>
+    </section>
+
+    <section data-panel="trends" hidden>
+      <h2>Topics by week</h2>
+      <div class="row">
+        <input id="trend-person" type="text" autocomplete="off" placeholder="Person (blank = anyone)" />
+        <select id="trend-weeks" aria-label="Weeks">
+          <option value="1">this week</option>
+          <option value="2" selected>2 weeks</option>
+          <option value="4">4 weeks</option>
+          <option value="8">8 weeks</option>
+          <option value="12">12 weeks</option>
+        </select>
+        <button id="trend-load" type="button" class="btn">Show</button>
+      </div>
+      <div id="trend-out"></div>
+      <h2>What two people both talk about</h2>
+      <div class="row">
+        <input id="conn-a" type="text" autocomplete="off" placeholder="First person" />
+        <input id="conn-b" type="text" autocomplete="off" placeholder="Second person" />
+        <button id="conn-load" type="button" class="btn">Compare</button>
+      </div>
+      <div id="conn-out"></div>
+    </section>
+
+    <footer id="status" data-testid="projection-status" class="status"></footer>
+  </div>
+
+  <script type="module" src="/api/person-model/ui/person-model.js"></script>
+</body>
+</html>

@@ -7,26 +7,32 @@
 <!--
   CHANGE LOG
   ---------------------------------------------------------------------------
-  DATE           | AUTHOR                                      | DESCRIPTION
+  SEQ | AUTHOR                                    | DESCRIPTION
   ---------------------------------------------------------------------------
-  2026-08-05     | maintainer@emeraldcoastsystemsgroup.com     | Replace retired kernel-manifest advice with the installed package manifest and current package-install workflow.
-  2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; the page used --lm-border/--lm-panel/--lm-code tokens that were defined nowhere plus a dark hex palette, now mapped onto the real tokens (--lm-line, --lm-card, --lm-input-bg, semantic pills); hero, settings card, fields and the provider list use the system; it says plainly that the choices are device-local and that engine status is read from /voice-config only; toasts replace the inline "Saved" flag and the alert
-  2026-10-29     | maintainer@emeraldcoastsystemsgroup.com     | The provider preview reads the HTTP status, not a success field: the kernel answers {data:{audioData,format}} with no success flag, so every working preview said "Preview failed".
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Replace retired kernel-manifest advice with the installed package manifest and current package-install workflow.
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; mapped onto real tokens; hero, settings card, fields and provider list use the system.
+  3   | maintainer@emeraldcoastsystemsgroup.com   | The provider preview reads the HTTP status, not a success field: the kernel answers {data:{audioData,format}} with no success flag, so every working preview said "Preview failed".
+  4   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-voice-settings FIX-LAYOUT): withhold 'Voice engines on this server' and 'How the defaults are changed (operators)' from students (shown only to teachers and app admins); omit empty section headings when no TTS/STT provider is listed; save Read things aloud, voice and speed immediately on change with a quiet 'Saved' line and Preview as the single primary; state 'These choices are saved on this device.' once; update speed live while dragging with a tertiary Reset to Default (recommended) and 1×.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js" data-theme-default="classroom"></script>
 <link rel="stylesheet" href="/api/education/education.css">
 <style>
+  [hidden] { display: none !important; }
   /* Design-system gap: no range slider component yet, so one page-local slider on tokens. */
   .lm-range { -webkit-appearance: none; appearance: none; width: 100%; height: var(--lm-touch); margin: 0; background: transparent; cursor: pointer; }
   .lm-range::-webkit-slider-runnable-track { height: 8px; border-radius: var(--lm-radius-pill); background: var(--lm-accent-soft); }
-  .lm-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%; background: var(--lm-accent); border: 3px solid var(--lm-card); box-shadow: var(--lm-shadow-soft); }
+  .lm-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%; background: var(--lm-accent); border: 3px solid var(--lm-card); box-shadow: none; }
   .lm-range::-moz-range-track { height: 8px; border-radius: var(--lm-radius-pill); background: var(--lm-accent-soft); }
-  .lm-range::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--lm-accent); border: 3px solid var(--lm-card); box-shadow: var(--lm-shadow-soft); }
+  .lm-range::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--lm-accent); border: 3px solid var(--lm-card); box-shadow: none; }
   .lm-range:focus-visible { outline-offset: 0; }
-  .rate-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .rate-row output { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--lm-accent); }
+  .rate-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .rate-meta { display: inline-flex; align-items: center; gap: 8px; }
+  .rate-row output { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--lm-ink); min-width: 3.2ch; text-align: right; }
+  .reset-btn { min-height: var(--lm-touch); padding: 0 8px; }
+  .voice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+  .saved-line { color: var(--lm-muted); font-size: 13px; }
 
   .prov-side { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .prov-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -47,7 +53,7 @@
     <div>
       <div class="lm-eyebrow">Read-aloud</div>
       <h1 class="lm-display">How should I sound?</h1>
-      <p class="lm-lead">Pick the voice and speed Little Monsters uses when it reads to you. These choices are saved on this device only, and they apply to every Little Monsters page you open here.</p>
+      <p class="lm-lead">Pick the voice and speed Little Monsters uses when it reads to you.</p>
     </div>
     <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
   </header>
@@ -56,7 +62,7 @@
     <div class="lm-card">
       <div class="lm-card-kicker">My read-aloud</div>
       <label class="lm-check" for="vEnabled">
-        <input type="checkbox" id="vEnabled">
+        <input type="checkbox" role="switch" id="vEnabled">
         <span>Read things aloud</span>
       </label>
       <div class="lm-field lm-mt-md">
@@ -72,18 +78,24 @@
         </select>
       </div>
       <div class="lm-mb-md">
-        <div class="rate-row"><label class="lm-label" for="vRate" style="margin:0">Speaking speed</label><output id="vRateLabel" for="vRate">1×</output></div>
+        <div class="rate-row">
+          <label class="lm-label" for="vRate" style="margin:0">Speaking speed</label>
+          <div class="rate-meta">
+            <output id="vRateLabel" for="vRate">1×</output>
+            <button type="button" class="lm-text-button reset-btn" id="vReset">Reset</button>
+          </div>
+        </div>
         <input type="range" class="lm-range" id="vRate" min="0.6" max="1.4" step="0.05" value="1" aria-label="Speaking speed">
       </div>
-      <div class="lm-hero-actions" style="margin-top:6px">
-        <button type="button" class="lm-btn lm-btn-primary" id="vSave">Save on this device</button>
-        <button type="button" class="lm-btn lm-btn-ghost" id="vPreview">&#128264; Preview</button>
+      <div class="voice-actions">
+        <button type="button" class="lm-btn lm-btn-primary" id="vPreview">&#128264; Preview</button>
+        <span class="saved-line" id="vSavedStatus" role="status" aria-live="polite"></span>
       </div>
-      <p class="lm-help">Saved in this browser only, so a different device keeps its own choices. Preview and read-aloud send the words to the voice engine below; the settings themselves never leave this device.</p>
+      <p class="lm-help" id="vCaveat">These choices are saved on this device.</p>
     </div>
   </section>
 
-  <section class="lm-section">
+  <section class="lm-section" id="enginesSection" hidden>
     <div class="lm-section-head">
       <h2>Voice engines on this server</h2>
       <span class="lm-subtle lm-small">For reference — read from the server’s voice config, not changed here.</span>
@@ -91,11 +103,11 @@
     <div id="content"><div class="lm-loading">Checking the voice engines…</div></div>
   </section>
 
-  <section class="lm-section">
+  <section class="lm-section" id="operatorSection" hidden>
     <div class="lm-card is-compact">
       <details class="operator">
         <summary>How the defaults are changed (operators)</summary>
-        <p class="lm-help">Operator defaults come from the <code>voice</code> block in the installed Little Monsters <code>oshal-app.yaml</code>. Publish the manifest change, reinstall with <code>node scripts/oshal-app.js install little-monsters</code>, then restart the controller. The personal choices above remain device-local.</p>
+        <p class="lm-help">Operator defaults come from the <code>voice</code> block in the installed Little Monsters <code>oshal-app.yaml</code>. Publish the manifest change, reinstall with <code>node scripts/oshal-app.js install little-monsters</code>, then restart the controller.</p>
         <code class="edit-hint" id="hintTts">voice.tts.provider = "—"  →  change to "browser" | "gemini-tts" | "google-cloud-tts"</code>
         <code class="edit-hint" id="hintStt">voice.stt.provider = "—"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"</code>
       </details>
@@ -113,34 +125,58 @@
   var voice = document.getElementById('vVoice');
   var rate = document.getElementById('vRate');
   var rateLabel = document.getElementById('vRateLabel');
+  var savedStatus = document.getElementById('vSavedStatus');
   enabled.checked = get('lm-tts-enabled', '1') !== '0';
   voice.value = get('lm-tts-voice', '');
   rate.value = get('lm-tts-rate', '1');
   rateLabel.textContent = fmtRate(rate.value);
-  rate.addEventListener('input', function () { rateLabel.textContent = fmtRate(rate.value); });
-  document.getElementById('vSave').addEventListener('click', function () {
+
+  function savePrefs() {
     try {
       localStorage.setItem('lm-tts-enabled', enabled.checked ? '1' : '0');
       localStorage.setItem('lm-tts-voice', voice.value);
       localStorage.setItem('lm-tts-rate', rate.value);
-      window.LM.toast('Saved on this device ✓');
-    } catch (e) { window.LM.toast('Could not save the settings: ' + e.message); }
+      savedStatus.textContent = 'Saved';
+    } catch (e) {
+      savedStatus.textContent = 'Could not save on this device';
+    }
+  }
+
+  enabled.addEventListener('change', savePrefs);
+  voice.addEventListener('change', savePrefs);
+  rate.addEventListener('input', function () {
+    rateLabel.textContent = fmtRate(rate.value);
+    savePrefs();
+  });
+  rate.addEventListener('change', savePrefs);
+  document.getElementById('vReset').addEventListener('click', function () {
+    voice.value = '';
+    rate.value = '1';
+    rateLabel.textContent = fmtRate('1');
+    savePrefs();
   });
   document.getElementById('vPreview').addEventListener('click', function () {
-    // Save first so the preview reflects the current choices, then speak.
-    try {
-      localStorage.setItem('lm-tts-enabled', '1');
-      localStorage.setItem('lm-tts-voice', voice.value);
-      localStorage.setItem('lm-tts-rate', rate.value);
-    } catch (e) { /* ignore */ }
+    savePrefs();
+    var wasOff = !enabled.checked;
+    if (wasOff) { try { localStorage.setItem('lm-tts-enabled', '1'); } catch (e) { /* ignore */ } }
     if (window.lmSpeak) window.lmSpeak('Hi! This is how I will read things aloud for you.');
     else window.LM.toast('Read-aloud is not available on this page right now.');
+    if (wasOff) { try { localStorage.setItem('lm-tts-enabled', '0'); } catch (e) { /* ignore */ } }
   });
 })();
 </script>
 
 <script>
 (async function () {
+  var who = window.LM && window.LM.me ? await window.LM.me() : null;
+  var role = who && who.role ? String(who.role) : 'student';
+  if (role !== 'teacher' && role !== 'admin') return;
+
+  var enginesSection = document.getElementById('enginesSection');
+  var operatorSection = document.getElementById('operatorSection');
+  enginesSection.hidden = false;
+  operatorSection.hidden = false;
+
   const root = document.getElementById('content');
   const esc = window.LM.esc;
   let payload;
@@ -162,6 +198,7 @@
   document.getElementById('hintStt').textContent = 'voice.stt.provider = "' + sttDefault + '"  →  change to "browser" | "gemini-stt" | "google-cloud-stt"';
 
   function renderSection(title, providers, defaultId, serverSideId, kind) {
+    if (!Array.isArray(providers) || !providers.length) return '';
     const items = providers.map(function (p) {
       const ok = Boolean(p.status && p.status.configured);
       const badge = p.id === defaultId
@@ -185,11 +222,11 @@
     return '<h3 class="lm-section-label lm-mt-md">' + title + '</h3><ul class="lm-list">' + items + '</ul>';
   }
 
-  root.innerHTML = ''
-    + renderSection('Text-to-speech', payload.tts.providers, ttsDefault, ttsServerSide, 'tts')
-    + '<audio id="preview-audio" controls hidden></audio>'
-    + '<p id="preview-msg" class="lm-help" aria-live="polite"></p>'
-    + renderSection('Speech-to-text', payload.stt.providers, sttDefault, null, 'stt');
+  const ttsHtml = renderSection('Text-to-speech', payload.tts && payload.tts.providers, ttsDefault, ttsServerSide, 'tts');
+  const sttHtml = renderSection('Speech-to-text', payload.stt && payload.stt.providers, sttDefault, null, 'stt');
+  root.innerHTML = (ttsHtml || sttHtml)
+    ? ttsHtml + '<audio id="preview-audio" controls hidden></audio><p id="preview-msg" class="lm-help" aria-live="polite"></p>' + sttHtml
+    : '<p class="lm-help">No server voice engines are registered.</p>';
 
   async function previewProvider(providerId, btn) {
     const msg = document.getElementById('preview-msg');

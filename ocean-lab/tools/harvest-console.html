@@ -6,6 +6,12 @@
   dependency). Consumes the framework theme tokens READ-ONLY; every rule below either reads a
   framework token or defines a surface-local alias. (.html is exempt from the CHANGE LOG header
   and the file-size rules.)
+  UX audit 2026-11-06 (ocean-lab--ocean-lab-harvest-console): two views, Soil siting and Tidal reference. The parameters
+  are a 320px pane in four groups (Site; Junctions; Converter and storage; Cursor) with a number field beside each slider
+  and Reset to defaults, and on a phone a half sheet from a Parameters item in the bottom bar; the verdict and KPIs (2
+  per row on a phone) and the first chart come first. The intro and each caption are one sentence; the long captions and
+  The model moved to Help. The analysis brief is a sheet from a Brief button, painted with the theme tokens (the fixed dark
+  box is gone), Use visible results a secondary button. Every control keeps its id; the model is unchanged.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -266,19 +272,77 @@
     font-variant-numeric: tabular-nums; box-shadow: var(--card-shadow);
   }
   #tooltip[hidden] { display: none; }
+
+  /* UX audit 2026-11-06: two views; the parameters as a 320px pane (a half sheet on a phone) in four groups, a number
+     field beside each slider and Reset to defaults; one-sentence captions with the derivation in Help; the analysis
+     brief as a sheet painted with the theme; the first chart above the fold. */
+  .hero-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .hero-row .spacer { flex: 1; }
+  .btn, .link { min-height: 44px; }
+  .link { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0 6px; font: inherit; }
+  .view-bar { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
+  .view-tab { min-height: 44px; padding: 0 16px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+  .view-tab[aria-pressed="true"], .view-tab[aria-expanded="true"] { color: var(--text, inherit); border-bottom-color: var(--accent); }
+  .phone-only { display: none !important; }
+  .lab { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .lab.one { grid-template-columns: minmax(0, 1fr); }
+  .lab[hidden] { display: none; }
+  .controls.params { display: block; margin: 0; position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--panel, var(--bg-card, #0c1120)); }
+  .pgroup { border: 0; border-top: 1px solid var(--line); margin: 0 0 6px; padding: 8px 0 0; display: grid; gap: 10px; }
+  .pgroup:first-of-type { border-top: 0; padding-top: 0; }
+  .pgroup legend { font-size: 12px; font-weight: 700; color: var(--dim); padding: 0; margin-bottom: 4px; }
+  .ctl .row input[type=range] { flex: 1; min-width: 0; }
+  .ctl .row input.num { width: 76px; min-height: 36px; padding: 0 6px; font: inherit; font-size: 13px; text-align: right; border: 1px solid var(--line); border-radius: 6px; background: var(--bg, transparent); color: inherit; }
+  .ctl .row .unit { font-size: 12px; color: var(--dim); min-width: 34px; }
+  .ctl .row output.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #c-wiring { width: 100%; min-width: 0; }
+  .ctl select { min-height: 40px; width: 100%; }
+  .results { min-width: 0; }
+  .results .verdict { margin-top: 0; }
+  #cv-heatmap { height: 360px; }
+  dialog#help, dialog#brief { max-width: 760px; width: calc(100% - 32px); max-height: 85vh; overflow: auto; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--panel, var(--bg-card, #0c1120)); color: var(--text, inherit); padding: 0 18px 18px; }
+  dialog#brief { max-width: 520px; }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog .sheet-head, .params .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 56px; position: sticky; top: 0; background: inherit; }
+  dialog h3 { font-size: 14px; margin: 14px 0 4px; }
+  .brief-label { display: block; margin-top: 10px; font-size: 13px; }
+  .brief-label textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 6px; font: inherit; background: var(--bg, transparent); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  @media (max-width: 760px) {
+    .phone-only { display: inline-flex !important; align-items: center; justify-content: center; }
+    .params .sheet-head.phone-only { display: flex !important; }
+    .lab { grid-template-columns: minmax(0, 1fr); }
+    .controls.params { display: none; }
+    body.params-open .controls.params { display: block; position: fixed; left: 0; right: 0; top: auto; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); max-height: 50vh; z-index: 30;
+      border-radius: 16px 16px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.35); }
+    .view-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 72px env(safe-area-inset-bottom, 0px) 4px;
+      background: var(--panel, var(--bg-card, #0c1120)); border-top: 1px solid var(--line); border-bottom: 0; }
+    .view-tab { flex: 1; padding: 0 2px; font-size: 12px; border-bottom: 0; border-top: 2px solid transparent; }
+    .view-tab[aria-pressed="true"], .view-tab[aria-expanded="true"] { border-top-color: var(--accent); }
+    body.params-open .view-tab[aria-pressed="true"] { border-top-color: transparent; }
+    .page { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); flex-basis: 100%; }
+    .verdict .word { font-size: 30px; }
+  }
+  /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
+     sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
+  .controls.params, dialog#help, dialog#brief, dialog#export, .gl-wrap .fit { background: linear-gradient(var(--panel), var(--panel)), var(--bg); }
+  dialog .sheet-head, .params .sheet-head { background: linear-gradient(var(--panel), var(--panel)), var(--bg); }
+  @media (max-width: 760px) { .view-bar { background: linear-gradient(var(--panel), var(--panel)), var(--bg) !important; } }
 </style>
 </head>
 <body>
 <div class="page">
 
   <header class="hero">
-    <h1>Harvest Siting Console</h1>
-    <p>
-      Two harvest domains on one page. A buried thermoelectric node lives off the phase lag between
-      two depths in soil; a moored node lives off a tidal current. Both are sized the same way — by
-      simulating the longest stretch the environment gives them nothing, never by an average.
-      Every number below is computed in your browser from the model described at the foot of the page.
-    </p>
+    <div class="hero-row">
+      <h1>Harvest Siting Console</h1>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="brief-open" aria-haspopup="dialog">Brief</button>
+      <button type="button" class="btn" id="help-open" aria-haspopup="dialog">Help</button>
+    </div>
+    <p>Size a buried thermoelectric node, or a moored tidal one, by the longest stretch its environment gives it nothing.</p>
     <p>
       <span class="badge">illustrative parameters — not survey data</span>
       <span class="badge" id="provenance">local model</span>
@@ -291,70 +355,89 @@
     <code>/api/ocean-lab/harvest/assets/harvest-console.js</code>.
   </div>
 
-  <!-- One filter band, above everything it scopes. Never a filter inside a chart card. -->
-  <section class="controls glass-panel" aria-label="Design controls">
-    <div class="ctl">
+  <!-- Two views, one job each (UX audit 2026-11-06, SPLIT): the buried soil node, and the tidal reference. -->
+  <nav class="view-bar" aria-label="Harvest console views">
+    <button type="button" class="view-tab" id="tab-soil" data-view="soil" aria-pressed="true">Soil siting</button>
+    <button type="button" class="view-tab" id="tab-tidal" data-view="tidal" aria-pressed="false">Tidal reference</button>
+    <button type="button" class="view-tab phone-only" id="tab-params" aria-expanded="false" aria-controls="params">Parameters</button>
+  </nav>
+
+  <div class="lab" id="view-soil">
+    <!-- Parameters: a 320px pane on desktop, a half sheet from the bottom bar on a phone. -->
+    <aside class="controls params" id="params" aria-label="Design controls">
+      <div class="sheet-head phone-only"><strong>Parameters</strong><button type="button" class="link" id="params-done">Done</button></div>
+      <fieldset class="pgroup"><legend>Site</legend>
+        <div class="ctl">
       <label for="c-site">Site climate</label>
       <select id="c-site"></select>
     </div>
-    <div class="ctl">
+        <div class="ctl">
       <label for="c-soil">Soil type</label>
       <select id="c-soil"></select>
     </div>
-    <div class="ctl">
+      </fieldset>
+      <fieldset class="pgroup"><legend>Junctions</legend>
+        <div class="ctl">
+      <label for="c-a-hot">Pair A hot junction</label>
+      <div class="row"><input type="range" id="c-a-hot" min="0.02" max="1" step="0.01" value="0.05" /><output id="c-a-hot-out">0.05 m</output></div>
+    </div>
+        <div class="ctl">
+      <label for="c-a-cold">Pair A cold junction</label>
+      <div class="row"><input type="range" id="c-a-cold" min="0.1" max="1.5" step="0.01" value="0.35" /><output id="c-a-cold-out">0.35 m</output></div>
+    </div>
+        <div class="ctl">
+      <label for="c-b-hot">Pair B hot junction</label>
+      <div class="row"><input type="range" id="c-b-hot" min="0.1" max="3" step="0.05" value="0.6" /><output id="c-b-hot-out">0.60 m</output></div>
+    </div>
+        <div class="ctl">
+      <label for="c-b-cold">Pair B cold junction</label>
+      <div class="row"><input type="range" id="c-b-cold" min="0.5" max="6" step="0.05" value="3" /><output id="c-b-cold-out">3.00 m</output></div>
+    </div>
+      </fieldset>
+      <fieldset class="pgroup"><legend>Converter and storage</legend>
+        <div class="ctl">
       <label for="c-wiring">Wiring</label>
       <select id="c-wiring"></select>
     </div>
-    <div class="ctl">
+        <div class="ctl">
       <label for="c-area">Collector area</label>
       <div class="row"><input type="range" id="c-area" min="0.02" max="2" step="0.01" value="0.25" /><output id="c-area-out">0.25 m²</output></div>
     </div>
-    <div class="ctl">
+        <div class="ctl">
       <label for="c-rteg">Module resistance</label>
       <div class="row">
         <input type="range" id="c-rteg" min="0.2" max="40" step="0.1" value="9.6" /><output id="c-rteg-out">9.6 K/W</output>
       </div>
       <button class="btn" id="c-match" type="button">Match to pair B soil path</button>
     </div>
-    <div class="ctl">
-      <label for="c-a-hot">Pair A hot junction</label>
-      <div class="row"><input type="range" id="c-a-hot" min="0.02" max="1" step="0.01" value="0.05" /><output id="c-a-hot-out">0.05 m</output></div>
-    </div>
-    <div class="ctl">
-      <label for="c-a-cold">Pair A cold junction</label>
-      <div class="row"><input type="range" id="c-a-cold" min="0.1" max="1.5" step="0.01" value="0.35" /><output id="c-a-cold-out">0.35 m</output></div>
-    </div>
-    <div class="ctl">
-      <label for="c-b-hot">Pair B hot junction</label>
-      <div class="row"><input type="range" id="c-b-hot" min="0.1" max="3" step="0.05" value="0.6" /><output id="c-b-hot-out">0.60 m</output></div>
-    </div>
-    <div class="ctl">
-      <label for="c-b-cold">Pair B cold junction</label>
-      <div class="row"><input type="range" id="c-b-cold" min="0.5" max="6" step="0.05" value="3" /><output id="c-b-cold-out">3.00 m</output></div>
-    </div>
-    <div class="ctl">
-      <label for="c-load">Load</label>
-      <div class="row"><input type="range" id="c-load" min="0.005" max="3" step="0.005" value="0.25" /><output id="c-load-out">0.250 mW</output></div>
-    </div>
-    <div class="ctl">
+        <div class="ctl">
       <label for="c-cutin">Converter cut-in</label>
       <div class="row"><input type="range" id="c-cutin" min="0" max="0.5" step="0.005" value="0.02" /><output id="c-cutin-out">0.020 mW</output></div>
     </div>
-    <div class="ctl">
+        <div class="ctl">
+      <label for="c-load">Load</label>
+      <div class="row"><input type="range" id="c-load" min="0.005" max="3" step="0.005" value="0.25" /><output id="c-load-out">0.250 mW</output></div>
+    </div>
+        <div class="ctl">
       <label for="c-cap">Store capacity</label>
       <div class="row"><input type="range" id="c-cap" min="0.01" max="2" step="0.01" value="0.1" /><output id="c-cap-out">0.10 Wh</output></div>
     </div>
-    <div class="ctl">
+      </fieldset>
+      <fieldset class="pgroup"><legend>Cursor</legend>
+        <div class="ctl">
       <label for="c-day">Cursor — day of run</label>
       <div class="row"><input type="range" id="c-day" min="0" max="730" step="1" value="104" /><output id="c-day-out">104</output></div>
     </div>
-    <div class="ctl">
+        <div class="ctl">
       <label for="c-hour">Cursor — hour</label>
       <div class="row"><input type="range" id="c-hour" min="0" max="23" step="1" value="6" /><output id="c-hour-out">6:00</output></div>
     </div>
-  </section>
+      </fieldset>
+      <button type="button" class="link" id="reset-defaults">Reset to defaults</button>
+    </aside>
 
-  <section class="verdict summary-card" id="verdict" aria-live="polite">
+    <div class="results">
+<section class="verdict summary-card" id="verdict" aria-live="polite">
     <div class="lead">
       <span class="icon" id="verdict-icon">●</span>
       <span class="word" id="verdict-word">—</span>
@@ -371,16 +454,8 @@
 
   <section class="section-card">
     <h2>Soil temperature field — two years by depth</h2>
-    <p class="cap">
-      Colour is temperature, diverging about the soil mean, so the neutral midpoint reads as "nothing
-      to harvest here". Two things are visible in one frame. <b>Damping:</b> the annual wave fades
-      toward the midpoint with depth — at the default soil its damping depth is 2.24 m, so 4 m down
-      it retains under a fifth of the surface swing. <b>Phase lag:</b> the pale contour is the
-      soil-mean isotherm, and it tilts steadily right with depth because deeper soil crosses its own
-      mean later — roughly a season behind by 3 m. That lag, not the geothermal gradient, is what
-      gives a buried pair any dT at all. The lower strip re-zooms to 14 days and 0.6 m, where the
-      24-hour wave is resolvable and dies out by about half a metre.
-    </p>
+    <p class="cap">Colour is temperature about the soil mean; the pale contour tilting with depth is the phase lag that gives a buried pair its dT.</p>
+
     <div class="chart"><canvas id="cv-heatmap" role="img"
       aria-label="Soil temperature as a function of depth and time over two years, with the diurnal detail below"></canvas></div>
     <div class="legend">
@@ -392,15 +467,8 @@
 
   <section class="section-card">
     <h2>dT across each junction pair — and the windows where it yields nothing</h2>
-    <p class="cap">
-      The design story. Pair B is driven by the annual wave alone: its dT sweeps through zero twice a
-      year, and because harvested power goes as dT squared, it sits below the converter's cut-in for
-      <b>weeks</b> each time — the shaded windows. (They fall near the equinoxes, offset by the
-      depth-dependent phase lag rather than landing exactly on them.) Pair A is driven by the diurnal
-      wave, drawn as a min/max envelope because its daily swing is far faster than one pixel column
-      here; it nulls twice a <b>day</b>, for about an hour. The two never null together, which is why
-      wiring both into one converter collapses the worst-case gap from weeks to hours.
-    </p>
+    <p class="cap">Pair B nulls for weeks near each equinox and pair A for about an hour twice a day; they never null together.</p>
+
     <div class="chart"><canvas id="cv-delta" role="img"
       aria-label="Temperature difference across each junction pair over two years, with sub-cut-in windows shaded, and a fourteen-day zoom"></canvas></div>
     <div class="legend">
@@ -412,14 +480,8 @@
 
   <section class="section-card">
     <h2>State of charge</h2>
-    <p class="cap">
-      The same two years and the same x axis, so the store's decline lines up with the shaded null it
-      is riding through. Two series: the design <b>as wired</b>, and the counterfactual of the annual
-      pair working <b>alone</b>. At the default store the counterfactual flatlines on its
-      depth-of-discharge floor through every equinox null — that region is the brownout the shallow
-      pair exists to prevent. Change <em>Wiring</em> to "deep annual pair only" to make it the live
-      design and watch the verdict flip.
-    </p>
+    <p class="cap">The store as wired against the annual pair alone, on the same two years; the alone case browns out through every equinox null.</p>
+
     <div class="chart"><canvas id="cv-soc" role="img"
       aria-label="State of charge over two years for the design as wired and for the annual pair alone, with brownout regions marked"></canvas></div>
     <div class="legend">
@@ -433,24 +495,16 @@
   <div class="two-up">
     <section class="section-card">
       <h2>Buried node, in section</h2>
-      <p class="cap">
-        Nothing here is decorative: the soil column is painted from the same temperature field as the
-        heatmap, evaluated at the instant the two cursor sliders point to, and the plate's width is
-        the square root of the collector area against the slab's own metre scale. Scrub the hour
-        slider to watch the top few centimetres swing while everything below half a metre stays put.
-      </p>
+      <p class="cap">The soil column is painted from the same field at the cursor's day and hour; scrub the hour to watch the top centimetres swing.</p>
+
       <div class="chart"><canvas id="cv-cutaway" role="img"
         aria-label="Cross-section of the buried node showing the surface plate, both junction pairs, the store, and the live soil temperature gradient"></canvas></div>
     </section>
 
     <section class="section-card">
       <h2>Thermal impedance match</h2>
-      <p class="cap">
-        Heat has to <b>flow</b> to be converted, and only the fraction of dT that falls across the
-        module does any work. Sweeping the module's thermal resistance against power at pair B's peak
-        dT gives a curve that peaks exactly where the module matches the soil path. Raw dT is the
-        environment's to give; the match is yours to choose.
-      </p>
+      <p class="cap">Power at pair B's peak dT against the module's thermal resistance peaks where the module matches the soil path.</p>
+
       <div class="chart"><canvas id="cv-match" role="img"
         aria-label="Electrical power against module thermal resistance, peaking where module resistance equals the soil path resistance"></canvas></div>
       <div class="legend">
@@ -461,34 +515,9 @@
     </section>
   </div>
 
-  <section class="section-card">
-    <h2>Marine reference domain — a tidal node over one spring/neap beat</h2>
-    <p class="cap">
-      The same grammar on the other environment, so the comparison is between the domains rather than
-      between two chart styles. Flow speed is drawn as a min/max envelope because the 12.42-hour
-      carrier is far faster than a pixel column — and that envelope <em>is</em> the spring/neap beat,
-      which nobody sets: it emerges from the lunar and solar semidiurnal constituents drifting in and
-      out of phase every 14.77 days. Note the contrast worth taking away: this node harvests watts
-      where the buried one harvests microwatts, but it is bound by exactly the same rule — the neap
-      minimum sets the store, not the thirty-day mean. This panel has its own fixed illustrative load
-      and store; it does not move with the controls above.
-    </p>
-    <div class="chart"><canvas id="cv-marine" role="img"
-      aria-label="Tidal flow speed envelope over thirty days with the node's state of charge below"></canvas></div>
-    <div class="legend">
-      <span><i class="line" data-series="2"></i> Flow speed (daily envelope)</span>
-      <span><i class="line" data-series="0"></i> Store</span>
-      <span><i class="wash" data-status="critical"></i> brownout</span>
-    </div>
-  </section>
-
-  <section class="section-card">
+<section class="section-card">
     <h2>Table view</h2>
-    <p class="cap">
-      Every value the charts encode in colour or position, as text. The three gap figures are the
-      finding: annual-only in weeks, diurnal-only in hours, and both pairs together no worse than the
-      shorter of the two.
-    </p>
+    <p class="cap">Every value the charts encode in colour or position, as text.</p>
     <div class="scroller">
       <table>
         <caption class="cap" style="text-align: left; caption-side: bottom; padding-top: 8px;">
@@ -501,9 +530,81 @@
       </table>
     </div>
   </section>
+    </div>
+  </div>
 
+  <div class="lab one" id="view-tidal" hidden>
+    <div class="results">
   <section class="section-card">
-    <h2>The model</h2>
+    <h2>Marine reference domain — a tidal node over one spring/neap beat</h2>
+    <p class="cap">The flow envelope is the spring/neap beat; the neap minimum, not the thirty-day mean, sets the store (its own fixed load and store).</p>
+
+    <div class="chart"><canvas id="cv-marine" role="img"
+      aria-label="Tidal flow speed envelope over thirty days with the node's state of charge below"></canvas></div>
+    <div class="legend">
+      <span><i class="line" data-series="2"></i> Flow speed (daily envelope)</span>
+      <span><i class="line" data-series="0"></i> Store</span>
+      <span><i class="wash" data-status="critical"></i> brownout</span>
+    </div>
+  </section>
+    </div>
+  </div>
+
+  <dialog id="help" aria-labelledby="help-title">
+    <div class="sheet-head"><strong id="help-title">How the console works</strong><button type="button" class="link" id="help-close">Done</button></div>
+    <h3>The two domains</h3>
+    <p class="cap">
+      A buried thermoelectric node lives off the phase lag between two depths in soil; a moored node lives off a tidal
+      current. Both are sized the same way — by simulating the longest stretch the environment gives them nothing, never
+      by an average. Every number is computed in your browser from the model below.
+    </p>
+    <h3>Soil temperature field — two years by depth</h3>
+    <p class="cap">Colour is temperature, diverging about the soil mean, so the neutral midpoint reads as "nothing
+      to harvest here". Two things are visible in one frame. <b>Damping:</b> the annual wave fades
+      toward the midpoint with depth — at the default soil its damping depth is 2.24 m, so 4 m down
+      it retains under a fifth of the surface swing. <b>Phase lag:</b> the pale contour is the
+      soil-mean isotherm, and it tilts steadily right with depth because deeper soil crosses its own
+      mean later — roughly a season behind by 3 m. That lag, not the geothermal gradient, is what
+      gives a buried pair any dT at all. The lower strip re-zooms to 14 days and 0.6 m, where the
+      24-hour wave is resolvable and dies out by about half a metre.</p>
+    <h3>dT across each junction pair — and the windows where it yields nothing</h3>
+    <p class="cap">The design story. Pair B is driven by the annual wave alone: its dT sweeps through zero twice a
+      year, and because harvested power goes as dT squared, it sits below the converter's cut-in for
+      <b>weeks</b> each time — the shaded windows. (They fall near the equinoxes, offset by the
+      depth-dependent phase lag rather than landing exactly on them.) Pair A is driven by the diurnal
+      wave, drawn as a min/max envelope because its daily swing is far faster than one pixel column
+      here; it nulls twice a <b>day</b>, for about an hour. The two never null together, which is why
+      wiring both into one converter collapses the worst-case gap from weeks to hours.</p>
+    <h3>State of charge</h3>
+    <p class="cap">The same two years and the same x axis, so the store's decline lines up with the shaded null it
+      is riding through. Two series: the design <b>as wired</b>, and the counterfactual of the annual
+      pair working <b>alone</b>. At the default store the counterfactual flatlines on its
+      depth-of-discharge floor through every equinox null — that region is the brownout the shallow
+      pair exists to prevent. Change <em>Wiring</em> to "deep annual pair only" to make it the live
+      design and watch the verdict flip.</p>
+    <h3>Buried node, in section</h3>
+    <p class="cap">Nothing here is decorative: the soil column is painted from the same temperature field as the
+        heatmap, evaluated at the instant the two cursor sliders point to, and the plate's width is
+        the square root of the collector area against the slab's own metre scale. Scrub the hour
+        slider to watch the top few centimetres swing while everything below half a metre stays put.</p>
+    <h3>Thermal impedance match</h3>
+    <p class="cap">Heat has to <b>flow</b> to be converted, and only the fraction of dT that falls across the
+        module does any work. Sweeping the module's thermal resistance against power at pair B's peak
+        dT gives a curve that peaks exactly where the module matches the soil path. Raw dT is the
+        environment's to give; the match is yours to choose.</p>
+    <h3>Marine reference domain — a tidal node over one spring/neap beat</h3>
+    <p class="cap">The same grammar on the other environment, so the comparison is between the domains rather than
+      between two chart styles. Flow speed is drawn as a min/max envelope because the 12.42-hour
+      carrier is far faster than a pixel column — and that envelope <em>is</em> the spring/neap beat,
+      which nobody sets: it emerges from the lunar and solar semidiurnal constituents drifting in and
+      out of phase every 14.77 days. Note the contrast worth taking away: this node harvests watts
+      where the buried one harvests microwatts, but it is bound by exactly the same rule — the neap
+      minimum sets the store, not the thirty-day mean. This panel has its own fixed illustrative load
+      and store; it does not move with the controls above.</p>
+
+    <h3>Table view</h3>
+    <p class="cap">The three gap figures are the finding: annual-only in weeks, diurnal-only in hours, and both pairs together no worse than the shorter of the two.</p>
+<h3>The model</h3>
     <p class="cap">
       <b>Soil.</b> The harmonic solution to the one-dimensional heat equation in a semi-infinite
       solid: T(z,t) = T_mean + A·exp(−z/d)·cos(ωt − z/d), with damping depth d = √(2α/ω). The annual
@@ -529,11 +630,80 @@
       its sites are merged into the picker and its verdict appears as a cross-check row in the table;
       the headline verdict is always the one computed here, so the page cannot contradict itself.
     </p>
-  </section>
+  
+  </dialog>
+
+  <dialog id="brief" class="brief-sheet" aria-labelledby="brief-title">
+    <div class="sheet-head"><strong id="brief-title">Prepare an analysis document</strong><button type="button" class="link" id="brief-close">Done</button></div>
+    <p class="cap">Capture the visible simulation verdict, then edit the brief. These are modeled results, not measured performance.</p>
+    <button type="button" class="btn" id="captureLabEvidence">Use visible results</button>
+    <label class="brief-label">Analysis brief<textarea id="labNotes" rows="6"></textarea></label>
+    <div id="labActions"></div><p id="labReviewState" role="status"></p>
+  </dialog>
 
   <div id="tooltip" role="status" hidden></div>
 </div>
 
+<script>
+// Views, the parameters pane or sheet, number fields beside the sliders, Reset to defaults, Help and Brief
+// (UX audit 2026-11-06). harvest-console.js still owns every control's value and the model.
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function setView(v) {
+    var view = v === 'tidal' ? 'tidal' : 'soil';
+    $('view-soil').hidden = view !== 'soil'; $('view-tidal').hidden = view !== 'tidal';
+    $('tab-soil').setAttribute('aria-pressed', String(view === 'soil')); $('tab-tidal').setAttribute('aria-pressed', String(view === 'tidal'));
+    closeParams();
+    try { history.replaceState(null, '', location.pathname + location.search + (view === 'tidal' ? '#view=tidal' : '')); } catch (_) {}
+    window.dispatchEvent(new Event('resize'));
+  }
+  function closeParams() { document.body.classList.remove('params-open'); $('tab-params').setAttribute('aria-expanded', 'false'); }
+  $('tab-soil').addEventListener('click', function () { setView('soil'); });
+  $('tab-tidal').addEventListener('click', function () { setView('tidal'); });
+  $('tab-params').addEventListener('click', function () {
+    if (document.body.classList.contains('params-open')) return closeParams();
+    setView('soil'); document.body.classList.add('params-open'); $('tab-params').setAttribute('aria-expanded', 'true');
+  });
+  $('params-done').addEventListener('click', closeParams);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeParams(); });
+  // A number field beside each slider: it shows the slider's value and drives it (input/change, as the slider does).
+  var defaults = {};
+  document.querySelectorAll('#params input[type=range]').forEach(function (range) {
+    defaults[range.id] = range.value;
+    var out = $(range.id + '-out'), unit = document.createElement('span'), num = document.createElement('input');
+    num.type = 'number'; num.className = 'num'; num.min = range.min; num.max = range.max; num.step = range.step; num.value = range.value;
+    num.setAttribute('aria-label', (document.querySelector('label[for="' + range.id + '"]') || {}).textContent || range.id);
+    unit.className = 'unit'; unit.textContent = out ? out.textContent.replace(/^[-\d.,:]+\s*/, '') : '';
+    if (range.id === 'c-hour') unit.textContent = 'h'; if (range.id === 'c-day') unit.textContent = 'day';
+    if (out) out.classList.add('sr');
+    range.insertAdjacentElement('afterend', num); num.insertAdjacentElement('afterend', unit);
+    range.addEventListener('input', function () { num.value = range.value; });
+    num.addEventListener('change', function () {
+      var v = Math.min(Number(range.max), Math.max(Number(range.min), Number(num.value)));
+      if (!Number.isFinite(v)) { num.value = range.value; return; }
+      range.value = String(v); num.value = range.value;
+      range.dispatchEvent(new Event('input', { bubbles: true })); range.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  // A picker's default is its value before the person first touches it (the engine fills the pickers after load).
+  var firstSelect = {};
+  document.querySelectorAll('#params select').forEach(function (sel) {
+    var keep = function () { if (!(sel.id in firstSelect)) firstSelect[sel.id] = sel.value; };
+    sel.addEventListener('focus', keep); sel.addEventListener('pointerdown', keep); sel.addEventListener('keydown', keep);
+  });
+  $('reset-defaults').addEventListener('click', function () {
+    document.querySelectorAll('#params select').forEach(function (sel) {
+      if (firstSelect[sel.id] !== undefined && sel.value !== firstSelect[sel.id]) { sel.value = firstSelect[sel.id]; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    document.querySelectorAll('#params input[type=range]').forEach(function (range) {
+      range.value = defaults[range.id]; range.dispatchEvent(new Event('input', { bubbles: true })); range.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  function dlg(open, close, id) { $(open).addEventListener('click', function () { var d = $(id); closeParams(); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }); $(close).addEventListener('click', function () { $(id).close(); }); }
+  dlg('help-open', 'help-close', 'help'); dlg('brief-open', 'brief-close', 'brief');
+  setView(/(^|[#&])view=tidal\b/.test(location.hash) ? 'tidal' : 'soil');
+})();
+</script>
 <script>
   /*
    * Engine loader. This page may be served from a router-owned path, a static mount, or straight out
@@ -570,13 +740,6 @@
   }());
 </script>
 
-<details id="labReview" style="position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px));max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box">
- <summary>Prepare an analysis document</summary>
- <p>Capture the visible simulation verdict, then edit the brief. These are modeled results, not measured performance.</p>
- <button type="button" id="captureLabEvidence">Use visible results</button>
- <label>Analysis brief<textarea id="labNotes" rows="6" style="width:100%;box-sizing:border-box"></textarea></label>
- <div id="labActions"></div><p id="labReviewState" role="status"></p>
-</details>
 <script>
 // The full page only: under an audience view no connected-actions plan is fetched and no capture handler is bound.
 if (!window.AppView || !AppView.active()) (async()=>{const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');const notes=document.getElementById('labNotes');

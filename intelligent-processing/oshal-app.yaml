@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Native port of the platform's Intelligent Processing queue. The native kernel held only its migrated declaration, so activating it opened nothing. It keeps its own ticket queue and runs it on Intelligent Operations' RCA specialist and reviewer, imported under dependencies.required.bots (the platform borrowed rca-specialist without declaring it). Its three screens (/intelligent-processing, /system-health, /alert-pipeline-admin) and the Alertmanager intake that opened its tickets are platform TypeScript with no native route, so the tiles are left out and the description says tickets are filed by hand.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The queue screen, natively: ui/index.html (with its model ui/queue-model.js) is served from this package's own assets at /apps/intelligent-processing/ui/index.html and declared as the package's tile. It lists the caller's tickets on this queue from the kernel's GET /api/tickets, one row per alert, and files an alert with POST /api/v1/tickets. The cockpit rail's Intelligent Processing item opened the platform's /intelligent-processing page, which the native kernel never served (an empty 404). No route, bot, workflow or permission change.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.0.2: the application opens on its own queue screen. ribbon.defaultView named the kernel's framework `tickets` view, so /cockpit/?app=intelligent-processing landed on the global Tickets list of every application (UX audit 2026-11-05, intelligent-processing-queue, grade F) although the installed copy already declared and admitted the queue tile. defaultView now names that tile; the framework items stay as they were.
 name: intelligent-processing
 suite: ai-engineering
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -23,7 +24,7 @@ description: >-
   Intelligent Operations' RCA pipeline (investigate, review, revise), proposing a fix for an operator
   to run. On this installation no alert source opens these tickets and the platform's System Health
   and Pipeline Admin screens are not available, so tickets are filed by hand with the alert text.
-version: 1.0.1
+version: 1.0.2
 status: active
 scope: public
 access:
@@ -87,5 +88,5 @@ ui:
       iframeUrl: /apps/intelligent-processing/ui/index.html
       section: top
 ribbon:
-  defaultView: tickets
+  defaultView: intelligent-processing-queue   # its own queue screen, never the global Tickets list
   hideFrameworkItems: []

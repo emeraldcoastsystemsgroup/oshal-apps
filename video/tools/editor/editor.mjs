@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | A held Motion import keeps a newly opened draft intact instead of attaching its old source to another project.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Automatically save and refresh the concierge's current editable timeline; fence delayed saves to their original project.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §4.4, §5.1): Delete project asks in the page (the Project menu's confirm sheet) instead of a native confirm (DS-30); selecting a clip on a phone turns the bottom tool row into the clip's tools instead of opening a drawer over the work, and Done in that row clears the selection; the first screen's status line is short (DS-31).
  */
 import {readVideoArtifact} from './artifact-import.mjs';
 import {bindVideoFoundation} from './editor-foundation-adapter.mjs';
@@ -23,7 +24,8 @@ import { createExporter } from './editor-export.mjs';
 
 const incomingVideoRefs=new URLSearchParams(location.search).getAll('artifact');
 const $ = id => document.getElementById(id);
-const state = { history: null, projectId: null, revision: null, savedText: '', selected: null, permissions: {}, busy: false, draftEpoch: 0 };
+const state = { history: null, projectId: null, revision: null, savedText: '', selected: null, permissions: {}, busy: false, draftEpoch: 0, deleteConfirmed: false };
+const wideScreen = () => !matchMedia('(max-width:800px)').matches;
 let player, exporter, multitrack, foundation;
 let textSelection=null;
 function selection(){return textSelection&&doc()[textSelection.kind]?.some(item=>item.id===textSelection.id)?textSelection:doc().version===2?(multitrack?.selected()?{kind:'clip',id:multitrack.selected().clip.id}:null):(state.selected?{kind:'segment',id:state.selected}:null);}
@@ -183,7 +185,9 @@ async function saveNow(asNew = false) {
 async function deleteProject() {
   if (state.busy || !state.projectId || !state.permissions.delete) return;
   const name = doc().name;
-  if (!confirm(`Delete the project "${name}" and its exports? This cannot be undone.`)) return;
+  // The person confirms in the page (the Project menu's sheet); a press that did not come through it opens that sheet.
+  if (!state.deleteConfirmed) { foundation?.confirmDelete?.(); return; }
+  state.deleteConfirmed = false;
   hideError(); state.busy = true; setStatus('Deleting…'); render();
   const key = draftKey();
   try {
@@ -249,7 +253,7 @@ function wireTimeline() {
   $('track').addEventListener('click', event => {
     const id = event.target.closest('[data-segment]')?.dataset.segment;
     if (!id) return;
-    textSelection=null;state.selected = id; render();foundation?.showPanel('properties');
+    textSelection=null;state.selected = id; render();if (wideScreen()) foundation?.showPanel('properties');
     player.seek(model.timelineLayout(doc()).find(row => row.id === id).start);
   });
   $('sources').addEventListener('click', event => {
@@ -335,14 +339,15 @@ function wireProject() {
 async function init() {
   state.history = createTimelineHistory(model.createTimeline('Untitled video'));
   state.savedText = JSON.stringify(doc());
-  multitrack = createMultitrackEditor({ doc, apply, editable, frame: () => player?.frame() ?? 0, error: showError, onSelect:()=>{textSelection=null;foundation?.refresh();foundation?.showPanel('properties');},selectText });
+  multitrack = createMultitrackEditor({ doc, apply, editable, frame: () => player?.frame() ?? 0, error: showError, onSelect:()=>{textSelection=null;foundation?.refresh();if(wideScreen())foundation?.showPanel('properties');},selectText });
   player = createPlayer({ viewer: $('viewer'), bed: $('bedAudio'), overlay: $('titleOverlay'), noPicture: $('noPicture'), playhead: $('playhead'),
     clock: $('clock'), play: $('play') }, doc, () => undefined);
   exporter = createExporter({ exportButton: $('exportMp4'), previewButton: $('renderPreview'), cancel: $('cancelExport'), progress: $('exportProgress'),
     status: $('exportStatus'), hint: $('exportHint'), download: $('downloadExport'), watch: $('watchExport') },
   () => ({ projectId: state.projectId, revision: state.revision, dirty: dirty(), canExport: !!state.permissions.export }));
   wireTimeline(); wireInspector(); wireProject();
-  try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo});foundation.refresh(); } catch(failure){showError('The common editor could not start: '+failure.message);}
+  try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo,
+    permissions:()=>state.permissions,clearSelection:()=>{textSelection=null;state.selected=null;multitrack?.deselect();render();},confirmNext:()=>{state.deleteConfirmed=true;}});foundation.refresh(); } catch(failure){showError('The common editor could not start: '+failure.message);}
   try { const current = await call('/permissions'); state.permissions = current.permissions; configureMediaTransport(current.nativeMedia); }
   catch (error) {
     showError(describe(error)); setStatus('The video editor is not available to you.'); render();
@@ -351,7 +356,7 @@ async function init() {
   $('newProject').disabled = !state.permissions.create;
   const id = new URLSearchParams(location.search).get('project');
   if (id && state.permissions.read) await open(id);
-  else { startNew(); await loadProjects(); setStatus(state.permissions.create ? 'Ready. Add a clip to start.' : 'Your access does not include creating projects.'); }
+  else { startNew(); await loadProjects(); setStatus(state.permissions.create ? 'Ready.' : 'Your access does not include creating projects.'); }
   try { await bindDocumentHandoff(); }
   catch (failure) { showError(`The concierge cannot synchronize this document: ${failure.message}`); }
   try{await acceptVideoArtifact();}catch(failure){showError('The clip could not be imported: '+failure.message);}

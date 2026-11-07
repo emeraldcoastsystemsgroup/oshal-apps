@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-22 23:30:56 | roger.murphy@emeraldcoastsystemsgroup.com  | Add a full-surface character, inventory, potential, and current-resource view with explicit spell-slot availability.
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The sheet portrait asks only for bundled art (tokenArtUrl); a hero without it keeps the plain frame.
+ * 2026-11-07 01:12:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-party): add showLibraryCharacterSheet so saved characters in My Characters can open a read-only character sheet before starting a game.
  */
 
 'use strict';
@@ -77,9 +78,25 @@ function characterInventoryRows(inventory, actions) {
   }).join('');
 }
 
+function showLibraryCharacterSheet(record, onBack) {
+  const sheet = (record && record.sheet) || {};
+  const maxHp = Number(sheet.maxHp || sheet.hp) || 10;
+  const token = {
+    kind: 'pc', slug: sheet.id || 'hero', name: sheet.name || 'Hero',
+    hp: maxHp, maxHp, ac: Number(sheet.ac) || 10, speed: Number(sheet.speed) || 30,
+    slots: { ...(sheet.slots || {}) },
+    _libraryOptions: {
+      sheet, kicker: 'Saved character · stats · inventory',
+      closeLabel: 'Back to My Characters', onClose: onBack || closeOverlay,
+    },
+  };
+  showCharacterSheet(token);
+}
+
 function showCharacterSheet(token) {
   if (!token || token.kind !== 'pc') return;
-  const sheet = boardSheets[token.slug] || sheetOf(token) || {};
+  const options = token._libraryOptions || {};
+  const sheet = options.sheet || boardSheets[token.slug] || sheetOf(token) || {};
   const inventory = inventoryOf(sheet), actions = sheet.actions || [];
   const ready = actions.filter((action) => actionResourceStatus(token, action).available);
   const abilities = sheet.abilities ? ['str', 'dex', 'con', 'int', 'wis', 'cha'].map((key) =>
@@ -90,7 +107,9 @@ function showCharacterSheet(token) {
   const saves = deathSaveScore(token);
   const condition = isDowned(token) ? `<span>☠ <b>${token.stable ? 'STABLE' : `DOWN · S${saves.successes}/F${saves.failures}`}</b></span>`
     : token.dead ? '<span>☠ <b>FALLEN</b></span>' : '<span class="alive"><b>ALIVE</b></span>';
-  overlay(`<div class="sheet-head"><span class="sheet-portrait"${artStyle(tokenArtUrl(token.slug))}></span><div><div class="sheet-kicker">Full character · current resources · inventory</div><h1>${esc(sheet.name || token.name)}</h1><p>${esc(`${sheet.race || ''} ${sheet.class || ''}`.trim())} · Level ${Number(sheet.level) || 1}</p></div></div>
+  const kicker = options.kicker || 'Full character · current resources · inventory';
+  const closeLabel = options.closeLabel || 'Back to the table';
+  overlay(`<div class="sheet-head"><span class="sheet-portrait"${artStyle(tokenArtUrl(token.slug))}></span><div><div class="sheet-kicker">${esc(kicker)}</div><h1>${esc(sheet.name || token.name)}</h1><p>${esc(`${sheet.race || ''} ${sheet.class || ''}`.trim())} · Level ${Number(sheet.level) || 1}</p></div></div>
     <div class="character-sheet-scroll">
       <section class="sheet-section character-now"><h2>Available right now <small>${ready.length} of ${actions.length} actions ready</small></h2>
         <div class="sheet-vitals"><span>❤ <b>${token.hp}/${token.maxHp}</b> HP</span>${condition}<span>🛡 <b>${token.ac}</b> AC</span><span>👟 <b>${token.speed}</b> ft</span></div>
@@ -102,9 +121,9 @@ function showCharacterSheet(token) {
       <section class="sheet-section"><h2>🎒 Actual inventory <small>${inventory.items.length} kinds of gear</small></h2><div class="inventory-grid">${characterInventoryRows(inventory, actions)}</div><div class="coins">${coins}</div></section>
       <section class="sheet-section"><h2>★ Features</h2><ul>${features}</ul></section>
     </div>
-    <button class="big character-close" id="sheetClose">Back to the table</button>`, 'character-sheet');
+    <button class="big character-close" id="sheetClose">${esc(closeLabel)}</button>`, 'character-sheet');
   $('overlayCard').classList.add('character-full');
-  $('sheetClose').onclick = closeOverlay;
+  $('sheetClose').onclick = options.onClose || closeOverlay;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

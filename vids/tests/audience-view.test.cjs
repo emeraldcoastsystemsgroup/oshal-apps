@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Vids Studio has no page file: GET /api/vids/app sends SURFACE_HTML, a template literal in src-routes/vids-routes.ts, so the page file is that source. The tests prove the compiled routes/vids-routes.js serves the source template unchanged and that the block holds no backtick, dollar-brace or backslash (a template literal would alter any of them). The family view is asserted as behaviour over a stub kit and a stub fetch: on open it reads only GET /jobs (the newest nine), /home-summary and the artifact record of each finished video shown, never a write; the stats name what they count (queued and running together, finished in five days, not finished, the video maker) and a queued video is never called being made; each tile names its kind and where it stands, and only a finished video with its export attached opens its same-origin private preview in a new tab; the video maker reads as ready, registered but not online, or not connected; signed out, refused, failed, unreachable and malformed reads each read as what they are. The page's own inline start and module script are run with stubs too: under an audience view they bind no control, read nothing, do not poll, add no handoff listener and append no connected-actions section.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Record document.body and window listeners in runInline so the inline start stub matches delegated artifact controls and beforeunload guard.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -219,8 +220,12 @@ test('signed out, refused, failed, unreachable and malformed reads each read as 
 function runInline(activeView) {
   const s = served.indexOf('<script>', served.indexOf('<body>')) + 8, src = served.slice(s, served.indexOf('</script>', s));
   const fetches = [], timers = [], nodes = {}, kit = { active: () => activeView };
-  const documentStub = { documentElement: { setAttribute() {} }, getElementById: (nid) => (nodes[nid] = nodes[nid] || { id: nid, value: '', onclick: null, onchange: null }) };
-  new Function('window', 'AppView', 'document', 'fetch', 'setInterval', src)({ AppView: kit }, kit, documentStub,
+  const documentStub = {
+    documentElement: { setAttribute() {} },
+    body: { addEventListener: (ev, fn) => { nodes['body:' + ev] = { id: 'body:' + ev, onclick: fn }; } },
+    getElementById: (nid) => (nodes[nid] = nodes[nid] || { id: nid, value: '', onclick: null, onchange: null })
+  };
+  new Function('window', 'AppView', 'document', 'fetch', 'setInterval', src)({ AppView: kit, addEventListener() {} }, kit, documentStub,
     (url, opt) => { fetches.push(((opt && opt.method) || 'GET') + ' ' + url); return new Promise(() => {}); }, (_fn, ms) => { timers.push(ms); });
   return { fetches, timers, bound: Object.values(nodes).filter((n) => n.onclick || n.onchange).map((n) => n.id).sort() };
 }
@@ -243,7 +248,7 @@ function runModule(activeView) {
 
 test('under an audience view the full page binds no control, reads nothing, does not poll and mounts no handoff or offer', () => {
   assert.deepEqual(runInline('family'), { fetches: [], timers: [], bound: [] });
-  assert.deepEqual(runInline(null), { fetches: ['GET /api/vids/jobs'], timers: [4000], bound: ['go', 'rows'] }, 'the full page still starts');
+  assert.deepEqual(runInline(null), { fetches: ['GET /api/vids/jobs'], timers: [4000], bound: ['body:change', 'body:click', 'go'] }, 'the full page still starts');
   assert.deepEqual(runModule('family'), { calls: [], appended: 0 });
   assert.deepEqual(runModule(null), { calls: ['receiveHandoff vids', 'mountConnectedActions vids'], appended: 1 }, 'the full page still mounts its handoff and offer');
 });

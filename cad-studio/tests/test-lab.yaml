@@ -15,6 +15,8 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register engine-down-words: with no engine the page says once, in words, that the CAD engine is not answering on this installation, never the host's install command (demo sweep 1).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register document-handoff: the person and the concierge edit the same part in turn through the shared document handoff, over the compiled routes and a disposable PostgreSQL database.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 0.3.2: register phone-editor (one app bar row on a phone, Project and Rebuild in More, content within 74 px).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register surface-design-standard (the design standard's contract, New part as the empty canvas's first action, one primary, no native dialog, the Part menu, and the five planned controls RP-CAD-01 to -05 in their places); phone-editor now ends the app bar with Export and More.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: update surface-design-standard for live RP-CAD-01..05 controls (zero planned placeholders) and register rp-cad-exports-print-measure covering OBJ/MTL, 3MF, GLB, USDZ, sharp-edge mm/in measurement, AR QR, and honest printer queue handoff.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -224,6 +226,59 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: surface-design-standard
+    name: CAD Studio to the design standard
+    purpose: >-
+      Prove the served studio against the design standard: it declares a studio whose first action is a press and marks
+      its work; the empty canvas opens on New part through the shared start card, with no create-or-open paragraph; the
+      markup's one primary is Export (once a part is open) and New part is a Part menu item; it never opens a native
+      prompt or confirm (New part posts a ready Untitled part on a 60 x 40 x 30 mm box); the app row holds no disclosure;
+      and all five reference-product functions (Measure in mm/in, 3D View Cube + Fit, OBJ/MTL and 3MF, View in AR, and
+      Send to printer) are live controls in their places with zero planned placeholders remaining.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-design-standard.test.js
+    expected:
+      - The contract is declared, New part is the start card's first action, Export is the one primary and no native dialog is called.
+      - New part posts {title Untitled part, base box 60 x 40 x 30} and nothing else.
+      - Measure follows Add feature and Report in the tool strip, the 7-view cube + Fit sit in the canvas's top-right corner, AR on its right edge, and OBJ, MTL, 3MF and Send to printer are live in the Export sheet.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: rp-cad-exports-print-measure
+    name: Reference-product mesh exports, CAD measurement, AR QR, and printer handoff
+    purpose: >-
+      Prove Wavefront OBJ + MTL, 3MF OPC ZIP, GLB 2.0, and uncompressed 64-byte-aligned USDZ round-trip geometry
+      (RP-CAD-03, RP-CAD-04), sharp feature-edge extraction and mm/in measurement (RP-CAD-01), AR SVG QR encoding, and
+      confirmed OctoPrint / Moonraker / PrusaLink print-queue uploads with zero fake printing claims when unconfigured (RP-CAD-05).
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/rp-cad-exports.test.js
+        - tests/rp-cad-print-measure.test.js
+    expected:
+      - OBJ + MTL, 3MF, GLB, and USDZ round-trip an 8-vertex, 12-triangle 60 x 40 x 30 mm solid with valid headers and alignment.
+      - Missing printer URL or missing confirm returns printing:false; loopback OctoPrint, Moonraker, and PrusaLink receive valid 3MF bytes.
+      - Sharp-edge extraction yields 12 box edges and measurement converts 25.4 mm to 1.000 in.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
   - id: part-list-names
     name: Parts that share a name read differently
     purpose: >-
@@ -317,7 +372,7 @@ cases:
     purpose: At 390x844 with touch the app's name is not repeated, Project and Rebuild wait in More, content starts within 74 px of the frame, and Rebuild from More rebuilds the part and closes the sheet (Roger F9 and the trial check, 2026-11-06).
     level: browser
     runner: {kind: external, scope: package, files: [tests/phone-editor.native.test.mjs]}
-    expected: [One app bar row ending New part and More, Content within 74 px of the frame, Rebuild from More advances the revision and returns to its place]
+    expected: [One app bar row ending Export and More, New part waits in More, Content within 74 px of the frame, Rebuild from More advances the revision and returns to its place]
     prerequisites: [runner:node, runtime:docker-existing-reviewed-cad-image, service:postgres-disposable-35689, runtime:kernel-shared-ui, runtime:playwright]
     sideEffects: fixture-write
     isolation: {mode: disposable, cleanup: "Remove only the labelled fixture engine container, temporary artifact directory and unique SQL schema/role; preserve shared services."}

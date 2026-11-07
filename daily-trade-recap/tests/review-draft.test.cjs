@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | A brief typed on the review page before "Open it in the cockpit" is there when the cockpit opens the same page. The page's own module script (imports stubbed, everything before its first network read) runs twice over one tab's sessionStorage: typing on the first load keeps the draft, and the second load (the cockpit's frame) fills Title/Brief/Source with it and says so. A hand-off that arrives later still replaces it. Before, the cockpit opened the review with empty fields.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | The page's module runs up to its connected-actions mount, which now sits in a try (a failed mount withholds the brief).
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -14,7 +15,7 @@ const test = require('node:test');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'tools', 'review.html'), 'utf8');
 const moduleStart = html.indexOf('<script type="module">');
-const body = html.slice(html.indexOf('{', html.indexOf('if (!window.AppView', moduleStart)) + 1, html.indexOf('await mountConnectedActions', moduleStart));
+const body = html.slice(html.indexOf('{', html.indexOf('if (!window.AppView', moduleStart)) + 1, html.indexOf('try{await mountConnectedActions', moduleStart));
 
 /** One load of the page's module script in a tab whose sessionStorage is `storage`. */
 function load(storage) {

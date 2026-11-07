@@ -11,6 +11,8 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Timeline builder: year-or-date, event and detail entries kept in browser storage and drawn in order along a vertical line
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero, two-column layout (timeline beside the add form, form first on phones), system fields and buttons, event cards on a token-drawn line, an empty state with a call to action, LM.toast for add/remove and validation notices, removal by stored index instead of content matching, and a plain line saying the timeline lives in this browser only
+  3   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-timelines): tap an event to edit it in place (its fields filled, Save / Cancel); Remove moves into the event's ⋯ and an 8-second Undo bar brings it back; on a phone 'Your timeline' comes first and '+ Add an event' (the one primary) opens the three fields as a sheet; Print is a secondary action with a print style of the spine only
+  4   | maintainer@emeraldcoastsystemsgroup.com   | Save named timelines to the signed-in student's account with switcher, create, rename, and delete controls, importing any browser-stored timeline once on first load (RP-LM-05)
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -24,11 +26,54 @@
   .tl.is-empty::before { display: none; }
   .ev { position: relative; margin-bottom: 12px; padding: 12px 14px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); }
   .ev::before { content: ""; position: absolute; left: -26px; top: 18px; width: 13px; height: 13px; border-radius: 50%; background: var(--lm-accent); box-shadow: 0 0 0 4px var(--lm-bg); }
-  .ev-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .ev .yr { font-weight: 800; color: var(--lm-accent); font-size: 14px; letter-spacing: .3px; }
-  .ev .ti { font-weight: 700; font-size: 16px; margin-top: 2px; overflow-wrap: anywhere; }
-  .ev .no { font-size: 13.5px; color: var(--lm-muted); margin-top: 2px; overflow-wrap: anywhere; }
-  @media (max-width: 960px) { .add-card { order: -1; } }
+  .ev-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .ev-body { flex: 1 1 auto; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; border-radius: 8px; }
+  .ev-body:hover .ti { text-decoration: underline; }
+  .ev .yr { display: block; font-weight: 800; color: var(--lm-accent); font-size: 14px; letter-spacing: .3px; }
+  .ev .ti { display: block; font-weight: 700; font-size: 16px; margin-top: 2px; overflow-wrap: anywhere; }
+  .ev .no { display: block; font-size: 13.5px; color: var(--lm-muted); margin-top: 2px; overflow-wrap: anywhere; }
+  .ev-edit .lm-field { margin-bottom: 8px; }
+  .ev-menu, .tl-title { position: relative; }
+  .ev-menu summary, .tl-title summary { list-style: none; cursor: pointer; }
+  .ev-menu summary::-webkit-details-marker, .tl-title summary::-webkit-details-marker { display: none; }
+  .ev-menu summary { width: var(--lm-touch); height: var(--lm-touch); display: grid; place-items: center; border-radius: 12px; font-size: 20px; color: var(--lm-ink-2); }
+  .ev-menu summary:hover, .ev-menu[open] summary { background: var(--lm-accent-wash); }
+  .tl-title summary { display: inline-flex; align-items: center; gap: 6px; min-height: var(--lm-touch); border-radius: 10px; padding-right: 6px; }
+  .tl-title summary h2 { font-size: 20px; font-weight: 700; }
+  .menu-list { position: absolute; z-index: 30; display: grid; gap: 2px; padding: 8px; min-width: 200px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); box-shadow: var(--lm-shadow); }
+  .ev-menu .menu-list { right: 0; top: calc(100% + 4px); }
+  .tl-title .menu-list { left: 0; top: calc(100% + 4px); }
+  .menu-list button { display: flex; justify-content: space-between; gap: 10px; width: 100%; min-height: var(--lm-touch); align-items: center; text-align: left; padding: 8px 12px; border: 0; border-radius: 10px; background: none; color: var(--lm-ink); font-weight: 600; font-size: 14px; cursor: pointer; }
+  .menu-list button:hover { background: var(--lm-accent-wash); }
+  .menu-list button.is-danger { color: var(--lm-danger); }
+  .menu-list button.is-active { background: var(--lm-accent-wash); color: var(--lm-accent); }
+  .menu-sep { height: 1px; background: var(--lm-line); margin: 4px 0; }
+  .tl-manage { padding: 12px 14px; }
+  .tl-manage.hide { display: none; }
+  .tl-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .add-open { display: none; }
+  .add-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .add-sheet-close { display: none; }
+  .undo-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--lm-bottom-bar, 0px) + 16px); z-index: 80; display: flex; align-items: center; gap: 12px;
+    max-width: min(92vw, 460px); padding: 8px 8px 8px 16px; border-radius: var(--lm-radius-md); background: var(--lm-ink); color: var(--lm-bg); box-shadow: var(--lm-shadow); }
+  .undo-bar.hide { display: none; }
+  .undo-bar span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+  .undo-bar .lm-btn { background: var(--lm-bg); color: var(--lm-ink); border-color: transparent; }
+  @media (max-width: 720px) {
+    .undo-bar { left: 16px; right: 80px; transform: none; max-width: none; }
+    .add-open { display: inline-flex; }
+    .add-card { display: none; }
+    .add-card.is-open { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 75; max-height: 85vh; overflow-y: auto; margin: 0;
+      border-radius: var(--lm-radius-xl) var(--lm-radius-xl) 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -12px 30px color-mix(in srgb, var(--lm-ink) 16%, transparent); }
+    .add-sheet-close { display: inline-flex; }
+    .sheet-scrim { position: fixed; inset: 0; z-index: 74; background: color-mix(in srgb, var(--lm-ink) 40%, transparent); }
+  }
+  .sheet-scrim.hide { display: none; }
+  @media print {
+    .lm-hero, .add-card, .add-open, .tl-actions, .tl-manage, .ev-menu, .lm-help, .undo-bar, .sheet-scrim, .tl-title summary span[aria-hidden] { display: none !important; }
+    .lm-columns { display: block; }
+    .ev { break-inside: avoid; border-color: #999; }
+  }
 </style>
 </head>
 <body>
@@ -44,59 +89,324 @@
 
   <div class="lm-columns">
     <section class="lm-section" aria-labelledby="tlTitle">
-      <div class="lm-section-head"><h2 id="tlTitle">Your timeline</h2><span class="lm-subtle lm-small" id="tlCount"></span></div>
-      <p class="lm-help lm-mb-md">Kept in this browser only — it is not saved to your account or shared with your class.</p>
+      <div class="lm-section-head">
+        <details class="tl-title" id="tlTitleMenu">
+          <summary><h2 id="tlTitle">Your timeline</h2><span aria-hidden="true">▾</span></summary>
+          <div class="menu-list" id="tlMenuList" role="menu">
+            <button type="button" role="menuitem" id="tlNewAction">＋ New timeline</button>
+          </div>
+        </details>
+        <div class="tl-actions">
+          <span class="lm-subtle lm-small" id="tlCount"></span>
+          <button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" id="printBtn">🖨 Print</button>
+          <button type="button" class="lm-btn lm-btn-primary add-open" id="addOpenBtn">＋ Add an event</button>
+        </div>
+      </div>
+      <div class="lm-card tl-manage lm-mb-md hide" id="tlManageBar"></div>
+      <p class="lm-help lm-mb-md" id="tlSyncHelp">Saved in this browser until your student account connects.</p>
       <div class="tl" id="tl"></div>
     </section>
 
-    <section class="lm-card add-card" aria-labelledby="addTitle">
-      <div class="lm-section-head"><h2 id="addTitle">Add an event</h2></div>
+    <section class="lm-card add-card" id="addCard" aria-labelledby="addTitle">
+      <div class="lm-section-head add-sheet-head"><h2 id="addTitle">Add an event</h2><button type="button" class="lm-btn lm-btn-quiet add-sheet-close" id="addCloseBtn">Cancel</button></div>
       <div class="lm-field"><label for="when">Year or date</label><input class="lm-input" id="when" placeholder="1776 or 1969-07-20" autocomplete="off"></div>
       <div class="lm-field"><label for="what">What happened?</label><input class="lm-input" id="what" placeholder="What happened?" autocomplete="off"></div>
       <div class="lm-field"><label for="note">A detail (optional)</label><input class="lm-input" id="note" placeholder="Who, where, or why it mattered" autocomplete="off"></div>
-      <div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-primary" onclick="addEv()">Add to timeline</button></div>
+      <div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-primary" id="addBtn">Add to timeline</button></div>
       <p class="lm-help">Tip: type a year like <b>1776</b> or a date like <b>1969-07-20</b> — events sort themselves.</p>
     </section>
   </div>
 </main>
+<div class="sheet-scrim hide" id="sheetScrim"></div>
+<div class="undo-bar hide" id="undoBar" role="status"><span id="undoText"></span><button type="button" class="lm-btn lm-btn-sm" id="undoBtn">Undo</button></div>
 
 <script src="/api/education/mascot.js?v=4"></script>
 <script>
-var KEY = 'lm-timeline', esc = window.LM.esc;
+var KEY = 'lm-timeline', LOCAL_LIST_KEY = 'lm-timelines-local', IMPORTED_KEY = 'lm-timeline-imported';
+var esc = window.LM.esc, UNDO_MS = 8000, undoTimer = 0, undoItem = null;
+var serverAvailable = false, timelines = [], activeId = '', manageMode = '';
 function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
-function save(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { window.LM.toast('This browser would not keep the timeline.'); } }
-function val(id) { return document.getElementById(id).value.trim(); }
+function writeMirror(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) { window.LM.toast('This browser would not keep the timeline.'); } }
+function $(id) { return document.getElementById(id); }
+function val(id) { return $(id).value.trim(); }
 function keyOf(w) { var n = parseFloat(String(w).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
+function phone() { return window.matchMedia('(max-width: 720px)').matches; }
+
+function toServerEvents(list) {
+  return (list || []).map(function (e, idx) {
+    return { id: e.id || ('ev-' + idx + '-' + Date.now().toString(36)), date: String(e.w || ''), sortKey: keyOf(e.w), title: String(e.t || ''), note: String(e.n || '') };
+  }).filter(function (x) { return x.date && x.title; });
+}
+function fromServerEvents(list) {
+  return (list || []).map(function (e) {
+    return { id: e.id, w: String(e.date || ''), t: String(e.title || ''), n: String(e.note || '') };
+  });
+}
+function activeTimeline() {
+  return timelines.filter(function (t) { return t.timelineId === activeId; })[0] || timelines[0] || null;
+}
+function loadLocalTimelines() {
+  try {
+    var parsed = JSON.parse(localStorage.getItem(LOCAL_LIST_KEY) || 'null');
+    if (Array.isArray(parsed) && parsed.length) return parsed;
+  } catch (e) {}
+  return [{ timelineId: 'local-default', title: 'Your timeline', events: load() }];
+}
+function saveLocalTimelines() {
+  try { localStorage.setItem(LOCAL_LIST_KEY, JSON.stringify(timelines)); } catch (e) {}
+}
+function syncActiveEventsToAccount(list) {
+  if (!serverAvailable || !activeId) return;
+  fetch('/api/education/notify', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timelineAction: 'update', timelineId: activeId, events: toServerEvents(list) }),
+  }).catch(function () {});
+}
+function save(v) {
+  var cur = activeTimeline();
+  if (cur) cur.events = v.slice();
+  writeMirror(v);
+  if (!serverAvailable) saveLocalTimelines();
+  syncActiveEventsToAccount(v);
+}
+
+/** The add form: inline beside the timeline on a desktop, a sheet over it on a phone. */
+function openSheet() { $('addCard').classList.add('is-open'); $('sheetScrim').classList.remove('hide'); $('when').focus(); }
+function closeSheet() { $('addCard').classList.remove('is-open'); $('sheetScrim').classList.add('hide'); }
 function addEv() {
   var w = val('when'), t = val('what'), n = val('note');
-  if (!w || !t) { window.LM.toast('Add a year and what happened first.'); document.getElementById(w ? 'what' : 'when').focus(); return; }
-  var l = load(); l.push({ w: w, t: t, n: n }); save(l);
-  ['when', 'what', 'note'].forEach(function (id) { document.getElementById(id).value = ''; });
-  render(); window.LM.toast('Added to your timeline.'); document.getElementById('when').focus();
+  if (!w || !t) { window.LM.toast('Add a year and what happened first.'); $(w ? 'what' : 'when').focus(); return; }
+  var l = load(); l.push({ id: 'ev-' + Date.now().toString(36), w: w, t: t, n: n }); save(l);
+  ['when', 'what', 'note'].forEach(function (id) { $(id).value = ''; });
+  render(); window.LM.toast('Added to your timeline.');
+  if (phone()) closeSheet(); else $('when').focus();
+}
+
+function renderTitleMenu() {
+  var cur = activeTimeline();
+  $('tlTitle').textContent = cur ? cur.title : 'Your timeline';
+  var picks = timelines.map(function (t) {
+    var on = cur && t.timelineId === cur.timelineId;
+    return '<button type="button" role="menuitem" class="' + (on ? 'is-active' : '') + '" data-tl-pick="' + esc(t.timelineId) + '"><span>' + esc(t.title) + '</span>' + (on ? '<small aria-hidden="true">✓</small>' : '') + '</button>';
+  }).join('');
+  $('tlMenuList').innerHTML = picks +
+    (picks ? '<div class="menu-sep" role="separator"></div>' : '') +
+    '<button type="button" role="menuitem" id="tlNewAction">＋ New timeline</button>' +
+    '<button type="button" role="menuitem" id="tlRenameAction">✎ Rename timeline</button>' +
+    '<button type="button" role="menuitem" class="is-danger" id="tlDeleteAction">Delete timeline</button>';
+}
+function closeManageBar() { manageMode = ''; $('tlManageBar').classList.add('hide'); $('tlManageBar').innerHTML = ''; }
+function openManageBar(mode) {
+  manageMode = mode;
+  $('tlTitleMenu').open = false;
+  var cur = activeTimeline(), bar = $('tlManageBar');
+  bar.classList.remove('hide');
+  if (mode === 'delete') {
+    bar.innerHTML = '<div class="lm-row is-between is-wrap"><span class="lm-small"><strong>Delete “' + esc(cur ? cur.title : 'Your timeline') + '”?</strong> Its events will be removed.</span>' +
+      '<div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-danger lm-btn-sm" id="tlConfirmDeleteBtn">Delete timeline</button>' +
+      '<button type="button" class="lm-btn lm-btn-quiet lm-btn-sm" id="tlManageCancelBtn">Cancel</button></div></div>';
+    return;
+  }
+  var label = mode === 'new' ? 'New timeline name' : 'Rename timeline';
+  var btnText = mode === 'new' ? 'Create timeline' : 'Save name';
+  var initial = mode === 'rename' && cur ? cur.title : '';
+  bar.innerHTML = '<div class="lm-field" style="margin-bottom:8px"><label for="tlNameInput">' + label + '</label>' +
+    '<input class="lm-input" id="tlNameInput" value="' + esc(initial) + '" placeholder="e.g. Space Race or Civil Rights" autocomplete="off"></div>' +
+    '<div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-soft lm-btn-sm" id="tlManageSaveBtn">' + btnText + '</button>' +
+    '<button type="button" class="lm-btn lm-btn-quiet lm-btn-sm" id="tlManageCancelBtn">Cancel</button></div>';
+  $('tlNameInput').focus();
+}
+function selectTimeline(id) {
+  var found = timelines.filter(function (t) { return t.timelineId === id; })[0];
+  if (!found) return;
+  activeId = found.timelineId;
+  writeMirror(found.events || []);
+  $('tlTitleMenu').open = false;
+  hideUndo(); closeManageBar(); render();
+}
+async function submitManageName() {
+  var title = ($('tlNameInput') && $('tlNameInput').value || '').trim();
+  if (!title) { window.LM.toast('Give your timeline a name first.'); $('tlNameInput').focus(); return; }
+  if (manageMode === 'new') {
+    if (serverAvailable) {
+      var r = await fetch('/api/education/notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timelineAction: 'create', title: title, events: [] }),
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok || !d.timeline) { window.LM.toast(d.error || 'Could not create timeline.'); return; }
+      timelines.unshift({ timelineId: d.timeline.timelineId, title: d.timeline.title, events: [] });
+      activeId = d.timeline.timelineId;
+    } else {
+      var lid = 'local-' + Date.now().toString(36);
+      timelines.unshift({ timelineId: lid, title: title, events: [] });
+      activeId = lid; saveLocalTimelines();
+    }
+    writeMirror([]); closeManageBar(); render(); window.LM.toast('Created “' + title + '”.');
+    return;
+  }
+  var cur = activeTimeline();
+  if (!cur) return closeManageBar();
+  if (serverAvailable) {
+    var rr = await fetch('/api/education/notify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timelineAction: 'rename', timelineId: cur.timelineId, title: title }),
+    });
+    var rd = await rr.json().catch(function () { return {}; });
+    if (!rr.ok) { window.LM.toast(rd.error || 'Could not rename timeline.'); return; }
+  }
+  cur.title = title;
+  if (!serverAvailable) saveLocalTimelines();
+  closeManageBar(); render(); window.LM.toast('Renamed to “' + title + '”.');
+}
+async function confirmDeleteTimeline() {
+  var cur = activeTimeline();
+  if (!cur) return closeManageBar();
+  if (serverAvailable) {
+    var r = await fetch('/api/education/notify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timelineAction: 'delete', timelineId: cur.timelineId }),
+    });
+    if (!r.ok) { window.LM.toast('Could not delete timeline.'); return; }
+  }
+  timelines = timelines.filter(function (t) { return t.timelineId !== cur.timelineId; });
+  if (!timelines.length) {
+    if (serverAvailable) {
+      var cr = await fetch('/api/education/notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timelineAction: 'create', title: 'Your timeline', events: [] }),
+      });
+      var cd = await cr.json().catch(function () { return {}; });
+      if (cr.ok && cd.timeline) timelines = [{ timelineId: cd.timeline.timelineId, title: cd.timeline.title, events: [] }];
+    }
+    if (!timelines.length) timelines = [{ timelineId: 'local-default', title: 'Your timeline', events: [] }];
+  }
+  activeId = timelines[0].timelineId;
+  writeMirror(timelines[0].events || []);
+  if (!serverAvailable) saveLocalTimelines();
+  hideUndo(); closeManageBar(); render(); window.LM.toast('Deleted “' + cur.title + '”.');
+}
+
+/** One event: tap its text to edit it; its ⋯ holds Edit and Remove. */
+function eventHtml(x) {
+  var label = esc(x.e.t);
+  return '<div class="ev" data-i="' + x.i + '"><div class="ev-head">' +
+    '<button type="button" class="ev-body" data-act="edit" aria-label="Edit ' + label + '"><span class="yr">' + esc(x.e.w) + '</span><span class="ti">' + label + '</span>' + (x.e.n ? '<span class="no">' + esc(x.e.n) + '</span>' : '') + '</button>' +
+    '<details class="ev-menu"><summary aria-label="Actions for ' + label + '">⋯</summary><div class="menu-list" role="menu">' +
+    '<button type="button" role="menuitem" data-act="edit">✎ Edit</button><button type="button" role="menuitem" class="is-danger" data-act="remove">Remove</button></div></details>' +
+    '</div></div>';
 }
 function render() {
-  var raw = load(), tl = document.getElementById('tl');
+  renderTitleMenu();
+  var raw = load(), tl = $('tl');
   var l = raw.map(function (e, i) { return { e: e, i: i }; }).sort(function (a, b) { return keyOf(a.e.w) - keyOf(b.e.w); });
-  document.getElementById('tlCount').textContent = raw.length ? raw.length + (raw.length === 1 ? ' event' : ' events') : '';
+  $('tlCount').textContent = raw.length ? raw.length + (raw.length === 1 ? ' event' : ' events') : '';
+  $('printBtn').classList.toggle('hide', !raw.length);
   if (!l.length) {
     tl.className = 'tl is-empty';
-    tl.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🗓️</div><strong>No events yet.</strong>Add the milestones from your lecture and they line up here in order.<br><button type="button" class="lm-btn lm-btn-ghost" onclick="document.getElementById(\'when\').focus()">Add the first event</button></div>';
+    tl.innerHTML = '<div class="lm-empty"><div class="lm-empty-icon">🗓️</div><strong>No events yet.</strong>Add the milestones from your lecture and they line up here in order.</div>';
     return;
   }
   tl.className = 'tl';
-  tl.innerHTML = l.map(function (x) {
-    return '<div class="ev"><div class="ev-head"><span class="yr">' + esc(x.e.w) + '</span><button type="button" class="lm-btn lm-btn-quiet x" data-i="' + x.i + '" aria-label="Remove ' + esc(x.e.t) + '">Remove</button></div>'
-      + '<div class="ti">' + esc(x.e.t) + '</div>' + (x.e.n ? '<div class="no">' + esc(x.e.n) + '</div>' : '') + '</div>';
-  }).join('');
-  tl.querySelectorAll('.x').forEach(function (x) {
-    x.onclick = function () {
-      var i = parseInt(x.getAttribute('data-i'), 10), r = load();
-      if (i >= 0 && i < r.length) r.splice(i, 1);
-      save(r); render(); window.LM.toast('Removed from your timeline.');
-    };
-  });
+  tl.innerHTML = l.map(eventHtml).join('');
 }
-render();
+
+/** Edit in place: the event's own card becomes its three fields, filled, with Save and Cancel. */
+function editEvent(card) {
+  var i = parseInt(card.getAttribute('data-i'), 10), e = load()[i];
+  if (!e) return render();
+  card.innerHTML = '<div class="ev-edit">' +
+    '<div class="lm-field"><label for="ew' + i + '">Year or date</label><input class="lm-input" id="ew' + i + '" value="' + esc(e.w) + '"></div>' +
+    '<div class="lm-field"><label for="et' + i + '">What happened?</label><input class="lm-input" id="et' + i + '" value="' + esc(e.t) + '"></div>' +
+    '<div class="lm-field"><label for="en' + i + '">A detail (optional)</label><input class="lm-input" id="en' + i + '" value="' + esc(e.n || '') + '"></div>' +
+    '<div class="lm-row is-wrap"><button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" data-act="save">Save</button><button type="button" class="lm-btn lm-btn-quiet lm-btn-sm" data-act="cancel">Cancel</button></div></div>';
+  $('ew' + i).focus();
+}
+function saveEdit(card) {
+  var i = parseInt(card.getAttribute('data-i'), 10), l = load();
+  var w = val('ew' + i), t = val('et' + i), n = val('en' + i);
+  if (!w || !t) { window.LM.toast('An event needs a year and what happened.'); return; }
+  if (i >= 0 && i < l.length) { l[i] = { id: l[i].id, w: w, t: t, n: n }; save(l); }
+  render(); window.LM.toast('Saved.');
+}
+
+/** Remove with an 8-second Undo: the event goes back where it was. */
+function removeEvent(card) {
+  var i = parseInt(card.getAttribute('data-i'), 10), l = load();
+  if (!(i >= 0 && i < l.length)) return;
+  undoItem = { i: i, e: l.splice(i, 1)[0] };
+  save(l); render();
+  $('undoText').textContent = 'Removed “' + undoItem.e.t + '”.';
+  $('undoBar').classList.remove('hide');
+  clearTimeout(undoTimer); undoTimer = setTimeout(hideUndo, UNDO_MS);
+}
+function hideUndo() { $('undoBar').classList.add('hide'); undoItem = null; }
+function undoRemove() {
+  if (!undoItem) return;
+  var l = load(); l.splice(Math.min(undoItem.i, l.length), 0, undoItem.e); save(l);
+  clearTimeout(undoTimer); hideUndo(); render();
+}
+
+async function initAccountTimelines() {
+  timelines = loadLocalTimelines();
+  activeId = timelines[0].timelineId;
+  render();
+  try {
+    var resp = await fetch('/api/education/student/timelines/dashboard');
+    if (!resp.ok) return;
+    var body = await resp.json();
+    serverAvailable = true;
+    $('tlSyncHelp').textContent = 'Saved to your student account — only you can see your timelines across devices.';
+    var remote = Array.isArray(body.timelines) ? body.timelines : [];
+    if (!remote.length) {
+      var seedEvents = load();
+      var imp = await fetch('/api/education/notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timelineAction: 'import', title: 'Your timeline', events: toServerEvents(seedEvents) }),
+      });
+      var impBody = await imp.json().catch(function () { return {}; });
+      if (imp.ok && impBody.timeline) {
+        remote = [impBody.timeline];
+        try { localStorage.setItem(IMPORTED_KEY, '1'); } catch (e) {}
+      }
+    }
+    if (remote.length) {
+      timelines = remote.map(function (t) {
+        return { timelineId: t.timelineId, title: t.title || 'Your timeline', events: fromServerEvents(t.events) };
+      });
+      activeId = timelines[0].timelineId;
+      writeMirror(timelines[0].events);
+      render();
+    }
+  } catch (e) { /* offline or static fixture: localStorage remains active */ }
+}
+
+document.addEventListener('click', function (ev) {
+  document.querySelectorAll('.ev-menu[open], .tl-title[open]').forEach(function (d) { if (!d.contains(ev.target)) d.removeAttribute('open'); });
+  var pick = ev.target.closest('[data-tl-pick]');
+  if (pick) { selectTimeline(pick.dataset.tlPick); return; }
+  if (ev.target.closest('#tlNewAction')) { openManageBar('new'); return; }
+  if (ev.target.closest('#tlRenameAction')) { openManageBar('rename'); return; }
+  if (ev.target.closest('#tlDeleteAction')) { openManageBar('delete'); return; }
+  if (ev.target.closest('#tlManageSaveBtn')) { submitManageName(); return; }
+  if (ev.target.closest('#tlConfirmDeleteBtn')) { confirmDeleteTimeline(); return; }
+  if (ev.target.closest('#tlManageCancelBtn')) { closeManageBar(); return; }
+  var b = ev.target.closest('#tl [data-act]'); if (!b) return;
+  var card = b.closest('.ev'), act = b.getAttribute('data-act');
+  if (act === 'edit') editEvent(card); else if (act === 'remove') removeEvent(card);
+  else if (act === 'save') saveEdit(card); else if (act === 'cancel') render();
+});
+$('tlManageBar').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && e.target.id === 'tlNameInput') { e.preventDefault(); submitManageName(); }
+});
+$('addBtn').addEventListener('click', addEv);
+$('addOpenBtn').addEventListener('click', openSheet);
+$('addCloseBtn').addEventListener('click', closeSheet);
+$('sheetScrim').addEventListener('click', closeSheet);
+$('undoBtn').addEventListener('click', undoRemove);
+$('printBtn').addEventListener('click', function () { window.print(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeSheet(); closeManageBar(); } });
+initAccountTimelines();
 </script>
 </body>
 </html>

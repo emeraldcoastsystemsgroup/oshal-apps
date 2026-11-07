@@ -45,6 +45,12 @@
 # 31  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.17: the Email and Storage tabs keep the Little Monsters top bar. They linked the standard viewers directly (/api/email/inbox, /api/files), which replaced the whole page frame, so a student who opened Storage had no way back but the browser's Back button. They now open /api/education/email and /api/education/storage (tools/standard-view.html): the top bar, then the standard viewer below it. New HTTP bindings for the two pages (app.open).
 # 32  | maintainer@emeraldcoastsystemsgroup.com     | The description states the lecture summary PDF, classes, schedule and action items. Jarvis treats an application as doing only what its description states: on the Claude Code default it told a student nothing installed exports a PDF and handed Little Monsters a plain "summarize" request. Version unchanged.
 # 33  | maintainer@emeraldcoastsystemsgroup.com     | 1.4.18: books and chapters through Jarvis. Tools lm-my-books (GET /my-books: the books a student can read in their classes) and lm-book-chapter (GET /materials/:materialId/chapters/:chapter: a chapter's heading and text, or the chapters the book has); lm-make-flashcards takes materialId + chapter to make cards from that chapter. The tutor asks which book or class when "my math book" matches more than one. Routing phrases my textbook, math book, my math book, from chapter, lesson summary, my books, my textbooks, textbook, class books, school books, and the description names the class textbooks (Jarvis answered "What books do I have?" with "none of the installed apps holds a book library"). New bindings use app.open + study.read, which every role holds (contract change).
+# 34  | maintainer@emeraldcoastsystemsgroup.com     | 1.8.0: UX audit fixes (2026-11-06). LM-FRAME: one 56px phone top bar and a bottom bar (Home, Tutor, Flashcards, Games, More) for every screen; Presentations' class picker fills again; Class dashboard puts Coming up and My classes first; Tutor, Citations, SAT & ACT (Plan · Practice · Lessons, exam mode), My Files (My notes · Textbooks), My Day (+ Add to my day), Record, STEM (Calculator · Formulas · Links) and Games fixes. No route, permission or lesson-content change.
+# 35  | maintainer@emeraldcoastsystemsgroup.com     | 1.8.1: Formula Lab merges into STEM as its Formulas tab (UX audit 2026-11-06): its tile leaves ui.static and /api/education/formula-lab opens /api/education/stem-helpers?tab=formulas (the route and its permission stay). To bring the tile back, restore `- { toolName: lm-formula-lab, label: Formula Lab, icon: codicon codicon-symbol-operator, iframeUrl: /api/education/formula-lab, section: top }` under ui.static and remove the redirect line in tools/formula-lab.html. Flashcards, Timelines and My Monsters P2 fixes; planned controls (Not available yet) for Parent summary, Tutor history, Look up, Shuffle and New timeline.
+# 36  | maintainer@emeraldcoastsystemsgroup.com     | 1.8.2: the lm-formula-lab tile is back in ui.static. home-experience and classroom-experience name that surface, so removing it in 1.8.1 left every composite of those experiences component_unavailable on the trial (rolled back at once, never in production). Its address still opens STEM's Formulas tab. Guarded by tests/lm-ux-formula-lab.test.cjs: every surface an experience names exists in ui.static.
+# 37  | maintainer@emeraldcoastsystemsgroup.com     | 1.8.3: the review page's 'Your next brief' form shows only when a connected action renders (UX audit P1, @ux-career's fix shape); it took text and lost it since the shared panel went off. Guard: tests/lm-review-brief.test.cjs. On the trial the door's floating '← All apps' pill rests above the phone bottom bar instead of covering Home (tests/lm-ux-frame.test.cjs).
+# 38  | maintainer@emeraldcoastsystemsgroup.com     | 1.8.4: UX audit batch 7 (lm-storage MERGE, lm-voice-settings SPLIT): merge Storage into My Files -> Saved (?view=saved) and remove lm-storage from ui.static (verified zero experience references); split Voice Settings into Voice (picker + Hear a sample) and Details (collapsible advanced playback/voice details with Save, Play sample and Reset defaults). Guard: tests/lm-ux-batch7.test.cjs.
+# 39  | maintainer@emeraldcoastsystemsgroup.com     | 1.9.0: Study Lab curriculum video browser across 8 courses (168 topics, 338 monster-taught video lessons streamed from lasting storage) plus RP-LM-01 parent progress summary, RP-LM-02 saved tutoring thread history drawer, RP-LM-03 ISBN/DOI/URL citation lookup over keyless egress, RP-LM-04 per-set flashcard shuffle and prompt-side preferences, and RP-LM-05 account-synced named timelines. Migration 042-reference-features.sql adds owner-scoped tables; authorization.yaml unchanged.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Little Monsters
@@ -102,7 +108,7 @@ description: >-
   their school calendar; and chat with a Socratic tutor grounded only in
   caller-owned or teacher/admin-approved class material through per-material
   RAG collections.
-version: 1.7.2
+version: 1.9.0
 lastingStorage: true
 chatBot: class-tutor # Concierge the cockpit offers beside this application's screens.
 
@@ -283,6 +289,21 @@ dependencies:
     apps: []
     tools: []
     connectors: []
+
+egress:
+  # Citations Look up (RP-LM-03, routes/education-catalog-routes.js): public and keyless, no credential attached.
+  - host: openlibrary.org
+  - host: covers.openlibrary.org
+  - host: api.crossref.org
+  - host: doi.org
+  - host: dx.doi.org
+  - host: en.wikipedia.org
+  - host: '*.wikipedia.org'
+  - host: www.britannica.com
+  - host: www.nationalgeographic.com
+  - host: kids.nationalgeographic.com
+  - host: science.nasa.gov
+  - host: www.nasa.gov
 
 # ── ADR-085: app-scoped settings (typed keys the app reads; per-app settings panel) ──
 settings:
@@ -964,15 +985,16 @@ ui:
     # declared in `uses`; it does not require the separately packaged AI Office surface.
     - { toolName: lm-presentations, label: Presentations,     icon: codicon codicon-graph,               iframeUrl: /api/education/presentation, section: top }
     - { toolName: lm-timelines,     label: Timelines,         icon: codicon codicon-history,             iframeUrl: /api/education/timelines,        section: top }
+    # Formula Lab is STEM's Formulas tab since 2026-11-06: /api/education/formula-lab opens /api/education/stem-helpers?tab=formulas.
+    # The tile stays because home-experience and classroom-experience name the lm-formula-lab surface (removing it suspends their composites).
     - { toolName: lm-formula-lab,   label: Formula Lab,       icon: codicon codicon-symbol-operator,     iframeUrl: /api/education/formula-lab,      section: top }
     - { toolName: lm-stem,          label: STEM Helpers,      icon: codicon codicon-beaker,              iframeUrl: /api/education/stem-helpers,     section: top }
     - { toolName: lm-citations,     label: Citations,         icon: codicon codicon-quote,               iframeUrl: /api/education/citations,        section: top }
     - { toolName: lm-files,         label: My Files,          icon: codicon codicon-folder,              iframeUrl: /api/education/files,            section: top }
-    # The standard email viewer (Intelligent Communication's inbox; each person connects their own mailbox)
-    # and the core personal file browser, where Little Monsters' saved lecture PDFs and decks also appear,
-    # each shown below the Little Monsters top bar by tools/standard-view.html.
+    # The standard email viewer (Intelligent Communication's inbox; each person connects their own mailbox),
+    # shown below the Little Monsters top bar by tools/standard-view.html. Saved lecture PDFs and decks live
+    # in My Files -> Saved (?view=saved), and /api/education/storage opens /api/education/files?view=saved.
     - { toolName: lm-email,         label: Email,             icon: codicon codicon-mail,                iframeUrl: /api/education/email,            section: top }
-    - { toolName: lm-storage,       label: Storage,           icon: codicon codicon-folder-library,      iframeUrl: /api/education/storage,          section: top }
     - { toolName: lm-teacher,       label: Teacher,           icon: codicon codicon-mortar-board,        iframeUrl: /api/education/teacher,          section: bottom }
     - { toolName: lm-voice-settings, label: Voice,            icon: codicon codicon-unmute,              iframeUrl: /api/education/voice-settings,   section: bottom }
   dynamic:
@@ -1049,6 +1071,7 @@ migrations:
   - migrations/039-test-prep.sql
   - migrations/040-test-prep-records.sql
   - migrations/041-test-prep-bank.sql
+  - migrations/042-reference-features.sql
   - migrations/native/001-little-monsters.sql
 # The native kernel applies the final-shape native file above in place of the PostgreSQL-only
 # forms below (it accepts no PL/pgSQL triggers, catalog-probing DO guards or platform tables).

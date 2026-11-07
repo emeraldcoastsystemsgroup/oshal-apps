@@ -1,5 +1,8 @@
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Study Lab layouts in the existing classroom theme.
- * 2 | maintainer@emeraldcoastsystemsgroup.com | Lesson posters with a play mark and length, the full-width video, the transcript folded under it. */
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Lesson posters with a play mark and length, the full-width video, the transcript folded under it.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-test-prep): the Plan · Practice · Lessons segmented control, stat tiles 2 per row on a phone, lesson groups, 'Mark for review' as one 44px row, and exam mode (body.exam-mode): a fixed 48px exam bar with its ⋯ menu, no hero / frame bars / tabs, and the question navigator pinned at the bottom as one scrolling row so it is never clipped.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | LM-FRAME: disabled buttons are solid (education.css), so this sheet no longer fades them to 60%.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: collapsible 8-course curriculum groups, variant level pills, and curriculum topic cards. */
 [hidden] { display: none !important; }
 .prep-controls { display:flex; flex-wrap:wrap; gap:14px; align-items:end; margin:16px 0; }
 .prep-controls label { display:grid; grid-template-columns:minmax(0,1fr); gap:6px; min-width:0; }
@@ -34,7 +37,7 @@
 .prep-lesson-text summary { cursor:pointer; font-weight:700; }
 .prep-section-tag { text-transform:uppercase; letter-spacing:.08em; font-size:12px; color:var(--lm-muted); }
 button:focus-visible,a:focus-visible { outline:3px solid var(--lm-accent); outline-offset:3px; }
-button:disabled { opacity:.6; cursor:wait; }
+button:disabled { cursor:wait; }
 @media(max-width:600px) { .prep-controls>* { max-width:100%; } .prep-table { font-size:13px; } .prep-table td,.prep-table th { padding:8px 4px; } .prep-table caption { font-size:12px; } }
 .prep-list .lm-btn, #prep-home .lm-card .lm-btn { white-space:normal; overflow-wrap:anywhere; max-width:100%; }
 .prep-strategy { padding:16px; border:1px solid var(--lm-line); border-radius:12px; overflow-wrap:anywhere; }
@@ -50,3 +53,56 @@ summary:focus-visible { outline:3px solid var(--lm-accent); outline-offset:3px; 
 #prep-training-topic { width:min(100%,440px); }
 #prep-training { overflow-wrap:anywhere; }
 .prep-training-example { white-space:pre-wrap; line-height:1.7; padding:18px; border-radius:12px; background:var(--lm-accent-soft); }
+
+/* The three in-page views. */
+.prep-tabs { display:flex; gap:4px; width:fit-content; max-width:100%; margin:0 0 22px; padding:4px; border:1px solid var(--lm-line); border-radius:var(--lm-radius-pill); background:var(--lm-card); }
+.prep-tabs button { min-height:40px; padding:0 20px; border:0; border-radius:var(--lm-radius-pill); background:none; color:var(--lm-ink-2); font:inherit; font-weight:700; cursor:pointer; }
+.prep-tabs button[aria-selected=true] { background:var(--lm-accent-soft); color:var(--lm-accent); }
+#prep-metrics { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.prep-lesson-group { margin:0 0 22px; }
+.prep-lesson-group > h3 { margin:0 0 12px; font-size:17px; }
+.prep-curriculum-group { padding:14px 16px; border:1px solid var(--lm-line); border-radius:12px; background:var(--lm-card); }
+.prep-curriculum-group > summary { cursor:pointer; font-weight:700; font-size:16px; min-height:40px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.prep-curriculum-group[open] > summary { margin-bottom:14px; }
+.prep-curriculum-card { display:flex; flex-direction:column; gap:8px; }
+.prep-level-bar { display:inline-flex; flex-wrap:wrap; gap:6px; margin:8px 0 12px; }
+.prep-level-bar button[aria-pressed=true] { background:var(--lm-accent-soft); color:var(--lm-accent); border-color:var(--lm-accent); }
+.prep-search { flex:1 1 260px; }
+.prep-controls label.prep-flag { display:flex; align-items:center; gap:10px; min-height:44px; cursor:pointer; }
+.prep-flag input { width:22px; height:22px; margin:0; flex:0 0 auto; accent-color:var(--lm-accent); }
+@media (max-width:720px) {
+  .prep-tabs { width:100%; }
+  .prep-tabs button { flex:1 1 0; padding:0 8px; }
+  #prep-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+/* Exam mode: the question, one 48px bar and the pinned navigator. */
+body.exam-mode .lm-topbar, body.exam-mode [data-lm-topbar], body.exam-mode .lm-bottombar, body.exam-mode [data-lm-bottombar],
+body.exam-mode .lm-hero, body.exam-mode #prep-home { display:none !important; }
+body.exam-mode { padding-bottom:0 !important; }
+body.exam-mode .lm-page { padding-top:64px; padding-bottom:96px; }
+body.exam-mode #prep-status { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.prep-exambar { position:fixed; top:0; left:0; right:0; z-index:80; height:48px; display:flex; align-items:center; gap:8px; padding:0 max(12px, var(--lm-gutter)); background:var(--lm-card); border-bottom:1px solid var(--lm-line); box-shadow:0 2px 10px color-mix(in srgb, var(--lm-ink) 8%, transparent); }
+.prep-qblock { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; justify-content:center; line-height:1.15; }
+.prep-qtitle { margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:16px; font-weight:800; letter-spacing:0; line-height:1.2; }
+.prep-exambar .prep-clock { font-size:17px; }
+.prep-barbtn { min-height:36px; padding:0 12px; font-size:14px; flex:0 0 auto; }
+.prep-saved { font-size:12px; color:var(--lm-muted); white-space:nowrap; line-height:1.2; min-height:14px; }
+.prep-exam-more { position:relative; flex:0 0 auto; }
+.prep-exam-more summary { list-style:none; display:grid; place-items:center; width:40px; height:40px; border-radius:50%; font-size:20px; font-weight:800; color:var(--lm-ink); cursor:pointer; }
+.prep-exam-more summary::-webkit-details-marker { display:none; }
+.prep-exam-more[open] summary, .prep-exam-more summary:hover { background:var(--lm-accent-wash); }
+.prep-exam-menu { position:absolute; right:0; top:calc(100% + 6px); z-index:90; display:grid; gap:2px; min-width:220px; padding:8px; background:var(--lm-card); border:1px solid var(--lm-line); border-radius:var(--lm-radius-md); box-shadow:var(--lm-shadow); }
+.prep-exam-menu button { min-height:44px; padding:0 12px; text-align:left; border:0; border-radius:10px; background:none; color:var(--lm-ink); font:inherit; font-weight:600; cursor:pointer; }
+.prep-exam-menu button:hover { background:var(--lm-accent-wash); }
+.prep-finish { margin:8px 0 0; }
+.prep-finish summary { cursor:pointer; font-weight:700; min-height:44px; display:flex; align-items:center; }
+body.exam-mode .prep-map { position:fixed; left:0; right:0; bottom:0; z-index:70; margin:0; flex-wrap:nowrap; justify-content:safe center; overflow-x:auto; padding:8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); background:var(--lm-card); border-top:1px solid var(--lm-line); scrollbar-width:thin; }
+body.exam-mode .prep-map button { flex:0 0 44px; min-width:44px; min-height:44px; }
+@media (max-width:480px) {
+  .prep-exambar { gap:4px; padding:0 8px; }
+  .prep-qtitle { font-size:15px; }
+  .prep-barbtn { padding:0 10px; font-size:13px; }
+}
+@media (max-width:480px) { .prep-clock-word { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } }
+@media (max-width:380px) { .prep-q-word { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } }

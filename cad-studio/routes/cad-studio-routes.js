@@ -17,6 +17,8 @@
  *                     |                             | reached through the kernel's engine.exchange intent and the
  *                     |                             | revision exports live in the kernel's owner-scoped atomic file
  *                     |                             | root (/tmp/cad-store), so a part's rows and files commit together.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.0: serve cad-viewport-tools.js, advertise OBJ/MTL/3MF/GLB/USDZ
+ *                     |                             | exports, and mount confirmed printer handoff routes (RP-CAD-01..05).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -36,9 +38,10 @@ const engine_build_hash_1 = require("./engine-build-hash");
 const engine_client_1 = require("./engine-client");
 const data_dir_1 = require("./data-dir");
 const model_routes_1 = require("./model-routes");
+const print_handoff_1 = require("./print-handoff");
 const rebuild_service_1 = require("./rebuild-service");
 const logger = (0, logger_1.createChildLogger)({ module: 'cad-studio-routes' });
-const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js', 'editor-foundation-adapter.mjs'];
+const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js', 'cad-viewport-tools.js', 'editor-foundation-adapter.mjs'];
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** The native kernel restores the caller's files here for each request and checkpoints them after a write. */
 exports.NATIVE_DATA_ROOT = '/tmp/cad-store';
@@ -123,7 +126,7 @@ function createCadStudioRoutes(ctx, opts = {}) {
             const readiness = await engine.refreshStatus();
             res.json({
                 app: 'cad-studio', kernel: 'OCCT via CadQuery (engine container)', contract: (0, feature_contract_1.describeContract)(), featureInputSchema: feature_contract_1.FEATURE_INPUT_SCHEMA,
-                exports: { formats: ['step', 'stl', 'svg', 'report'], views: rebuild_service_1.EXPORT_VIEWS }, defaults: rebuild_service_1.DEFAULT_SETTINGS, upload: model_routes_1.UPLOAD_LIMITS,
+                exports: { formats: ['step', 'stl', 'obj', 'mtl', '3mf', 'glb', 'usdz', 'svg', 'report'], views: rebuild_service_1.EXPORT_VIEWS }, defaults: rebuild_service_1.DEFAULT_SETTINGS, upload: model_routes_1.UPLOAD_LIMITS,
                 engine: readiness,
             });
         }
@@ -131,6 +134,7 @@ function createCadStudioRoutes(ctx, opts = {}) {
             res.status(503).json({ error: 'engine_status_unavailable', message: 'Engine readiness is unavailable. Try again shortly.' });
         }
     });
+    router.use((0, print_handoff_1.createCadPrintRoutes)({ pool: ctx.pool, dataRoot, callerSub }));
     // Natively the build a revision records is the one the engine reported, since the sandbox holds no engine sources.
     router.use((0, model_routes_1.createModelRoutes)({ pool: ctx.pool, engine, dataRoot, get engineBuild() { return packageBuild ?? engine.status().buildHash; }, callerSub, timeoutMs: opts.rebuildTimeoutMs }));
     return router;

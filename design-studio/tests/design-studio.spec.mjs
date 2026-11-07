@@ -8,6 +8,7 @@
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D7, lane @ds-fab: Make the print set on the spider runs every printed part through the fixture's CAD Studio (one create per part, tagged with the product and the program hash), the dialog shows each part exported watertight and the manifest's sha256, the poster reads fabricated with the files linked, Close the phase records that sha as the revision, and a second run creates nothing (the parts are found by their tag); a part without a program and a build the engine refuses are listed unprintable with their reasons and the phase does not close; an open mesh is caught by the watertight check; the hanger from one CAD Studio box part gets a one-file set whose STL is the fixture's bytes; Send to printer appears only with a finished set and a printer chosen in Settings, asks, posts the file to the print service and records the reply on the poster; 412 x 915 with the set made.
  *
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | ADR-203 D9, lane @ds-plant: the lift example in Chromium over the real routes and the fixture's engines - the Design poster's Create the parts in CAD Studio builds the three programs once (tagged) and binds them, Define the mechanism opens the Mechanism screen with the parts' kernel figures, the two joints, the motor row from embodied's catalog (the lab's rows disabled with their reason), the payload and the task from the brief's line, Save writes revision 2, the Simulate poster goes Build the plant (the spec the page composed carries the kernel's masses and the row's numbers) -> built -> Run the baselines -> baseline (the engine's reached time) -> Train the policy -> training (the job) -> trained -> Certify -> certified -> Close the phase, after which the body contract publishes the one actuator from the row with the certified reach policy; a refused certificate reads trained again; the spider's Mechanism screen is read-only; 412 x 915 of the Mechanism screen.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: an absent engine reads "is not installed or not answering here", a failed read names the engine and what to do with no route path, and a reasoned phase closes with Mark done by hand.
  *
  * FRAMEWORK-COUPLED: OSHAL_CORE_ROOT=$HOME/Documents/projects/oshal/src node --test tests/design-studio.spec.mjs
  */
@@ -163,16 +164,16 @@ test('absent engines read "no engine on this swarm for this phase"; a failed rea
   await open({ embodied: 404, circuitLab: 404, cadStudio: 404, printService: 404 });
   const id = await spider();
   await goto(`#/product/${id}`);
-  for (const kind of ['design', 'mechanical', 'sensors', 'controller', 'simulate', 'fabricate']) { assert.equal(await stage(kind), 'absent', kind); assert.match(await text(`#${kind}-stage`), /no engine on this swarm for this phase \(embodied did not answer/, kind); }
-  assert.match(await text('#electrical-stage'), /no engine on this swarm for this phase \(Circuit Lab did not answer/);
+  for (const kind of ['design', 'mechanical', 'sensors', 'controller', 'simulate', 'fabricate']) { assert.equal(await stage(kind), 'absent', kind); assert.match(await text(`#${kind}-stage`), /no engine on this swarm for this phase \(embodied is not installed or not answering here\)/, kind); }
+  assert.match(await text('#electrical-stage'), /no engine on this swarm for this phase \(Circuit Lab is not installed or not answering here\)/);
   assert.match(await text('#fabricate-stage'), /no print service on this swarm/);
   assert.equal(await page.locator('#act-design').isDisabled(), true); assert.equal(await page.locator('#act-simulate').isDisabled(), true);
   assert.equal(await page.locator('#act-controller').isDisabled(), false, 'Node status still shows the failed read');
   await shoot(page, 'spider-absent-engines-1280');
   f.embodied = 200; f.statusCode = 503; f.reportsCode = 500; f.circuitLab = 403;
   await reload();
-  assert.equal(await stage('controller'), 'failed'); assert.match(await text('#controller-stage'), /^unavailable · \/api\/embodied\/physics\/status: engine unavailable \(fixture\)$/);
-  assert.equal(await stage('simulate'), 'failed'); assert.match(await text('#simulate-stage'), /^unavailable · \/api\/embodied\/physics\/reports: fixture_failure$/);
+  assert.equal(await stage('controller'), 'failed'); assert.match(await text('#controller-stage'), /^embodied is not working on this installation right now: engine unavailable \(fixture\)\. Try again later/); assert.doesNotMatch(await text('#controller-stage'), /\/api\//);
+  assert.equal(await stage('simulate'), 'failed'); assert.match(await text('#simulate-stage'), /^embodied is not working on this installation right now: fixture_failure\. Try again later/);
   assert.equal(await stage('electrical'), 'refused'); assert.match(await text('#electrical-stage'), /^Circuit Lab refused this account \(HTTP 403\)$/);
   assert.equal(await stage('design'), 'parts-complete', 'the design still reads');
   assert.equal(await text('#act-controller'), 'Node status');
@@ -398,7 +399,7 @@ test('Settings lists an engine per phase, the brain and the printers; Save write
   const p = (await api('GET', `/projects/${id}`)).json.project;
   assert.equal(p.phases.find((x) => x.kind === 'fabricate').printerId, 'prn-1'); assert.equal(p.phases.find((x) => x.kind === 'mechanical').engine, 'reasoned');
   assert.match(await text('#fabricate-stage'), /Bench P1S chosen/);
-  assert.equal(await stage('mechanical'), 'reasoned'); assert.equal(await text('#act-mechanical'), 'Close the phase');
+  assert.equal(await stage('mechanical'), 'reasoned'); assert.equal(await text('#act-mechanical'), 'Mark done by hand');
   assert.match(await text('#mechanical-stage'), /^no engine on this swarm for this phase · every actuator sized/);
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   assert.notEqual(bg, 'rgb(10, 10, 18)', 'daylight is not the midnight fallback');

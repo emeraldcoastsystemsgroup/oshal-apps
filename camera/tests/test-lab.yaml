@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The concierge chat case: POST /chat asks the declared camera-operator through the bot turn and answers a camera-less runtime's own reason.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register fleet-hint-native: the Fleet hint names no retired npm script or swarm secret and says no camera node ships with this installation.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register screen-buttons: the kernel's screen snapshot reads the laptop Connect as enabled and the Control panel's Connect as disabled with its hint (sweep 9).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: screen-buttons now expects Turn on camera enabled and no fleet control with no camera node; register capture-screen, the browser proof of the split Camera / Cameras screens (shutter, modes, strip, refused-camera alert, in-page confirms, the diagnostic brief sheet).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -118,9 +119,9 @@ cases:
       files:
         - tests/camera-screen-buttons.test.cjs
     expected:
-      - The button Connect my laptop camera is read as enabled.
-      - The Control panel's Connect and Disconnect are disabled with a hint naming the camera selected in the list.
-      - The persona says a disabled mark belongs only to its own button.
+      - The button Turn on camera is read as enabled, and the shutter as disabled until the camera is on.
+      - With no camera node no Fleet, Control, Telemetry, Event log, Connect, Disconnect, Concierge, Delete all media or diagnostic brief is read at all.
+      - The persona says a disabled mark belongs only to its own button and names Turn on camera.
     prerequisites:
       - runner:node-test
       - dependency:playwright
@@ -131,4 +132,36 @@ cases:
       mode: none
     limits:
       timeoutMs: 60000
+    installation: never
+  - id: capture-screen
+    name: Camera and Cameras screens
+    purpose: >-
+      Drive the shipped camera-ops.html in headless Chromium with a fake camera through tests/capture-screen.fixture.cjs, at
+      412x915 and 1440x900: with no camera node only this device's capture screen shows; with one the Cameras screen brings
+      the fleet panels back.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/camera-capture-screen.test.cjs
+    expected:
+      - With no camera node no Fleet, Control, Telemetry, Event log, Connect, Disconnect or inline Concierge is shown, and the Cameras tab is withheld.
+      - The live preview takes the width; one round shutter of at least 64px sits centred below it; Photo, Video and Timelapse are beside it; every control is at least 44px.
+      - A photo, a video and a timelapse each save a non-empty file to this computer and land in the captures strip, newest first.
+      - Clear the captures list and Delete all media confirm in the page; no window.alert, confirm or prompt opens.
+      - A refused camera, pressed or already blocked, shows role="alert" saying how to allow the camera.
+      - With a camera node the Cameras screen shows Fleet, Control, Telemetry and Event log, Connect and Disconnect, and Delete all media in More sends confirm:true only after the in-page confirm.
+      - The diagnostic brief is withheld under the kernel's mountConnectedActions (no offer) and opens from More as a sheet painted with theme tokens when an action is offered.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - dependency:express
+      - browser:chromium
+      - fixture:kernel-checkout
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 90000
     installation: never

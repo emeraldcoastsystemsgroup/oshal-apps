@@ -1,0 +1,97 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: unhide and package Ambient Recall (person-model) as a native personal-scope store application (/api/person-model/app) reading /api/jarvis/ambient/person/{projection,recall,asks,people,trends} with graceful empty-state and pre-promotion 404 rendering, Light Blue theme default, and an inline ambient-recall-concierge bot.
+name: person-model
+suite: ai-knowledge
+rating:
+  memoryMb: { low: 32, high: 128, basis: declared }
+  features:
+    - id: ambient-recall-concierge
+      unit: concierge answer
+      tier: T1
+      generation: none
+      degrade: disable
+displayName: Ambient Recall
+description: >-
+  Ask what someone said across your own ambient transcripts — exact counts, verbatim quoted
+  receipts with assistant-voice playback, open asks and commitments beside their source quotes,
+  per-person consent controls, and weekly topic trends. Opt-in, owner-private, no audio stored.
+version: 1.2.0
+runtime: process
+status: active
+scope: person
+theme: light-blue
+access:
+  supported: [deny, viewer, editor, admin]
+  defaultTier: editor
+source:
+  type: git-subdir
+  url: https://github.com/emeraldcoastsystemsgroup/oshal-apps
+  path: person-model
+  ref: main
+uses:
+  - app-dependencies
+  - test-catalog
+testing:
+  version: 1
+  catalog: tests/test-lab.yaml
+dependencies:
+  required:
+    apps: []
+    tools: []
+    connectors: []
+  optional:
+    apps: []
+    tools: []
+    connectors: []
+smoke:
+  - name: package-readiness
+    method: GET
+    path: /api/person-model/_smoke
+    auth: service
+    expect:
+      status: 200
+      jsonPointer: /package
+      rejectValues: [noop, stub, empty]
+    requiresAi: false
+routes:
+  - module: routes/package-smoke.js
+    factory: createPackageSmokeRoutes
+    mountPath: /api/person-model/_smoke
+    auth: service
+    requiresContext: true
+    requiresAi: false
+  - module: routes/person-model-routes.mjs
+    factory: createPersonModelSurfaceRoutes
+    mountPath: /api/person-model
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+ui:
+  static:
+    - toolName: ambient-recall
+      label: Ambient Recall
+      icon: codicon codicon-search
+      iframeUrl: /api/person-model/app
+      section: top
+ribbon:
+  defaultView: ambient-recall
+  hideChatPanel: false
+chatBot: ambient-recall-concierge
+bots:
+  - agentId: 7c4b9e21-5d80-4f1a-9b34-2e6c81d40a17
+    name: ambient-recall-concierge
+    persona: personas/ambient-recall-concierge.yaml
+    role: knowledge/ambient-recall-concierge
+    capabilities:
+      - transcript-recall-guidance
+      - consent-guidance
+      - ask-review
+    routingKeywords:
+      - ambient recall
+      - what did they say
+      - transcript receipts
+      - voice consent

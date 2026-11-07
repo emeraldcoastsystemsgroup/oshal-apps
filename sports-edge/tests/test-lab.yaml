@@ -7,6 +7,7 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.11.0: the five fantasy cases moved with their suites to fantasy-football/tests/test-lab.yaml (ADR-146 D1); register sports-fantasy-moved, which proves the old routes answer 410 with the new address and that no fantasy engine module or declaration remains here.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register sports-preview-readonly: GET /preview only reads (the native kernel admits a GET as a reader and refused its build), POST /preview/:eventId/build builds.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register games-next: an empty Games list names its 8-day window and the next game within 35 days (a bye week read as a broken schedule); the audience-view case also expects the followed teams named instead of 'No saved work yet'.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register ux-home-and-review: the app opens on Games once a team is followed, the review left the menu and hides its brief without a connected action.
 version: 1
 cases:
   - id: package-readiness
@@ -310,4 +311,29 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: ux-home-and-review
+    name: Sports Edge opens on its own screens (UX audit 2026-11-06)
+    purpose: >-
+      Check the shipped home page and review page against DOM doubles: where a person lands, the team picker,
+      the app's own refresh toggle and the review's hidden dead brief.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/home-page.test.js
+        - tests/review-page.test.js
+    expected:
+      - A person with a followed team opens on Games; a first-run person opens on My Teams.
+      - No banner sends people to the Jobs screen; Games has a background-refresh toggle and one Refresh now.
+      - The review is off the menu and its brief shows only with a connected action.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 128
     installation: never

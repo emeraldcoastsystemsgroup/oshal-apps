@@ -1,5 +1,8 @@
 # 0.3.6 | maintainer@emeraldcoastsystemsgroup.com | Phones (F6 and the trial check, 2026-11-06): New publication is the empty state's one first action, dead document controls wait until a publication is open, one app bar row (Save revision, More), the editor viewport is the one scroller, first pane Publications.
 # 0.3.7 | maintainer@emeraldcoastsystemsgroup.com | Touch (the round-2 trial check, 2026-11-06): a finger scrolls the open publication's page, also from a frame or the page margin, and a tap selects a frame; only the chosen frame's Move handle (touch screens) drags it, as in the reference editors; a mouse still drags outlines directly. Choosing a frame keeps the scroll position. Previews are asked for only when the opened revision has a ready render (GET /documents/:id answers rendered), so opening revision 1 logs no 409s.
+# 0.4.0 | maintainer@emeraldcoastsystemsgroup.com | The oshal design standard (docs/ux/design-standard.md §3-§5; Canva and Adobe Express, REFP CONVENTIONS §5.5; Roger F6; UX audit decision publishing-studio--publishing-studio): the page declares its contract; with nothing saved it opens on one blank Letter page whose one first action is Add text frame, and with publications on Your publications (newest first, one New: Blank Letter, Blank A4, the planned From template); text typed in a frame is drawn on the page at once; Render and Download PDF run on the current draft and save it first; one app row (back, the publication's menu, undo, redo, Saved, More, the one primary) and one tool row (Text, Image, Shape, Pages, Styles, Concierge, More) that switches to the chosen item's tools under a selection float; Styles, Pages, Master and the item tools are half sheets on a phone and the Pages | page | Properties·Concierge panes on a desktop; one inspector; limits and how-to in Help; no browser dialog; planned controls for RP-PUB-01..07. POST /documents takes an optional size for a blank publication; no permission, binding or authorization change.
+# 0.4.1 | maintainer@emeraldcoastsystemsgroup.com | The studio opens on a platform without the shared planned-control helper (an older kernel platform, such as the store gate's fixture platform): the greyed placeholders are then simply not drawn, instead of the editor never starting. 0.4.0 was merged with this fix only in the gate's working tree.
+# 0.4.2 | maintainer@emeraldcoastsystemsgroup.com | At 1440x900 Your publications fills the app: the editor's desktop grid kept the list in its second column, an implicit 267px strip at the right with the rest of the app empty (the trial check of 0.4.1, 2026-11-06). Guard: tests/browser/design-standard.test.mjs, "Your publications takes the whole width".
 # CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.3.5: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
 # 0.3.4 | maintainer@emeraldcoastsystemsgroup.com | Use an obviously synthetic UUIDv4 request example while requiring a fresh identifier for each new request.
 # 0.3.1 | maintainer@emeraldcoastsystemsgroup.com | Share the pinned native concierge, live saved-document refresh, same-session manual follow-up and controller-owned approval cards.
@@ -14,7 +17,7 @@ displayName: Publishing Studio
 description: >-
   Original-owned bounded English print layouts, linked stories, styles, masters and native Typst
   PDF/PNG output.
-version: 0.3.7
+version: 0.4.2
 runtime: process
 lastingStorage: true
 status: active

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view asserted as behaviour. The head block runs against a stub kit and a stub fetch, fed the JSON the REAL compiled route (routes/home-summary.js, loaded with a stub Router, a stub operator gate and a stub pool returning database-shaped rows) builds, so the view is proved against the sentence the route actually writes: on open it reads only GET /home-summary (never the loaded-applications plan, a connected-actions offer, a write or a run); the stats are the route's three counts with their tones; the runs table reads state and start from the route's detail and the latest step and saved output from its sentence (no saved step, an untitled step, no saved output, a long step or output clipped, a sentence the 2000-character clip cut short, a sentence without the fixed words); the title names the account's state (runs needing review, runs active, completed in 5 days, none completed in 5 days, nothing recorded, some evidence not checked); a 401, the route's operator 403, a 503 when every source failed, a non-JSON failure, a failure with its own error and a network failure each read as what they are. The page's module script (top-level await, so run as an async function body) is proved to mount no connected actions, bind no Refresh handler and read nothing under the view while the full page still runs every start step.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit split: the full page now binds seven start listeners (two view tabs, Develop this idea, Save draft, Refresh, the directory search and suite filter) and reads the address and the saved draft; under an audience view it still binds and reads nothing.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -219,7 +220,7 @@ test('a refusal and a failure each read as what they are', async () => {
  * @param {{ listeners: number }} calls The shared counters.
  * @returns {object} The element.
  */
-function node(calls) { return { value: '', textContent: '', className: '', disabled: false, append() {}, replaceChildren() {}, addEventListener() { calls.listeners++; } }; }
+function node(calls) { return { value: '', textContent: '', className: '', disabled: false, hidden: false, dataset: {}, append() {}, replaceChildren() {}, setAttribute() {}, focus() {}, addEventListener() { calls.listeners++; } }; }
 
 /**
  * @description Run the page's module script (imports stripped) against stub modules, a stub DOM and a stub fetch. The
@@ -232,13 +233,17 @@ async function runModule(activeView) {
   const calls = { mounted: 0, listeners: 0, reads: [] };
   const AsyncFunction = (async () => {}).constructor;
   const fetchStub = (url, opt) => { calls.reads.push(((opt && opt.method) || 'GET') + ' ' + url); return Promise.resolve({ ok: true, json: () => Promise.resolve({ apps: [], metrics: [], items: [] }) }); };
-  const doc = { querySelector: () => node(calls), createElement: () => node(calls) };
-  await new AsyncFunction('window', 'AppView', 'document', 'fetch', 'receiveHandoff', 'mountConnectedActions', src)(
-    { AppView: { active: () => activeView } }, { active: () => activeView }, doc, fetchStub, () => {}, () => { calls.mounted++; return Promise.resolve(); });
+  const doc = { querySelector: () => node(calls), querySelectorAll: () => [], createElement: () => node(calls) };
+  const where = { pathname: '/api/capability-ideator/review', search: '', hash: '' };
+  const store = { getItem: () => null, setItem() {} };
+  await new AsyncFunction('window', 'AppView', 'document', 'fetch', 'receiveHandoff', 'mountConnectedActions', 'location', 'history', 'localStorage', src)(
+    { AppView: { active: () => activeView }, parent: { postMessage() {} }, location: { origin: 'http://local' } }, { active: () => activeView }, doc, fetchStub, () => {}, () => { calls.mounted++; return Promise.resolve(); },
+    where, { replaceState() {} }, store);
   return calls;
 }
 
 test('under an audience view the page\x27s module script mounts nothing, binds nothing and reads nothing; the full page still runs every start step', async () => {
   assert.deepEqual(await runModule('company'), { mounted: 0, listeners: 0, reads: [] });
-  assert.deepEqual(await runModule(null), { mounted: 1, listeners: 1, reads: ['GET /api/swarm/apps/home-plan', 'GET /api/capability-ideator/home-summary'] });
+  // The full page binds the two view tabs, Develop this idea, Save draft, Refresh and the directory's search and suite filter.
+  assert.deepEqual(await runModule(null), { mounted: 1, listeners: 7, reads: ['GET /api/swarm/apps/home-plan', 'GET /api/capability-ideator/home-summary'] });
 });

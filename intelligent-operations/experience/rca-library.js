@@ -1,3 +1,4 @@
+/* CHANGE LOG: ux audit library | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): 25 incidents a page; states as words; a severity filter; on a phone the incident opens as a full sheet with Done; a report-files refusal says its fix (production answered 503 store_unavailable: no shared workspace, OSHAL_WORKSPACE_ROOT unset). */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | investigationLabels and loadInvestigationLabels: name Operations tickets by the alert they investigate, for the Overview and Incident work lists. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Browse historical canonical RCA decisions and accepted artifact citations under the current portal session without duplicating reports or inferring recovery. */
 (function(root){
@@ -23,21 +24,28 @@ function artifactUrl(url,id){
 }
 /** @description Bind the library to canonical reads and clear every private view after refused or stale responses.
  * @param {object} options Native-refusal callback. @returns {object} Load and disposal functions. */
+/** @description What a failed read says, with its fix (UX audit 2026-11-06: an accepted report's files answered 503 because the installation keeps no shared workspace). Pure. @param {number} status HTTP status. @param {object} body The kernel's answer. @returns {string} The sentence. */
+function refusal(status,body){if(body?.refused==='store_unavailable'&&/workspace/i.test(String(body.detail||'')))return 'Report files are not kept on this installation: its shared workspace is not configured. An administrator sets OSHAL_WORKSPACE_ROOT and restarts the kernel.';return 'Historical source is unavailable (HTTP '+status+')'+(body?.detail?': '+String(body.detail).slice(0,200):'')+'.';}
+const STATES={done:'Report accepted',awaiting_approval:'Awaiting approval',failed:'Failed',running:'In progress',cancelled:'Cancelled',queued:'Queued',blocked:'Blocked',draft:'Draft'};
+const PAGE=25;
+const severityOf=title=>(String(title||'').match(/^\[([a-z]+)\]/i)?.[1]||'').toLowerCase();
 function mount({onRefused=()=>{}}={}){
- const $=id=>document.getElementById(id),list=$('rca-list'),detail=$('rca-detail'),status=$('rca-status');let rows=[],generation=0,selection=0,current=null;
+ const $=id=>document.getElementById(id),list=$('rca-list'),detail=$('rca-detail'),status=$('rca-status');let rows=[],generation=0,selection=0,current=null,page=0;
  function clear(){generation++;selection++;rows=[];current=null;list.replaceChildren();detail.replaceChildren();status.textContent='Load your historical incident records.';}
- async function read(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok){if([401,403].includes(r.status)){clear();onRefused();}throw Error('Historical source is unavailable (HTTP '+r.status+').');}return r.json();}
- function render(){list.replaceChildren();const query=$('rca-search').value.trim().toLowerCase(),filter=$('rca-state').value,matched=rows.filter(t=>(!filter||t.status===filter)&&(!query||[t.title,t.id,t.status].join(' ').toLowerCase().includes(query)));
-  const table=text('div','','rca-catalogue');for(const row of matched.slice(0,100)){const button=text('button','','rca-catalogue-row');button.type='button';button.setAttribute('aria-pressed',String(row.id===current));button.append(text('strong',row.title),text('small',row.id.slice(0,8)+' · '+row.status+(row.status==='done'?' · report accepted; recovery not established':'')));button.addEventListener('click',()=>select(row));table.append(button);}list.append(table);if(!matched.length)list.append(text('p','No incident records match these filters.'));
-  status.textContent=matched.length+' matching records · '+Math.min(matched.length,100)+' shown. Search covers loaded ticket metadata; open a record for its report and source citations.';
+ async function read(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok){if([401,403].includes(r.status)){clear();onRefused();}const body=await r.json().catch(()=>({}));throw Error(refusal(r.status,body));}return r.json();}
+ function render(){list.replaceChildren();const query=$('rca-search').value.trim().toLowerCase(),filter=$('rca-state').value,severity=$('rca-severity')?.value||'',matched=rows.filter(t=>(!filter||t.status===filter)&&(!severity||severityOf(t.title)===severity)&&(!query||[t.title,t.id,t.status,STATES[t.status]].join(' ').toLowerCase().includes(query)));
+  const pages=Math.max(1,Math.ceil(matched.length/PAGE));page=Math.min(page,pages-1);const shown=matched.slice(page*PAGE,page*PAGE+PAGE);
+  const table=text('div','','rca-catalogue');for(const row of shown){const button=text('button','','rca-catalogue-row');button.type='button';button.setAttribute('aria-pressed',String(row.id===current));const badge=text('span',STATES[row.status]||String(row.status||'unknown').replace(/_/g,' '),'rca-badge state-'+String(row.status||'unknown'));button.append(text('strong',row.title),badge,text('small',row.id.slice(0,8)+(row.status==='done'?' · recovery not established':'')));button.addEventListener('click',()=>select(row));table.append(button);}list.append(table);if(!matched.length)list.append(text('p','No incident records match these filters.'));
+  if(pages>1){const nav=text('div','','rca-pager'),prev=text('button','Previous'),next=text('button','Next');prev.type=next.type='button';prev.disabled=page===0;next.disabled=page>=pages-1;prev.addEventListener('click',()=>{page--;render();});next.addEventListener('click',()=>{page++;render();});nav.append(prev,text('span','Page '+(page+1)+' of '+pages),next);list.append(nav);}
+  status.textContent=matched.length+' matching records'+(pages>1?' · '+PAGE+' a page':'')+'. Open a record for its report and source citations.';
  }
  async function load(){clear();const run=generation;status.textContent='Reading authorized historical tickets…';try{const body=await read('/api/tickets');if(run!==generation)return;rows=catalogue(body);render();}catch(error){if(run===generation){rows=[];list.replaceChildren();detail.replaceChildren();status.textContent=error.message;}}}
  async function select(ticket){
   const run=generation,version=++selection;current=ticket.id;render();detail.replaceChildren(text('p','Reading original workflow decisions and artifact inventory…'));
-  const results=await Promise.allSettled([read('/tickets/'+ticket.id+'/work'),read('/api/v1/workspace/'+ticket.id+'/files')]);if(run!==generation||version!==selection)return;
-  detail.replaceChildren(text('h2',ticket.title));const open=text('a','Open original ticket');open.href='/cockpit/?app=intelligent-operations&ticket='+ticket.id;open.target='_top';detail.append(open,text('p','Ticket state: '+ticket.status+'. Report acceptance does not establish verified service recovery.','observation-note'));
+  detail.classList.add('open');const results=await Promise.allSettled([read('/tickets/'+ticket.id+'/work'),read('/api/v1/workspace/'+ticket.id+'/files')]);if(run!==generation||version!==selection)return;
+  const done=text('button','Done','tertiary rca-done');done.type='button';done.addEventListener('click',()=>{detail.classList.remove('open');current=null;render();});detail.replaceChildren(done,text('h2',ticket.title));const open=text('a','Open original ticket');open.href='/cockpit/?app=intelligent-operations&ticket='+ticket.id;open.target='_top';detail.append(open,text('p','Ticket state: '+(STATES[ticket.status]||ticket.status)+'. Report acceptance does not establish verified service recovery.','observation-note'));
   if(results[0].status==='fulfilled')renderWork(ticket,results[0].value);else detail.append(text('p',results[0].reason.message,'warning'));
-  if(results[1].status==='fulfilled')renderFiles(ticket,results[1].value);else detail.append(text('p','Artifact inventory unavailable. '+results[1].reason.message,'warning'));
+  if(results[1].status==='fulfilled')renderFiles(ticket,results[1].value);else{const alert=text('p','Report files unavailable. '+results[1].reason.message,'warning');alert.setAttribute('role','alert');detail.append(alert);}
  }
  function renderWork(ticket,body){
   if(!Array.isArray(body?.work)||body.work.length>100){detail.append(text('p','Workflow source is malformed or exceeds its read budget.','warning'));return;}
@@ -66,7 +74,7 @@ function mount({onRefused=()=>{}}={}){
    card.append(text('p',String(file.size)+' bytes'+(digest?' · SHA-256 '+digest:''),'source-citation'));detail.append(card);
   }
  }
- $('rca-refresh').addEventListener('click',load);$('rca-search').addEventListener('input',render);$('rca-state').addEventListener('change',render);
+ $('rca-refresh').addEventListener('click',load);$('rca-search').addEventListener('input',()=>{page=0;render();});$('rca-state').addEventListener('change',()=>{page=0;render();});$('rca-severity')?.addEventListener('change',()=>{page=0;render();});
  return {load,clear};
 }
 /** @description Name each Operations ticket by the alert it investigates (kernel tickets created through the package port carry no title): ticket id to "[severity] AlertType · scope · resource", earlier attempts marked.
@@ -82,5 +90,5 @@ function investigationLabels(items){
 async function loadInvestigationLabels(){
  try{const r=await fetch('/api/intelligent-operations/investigations',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});if(!r.ok)return new Map();const v=await r.json();return investigationLabels(v?.items);}catch{return new Map();}
 }
-const api={catalogue,artifactUrl,investigationLabels,loadInvestigationLabels,mount};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsRcaLibrary=api;
+const api={catalogue,artifactUrl,investigationLabels,loadInvestigationLabels,mount,refusal,severityOf,STATES};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsRcaLibrary=api;
 })(typeof window==='object'?window:globalThis);

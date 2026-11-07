@@ -2,6 +2,8 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register genuine queued-save and refreshed-document browser proofs.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the phone first-step proof (Upload a PDF, Blank page, the Document sheet) with real touch.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: the phone-start case also proves one app bar row, labelled boxless start links, the Document menu in More and drawn Properties items under the finger.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard: register design-standard (tests/browser/design-standard.test.mjs) at 412x743 with touch and 1440x900, and update the phone case to the blank first page, the document menu, the modes bar and the Format sheet.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register rp-pdf-features and rp-pdf-workbench cases for RP-PDF-01..10 and RP-ALL-01, and update design-standard expectations for live controls.
 version: 1
 cases:
   - id: model
@@ -279,8 +281,8 @@ cases:
       files:
         - tests/browser/phone-start.test.mjs
     expected:
-      - Upload a PDF is hit-testable on the first screen and one tap opens the PDF; Blank page opens one blank page; the Document sheet covers neither bar.
-      - 0.2.4: the app bar is one row (title, Save, More) and content starts within 74 px of the frame; the start card's links are labelled and boxless; the Document menu waits in More and opens there in place; every drawn Properties item is under the finger.
+      - Upload a PDF in the document menu opens the PDF in one step; More lists only what the seat can do as an opaque modal menu.
+      - The first screen is a blank page under one app row (the document menu, Undo, Redo, Add text, More) with the modes as the bottom bar; every Format item on screen is under the finger.
     prerequisites:
       - runner:node
       - runtime:pypdf-pinned
@@ -290,6 +292,97 @@ cases:
     isolation:
       mode: disposable
       cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 180000
+      maxMemoryMb: 768
+  - id: design-standard
+    name: PDF Workbench meets the oshal design standard at phone and desktop size
+    purpose: >-
+      docs/ux/design-standard.md §3.1, §4.3, §4.4, §4.10, §5.1 with the Acrobat and PDFgear conventions (REFP CONVENTIONS
+      §5.2), at 412x743 with real touch and at 1440x900: with no PDFs a blank Letter page whose one primary is Add text, where a
+      tap and typing put the words on the page and the first edit makes an untitled PDF holding the typed text object; menus and
+      sheets are opaque modal dialogs the browser's Back closes; More, the Annotate, Sign and Pages modes and the concierge carry
+      live enabled controls for RP-PDF-01..10 and RP-ALL-01 with zero planned placeholders; with PDFs the home is their
+      thumbnails with one New (PDF or From photos); a delete asks in the page. Also screenToPdf at every rotation.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/browser/design-standard.test.mjs
+    expected:
+      - One primary (Add text, then Export, New on the home), the typed text saved in revision 2, Back closes every menu and sheet, zero planned placeholders, no native dialog.
+      - Every RP-PDF-01..10 and RP-ALL-01 control is live and enabled at phone and desktop size.
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - runtime:chromium
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve the shared disposable PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 240000
+      maxMemoryMb: 768
+  - id: rp-pdf-features
+    name: Reference product PDF workflows, OOXML exports and signature RLS
+    purpose: >-
+      Verify RP-PDF-01..10 backend routes, Python sidecar engine mutations, real PDF /Annots (/Highlight, /Underline,
+      /StrikeOut with /QuadPoints and /Ink), stroke eraser, caller signatures under forced two-arm RLS, check/cross vector
+      marks, blank page insertion, multi-photo PDF creation, compressed PDF revisions, valid OOXML (.docx, .xlsx, .pptx) ZIP
+      exports, and non-mutating view preferences.
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/rp-pdf-features.test.mjs
+    expected:
+      - Exported PDFs contain valid native /Annots dictionaries, stroked vector paths, XObject signatures, inserted blank pages, photo pages and compressed revisions.
+      - Exported .docx, .xlsx and .pptx archives pass OOXML structure validation, and caller signatures/view preferences enforce two-arm PostgreSQL RLS.
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - runtime:poppler-tesseract-eng
+      - service:postgres-disposable-35689
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, engine worker and temporary paths; preserve shared PostgreSQL 35689.
+    installation: never
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 768
+  - id: rp-pdf-workbench
+    name: Browser E2E proof for RP-PDF-01..10 and RP-ALL-01
+    purpose: >-
+      Prove all ten reference-product enhancements (select-text markup, freehand ink and stroke eraser, caller signatures,
+      check/cross marks, blank page insertion, multi-photo PDF creation, file-size compression, Word/Excel/PowerPoint conversion,
+      single/two-page view toggle, night reading mode) and Concierge suggested prompts end-to-end in Chromium against real
+      routes, Python PDF worker and disposable PostgreSQL.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files:
+        - tests/browser/rp-pdf-workbench.test.mjs
+    expected:
+      - Every RP-PDF-01..10 UI workflow persists or exports valid PDF/OOXML bytes and view preferences without mutating PDF bytes on view toggles.
+      - Zero data-ds-not-yet placeholders remain and Concierge renders live Summarize this PDF and Ask about this page prompts.
+    prerequisites:
+      - runner:node
+      - runtime:pypdf-pinned
+      - runtime:poppler-tesseract-eng
+      - runtime:chromium
+      - service:postgres-disposable-35689
+      - runtime:kernel-shared-ui
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only this run's unique fixture database, role, browser context and temporary paths; preserve shared PostgreSQL 35689.
     installation: never
     limits:
       timeoutMs: 180000

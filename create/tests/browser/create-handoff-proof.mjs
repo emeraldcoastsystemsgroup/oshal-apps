@@ -2,7 +2,9 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove automatic save/read/edit/refresh through real editor controls, project operations and PostgreSQL/RLS, including repeated handoffs, editable gray adjustment layers, failed saves and concurrent drafts.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Distinguish writable saved-project context from read-only screen reporting and preserve reader restrictions.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact selected identities and verify full saved text independently of clipped screen summaries.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the name, My projects and Save automatically are reached through the document menu, and layer values are edited in the one Format inspector (the duplicate form is gone); the Saved caption keeps its revision for screen readers, so it is read as text.
  */
+import { inMenu, manualSaving } from './create-editor-fixture.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { handoffDatabase, handoffFixture, chromium } from './create-handoff-fixture.mjs';
@@ -29,7 +31,7 @@ async function open(t) {
   const frame = page.frameLocator('#editorFrame');
   try { await frame.locator('#saveStatus').filter({ hasText: 'Saved · revision 1' }).waitFor(); }
   catch (failure) { throw new Error(JSON.stringify({ errors, pending: [...pending], failed, status: await frame.locator('#saveStatus').textContent(), issue: await frame.locator('#editorError').textContent() }), { cause: failure }); }
-  await frame.locator('#autosave').uncheck();
+  await manualSaving(frame);
   await page.waitForFunction(() => document.getElementById('editorFrame').contentWindow.__oshalDocumentSession);
   return { api, context, page, frame, id: created.body.project.id, errors };
 }
@@ -44,7 +46,7 @@ async function begin(page) {
 
 test('manual edits are saved for the concierge, its real layers refresh, and the next handoff reads the manual adjustment', async t => {
   const { api, page, frame, id, errors } = await open(t);
-  await frame.locator('#projectName').fill('Latest manual title');
+  await (await inMenu(frame, '#projectName')).fill('Latest manual title');
   const first = await begin(page);
   assert.equal(first.recordId, id); assert.equal(first.fields.revision, 2); assert.equal(first.fields.draft, false);
   assert.equal(first.fields.readOnly, false);
@@ -58,7 +60,7 @@ test('manual edits are saved for the concierge, its real layers refresh, and the
   assert.equal(edited.status, 201, JSON.stringify(edited.body));
   await page.evaluate(() => window.documentHandoff.refresh());
   await frame.locator('[data-layer-id="gray"] .layer-select').click();
-  assert.equal(await frame.locator('#saveStatus').innerText(), 'Saved · revision 3');
+  assert.equal(await frame.locator('#saveStatus').textContent(), 'Saved · revision 3');
   const state = await frame.locator('body').evaluate(async () => (await import('/api/create/editor/editor-state.mjs')).state.project);
   assert.equal(state.layers.find(layer => layer.id === 'gray').type, 'adjustment');
   assert.equal(state.layers.find(layer => layer.id === 'gray').saturation, 0);
@@ -71,21 +73,21 @@ test('manual edits are saved for the concierge, its real layers refresh, and the
     operations: [{ type: 'update', id: 'badge', patch: { text: 'Continued from your edit' } }] });
   assert.equal(next.status, 201, JSON.stringify(next.body));
   await page.evaluate(() => window.documentHandoff.refresh());
-  assert.equal(await frame.locator('#saveStatus').innerText(), 'Saved · revision 5');
+  assert.equal(await frame.locator('#saveStatus').textContent(), 'Saved · revision 5');
   await frame.locator('[data-layer-id="badge"] .layer-select').click();
-  assert.equal(await frame.locator('[data-property="text"]').inputValue(), 'Continued from your edit');
+  assert.equal(await frame.locator('[data-editor-property="text"]').inputValue(), 'Continued from your edit');
   const textContext = await begin(page);
   assert.deepEqual(textContext.selection, { kind: 'text', ids: ['badge'] });
   assert.equal(Object.hasOwn(textContext.fields, 'text'), false, 'Clipped screen text is not substituted for the actual saved document');
   assert.equal((await api.call(`/projects/${id}`)).body.project.document.layers.find(layer => layer.id === 'badge').text, 'Continued from your edit');
   await frame.locator('#undo').click();
-  assert.equal(await frame.locator('[data-property="text"]').inputValue(), 'Concierge edit');
+  assert.equal(await frame.locator('[data-editor-property="text"]').inputValue(), 'Concierge edit');
   assert.deepEqual(errors, []);
 });
 
 test('a refused automatic save stops the handoff and leaves the exact browser draft intact', async t => {
   const { api, page, frame, id } = await open(t);
-  await frame.locator('#projectName').fill('Unsaved private draft');
+  await (await inMenu(frame, '#projectName')).fill('Unsaved private draft');
   api.state.denied.add('project.change');
   await assert.rejects(begin(page));
   assert.equal((await api.call(`/projects/${id}`)).body.project.revision, 1);
@@ -108,7 +110,7 @@ test('a reader can hand over a saved document for questions without receiving ed
 test('refresh preserves a concurrent browser draft and reports the conflict instead of replacing it', async t => {
   const { api, page, frame, id } = await open(t);
   const handed = await begin(page);
-  await frame.locator('#projectName').fill('My concurrent edit');
+  await (await inMenu(frame, '#projectName')).fill('My concurrent edit');
   const result = await api.call(`/projects/${id}/operations`, 'POST', { baseRevision: handed.fields.revision,
     operations: [{ type: 'update', id: 'title', patch: { text: 'Assistant revision' } }] });
   assert.equal(result.status, 201, JSON.stringify(result.body));

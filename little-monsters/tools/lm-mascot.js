@@ -13,15 +13,19 @@
  *
  * CHANGE LOG
  * ---------------------------------------------------------------------------
- * DATE           | AUTHOR                    | DESCRIPTION
+ * SEQ | AUTHOR                                      | DESCRIPTION
  * ---------------------------------------------------------------------------
- * 2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — mascot component
- * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | Carry the page frame (window.LM) in this already-bound script so the authorization catalog stays at its installed revision; every surface loads it
- * 2026-09-27     | maintainer@emeraldcoastsystemsgroup.com     | The frame renders the profile as served: the server filters tools per caller through the app's tool-keys route, so the client keeps no teacher-only list
- * 2026-10-11     | maintainer@emeraldcoastsystemsgroup.com     | First visit completes school setup: when /me answers "complete school setup" the frame makes the screen's open-time write (the caller's own reminder check, the one non-GET every school role is bound to), which provisions the learner, then reads /me again. Native reads never provision, so a new person was stuck at that message inside the app
- * 2026-10-28     | maintainer@emeraldcoastsystemsgroup.com | Keep SAT & ACT visible in the primary school navigation.
- * 2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | When embedded, the page frame owns the full window (zen-mode; the host header, ribbon, status bar and chat rail hidden, never the Jarvis orb) and navigates its own frame instead of relaying to the host.
- * 2026-11-04     | maintainer@emeraldcoastsystemsgroup.com | The frame hides the cockpit's menu, so the More menu carries the way back: All applications, top-level, for everyone but a child-safe kiosk (Roger, 2026-11-03: the main menu now opens every Little Monsters screen, and a person who follows one had no way back but the browser's Back button).
+ * 1   | roger.murphy@emeraldcoastsystemsgroup.com   | Initial creation — mascot component
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Carry the page frame (window.LM) in this already-bound script so the authorization catalog stays at its installed revision; every surface loads it
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The frame renders the profile as served: the server filters tools per caller through the app's tool-keys route, so the client keeps no teacher-only list
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | First visit completes school setup: when /me answers "complete school setup" the frame makes the screen's open-time write (the caller's own reminder check, the one non-GET every school role is bound to), which provisions the learner, then reads /me again. Native reads never provision, so a new person was stuck at that message inside the app
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | Keep SAT & ACT visible in the primary school navigation.
+ * 6   | maintainer@emeraldcoastsystemsgroup.com     | When embedded, the page frame owns the full window (zen-mode; the host header, ribbon, status bar and chat rail hidden, never the Jarvis orb) and navigates its own frame instead of relaying to the host.
+ * 7   | maintainer@emeraldcoastsystemsgroup.com     | The frame hides the cockpit's menu, so the More menu carries the way back: All applications, top-level, for everyone but a child-safe kiosk (Roger, 2026-11-03: the main menu now opens every Little Monsters screen, and a person who follows one had no way back but the browser's Back button).
+ * 8   | maintainer@emeraldcoastsystemsgroup.com     | UX audit LM-FRAME (all 14 screens): on a phone ONE top bar (mascot + name at the left, the Level ring and ⋯ at the right; ⋯ holds All applications first, who is signed in, Voice and Teacher) and a bottom bar of Home, Tutor, Flashcards, Games and More (a sheet with every other section); the nav and its two extra rows are gone there. The host's floating assistant rests above the bottom bar (--oshal-app-bottom-inset) and steps aside on a page that is itself the assistant (body[data-lm-assistant="self"], the Tutor). On a desktop the bar's last links move into More ▾ before any label clips.
+ * 9   | maintainer@emeraldcoastsystemsgroup.com     | Planned control (DS-45): 'Parent summary · Not available yet' after the working items of the phone More sheet and the desktop More ▾ (backlog RP-LM-01), greyed and without a handler.
+ * 10  | maintainer@emeraldcoastsystemsgroup.com     | The trial check (412x915): the door's floating '← All apps' pill (body > .visitor-back, bottom-left in the host) covered the bottom bar's Home. The host style lifts it by --oshal-app-bottom-inset, the same lift the orb takes.
+ * 11  | maintainer@emeraldcoastsystemsgroup.com     | Activate Parent summary in the phone More sheet and desktop More ▾ linking to /api/education/dashboard?view=guardian (RP-LM-01).
  * ---------------------------------------------------------------------------
  *
  * @module lm-mascot
@@ -363,6 +367,24 @@ var LM_FRAME = (function () {
   var TOOL_PREFIX = 'tool-lm-';
   /** Views that stay in the bar; everything else the caller is admitted to sits under More. */
   var PRIMARY = ['dashboard', 'test-prep', 'myday', 'tutor', 'flashcards', 'recorder', 'arcade', 'monsters', 'teacher'];
+  /** Phone layout (one top bar + a bottom bar); the same width education.css switches at. */
+  var PHONE_QUERY = '(max-width: 720px)';
+  /** The phone bottom bar's four sections, then More; their short labels and icons. */
+  var BOTTOM = ['dashboard', 'tutor', 'flashcards', 'arcade'];
+  var BOTTOM_LABEL = { dashboard: 'Home', tutor: 'Tutor', flashcards: 'Flashcards', arcade: 'Games' };
+  var BOTTOM_ICON = { dashboard: '🏠', tutor: '💬', flashcards: '🃏', arcade: '🎮' };
+  /** The bottom bar's More sheet order; anything else the caller is admitted to follows. */
+  var SHEET_ORDER = ['test-prep', 'myday', 'monsters', 'recorder', 'presentations', 'timelines', 'stem', 'citations', 'files', 'email'];
+  /** On a phone these live in the top bar's ⋯ (with All applications and who is signed in), not in the sheet. */
+  var PHONE_MORE = ['voice-settings', 'teacher'];
+  var GUARDIAN_SUMMARY_HREF = '/api/education/dashboard?view=guardian';
+
+  function isGuardianView(win) {
+    try { return new URLSearchParams(String(win && win.location && win.location.search || '')).get('view') === 'guardian'; } catch (_) { return false; }
+  }
+  function parentSummaryLink(win) {
+    return '<a href="' + GUARDIAN_SUMMARY_HREF + '"' + (isGuardianView(win) ? ' aria-current="page"' : '') + '>Parent summary</a>';
+  }
 
   /**
    * @description Escape text for safe insertion into HTML.
@@ -519,7 +541,9 @@ var LM_FRAME = (function () {
             '.header-bar, .status-bar, #ribbonContainer, .ribbon-backdrop, .chat-panel, .panel-resize-handle, ' +
             '.tool-view-header, .zen-exit-btn, #workspaceNavigation, #workspaceNavigationMore { display: none !important; } ' +
             '.cockpit-body { padding: 0 !important; gap: 0 !important; height: 100vh !important; } ' +
-            '.main-content, .tool-view-container { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; }';
+            '.main-content, .tool-view-container { border: none !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; height: 100% !important; width: 100% !important; } ' +
+            // The trial door's floating way out (body > .visitor-back, bottom-left) rests above the phone bottom bar, like the orb.
+            'body > .visitor-back { bottom: calc(12px + var(--oshal-app-bottom-inset, 0px) + env(safe-area-inset-bottom, 0px)) !important; }';
           pdoc.head.appendChild(st);
         }
       } catch (_) { /* cross-origin host — ignore */ }
@@ -551,16 +575,98 @@ var LM_FRAME = (function () {
     }
 
     function navLink(e, active) { return '<a href="' + esc(e.href) + '"' + (active && active.id === e.id ? ' aria-current="page"' : '') + '>' + esc(e.label) + '</a>'; }
+    function pillHtml(who) { return who && who.name ? '<span class="lm-pill is-neutral" title="' + esc(who.email || '') + '">' + esc(String(who.name).split(' ')[0]) + (who.role ? ' · ' + esc(who.role) : '') + '</span>' : ''; }
+    function levelHtml(progress) { return progress ? '<span class="lm-level" title="' + progress.inLevel + ' / ' + progress.needed + ' XP"><span class="lm-level-ring" style="--pct:' + progress.pct + '"><span>' + progress.level + '</span></span><span class="lm-level-label">Level ' + progress.level + '</span></span>' : ''; }
+    /** @description The phone's ⋯ in the top bar: the way back first, then who is signed in, Voice and Teacher. */
+    function phoneMoreHtml(list, active, who, back) {
+      var items = list.filter(function (e) { return PHONE_MORE.indexOf(e.view) !== -1; });
+      var pill = pillHtml(who);
+      if (!back && !pill && !items.length) return '';
+      var open = Boolean(active && items.some(function (e) { return e.id === active.id; }));
+      return '<details class="lm-more lm-more-phone"><summary aria-label="More"' + (open ? ' aria-current="page"' : '') + '>⋯</summary><div class="lm-more-menu">' + back +
+        (pill ? '<div class="lm-more-who">' + pill + '</div>' : '') + items.map(function (e) { return navLink(e, active); }).join('') + '</div></details>';
+    }
     function topbarHtml(list, active, who, progress) {
       var primary = list.filter(function (e) { return PRIMARY.indexOf(e.view) !== -1; }), more = list.filter(function (e) { return PRIMARY.indexOf(e.view) === -1; });
-      var moreOpen = Boolean(active && more.some(function (e) { return e.id === active.id; }));
+      var moreOpen = Boolean(isGuardianView(w) || (active && more.some(function (e) { return e.id === active.id; })));
       var back = allApplicationsLink(w);
-      var moreHtml = more.length || back ? '<details class="lm-more"><summary' + (moreOpen ? ' aria-current="page"' : '') + '>More ▾</summary><div class="lm-more-menu">' + back + more.map(function (e) { return navLink(e, active); }).join('') + '</div></details>' : '';
-      var name = who && who.name ? '<span class="lm-pill is-neutral" title="' + esc(who.email || '') + '">' + esc(String(who.name).split(' ')[0]) + (who.role ? ' · ' + esc(who.role) : '') + '</span>' : '';
-      var level = progress ? '<span class="lm-level" title="' + progress.inLevel + ' / ' + progress.needed + ' XP"><span class="lm-level-ring" style="--pct:' + progress.pct + '"><span>' + progress.level + '</span></span>Level ' + progress.level + '</span>' : '';
-      return '<a class="lm-brand" href="' + esc(list.length ? list[0].href : '/api/education/dashboard') + '"><img src="' + LOGO_PATH + '" alt="">little monsters</a><nav aria-label="Little Monsters">' + primary.map(function (e) { return navLink(e, active); }).join('') + '</nav><div class="lm-topbar-side">' + moreHtml + level + name + '</div>';
+      var moreHtml = list.length || back ? '<details class="lm-more lm-more-desk"><summary' + (moreOpen ? ' aria-current="page"' : '') + '>More ▾</summary><div class="lm-more-menu">' + back + '<div class="lm-spill"></div>' + more.map(function (e) { return navLink(e, active); }).join('') + parentSummaryLink(w) + '</div></details>' : '';
+      return '<a class="lm-brand" href="' + esc(list.length ? list[0].href : '/api/education/dashboard') + '"><img src="' + LOGO_PATH + '" alt="">little monsters</a><nav aria-label="Little Monsters">' + primary.map(function (e) { return navLink(e, active); }).join('') + '</nav><div class="lm-topbar-side">' + moreHtml + levelHtml(progress) + pillHtml(who) + phoneMoreHtml(list, active, who, back) + '</div>';
     }
-    /** @description Render the Little Monsters top bar once the profile and identity have answered. */
+    /**
+     * @description The phone's bottom bar: Home, Tutor, Flashcards, Games, then More, a sheet with every other section.
+     * @returns {string} The bar's inner markup, or an empty string when the caller is admitted to none of the four.
+     */
+    function bottomBarHtml(list, active) {
+      var four = BOTTOM.map(function (v) { return list.filter(function (e) { return e.view === v; })[0]; }).filter(Boolean);
+      if (!four.length) return '';
+      var rest = list.filter(function (e) { return BOTTOM.indexOf(e.view) === -1 && PHONE_MORE.indexOf(e.view) === -1; });
+      rest.sort(function (a, b) { return sheetRank(a.view) - sheetRank(b.view); });
+      var link = function (e) { var on = active && active.id === e.id; return '<a href="' + esc(e.href) + '"' + (on ? ' aria-current="page"' : '') + '><span class="lm-bottombar-icon" aria-hidden="true">' + (BOTTOM_ICON[e.view] || '•') + '</span><span>' + esc(BOTTOM_LABEL[e.view] || e.label) + '</span></a>'; };
+      var moreOn = Boolean(isGuardianView(w) || (active && rest.some(function (e) { return e.id === active.id; })));
+      var sheet = rest.length ? '<details class="lm-bottom-more"><summary' + (moreOn ? ' aria-current="page"' : '') + '><span class="lm-bottombar-icon" aria-hidden="true">⋯</span><span>More</span></summary><div class="lm-sheet" role="menu">' +
+        rest.map(function (e) { return navLink(e, active); }).join('') + parentSummaryLink(w) + '</div></details>' : '';
+      return four.map(link).join('') + sheet;
+    }
+    function sheetRank(view) { var i = SHEET_ORDER.indexOf(view); return i === -1 ? SHEET_ORDER.length : i; }
+    /**
+     * @description Desktop: move the last links of the bar into More ▾ until the rest fit, so no label is ever clipped
+     * ('Record' was cut at 1440px). On a phone the bar's links are hidden and nothing moves.
+     * @param {HTMLElement} bar The mounted top bar.
+     */
+    function fitNav(bar) {
+      var nav = bar.querySelector('nav'), spill = bar.querySelector('.lm-more-desk .lm-spill'), details = bar.querySelector('.lm-more-desk');
+      if (!nav || !spill) return;
+      while (spill.firstChild) nav.appendChild(spill.firstChild);
+      var phone = w.matchMedia && w.matchMedia(PHONE_QUERY).matches, moved = [];
+      while (!phone && nav.children.length > 1 && nav.scrollWidth > nav.clientWidth + 1) moved.unshift(nav.removeChild(nav.lastElementChild));
+      moved.forEach(function (a) { spill.appendChild(a); });
+      var summary = details.querySelector('summary');
+      if (details.querySelector('.lm-more-menu a[aria-current]')) summary.setAttribute('aria-current', 'page'); else summary.removeAttribute('aria-current');
+      details.hidden = !details.querySelector('.lm-more-menu a');
+    }
+    /** @description The host document's root, when this page is framed by a same-origin host (cockpit or Today). */
+    function hostRoot() { try { return embedded && w.parent && w.parent.document ? w.parent.document.documentElement : null; } catch (_) { return null; } }
+    /** @description Tell the host's assistant button that its visibility changed (the event jarvis-orb.js listens for). */
+    function announceAssistant(hidden) { try { w.parent.dispatchEvent(new w.parent.CustomEvent('oshal:assistant-visibility', { detail: { hidden: hidden } })); } catch (_) { /* host without the orb */ } }
+    /**
+     * @description Keep the host's floating assistant off this page's controls: on a phone it rests above the bottom bar
+     * (--oshal-app-bottom-inset, read by the host's orb), and a page that IS the assistant (body[data-lm-assistant="self"],
+     * the Tutor) hides it while it is open. Only what this frame set is ever undone.
+     */
+    function syncHost(bottom) {
+      var root = hostRoot();
+      if (!root) return;
+      var phone = w.matchMedia && w.matchMedia(PHONE_QUERY).matches;
+      if (phone && bottom && bottom.offsetHeight) { root.style.setProperty('--oshal-app-bottom-inset', bottom.offsetHeight + 'px'); root.setAttribute('data-lm-inset', ''); }
+      else if (root.hasAttribute('data-lm-inset')) { root.style.removeProperty('--oshal-app-bottom-inset'); root.removeAttribute('data-lm-inset'); }
+      var self = w.document.body.getAttribute('data-lm-assistant') === 'self';
+      if (self && root.getAttribute('data-oshal-assistant-hidden') !== 'true') { root.setAttribute('data-oshal-assistant-hidden', 'true'); root.setAttribute('data-lm-hid-assistant', ''); announceAssistant(true); }
+      else if (!self) releaseHost(true);
+    }
+    /** @description Undo what syncHost set on the host (when this page goes away, or on a page that is not the assistant). */
+    function releaseHost(assistantOnly) {
+      var root = hostRoot();
+      if (!root) return;
+      if (!assistantOnly && root.hasAttribute('data-lm-inset')) { root.style.removeProperty('--oshal-app-bottom-inset'); root.removeAttribute('data-lm-inset'); }
+      if (root.hasAttribute('data-lm-hid-assistant')) { root.removeAttribute('data-oshal-assistant-hidden'); root.removeAttribute('data-lm-hid-assistant'); announceAssistant(false); }
+    }
+    /** @description One open menu at a time; a tap outside or Escape closes the open menu or sheet. */
+    function wireMenus(doc) {
+      var all = function () { return doc.querySelectorAll('.lm-topbar details[open], .lm-bottombar details[open]'); };
+      doc.addEventListener('click', function (ev) { all().forEach(function (d) { if (!d.contains(ev.target)) d.removeAttribute('open'); }); });
+      doc.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') all().forEach(function (d) { d.removeAttribute('open'); }); });
+    }
+    /** @description Draw the phone bottom bar (once) and reserve the page's bottom space for it. */
+    function mountBottomBar(list, active) {
+      var html = bottomBarHtml(list, active);
+      if (!html) return null;
+      var nav = w.document.createElement('nav'); nav.className = 'lm-bottombar'; nav.setAttribute('aria-label', 'Little Monsters sections'); nav.innerHTML = html;
+      w.document.body.appendChild(nav);
+      w.document.body.classList.add('lm-has-bottombar');
+      return nav;
+    }
+    /** @description Render the Little Monsters top bar (and the phone bottom bar) once the profile and identity have answered. */
     function mountTopbar() {
       suppressHostCockpitChrome();
       if (!w.document || !w.document.body || w.document.querySelector('.lm-topbar')) return Promise.resolve(null);
@@ -569,8 +675,17 @@ var LM_FRAME = (function () {
       return Promise.all([entries(), me()]).then(function (r) {
         var list = r[0], who = r[1], learner = who && who.role === 'student';
         return (learner ? getJson(REWARDS_PATH) : Promise.resolve(null)).then(function (rewards) {
+          var active = isGuardianView(w) ? null : activeEntry(list, w.location.pathname);
           cache.rewards = rewards;
-          bar.innerHTML = topbarHtml(list, activeEntry(list, w.location.pathname), who, learner ? levelProgress(rewards) : null);
+          bar.innerHTML = topbarHtml(list, active, who, learner ? levelProgress(rewards) : null);
+          var bottom = mountBottomBar(list, active);
+          var refit = function () { fitNav(bar); syncHost(bottom); };
+          var queued = 0;
+          w.addEventListener('resize', function () { if (!queued) queued = w.requestAnimationFrame(function () { queued = 0; refit(); }); });
+          w.addEventListener('pagehide', function () { releaseHost(false); });
+          wireMenus(w.document);
+          refit();
+          bar.setAttribute('data-lm-ready', '');
           return bar;
         });
       });

@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | shopping-list-add also proves the persona emits the tool call in the same reply and asks nothing first, and the tool's prompt line reads as "call it now" (sweep 10: "I propose adding ... Please confirm" with no card, 0 of 5).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The shopping-list-add case also expects the card named by its item, never by its place (sweep 13).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-add-many: several free-text items behind one approval card through the compiled route.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register shopping-list-rows (UX audit 2026-11-05): the List screen's Add an item field, row tick-off and quantity, and List as the one tile.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -312,6 +313,26 @@ cases:
       - tests/shopping-list-add-many.test.cjs
     expected:
     - Four items land in one call; refused bodies write nothing.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: shopping-list-rows
+    name: List fills from the screen and each row ticks off and steps
+    purpose: The compiled routes under the native writer admission and the shipped List screen (UX audit 2026-11-05, shop-lists) - the Add an item field writes free text, POST /lists/:listId/items/:itemId ticks a row off or back and steps its quantity, another shopper's row is refused, and List is the one tile.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/shopping-list-rows.test.js
+    expected:
+    - A tick sets status done and unticking sets pending; a quantity clamps from 1 to the line cap; another shopper, a removed row and an empty change change nothing.
+    - The manifest's only tile is List (the default view); Checkout is hidden without a retail rail and disabled while nothing is pending.
     prerequisites:
     - runner:node-test
     sideEffects: none

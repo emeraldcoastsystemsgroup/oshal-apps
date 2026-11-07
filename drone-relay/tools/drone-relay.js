@@ -36,6 +36,11 @@
  *                     |                             | view, so under ?audience=company nothing but the company
  *                     |                             | view's own GET /plans runs; without the parameter, or with
  *                     |                             | a core that lacks the kit, the full page boots as before.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (layout only, no engine change): Plan and
+ *                     |                             | Simulate views; Delete moves into the open chain's row menu
+ *                     |                             | with an in-page confirm (no native dialog); Run says why it
+ *                     |                             | is off; advisories read in words, not schema ids; the
+ *                     |                             | corridor drawing is cropped to its track.
  */
 (function () {
   'use strict';
@@ -58,6 +63,16 @@
     Object.entries(attrs || {}).forEach(([k, v]) => { if (k === 'class') node.className = v; else if (k === 'text') node.textContent = v; else if (k.startsWith('on')) node.addEventListener(k.slice(2), v); else node.setAttribute(k, v); });
     (children || []).forEach((c) => node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
     return node;
+  }
+  /** Advisories in words, not the spec's field names (UX audit 2026-11-06). Pure. */
+  function words(text) {
+    return String(text).replace(/\bpathLossExponent (\d+(?:\.\d+)?)/g, 'a path-loss exponent of $1').replace(/\bheartbeatS\b/g, 'the heartbeat interval')
+      .replace(/\brequiredMarginDb\b/g, 'the design margin').replace(/\bdegradedMarginDb\b/g, 'the degraded margin').replace(/\benduranceS\b/g, 'the endurance')
+      .replace(/\breserveS\b/g, 'the reserve').replace(/\bfleetSize\b/g, 'the fleet size').replace(/\btipDataKbps\b/g, 'the tip data rate');
+  }
+  /** The corridor drawing is cropped to what it holds, so the card is only as tall as its track. */
+  function fitMap(svg) {
+    try { const b = svg.getBBox(); if (!b || !b.height) return; const top = Math.max(0, Math.floor(b.y - 16)), h = Math.min(300 - top, Math.ceil(b.height + 32)); svg.setAttribute('viewBox', '0 ' + top + ' 1000 ' + Math.max(80, h)); } catch (_) { /* not rendered yet */ }
   }
   function svgEl(tag, attrs) {
     const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -106,23 +121,28 @@
     state.plans.forEach((p) => {
       const verdict = p.last_metrics ? p.last_metrics.verdict : (p.plan.feasible ? 'sized' : 'infeasible');
       const tone = !p.plan.feasible || verdict === 'lost' ? 'bad' : verdict === 'held' || verdict === 'restored' ? 'ok' : verdict === 'degraded' ? 'warn' : '';
-      list.appendChild(el('button', { class: 'plan-item' + (state.plan && state.plan.plan_id === p.plan_id ? ' active' : ''), onclick: () => openPlan(p.plan_id) }, [
+      const open = state.plan && state.plan.plan_id === p.plan_id;
+      const item = el('button', { class: 'plan-item' + (open ? ' active' : ''), onclick: () => openPlan(p.plan_id) }, [
         el('span', { class: 'plan-title', text: p.title }), el('span', { class: 'badge ' + tone, text: verdict }),
-      ]));
+      ]);
+      // The open chain's row carries its menu (Delete), never a small loose button.
+      const row = el('div', { class: 'plan-row' }, [item]);
+      if (open) row.appendChild(el('button', { class: 'ghost plan-more', type: 'button', 'aria-label': 'More for ' + p.title, title: 'More', onclick: askDelete, text: '⋯' }));
+      list.appendChild(row);
     });
   }
   async function openPlan(planId) {
     const { plan } = await api('/plans/' + planId);
     state.plan = plan; state.run = plan.last_sim || null; state.failures = [];
     fillForm(plan.spec);
-    $('form-title').textContent = 'Edit chain'; $('save-plan').textContent = 'Update'; $('delete-plan').hidden = false;
+    $('form-title').textContent = 'Edit chain'; $('save-plan').textContent = 'Update'; $('delete-confirm').hidden = true;
     renderPlan(plan.spec, plan.plan, plan.roster);
     renderRun();
     await loadPlans();
   }
   function newPlan() {
     state.plan = null; state.run = null; state.failures = [];
-    $('form-title').textContent = 'New chain'; $('save-plan').textContent = 'Save'; $('delete-plan').hidden = true;
+    $('form-title').textContent = 'New chain'; $('save-plan').textContent = 'Save'; $('delete-confirm').hidden = true;
     $('plan-panel').hidden = true; $('empty-panel').hidden = false;
     loadPlans();
   }
@@ -130,17 +150,23 @@
     try {
       const spec = specFromForm();
       if (state.plan) { const { plan } = await api('/plans/' + state.plan.plan_id, { method: 'PATCH', json: spec }); state.plan = plan; state.run = null; toast('Chain updated; the last run was cleared.', 'ok'); }
-      else { const { plan } = await api('/plans', { method: 'POST', json: spec }); state.plan = plan; state.run = null; toast('Chain saved.', 'ok'); $('form-title').textContent = 'Edit chain'; $('save-plan').textContent = 'Update'; $('delete-plan').hidden = false; }
+      else { const { plan } = await api('/plans', { method: 'POST', json: spec }); state.plan = plan; state.run = null; toast('Chain saved.', 'ok'); $('form-title').textContent = 'Edit chain'; $('save-plan').textContent = 'Update'; }
       renderPlan(state.plan.spec, state.plan.plan, state.plan.roster); renderRun(); await loadPlans();
     } catch (err) { fail(err); }
   }
   async function previewPlan() {
     try { const { spec, sized } = await api('/plan-preview', { method: 'POST', json: specFromForm() }); state.run = null; renderPlan(spec, sized, null, true); renderRun(); } catch (err) { fail(err); }
   }
+  /** Delete asks in the page (UX audit 2026-11-06: no native dialog); the row menu opens this confirm. */
+  function askDelete() {
+    if (!state.plan) return;
+    $('delete-confirm-text').textContent = 'Delete "' + state.plan.title + '"? Its saved runs go with it.';
+    $('delete-confirm').hidden = false; $('delete-plan').focus();
+  }
   async function deletePlan() {
-    if (!state.plan || !window.confirm('Delete "' + state.plan.title + '"?')) return;
-    await api('/plans/' + state.plan.plan_id, { method: 'DELETE' });
-    newPlan();
+    if (!state.plan) return;
+    $('delete-confirm').hidden = true;
+    try { await api('/plans/' + state.plan.plan_id, { method: 'DELETE' }); newPlan(); } catch (err) { fail(err); }
   }
 
   // ── Plan rendering ──────────────────────────────────────────────────────────
@@ -165,9 +191,10 @@
     add('Courier', plan.courier ? `${plan.courier.payloadMB} MB per trip over ${plan.courier.transport}: ${plan.courier.tripS} s a trip ≈ ${fmt(plan.courier.equivalentKbps)} kbps${plan.courier.feasible ? '' : ' · NOT feasible on this battery'}` : 'none');
     const notes = $('plan-notes'); notes.replaceChildren();
     notes.appendChild(el('li', { class: plan.feasible ? '' : 'bad', text: plan.feasible ? 'Feasible.' : 'Not feasible.' }));
-    plan.reasons.forEach((r) => notes.appendChild(el('li', { class: 'bad', text: r })));
-    plan.warnings.forEach((w) => notes.appendChild(el('li', { class: 'warn', text: w })));
+    plan.reasons.forEach((r) => notes.appendChild(el('li', { class: 'bad', text: words(r) })));
+    plan.warnings.forEach((w) => notes.appendChild(el('li', { class: 'warn', text: words(w) })));
     $('open-design').disabled = !!preview; $('trace-cmd').disabled = !!preview; $('run-sim').disabled = !!preview || !plan.feasible;
+    $('run-why').textContent = preview ? 'Save the chain to run a scenario.' : !plan.feasible ? 'Needs a feasible chain: add relays or endurance.' : '';
     const drones = $('s-drone'); drones.replaceChildren();
     (roster || []).filter((id) => !/^tip\d*$/.test(id)).forEach((id) => drones.appendChild(el('option', { value: id, text: id })));
     renderFailures();
@@ -204,7 +231,8 @@
   }
   function drawMap(frame) {
     const spec = state.viewSpec, plan = state.viewPlan; if (!spec || !plan) return;
-    const svg = $('map'); svg.replaceChildren();
+    const svg = $('map'); svg.replaceChildren(); svg.setAttribute('viewBox', '0 0 1000 300');
+    queueMicrotask(() => fitMap(svg)); // after every path below, the plan's slots alone or a run frame
     const proj = projector(spec);
     const lanes = spec.area ? [spec.area.concat([spec.area[0]])] : laneList(spec);
     lanes.forEach((lane) => {
@@ -323,6 +351,9 @@
     $('save-plan').addEventListener('click', savePlan);
     $('preview-plan').addEventListener('click', previewPlan);
     $('delete-plan').addEventListener('click', deletePlan);
+    $('delete-cancel').addEventListener('click', () => { $('delete-confirm').hidden = true; });
+    const showView = (v) => { const sim = v === 'sim'; $('tab-plan').setAttribute('aria-selected', String(!sim)); $('tab-sim').setAttribute('aria-selected', String(sim)); document.querySelectorAll('#plan-panel [data-view]').forEach((n) => { n.classList.toggle('view-off', n.dataset.view !== (sim ? 'sim' : 'plan')); }); if (sim) { if (state.run) showFrame(state.frame || 0); else drawMap(null); } };
+    $('tab-plan').addEventListener('click', () => showView('plan')); $('tab-sim').addEventListener('click', () => showView('sim')); showView('plan');
     $('run-sim').addEventListener('click', runSim);
     $('s-add').addEventListener('click', () => { const drone = $('s-drone').value; if (!drone) return; state.failures.push({ drone, atS: Number($('s-at').value) || 0 }); renderFailures(); });
     $('scrub').addEventListener('input', (e) => { stopPlay(); showFrame(Number(e.target.value)); });

@@ -21,12 +21,14 @@ A package with no model at all shows "none (T0, no model in the loop)".
 Tokens per unit and models verified read "not yet measured" / "none recorded" until the P0 and P1 generators exist;
 a number in those columns is never typed by hand.
 
-Coverage: 84 packages, 84 rated, 0 unrated.
+Coverage: 86 packages, 86 rated, 0 unrated.
 
 | Package | Memory MiB low / high (basis) | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|---|---|
 | aero-lab | 544 / 2176 (declared) | aero-design-draft | design draft chat turn | T2 | none | disable | not yet measured | none recorded |
 | animatronics | 32 / 128 (declared) | motion-director-chat | director chat turn | T4 | none | disable | not yet measured | none recorded |
+| audio | 64 / 256 (declared) | audio-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
+| audio | 64 / 256 (declared) | stem-mixdown | audio mixdown | T2 | none | disable | not yet measured | none recorded |
 | bake-off | 32 / 128 (declared) | model-race | bake-off run | T3 | none | disable | not yet measured | none recorded |
 | bake-off | 32 / 128 (declared) | lane-grading | lane grade | T2 | none | template | not yet measured | none recorded |
 | bake-off | 32 / 128 (declared) | bake-off-verdict | verdict narration | T2 | none | template | not yet measured | none recorded |
@@ -114,6 +116,7 @@ Coverage: 84 packages, 84 rated, 0 unrated.
 | payments | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | payroll | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | pdf-workbench | 32 / 768 (declared) | pdf-editing-command | editing command | T1 | none | disable | not yet measured | none recorded |
+| person-model | 32 / 128 (declared) | ambient-recall-concierge | concierge answer | T1 | none | disable | not yet measured | none recorded |
 | phone-control | 48 / 192 (declared) | phone-control-action | device control operation | T1 | none | disable | not yet measured | none recorded |
 | portrait-studio | 32 / 128 (declared) | portrait-generation | portrait | T0 | hosted | disable | not yet measured | none recorded |
 | presentations | 128 / 512 (declared) | ai-outline-draft | deck, document or sheet outline | T2 | none | template | not yet measured | none recorded |

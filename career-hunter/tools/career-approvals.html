@@ -7,12 +7,14 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Render truthful, redacted application provenance and keep manual or worker-reported outcomes distinct from confirmation-backed records.
   2 | maintainer@emeraldcoastsystemsgroup.com | State that each explicit auto-apply action authorizes the connected worker to click the employer's final Submit button.
   3 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: this is the Job Board's To approve stage now, under the same stage control (career-stages.js), and the old address keeps opening it. "Generate draft candidates" said the opposite of its own subheader and wrote no draft: it is "Add top matches" (it calls /enqueue-drafts, which pulls scored roles). When it adds nothing the page says why in place, "No scored matches yet", with one primary, Find & score jobs (the same POST /run/build the Job Board's onboarding starts). Top is a stepper bounded 1 to 50 as the route clamps it. Each queued role's Approve, Approve + OSHAL and Deny sit in its row menu, and Deny confirms in the page. The 74-word paragraph is one line plus Help. Guard: tests/career-approvals-stage.test.mjs.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="approvals"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Approvals</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
+<link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 <style>
 .application-proof { margin:7px 0 0; padding:6px 8px; border:1px solid var(--line); border-radius:7px;
   color:var(--muted); font-size:12px; line-height:1.4; }
@@ -52,10 +54,17 @@
 }</style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
+<style>
+.stepper{display:inline-flex;align-items:center;gap:4px}.stepper input{width:64px;min-height:44px;text-align:center;font-size:16px;border:1px solid var(--ds-line-control);border-radius:var(--ds-radius-m);background:var(--ds-surface);color:var(--ds-ink)}
+.app{position:relative}.app .ck-confirm{flex-basis:100%;margin-top:8px}
+details.help{margin:4px 0 14px;color:var(--ds-ink-2);font-size:14px}details.help>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
+.career-stages{margin:0 0 14px}
+</style>
 </head><body>
 <div class="wrap">
-  <h1>Application Approvals</h1>
-  <p class="lede">Your top-scored roles, queued for a decision. <b>Approve</b> writes a standard résumé + cover; <b>Approve + OSHAL</b> adds your open-source / agentic section; <b>Deny</b> dismisses the role. Nothing is written or sent without your click. Résumés and cover letters are AI-assisted from the profile you provided — review them before applying. Each later Auto-apply click authorizes one exact task on your connected desktop worker to fill the employer form and click its final Submit button.</p>
+  <div id="careerStages"></div>
+  <p class="lede">Your top-scored roles, waiting for your decision. Nothing is written or sent without your click.</p>
+  <details class="help"><summary>Help</summary><p><b>Approve</b> writes a standard résumé and cover letter; <b>Approve + OSHAL</b> adds your open-source and agentic section; <b>Deny</b> dismisses the role. Résumés and cover letters are AI-assisted from the profile you provided: review them before applying. Each later Auto-apply click authorizes one exact task on your connected desktop worker to fill the employer form and click its final Submit button.</p></details>
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
@@ -64,9 +73,9 @@
         <div class="hint" style="margin:0">Drafts are generated only when you approve.</div>
       </div>
       <div class="row">
-        <label class="hint" style="margin:0">Top</label>
-        <input type="text" id="n" value="10" style="min-width:54px;width:54px;text-align:center">
-        <button class="btn primary" id="enqueue">★ Generate draft candidates</button>
+        <label class="hint" style="margin:0" for="n">Top</label>
+        <span class="stepper"><button type="button" class="ck-icon" id="nDown" aria-label="Fewer">−</button><input type="number" id="n" value="10" min="1" max="50" step="1" inputmode="numeric"><button type="button" class="ck-icon" id="nUp" aria-label="More">+</button></span>
+        <button class="ck-btn" id="enqueue">Add top matches</button>
       </div>
     </div>
   </div>
@@ -77,6 +86,7 @@
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="/api/career-hunter/static/career-stages.js"></script>
 <script>
 const API = '/api/career-hunter';
 const $ = (s) => document.querySelector(s);
@@ -86,19 +96,14 @@ async function jpost(url, body){ const r=await fetch(url,{method:'POST',headers:
 const ACTIVE = new Set(['approval_required','drafting','drafted']);
 function render(apps){
   const el = $('#list');
-  if(!apps.length){ el.innerHTML = '<div class="empty">Nothing queued yet. Click <b>Generate draft candidates</b> to pull your top-scored roles in.</div>'; return; }
+  if(!apps.length){ el.innerHTML = emptyHtml(); bindEmpty(); return; }
   el.innerHTML = apps.map(a => {
     const st = a.status || 'approval_required';
     const acts = [];
-    if(st === 'approval_required'){
-      acts.push(`<button class="btn good" data-act="approve" data-id="${a.posting_id}">Approve</button>`);
-      acts.push(`<button class="btn primary" data-act="approve-oshal" data-id="${a.posting_id}">Approve + OSHAL</button>`);
-      acts.push(`<button class="btn danger" data-act="deny" data-id="${a.posting_id}">Deny</button>`);
-    } else if(st === 'drafted'){
-      acts.push(`<button class="btn primary" data-act="applied" data-id="${a.posting_id}">Mark applied manually</button>`);
-      acts.push(`<button class="btn danger" data-act="deny" data-id="${a.posting_id}">Deny</button>`);
+    if(st === 'approval_required' || st === 'drafted'){
+      acts.push(`<button type="button" class="ck-icon" data-menu="${a.posting_id}" data-status="${esc(st)}" aria-haspopup="menu" aria-label="Actions for ${esc(a.title||'role')}">⋯</button>`);
     }
-    return `<div class="app">
+    return `<div class="app" data-app="${a.posting_id}">
       <div class="meta">
         <div class="title">${esc(a.title||'(role)')} ${a.include_oshal?'<span class="badge b-drafted">OSHAL</span>':''}</div>
         <div class="co">${esc(a.company||'')}</div>
@@ -154,17 +159,62 @@ async function load(){
   const proofs=new Map((evidence.jobs||[]).map(job=>[Number(job.id),applicationProvenance(job)]));
   render((r.applications||[]).map(a=>({...a,application_proof:proofs.get(Number(a.posting_id))})));
 }
+/* The route clamps the limit to 1-50 (career-application-routes.ts loadEnqueueRows). */
+const clampTop = v => Math.min(50, Math.max(1, Math.round(Number(v)) || 10));
+$('#nDown').onclick = () => { $('#n').value = clampTop(Number($('#n').value) - 1); };
+$('#nUp').onclick = () => { $('#n').value = clampTop(Number($('#n').value) + 1); };
+$('#n').addEventListener('change', () => { $('#n').value = clampTop($('#n').value); });
+let lastAdded = null;
+function emptyHtml(){
+  if(lastAdded === 0) return '<div class="ck-empty"><h2>No scored matches yet</h2><p>Top matches come from jobs scored against your résumé.</p><button type="button" class="ck-primary" id="scoreNow">Find &amp; score jobs</button><p id="scoreState" role="status"></p></div>';
+  return '<div class="ck-empty"><h2>Nothing waiting for approval</h2><p>Add your top-scored matches to decide on them here.</p></div>';
+}
+function bindEmpty(){
+  const b = $('#scoreNow'); if(!b) return;
+  b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const res = await fetch(API+'/run/build', { method:'POST' }); const r = await res.json().catch(()=>({}));
+      if(!res.ok || r.ok === false) throw new Error(r.err || r.error || ('HTTP '+res.status));
+      $('#scoreState').textContent = 'Scoring started. It usually takes 2 to 3 minutes; then Add top matches again.';
+    } catch(err) { $('#scoreState').textContent = 'Couldn\u2019t start scoring: '+err.message+'. Try again.'; b.disabled = false; }
+  };
+}
 $('#enqueue').onclick = async () => {
-  $('#enqueue').disabled = true; $('#enqueue').innerHTML='<span class="spin"></span> Pulling…';
-  const r = await jpost(API+'/enqueue-drafts', { limit: Number($('#n').value)||10 });
-  toast(r.created!=null ? `${r.created} new candidate(s) queued` : 'No new candidates');
-  $('#enqueue').disabled=false; $('#enqueue').textContent='★ Generate draft candidates';
+  $('#enqueue').disabled = true; $('#enqueue').innerHTML='<span class="spin"></span> Adding…';
+  const r = await jpost(API+'/enqueue-drafts', { limit: clampTop($('#n').value) });
+  lastAdded = r.created!=null ? Number(r.created) : 0;
+  toast(lastAdded ? `${lastAdded} top match${lastAdded===1?'':'es'} added` : 'No scored matches yet');
+  $('#enqueue').disabled=false; $('#enqueue').textContent='Add top matches';
   load();
 };
+/* Row menu (§4.6): a role's own actions; Deny confirms in the page (DS-44). */
+const menu = document.createElement('div'); menu.className = 'ck-menu'; menu.setAttribute('role','menu'); menu.setAttribute('popover',''); document.body.append(menu);
+let menuFor = null;
+function closeMenu(){ if(menu.hidePopover) menu.hidePopover(); else menu.hidden = true; }
+menu.addEventListener('click', (e) => {
+  const item = e.target.closest('[data-pick]'); if(!item || !menuFor) return; closeMenu();
+  if(item.dataset.pick === 'deny'){ askDeny(menuFor); return; }
+  run(item.dataset.pick, menuFor);
+});
+function askDeny(id){
+  const row = document.querySelector(`.app[data-app="${id}"]`); if(!row || row.querySelector('.ck-confirm')) return;
+  row.insertAdjacentHTML('beforeend', `<div class="ck-confirm" role="alertdialog" aria-label="Deny this role"><span>Deny this role? It leaves your queue.</span><button type="button" class="ck-danger solid" data-act="deny" data-id="${id}">Deny</button><button type="button" class="ck-tertiary" data-cancel>Cancel</button></div>`);
+}
 $('#list').addEventListener('click', async (e) => {
+  const m = e.target.closest('[data-menu]');
+  if(m){ menuFor = m.dataset.menu; const drafted = m.dataset.status === 'drafted';
+    menu.innerHTML = (drafted ? '<button type="button" role="menuitem" data-pick="applied">Mark applied manually</button>'
+      : '<button type="button" role="menuitem" data-pick="approve">Approve</button><button type="button" role="menuitem" data-pick="approve-oshal">Approve + OSHAL</button>')
+      + '<hr><button type="button" role="menuitem" class="bad" data-pick="deny">Deny…</button>';
+    const rect = m.getBoundingClientRect(); menu.style.top = Math.min(rect.bottom + 4, innerHeight - 160) + 'px'; menu.style.left = Math.max(8, rect.right - 210) + 'px';
+    if(menu.showPopover) menu.showPopover(); else menu.hidden = false; return; }
+  if(e.target.closest('[data-cancel]')){ e.target.closest('.ck-confirm').remove(); return; }
   const b = e.target.closest('button[data-act]'); if(!b) return;
-  const id = b.dataset.id, act = b.dataset.act;
-  b.disabled = true; const orig = b.textContent; b.innerHTML='<span class="spin"></span>';
+  run(b.dataset.act, b.dataset.id, b);
+});
+async function run(act, id, b){
+  if(b){ b.disabled = true; b.innerHTML='<span class="spin"></span>'; }
   let r;
   if(act==='approve')        r = await jpost(`${API}/applications/${id}/approve`, { oshal:false });
   else if(act==='approve-oshal') r = await jpost(`${API}/applications/${id}/approve`, { oshal:true });
@@ -173,7 +223,8 @@ $('#list').addEventListener('click', async (e) => {
   if(r && r.ok!==false) toast(act==='deny'?'Denied':act==='applied'?'Marked applied manually':'Drafted résumé + cover');
   else toast('Failed: '+((r&&r.error)||'error'));
   load();
-});
+}
 load();
+CareerStages.counts().then(counts => CareerStages.render($('#careerStages'), 'approve', counts));
 </script>
 </body></html>

@@ -1,3 +1,7 @@
+/* CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.4: recorded command history row More menu (Copy, Run again). */
+/* CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.3: Runbooks is its own screen. */
+/* CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.2: Topology is the Graph view of Systems; its tile leaves the rail. */
+/* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.0 (UX audit 2026-11-06): Scenario lab and Credentials & access leave the rail; their addresses lead to Data pipeline and Connections & access. */
 /* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.2.2 and constrain first-use scheduling to the existing personal recorded-alerts route. */
 /* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.6: Monitored installations. */
 /* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.1.5: Investigate again and alert-named incident lists. */
@@ -89,15 +93,16 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.2.2');
+  assert.equal(manifest.version, '1.3.4');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);
-  assert.deepEqual(manifest.ui.static.map(tile => tile.toolName), ['operations-workspace','operations-estate','operations-data','operations-sources','operations-topology','operations-streams','operations-replay','operations-connections','operations-credentials','operations-commands','operations-git','operations-provisioning','operations-swarms','operations-library','operations-files','operations-workflow']);
+  assert.deepEqual(manifest.ui.static.map(tile => tile.toolName), ['operations-workspace','operations-estate','operations-data','operations-sources','operations-streams','operations-connections','operations-commands','operations-git','operations-provisioning','operations-swarms','operations-library','operations-runbooks','operations-files','operations-workflow']);
   assert.equal(manifest.ui.static.find(tile => tile.toolName === 'operations-files').iframeUrl, '/api/files');
   assert.equal(manifest.ui.static[0].iframeUrl, '/api/intelligent-operations/app#overview');
   assert.equal(manifest.ribbon.defaultView,'operations-estate');
-  for(const page of ['systems','estate','data','streams','replay','sources','credentials','connections','commands','library'])assert.ok(manifest.ui.static.some(tile=>tile.iframeUrl.endsWith('#'+page)),page+' has a native navigation entry');
+  // UX audit 2026-11-06: Scenario lab (#replay), Credentials & access (#credentials) and Topology (#estate, now Systems' Graph view) merged away; their addresses lead to Data pipeline and Connections & access.
+  for(const page of ['systems','data','streams','sources','connections','commands','library','runbooks'])assert.ok(manifest.ui.static.some(tile=>tile.iframeUrl.endsWith('#'+page)),page+' has a native navigation entry');
   assert.equal(manifest.ticketType, 'intelligent-operations');
   assert.deepEqual(manifest.bots.map(bot => bot.name), ['ops-rca-specialist', 'ops-incident-reviewer']);
   const page = fs.readFileSync(path.join(root, 'ui/index.html'), 'utf8');

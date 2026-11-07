@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Social company audience view (ADR-164 D6): the Composer (ui.static[0], the surface a shell hosts), its declared URL, synthetic read-only answers shaped like GET /api/social/readiness (Facebook not connected, notifications arriving), /signals (oshal_inbox_messages rows with an RFC 5322 From and ISO receivedAt), /home-summary (pg text counts, one 'Unavailable') and /linkedin-content-queue (owner tickets with stateGroup, metadata.topic and ISO times), and what the company view must show. /profiles is deliberately absent: the view must never ask LinkedIn, Facebook or X live. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family audience (ADR-164 D6) expects the same card as the company one: the harness paints it in the family grammar over the same synthetic reads.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (social--social-composer, MERGE): social-workspace (/api/social/workspace, tools/social-workspace.html) is now ui.static[0] and carries the company/family audience view.
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -12,7 +13,7 @@
 
 /** @param {{ iso: (hours: number) => string }} h Helpers from the harness. @returns {object} The page entry. */
 module.exports = ({ iso }) => ({
-  app: 'social', file: 'social/tools/social-composer.html', url: '/api/social/composer', fullMarker: '#pubBtn',
+  app: 'social', file: 'social/tools/social-workspace.html', url: '/api/social/workspace', fullMarker: '#pubBtn',
   reads: {
     '/api/social/readiness': { facebook: { ready: false, providers: [], detail: 'Not connected — connect Facebook under Accounts.' }, signals: { ready: true, count: 23, detail: '23 social notifications captured in the last 30 days.' } },
     '/api/social/signals': { signals: [

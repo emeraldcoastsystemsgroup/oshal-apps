@@ -17,6 +17,9 @@
    3   | maintainer@emeraldcoastsystemsgroup.com   | Design system: skin-driven tokens with the playful classroom look as the standalone default, page frame, hero, cards, tiles, stats, lists, forms, tables, dialogs, week strip, empty states, motion and focus rules; legacy token names kept so pages migrate one at a time
    4   | maintainer@emeraldcoastsystemsgroup.com   | Phone width: the top bar's side (More, level, name) shrinks and a long name ends in an ellipsis; a long name pushed the page 83px wider than a 412px phone
    5   | maintainer@emeraldcoastsystemsgroup.com   | Phone width: stacked .lm-columns use minmax(0, 1fr) and .lm-stack has one minmax(0, 1fr) column, so the widest item cannot widen the page (My Files was 514px on a 412px phone)
+   6   | maintainer@emeraldcoastsystemsgroup.com   | UX audit LM-FRAME (2026-11-06): on a phone one opaque 56px top bar and a fixed bottom bar (Home, Tutor, Flashcards, Games, More sheet) with a 3px bar on the selected item; every page reserves bar + 48px assistant + 16px at the bottom (the Tutor, which hides the host assistant, only the bar); the hero shrinks to one title line with a 32px mascot (64px on .lm-hero.is-mascot: Class dashboard and My Monsters). Disabled buttons are solid (surface-2 fill, disabled ink, opacity 1). The primary's ink follows --ds-on-accent / the theme's --text-on-accent (white on Graphite's #cbd5e1 failed contrast)
+   7   | maintainer@emeraldcoastsystemsgroup.com   | The planned-control look (.lm-not-yet, design standard §4.10): greyed ink, opacity 1, no accent, for the frame's Parent summary (RP-LM-01)
+   8   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-voice-settings): align --lm-font-display with --ds-font / --lm-font-body (weight 700) so hero titles never fall back to serif on Linux, and drop the coloured primary button shadow glow (DS §2.1).
    ============================================================ */
 
 /* ── 1. Tokens ─────────────────────────────────────────────────────────────
@@ -26,7 +29,7 @@
    stay literal on purpose: they must read the same under every skin. */
 :root {
   --lm-font-body: "Segoe UI", Inter, system-ui, -apple-system, "Helvetica Neue", sans-serif;
-  --lm-font-display: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  --lm-font-display: var(--ds-font, var(--lm-font-body));
 
   --lm-bg: var(--bg-primary, #fbf8f5);
   --lm-bg-2: var(--bg-secondary, #f4eef9);
@@ -39,7 +42,7 @@
   --lm-line-strong: var(--border-color-hover, #d8c3e8);
   --lm-accent: var(--accent-primary, #6c4f97);
   --lm-accent-hover: var(--accent-primary-hover, #8664b8);
-  --lm-on-accent: #ffffff;
+  --lm-on-accent: var(--ds-on-accent, var(--text-on-accent, #ffffff));
   --lm-accent-soft: color-mix(in srgb, var(--lm-accent) 12%, transparent);
   --lm-accent-wash: color-mix(in srgb, var(--lm-accent) 7%, transparent);
   --lm-accent-line: color-mix(in srgb, var(--lm-accent) 30%, transparent);
@@ -108,8 +111,7 @@ a { color: var(--lm-accent); }
   position: sticky; top: 0; z-index: 60;
   display: flex; align-items: center; gap: 14px;
   padding: 10px var(--lm-gutter);
-  background: color-mix(in srgb, var(--lm-card) 88%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--lm-card);
   border-bottom: 1px solid var(--lm-line);
 }
 .lm-topbar .lm-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--lm-ink); font-weight: 800; font-size: 17px; letter-spacing: -0.2px; white-space: nowrap; }
@@ -135,16 +137,57 @@ a { color: var(--lm-accent); }
 .lm-more-menu a:hover { background: var(--lm-accent-wash); }
 .lm-more-menu a.lm-all-applications { margin-bottom: 4px; padding-bottom: 12px; border-bottom: 1px solid var(--lm-line, rgba(127, 127, 127, .3)); border-radius: 10px 10px 0 0; }
 .lm-more-menu a[aria-current="page"] { background: var(--lm-accent-soft); color: var(--lm-accent); }
+.lm-more-phone, .lm-bottombar { display: none; }
+.lm-more-menu .lm-spill:empty { display: none; }
+.lm-more-menu .lm-spill { display: grid; gap: 2px; }
+/* Planned control (design standard §4.10): greyed, opacity 1, never the accent; it does nothing when pressed. */
+.lm-not-yet { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: var(--lm-touch); padding: 8px 12px; border: 0; border-radius: 10px;
+  background: var(--ds-surface-2, transparent); color: var(--ds-ink-disabled, var(--lm-muted)); font: inherit; font-weight: 600; font-size: 14px; text-align: left; cursor: default; opacity: 1; }
+.lm-not-yet-note { font-size: 12px; font-weight: 500; }
+.lm-sheet .lm-not-yet { grid-column: 1 / -1; font-size: 15px; }
+.lm-more-who { padding: 6px 12px 10px; border-bottom: 1px solid var(--lm-line); margin-bottom: 4px; }
+.lm-more-who .lm-pill { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Phone frame (LM-FRAME, 2026-11-06): ONE top bar of at most 56px (mascot + name, the Level ring, ⋯) and a bottom bar
+   of Home, Tutor, Flashcards, Games and More. The section links and the name pill leave the top bar. */
 @media (max-width: 720px) {
-  .lm-topbar { flex-wrap: wrap; gap: 8px 12px; }
-  .lm-topbar nav { order: 3; flex-basis: 100%; }
-  .lm-topbar .lm-topbar-side { margin-left: auto; min-width: 0; }
-  .lm-topbar .lm-topbar-side .lm-pill { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .lm-topbar { flex-wrap: nowrap; gap: 8px; height: 56px; max-height: 56px; padding: 0 10px 0 12px; }
+  .lm-topbar .lm-brand { font-size: 16px; gap: 8px; min-width: 0; }
+  .lm-topbar .lm-brand img { width: 32px; height: 32px; }
+  .lm-topbar nav, .lm-topbar .lm-more-desk, .lm-topbar .lm-topbar-side > .lm-pill, .lm-topbar .lm-level-label { display: none; }
+  .lm-topbar .lm-topbar-side { margin-left: auto; min-width: 0; gap: 4px; }
+  .lm-topbar .lm-level { padding: 3px; }
+  .lm-more-phone { display: block; }
+  .lm-more-phone summary { min-width: var(--lm-touch); min-height: var(--lm-touch); justify-content: center; padding: 0; font-size: 22px; line-height: 1; }
+  .lm-more-phone .lm-more-menu { min-width: 230px; max-width: calc(100vw - 20px); }
+  .lm-bottombar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 65;
+    height: calc(56px + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--lm-card); border-top: 1px solid var(--lm-line);
+  }
+  .lm-bottombar > a, .lm-bottombar > details > summary {
+    flex: 1 1 0; min-width: 0; height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: var(--lm-ink-2); text-decoration: none; font-size: 12px; font-weight: 700; cursor: pointer; list-style: none;
+  }
+  .lm-bottombar > details { flex: 1 1 0; min-width: 0; display: flex; }
+  .lm-bottombar > details > summary::-webkit-details-marker { display: none; }
+  .lm-bottombar-icon { font-size: 19px; line-height: 1; }
+  .lm-bottombar [aria-current="page"] { color: var(--lm-accent); box-shadow: inset 0 3px 0 var(--lm-accent); }
+  .lm-sheet {
+    position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); max-height: 70vh; overflow-y: auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 12px;
+    background: var(--lm-card); border-top: 1px solid var(--lm-line); border-radius: var(--lm-radius-lg) var(--lm-radius-lg) 0 0;
+    box-shadow: 0 -12px 30px color-mix(in srgb, var(--lm-ink) 14%, transparent);
+  }
+  .lm-sheet a { display: flex; align-items: center; min-height: var(--lm-touch); padding: 8px 12px; border-radius: 10px; color: var(--lm-ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+  .lm-sheet a[aria-current="page"] { background: var(--lm-accent-soft); color: var(--lm-accent); }
+  /* Every page keeps its last control clear of the bar and the 48px floating assistant: bar + 48 + 16. */
+  body.lm-has-bottombar { --lm-bottom-bar: 56px; padding-bottom: calc(56px + 48px + 16px + env(safe-area-inset-bottom, 0px)); }
+  body.lm-has-bottombar[data-lm-assistant="self"] { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ── 4. Type ──────────────────────────────────────────────────────────────── */
 .lm-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--lm-muted); }
-.lm-display { font-family: var(--lm-font-display); font-weight: 400; letter-spacing: -0.5px; line-height: 1.1; color: var(--lm-ink); }
+.lm-display { font-family: var(--lm-font-display); font-weight: 700; letter-spacing: -0.5px; line-height: 1.15; color: var(--lm-ink); }
 h1.lm-display { font-size: clamp(30px, 4.2vw, 44px); }
 h2.lm-display { font-size: clamp(22px, 2.6vw, 28px); }
 .lm-lead { color: var(--lm-ink-2); font-size: 17px; max-width: 60ch; }
@@ -160,13 +203,23 @@ h2.lm-display { font-size: clamp(22px, 2.6vw, 28px); }
 .lm-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; align-items: center; }
 .lm-hero-art { width: clamp(96px, 14vw, 168px); height: auto; filter: drop-shadow(0 12px 22px color-mix(in srgb, var(--lm-ink) 18%, transparent)); }
 .lm-hero-art.is-round { border-radius: 50%; background: var(--lm-accent-soft); padding: 8px; }
-@media (max-width: 640px) { .lm-hero { grid-template-columns: 1fr; } .lm-hero-art { order: -1; width: 88px; } }
+@media (min-width: 641px) and (max-width: 720px) { .lm-hero { grid-template-columns: 1fr; } }
+/* Phone hero (LM-FRAME): one title line with a 32px mascot, so the work starts within 120px. */
+@media (max-width: 720px) {
+  .lm-hero { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; flex-wrap: wrap; }
+  .lm-hero > div { flex: 1 1 0; min-width: 0; display: contents; }
+  .lm-hero .lm-eyebrow, .lm-hero .lm-lead { display: none; }
+  .lm-hero h1, .lm-hero h1.lm-display { order: 0; flex: 1 1 0; min-width: 0; font-size: 22px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lm-hero .lm-hero-art { order: -1; width: 32px; height: 32px; padding: 0; object-fit: contain; filter: none; }
+  .lm-hero .lm-hero-actions { order: 1; flex-basis: 100%; margin-top: 4px; }
+  .lm-hero.is-mascot .lm-hero-art { width: 64px; height: 64px; }
+}
 
 /* ── 6. Sections & grids ──────────────────────────────────────────────────── */
 .lm-section { margin: 0 0 28px; }
 .lm-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .lm-section-head h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.2px; }
-.lm-section-head h2.lm-display { font-size: 24px; font-weight: 400; }
+.lm-section-head h2.lm-display { font-size: 24px; font-weight: 700; }
 .lm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--min, 240px), 1fr)); gap: 14px; }
 .lm-grid.is-tight { gap: 10px; }
 .lm-grid.is-fit { grid-template-columns: repeat(auto-fit, minmax(var(--min, 240px), 1fr)); }
@@ -239,8 +292,9 @@ button.lm-card, a.lm-card { text-align: left; width: 100%; font: inherit; color:
 }
 .lm-btn:hover { transform: translateY(-1px); }
 .lm-btn:active { transform: translateY(0); }
-.lm-btn:disabled, .lm-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; transform: none; }
-.lm-btn-primary { background: var(--lm-accent); color: var(--lm-on-accent); box-shadow: 0 6px 16px var(--lm-accent-soft); }
+.lm-btn:disabled, .lm-btn[aria-disabled="true"] { opacity: 1; cursor: not-allowed; transform: none; box-shadow: none;
+  background: var(--ds-surface-2, var(--lm-bg-2)); color: var(--ds-ink-disabled, var(--lm-muted)); border-color: var(--lm-line); }
+.lm-btn-primary { background: var(--lm-accent); color: var(--lm-on-accent); box-shadow: none; }
 .lm-btn-primary:hover { background: var(--lm-accent-hover); }
 .lm-btn-ghost { background: transparent; border-color: var(--lm-line-strong); color: var(--lm-ink); }
 .lm-btn-ghost:hover { background: var(--lm-accent-wash); border-color: var(--lm-accent-line); }
@@ -388,4 +442,4 @@ body.lm-large-text { font-size: 18px; --font-size-xs: 14px; --font-size-sm: 16px
   .lm-modal { padding: 10px; align-items: flex-end; }
   .lm-modal-card { max-height: 94vh; border-radius: var(--lm-radius-xl) var(--lm-radius-xl) 14px 14px; }
 }
-@media print { .lm-topbar, .lm-mascot, .lm-toast { display: none !important; } body { background: #fff; color: #000; } }
+@media print { .lm-topbar, .lm-bottombar, .lm-mascot, .lm-toast { display: none !important; } body { background: #fff; color: #000; } }

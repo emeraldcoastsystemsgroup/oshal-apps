@@ -4,6 +4,8 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Phone-width proof for the third sweep's layout and hand-off defects (2026-10-11), in headless Chromium against the real page files with synthetic read answers and no provider call. In the cockpit's application frame (392 x 641): the Aero Lab, Drone and Sat Ops hand-off panels sit in the page flow (elementFromPoint at every slider / the Fleet panel finds that control, not the panel). Sat Ops primary buttons stay light on their navy fill under a dark host --text-primary, and Remove (tap twice) sends DELETE /api/sat/catalog/:id and drops the row. Drone's Save as timeline is off with the geofence reason. Calendar's sync refusal is on screen beside its button. The D&D table title keeps its width and the "Previously on…" banner clears Timeline and Party. Feeds' Sync now names the missing Slack connection and the closed settings drawer is hidden with no shadow band.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | dnd-table follows the table's one-row HUD (UX audit 2026-11-06): Games, Party, Roll, DM & Story and More; Timeline, DM Settings and Full screen moved into More. The banner still must not cover any of them.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Calendar 1.2.0 (design standard): Sync is driven through the calendar row's More and its in-page ask; the calendar module is served from the package.
  * -----------------------------------------------------------------------------
  *
  * Usage: node scripts/phone-handoffs.browser.cjs              (every screen)
@@ -93,29 +95,35 @@ const SCREENS = [
       await docked(page, 'evidenceReview', 'sat-ops');
     } },
   { name: 'calendar', url: '/api/calendar/review', file: 'calendar/tools/review.html', view: PHONE, modules: MODULES,
-    reads: { '/api/calendar/home-summary': { metrics: [], items: [] }, '/api/calendar/meeting-briefs': { briefs: [] } },
+    files: { '/api/calendar/review/calendar-workspace.mjs': 'calendar/tools/calendar-workspace.mjs', '/api/calendar/review/calendar-workspace.css': 'calendar/tools/calendar-workspace.css' },
+    reads: { '/api/calendar/home-summary': { metrics: [], items: [] }, '/api/calendar/meeting-briefs': { briefs: [] }, '/api/calendar/events': { events: [] },
+      '/api/calendar/events/agenda': { events: [], partial: false, warnings: [], snapshot: { state: 'missing' } } },
     posts: { '/api/calendar/sync': { status: 409, body: { error: 'Connect Google in Identity with Calendar read access, then retry.' } } },
     check: async (page) => {
-      await page.click('#syncCalendar');
+      // Calendar 1.2.0 (design standard): Sync is one item of the calendar row's More and asks in the page first; its
+      // result is told in the status line right under that row.
+      await page.getByRole('button', { name: 'More', exact: true }).click();
+      await page.getByRole('menuitem', { name: /Sync Google events/ }).click();
+      await page.locator('dialog.calendar-confirm').getByRole('button', { name: 'Sync', exact: true }).click();
       const el = page.getByText('Connect Google in Identity with Calendar read access, then retry.');
       await el.waitFor();
       const box = await el.boundingBox();
       assert.ok(box.y >= 0 && box.y + box.height <= PHONE.height, `the sync result is off-screen at y=${Math.round(box.y)}`);
-      await reachable(page, '#syncStatus', 'calendar sync result');
+      await reachable(page, '.calendar-status', 'calendar sync result');
     } },
   { name: 'dnd-table', url: '/dnd-fixture', view: FRAME, reads: {}, dir: { '/api/dnd/ui': 'dnd/ui' },
     html: '<!doctype html><meta name="viewport" content="width=device-width"><link rel="stylesheet" href="/api/dnd/ui/dnd.css"><style>html,body{height:100%;margin:0}</style>'
       + '<div id="app"><div id="initiative"><span class="round" id="roundLbl">Round 1 · Ambush on the Coast Road<small>Party: 1 ALIVE · Enemies: 3/3</small></span>'
       + ['Ilsa', 'Goblin', 'Goblin archer', 'Wolf', 'Bandit', 'Bandit captain', 'Cultist', 'Ogre'].map((n) => `<div class="init-chip"><div class="face"></div><span class="nm">${n}</span></div>`).join('')
       + '</div><div id="playfield"><div id="stage"><div id="banner">Previously on… · the full recap is in Story</div>'
-      + '<button class="fab" id="gamesBtn">☰ Games</button><button class="fab" id="savesBtn">⏳ Timeline</button><button class="fab" id="partyBtn">🧙 Party</button>'
-      + '<button class="fab primary-fab" id="fullscreenBtn">⛶ PLAY FULL SCREEN</button><button class="fab" id="voiceBtn">⚙ DM Settings</button><button class="fab" id="storyBtn">💬 DM &amp; Story</button></div></div></div>',
+      + '<button class="fab" id="gamesBtn">☰ Games</button><button class="fab" id="partyBtn">🧙 Party</button><button class="fab" id="diceBtn">🎲 Roll</button>'
+      + '<button class="fab" id="storyBtn">💬 DM &amp; Story</button><button class="fab" id="moreBtn">⋯ More</button><div id="moreMenu" class="hud-menu hidden" role="menu"></div></div></div></div>',
     check: async (page) => {
       const r = await page.evaluate(() => {
         const box = (id) => document.getElementById(id).getBoundingClientRect();
         const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
         return { title: document.getElementById('roundLbl').getBoundingClientRect().width,
-          covers: ['gamesBtn', 'savesBtn', 'partyBtn', 'fullscreenBtn', 'voiceBtn', 'storyBtn'].filter((id) => hit(box('banner'), box(id))) };
+          covers: ['gamesBtn', 'partyBtn', 'diceBtn', 'storyBtn', 'moreBtn'].filter((id) => hit(box('banner'), box(id))) };
       });
       assert.ok(r.title >= 100, `the table title is squeezed to ${Math.round(r.title)}px`);
       assert.deepEqual(r.covers, [], 'the recap banner covers table buttons');

@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Review of sweep 10: the notes case expects only word-bounded **bold** taken out of a .txt note; dunders, globs, # lines, code ticks, a crontab line, x**2, bullets and links are saved exactly as approved.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | The notes case also expects every delete request to call the delete tool and a card named by what it does (sweep 13).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register the file-sources case (the shared file picker's Dropbox, Google Drive, GitHub and OSHAL-local sources, Jarvis's "+ Add").
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1: register storage-ux-batch7 (storage--storage-assistant MERGE + storage--storage-settings FIX-LAYOUT).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -100,4 +101,18 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: storage-ux-batch7
+    name: Storage assistant merge and settings save-on-change layout
+    purpose: Verify storage-assistant is declared as chatBot with storage-files as ribbon.defaultView, unconnected options in Storage Settings are disabled with a Connections link, selects save on change via PUT /api/storage/prefs with Saved feedback and role=alert errors, and local usage appears in help text with lowercase oshal copy.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/storage-ux-batch7.test.cjs] }
+    expected:
+      - The manifest declares chatBot storage-assistant, sets ribbon.defaultView to storage-files, and keeps storage-settings and storage-files in ui.static with zero cross-store experience dependencies on storage-assistant.
+      - Unconnected Dropbox and GitHub options in Storage Settings are disabled and followed by a Connections link; local usage (or the 250 MB limit) sits in the help line rather than option labels, and copy uses lowercase oshal.
+      - Changing a Backend select immediately sends PUT /api/storage/prefs and shows Saved beside the select; a failed save surfaces role="alert" with the reason, and no Save bar or opacity:.5 rule remains.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation: { mode: none }
+    limits: { timeoutMs: 15000 }
     installation: never

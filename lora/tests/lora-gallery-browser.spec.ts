@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Apply migration 104 with the rest of the package schema: the studio's dataset listing now expires staged images, so a fixture without the staging table would answer that read with an error.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Upload thumbnails as the worker holding a validate grant minted for the owner's character (migration 105) instead of with the fleet service secret; this proof forbids dispatch, so the grant is minted directly.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Thumbnail uploads pass the signed-package-callbacks verifier first (lora-callback-rail double), and the validate grant records its owner issuer (migration 106).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: versions and their View scorecard live in step 3 Train, so the gallery case opens that step before viewing a scorecard (which then shows in 4 Scorecards).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
@@ -118,6 +119,7 @@ async function openGallery() {
   });
   await page.goto(`${base}/api/lora/ui`);
   await page.locator('.card').filter({ hasText: 'Gallery fixture' }).click();
+  await page.locator('[data-step="train"]').click();
   await page.getByRole('button', { name: 'View scorecard' }).click();
   await page.locator('.cell').first().waitFor();
   return { context, page, external, errors };

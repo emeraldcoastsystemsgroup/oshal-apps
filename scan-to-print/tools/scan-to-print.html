@@ -6,7 +6,7 @@
   shared surface-theme bootstrap, and every framework token is consumed READ-ONLY with a local
   fallback so the page renders in any skin. (.html is exempt from the CHANGE LOG header.)
 -->
-<html lang="en" data-theme="light-blue">
+<html lang="en" data-theme="light-blue" data-ds-category="studio" data-ds-first-action="file:image">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -151,234 +151,389 @@
 })();
 </script>
 <style>
-  :root { --stp-bg: var(--bg, var(--bg-primary, #12151c)); --stp-panel: var(--panel, var(--bg-card, #1b1f29)); --stp-panel2: var(--panel2, var(--bg-tertiary, #232836));
-          --stp-text: var(--text, var(--text-primary, #e6e9ef)); --stp-muted: var(--muted, var(--text-muted, #9aa3b2)); --stp-line: var(--line, var(--border-color, #2f3646));
-          --stp-accent: var(--accent, #4f8cff); --stp-danger: var(--danger, #e5534b); --stp-ok: var(--ok, #3fb950); }
+  /* Colours, lines and type come from the design standard's --ds-* tokens (docs/ux/design-standard.md §2.11), so every
+     theme gets opaque surfaces, a 3:1 control line, a 4.5:1 secondary ink and one accent; the fallbacks are for a page
+     opened without the portal's sheets. */
+  :root { --stp-bg: var(--ds-page, var(--bg-primary, #12151c)); --stp-panel: var(--ds-surface, var(--bg-primary, #1b1f29)); --stp-panel2: var(--ds-surface-2, var(--bg-tertiary, #232836));
+          --stp-hover: var(--ds-surface-3, var(--bg-tertiary, #2a3040)); --stp-text: var(--ds-ink, var(--text-primary, #e6e9ef)); --stp-muted: var(--ds-ink-2, var(--text-secondary, #b6bdca));
+          --stp-line: var(--ds-line-control, var(--border-color, #6b7385)); --stp-edge: var(--ds-edge, var(--border-color, #2f3646)); --stp-hairline: var(--ds-hairline, var(--border-color, #2f3646));
+          --stp-accent: var(--ds-accent, var(--accent-primary, #4f8cff)); --stp-accent-ink: var(--ds-accent-ink, var(--accent-primary, #4f8cff)); --stp-on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
+          --stp-danger: var(--ds-bad, var(--status-error, #e5534b)); --stp-ok: var(--ds-ok, var(--status-success, #3fb950)); --stp-disabled: var(--ds-ink-disabled, #8a8f99);
+          --stp-float: var(--ds-elev-float, 0 2px 6px rgb(0 0 0 / .08), 0 12px 32px rgb(0 0 0 / .16)); --stp-scrim: var(--ds-scrim, rgb(0 0 0 / .4)); }
+  html, body { overscroll-behavior: contain; }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--stp-text); background: var(--stp-bg); }
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--stp-line); background: var(--stp-panel); }
-  header h1 { font-size: 16px; margin: 0; }
+  body { margin: 0; font: 400 14px/20px var(--ds-font, system-ui, sans-serif); color: var(--stp-text); background: var(--stp-bg); }
+  :focus-visible { outline: 2px solid var(--ds-focus, var(--stp-accent)); outline-offset: 2px; }
+  header { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 4px 16px; border-bottom: 1px solid var(--stp-hairline); background: var(--stp-bg); }
+  header h1 { font-size: 16px; line-height: 24px; margin: 0; }
   header .spacer { flex: 1; }
+  .header-title { min-width: 0; font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 49px); }
-  aside { border-right: 1px solid var(--stp-line); padding: 12px; background: var(--stp-panel); overflow: auto; }
-  .printers { margin: 0 0 12px; border-bottom: 1px solid var(--stp-line); padding-bottom: 8px; }
-  .printers summary { cursor: pointer; font-weight: 600; }
-  .printers h2 { margin: 10px 0 4px; font-size: 13px; }
-  .printers ul { padding-left: 18px; margin: 4px 0 8px; }
-  .printers form { display: grid; gap: 6px; margin: 6px 0; }
-  .printers form .row { display: grid; gap: 6px; margin: 0; }
-  .printers form .row[hidden] { display: none; }
-  .printers input, .printers select { width: 100%; box-sizing: border-box; }
-  main { padding: 16px 20px 40px; overflow: auto; }
-  .job-item { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--stp-line); border-radius: 8px; background: var(--stp-panel2); color: var(--stp-text); cursor: pointer; }
-  .job-item.active { border-color: var(--stp-accent); }
+  aside { border-right: 1px solid var(--stp-hairline); padding: 12px; background: var(--stp-panel); overflow: auto; }
+  main { padding: 16px 24px 40px; overflow: auto; }
+  /* The stepper names where the object is: 1 Capture · 2 Scale · 3 Model · 4 Print (§5.3). Words, not controls. */
+  .stp-steps { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--stp-muted); white-space: nowrap; }
+  .stp-steps li + li::before { content: '·'; margin-right: 4px; color: var(--stp-muted); }
+  .stp-steps li[aria-current="step"] { color: var(--stp-text); font-weight: 600; }
+  .stp-steps li[aria-current="step"] span { box-shadow: inset 0 -3px 0 var(--stp-accent); }
+  .job-steps { display: none; margin: 0 0 8px; font-size: 12px; }
+  /* The object menu (Object ▾): a top-layer popover, opaque, on the float layer (§4.3). */
+  .stp-menu-button { display: inline-flex; align-items: center; gap: 8px; }
+  .stp-menu { position: fixed; inset: auto; margin: 0; min-width: 220px; padding: 4px; border: 1px solid var(--stp-hairline); border-radius: 14px; background: var(--stp-panel); color: var(--stp-text); box-shadow: var(--stp-float); }
+  .stp-menu [role=menuitem] { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+  .stp-menu [role=menuitem]:hover:not(:disabled) { background: var(--stp-hover); }
+  .stp-menu [role=menuitem]:disabled { color: var(--stp-disabled); cursor: default; }
+  .stp-menu [role=menuitem].danger { color: var(--stp-danger); }
+  .danger-action { color: var(--stp-danger) !important; border-color: var(--stp-danger) !important; }
+  .stp-menu hr { margin: 4px 8px; border: 0; border-top: 1px solid var(--stp-hairline); }
+  /* Sheets (Printers, Export): opaque modal dialogs with one scrim (§4.4); a bottom sheet on a phone. */
+  dialog.stp-sheet { width: min(480px, calc(100vw - 32px)); max-height: min(80dvh, 720px); padding: 0; border: 1px solid var(--stp-hairline); border-radius: 20px; background: var(--stp-panel); color: var(--stp-text); box-shadow: var(--stp-float); }
+  dialog.stp-sheet[open] { display: flex; flex-direction: column; }
+  dialog.stp-sheet::backdrop { background: var(--stp-scrim); }
+  .stp-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; padding: 4px 8px 4px 16px; border-bottom: 1px solid var(--stp-hairline); }
+  .stp-sheet-head h2 { margin: 0; font-size: 18px; line-height: 24px; }
+  .stp-sheet-body { padding: 12px 16px 16px; overflow: auto; display: grid; gap: 12px; }
+  .stp-sheet-foot { padding: 12px 16px 16px; border-top: 1px solid var(--stp-hairline); }
+  .stp-sheet-foot .primary { width: 100%; }
+  .export-list { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; }
+  .export-row { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px; border: 1px solid var(--stp-edge); border-radius: 10px; background: var(--stp-panel); font-size: 14px; }
+  .export-row input { width: 20px; height: 20px; accent-color: var(--stp-accent); }
+  .export-row small { margin-left: auto; color: var(--stp-muted); font-size: 12px; }
+  .job-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 44px; text-align: left; padding: 8px 12px; margin-bottom: 4px; border: 1px solid var(--stp-line); border-radius: 10px; background: var(--stp-panel); color: var(--stp-text); font: inherit; font-size: 14px; cursor: pointer; }
+  .job-item.active { border-color: var(--stp-accent); box-shadow: inset 3px 0 0 var(--stp-accent); }
   .job-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--stp-line); color: var(--stp-muted); white-space: nowrap; }
+  .badge { font-size: 12px; line-height: 16px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--stp-line); color: var(--stp-muted); white-space: nowrap; }
   .badge.reconstructed { border-color: var(--stp-ok); color: var(--stp-ok); }
   .badge.failed { border-color: var(--stp-danger); color: var(--stp-danger); }
-  section.step { border: 1px solid var(--stp-line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: var(--stp-panel); }
-  section.step h2 { font-size: 14px; margin: 0 0 8px; }
-  section.step h2 small { color: var(--stp-muted); font-weight: normal; margin-left: 8px; }
+  section.step { border: 1px solid var(--stp-edge); border-radius: 14px; padding: 16px; margin-bottom: 16px; background: var(--stp-panel); }
+  section.step h2 { font-size: 16px; line-height: 24px; margin: 0 0 8px; }
+  section.step h2 small { color: var(--stp-muted); font-weight: normal; font-size: 14px; margin-left: 8px; }
   button, input, select { font: inherit; color: var(--stp-text); }
-  button.primary { background: var(--stp-accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
-  button.primary:disabled { opacity: .5; cursor: default; }
-  button.ghost { background: transparent; border: 1px solid var(--stp-line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-  button.link { background: none; border: 0; color: var(--stp-accent); cursor: pointer; padding: 0 4px; }
+  button.primary, a.primary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border: 1px solid var(--stp-accent); border-radius: 10px; background: var(--stp-accent); color: var(--stp-on-accent); font-weight: 600; text-decoration: none; cursor: pointer; }
+  button.primary:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--stp-on-accent); }
+  button.primary:disabled { background: var(--stp-panel2); border-color: var(--stp-line); color: var(--stp-disabled); opacity: 1; cursor: default; }
+  button.ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; background: var(--stp-panel2); border: 1px solid var(--stp-line); border-radius: 10px; font-weight: 600; cursor: pointer; }
+  button.ghost:hover:not(:disabled) { background: var(--stp-hover); }
+  button.ghost:disabled { color: var(--stp-disabled); opacity: 1; cursor: default; }
+  button.link { min-height: 44px; background: none; border: 0; color: var(--stp-accent-ink); text-decoration: underline; cursor: pointer; padding: 0 4px; }
   button.link.danger { color: var(--stp-danger); }
-  input[type=number], input[type=text], input[type=url], input[type=password], select { background: var(--stp-panel2); border: 1px solid var(--stp-line); border-radius: 6px; padding: 6px 8px; }
-  label.file { display: inline-block; border: 1px dashed var(--stp-line); border-radius: 8px; padding: 8px 12px; cursor: pointer; margin-right: 8px; }
+  input[type=number], input[type=text], input[type=url], input[type=password], select { min-height: 44px; background: var(--stp-panel); border: 1px solid var(--stp-line); border-radius: 10px; padding: 0 12px; }
+  label.file { display: inline-flex; align-items: center; min-height: 44px; border: 1px solid var(--stp-line); border-radius: 10px; padding: 0 16px; background: var(--stp-panel2); font-weight: 600; cursor: pointer; margin-right: 8px; }
   label.file input { display: none; }
-  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 6px 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
   .row[hidden] { display: none; }   /* .row's display:flex would otherwise override the hidden attribute */
   .muted { color: var(--stp-muted); }
-  .small { font-size: 12px; }
-  .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
-  .suggestions { list-style: none; padding: 0; margin: 6px 0; }
-  .suggestions li { display: flex; gap: 8px; align-items: center; margin: 2px 0; }
-  .image-card { border: 1px solid var(--stp-line); border-radius: 8px; padding: 6px; background: var(--stp-panel2); }
+  .small { font-size: 12px; line-height: 16px; }
+  /* Mode first (C-SCN-2): Photos · Video · LiDAR file as one segmented choice; a selected segment is filled (§4.1). */
+  .stp-modes { display: inline-flex; gap: 0; margin: 0 0 12px; padding: 0; border: 1px solid var(--stp-line); border-radius: 10px; overflow: hidden; }
+  .stp-modes button { min-height: 44px; padding: 0 16px; border: 0; border-right: 1px solid var(--stp-line); background: var(--stp-panel); color: var(--stp-text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .stp-modes button:last-child { border-right: 0; }
+  .stp-modes button[aria-checked="true"] { background: var(--stp-text); color: var(--stp-bg); }
+  .stp-mode[hidden] { display: none; }
+  .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 8px; }
+  .suggestions { list-style: none; padding: 0; margin: 8px 0; }
+  .suggestions li { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
+  .image-card { border: 1px solid var(--stp-edge); border-radius: 14px; padding: 8px; background: var(--stp-panel); }
   .image-card.assigned { border-color: var(--stp-accent); }
   .image-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #000; border-radius: 6px; }
-  .image-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
-  ul.warnings, ul.limits { margin: 6px 0 0; padding-left: 18px; }
+  .image-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  ul.warnings, ul.limits { margin: 8px 0 0; padding-left: 20px; }
   ul.warnings li { color: var(--stp-danger); }
   ul.limits li { color: var(--stp-muted); }
-  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
   dt { color: var(--stp-muted); }
   dd { margin: 0; }
-  .downloads a { margin-right: 12px; color: var(--stp-accent); }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .drawing { width: 100%; background: #fff; border-radius: 8px; border: 1px solid var(--stp-line); }
-  canvas#viewer { width: 100%; height: 360px; border-radius: 8px; border: 1px solid var(--stp-line); color: var(--stp-accent); border-color: var(--stp-line); background: var(--stp-panel2); touch-action: none; }
+  .downloads a { display: inline-flex; align-items: center; min-height: 44px; margin-right: 12px; color: var(--stp-accent-ink); text-decoration: underline; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .drawing { width: 100%; background: #fff; border-radius: 6px; border: 1px solid var(--stp-edge); }
+  /* The model viewer (N13, C-SCN-4): a thin bar (3D model, Share), the model on a plain background, view tools floating
+     on its right edge, and one row of labelled tools under it. */
+  .viewer-bar { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  .viewer-bar h3 { margin: 0; flex: 1; font-size: 14px; font-weight: 600; color: var(--stp-muted); }
+  .viewer-stage { position: relative; }
+  .viewer-edge { position: absolute; top: 8px; right: 8px; display: grid; gap: 8px; }
+  canvas#viewer { display: block; width: 100%; height: 360px; border-radius: 10px; border: 1px solid var(--stp-edge); color: var(--stp-accent); background: var(--stp-panel2); touch-action: none; }
+  .viewer-tools { display: flex; gap: 8px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+  .viewer-tools > * { flex: none; }
+  .viewer-tools button[aria-pressed="true"] { background: var(--stp-text); color: var(--stp-bg); border-color: var(--stp-text); }
+  .tool-panel { margin-top: 8px; padding: 12px; border: 1px solid var(--stp-edge); border-radius: 12px; background: var(--stp-panel2); display: grid; gap: 8px; }
+  .tool-panel[hidden] { display: none; }
+  .tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .tool-grid label { display: grid; gap: 4px; font-size: 12px; color: var(--stp-muted); }
+  .tool-grid input[type=number] { width: 100%; min-width: 0; }
+  .share-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+  .share-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+  .ar-qr-box { display: grid; justify-items: center; gap: 6px; padding: 12px; border: 1px solid var(--stp-edge); border-radius: 12px; background: var(--stp-panel2); text-align: center; }
+  .ar-qr-box code { word-break: break-all; font-size: 12px; color: var(--stp-muted); }
+  a.ghost { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; background: var(--stp-panel2); border: 1px solid var(--stp-line); border-radius: 10px; color: var(--stp-text); font-weight: 600; text-decoration: none; cursor: pointer; }
+  a.ghost:hover { background: var(--stp-hover); }
   #printer-form input { min-width: 140px; }
   #submissions li.failed { color: var(--stp-danger); }
   #submissions li.printing { color: var(--stp-ok); }
-  .toast { position: fixed; right: 16px; bottom: 16px; padding: 10px 14px; border-radius: 8px; background: var(--stp-panel2); border: 1px solid var(--stp-line); max-width: 420px; z-index: 5; }
+  .toast { position: fixed; right: 16px; bottom: 16px; padding: 12px 16px; border-radius: 14px; background: var(--stp-panel); color: var(--stp-text); border: 1px solid var(--stp-hairline); box-shadow: var(--stp-float); max-width: 420px; z-index: 5; }
   .toast.error { border-color: var(--stp-danger); }
   .toast.ok { border-color: var(--stp-ok); }
-  .camera { border: 1px solid var(--stp-accent); border-radius: 10px; padding: 10px; margin: 8px 0; background: var(--stp-panel2); }
-  .cam-stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+  /* The capture screen (N12, C-SCN-3): the live camera is dark because it is the camera; X at its top left, the view
+     hint over it, Flip camera on its right edge, and under it one round shutter with Auto and Skip beside it. */
+  .camera { position: relative; margin: 8px 0; padding: 0; border-radius: 14px; background: #000; color: #fff; overflow: hidden; }
+  .cam-stage { position: relative; background: #000; }
   #cam-video { display: block; width: 100%; max-height: 62vh; object-fit: contain; background: #000; }
-  .cam-frame { position: absolute; inset: 8%; border: 2px dashed rgba(255,255,255,.4); border-radius: 6px; pointer-events: none; }
-  .cam-count { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 72px; font-weight: 700; color: #fff; text-shadow: 0 2px 10px #000; pointer-events: none; }
-  .cam-views { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
-  .chip { border: 1px solid var(--stp-line); border-radius: 999px; padding: 4px 10px; background: var(--stp-panel); cursor: pointer; font-size: 12px; }
-  .chip.active { border-color: var(--stp-accent); color: var(--stp-accent); }
+  .cam-frame { position: absolute; inset: 8%; border: 2px solid rgb(255 255 255 / .6); border-radius: 6px; pointer-events: none; }
+  .cam-count { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 32px; font-weight: 700; color: #fff; pointer-events: none; }
+  .cam-hint { position: absolute; left: 64px; right: 64px; top: 12px; margin: 0; padding: 4px 8px; border-radius: 10px; background: rgb(0 0 0 / .55); color: #fff; font-size: 14px; text-align: center; }
+  .cam-icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1px solid rgb(255 255 255 / .6); border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font: inherit; font-size: 18px; cursor: pointer; }
+  #cam-close { position: absolute; left: 8px; top: 8px; }
+  #cam-flip { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+  .cam-controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 12px 16px; }
+  .cam-controls .cam-side { display: flex; gap: 8px; }
+  .cam-controls .cam-side.end { justify-content: flex-end; }
+  .cam-controls button.ghost { background: rgb(0 0 0 / .55); color: #fff; border-color: rgb(255 255 255 / .6); }
+  #cam-shutter { width: 72px; height: 72px; min-height: 72px; padding: 0; border: 4px solid #fff; border-radius: 999px; background: var(--stp-accent); box-shadow: inset 0 0 0 3px #000; color: transparent; font-size: 0; }
+  #cam-shutter:disabled { background: #555; }
+  .cam-views { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px; }
+  .chip { min-height: 44px; border: 1px solid rgb(255 255 255 / .6); border-radius: 999px; padding: 0 12px; background: rgb(0 0 0 / .55); color: #fff; cursor: pointer; font-size: 14px; }
+  .chip.active { background: #fff; color: #000; }
   .chip.done { border-color: var(--stp-ok); }
-  .cam-shots { display: flex; gap: 6px; overflow-x: auto; padding-top: 6px; }
+  .cam-shots { display: flex; gap: 8px; overflow-x: auto; padding: 8px 16px 12px; }
   .cam-shots figure { margin: 0; text-align: center; }
-  .cam-shots canvas { height: 64px; width: auto; border-radius: 4px; border: 1px solid var(--stp-line); background: #000; }
-  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--stp-line); } .two { grid-template-columns: 1fr; } #cam-shutter { padding: 14px 22px; font-size: 16px; } }
+  .cam-shots canvas { height: 64px; width: auto; border-radius: 6px; border: 1px solid rgb(255 255 255 / .6); background: #000; }
+  #cam-info { display: block; padding: 0 16px 12px; color: rgb(255 255 255 / .8); }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--stp-hairline); } .two { grid-template-columns: 1fr; } }
 
 /* Scan objects use the shared document anatomy and retain their owned reconstruction/print operations. */
-.layout.ef-editor{height:100dvh;padding:0;max-width:none}.ef-editor .ef-header-slot>header{height:auto;margin:0;padding:12px 16px;gap:10px;flex-wrap:wrap}
-.ef-editor .ef-navigation>aside,.ef-editor .ef-viewport>main,.ef-editor .scan-inspector{padding:14px;border:0;min-width:0;overflow:auto;background:transparent}
+.layout.ef-editor{height:100dvh;padding:0;max-width:none}.ef-editor .ef-header-slot>header{height:auto;margin:0;padding:4px 16px;gap:12px;flex-wrap:nowrap;border:0}
+.ef-editor .ef-navigation>aside,.ef-editor .ef-viewport>main,.ef-editor .scan-inspector{padding:16px;border:0;min-width:0;overflow:auto;background:transparent}
 .ef-editor .ef-viewport>main{height:100%}.ef-editor .scan-inspector .row{display:grid;grid-template-columns:minmax(0,1fr)}
-.ef-editor .scan-inspector .step{border:0;padding:0;margin:14px 0}.ef-editor .scan-inspector input,.ef-editor .scan-inspector select{width:100%!important;max-width:100%}.ef-editor .scan-inspector input[type=checkbox]{width:auto!important}
+.ef-editor .scan-inspector .step{border:0;padding:0;margin:16px 0}.ef-editor .scan-inspector input,.ef-editor .scan-inspector select{width:100%!important;max-width:100%}.ef-editor .scan-inspector input[type=checkbox]{width:auto!important}
 .ef-editor .two{grid-template-columns:minmax(0,1fr)}.ef-editor #viewer{width:100%;max-height:55dvh}.ef-editor #drawing{max-height:55dvh;object-fit:contain}
-.view-checklist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}.view-slot{display:grid;gap:4px;justify-items:center;align-content:center;min-height:96px;padding:6px;border:1px solid var(--stp-line);border-radius:10px;background:var(--stp-panel);color:var(--stp-text);font:inherit;font-size:13px;cursor:pointer}
-.view-slot.missing{border-style:dashed;color:var(--stp-muted)}.view-slot img{width:100%;height:64px;object-fit:cover;border-radius:6px}.view-slot b{font-size:13px}.capture-advanced{margin-top:12px}.capture-advanced>summary{cursor:pointer;padding:8px 0}
-.link-like{border:0;background:none;color:var(--stp-accent);text-decoration:underline}
-.header-title{display:none}@media(max-width:800px){.ef-editor .ef-header-slot>header .header-title{display:block;flex:1;min-width:0;font-weight:650;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
-.measure-step{display:grid;gap:6px;margin:4px 0 10px;padding:10px 12px;border:1px solid var(--stp-accent);border-radius:10px;background:var(--stp-panel)}.measure-step[hidden]{display:none}.measure-step label{display:block;font-size:14px}.measure-input{display:flex;align-items:center;gap:6px}.measure-input input{width:120px}.measure-step p{margin:0}.measure-step.needed #measure-note{color:var(--stp-warn,var(--stp-accent))}
-@media(max-width:800px){.ef-editor .ef-viewport>main{height:auto;overflow:visible}.ef-editor .ef-header-slot>header>.muted{display:none}.ef-editor .ef-header-slot>header h1{font-size:16px;margin:0}.ef-editor .ef-header-slot>header{padding:6px 10px;flex-wrap:nowrap}
- .toast{top:60px;bottom:auto;left:12px;right:12px;max-width:none;background:var(--bg-primary,var(--stp-panel2))}}
+.view-checklist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}.view-slot{display:grid;gap:4px;justify-items:center;align-content:center;min-height:96px;padding:8px;border:1px solid var(--stp-line);border-radius:10px;background:var(--stp-panel);color:var(--stp-text);font:inherit;font-size:14px;cursor:pointer}
+.view-slot.missing{color:var(--stp-muted)}.view-slot img{width:100%;height:64px;object-fit:cover;border-radius:6px}.view-slot b{font-size:14px}.capture-advanced{margin-top:12px}.capture-advanced>summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.link-like{border:0!important;background:none!important;color:var(--stp-accent-ink);text-decoration:underline;font-weight:400}
+.measure-step{display:grid;gap:8px;margin:4px 0 12px;padding:12px;border:1px solid var(--stp-accent);border-radius:14px;background:var(--stp-panel)}.measure-step[hidden]{display:none}.measure-step label{display:block;font-size:14px}.measure-input{display:flex;align-items:center;gap:8px}.measure-input input{width:120px}.measure-step p{margin:0}.measure-step.needed #measure-note{color:var(--stp-danger)}
+/* The shared editor's chrome, held to the standard here as well (radius 10, 14px labels, solid fills, solid disabled). */
+.ef-editor .ef-button,.ef-editor .ef-discard{border-radius:10px;font-size:14px;background:var(--stp-panel2);border-color:var(--stp-line);color:var(--stp-text)}
+.ef-editor .ef-button:disabled{opacity:1;color:var(--stp-disabled)}
+.ef-editor .ef-panes>.ef-button{background:transparent}
+.ef-editor .ef-more-tools>summary{font-size:14px;min-height:44px;display:flex;align-items:center}
+.ef-editor .ef-more-tools:not(:has(>:not(summary):not([hidden])))>summary{display:none}
+.ef-editor .ef-more-tools:not(:has(>:not(summary):not([hidden]))){border:0;margin:0;padding:0}
+.ef-editor .ef-property>input,.ef-editor .ef-property>textarea,.ef-editor .ef-property>select{border-radius:10px;border-color:var(--stp-line);font-size:14px}
+.ef-editor .ef-error{font-size:14px}
+.ef-editor .ef-assistant-composer{border-radius:14px}
+.ef-editor .ef-assistant-icon{border-radius:10px;font:24px/1 system-ui!important}
+.ef-editor .ef-assistant-speaker{font-size:12px}
+.ef-editor .ef-assistant-user{border-radius:14px 14px 6px 14px}
+.ef-editor .ef-assistant-controls>.ef-assistant-send{border-radius:10px;font-size:14px!important}
+.ef-editor .ef-assistant button:disabled{opacity:1;color:var(--stp-disabled)}
+.ef-editor .ef-assistant-help{font-size:12px}
+.job-steps .stp-steps{white-space:normal;flex-wrap:wrap}
+/* With no object open there is nothing to inspect: the canvas takes the Properties track (F12, §3.3). */
+@media(min-width:801px){.ef-editor:has(#job-panel[hidden]) .ef-inspector{display:none}
+ .ef-editor:has(#job-panel[hidden]) .ef-body{grid-template-columns:220px minmax(0,1fr)}
+ .ef-editor.ef-has-concierge[data-editor-concierge=open]:has(#job-panel[hidden]) .ef-body{grid-template-columns:180px minmax(220px,1fr) clamp(300px,25vw,380px)}}
+@media(max-width:800px){.ef-editor .ef-viewport>main{height:auto;overflow:visible;padding:12px 16px}.ef-editor .ef-header-slot>header .stp-steps,.ef-editor .ef-header-slot>header .stp-menu-button{display:none}.ef-editor .ef-header-slot>header h1{font-size:16px;margin:0}.ef-editor .ef-header-slot>header{padding:4px 8px 4px 16px}
+ .job-steps{display:block}
+ .toast{top:56px;bottom:auto;left:12px;right:12px;max-width:none}
+ dialog.stp-sheet{width:100%;max-width:100%;margin:auto 0 0;border-radius:20px 20px 0 0;max-height:85dvh}
+ .ef-editor .ef-navigation,.ef-editor .ef-inspector,.ef-editor .ef-sheet,.ef-editor .ef-concierge{border-radius:20px 20px 0 0}}
 @media(max-width:800px){.ef-editor .downloads a{display:inline-flex;align-items:center;min-height:44px;padding:8px}.ef-editor button,.ef-editor summary,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor input,.ef-editor select{font-size:16px}}
-
 </style>
 </head>
 <body>
 <header>
   <h1 data-ef-phone="brand">Scan to Print</h1>
-  <span class="muted small" data-ef-phone="brand">photos → drawing → STL → your printer · deterministic geometry</span>
-  <span id="header-title" class="header-title" aria-hidden="true"></span>
+  <span id="header-title" class="header-title"></span>
+  <ol class="stp-steps" aria-label="Steps" data-stp-steps>
+    <li data-step="capture" aria-current="step"><span>1 Capture</span></li><li data-step="scale"><span>2 Scale</span></li><li data-step="model"><span>3 Model</span></li><li data-step="print"><span>4 Print</span></li>
+  </ol>
   <span class="spacer"></span>
-  <button id="new-job" class="primary" data-ef-phone="more">New object</button>
+  <button id="object-menu" type="button" class="ghost stp-menu-button" aria-haspopup="menu" aria-expanded="false" popovertarget="object-menu-items">Object <span aria-hidden="true">▾</span></button>
+  <div id="object-menu-items" class="stp-menu" popover role="menu" aria-label="Object">
+    <button id="new-job" type="button" role="menuitem" data-ef-phone="more">New object</button>
+    <button id="open-printers" type="button" role="menuitem" data-ef-phone="more">Printers…</button>
+    <button id="open-export" type="button" role="menuitem" data-ef-phone="more" disabled>Export…</button>
+    <button id="delete-job" type="button" role="menuitem" class="danger" data-ef-phone="more" disabled>Delete object</button>
+  </div>
 </header>
 <div class="layout">
   <aside>
-    <details id="printers" class="printers">
-      <summary>Printers</summary>
-      <p id="engine-note" class="small muted" hidden></p>
-      <ul id="printer-list" class="small"></ul>
-      <h2 class="small muted">Register a printer</h2>
-      <form id="printer-form">
-        <input id="p-label" type="text" placeholder="label" required />
-        <select id="p-kind"><option value="octoprint">OctoPrint</option><option value="moonraker">Moonraker (Klipper)</option><option value="prusalink">PrusaLink</option><option value="bambu-lan">Bambu Lab (home network)</option></select>
-        <span id="http-fields" class="row">
-          <input id="p-url" type="url" placeholder="http://printer.local" required />
-          <input id="p-key" type="password" placeholder="API key" required autocomplete="off" />
-        </span>
-        <span id="bambu-fields" class="row" hidden>
-          <input id="p-host" type="text" placeholder="printer address, e.g. 192.168.1.20" autocomplete="off" />
-          <input id="p-code" type="password" placeholder="LAN access code" autocomplete="off" />
-        </span>
-        <button class="ghost" type="submit">Save printer</button>
-      </form>
-      <p id="bambu-help" class="small muted" hidden>On a P2S or an H2 printer, Settings → Settings → LAN Only shows its address (IP) and the 8-character Access Code; other Bambu Lab printers show both on their LAN Only (LAN mode) settings page. The printer's serial and model are read from the printer itself. Jobs are sliced for it here and sent over your home network. To let oshal start prints, not just upload them, turn on LAN Only and then Developer Mode on that same page.</p>
-    </details>
     <div id="job-list"></div>
   </aside>
   <main>
     <div id="empty-panel">
-      <p class="muted">Create an object, add photos from its six sides (front, back, left, right, top, bottom) on a plain background, enter one ruler measurement, and reconstruct. Or import a LiDAR point cloud (.ply).</p>
+      <p class="muted">Take a photo of an object from the front, top and right, or import a LiDAR point cloud (.ply).</p>
     </div>
     <div id="job-panel" hidden>
+      <div class="job-steps" aria-hidden="true"><ol class="stp-steps" data-stp-steps><li data-step="capture" aria-current="step"><span>1 Capture</span></li><li data-step="scale"><span>2 Scale</span></li><li data-step="model"><span>3 Model</span></li><li data-step="print"><span>4 Print</span></li></ol></div>
       <div class="row">
         <h2 id="job-heading" style="margin:0"></h2>
         <span id="job-state" class="badge"></span>
-        <span class="spacer" style="flex:1"></span>
-        <button id="delete-job" class="ghost">Delete</button>
       </div>
 
       <section class="step">
-        <h2>1 · Capture <small>plain background · camera square to the face · same orientation for every photo</small></h2>
+        <h2>1 · Capture</h2>
+        <div id="capture-modes" class="stp-modes" role="radiogroup" aria-label="Capture with">
+          <button type="button" role="radio" aria-checked="true" data-mode="photos">Photos</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="video" id="mode-video">Video</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="lidar" id="mode-lidar">LiDAR file</button>
+        </div>
         <div id="measure-step" class="measure-step" hidden>
-          <label for="measure-width"><b>2 · Measure</b> How wide is the object, left to right?</label>
+          <label for="measure-width"><b>2 · Scale</b> How wide is the object, left to right?</label>
           <span class="measure-input"><input id="measure-width" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="e.g. 60" autocomplete="off" /> mm</span>
           <p id="measure-note" class="small muted">Use a ruler across the front. The model is scaled from this one number. Then press Make 3D model.</p>
         </div>
         <div class="row capture-start">
-          <button id="take-photos" class="primary">Take photos</button>
+          <button id="take-photos" class="primary">Take a photo</button>
           <button id="make-model" class="primary" hidden>Make 3D model</button>
           <a id="download-stl" class="btn primary" hidden>Download STL</a>
-          <label class="file link-like">Choose photos <input id="photos" type="file" accept="image/*" multiple /></label>
+          <label class="file link-like" data-stp-mode="photos">Choose photos <input id="photos" type="file" accept="image/*" multiple /></label>
         </div>
         <div id="camera-panel" class="camera" hidden>
           <div class="cam-stage">
             <video id="cam-video" autoplay playsinline muted></video>
             <div class="cam-frame"></div>
             <span id="cam-count" class="cam-count" hidden></span>
+            <p id="cam-guide" class="cam-hint"></p>
+            <button id="cam-close" type="button" class="cam-icon" aria-label="Close camera" title="Close camera">✕</button>
+            <button id="cam-flip" type="button" class="cam-icon" aria-label="Flip camera" title="Flip camera">⟲</button>
           </div>
           <div id="cam-views" class="cam-views"></div>
-          <p id="cam-guide" class="small" style="margin:4px 0"></p>
-          <div class="row">
-            <button id="cam-shutter" class="primary">Capture FRONT</button>
-            <button id="cam-auto" class="ghost">Record six views</button>
-            <button id="cam-skip" class="ghost" hidden>Skip this view</button>
-            <button id="cam-flip" class="ghost">Flip camera</button>
-            <button id="cam-close" class="ghost">Done</button>
-            <span id="cam-info" class="muted small"></span>
+          <div class="cam-controls">
+            <div class="cam-side"><button id="cam-auto" class="ghost">Auto</button></div>
+            <button id="cam-shutter" type="button" aria-label="Capture front">Capture FRONT</button>
+            <div class="cam-side end"><button id="cam-skip" class="ghost" hidden>Skip this view</button></div>
           </div>
+          <span id="cam-info" class="muted small"></span>
           <div id="cam-shots" class="cam-shots"></div>
         </div>
-        <div id="view-checklist" class="view-checklist" role="list" aria-label="Views a solid needs"></div>
-        <p id="assigned-summary" class="small muted"></p>
-        <div id="image-grid" class="image-grid"></div>
-        <details id="capture-advanced" class="capture-advanced">
-          <summary>Advanced</summary>
+        <div class="stp-mode" data-stp-mode="photos">
+          <div id="view-checklist" class="view-checklist" role="list" aria-label="Views a solid needs"></div>
+          <p id="assigned-summary" class="small muted"></p>
+          <div id="image-grid" class="image-grid"></div>
+        </div>
+        <div class="stp-mode" data-stp-mode="video" hidden>
           <div class="row">
-            <button id="open-camera" class="ghost">Use camera</button>
-            <label class="file">Take a photo <input id="photo-capture" type="file" accept="image/*" capture="environment" /></label>
             <label class="file" id="video-pick">Add a video <input id="video" type="file" accept="video/*" /></label>
-            <button id="toggle-mask" class="ghost">show silhouettes</button>
             <span id="video-note" class="muted small"></span>
-            <span id="camera-note" class="muted small"></span>
           </div>
-          <div class="row small muted" id="pointcloud-row">
-            <span>Point cloud (.ply) instead:</span>
-            <label class="file">Import .ply <input id="pointcloud" type="file" accept=".ply" /></label>
-            <label>voxel <input id="pc-voxel" type="number" value="1" min="0.1" step="0.1" style="width:70px" /> mm</label>
-            <label>units × <input id="pc-units" type="number" value="1000" min="0.001" step="any" style="width:80px" /></label>
-            <label>up <select id="pc-up"><option value="y">Y (phone export)</option><option value="z">Z</option></select></label>
-            <label title="Tick when the object stood on a flat surface and its underside was never scanned. The lowest scanned layer is capped so the interior can close; the base face is then an assumption, and the report says so."><input id="pc-seal" type="checkbox" /> seal base</label>
-          </div>
-          <p id="upload-note" class="small muted"></p>
           <div id="suggest-panel" class="small" hidden>
             <button id="suggest-views" class="ghost">Suggest views from the video</button>
             <button id="suggest-all" class="ghost" hidden>Assign all suggested</button>
             <span id="suggest-note" class="muted small"></span>
             <ul id="suggest-list" class="suggestions"></ul>
           </div>
+        </div>
+        <div class="stp-mode" data-stp-mode="lidar" hidden>
+          <div class="row small muted" id="pointcloud-row">
+            <label class="file">Import .ply <input id="pointcloud" type="file" accept=".ply" /></label>
+          </div>
+        </div>
+        <details id="capture-advanced" class="capture-advanced">
+          <summary>Advanced</summary>
+          <div class="row">
+            <button id="open-camera" class="ghost">Use camera</button>
+            <label class="file">Use the phone's camera app <input id="photo-capture" type="file" accept="image/*" capture="environment" /></label>
+            <button id="toggle-mask" class="ghost">show silhouettes</button>
+            <span id="camera-note" class="muted small"></span>
+          </div>
+          <div class="row small muted" id="pointcloud-settings">
+            <label>voxel <input id="pc-voxel" type="number" value="1" min="0.1" step="0.1" style="width:96px" /> mm</label>
+            <label>units × <input id="pc-units" type="number" value="1000" min="0.001" step="any" style="width:104px" /></label>
+            <label>up <select id="pc-up"><option value="y">Y (phone export)</option><option value="z">Z</option></select></label>
+            <label title="Tick when the object stood on a flat surface and its underside was never scanned. The lowest scanned layer is capped so the interior can close; the base face is then an assumption, and the report says so."><input id="pc-seal" type="checkbox" /> seal base</label>
+          </div>
+          <p id="upload-note" class="small muted"></p>
         </details>
       </section>
 
       <section id="scale-step" class="step">
         <h2>2 · Scale <small>measure at least one extent with a ruler</small></h2>
         <div class="row">
-          <label>Width X <input id="dim-x" type="number" min="0" step="0.1" style="width:90px" /> mm</label>
-          <label>Depth Y <input id="dim-y" type="number" min="0" step="0.1" style="width:90px" /> mm</label>
-          <label>Height Z <input id="dim-z" type="number" min="0" step="0.1" style="width:90px" /> mm</label>
+          <label>Width X <input id="dim-x" type="number" min="0" step="0.1" style="width:96px" /> mm</label>
+          <label>Depth Y <input id="dim-y" type="number" min="0" step="0.1" style="width:96px" /> mm</label>
+          <label>Height Z <input id="dim-z" type="number" min="0" step="0.1" style="width:96px" /> mm</label>
           <button id="save-dims" class="ghost">Save scale</button>
         </div>
       </section>
 
       <section id="reconstruct-step" class="step">
-        <h2>3 · Reconstruct <small>visual hull → watertight mesh → drawing</small></h2>
+        <h2>3 · Model <small>visual hull → watertight mesh → drawing</small></h2>
         <div id="reconstruct-controls" class="row">
           <label>Resolution <input id="res" type="range" /> <span id="res-label"></span> voxels</label>
           <label>Smoothing <input id="smooth" type="range" /> <span id="smooth-label"></span> passes</label>
-          <button id="reconstruct" class="primary">Reconstruct</button>
+          <button id="reconstruct" class="ghost">Reconstruct</button>
         </div>
         <div id="report"></div>
         <div class="two" style="margin-top:12px">
-          <div id="drawing-wrap" hidden>
-            <h3 class="small muted" style="margin:0 0 6px">Engineering drawing (third angle, A3, mm)</h3>
-            <img id="drawing" class="drawing" alt="Engineering drawing" />
-          </div>
           <div id="viewer-wrap" hidden>
-            <h3 class="small muted" style="margin:0 0 6px">3D model</h3>
-            <canvas id="viewer"></canvas>
+            <div class="viewer-bar">
+              <h3>3D model</h3>
+              <button id="tool-share" type="button" class="ghost">Share</button>
+            </div>
+            <div class="viewer-stage">
+              <canvas id="viewer"></canvas>
+              <div class="viewer-edge">
+                <button id="tool-ar" type="button" class="ghost" title="View in AR">AR</button>
+              </div>
+            </div>
             <p id="viewer-info" class="small muted"></p>
+            <div class="viewer-tools" role="toolbar" aria-label="Model tools">
+              <button id="tool-export" type="button" class="ghost">Export</button>
+              <button id="tool-print" type="button" class="ghost">Print</button>
+              <button id="tool-crop" type="button" class="ghost" aria-pressed="false">Crop</button>
+              <button id="tool-rotate" type="button" class="ghost" aria-pressed="false">Rotate</button>
+              <button id="tool-measure" type="button" class="ghost" aria-pressed="false">Measure</button>
+            </div>
+            <div id="crop-panel" class="tool-panel" hidden>
+              <div class="row" style="justify-content:space-between;margin:0"><b>Crop 3D bounds (mm)</b><button id="crop-close" type="button" class="link">Close</button></div>
+              <p class="small muted" style="margin:0">Drag the 6 coloured handles in the 3D view or enter exact millimetre limits.</p>
+              <div class="tool-grid">
+                <label>Min X <input id="crop-minX" type="number" step="0.5" /></label>
+                <label>Max X <input id="crop-maxX" type="number" step="0.5" /></label>
+                <label>Min Y <input id="crop-minY" type="number" step="0.5" /></label>
+                <label>Max Y <input id="crop-maxY" type="number" step="0.5" /></label>
+                <label>Min Z <input id="crop-minZ" type="number" step="0.5" /></label>
+                <label>Max Z <input id="crop-maxZ" type="number" step="0.5" /></label>
+              </div>
+              <label class="small"><input id="crop-snap" type="checkbox" checked /> Snap cropped base to build plate (Z = 0)</label>
+              <div class="row" style="margin:0">
+                <button id="crop-apply" type="button" class="ghost">Apply crop</button>
+                <button id="crop-undo" type="button" class="link" disabled>Undo</button>
+                <button id="crop-reset" type="button" class="link" disabled>Reset mesh</button>
+              </div>
+            </div>
+            <div id="rotate-panel" class="tool-panel" hidden>
+              <div class="row" style="justify-content:space-between;margin:0"><b>Rotate &amp; level on build plate</b><button id="rotate-close" type="button" class="link">Close</button></div>
+              <div class="row" style="margin:0">
+                <button type="button" class="ghost" data-lay-flat="auto">Lay flat (auto)</button>
+                <button type="button" class="ghost" data-lay-flat="bottom">Bottom</button>
+                <button type="button" class="ghost" data-lay-flat="top">Top</button>
+                <button type="button" class="ghost" data-lay-flat="front">Front</button>
+                <button type="button" class="ghost" data-lay-flat="back">Back</button>
+                <button type="button" class="ghost" data-lay-flat="left">Left</button>
+                <button type="button" class="ghost" data-lay-flat="right">Right</button>
+              </div>
+              <div class="tool-grid">
+                <label>Pitch X (<span id="rot-x-val">0°</span>) <input id="rot-x" type="range" min="-180" max="180" step="1" value="0" /></label>
+                <label>Roll Y (<span id="rot-y-val">0°</span>) <input id="rot-y" type="range" min="-180" max="180" step="1" value="0" /></label>
+                <label>Yaw Z (<span id="rot-z-val">0°</span>) <input id="rot-z" type="range" min="-180" max="180" step="1" value="0" /></label>
+              </div>
+              <label class="small"><input id="rot-snap" type="checkbox" checked /> Snap lowest point to build plate (minZ = 0)</label>
+              <div class="row" style="margin:0">
+                <button id="rotate-apply" type="button" class="ghost">Save orientation</button>
+                <button id="rotate-undo" type="button" class="link" disabled>Undo</button>
+                <button id="rotate-reset" type="button" class="link" disabled>Reset mesh</button>
+              </div>
+            </div>
+            <div id="measure-panel" class="tool-panel" hidden>
+              <div class="row" style="justify-content:space-between;margin:0"><b>3D point-to-point measure</b><button id="measure-close" type="button" class="link">Close</button></div>
+              <p id="measure-readout" class="small" style="margin:0">Click two points on the 3D model surface to measure exact distance in millimetres.</p>
+              <div class="row" style="margin:0"><button id="measure-clear" type="button" class="link">Clear points</button></div>
+            </div>
+          </div>
+          <div id="drawing-wrap" hidden>
+            <h3 class="small muted" style="margin:0 0 8px">Engineering drawing (third angle, A3, mm)</h3>
+            <img id="drawing" class="drawing" alt="Engineering drawing" />
           </div>
         </div>
       </section>
@@ -390,19 +545,89 @@
           <select id="printer"></select>
           <select id="file-kind"><option value="gcode">G-code (sliced)</option><option value="stl">STL (host slices)</option></select>
           <label><input id="start-print" type="checkbox" /> start printing after upload</label>
-          <button id="send" class="primary">Send to printer…</button>
+          <button id="send" class="ghost">Send to printer…</button>
+          <button id="print-printers" type="button" class="link">Manage printers</button>
         </div>
         <ul id="submissions" class="small"></ul>
-        <p class="small muted">Register and manage printers under Printers, at the top of the list of objects.</p>
       </section>
     </div>
   </main>
 </div>
-<div id="toast" class="toast" hidden></div>
+<dialog id="printers" class="stp-sheet" aria-labelledby="printers-title">
+  <div class="stp-sheet-head"><h2 id="printers-title">Printers</h2><button type="button" class="link" data-stp-close>Done</button></div>
+  <div class="stp-sheet-body">
+    <p id="engine-note" class="small muted" hidden></p>
+    <ul id="printer-list" class="small"></ul>
+    <h3 class="small muted" style="margin:0">Register a printer</h3>
+    <form id="printer-form" style="display:grid;gap:8px">
+      <input id="p-label" type="text" placeholder="label" required />
+      <select id="p-kind"><option value="octoprint">OctoPrint</option><option value="moonraker">Moonraker (Klipper)</option><option value="prusalink">PrusaLink</option><option value="bambu-lan">Bambu Lab (home network)</option></select>
+      <span id="http-fields" class="row" style="display:grid">
+        <input id="p-url" type="url" placeholder="http://printer.local" required />
+        <input id="p-key" type="password" placeholder="API key" required autocomplete="off" />
+      </span>
+      <span id="bambu-fields" class="row" style="display:grid" hidden>
+        <input id="p-host" type="text" placeholder="printer address, e.g. 192.168.1.20" autocomplete="off" />
+        <input id="p-code" type="password" placeholder="LAN access code" autocomplete="off" />
+      </span>
+      <button class="ghost" type="submit">Save printer</button>
+    </form>
+    <p id="bambu-help" class="small muted" hidden>On a P2S or an H2 printer, Settings → Settings → LAN Only shows its address (IP) and the 8-character Access Code; other Bambu Lab printers show both on their LAN Only (LAN mode) settings page. The printer's serial and model are read from the printer itself. Jobs are sliced for it here and sent over your home network. To let oshal start prints, not just upload them, turn on LAN Only and then Developer Mode on that same page.</p>
+    <div id="slice-form" hidden style="display:grid;gap:8px">
+      <h3 class="small muted" style="margin:0">Slice settings for <span id="slice-printer"></span></h3>
+      <label>Build plate <input id="slice-plate" type="text" list="slice-plates" /></label>
+      <datalist id="slice-plates"></datalist>
+      <label>Filament profile <input id="slice-filament" type="text" placeholder="Bambu PLA Basic" /></label>
+      <label>Nozzle <select id="slice-nozzle"><option>0.2</option><option selected>0.4</option><option>0.6</option><option>0.8</option></select></label>
+      <div class="row"><button id="slice-save" type="button" class="ghost">Save slice settings</button><button id="slice-cancel" type="button" class="link">Cancel</button></div>
+    </div>
+  </div>
+</dialog>
+<dialog id="export-sheet" class="stp-sheet" aria-labelledby="export-title">
+  <div class="stp-sheet-head"><h2 id="export-title">Export</h2><button type="button" class="link" data-stp-close>Done</button></div>
+  <div class="stp-sheet-body">
+    <fieldset id="export-list" class="export-list" aria-label="Format"></fieldset>
+  </div>
+  <div class="stp-sheet-foot"><button id="export-go" type="button" class="primary">Export</button></div>
+</dialog>
+<dialog id="share-sheet" class="stp-sheet" aria-labelledby="share-title">
+  <div class="stp-sheet-head"><h2 id="share-title">Share read-only 3D view</h2><button type="button" class="link" data-stp-close>Done</button></div>
+  <div class="stp-sheet-body">
+    <p class="small muted" style="margin:0">Anyone with an active link can orbit, measure, and view this model in AR without altering your scan or seeing your printers. Revoke a link at any time.</p>
+    <div class="row" style="margin:0">
+      <input id="share-label" type="text" placeholder="Optional label, e.g. Workshop review" style="flex:1" />
+      <button id="share-create" type="button" class="ghost">Create link</button>
+    </div>
+    <ul id="share-list" class="share-list small"></ul>
+  </div>
+</dialog>
+<dialog id="ar-sheet" class="stp-sheet" aria-labelledby="ar-title">
+  <div class="stp-sheet-head"><h2 id="ar-title">View in AR</h2><button type="button" class="link" data-stp-close>Done</button></div>
+  <div class="stp-sheet-body">
+    <p class="small muted" style="margin:0">Place this model at true 1:1 millimetre scale on iPhone/iPad (Apple AR Quick Look USDZ) or Android (Scene Viewer GLB).</p>
+    <div class="row" style="margin:0">
+      <a id="ar-quicklook" rel="ar" class="ghost" href="#"><img alt="" width="1" height="1" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" style="position:absolute;opacity:0;pointer-events:none" />Open in iOS Quick Look (USDZ)</a>
+      <a id="ar-sceneviewer" class="ghost" href="#">Open in Android AR (GLB)</a>
+      <a id="ar-glb-download" class="link" href="#">Download GLB</a>
+    </div>
+    <div class="ar-qr-box">
+      <div id="ar-qr"></div>
+      <span class="small muted">Scan with your phone camera to open on mobile</span>
+      <code id="ar-qr-url"></code>
+    </div>
+  </div>
+</dialog>
+<dialog id="ask-sheet" class="stp-sheet" aria-labelledby="ask-title">
+  <div class="stp-sheet-head"><h2 id="ask-title">Are you sure?</h2></div>
+  <div class="stp-sheet-body"><p id="ask-text" style="margin:0;white-space:pre-line"></p></div>
+  <div class="stp-sheet-foot row" style="justify-content:flex-end"><button id="ask-no" type="button" class="link">Cancel</button><button id="ask-yes" type="button" class="ghost">Continue</button></div>
+</dialog>
+<div id="toast" class="toast" role="status" hidden></div>
 <!-- Shared renderer v1 must load before the application compatibility adapter. -->
 <script src="/shared/ui/js/stl-viewer.js"></script>
 <script src="/api/scan-to-print/assets/scan-to-print-gl.js"></script>
 <script src="/api/scan-to-print/assets/scan-to-print-camera.js"></script>
 <script src="/api/scan-to-print/assets/scan-to-print.js"></script>
+<script src="/api/scan-to-print/assets/scan-to-print-tools.js"></script>
 </body>
 </html>

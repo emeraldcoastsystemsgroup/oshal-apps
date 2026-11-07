@@ -341,6 +341,9 @@
         <span class="spacer" style="flex:1"></span>
         <button id="rename-design" class="ghost">Rename</button>
         <button id="delete-design" class="ghost">Delete</button>
+        <!-- Run is the one primary, at the right of the app row (UX audit 2026-11-06, CONVENTIONS §5.10 row 2); auto-run beside it. -->
+        <label class="small"><input id="auto-run" type="checkbox" checked /> run after every edit</label>
+        <button id="run" class="primary">Run</button>
       </div>
       <section class="step">
         <div class="row">
@@ -349,11 +352,12 @@
         <div class="views"><button id="view-schematic" class="ghost active" type="button">Schematic</button><button id="view-board" class="ghost" type="button" title="the same circuit on a breadboard: move parts, add or remove jumpers; the schematic's wires follow">Breadboard</button></div>
         <svg id="canvas" viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg"></svg>
         <svg id="board" viewBox="0 0 960 288" xmlns="http://www.w3.org/2000/svg" hidden></svg>
+        <!-- The mouse-and-keys text is Help, one tap away, not a paragraph under the canvas (UX audit 2026-11-06). -->
+        <details class="small muted" id="canvas-help"><summary>Help: mouse, touch and keys</summary>
         <p id="canvas-hint" class="small muted">Drag a part from the palette onto the canvas (or click it) · drag to move · drag on empty canvas to select several, then move or Delete them together · click pin → pin to wire · drag a wire's middle segment to re-route it · double-click a wire to add a bend, drag a bend to move it, double-click it to remove it · click a wire to plot its net · Delete removes · R rotates (a selection turns about its centre) · Esc cancels · Ctrl+Z / Ctrl+Y undo / redo · Ctrl+C / Ctrl+V copy / paste · wheel zooms · shift-drag pans</p>
         <p id="board-hint" class="small muted" hidden>Drag a part to another hole · click a part and press R to turn it (upright, its legs down the rows; two legs on one strip short it, and the board says so) · click one hole then another to add a jumper — drawn straight at its real length, click it to read the mm · click a jumper and press Delete to remove it · the five holes of a column are one strip, a rail is one strip · the schematic's wires are rebuilt from the board after every edit (gears and loads stay on the schematic)</p>
+        </details>
         <div class="row">
-          <button id="run" class="primary">Run</button>
-          <label class="small"><input id="auto-run" type="checkbox" checked /> run after every edit</label>
           <label class="small">stop <input id="sim-stop" type="number" min="0.000001" step="0.01" /> s</label>
           <label class="small">step <input id="sim-step" type="number" min="0.000000001" step="0.0001" placeholder="auto" /> s</label>
           <label class="small"><input id="sim-rest" type="checkbox" checked /> start from rest</label>

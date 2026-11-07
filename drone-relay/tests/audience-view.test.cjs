@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The Drone Relay company view asserted as behaviour over the package's REAL routes: GET /plans answered by the compiled mount (routes/drone-relay-routes.js composing routes/plan-routes.js and the real plan store, loaded with only express and the logger stubbed, over a stub pool), fed chains the real engine sized and simulated (shared with the browser fixture), the answers JSON round-tripped as Express serializes them. On open the view makes exactly that one read and the route answers it with one SELECT of the caller's own chains; the chains paint as four stats (chains, feasible as sized, held or restored, lost the tip), a title ladder (lost, not feasible, degraded, not run yet, every run held or restored, none yet), a dense table of the newest eight (shape, radio, relays and spares, hop and margin, last run with its verdict tone, changed) whose rows open only the route's own design write-up in a new tab, and a needs-a-look list ordered worst first; odd rows read as what they are and link nowhere; signed out (the route's own 401), refused, a server failure, an unreadable answer and an unreachable server each read as what they are. The surface script's one start path (boot) is gated: under the view it reads and binds nothing, without the view or without the kit the full page boots, and removing the gate turns the test red.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: the full page binds three more controls (Cancel delete, the Plan and Simulate tabs); the stub document answers querySelectorAll.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -300,7 +301,7 @@ function element(log) { return { addEventListener(type) { log.push(type); }, set
 async function runSurface(activeView, { source = SCRIPT, kit = true } = {}) {
   const calls = { reads: [], listeners: [] };
   const appView = kit ? { active: () => activeView } : undefined;
-  const doc = { getElementById: () => element(calls.listeners), createElement: () => element(calls.listeners), createElementNS: () => element(calls.listeners), createTextNode: () => ({}) };
+  const doc = { getElementById: () => element(calls.listeners), createElement: () => element(calls.listeners), createElementNS: () => element(calls.listeners), createTextNode: () => ({}), querySelectorAll: () => [] };
   const caps = { transports: [{ id: 'esp-now', name: 'ESP-NOW' }], controlChannels: ['in-band', 'esp-now'] };
   const fetchStub = (url, init) => {
     calls.reads.push(((init && init.method) || 'GET') + ' ' + url);
@@ -316,7 +317,7 @@ test('the surface script\x27s one start path is gated: under the view it reads a
   const steps = SCRIPT.split('\n').filter((line) => /^  [^\s/}*]/.test(line) && !/^  (function |async function |const |let |var |'use strict')/.test(line));
   assert.deepEqual(steps, ['  ' + GATE + 'boot().catch(fail);'], 'boot is the only top-level statement that runs anything, and it carries the gate');
   assert.deepEqual(await runSurface('company'), { reads: [], listeners: [] });
-  const full = { reads: ['GET /api/drone-relay/capabilities', 'GET ' + PLANS], listeners: ['click', 'click', 'click', 'click', 'click', 'click', 'input', 'click', 'click', 'click', 'click'] };
+  const full = { reads: ['GET /api/drone-relay/capabilities', 'GET ' + PLANS], listeners: ['click', 'click', 'click', 'click', 'click', 'click', 'click', 'click', 'click', 'input', 'click', 'click', 'click', 'click'] }; // UX audit 2026-11-06: + Cancel delete, Plan and Simulate tabs
   assert.deepEqual(await runSurface(null), full);
   assert.deepEqual(await runSurface(null, { kit: false }), full, 'a core without the kit runs the full page');
   assert.deepEqual(await runSurface('company', { source: SCRIPT.replace(GATE, '') }), full, 'without the gate the view would boot the full page too: this test goes red');

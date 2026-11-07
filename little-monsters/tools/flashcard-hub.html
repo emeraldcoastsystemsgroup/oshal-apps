@@ -11,6 +11,7 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Flashcard hub: gallery of the caller's readable sets with study, edit and delete; manual set creation with quick fill from pasted notes; class auto-build
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and literal palette; hero, set cards, forms and empty states use the system. Role truth: the class picker, class-owned edit/delete and "Build a set from my class" appear only for the class's teacher/admin (the store's write rule), students make private sets. The dead lm-navigate to a view without a ribbon target and the unused go() are gone (study opens by URL); toasts replace alert(); the prompt() add-card dialog is an inline row
+  3   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-flashcards): '+ New flashcard set' is the one primary on the page (the empty state and the edit view no longer add a second); each set's Study is a secondary button, and Edit and Delete move into the set's ⋯ menu. Delete asks inside the card ('Delete this set? Delete / Keep') instead of the browser's confirm dialog.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -27,6 +28,17 @@
   .set-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 16px; }
   .view-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .view-head h2 { font-size: 20px; font-weight: 700; }
+  .set-actions { align-items: center; }
+  .set-menu { position: relative; margin-left: auto; }
+  .set-menu summary { list-style: none; width: var(--lm-touch); height: var(--lm-touch); display: grid; place-items: center; border-radius: 12px; cursor: pointer; font-size: 20px; color: var(--lm-ink-2); }
+  .set-menu summary::-webkit-details-marker { display: none; }
+  .set-menu summary:hover, .set-menu[open] summary { background: var(--lm-accent-wash); }
+  .set-menu .lm-more-menu { bottom: calc(100% + 6px); top: auto; min-width: 160px; }
+  .set-menu .lm-more-menu button { display: block; width: 100%; min-height: var(--lm-touch); text-align: left; padding: 10px 12px; border: 0; border-radius: 10px; background: none; color: var(--lm-ink); font-weight: 600; font-size: 14px; cursor: pointer; }
+  .set-menu .lm-more-menu button:hover { background: var(--lm-accent-wash); }
+  .set-menu .lm-more-menu button.is-danger { color: var(--lm-danger); }
+  .set-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+  .set-confirm strong { flex: 1 1 100%; }
 </style>
 </head>
 <body>
@@ -81,7 +93,7 @@ async function gallery() {
   if (failed) {
     h += '<div class="lm-empty"><div class="lm-empty-icon">☁️</div><strong>Your sets could not be loaded right now.</strong>Nothing is assumed in their place; try again in a moment.<div><button type="button" class="lm-btn lm-btn-ghost" onclick="gallery()">Try again</button></div></div>';
   } else if (!sets.length) {
-    h += '<div class="lm-empty"><div class="lm-empty-icon">🃏</div><strong>No sets yet.</strong>Type your first cards in, or paste your notes and watch them become cards.<div><button type="button" class="lm-btn lm-btn-primary" onclick="create()">＋ New flashcard set</button></div></div>';
+    h += '<div class="lm-empty"><div class="lm-empty-icon">🃏</div><strong>No sets yet.</strong>Use ＋ New flashcard set above: type your first cards in, or paste your notes and watch them become cards.</div>';
   } else {
     h += '<div class="lm-grid" style="--min:300px">' + sets.map(setCard).join('') + '</div>';
   }
@@ -91,17 +103,22 @@ async function gallery() {
   app().querySelectorAll('button[data-act]').forEach(function (b) {
     b.addEventListener('click', function () {
       var id = b.getAttribute('data-set'), act = b.getAttribute('data-act');
-      if (act === 'study') study(id); else if (act === 'edit') edit(id, b.getAttribute('data-title')); else delSet(id);
+      if (act === 'study') study(id); else if (act === 'edit') edit(id, b.getAttribute('data-title')); else askDelete(b.closest('.set-card'), id);
     });
   });
 }
+/** One set menu open at a time; a tap outside closes it. */
+document.addEventListener('click', function (e) {
+  document.querySelectorAll('.set-menu[open]').forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
+});
 function setCard(s) {
   var t = esc(s.title || 'Untitled'), n = Number(s.card_count);
   var meta = [Number.isFinite(n) ? n + (n === 1 ? ' card' : ' cards') : '', s.source_type === 'textbook' ? 'From the textbook' : ''].filter(Boolean).join(' · ');
-  var acts = '<button type="button" class="lm-btn lm-btn-primary" data-act="study" data-set="' + esc(s.set_id) + '">▶ Study</button>';
+  var acts = '<button type="button" class="lm-btn lm-btn-ghost" data-act="study" data-set="' + esc(s.set_id) + '">▶ Study</button>';
   if (canWrite(s)) {
-    acts += '<button type="button" class="lm-btn lm-btn-ghost" data-act="edit" data-set="' + esc(s.set_id) + '" data-title="' + t + '">✎ Edit</button>' +
-      '<button type="button" class="lm-btn lm-btn-danger lm-btn-icon" data-act="del" data-set="' + esc(s.set_id) + '" aria-label="Delete ' + t + '" title="Delete set">🗑</button>';
+    acts += '<details class="set-menu"><summary aria-label="' + esc('Actions for ' + (s.title || 'Untitled')) + '">⋯</summary><div class="lm-more-menu">' +
+      '<button type="button" data-act="edit" data-set="' + esc(s.set_id) + '" data-title="' + t + '">✎ Edit</button>' +
+      '<button type="button" class="is-danger" data-act="del" data-set="' + esc(s.set_id) + '">🗑 Delete</button></div></details>';
   }
   return '<article class="lm-card set-card"><div class="lm-card-kicker">' + (s.class_name ? esc(s.class_name) : 'Just for me') + '</div>' +
     '<h3>' + t + '</h3>' + (meta ? '<div class="lm-card-meta">' + meta + '</div>' : '') +
@@ -109,8 +126,16 @@ function setCard(s) {
 }
 /** The study page is reached by its own URL; it has no ribbon target of its own. */
 function study(setId) { window.location.href = '/api/education/flashcards?setId=' + encodeURIComponent(setId); }
+/** Ask inside the card, not with the browser's dialog: Delete or Keep. */
+function askDelete(card, setId) {
+  var row = card.querySelector('.set-actions');
+  row.innerHTML = '<div class="set-confirm" role="group" aria-label="Delete this set?"><strong>Delete this set and all its cards?</strong>' +
+    '<button type="button" class="lm-btn lm-btn-danger" data-confirm="yes">Delete</button><button type="button" class="lm-btn lm-btn-ghost" data-confirm="no">Keep</button></div>';
+  row.querySelector('[data-confirm="yes"]').addEventListener('click', function () { delSet(setId); });
+  row.querySelector('[data-confirm="no"]').addEventListener('click', function () { gallery(); });
+  row.querySelector('[data-confirm="no"]').focus();
+}
 async function delSet(setId) {
-  if (!confirm('Delete this whole set?')) return;
   try { var r = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(setId), { method: 'DELETE' }); window.LM.toast(r.ok ? 'Set deleted' : 'Could not delete the set.'); }
   catch (e) { window.LM.toast('Could not delete the set.'); }
   gallery();
@@ -203,7 +228,7 @@ async function edit(setId, title) {
     '<div class="lm-card lm-mt-md"><h3 class="lm-mb-sm">＋ Add a card</h3><div class="card-row"><input class="lm-input" id="newFront" placeholder="Front (term / question)" aria-label="Front">' +
     '<input class="lm-input" id="newBack" placeholder="Back (definition / answer)" aria-label="Back">' +
     '<button type="button" class="lm-btn lm-btn-primary lm-btn-icon card-row-del" id="addCardBtn" aria-label="Add card" title="Add card">＋</button></div></div>' +
-    '<div class="lm-row is-wrap lm-mt-md"><button type="button" class="lm-btn lm-btn-primary" id="studyBtn">▶ Study this set</button></div></section>';
+    '<div class="lm-row is-wrap lm-mt-md"><button type="button" class="lm-btn lm-btn-ghost" id="studyBtn">▶ Study this set</button></div></section>';
   document.getElementById('addCardBtn').onclick = function () { addNewCard(setId); };
   document.getElementById('studyBtn').onclick = function () { study(setId); };
   var box = document.getElementById('ecards');

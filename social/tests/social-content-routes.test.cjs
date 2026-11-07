@@ -10,6 +10,8 @@
  *   daily digest names a bot the package imports.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The digest's target must be the phase bot of exactly one workflow social owns (the kernel's for_bot
  *   rule a fire runs), not merely a declared or imported name: the imported communications-bot registered but every fire was refused.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Compose and Workspace are one application; tools/social-composer.html is gone, so the content-call
+ *   inventory reads the one Workspace screen.
  */
 'use strict';
 const test = require('node:test');
@@ -51,9 +53,9 @@ const RSS = `<rss><channel><item><title>AI agents reach the help desk &#8217;s q
   <item><title>Gardening tips</title><link>https://example.test/b</link></item>
   <item><title>Agents again &amp; robotics</title><link>https://example.test/dismissed</link></item></channel></rss>`;
 
-test('every content call the Workspace and Composer make has a handler in the compiled router', () => {
+test('every content call the Workspace makes has a handler in the compiled router', () => {
   const routes = content.createSocialContentRoutes({ pool: recordingPool() }).routes;
-  const screens = ['social-workspace.html', 'social-composer.html'].map((f) => fs.readFileSync(path.join(ROOT, 'tools', f), 'utf8')).join('\n');
+  const screens = ['social-workspace.html'].map((f) => fs.readFileSync(path.join(ROOT, 'tools', f), 'utf8')).join('\n');
   assert.doesNotMatch(screens, /['(]\/api\/content\//, 'no screen calls the old platform content routes');
   const called = new Set([...screens.matchAll(/\/api\/social\/content\/([a-z]+)/g)].map((m) => m[1]));
   assert.ok(called.size >= 8, `the screens call the content routes (${[...called]})`);

@@ -25,6 +25,9 @@
  *                     |                             | example's programs with the person's session; the Simulate
  *                     |                             | poster's Build the plant, Run the baselines, Train the policy
  *                     |                             | and Certify go to embodied's plant routes (the mechanism module).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.9 (UX audit 2026-11-06): hide duplicate #reload when framed inside
+ *                     |                             | the cockpit shell, toggle #phase-stepper on Product, keep #back as top-left
+ *                     |                             | ← Back, and open #help-dialog from the header overflow menu.
  */
 function designStudio() {
   'use strict';
@@ -56,18 +59,27 @@ function designStudio() {
   function show(screen, title, lede) {
     state.screen = screen;
     for (const id of ['screen-products', 'screen-new', 'screen-product', 'screen-settings', 'screen-mechanism']) $(id).hidden = id !== `screen-${screen}`;
+    if ($('phase-stepper')) $('phase-stepper').hidden = screen !== 'product';
+    if ($('head-more')) $('head-more').open = false;
     $('title').textContent = title; if (lede !== undefined) $('lede').textContent = lede;
     $('back').hidden = screen === 'products'; $('new-product').hidden = screen !== 'products'; $('settings-link').hidden = screen !== 'product';
     $('studio').dataset.screen = screen;
-    if (state.project) { $('settings-link').href = `#/product/${encodeURIComponent(state.project.id)}/settings`; $('back').href = screen === 'settings' || screen === 'mechanism' || state.editing ? `#/product/${encodeURIComponent(state.project.id)}` : '#/'; $('back').textContent = screen === 'settings' || screen === 'mechanism' || state.editing ? 'Product' : 'Products'; }
-    else { $('back').href = '#/'; $('back').textContent = 'Products'; }
+    if (state.project) {
+      $('settings-link').href = `#/product/${encodeURIComponent(state.project.id)}/settings`;
+      const toProduct = screen === 'settings' || screen === 'mechanism' || state.editing;
+      $('back').href = toProduct ? `#/product/${encodeURIComponent(state.project.id)}` : '#/';
+      $('back').textContent = toProduct ? '← Product' : '← Back';
+    } else {
+      $('back').href = '#/';
+      $('back').textContent = '← Back';
+    }
     $('kicker').textContent = state.project && screen !== 'products' && screen !== 'new' ? `Design Studio · ${state.project.name}` : 'Design Studio';
   }
   function markReady() { const m = $('studio'); m.dataset.reads = String(Number(m.dataset.reads || 0) + 1); m.dataset.ready = '1'; publishContext(); }
 
   async function showProducts() {
     state.project = null; state.editing = null;
-    show('products', 'Products', 'Brief → Design → Mechanical → Electrical → Sensors → Controller → Simulate → Fabricate → Build. A product carries the phases its brief needs; each phase is read from its engine when this page opens and is never stored.');
+    show('products', 'Products', 'Select a product to check its phases, or start a new brief.');
     try { state.projects = (await api('/projects')).projects; V.renderProducts($('screen-products'), state.projects); }
     catch (e) { $('screen-products').textContent = ''; $('screen-products').append(Object.assign(document.createElement('p'), { className: 'empty', textContent: `The products could not be read: ${e.message}` })); }
     markReady();
@@ -396,7 +408,14 @@ function designStudio() {
     else await showProducts();
   }
   window.addEventListener('hashchange', () => { void route(); });
+  if (window.self !== window.top) $('reload').hidden = true;
   $('reload').addEventListener('click', () => { void route(); });
+  if ($('help-btn') && $('help-dialog')) {
+    $('help-btn').addEventListener('click', () => {
+      if ($('head-more')) $('head-more').open = false;
+      $('help-dialog').showModal();
+    });
+  }
   $('settings-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     try {

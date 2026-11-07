@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FORMATS = exports.PrepError = exports.officialPractice = exports.research = exports.catalog = void 0;
+exports.FORMATS = exports.PrepError = exports.officialPractice = exports.curriculumVideos = exports.research = exports.catalog = void 0;
 exports.examOf = examOf;
 exports.availableLessons = availableLessons;
 exports.createSession = createSession;
@@ -41,12 +41,17 @@ exports.publicSession = publicSession;
 exports.changeSession = changeSession;
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Versioned original curriculum, session blueprints and private grading.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Load optional 168-topic multi-level video curriculum catalog alongside SAT/ACT lessons.
  */
 const fs_1 = require("fs");
 const path = __importStar(require("path"));
 const crypto_1 = require("crypto");
 exports.catalog = JSON.parse((0, fs_1.readFileSync)(path.join(__dirname, '../data/test-prep/catalog.json'), 'utf8'));
 exports.research = JSON.parse((0, fs_1.readFileSync)(path.join(__dirname, '../data/test-prep/strategies.json'), 'utf8'));
+const curriculumPath = path.join(__dirname, '../data/test-prep/curriculum-videos.json');
+exports.curriculumVideos = (0, fs_1.existsSync)(curriculumPath)
+    ? JSON.parse((0, fs_1.readFileSync)(curriculumPath, 'utf8'))
+    : { version: '1', courses: [], topics: [] };
 const resourceIndex = JSON.parse((0, fs_1.readFileSync)(path.join(__dirname, '../data/test-prep/official-resources.json'), 'utf8'));
 /** Publish publisher links, never the downloaded PDF contents or local storage metadata. */
 exports.officialPractice = {

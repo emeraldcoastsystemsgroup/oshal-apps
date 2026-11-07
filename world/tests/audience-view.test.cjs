@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | World's page is WORLD_APP_HTML, a String.raw template in src-routes/world-app-html.ts, so the page file is that source: the tests prove the compiled routes/world-app-html.js serves the source template byte for byte and that the block holds no backtick or dollar-brace. The company view is asserted as behaviour over a stub kit and a stub fetch: on open it reads only /entities (60), /home-summary and /pulls for the most covered subject over 30 days (never sentiment, the graph, a metric or a write); the stats name what they count (60+ when the list is full, an unreadable metric as not read); quiet and never-seen subjects are marked; headlines open their source in a new tab and carry the route's own sampling note; the next recorded event and the pull-rate show as recorded; a partial, missing or refused coverage summary, a failed pull ledger, a disabled service and a failed subject read each read as what they are. The dashboard's own script is run with stubs too: under an audience view it binds no window control and reads nothing.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.0: the full page (never an audience view) also reads /api/world/operations/ping once, to show the operator's Sources & schedules link.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.7: the window select is gone (its pills are bound by load()), so "the dashboard started" is read from its reads.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -177,7 +178,7 @@ test('a partial, missing or refused coverage summary, a disabled service and a f
 /**
  * @description Run the dashboard's own script (the page's last inline script) with a stub DOM and fetch.
  * @param {string|null} activeView What AppView.active() answers, or null for the full page.
- * @returns {{ fetches: string[], bound: boolean }} What the dashboard read and whether its window control was bound.
+ * @returns {{ fetches: string[], bound: boolean }} What the dashboard read and whether it started (the window select is gone since 1.4.7; its pills are bound by load()).
  */
 function runDashboard(activeView) {
   const src = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
@@ -185,7 +186,7 @@ function runDashboard(activeView) {
   const documentStub = { getElementById: (id) => (nodes[id] = nodes[id] || { id, innerHTML: '', onchange: null, querySelectorAll: () => [] }), querySelectorAll: () => [] };
   new Function('window', 'AppView', 'document', 'fetch', src)({ AppView: { active: () => activeView } }, { active: () => activeView }, documentStub,
     (url) => { fetches.push(url); return new Promise(() => {}); });
-  return { fetches, bound: typeof (nodes.win && nodes.win.onchange) === 'function' };
+  return { fetches, bound: fetches.length > 0 };
 }
 
 test('under an audience view the dashboard binds no window control and reads nothing', () => {

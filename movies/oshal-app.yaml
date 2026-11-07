@@ -3,6 +3,8 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.5 (UX audit 2026-11-06): the Movie Concierge parses its reply in the package (movies-envelope.js), fenced or prose-wrapped, so the raw JSON envelope is never shown; an unreadable envelope is a plain apology. The title sheet is opaque with legible synopsis ink in every theme, and accent buttons take the theme's on-accent ink. Browse is a media home: a hero from Trending with Where to watch as the one primary and + Watchlist beside it, poster rows captioned title · year, Home · Search · Watchlist views (a bottom bar on a phone), Movies and TV chips, and the concierge as a sheet with suggested prompts; the inner header and the TMDB chip left browse.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6 (UX audit 2026-11-06): ribbon.hideAssistant: the in-page Ask sheet is the one assistant entry; on the trial at 1440x900 the shell's orb sat on the sheet's Send button.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — movies ("Movies & TV")
@@ -47,7 +49,7 @@ description: >-
   AI movies & TV concierge — search films and shows, see where they're streaming,
   watch trailers, get recommendations, build a watchlist, and find showtimes. Other
   swarm bots can ask it what to watch or where to watch it.
-version: 1.1.4
+version: 1.1.6
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -169,6 +171,9 @@ ribbon:
     - logs
     - operations
   hideChatPanel: true
+  # One assistant entry (UX audit 2026-11-06): the in-page Ask sheet is the concierge, so the shell's orb is withheld here;
+  # it sat on the sheet's Send button at 1440x900. Remove this line to bring the orb back.
+  hideAssistant: true
   defaultView: movies-concierge
 
 summary:

@@ -114,9 +114,11 @@
     --dim: var(--text-muted, #747b8d);
     --accent: var(--accent-primary, #8b7cf6);
     --accent-2: var(--accent-primary-hover, #6f5ce8);
-    --ok: #30c48d;
-    --warn: #f4b64a;
-    --bad: #f06278;
+    --ok: var(--status-success, #30c48d);
+    --warn: var(--status-warning, #f4b64a);
+    --bad: var(--status-error, #f06278);
+    /* Ink on the accent fill: the theme names it (dark on a light accent, white on a dark one). */
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
@@ -141,7 +143,7 @@
     gap: 12px;
     padding: 10px 18px;
     border-bottom: 1px solid var(--line);
-    background: rgba(13, 15, 20, 0.96);
+    background: var(--panel);
   }
   .mark {
     width: 34px;
@@ -150,7 +152,7 @@
     display: grid;
     place-items: center;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 800;
   }
   .brand { font-weight: 800; line-height: 1.05; }
@@ -240,7 +242,7 @@
     min-height: 42px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: #0a0c11;
+    background: var(--ds-surface, var(--bg));
     color: var(--text);
     padding: 0 12px;
     outline: 0;
@@ -250,7 +252,7 @@
   .field-line {
     height: 16px;
     margin-left: 8px;
-    border-left: 2px solid rgba(255, 255, 255, 0.18);
+    border-left: 2px solid var(--line);
   }
   .action-row {
     display: grid;
@@ -269,7 +271,7 @@
   .btn.primary {
     border-color: transparent;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    color: #fff;
+    color: var(--on-accent);
   }
   .btn:disabled { opacity: .55; cursor: default; }
   .section-title {
@@ -294,7 +296,7 @@
     padding: 9px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.035);
+    background: var(--panel-2);
     color: var(--text);
     text-align: left;
   }
@@ -305,8 +307,8 @@
     border-radius: 8px;
     display: grid;
     place-items: center;
-    background: rgba(139, 124, 246, .16);
-    color: #d8d3ff;
+    background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    color: var(--accent);
     font-weight: 800;
   }
   .suggestion strong {
@@ -333,7 +335,7 @@
   .map-panel {
     position: relative;
     overflow: hidden;
-    background: #11141a;
+    background: var(--ds-surface-2, var(--panel-2));
   }
   .google-map {
     position: absolute;
@@ -347,25 +349,25 @@
     position: absolute;
     inset: 0;
     z-index: 1;
-    background: #11141a;
+    background: var(--ds-surface-2, var(--panel-2));
   }
   .osm-map[hidden] { display: none; }
   /* Leaflet's own chrome, themed into the surface instead of its default light look. */
   .osm-map .leaflet-control-zoom a {
-    background: rgba(18, 20, 27, .9);
+    background: var(--panel);
     color: var(--text);
     border-color: var(--line);
   }
   .osm-map .leaflet-control-zoom a:hover { background: var(--panel-2); }
   .osm-map .leaflet-control-attribution {
-    background: rgba(18, 20, 27, .8);
+    background: var(--panel);
     color: var(--muted);
     font-size: 10px;
   }
   .osm-map .leaflet-control-attribution a { color: var(--accent); }
   .osm-map .leaflet-popup-content-wrapper,
   .osm-map .leaflet-popup-tip {
-    background: rgba(18, 20, 27, .95);
+    background: var(--panel);
     color: var(--text);
   }
   /* Raster tiles are lightened rather than left at full brightness so the dark surface chrome
@@ -382,8 +384,7 @@
     padding: 10px 12px;
     border: 1px solid var(--line);
     border-radius: 10px;
-    background: rgba(18, 20, 27, .88);
-    backdrop-filter: blur(10px);
+    background: var(--ds-surface, var(--panel));
     font-size: 12px;
   }
   .legend-row {
@@ -403,7 +404,7 @@
     height: 12px;
     border-radius: 999px;
     background: var(--accent);
-    box-shadow: 0 0 0 2px rgba(255,255,255,.16);
+    box-shadow: 0 0 0 2px var(--line);
   }
   /* Addresses ellipsise (they can be arbitrarily long); the measurement must not — a clipped
      "15.0 mi…" is exactly the number the rider came to read. */
@@ -413,7 +414,7 @@
   .map-chip[aria-pressed="true"] {
     border-color: var(--accent);
     background: var(--accent);
-    color: #0d0f14;
+    color: var(--on-accent);
   }
   .map-toolbar {
     position: absolute;
@@ -428,7 +429,7 @@
     padding: 0 10px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    background: rgba(18, 20, 27, .86);
+    background: var(--panel);
     color: var(--text);
     font-size: 12px;
     font-weight: 750;
@@ -459,17 +460,18 @@
     padding: 11px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: rgba(255, 255, 255, .035);
+    background: var(--panel-2);
+    color: var(--text);
   }
-  .ride-card.is-selected { border-color: rgba(139,124,246,.75); background: rgba(139,124,246,.12); }
+  .ride-card.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
   .car {
     width: 48px;
     height: 48px;
     display: grid;
     place-items: center;
     border-radius: 8px;
-    background: rgba(255,255,255,.08);
-    color: #fff;
+    background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    color: var(--accent);
     font-weight: 900;
   }
   .ride-card h3 { margin: 0; font-size: 15px; }
@@ -524,13 +526,14 @@
   }
   .msg.bot {
     justify-self: start;
-    background: rgba(255,255,255,.05);
+    background: var(--panel-2);
+    color: var(--text);
     border: 1px solid var(--line);
   }
   .msg.me {
     justify-self: end;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 700;
   }
   .chat-row {
@@ -542,7 +545,7 @@
     min-height: 38px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: #0a0c11;
+    background: var(--ds-surface, var(--bg));
     color: var(--text);
     padding: 0 11px;
     outline: 0;
@@ -556,7 +559,7 @@
     padding: 10px 14px;
     border-radius: 8px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     font-weight: 800;
     opacity: 0;
     pointer-events: none;
@@ -655,7 +658,7 @@
   .toast {
     border-color: transparent;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    color: #fff;
+    color: var(--on-accent);
   }
 
   .map-panel {
@@ -719,6 +722,47 @@
     background: color-mix(in srgb, var(--accent) 12%, var(--panel));
   }
 
+  /* 1.5.6 (UX audit 2026-11-06): the Trips screen (?view=history), one view at a time. */
+  .content[hidden], .trips[hidden] { display: none; }
+  /* A legend row is a grid, which beat its hidden attribute: an empty "Distance" row showed before any route. */
+  .legend-row[hidden] { display: none; }
+  .trips { margin: 10px; display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+  .trip-list { min-height: 0; overflow: auto; padding: 8px 14px 14px; display: grid; align-content: start; }
+  .trip-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .trip-row:last-child { border-bottom: 0; }
+  .trip-when { color: var(--muted); font-size: 12px; font-weight: 700; }
+  .trip-route { grid-column: 1; font-size: 14px; font-weight: 750; overflow-wrap: anywhere; }
+  .trip-fare { grid-column: 1; color: var(--muted); font-size: 12px; }
+  .trip-row .btn { grid-column: 2; grid-row: 1 / span 3; min-height: 44px; padding: 0 14px; }
+  .fare-basis { margin: 0; padding: 0 12px 10px; color: var(--muted); font-size: 12px; cursor: help; }
+  .fare-basis:empty { display: none; }
+  .more-places { width: 100%; min-height: 44px; }
+  .phone-where { display: none; }
+  .phone-where input { width: 100%; min-height: 44px; border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: 8px; background: var(--rides-control); color: var(--text); padding: 0 12px; font-size: 16px; outline: 0; }
+  .phone-where input:focus { border-color: color-mix(in srgb, var(--accent) 56%, var(--line)); background: var(--rides-control-strong); }
+  .phone-where .btn { min-height: 44px; padding: 0 14px; }
+  .topbar .settings-btn { min-height: 44px; padding: 0 14px; margin-left: 8px; }
+  .rides-settings-dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); width: min(460px, calc(100vw - 24px)); padding: 0; box-shadow: var(--rides-shadow-strong); }
+  .rides-settings-dialog::backdrop { background: rgba(15, 23, 42, .48); }
+  .rides-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .rides-settings-head h2 { margin: 0; font-size: 17px; }
+  .rides-settings-body { display: grid; gap: 12px; padding: 14px; }
+  .rides-settings-body label { display: grid; gap: 6px; font-size: 12px; font-weight: 750; color: var(--muted); }
+  .rides-settings-body input { width: 100%; min-height: 44px; border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: 8px; background: var(--rides-control); color: var(--text); padding: 0 12px; font-size: 16px; }
+  .rides-settings-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px 14px; border-top: 1px solid var(--line); }
+  .rides-settings-foot .btn, .rides-settings-head .btn { min-height: 44px; padding: 0 14px; }
+  @media (max-width: 760px) {
+    /* Phone: the map first, then where to, then the ride options. */
+    .content { display: flex; flex-direction: column; }
+    .map-panel { order: -2; height: 45vh; min-height: 300px; }
+    .phone-where { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 10px 12px; order: -1; }
+    .order { order: 0; }
+    .builder { order: 1; }
+    .status-pill { display: none; }
+    .topbar .settings-btn { margin-left: auto; }
+    .trips { margin: 8px; }
+  }
+
   /* The assistant rail's cards. Class names are the ones the SHARED surface-bridge client renders
      (bridge-propose / bridge-confirm / bridge-cancel / bridge-notice); a ride the concierge or the
      floating assistant proposes lands here and opens nothing until the rider confirms. */
@@ -727,49 +771,16 @@
   .bridge-propose { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
   .bridge-propose p { margin: 0; font-size: 13px; line-height: 1.4; }
   .bridge-confirm, .bridge-cancel { min-height: 36px; border-radius: 8px; font-weight: 850; border: 1px solid var(--line); background: var(--rides-control); color: var(--text); }
-  .bridge-confirm { border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+  .bridge-confirm { border-color: transparent; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--on-accent); }
   .bridge-option { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--rides-control); color: var(--text); }
   .bridge-option-desc { color: var(--muted); font-size: 12px; }
   .bridge-notices { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: grid; gap: 6px; z-index: 11; width: min(420px, calc(100vw - 20px)); }
   .bridge-notice { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--rides-shadow); font-size: 13px; }
   .bridge-notice-warn, .bridge-notice-error { border-color: var(--warn, #f4b64a); }
 </style>
-<script>
-(function(){
-  const map = {
-    '--bg':'--bg-primary',
-    '--panel':'--bg-card',
-    '--panel-2':'--bg-secondary',
-    '--line':'--border-color',
-    '--text':'--text-primary',
-    '--muted':'--text-secondary',
-    '--dim':'--text-muted',
-    '--accent':'--accent-primary',
-    '--accent-2':'--accent-primary-hover',
-    '--ok':'--status-success',
-    '--warn':'--status-warning',
-    '--bad':'--status-error'
-  };
-  function sync(){
-    try {
-      const parentWindow = window.parent && window.parent !== window ? window.parent : null;
-      if (!parentWindow) return;
-      const computed = parentWindow.getComputedStyle(parentWindow.document.documentElement);
-      // Theme-sync copies the cockpit's tokens ONLY as a matched set: the parent must name both --bg-primary and --text-primary; otherwise the copied properties are removed and this page keeps its own palette (the native cockpit names --text-primary #f8fafc and no --bg-primary, which put near-white text on a light page).
-      if (!computed.getPropertyValue('--bg-primary').trim() || !computed.getPropertyValue('--text-primary').trim()) {
-        for (const localName in map) document.documentElement.style.removeProperty(localName);
-        return;
-      }
-      for (const localName in map) {
-        const value = computed.getPropertyValue(map[localName]).trim();
-        if (value) document.documentElement.style.setProperty(localName, value);
-      }
-    } catch {}
-  }
-  sync();
-  document.addEventListener('DOMContentLoaded', sync);
-})();
-</script>
+<!-- 1.5.6: no parent-token copy. surface-theme.js above sets this page's data-theme from the cockpit (and keeps it live),
+     and the aliases in :root resolve from that theme's own tokens; a copy frozen at load kept Ocean's navy after a switch
+     to Light Blue (white ride-card text on light silver, UX audit 2026-11-06). -->
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
@@ -778,9 +789,14 @@
     <div class="mark">R</div>
     <div class="brand">OSHAL Rides<small>Map first ride concierge</small></div>
     <div class="status-pill"><span class="dot" id="connDot"></span><span id="connTxt">Checking Uber mode</span></div>
+    <button class="btn settings-btn" id="ridesSettingsBtn" type="button">Settings</button>
   </header>
 
   <div class="content">
+    <div class="panel phone-where" id="phoneWhereBar">
+      <input id="phoneWhereTo" autocomplete="off" aria-label="Where to?" placeholder="Where to?" />
+      <button class="btn primary" id="phoneWhereGo" type="button">Show rides</button>
+    </div>
     <section class="panel builder">
       <div class="panel-head">
         <h1>Where are you going?</h1>
@@ -836,7 +852,7 @@
         <div class="legend-row distance" id="distanceRow" hidden><span class="legend-dot measure"></span><b>Distance</b><span id="distanceLabel"></span></div>
         <!-- The status line lives INSIDE the legend. As two absolutely-positioned panels they
              overlapped at common widths and the distance readout was the thing that got covered. -->
-        <div class="map-help" id="mapHelp">Drag a pin or click the map to set a point. Location stays in your browser unless you search or request estimates. Uber opens separately for final price, pickup confirmation, and payment.</div>
+        <div class="map-help" id="mapHelp">Drag a pin or tap the map to set a point.</div>
       </div>
     </section>
 
@@ -848,6 +864,7 @@
       <div class="option-list" id="options">
         <div class="empty">No route yet. Search, scroll results, or ask the concierge to generate the ride.</div>
       </div>
+      <p class="fare-basis" id="fareBasis" role="note"></p>
       <div class="order-footer">
         <div class="bridge-dock" id="bridgeOptions" data-bridge-host="options" aria-live="polite"></div>
         <button class="btn primary" id="requestBtn" type="button" disabled>Open Uber handoff</button>
@@ -855,7 +872,30 @@
       </div>
     </section>
   </div>
+
+  <!-- Trips (?view=history, the Trips tile): every ride you priced and opened in Uber, newest first, each with Ride again. -->
+  <section class="panel trips" id="tripsView" aria-label="Trips" hidden>
+    <div class="panel-head"><p>Rides you opened in Uber, newest first. Ride again fills Get a Ride with the same trip and prices it.</p></div>
+    <div class="trip-list" id="tripList"><div class="empty">Loading your trips…</div></div>
+  </section>
 </div>
+<dialog class="rides-settings-dialog" id="ridesSettingsDialog" aria-labelledby="ridesSettingsTitle">
+  <div class="rides-settings-head">
+    <h2 id="ridesSettingsTitle">Saved places</h2>
+    <button class="btn" id="ridesSettingsClose" type="button">Close</button>
+  </div>
+  <div class="rides-settings-body">
+    <label for="savedHomeInput">Home address
+      <input id="savedHomeInput" autocomplete="street-address" placeholder="Street address, city, state" />
+    </label>
+    <label for="savedWorkInput">Work address
+      <input id="savedWorkInput" autocomplete="street-address" placeholder="Office street address, city, state" />
+    </label>
+  </div>
+  <div class="rides-settings-foot">
+    <button class="btn primary" id="ridesSettingsSave" type="button">Save places</button>
+  </div>
+</dialog>
 <div class="toast" id="toast"></div>
 <div class="bridge-notices" data-bridge-host="notices"></div>
 
@@ -870,6 +910,7 @@ const state = {
   selected: null,
   conversationId: localStorage.getItem('oshalRidesConv') || '',
   trips: [],
+  savedPlaces: { home: '', work: '' },
   basis: '',
   proposedAction: null
 };
@@ -883,14 +924,19 @@ const googleMapState = {
 
 const baseSuggestions = [
   { label: 'Airport', detail: 'Nearest airport or terminal', value: 'airport', code: 'AIR' },
-  { label: 'Home', detail: 'Use saved home if configured', value: 'home', code: 'H' },
-  { label: 'Work', detail: 'Use saved work if configured', value: 'work', code: 'W' },
   { label: 'Downtown', detail: 'Restaurants, nightlife, hotels', value: 'downtown', code: 'DT' },
   { label: 'Grocery store', detail: 'Food run or pickup', value: 'grocery store', code: 'GR' },
   { label: 'Walmart', detail: 'Shopping trip', value: 'Walmart', code: 'WM' },
   { label: 'Hospital', detail: 'Medical campus or ER', value: 'hospital', code: 'MED' },
   { label: 'Hotel', detail: 'Hotel, resort, or lobby pickup', value: 'hotel', code: 'HT' }
 ];
+
+function suggestionPresets() {
+  const saved = [];
+  if (state.savedPlaces.home) saved.push({ label: 'Home', detail: state.savedPlaces.home, value: 'home', code: 'H' });
+  if (state.savedPlaces.work) saved.push({ label: 'Work', detail: state.savedPlaces.work, value: 'work', code: 'W' });
+  return [baseSuggestions[0], ...saved, ...baseSuggestions.slice(1)];
+}
 
 function toast(message) {
   const node = $('#toast');
@@ -1018,7 +1064,7 @@ async function initOsmMap(mapsConfig) {
     setTimeout(() => osm.map && osm.map.invalidateSize(), 200);
     window.addEventListener('resize', () => osm.map && osm.map.invalidateSize());
     osm.ready = true;
-    $('#mapHelp').textContent = 'Drag a pin or click the map to set a point. Fares are modelled from the measured distance; Uber quotes the real price when you open the handoff.';
+    $('#mapHelp').textContent = 'Drag a pin or tap the map to set a point.';
     return true;
   } catch {
     $('#mapHelp').textContent = 'The map could not load. Typing a pickup and destination still works — estimates and the Uber handoff do not depend on it.';
@@ -1287,6 +1333,8 @@ function escapeHtml(value) {
 function updateLabels() {
   state.pickup = $('#pickup').value.trim() || state.pickup || 'my location';
   state.dropoff = $('#dropoff').value.trim();
+  const phoneWhere = $('#phoneWhereTo');
+  if (phoneWhere && document.activeElement !== phoneWhere) phoneWhere.value = $('#dropoff').value;
   $('#pickupLabel').textContent = state.pickup || 'Waiting for location';
   $('#dropoffLabel').textContent = state.dropoff || 'Choose a destination';
   $('#orderSubtitle').textContent = state.dropoff
@@ -1307,18 +1355,26 @@ function distinctTrips(trips) {
   });
 }
 
+// The Search list. With nothing typed it holds three places and More places (it held nine rows that pushed the map and
+// the fares below the fold on a phone), and never a trip Recent trips already lists (Pensacola Beach was in both).
+// Typing searches recent destinations and places alike.
+const SEARCH_PREVIEW = 3;
 function renderSuggestions() {
   const query = $('#dropoff').value.trim().toLowerCase();
-  const recent = distinctTrips(state.trips).map((trip) => ({
+  const recent = query ? distinctTrips(state.trips).map((trip) => ({
     label: trip.dropoff || 'Recent destination',
     detail: trip.pickup || 'Recent trip',
     value: trip.dropoff || '',
     code: 'RE'
-  }));
-  const items = [...recent, ...baseSuggestions]
-    .filter((item) => !query || `${item.label} ${item.detail} ${item.value}`.toLowerCase().includes(query))
-    .slice(0, 10);
-  $('#suggestions').innerHTML = items.map(renderSuggestion).join('') || '<div class="empty">No matching destinations.</div>';
+  })) : [];
+  const matches = [...recent, ...suggestionPresets()]
+    .filter((item) => !query || `${item.label} ${item.detail} ${item.value}`.toLowerCase().includes(query));
+  const items = matches.slice(0, query || state.morePlaces ? 10 : SEARCH_PREVIEW);
+  const more = !query && !state.morePlaces && matches.length > items.length
+    ? '<button class="btn more-places" id="morePlaces" type="button">More places</button>' : '';
+  $('#suggestions').innerHTML = (items.map(renderSuggestion).join('') || '<div class="empty">No matching destinations.</div>') + more;
+  const moreBtn = $('#morePlaces');
+  if (moreBtn) moreBtn.addEventListener('click', () => { state.morePlaces = true; renderSuggestions(); });
   document.querySelectorAll('[data-suggestion]').forEach((button) => {
     button.addEventListener('click', () => {
       $('#dropoff').value = button.dataset.suggestion || '';
@@ -1470,6 +1526,15 @@ function renderDistance(result) {
   }
 }
 
+/** The one line under the fares that says how they were made; the server's full note is its tooltip. */
+function showFareBasis(result) {
+  const line = $('#fareBasis');
+  if (!line) return;
+  const modelled = result && result.rail === 'keyless' && result.basis !== 'unresolved';
+  line.textContent = !modelled ? '' : result.basis === 'routed' ? 'Estimate from the routed distance' : `Estimate from a straight line × ${result.roadFactor || 1.3}`;
+  line.title = modelled && result.note ? String(result.note) : '';
+}
+
 async function estimate() {
   updateLabels();
   if (!state.dropoff) {
@@ -1500,8 +1565,9 @@ async function estimate() {
     if (result.coords?.dropoff) await setPoint('dropoff', result.coords.dropoff, { label: state.dropoff, fromEstimate: true });
     renderDistance(result);
     state.basis = result.basis || 'unresolved';
-    // The keyless rail says how the fare was made (modelled from the pins; no Uber connector here).
-    if (result.rail === 'keyless' && result.basis !== 'unresolved' && result.note) $('#mapHelp').textContent = result.note;
+    // The keyless rail says how the fare was made (modelled from the pins; no Uber connector here): one line under the
+    // fares, with the full explanation on hover, instead of a paragraph over the map (UX audit 2026-11-06).
+    showFareBasis(result);
     if (result.basis === 'unresolved') {
       $('#mapHelp').textContent = result.note
         || 'One of these addresses did not resolve to a location, so no fare is shown. Add a street number or a city.';
@@ -1745,18 +1811,120 @@ function onBridgeCustom(evt) {
   }
 }
 
+async function loadSavedPlaces() {
+  try {
+    const res = await getJson(`${API}/profile`);
+    const p = res.profile || {};
+    state.savedPlaces = { home: String(p.home_address || '').trim(), work: String(p.work_address || '').trim() };
+    $('#savedHomeInput').value = state.savedPlaces.home;
+    $('#savedWorkInput').value = state.savedPlaces.work;
+    renderSuggestions();
+  } catch {}
+}
+
+async function saveSavedPlaces() {
+  const home = $('#savedHomeInput').value.trim(), work = $('#savedWorkInput').value.trim();
+  const res = await postJson(`${API}/profile`, { homeAddress: home, workAddress: work, onboarded: true });
+  if (res.httpStatus >= 400) { toast(res.error || 'Could not save places'); return; }
+  state.savedPlaces = { home, work };
+  renderSuggestions();
+  const dlg = $('#ridesSettingsDialog');
+  if (dlg && dlg.open) dlg.close();
+  toast('Saved places updated');
+}
+
+function wirePhoneAndSettings() {
+  const dlg = $('#ridesSettingsDialog'), where = $('#phoneWhereTo');
+  $('#ridesSettingsBtn').addEventListener('click', () => { if (dlg && dlg.showModal && !dlg.open) dlg.showModal(); });
+  $('#ridesSettingsClose').addEventListener('click', () => { if (dlg && dlg.open) dlg.close(); });
+  $('#ridesSettingsSave').addEventListener('click', saveSavedPlaces);
+  if (dlg) dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  where.addEventListener('input', () => { $('#dropoff').value = where.value; updateLabels(); renderSuggestions(); });
+  where.addEventListener('keydown', (e) => { if (e.key === 'Enter') { $('#dropoff').value = where.value; updateLabels(); estimate(); } });
+  where.addEventListener('blur', () => { if (!googleMapState.enabled) geocodeField('dropoff'); });
+  $('#phoneWhereGo').addEventListener('click', () => { $('#dropoff').value = where.value; updateLabels(); estimate(); });
+}
+
 async function loadTrips() {
   try {
     const result = await getJson(`${API}/history`);
     state.trips = result.trips || [];
+    state.tripsRead = true;
   } catch {
     state.trips = [];
+    state.tripsRead = false;
   }
   renderSuggestions();
   renderRecentTrips();
+  renderTripsView();
+}
+
+/** The view an address asks for: 'history' is the Trips tile (it passed ?view=history, which nothing read until 1.5.6). */
+function requestedView(search) {
+  try { return new URLSearchParams(search || '').get('view') || ''; } catch { return ''; }
+}
+
+/** Show Trips or Get a Ride; the map is re-measured when it comes back into view. */
+function showView(name) {
+  const trips = name === 'history';
+  $('#tripsView').hidden = !trips;
+  document.querySelector('.content').hidden = trips;
+  state.view = trips ? 'history' : 'planner';
+  if (!trips) setTimeout(() => { if (osm.map) { osm.map.invalidateSize(); if (osm.points.pickup || osm.points.dropoff) fitRoute(); } }, 0);
+}
+
+/** When a trip was planned, in the rider's own locale. */
+function tripWhen(value) {
+  const at = new Date(String(value || ''));
+  return Number.isFinite(at.getTime()) ? at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Time not saved';
+}
+
+/** The estimate shown when the trip was planned (ride type and fare range), or that none was kept. */
+function tripFare(trip) {
+  const low = Number(trip.est_fare_low), high = Number(trip.est_fare_high);
+  const type = trip.ride_type ? String(trip.ride_type) : '';
+  const fare = Number.isFinite(low) && Number.isFinite(high) && (trip.est_fare_low ?? '') !== '' && (trip.est_fare_high ?? '') !== ''
+    ? (Math.round(low) === Math.round(high) ? `$${Math.round(low)}` : `$${Math.round(low)}–${Math.round(high)}`) + ' estimate'
+    : 'No estimate kept';
+  return [type, fare].filter(Boolean).join(' · ');
+}
+
+/** The Trips list: one row per trip, newest first (the order /history answers), each with Ride again. */
+function renderTripsView() {
+  const list = $('#tripList');
+  if (!list) return;
+  if (!state.trips.length) {
+    list.innerHTML = state.tripsRead === false
+      ? '<div class="empty" role="status">Your trips could not be read right now.</div>'
+      : '<div class="empty">No trips yet. Plan one in Get a Ride and open it in Uber; it is listed here.</div><button class="btn primary" type="button" id="tripsPlan">Get a ride</button>';
+    const plan = $('#tripsPlan');
+    if (plan) plan.addEventListener('click', () => showView('planner'));
+    return;
+  }
+  list.innerHTML = state.trips.map((trip, i) => `<div class="trip-row">
+      <div class="trip-when">${escapeHtml(tripWhen(trip.created_at))}</div>
+      <div class="trip-route">${escapeHtml(trip.pickup || 'My location')} → ${escapeHtml(trip.dropoff || 'Destination')}</div>
+      <div class="trip-fare">${escapeHtml(tripFare(trip))}</div>
+      <button class="btn primary" type="button" data-ride-again="${i}">Ride again</button>
+    </div>`).join('');
+  list.querySelectorAll('[data-ride-again]').forEach((button) => {
+    button.addEventListener('click', () => rideAgain(state.trips[Number(button.dataset.rideAgain)]));
+  });
+}
+
+/** Ride again: Get a Ride with the same trip filled in and priced. Nothing is requested until the rider opens it. */
+function rideAgain(trip) {
+  if (!trip) return;
+  $('#pickup').value = trip.pickup || 'my location';
+  $('#dropoff').value = trip.dropoff || '';
+  showView('planner');
+  updateLabels();
+  renderSuggestions();
+  estimate();
 }
 
 async function boot() {
+  if (requestedView((window.location || {}).search) === 'history') showView('history');
   $('#pickup').value = 'my location';
   updateLabels();
   $('#locBtn').addEventListener('click', requestLocation);
@@ -1789,6 +1957,9 @@ async function boot() {
     if (wasPickup) setPoint('dropoff', wasPickup, { label: $('#dropoff').value });
     updateLabels();
     refreshRoute();
+    // A swapped trip is priced again at once (it said "Route changed — press Show rides" and waited).
+    const ready = (kind) => Boolean(osm.points[kind]) || Boolean(state[kind] && !/^my location$/i.test(state[kind]));
+    if (state.dropoff && ready('pickup') && ready('dropoff')) estimate();
   });
   $('#dropoff').addEventListener('input', () => { updateLabels(); renderSuggestions(); });
   $('#dropoff').addEventListener('keydown', (event) => { if (event.key === 'Enter') estimate(); });
@@ -1805,8 +1976,9 @@ async function boot() {
   window.addEventListener('message', trackProposal);
   document.addEventListener('surface-bridge:custom', onBridgeCustom);
   window.addEventListener('bridge-ready', publishContext);
+  wirePhoneAndSettings();
   renderSuggestions();
-  await loadTrips();
+  await Promise.all([loadTrips(), loadSavedPlaces()]);
   try {
     const config = await getJson(`${API}/config`);
     $('#connDot').classList.toggle('on', Boolean(config.uberRidesConnected));

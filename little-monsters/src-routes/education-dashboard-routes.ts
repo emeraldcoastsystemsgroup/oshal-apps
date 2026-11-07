@@ -8,6 +8,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the tenant-aware dashboard role matrix and teacher-scoped aggregates so each private-data query remains independently reviewable.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recheck the viewer's current tenant, role, and active teacher relationship in the final student-PII query.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A teacher reading their own dashboard is read as the learner, and teacher scoping applies only when the scope carries a teacher clause, so a teacher who also studies sees their own progress.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Delegate /student/guardian-summary/dashboard and /student/timelines/dashboard to their owner-scoped RP-LM-01 and RP-LM-05 services without altering authorization.yaml.
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -20,6 +21,8 @@ import {
   EducationAccessError,
   resolveAuthedStudent,
 } from './education-access';
+import { getGuardianSummaryPayload } from './education-guardian-service';
+import { listStudentTimelines } from './education-timelines-service';
 
 const logger = createChildLogger({ module: 'education-dashboard-routes' });
 
@@ -183,9 +186,18 @@ async function getStudentDashboard(
   req: Request,
   res: Response,
 ): Promise<void> {
+  const rawStudentId = String(req.params.studentId || '');
+  if (rawStudentId === 'guardian-summary') {
+    await getGuardianSummaryPayload(ctx.pool, req, res);
+    return;
+  }
+  if (rawStudentId === 'timelines') {
+    await listStudentTimelines(ctx.pool, req, res);
+    return;
+  }
   try {
     const viewer = await resolveAuthedStudent(req, ctx.pool);
-    const studentId = String(req.params.studentId);
+    const studentId = rawStudentId;
     await assertCanViewStudent(ctx.pool, viewer, studentId);
     const student = await loadDashboardStudent(ctx.pool, viewer, studentId);
     if (!student) {

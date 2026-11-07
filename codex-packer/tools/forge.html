@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en" data-theme="light-blue">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bot Forge — 1-Click Caller-Scoped Inject</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+  <link rel="stylesheet" href="/api/codex-packer/ui/forge.css" />
+  <script src="/shared/ui/js/surface-theme.js"></script>
+</head>
+<body>
+  <main class="forge-shell">
+    <header class="forge-toolbar">
+      <div class="forge-toolbar-title">
+        <h1>Bot Forge</h1>
+        <span id="draft-status-pill" class="forge-badge">New draft</span>
+        <span class="forge-subtitle">Draft a single-purpose bot and inject it live into your personal scope</span>
+      </div>
+      <div class="forge-toolbar-actions">
+        <button id="new-draft-btn" type="button" class="forge-btn">New Draft</button>
+        <button id="inject-btn" data-testid="inject-btn" type="button" class="forge-btn forge-btn-primary">
+          Inject…
+        </button>
+      </div>
+    </header>
+
+    <div id="forge-alert" class="forge-banner forge-banner-error" role="alert" hidden></div>
+
+    <section id="publication-receipt" data-testid="publication-receipt" class="forge-receipt" role="status" hidden>
+      <h3>Bot Injected Live (Caller-Scoped Package)</h3>
+      <p class="forge-hint">Published directly into your personal runtime with zero git commit or App Loader step.</p>
+      <ul class="forge-meta-list">
+        <li><strong>Authored Package:</strong> <code id="receipt-package"></code></li>
+        <li><strong>Ticket Queue Type:</strong> <code id="receipt-ticket-type"></code></li>
+        <li><strong>Published Revision:</strong> <span id="receipt-version"></span></li>
+        <li><strong>Execution Mode:</strong> <span id="receipt-mode"></span></li>
+      </ul>
+    </section>
+
+    <div class="forge-grid">
+      <section class="forge-card" aria-labelledby="spec-heading">
+        <h2 id="spec-heading">Draft Bot Specification</h2>
+        <p class="forge-hint">
+          Interview with the Forge concierge in the chat rail or fill in the single-task specification below, then press <strong>Inject…</strong> to review permissions before live publication.
+        </p>
+
+        <div class="forge-row-2">
+          <div class="forge-field">
+            <label for="bot-name">Bot Name</label>
+            <input id="bot-name" class="forge-input" type="text" maxlength="120" placeholder="e.g. Meeting Action Extractor" />
+          </div>
+          <div class="forge-field">
+            <label for="worker-bot">Installed Worker Bot Binding</label>
+            <select id="worker-bot" class="forge-select"></select>
+          </div>
+        </div>
+
+        <div class="forge-row-2">
+          <div class="forge-field">
+            <label for="bot-suite">Catalog Shelf</label>
+            <select id="bot-suite" class="forge-select">
+              <option value="ai-productivity">Productivity (ai-productivity)</option>
+              <option value="ai-knowledge">Knowledge (ai-knowledge)</option>
+              <option value="ai-engineering">Engineering (ai-engineering)</option>
+              <option value="ai-finance">Finance (ai-finance)</option>
+              <option value="ai-creative">Creative (ai-creative)</option>
+              <option value="ai-home">Home (ai-home)</option>
+            </select>
+          </div>
+          <div class="forge-field">
+            <label>&nbsp;</label>
+            <label class="forge-check" for="require-approval">
+              <input id="require-approval" type="checkbox" />
+              <span>Require human Admin approval gate</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="forge-field">
+          <label for="bot-task">Single Task &amp; Success Outcome</label>
+          <textarea id="bot-task" class="forge-textarea" placeholder="Describe the single task this bot performs, its expected output sections, and when to report insufficient information."></textarea>
+        </div>
+
+        <div class="forge-field">
+          <label for="bot-io">Input &amp; Output Format (optional)</label>
+          <input id="bot-io" class="forge-input" type="text" maxlength="600" placeholder="e.g. Input: pasted transcript. Output: markdown table with Owner and Due Date." />
+        </div>
+
+        <div class="forge-field">
+          <label for="bot-guardrails">Sensitive Data &amp; Guardrails (optional)</label>
+          <textarea id="bot-guardrails" class="forge-textarea" placeholder="What the bot must never repeat or store (secrets, account numbers, personal identifiers)."></textarea>
+        </div>
+      </section>
+
+      <aside style="display:flex;flex-direction:column;gap:16px;">
+        <section class="forge-card" aria-labelledby="import-heading">
+          <h2 id="import-heading">Load from Concierge YAML</h2>
+          <p class="forge-hint">Paste the YAML block drafted by the Forge concierge to populate the editor.</p>
+          <div class="forge-field">
+            <label for="yaml-import-input">Draft YAML</label>
+            <textarea id="yaml-import-input" class="forge-textarea" placeholder="displayName: Action Item Bot&#10;suite: ai-productivity&#10;description: Lists meeting action items."></textarea>
+          </div>
+          <button id="import-yaml-btn" type="button" class="forge-btn">Load Draft YAML</button>
+        </section>
+
+        <section class="forge-card" aria-labelledby="list-heading">
+          <h2 id="list-heading">Your Authored Bots</h2>
+          <p id="authored-empty" class="forge-hint">No caller-scoped bots drafted yet.</p>
+          <ul id="authored-list" class="forge-draft-list"></ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <div id="permission-preview-modal" data-testid="permission-preview-modal" class="forge-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="preview-title" hidden>
+    <div class="forge-modal">
+      <h2 id="preview-title">Permission Preview — Caller-Scoped Inject</h2>
+      <p class="forge-hint">
+        Review the exact capabilities and boundaries this drafted bot requests before live publication.
+      </p>
+
+      <div class="forge-perm-section">
+        <h3>Identity &amp; Isolation</h3>
+        <ul class="forge-meta-list">
+          <li><strong>Package Identity:</strong> <code id="preview-package-id"></code></li>
+          <li><strong>Visibility Scope:</strong> <span id="preview-scope"></span></li>
+          <li><strong>Bound Worker Bot:</strong> <code id="preview-worker"></code></li>
+        </ul>
+      </div>
+
+      <div class="forge-perm-section">
+        <h3>Requested Capabilities &amp; Permissions</h3>
+        <ul id="preview-capabilities" data-testid="preview-capabilities" class="forge-meta-list"></ul>
+      </div>
+
+      <div class="forge-perm-section">
+        <h3>Explicitly Withheld Authorities</h3>
+        <ul id="preview-withheld" class="forge-meta-list"></ul>
+      </div>
+
+      <div id="preview-issues-section" class="forge-perm-section" hidden>
+        <h3>Compile Validation Issues</h3>
+        <ul id="preview-issues" class="forge-meta-list"></ul>
+      </div>
+
+      <div class="forge-modal-actions">
+        <button id="cancel-inject-btn" data-testid="cancel-inject-btn" type="button" class="forge-btn">Cancel</button>
+        <button id="confirm-inject-btn" data-testid="confirm-inject-btn" type="button" class="forge-btn forge-btn-primary">
+          Confirm &amp; Inject Live
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/api/codex-packer/ui/forge-model.js"></script>
+  <script type="module" src="/api/codex-packer/ui/forge.js"></script>
+</body>
+</html>

@@ -1,21 +1,41 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Connect the shared editor shell and typed properties to Create's existing validated edits, history and document saves.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): the shared inspector is the one Format inspector. With nothing selected it shows the canvas (width, height, background, transparent) and edits it through the same project operation Canvas settings used; the Font field offers the brand, basic and Office faces the deleted duplicate form listed. The navigation pane is named Layers, the status strip is gone (the Saved caption lives in the app row), the concierge says image and starts closed so the canvas keeps a third column.
  */
 import { $, state, canEdit, dirty, edit, notify, subscribe } from './editor-state.mjs';
 import { saveProject } from './editor-projects.mjs';
 import { prepareEditorDocument, refreshEditorDocument } from './editor-handoff.mjs';
 import { worldLayer } from './group-geometry.mjs';
+import { fontChoices } from './brand-editor.mjs';
 
 const selected = () => state.project.layers.find(layer => layer.id === state.selected);
 const identity = () => state.id ?? `draft:${state.documentSession}`;
+const CANVAS = '#canvas';
 const selection = () => ({ kind: ({rect:'shape',ellipse:'shape',freehand:'drawing',path:'path',image:'image',text:'text',group:'group',adjustment:'adjustment'})[selected()?.type]??'layer', ids: selected() ? [state.selected] : [] });
 const number = (key, label, value, min, max, unit = 'px') => ({ key, label, type: 'number', value, min, max, unit, step: 'any', group: 'Geometry' });
 const text = (key, label, value, type = 'text') => ({ key, label, value, type, group: 'Text' });
 const color = (key, label, value) => ({ key, label, value, type: /^#[a-f\d]{6}$/i.test(value) ? 'color' : 'text', group: 'Appearance' });
+/** The Format pane's subject: the selected layer, or the canvas itself when nothing is selected. */
+const formatSelection = () => selected() ? selection() : { kind: 'canvas', ids: [CANVAS] };
+
+/** With nothing selected, Format edits the canvas: size and background, as Canvas settings did. */
+function canvasProperties() {
+  const { width, height, background } = state.project, transparent = background === 'transparent';
+  return [{ ...number('width', 'Width', width, 1, 8192), group: 'Canvas', step: 1 }, { ...number('height', 'Height', height, 1, 8192), group: 'Canvas', step: 1 },
+    { key: 'background', label: 'Background', type: 'color', value: transparent ? '#ffffff' : background, group: 'Canvas', disabled: transparent || !canEdit() },
+    { key: 'transparent', label: 'Transparent', type: 'checkbox', value: transparent, group: 'Canvas', disabled: !canEdit() }];
+}
+
+function applyCanvasProperty(key, value, expected) {
+  if (selected() || expected.documentId !== identity() || expected.revision !== state.revision || expected.selection.ids[0] !== CANVAS) throw new Error('The selection changed. Check the canvas again before editing.');
+  const patch = key === 'transparent' ? { background: value ? 'transparent' : '#ffffff' } : key === 'background' ? { background: value } : { [key]: Math.round(value) };
+  if (!['width', 'height', 'background', 'transparent'].includes(key)) throw new Error('This property cannot be changed on the canvas.');
+  edit({ type: 'project', patch });
+}
 
 /** Expose only properties the current renderer and immutable model actually support. */
 export function createLayerProperties() {
-  const layer = selected(); if (!layer) return [];
+  const layer = selected(); if (!layer) return canvasProperties();
   const fields = [text('name', 'Layer name', layer.name)];
   if (layer.type !== 'adjustment') fields.push(
     number('x', 'X', layer.x, -32768, 32768), number('y', 'Y', layer.y, -32768, 32768),
@@ -45,7 +65,7 @@ export function createLayerProperties() {
   }
   if (layer.type === 'text') fields.push(text('text', 'Text', layer.text, 'textarea'),
     { ...number('fontSize', 'Font size', layer.fontSize, 1, 1024), group: 'Text' },
-    text('fontFamily', 'Font family', layer.fontFamily),
+    { key: 'fontFamily', label: 'Font', type: 'select', value: layer.fontFamily, group: 'Text', options: fontChoices(layer.fontFamily) },
     { key: 'fontWeight', label: 'Weight', type: 'select', value: String(layer.fontWeight), group: 'Text', options: Array.from({ length: 9 }, (_, index) => ({ value: String((index + 1) * 100), label: ({ 400: 'Regular', 700: 'Bold' })[(index + 1) * 100] ?? String((index + 1) * 100) })) },
     { key: 'align', label: 'Alignment', type: 'select', value: layer.align, group: 'Text', options: ['left', 'center', 'right'].map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })) });
   const locked = worldLayer(state.project, layer).locked;
@@ -54,6 +74,7 @@ export function createLayerProperties() {
 
 /** Keep the same domain command path and group scaling rules as the existing inspector. */
 export function applyLayerProperty(key, value, expected) {
+  if (expected?.selection?.ids?.[0] === CANVAS) return applyCanvasProperty(key, value, expected);
   const layer = selected();
   if (!layer || expected.documentId !== identity() || expected.revision !== state.revision ||
       expected.selection.ids.length !== 1 || expected.selection.ids[0] !== layer.id) throw new Error('The selected layer changed. Select it again before editing.');
@@ -86,11 +107,16 @@ export async function bindEditorFoundation() {
   const inspector = root.querySelector('.inspector-panel');
   const layers = inspector.querySelector('section'); layers.classList.add('create-foundation-layers'); navigation.prepend(layers);
   const assistant=createEditorAssistant({app:'create',bot:'create-editor',title:'Create AI partner',root,prepare:async()=>({...await prepareEditorDocument(),selection:selection()}),refresh:refreshEditorDocument,getState:editorState});
+  const help = assistant.element.querySelector('.ef-assistant-help'); if (help) help.textContent = 'Ask about this image or request a change. Your draft is saved before each message.';
+  assistant.element.querySelector('.ef-assistant-log')?.setAttribute('aria-label', 'Image conversation');
   const releaseAssistant=subscribe(()=>assistant.refresh());
-  const foundation = createEditorFoundation({ root, ai:assistant.element, navigation, viewport: root.querySelector('.canvas-panel'), inspector,
-    header: document.querySelector('.editor-header'), status: document.querySelector('.status-strip'),
-    getState: editorState, getSelection: selection, getProperties: createLayerProperties, applyProperty: applyLayerProperty,
+  const foundation = createEditorFoundation({ root, ai:assistant.element, navigation, navigationLabel: 'Layers', viewport: root.querySelector('.canvas-panel'), inspector,
+    header: document.querySelector('.editor-header'),
+    getState: editorState, getSelection: formatSelection, getProperties: createLayerProperties, applyProperty: applyLayerProperty,
     subscribe, actions: { undo: () => $('undo').click(), redo: () => $('redo').click(), save: () => saveProject() } });
+  // The canvas keeps its column: the concierge opens from its one entry (the Today bar's Concierge, or the pane bar) instead of starting open.
+  root.querySelector('[data-editor-foundation]')?.dispatchEvent(new CustomEvent('editor-concierge:hide'));
+  if (document.activeElement?.closest?.('.ef-panes')) document.activeElement.blur();
   state.foundation = foundation;
   const pendingFields = () => notify();
   root.addEventListener('editor-foundation:draft', pendingFields);

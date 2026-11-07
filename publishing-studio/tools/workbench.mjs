@@ -4,12 +4,17 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply and save inspector drafts before concierge reads; refresh the same native publication while retaining concurrent drafts and selection.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep full-model undo across saves and same-document assistant refresh, retaining dirty and switched-document guards.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Use the shared pinned concierge and native approval presenter with the same saved selection and history.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard (docs/ux/design-standard.md §4.4, §4.8, §5.1; CONVENTIONS §5.5; Roger F6). What you type in a text frame is drawn in that frame on the page at once (the story's own font, size, weight, colour and alignment; master headers and page numbers too), while the renderer still owns exact flow and the PDF: a rendered revision shows its pages, a draft shows the drawn text. Typing in the Text sheet edits the story as you type (one undo step per burst). Render & preflight and Download PDF run on the current draft and save it first by themselves, so neither waits for Save revision; Download PDF renders when the revision has no render yet. With no publication the editor shows one blank Letter page (nothing saved yet); its first Add text frame makes an untitled Letter publication and puts the frame on it, ready to type. Nothing is selected until a frame is tapped, so the tool row shows the page's tools. Choices that would lose a draft confirm in the page, never in a browser dialog; a selection change with unapplied form fields is refused with how to fix it. Previews are still asked for only when the opened revision was rendered (B8 round 3, no 409s).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7, touch (the round-2 trial check, 2026-11-06: a swipe over the page dragged the story frame and never scrolled): a finger scrolls the page and a tap selects a frame; only the chosen frame's Move handle drags it by touch, as in the reference editors (Canva's selected element, Acrobat's deliberate grab); a mouse still drags outlines directly. Previews are asked for only when the opened revision was rendered (no 409 per page).
  */
 import {bindPublishingFoundation,publishingSelection} from './editor-foundation-adapter.mjs';
 let editorFoundation;
 const $=id=>document.getElementById(id),base='/api/publishing-studio',copy=value=>structuredClone(value),uid=prefix=>prefix+'_'+crypto.randomUUID().replaceAll('-','');
-const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,assets:[],previews:new Map(),busy:false,renderStarting:false,job:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null};
+const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,assets:[],previews:new Map(),busy:false,renderStarting:false,job:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null,rendered:false,liveKey:null,newSize:null,documents:[],view:'editor',loaded:false};
+// The page's own layers (publishing-shell.mjs): an in-page confirm and a hook after each paint. Until the shell is ready nothing is discarded.
+const ui={confirm:async()=>false,painted:()=>{}};
+/** The blank page shown before anything is saved: US Letter with its margins (design standard §5.1). */
+const BLANK_PAGE={id:'blank',width:612,height:792,bleed:9,margin:54,guides:{x:[54,558],y:[54,738]},masterId:null,objects:[],frames:[]};
 
 // Inspector fields are a separate draft from applied model operations. Applying one
 // form must not erase text still being composed in a different form.
@@ -41,8 +46,9 @@ function discardFields(){clearFieldBuffers();paint();}
 function guardFields(){
  if(editorFoundation?.hasPending())throw new Error('Apply or discard the selected property draft before changing the selection.');
  if(state.busy)throw new Error('Wait for the current save or open to finish.');
- if(pendingFields.size&&!confirm('Discard unapplied field edits before changing the selection?'))return false;
- clearFieldBuffers();return true;
+ // A browser dialog is never used (design standard DS-30): the person applies the form or presses Discard field edits.
+ if(pendingFields.size)throw new Error('Apply the changed fields, or press Discard field edits, before choosing something else.');
+ return true;
 }
 function changeSelection(id,work){
  const previous=selectionValues.get(id),next=$(id).value;
@@ -52,7 +58,7 @@ function changeSelection(id,work){
 function selectPage(index,item=null){
  if(state.page===index&&state.item===item)return true;
  if(!guardFields())return false;
- state.page=index;state.item=item;paint();return true;
+ state.page=index;state.item=item;state.liveKey=null;paint();return true;
 }
 function viewSnapshot(){return{id:state.document?.id,revision:state.document?.revision,generation:state.viewGeneration};}
 function sameView(view){return state.document?.id===view.id&&state.document?.revision===view.revision&&state.viewGeneration===view.generation;}
@@ -85,17 +91,28 @@ function localApply(model,op){if(op.op==='replace-model')return copy(op.model);c
 function rememberHistory(stack,model){stack.push({model});if(stack.length>100)stack.shift();}
 const modelJSON=model=>JSON.stringify(model,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);
 function operationsFor(model){return modelJSON(model)===modelJSON(state.document.model)?[]:[{op:'replace-model',model:copy(model)}];}
-function edit(op,consumed=[]){
- editable();if(state.ops.length>=64)throw new Error('Save this revision before making more edits.');
+function edit(op,consumed=[],live=null){
+ editable();
+ // One burst of typing in the same story is one draft operation and one undo step.
+ const same=live&&state.liveKey===live&&state.ops.at(-1)?.op===op.op&&state.ops.at(-1)?.story===op.story;
+ if(!same&&state.ops.length>=64)throw new Error('Save this revision before making more edits.');
  const model=localApply(state.model,op);
  for(const id of consumed){pendingFields.delete(id);fieldBaselines.set(id,$(id).value);}
- rememberHistory(state.undo,state.model);state.model=model;
- state.ops=[...state.ops,op];state.redo=[];state.saveKey=null;paint();
- status('Unsaved draft. Save validates the complete layout; render checks text flow.');
+ if(!same)rememberHistory(state.undo,state.model);state.model=model;
+ state.ops=same?[...state.ops.slice(0,-1),op]:[...state.ops,op];state.redo=[];state.saveKey=null;state.liveKey=live;
+ if(live){revisionText();boards();}else paint();controls();
 }
+function revisionText(){const d=state.document;$('revision').textContent=d?`Revision ${d.revision}${d.revision!==d.currentRevision?' · historical':''}${state.ops.length?' · unsaved':''}`:'';}
+/** The Text sheet's story text, applied as the person types (WYSIWYG: the frame draws it at once). */
+function liveStory(){
+ if(!state.document||!$('story').value)return;editable();
+ const paragraphs=$('story-text').value.split('\n').map(text=>({style:$('story-paragraph-style').value,runs:[{text,style:$('story-character-style').value}]}));
+ edit({op:'replace-story',story:$('story').value,paragraphs},fields.story,'story:'+$('story').value);
+}
+function hasContent(){const m=state.model;return Boolean(m&&(m.pages.some(p=>p.frames.length||p.objects.length)||m.masters.some(x=>x.objects.length)));}
 function layout(mutator,consumed=[]){const m=copy(state.model);mutator(m);edit({op:'replace-layout',...Object.fromEntries(['pages','masters','stories','assets'].map(k=>[k,m[k]]))},consumed);}
 function clearPreviews(){for(const url of state.previews.values())URL.revokeObjectURL(url);state.previews.clear();}
-function dirtyPrompt(){return !hasDraft()||confirm('Discard the unsaved draft and unapplied field edits and open the saved publication?');}
+async function dirtyPrompt(){return !hasDraft()||ui.confirm({title:'Discard your changes?',text:'Your unsaved changes and field edits will be lost.',action:'Discard changes'});}
 async function loadDocument(id,revision,retained={}){
  const result=retained.result??await request('/documents/'+id+(revision?'?revision='+revision:''));
  // Only callers holding the workspace lock adopt an HTTP response.
@@ -103,19 +120,22 @@ async function loadDocument(id,revision,retained={}){
  editorFoundation?.discardPending();
  clearPreviews();retireRender();state.viewGeneration++;clearFieldBuffers();
  if(retained.keepHistory){if(modelJSON(state.model)!==modelJSON(result.document.model)){rememberHistory(state.undo,state.model);state.redo=[];}}else{state.undo=[];state.redo=[];}
- state.document=result.document;state.model=copy(result.document.model);state.ops=[];state.saveKey=null;
+ state.document=result.document;state.model=copy(result.document.model);state.ops=[];state.saveKey=null;state.liveKey=null;state.rendered=Boolean(result.rendered);state.view='editor';
  state.page=Math.max(0,state.model.pages.findIndex(page=>page.id===retained.pageId));
  state.item=[...state.model.pages[state.page].frames,...state.model.pages[state.page].objects].some(item=>item.id===retained.item)?retained.item:null;
+ $('item').value=state.item??'';
  $('preflight').textContent='';
  option($('history'),result.history.map(v=>[v.revision,`Revision ${v.revision}`]),result.document.revision);
  paint();status('Opened saved revision '+result.document.revision);if(result.rendered)await previews(viewSnapshot());
 }
 async function open(id,revision){
  if(state.busy)throw new Error('Wait for the current save or open to finish.');
- if(!dirtyPrompt())return;
+ if(!await dirtyPrompt())return;
  return locked(()=>loadDocument(id,revision));
 }
-async function refresh(){const [docs,assets]=await Promise.all([request('/documents'),request('/assets')]);state.assets=assets.assets;$('documents').replaceChildren(...docs.documents.map(d=>{const b=document.createElement('button');b.textContent=d.title;b.onclick=action(()=>open(d.id));return b;}));$('asset-list').replaceChildren(...state.assets.map(a=>{const row=document.createElement('p');row.textContent=`${a.title} · ${a.bytes} bytes `;const remove=document.createElement('button');remove.textContent='Delete';remove.onclick=action(async()=>{if(confirm('Delete this unused asset? Saved revisions keep their asset references.')){await request('/assets/'+a.id,{method:'DELETE',body:{}});await refresh();}});row.append(remove);return row;}));option($('object-asset'),state.assets.map(a=>[a.id,a.title]),$('object-asset').value);}
+async function refresh(){const [docs,assets]=await Promise.all([request('/documents'),request('/assets')]);state.assets=assets.assets;state.documents=docs.documents;$('documents').replaceChildren(...docs.documents.map(card));$('asset-list').replaceChildren(...state.assets.map(a=>{const row=document.createElement('p');row.textContent=`${a.title} · ${a.bytes} bytes `;const remove=document.createElement('button');remove.type='button';remove.className='pub-secondary pub-danger';remove.textContent='Delete';remove.dataset.dsDestructive='';remove.onclick=action(async()=>{if(await ui.confirm({title:'Delete this image?',text:'Saved revisions keep the images they already use.',action:'Delete image'})){await request('/assets/'+a.id,{method:'DELETE',body:{}});await refresh();}});row.append(remove);return row;}));option($('object-asset'),state.assets.map(a=>[a.id,a.title]),$('object-asset').value);editorFoundation?.refresh();}
+/** One publication in Your publications: a paper thumbnail, its title (two lines at most) and when it changed (design standard §4.5). */
+function card(d){const b=document.createElement('button');b.type='button';b.className='pub-card';const paper=document.createElement('span'),title=document.createElement('span'),when=document.createElement('span');paper.className='pub-paper';paper.setAttribute('aria-hidden','true');title.className='pub-card-title';title.textContent=d.title;when.className='pub-card-meta';when.textContent=d.updatedAt?new Date(d.updatedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';b.append(paper,title,when);b.onclick=action(()=>open(d.id));return b;}
 async function save({preserveFields=false}={}){
  await editorFoundation?.flushPending();
  const d=editable();if(!preserveFields)requireAppliedFields();if(!state.ops.length)return;
@@ -124,7 +144,7 @@ async function save({preserveFields=false}={}){
  return locked(async()=>{
   const result=await request(`/documents/${d.id}/revisions`,{method:'POST',body});
   state.document=result.document;state.model=copy(result.document.model);state.ops=[];
-  state.saveKey=null;state.viewGeneration++;retireRender();clearPreviews();
+  state.saveKey=null;state.liveKey=null;state.rendered=false;state.viewGeneration++;retireRender();clearPreviews();
   $('preflight').textContent='';paint();status('Saved revision '+state.document.revision);
   await refresh();const saved=await request('/documents/'+d.id);
   option($('history'),saved.history.map(v=>[v.revision,`Revision ${v.revision}`]),state.document.revision);
@@ -134,7 +154,79 @@ function svg(name,attributes={}){const node=document.createElementNS('http://www
 // Rebuilding the boards removes the outline that holds focus (a tap or a click focuses it). Removing a focused node makes the
 // browser lay the page out while #spread is empty, which clamped the editor's scroll to the top on every tap (the round-2
 // trial check, 2026-11-06). Blur first, rebuild, then give the same outline its focus back without scrolling.
-function boards(){const target=$('spread'),held=document.activeElement?.closest?.('#spread [data-item]')?.dataset.item;if(held)document.activeElement.blur();target.replaceChildren();if(held)queueMicrotask(()=>target.querySelector(`[data-item="${CSS.escape(held)}"]`)?.focus({preventScroll:true}));if(!state.model){const p=document.createElement('p');p.className='empty';p.textContent='Create a publication, then edit its individual pages.';target.append(p);return;}const indexes=state.model.pageView==='facing'?[state.page-state.page%2,state.page-state.page%2+1].filter(i=>i<state.model.pages.length):[state.page];for(const i of indexes){const p=state.model.pages[i],pad=p.bleed+12,section=document.createElement('div');let chosen=null;section.className='page-board'+(indexes.length>1?' facing':'');const canvas=svg('svg',{viewBox:`${-pad} ${-pad} ${p.width+2*pad} ${p.height+2*pad}`,role:'img','aria-label':`Page ${i+1} editable geometry`});if(!state.ops.length&&state.previews.has(i+1))canvas.append(svg('image',{href:state.previews.get(i+1),x:-pad,y:-pad,width:p.width+2*pad,height:p.height+2*pad}));canvas.append(svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'trim-line'}),svg('rect',{x:p.margin,y:p.margin,width:Math.max(0,p.width-2*p.margin),height:Math.max(0,p.height-2*p.margin),class:'margin-line'}));for(const x of p.guides.x)canvas.append(svg('line',{x1:x,y1:0,x2:x,y2:p.height,class:'guide-line'}));for(const y of p.guides.y)canvas.append(svg('line',{x1:0,y1:y,x2:p.width,y2:y,class:'guide-line'}));for(const item of [...p.objects,...p.frames]){const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':i===state.page&&item.id===state.item,'data-item':item.id,tabindex:0,'aria-label':item.id});rect.addEventListener('keydown',action(e=>{if(e.key==='Enter')selectPage(i,item.id);}));rect.addEventListener('click',action(event=>{event.stopPropagation();if(state.page!==i||state.item!==item.id)selectPage(i,item.id);}));const grab=action(event=>drag(event,canvas,rect,item,i));rect.addEventListener('pointerdown',event=>{if(event.pointerType!=='touch')grab(event);});if(i===state.page&&item.id===state.item)chosen={item,rect};canvas.append(rect);if(state.ops.length||!state.previews.has(i+1)){const label=svg('text',{x:item.x+3,y:item.y+11,class:'object-label'});label.textContent=item.storyId?`Frame: ${item.storyId}`:item.kind;canvas.append(label);}}canvas.addEventListener('click',()=>{if(state.page!==i)selectPage(i);});const label=document.createElement('div');label.className='page-label';label.textContent=`Page ${i+1} · ${p.width} × ${p.height} pt · ${state.ops.length||!state.previews.has(i+1)?'geometry draft':'rendered PDF + editing guides'}`;section.append(canvas,label);if(chosen)section.append(moveHandle(canvas,chosen,p,i));target.append(section);}}
+function boards(){
+ const target=$('spread'),held=document.activeElement?.closest?.('#spread [data-item]')?.dataset.item;
+ if(held)document.activeElement.blur();target.replaceChildren();
+ if(held)queueMicrotask(()=>target.querySelector(`[data-item="${CSS.escape(held)}"]`)?.focus({preventScroll:true}));
+ // Nothing saved yet: one blank Letter page with its margins, ready for Add text frame (design standard §5.1).
+ if(!state.model){if(state.view==='editor')target.append(board(null,BLANK_PAGE,0,false));ui.painted();return;}
+ const indexes=state.model.pageView==='facing'?[state.page-state.page%2,state.page-state.page%2+1].filter(i=>i<state.model.pages.length):[state.page];
+ for(const i of indexes)target.append(board(state.model,state.model.pages[i],i,indexes.length>1));
+ ui.painted();
+}
+const FONT_STACK="'Libertinus Serif',Georgia,'Times New Roman',serif";
+const rgbCss=color=>`rgb(${color.map(v=>Math.round(v)).join(' ')})`;
+/** One paragraph as the renderer would set it: its paragraph style (alignment, indent, space after) and each run's character style. */
+function paragraphNode(m,paragraph,fallback){
+ const p=document.createElement('p'),ps=m.paragraphStyles[paragraph.style]??{leading:3,spaceAfter:6,indent:0,align:'left'};let line=0;
+ p.style.cssText=`margin:0 0 ${ps.spaceAfter}px;text-indent:${ps.indent}px;text-align:${ps.align};white-space:pre-wrap;overflow-wrap:anywhere`;
+ for(const run of paragraph.runs){
+  const cs=m.characterStyles[run.style??fallback??'default']??m.characterStyles.default,span=document.createElement('span');
+  span.textContent=run.text;span.style.cssText=`font-family:${FONT_STACK};font-size:${cs.size}px;font-weight:${cs.weight};font-style:${cs.style};color:${rgbCss(cs.color)}`;
+  line=Math.max(line,cs.size+ps.leading);p.append(span);
+ }
+ p.style.lineHeight=line+'px';if(!paragraph.runs.some(run=>run.text))p.append(document.createElement('br'));
+ return p;
+}
+/** WYSIWYG: an item's text drawn inside its own box on the page (clipped to it, never catching a tap). */
+function textBox(m,item,paragraphs,fallback){
+ const box=svg('foreignObject',{x:item.x,y:item.y,width:Math.max(1,item.width),height:Math.max(1,item.height),class:'pub-text','data-text-for':item.id});
+ const body=document.createElement('div');body.className='pub-text-body';for(const paragraph of paragraphs)body.append(paragraphNode(m,paragraph,fallback));box.append(body);return box;
+}
+function drawText(m,p,i,item){
+ if(item.storyId){const story=m.stories.find(s=>s.id===item.storyId);return story&&story.firstFrame===item.id?textBox(m,item,story.paragraphs):null;}
+ if(item.kind==='text')return textBox(m,item,[item.paragraph]);
+ if(item.kind==='number')return textBox(m,item,[{style:Object.keys(m.paragraphStyles)[0],runs:[{text:String(i+1),style:item.style}]}],item.style);
+ if(item.kind==='rect')return svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,fill:rgbCss(item.color),class:'pub-fill'});
+ if(item.kind==='image')return svg('image',{x:item.x,y:item.y,width:item.width,height:item.height,href:`${base}/assets/${item.assetId}/content`,preserveAspectRatio:'xMidYMid slice'});
+ return null;
+}
+function board(m,p,i,facing){
+ const pad=p.bleed+12,section=document.createElement('div'),rendered=Boolean(m)&&!state.ops.length&&state.previews.has(i+1);let chosen=null;
+ section.className='page-board'+(facing?' facing':'');
+ const canvas=svg('svg',{viewBox:`${-pad} ${-pad} ${p.width+2*pad} ${p.height+2*pad}`,role:'img','aria-label':m?`Page ${i+1}`:'A blank Letter page'});
+ canvas.append(svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'paper'}));
+ if(rendered)canvas.append(svg('image',{href:state.previews.get(i+1),x:-pad,y:-pad,width:p.width+2*pad,height:p.height+2*pad}));
+ canvas.append(svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'trim-line'}),svg('rect',{x:p.margin,y:p.margin,width:Math.max(0,p.width-2*p.margin),height:Math.max(0,p.height-2*p.margin),class:'margin-line'}));
+ for(const x of p.guides.x)canvas.append(svg('line',{x1:x,y1:0,x2:x,y2:p.height,class:'guide-line'}));
+ for(const y of p.guides.y)canvas.append(svg('line',{x1:0,y1:y,x2:p.width,y2:y,class:'guide-line'}));
+ if(m&&!rendered){
+  // The draft draws what the renderer will set: master items, the page's own objects, then each story in its first frame.
+  const master=p.masterId?m.masters.find(x=>x.id===p.masterId)?.objects??[]:[];
+  for(const item of [...master,...p.objects,...p.frames]){const drawn=drawText(m,p,i,item);if(drawn)canvas.append(drawn);}
+ }
+ for(const item of m?[...p.objects,...p.frames]:[]){
+  const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':i===state.page&&item.id===state.item,'data-item':item.id,tabindex:0,'aria-label':item.storyId?'Text frame':item.kind==='rect'?'Shape':item.kind==='image'?'Image':item.kind==='number'?'Page number':'Text'});
+  rect.addEventListener('keydown',action(e=>{if(e.key==='Enter')selectPage(i,item.id);}));
+  rect.addEventListener('click',action(event=>{event.stopPropagation();if(state.page!==i||state.item!==item.id)selectPage(i,item.id);}));
+  const grab=action(event=>drag(event,canvas,rect,item,i));rect.addEventListener('pointerdown',event=>{if(event.pointerType!=='touch')grab(event);});
+  if(i===state.page&&item.id===state.item)chosen={item,rect};canvas.append(rect);
+ }
+ // A tap on the page itself (not on an item) chooses that page and clears the selection.
+ if(m)canvas.addEventListener('click',action(()=>{if(state.page!==i||state.item)selectPage(i);}));
+ section.append(canvas);if(m){const label=document.createElement('div');label.className='page-label';label.textContent=`Page ${i+1}`;section.append(label);}
+ if(chosen){section.append(moveHandle(canvas,chosen,p,i));const tools=ui.float?.(chosen.item);if(tools)section.append(floatOverlay(tools,p,chosen.item));}
+ return section;
+}
+/** The selection bar (design standard N4): a small opaque float at the chosen item's top right, or under it near the page top. */
+function floatOverlay(tools,p,item){
+ const pad=p.bleed+12,overlay=document.createElement('div'),W=p.width+2*pad,H=p.height+2*pad,below=item.y+pad<64;
+ overlay.className='page-overlay pub-float-layer';overlay.style.aspectRatio=`${W} / ${H}`;
+ tools.style.left=Math.min(100,(item.x+item.width+pad)/W*100)+'%';tools.style.top=((below?item.y+item.height:item.y)+pad)/H*100+'%';tools.dataset.place=below?'below':'above';
+ // A small item near the page's left edge: the float starts at the item instead of running off the screen.
+ requestAnimationFrame(()=>{if(tools.isConnected&&tools.getBoundingClientRect().left<8){tools.style.left=(item.x+pad)/W*100+'%';tools.dataset.align='start';}});
+ overlay.append(tools);return overlay;
+}
 // Touch scrolls the page (the page's touch-action is manipulation; a finger on a frame only selects it on tap).
 // The chosen frame or object carries one finger-sized Move handle: grabbing it on purpose is what drags.
 // A mouse still drags any outline directly (desktop behaviour unchanged).
@@ -142,7 +234,7 @@ function placeHandle(handle,p,x,y){const pad=p.bleed+12;handle.style.left=(x+pad
 function moveHandle(canvas,{item,rect},p,index){
  const pad=p.bleed+12,overlay=document.createElement('div'),handle=document.createElement('button'),name=item.storyId?'frame '+item.id:item.kind+' '+item.id;
  overlay.className='page-overlay';overlay.style.aspectRatio=`${p.width+2*pad} / ${p.height+2*pad}`;
- handle.type='button';handle.className='frame-handle';handle.setAttribute('aria-label','Move '+name);handle.title='Drag to move '+name;
+ handle.type='button';handle.className='frame-handle';handle.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3 9 6m3-3 3 3m-3 15-3-3m3 3 3-3M3 12l3-3m-3 3 3 3m15-3-3-3m3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';handle.setAttribute('aria-label','Move '+name);handle.title='Drag to move '+name;
  placeHandle(handle,p,item.x,item.y);handle.disabled=state.busy||!state.document||state.document.revision!==state.document.currentRevision;
  handle.addEventListener('pointerdown',action(event=>drag(event,canvas,rect,item,index,(x,y)=>placeHandle(handle,p,x,y))));
  overlay.append(handle);return overlay;
@@ -175,30 +267,38 @@ function drag(event,canvas,rect,item,index,follow){
  });
  rect.setPointerCapture(event.pointerId);rect.addEventListener('pointermove',move);rect.addEventListener('pointerup',finish);rect.addEventListener('pointercancel',cancel);
 }
-function inspect(){const p=page(),m=state.model;if(!p)return;$('selection').textContent=`Page ${state.page+1}${state.item?' · '+state.item:''}`;option($('item'),[...p.frames,...p.objects].map(v=>[v.id,(v.storyId?'Frame ':v.kind+' ')+v.id]),state.item);state.item=$('item').value||null;const item=selected();for(const k of ['x','y','width','height'])value(k,item?.[k]);option($('next-frame'),[['','End of story'],...m.pages.flatMap(p=>p.frames).filter(f=>f.id!==item?.id).map(f=>[f.id,f.id])],item?.nextFrame??'');$('link-frame').disabled=!item?.storyId;option($('story'),m.stories.map(s=>[s.id,s.id]),item?.storyId??$('story').value);const story=m.stories.find(s=>s.id===$('story').value);value('story-text',story?.paragraphs.map(p=>p.runs.map(r=>r.text).join('')).join('\n'));for(const id of ['story-paragraph-style','paragraph-style'])option($(id),Object.keys(m.paragraphStyles).map(k=>[k,k]),id==='story-paragraph-style'?story?.paragraphs[0]?.style:$(id).value);for(const id of ['story-character-style','character-style'])option($(id),Object.keys(m.characterStyles).map(k=>[k,k]),id==='story-character-style'?story?.paragraphs[0]?.runs[0]?.style:$(id).value);typography();for(const [id,k]of [['page-width','width'],['page-height','height'],['bleed','bleed'],['margin','margin']])value(id,p[k]);value('guides-x',p.guides.x.join(', '));value('guides-y',p.guides.y.join(', '));option($('master'),[['','No master'],...m.masters.map(v=>[v.id,v.id])],p.masterId??'');value('master-objects',JSON.stringify(m.masters.find(x=>x.id===$('master').value)?.objects??[],null,2));}
+function inspect(){const p=page(),m=state.model;if(!p)return;$('selection').textContent=`Page ${state.page+1}${state.item?' · '+state.item:''}`;option($('item'),[['','Nothing selected'],...p.frames,...p.objects].map(v=>Array.isArray(v)?v:[v.id,(v.storyId?'Frame ':v.kind+' ')+v.id]),state.item??'');state.item=$('item').value||null;const item=selected();for(const k of ['x','y','width','height'])value(k,item?.[k]);option($('next-frame'),[['','End of story'],...m.pages.flatMap(p=>p.frames).filter(f=>f.id!==item?.id).map(f=>[f.id,f.id])],item?.nextFrame??'');$('link-frame').disabled=!item?.storyId;option($('story'),m.stories.map(s=>[s.id,s.id]),item?.storyId??$('story').value);const story=m.stories.find(s=>s.id===$('story').value);value('story-text',story?.paragraphs.map(p=>p.runs.map(r=>r.text).join('')).join('\n'));for(const id of ['story-paragraph-style','paragraph-style'])option($(id),Object.keys(m.paragraphStyles).map(k=>[k,k]),id==='story-paragraph-style'?story?.paragraphs[0]?.style:$(id).value);for(const id of ['story-character-style','character-style'])option($(id),Object.keys(m.characterStyles).map(k=>[k,k]),id==='story-character-style'?story?.paragraphs[0]?.runs[0]?.style:$(id).value);typography();for(const [id,k]of [['page-width','width'],['page-height','height'],['bleed','bleed'],['margin','margin']])value(id,p[k]);value('guides-x',p.guides.x.join(', '));value('guides-y',p.guides.y.join(', '));option($('master'),[['','No master'],...m.masters.map(v=>[v.id,v.id])],p.masterId??'');value('master-objects',JSON.stringify(m.masters.find(x=>x.id===$('master').value)?.objects??[],null,2));}
 function typography(){if(!state.model)return;const c=state.model.characterStyles[$('character-style').value],p=state.model.paragraphStyles[$('paragraph-style').value];if(c){value('font',c.font);value('font-size',c.size);value('font-weight',c.weight);value('font-style',c.style);value('font-color',hex(c.color));}if(p){value('leading',p.leading);value('space-after',p.spaceAfter);value('indent',p.indent);value('align',p.align);}}
 function controls(){
- const d=state.document,readOnly=!d||d.revision!==d.currentRevision,blocked=state.busy||readOnly;
+ const d=state.document,readOnly=!d||d.revision!==d.currentRevision,blocked=state.busy||readOnly,draft=hasDraft(),content=hasContent();
  $('properties').disabled=blocked;
  for(const id of trackedFields)$(id).disabled=blocked;
  for(const id of ['item','story','character-style','paragraph-style'])$(id).disabled=blocked;
- for(const id of ['page-view','replace-story','page-properties','character-properties','paragraph-properties','apply-master','add-object','remove-object','add-page','remove-page']){
+ for(const id of ['page-view','replace-story','page-properties','character-properties','paragraph-properties','apply-master','add-object','remove-object','add-page','remove-page','place-image','fmt-font','fmt-size','fmt-color','fmt-bold','fmt-italic']){
   const node=$(id);if(node.tagName==='FORM')for(const control of node.elements)control.disabled=blocked;else node.disabled=blocked;
  }
+ for(const node of document.querySelectorAll('#fmt-align button'))node.disabled=blocked;
  for(const form of ['new','asset-upload'])for(const control of $(form).elements)control.disabled=state.busy;
  for(const node of document.querySelectorAll('#documents button,#page-rail button'))node.disabled=state.busy;
  for(const id of ['reopen','open-history','restore-history','delete-document','history'])$(id).disabled=state.busy||!d;
  $('save').disabled=blocked||(!state.ops.length&&!editorFoundation?.hasPending())||!!pendingFields.size;
+ // Save revision is a deliberate, secondary event (§5.1): drawn only while there is something to save.
+ $('save').hidden=readOnly||(!state.ops.length&&!editorFoundation?.hasPending()&&!pendingFields.size);
  $('undo').disabled=state.busy||!state.undo.length;$('redo').disabled=state.busy||!state.redo.length;
- $('render').disabled=blocked||hasDraft()||!!state.job||state.renderStarting;
+ // Render & preflight and Download PDF run on the current draft and save it first (they are never disabled by unsaved edits).
+ $('render').disabled=blocked||!!state.job||state.renderStarting;
  $('cancel-render').disabled=state.busy||!state.job;
- $('export-pdf').disabled=state.busy||!d||hasDraft();$('export-layout').disabled=state.busy||!d||hasDraft();
- $('discard-fields').disabled=state.busy||!pendingFields.size;
- $('field-edits').textContent=pendingFields.size?'Unapplied field edits. Apply their form or discard field edits before saving.':'';
+ $('export-pdf').disabled=state.busy||!d||!!state.job||state.renderStarting;$('export-layout').disabled=state.busy||!d;
+ // The one primary follows the document: Add text frame on an empty page, Download PDF once there is content.
+ $('export-pdf').hidden=!content||state.view!=='editor';$('add-first').hidden=content||state.view!=='editor'||(Boolean(d)&&readOnly);$('add-first').disabled=state.busy;
+ // The caption says Saved; while there is something to save, Save revision itself says so (one row, §3.1).
+ $('save-state').textContent=!d?'':state.busy?'Working…':readOnly?'Read-only':draft?($('save').hidden?'Unsaved changes':''):'Saved';
+ $('discard-fields').disabled=state.busy||!pendingFields.size;$('discard-fields').hidden=!pendingFields.size;
+ $('field-edits').textContent=pendingFields.size?'Some fields are changed but not applied. Apply their form, or discard them.':'';
  editorFoundation?.refresh();
- $('chat-context').textContent=d?`Saved revision ${d.revision} · page ${state.page+1}${hasDraft()?' · Apply fields and save your draft before asking for changes.':''}`:'Open a saved publication to share its current selection.';
+ const context=$('chat-context');if(context)context.textContent=d?`Saved revision ${d.revision} · page ${state.page+1}${draft?' · Your changes are saved before the concierge reads them.':''}`:'Ask for a layout idea, or add a text frame to start.';
 }
-function paint(){const d=state.document;$('document-title').textContent=d?.title??'Create or open a publication';$('revision').textContent=d?`Revision ${d.revision}${d.revision!==d.currentRevision?' · historical':''}${state.ops.length?' · unsaved':''}`:'';if(state.model){state.page=Math.min(state.page,state.model.pages.length-1);value('page-view',state.model.pageView);$('page-rail').replaceChildren(...state.model.pages.map((p,i)=>{const b=document.createElement('button');b.setAttribute('aria-current',String(i===state.page));b.textContent=`Page ${i+1}`;const mini=document.createElement('span');mini.className='page-mini';mini.textContent=`${p.frames.length} frames`;b.append(mini);b.onclick=action(()=>selectPage(i));return b;}));inspect();}boards();controls();}
+function paint(){const d=state.document;$('document-title').textContent=d?.title??'Untitled publication';$('document-heading').textContent=d?.title??'';revisionText();if(state.model){state.page=Math.min(state.page,state.model.pages.length-1);value('page-view',state.model.pageView);$('page-rail').replaceChildren(...state.model.pages.map((p,i)=>{const b=document.createElement('button');b.type='button';b.className='pub-page-thumb';b.setAttribute('aria-current',String(i===state.page));b.setAttribute('aria-label',`Page ${i+1}`);const mini=document.createElement('span');mini.className='page-mini';mini.style.aspectRatio=`${p.width} / ${p.height}`;mini.setAttribute('aria-hidden','true');const words=document.createElement('span');words.className='pub-page-number';words.textContent=`Page ${i+1}`;b.append(mini,words);b.onclick=action(()=>selectPage(i));return b;}));inspect();}else $('page-rail').replaceChildren();boards();controls();}
 async function previews(view=viewSnapshot()){
  const d=state.document;if(!d||!sameView(view))return;
  await Promise.all(d.model.pages.map(async(_,i)=>{
@@ -213,8 +313,10 @@ async function previews(view=viewSnapshot()){
  if(sameView(view))boards();
 }
 async function render(){
- const d=editable();requireAppliedFields();if(state.ops.length)throw new Error('Save the draft before rendering.');
- if(state.renderStarting||state.job)throw new Error('A render is already pending.');
+ editable();requireAppliedFields();if(state.renderStarting||state.job)throw new Error('A render is already pending.');
+ // The current draft is what gets rendered: save it first, by itself (design standard §5.1, the audit's "four steps to see words").
+ if(state.ops.length||editorFoundation?.hasPending())await save();
+ const d=editable();if(state.ops.length)throw new Error('Save the draft before rendering.');
  const view=viewSnapshot(),generation=++state.renderGeneration;
  const current=()=>sameView(view)&&state.renderGeneration===generation;
  state.renderStarting=true;controls();
@@ -230,9 +332,9 @@ async function render(){
    if(job.id!==id||job.document!==view.id||job.revision!==view.revision||job.sourceSha256!==d.sha256)throw new Error('Render status does not match this saved revision.');
    if(['ready','failed','cancelled','expired','abandoned'].includes(job.state)){
     state.job=null;controls();$('preflight').textContent=JSON.stringify(job.result??job,null,2);
-    if(job.state==='ready'){status('Render ready. Previews and PDF share the same rendered output.');await previews(view);}
+    if(job.state==='ready'){state.rendered=true;status('Render ready. Previews and PDF share the same rendered output.');await previews(view);}
     else status('Render '+job.state,true);
-    return;
+    return job.state==='ready';
    }
    await new Promise(resolve=>setTimeout(resolve,600));
    if(!current())return;
@@ -242,41 +344,91 @@ async function render(){
  finally{if(current()){state.renderStarting=false;controls();}}
 }
 async function download(kind){
- const d=requireDocument();requireAppliedFields();if(state.ops.length)throw new Error('Save the draft before downloading.');
+ requireDocument();requireAppliedFields();if(state.ops.length||editorFoundation?.hasPending())await save();
+ const d=requireDocument();if(state.ops.length)throw new Error('Save the draft before downloading.');
  const view=viewSnapshot(),blob=await request(`/documents/${d.id}/revisions/${d.revision}/content?format=${kind}`,{blob:true});
  if(!sameView(view)||hasDraft())return;
  const expected=kind==='pdf'?'application/pdf':'application/vnd.oshal.publishing-layout+json';if(!blob.type.startsWith(expected))throw new Error('Unexpected export content');
  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${d.title.replace(/[^A-Za-z0-9_-]/g,'_')}.${kind==='pdf'?'pdf':'json'}`;
  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('Downloaded saved revision '+d.revision);
 }
+/** The finishing primary: save the draft, render it when this revision has no render yet, then download the PDF. */
+async function downloadPdf(){
+ requireDocument();requireAppliedFields();if(state.ops.length||editorFoundation?.hasPending())await save();
+ if(!state.rendered){status('Rendering your PDF…');if(!await render())return;}
+ await download('pdf');
+}
 bind('new','submit',async()=>{
- if(state.busy)throw new Error('Wait for the current save or open to finish.');if(!dirtyPrompt())return;
- const input={title:$('new-title').value,pageCount:number('new-pages')},signature=JSON.stringify(input);
+ if(state.busy)throw new Error('Wait for the current save or open to finish.');if(!await dirtyPrompt())return;
+ // A size (Letter, A4) makes a blank publication of that size; the form alone still makes the brochure starter.
+ const input={title:$('new-title').value,pageCount:number('new-pages'),...(state.newSize?{size:state.newSize}:{})},signature=JSON.stringify(input);
  if(state.createAttempt?.signature!==signature)state.createAttempt={signature,key:crypto.randomUUID()};
  await locked(async()=>{
   const result=await request('/documents',{method:'POST',body:{...input,requestKey:state.createAttempt.key}});
   await loadDocument(result.document.id);state.createAttempt=null;await refresh();
  });
 });
-bind('refresh','click',refresh);bind('save','click',save);bind('render','click',render);bind('reopen','click',()=>open(requireDocument().id));bind('export-pdf','click',()=>download('pdf'));bind('export-layout','click',()=>download('layout'));
+/** New → Blank (a size): keep the open publication's changes (saved first), then make and open a blank one. */
+async function newPublication(size){
+ if(state.busy)throw new Error('Wait for the current save or open to finish.');
+ if(state.document&&hasDraft()){editable();requireAppliedFields();await save();}
+ state.newSize=size;$('new-title').value=untitled();$('new-pages').value='1';
+ try{await boundActions.get('new:submit')();}finally{state.newSize=null;}
+}
+/** The next free "Untitled publication" name, so two blank publications are told apart in the list. */
+function untitled(){const names=new Set(state.documents.map(d=>d.title));if(!names.has('Untitled publication'))return 'Untitled publication';for(let n=2;;n++)if(!names.has(`Untitled publication ${n}`))return `Untitled publication ${n}`;}
+/** Add a text frame, a shape or an image to the open page; with nothing saved yet the first one makes an untitled Letter publication. */
+async function addItem(kind){
+ if(!state.document)await newPublication('letter');
+ editable();$('object-kind').value=kind;
+ await boundActions.get('add-object:click')();
+ return selected();
+}
+/** Duplicate the chosen item beside itself: a text frame gets its own copy of the story. */
+function duplicateItem(){
+ const item=selected();if(!item)throw new Error('Choose an item first.');if(!guardFields())return;
+ const copyId=uid(item.storyId?'frame':item.kind),offset=12;
+ layout(m=>{const p=m.pages[state.page],moved={...copy(item),id:copyId,x:Math.min(item.x+offset,p.width-item.width),y:Math.min(item.y+offset,p.height-item.height)};
+  if(item.storyId){const story=copy(m.stories.find(s=>s.id===item.storyId)),storyId=uid('story');story.id=storyId;story.firstFrame=copyId;m.stories.push(story);moved.storyId=storyId;moved.nextFrame=null;p.frames.push(moved);}
+  else p.objects.push(moved);});
+ state.item=copyId;paint();
+}
+/** Duplicate the open publication: a new publication titled "Copy of …" holding the same saved layout. */
+async function duplicateDocument(){
+ const d=requireDocument();if(hasDraft()){editable();requireAppliedFields();await save();}
+ const name=('Copy of '+d.title).slice(0,160),source=copy(state.document.model);
+ await locked(async()=>{
+  const created=await request('/documents',{method:'POST',body:{title:name,pageCount:1,requestKey:crypto.randomUUID()}});
+  await request(`/documents/${created.document.id}/revisions`,{method:'POST',body:{baseRevision:created.document.revision,requestKey:crypto.randomUUID(),operations:[{op:'replace-model',model:{...source,title:name}}]}});
+  await loadDocument(created.document.id);await refresh();
+ });
+ status('Duplicated as '+name);
+}
+/** Back to Your publications: the open draft is saved first, so leaving never loses work. */
+async function showList(){
+ if(state.document&&hasDraft()){editable();requireAppliedFields();await save();}
+ await refresh();state.view='list';editorFoundation?.discardPending();paint();
+}
+bind('refresh','click',refresh);bind('save','click',save);bind('render','click',render);bind('reopen','click',()=>open(requireDocument().id));bind('export-pdf','click',downloadPdf);bind('export-layout','click',()=>download('layout'));
 bind('cancel-render','click',async()=>{
  requireDocument();const id=state.job,view=viewSnapshot(),generation=state.renderGeneration;if(!id)return;
  await request('/jobs/'+id+'/cancel',{method:'POST',body:{}});
  if(!sameView(view)||state.renderGeneration!==generation||state.job!==id)return;
  retireRender();controls();status('Render cancelled.');
 });
-for(const[id,from,to]of [['undo','undo','redo'],['redo','redo','undo']])bind(id,'click',()=>{editable();if(!guardFields())return;const prior=state[from].pop();if(!prior)return;rememberHistory(state[to],state.model);state.model=prior.model;state.ops=operationsFor(prior.model);state.saveKey=null;paint();});
+for(const[id,from,to]of [['undo','undo','redo'],['redo','redo','undo']])bind(id,'click',()=>{editable();if(!guardFields())return;const prior=state[from].pop();if(!prior)return;rememberHistory(state[to],state.model);state.model=prior.model;state.ops=operationsFor(prior.model);state.saveKey=null;state.liveKey=null;paint();});
 bind('page-view','change',()=>edit({op:'set-view',pageView:$('page-view').value}));bind('item','change',()=>changeSelection('item',()=>{state.item=$('item').value;inspect();boards();}));bind('story','change',()=>changeSelection('story',()=>{const s=state.model.stories.find(s=>s.id===$('story').value);value('story-text',s?.paragraphs.map(p=>p.runs.map(r=>r.text).join('')).join('\n'));value('story-paragraph-style',s?.paragraphs[0]?.style);value('story-character-style',s?.paragraphs[0]?.runs[0]?.style??Object.keys(state.model.characterStyles)[0]);}));bind('character-style','change',()=>changeSelection('character-style',typography));bind('paragraph-style','change',()=>changeSelection('paragraph-style',typography));
 bind('geometry','submit',()=>{const item=selected();if(!item)throw new Error('Select an item.');const values=Object.fromEntries(['x','y','width','height'].map(k=>[k,number(k)]));edit(item.storyId?{op:'set-frame',frame:item.id,values}:{op:'set-object',page:page().id,object:item.id,values},fields.geometry);});
 bind('link-frame','click',()=>{const item=selected();if(!item?.storyId)throw new Error('Select a text frame.');edit({op:'set-link',frame:item.id,nextFrame:$('next-frame').value||null},fields.link);});
+for(const[id,type]of [['story-text','input'],['story-paragraph-style','change'],['story-character-style','change']])bind(id,type,liveStory);
 bind('replace-story','click',()=>edit({op:'replace-story',story:$('story').value,paragraphs:$('story-text').value.split('\n').map(text=>({style:$('story-paragraph-style').value,runs:[{text,style:$('story-character-style').value}]}))},fields.story));
 bind('page-properties','submit',()=>{const guides=id=>$(id).value.trim()?$(id).value.split(',').map(s=>{const n=Number(s.trim());if(!Number.isFinite(n))throw new Error('Guides must be comma-separated numbers.');return n;}):[];edit({op:'set-page',page:page().id,values:{width:number('page-width'),height:number('page-height'),bleed:number('bleed'),margin:number('margin'),guides:{x:guides('guides-x'),y:guides('guides-y')},masterId:$('master').value||null}},fields.page);});
 bind('master','change',()=>{
  const previous=selectionValues.get('master'),next=$('master').value;
- if(pendingFields.has('master-objects')&&!confirm('Discard unapplied master object edits before selecting another master?')){
+ if(pendingFields.has('master-objects')){
   $('master').value=previous;
   if(previous===fieldBaselines.get('master'))pendingFields.delete('master');else pendingFields.set('master',previous);
-  controls();return;
+  controls();throw new Error('Apply the master objects, or press Discard field edits, before choosing another master.');
  }
  pendingFields.delete('master-objects');selectionValues.set('master',next);
  value('master-objects',JSON.stringify(state.model.masters.find(master=>master.id===next)?.objects??[],null,2));
@@ -285,14 +437,17 @@ bind('master','change',()=>{
 bind('apply-master','click',()=>{if(!$('master').value)throw new Error('Select a master first.');edit({op:'set-master',master:$('master').value,objects:JSON.parse($('master-objects').value)},fields.master);});
 bind('character-properties','submit',()=>edit({op:'set-character-style',name:$('character-style').value,values:{font:$('font').value,size:number('font-size'),weight:number('font-weight'),style:$('font-style').value,color:rgb($('font-color').value)}},fields.character));
 bind('paragraph-properties','submit',()=>edit({op:'set-paragraph-style',name:$('paragraph-style').value,values:{leading:number('leading'),spaceAfter:number('space-after'),indent:number('indent'),align:$('align').value}},fields.paragraph));
-bind('asset-upload','submit',async()=>{const file=$('asset-file').files[0];if(!file||file.size>4194304)throw new Error('Choose a PNG or JPEG up to 4 MiB.');const body=new FormData();body.append('file',file);body.append('title',$('asset-title').value);body.append('requestKey',crypto.randomUUID());await request('/assets/upload',{method:'POST',body});await refresh();status('Asset uploaded. Choose Image to place it on the page.');});
-bind('add-object','click',()=>{editable();const p=page(),kind=$('object-kind').value,id=uid(kind),style=$('story-paragraph-style').value,character=$('story-character-style').value;layout(m=>{const target=m.pages[state.page],geometry={id,x:p.margin,y:p.margin,width:Math.min(120,p.width-2*p.margin),height:Math.min(60,p.height-2*p.margin)};if(kind==='frame'){const storyId=uid('story');target.frames.push({...geometry,width:p.width-2*p.margin,height:Math.min(120,p.height-2*p.margin),storyId,nextFrame:null});m.stories.push({id:storyId,firstFrame:id,paragraphs:[{style,runs:[{text:'New story',style:character}]}]});}else{const object={...geometry,kind};if(kind==='image'){const asset=state.assets.find(a=>a.id===$('object-asset').value);if(!asset)throw new Error('Upload and select an image first.');object.assetId=asset.id;if(!m.assets.some(a=>a.id===asset.id))m.assets.push(Object.fromEntries(['id','sha256','bytes','mime'].map(k=>[k,asset[k]])));}if(kind==='rect')object.color=rgb($('object-color').value);if(kind==='text')object.paragraph={style,runs:[{text:$('object-text').value||'Text',style:character}]};if(kind==='number')object.style=character;target.objects.push(object);}},fields.object);if(!pendingFields.size)state.item=id;paint();});
+bind('asset-upload','submit',async()=>{const file=$('asset-file').files[0];if(!file||file.size>4194304)throw new Error('Choose a PNG or JPEG up to 4 MiB.');const body=new FormData();body.append('file',file);body.append('title',$('asset-title').value);body.append('requestKey',crypto.randomUUID());const uploaded=await request('/assets/upload',{method:'POST',body});await refresh();
+ // The Image tool's one step (C-DES-2): the uploaded picture is placed on the open page at once, and chosen.
+ const id=uploaded.asset?.id;if(id&&state.assets.some(a=>a.id===id)){$('object-asset').value=id;$('asset-file').value='';$('asset-title').value='';await addItem('image');ui.placed?.();status('Image placed on the page.');}else status('Image uploaded.');});
+$('asset-file').addEventListener('change',()=>{const file=$('asset-file').files[0];if(file&&!$('asset-title').value)$('asset-title').value=file.name.replace(/\.[^.]+$/,'').slice(0,160);});
+bind('add-object','click',()=>{editable();const p=page(),kind=$('object-kind').value,id=uid(kind),style=$('story-paragraph-style').value,character=$('story-character-style').value;layout(m=>{const target=m.pages[state.page],geometry={id,x:p.margin,y:p.margin,width:Math.min(120,p.width-2*p.margin),height:Math.min(60,p.height-2*p.margin)};if(kind==='frame'){const storyId=uid('story');target.frames.push({...geometry,width:p.width-2*p.margin,height:Math.min(120,p.height-2*p.margin),storyId,nextFrame:null});m.stories.push({id:storyId,firstFrame:id,paragraphs:[{style,runs:[{text:'Your text here',style:character}]}]});}else{const object={...geometry,kind};if(kind==='image'){const asset=state.assets.find(a=>a.id===$('object-asset').value);if(!asset)throw new Error('Upload and select an image first.');object.assetId=asset.id;if(!m.assets.some(a=>a.id===asset.id))m.assets.push(Object.fromEntries(['id','sha256','bytes','mime'].map(k=>[k,asset[k]])));}if(kind==='rect')object.color=rgb($('object-color').value);if(kind==='text')object.paragraph={style,runs:[{text:$('object-text').value||'Text',style:character}]};if(kind==='number')object.style=character;target.objects.push(object);}},fields.object);if(!pendingFields.size)state.item=id;paint();});
 bind('remove-object','click',()=>{const item=selected();if(!item)throw new Error('Select an item.');if(!guardFields())return;layout(m=>{const p=m.pages[state.page];p.objects=p.objects.filter(o=>o.id!==item.id);p.frames=p.frames.filter(f=>f.id!==item.id);for(const f of m.pages.flatMap(p=>p.frames))if(f.nextFrame===item.id)f.nextFrame=item.nextFrame??null;const story=m.stories.find(s=>s.id===item.storyId);if(story?.firstFrame===item.id){if(item.nextFrame)story.firstFrame=item.nextFrame;else m.stories=m.stories.filter(s=>s.id!==story.id);}});});
 bind('add-page','click',()=>{editable();if(!guardFields())return;if(state.model.pages.length>=8)throw new Error('This profile supports up to eight pages.');layout(m=>{const p=copy(page());p.id=uid('page');p.objects=[];p.frames=[];m.pages.push(p);});state.page=state.model.pages.length-1;paint();});
 bind('remove-page','click',()=>{editable();if(!guardFields())return;if(state.model.pages.length===1)throw new Error('Keep at least one page.');if(page().frames.length)throw new Error('Remove or relink this page’s text frames first.');layout(m=>m.pages.splice(state.page,1));});
 bind('open-history','click',()=>open(requireDocument().id,number('history')));
 bind('restore-history','click',async()=>{
- const d=requireDocument();if(!dirtyPrompt())return;
+ const d=requireDocument();if(!await dirtyPrompt())return;
  const body={baseRevision:d.currentRevision,restoreRevision:number('history')},signature=JSON.stringify([d.id,body]);
  if(state.restoreAttempt?.signature!==signature)state.restoreAttempt={signature,key:crypto.randomUUID()};
  await locked(async()=>{
@@ -301,12 +456,12 @@ bind('restore-history','click',async()=>{
  });
 });
 bind('delete-document','click',async()=>{
- const d=requireDocument();if(!confirm('Delete this publication and its saved revisions, including any local draft and field edits?'))return;
+ const d=requireDocument();if(!await ui.confirm({title:'Delete this publication?',text:`"${d.title}", its saved revisions and any unsaved changes are deleted. This cannot be undone.`,action:'Delete publication'}))return;
  await locked(async()=>{
   await request('/documents/'+d.id,{method:'DELETE',body:{}});
   clearPreviews();retireRender();state.viewGeneration++;clearFieldBuffers();
-  state.document=null;state.model=null;state.ops=[];state.undo=[];state.redo=[];state.saveKey=null;
-  $('preflight').textContent='';paint();await refresh();
+  state.document=null;state.model=null;state.ops=[];state.undo=[];state.redo=[];state.saveKey=null;state.rendered=false;state.item=null;
+  $('preflight').textContent='';await refresh();state.view=state.documents.length?'list':'editor';paint();
  });
 });
 
@@ -323,7 +478,12 @@ bind('discard-fields','click',discardFields);
 
 document.body.addEventListener('editor-foundation:draft',controls);
 window.addEventListener('beforeunload',event=>{if(hasDraft()){event.preventDefault();event.returnValue='';}});
-paint();action(async()=>{await refresh();const id=new URL(location.href).searchParams.get('document');if(id)await open(id);else status('Create a publication or choose one of your saved files.');})();
+paint();action(async()=>{
+ await refresh();const id=new URL(location.href).searchParams.get('document');
+ // N2: with publications the first screen is the list (newest first, one New); with none, a blank page ready for Add text frame.
+ if(id)await open(id);else{state.view=state.documents.length?'list':'editor';paint();status(state.view==='list'?'Your publications':'A blank Letter page');}
+ state.loaded=true;controls();
+})();
 
 async function prepareDocumentHandoff(){
  await editorFoundation?.flushPending();
@@ -362,7 +522,10 @@ void import('/shared/ui/js/document-handoff.js').then(({registerDocumentSession}
  refresh:async expected=>{try{await refreshDocumentHandoff(expected);}catch(error){status(error.message,true);throw error;}}
 })).catch(error=>status('The concierge cannot synchronize this document: '+error.message,true));
 
-void bindPublishingFoundation({state,selected,page,hasDraft,requireAppliedFields,edit,prepare:prepareDocumentHandoff,refreshDocument:refreshDocumentHandoff,actions:{
+void bindPublishingFoundation({state,selected,page,hasDraft,requireAppliedFields,edit,prepare:prepareDocumentHandoff,refreshDocument:refreshDocumentHandoff,
+ ui,hasContent,addItem,duplicateItem,duplicateDocument,newPublication,showList,downloadPdf,selectPage,paint,controls,status,action,
+ run:key=>boundActions.get(key)(),fields,
+ actions:{
  undo:()=>boundActions.get('undo:click')(),redo:()=>boundActions.get('redo:click')(),
  save:()=>save(),export:()=>download('layout'),
 }}).then(value=>{editorFoundation=value;value.refresh();}).catch(error=>status('Shared editor unavailable: '+error.message,true));

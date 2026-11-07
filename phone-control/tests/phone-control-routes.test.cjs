@@ -6,6 +6,9 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0 routes over real HTTP and a real SQLite file: what remains answers, everything 1.0.0 faked answers 404, records are the caller's own (another person reads 404), history and reports validate, the bridge file bytes match their manifest sha256, and every device row 1.0.0 made up (each carries its invented handshake) is deleted from an existing 1.0.0 store with its drawn frames. The kernel caller is the one boundary doubled here (a fixed actor per test header); the real runner's admission is tests/live/phone-control-runner.test.cjs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1: the bridge manifest names version 1.1.1.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: and now 1.1.2.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: manifest 1.2.0, form ('phone' | 'tv') round-trips and validates, and bob sees none of alice's TV records, history or computer reports.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: manifest 1.3.0 includes oshal_phone_mirror.py, and home-summary points empty-state setup to phone-control-execution.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: manifest 1.4.0 and /ui serves session-computer.js, session-media.js, and session-collab.js.
  */
 'use strict';
 
@@ -106,6 +109,22 @@ test('a phone record is the caller\'s own, deduplicated by computer, platform an
   assert.equal((await call('DELETE', `/devices/${id}`, { person: 'bob' })).status, 404);
   assert.equal((await call('DELETE', `/devices/${id}`)).status, 204);
   assert.equal((await call('GET', `/devices/${id}`)).status, 404);
+  const tv = await call('POST', '/devices', { body: { name: 'Living Room Fire TV', platform: 'android', form: 'tv', computerNodeId: NODE, address: '192.168.1.138:5555' } });
+  assert.equal(tv.status, 201);
+  assert.equal(tv.json.device.form, 'tv');
+  assert.equal((await call('GET', `/devices/${tv.json.device.id}`)).json.device.form, 'tv');
+  assert.equal((await call('POST', '/devices', { body: { ...input, form: 'tablet' } })).status, 400);
+  assert.equal((await call('POST', '/devices', { body: { name: 'Bad iPad', platform: 'ios', form: 'tablet', computerNodeId: NODE, address: '7C:4B:26:00:00:09' } })).status, 400);
+  const bleTv = await call('POST', '/devices', { body: { name: 'Fire Stick BLE', platform: 'ios', form: 'tv', computerNodeId: NODE, address: '7C:4B:26:00:00:09' } });
+  assert.equal(bleTv.status, 201);
+  assert.equal(bleTv.json.device.form, 'tv');
+  assert.equal((await call('DELETE', `/devices/${bleTv.json.device.id}`)).status, 204);
+  assert.deepEqual((await call('GET', '/devices', { person: 'bob' })).json.devices, []);
+  assert.equal((await call('GET', `/devices/${tv.json.device.id}`, { person: 'bob' })).status, 404);
+  assert.equal((await call('POST', `/devices/${tv.json.device.id}`, { person: 'bob', body: { name: 'Stolen TV' } })).status, 404);
+  assert.equal((await call('DELETE', `/devices/${tv.json.device.id}`, { person: 'bob' })).status, 404);
+  assert.equal((await call('POST', '/history', { person: 'bob', body: { computerNodeId: NODE, phoneId: tv.json.device.id, action: 'key ok', summary: 'OK', ok: true } })).status, 404);
+  assert.equal((await call('DELETE', `/devices/${tv.json.device.id}`)).status, 204);
 });
 
 test('history records what was sent and what the computer answered, for its owner only', async () => {
@@ -133,6 +152,8 @@ test('a computer report keeps what the bridge said with the time it was read', a
   const reports = await call('GET', '/computers/reports');
   assert.equal(reports.json.reports[0].report.version, '1.1.0');
   assert.deepEqual((await call('GET', '/computers/reports', { person: 'bob' })).json.reports, []);
+  const emptySummary = await call('GET', '/home-summary', { person: 'bob' });
+  assert.equal(emptySummary.json.items[0].fix, 'phone-control-execution');
   const summary = await call('GET', '/home-summary');
   assert.equal(summary.json.metrics.computersSetUp, 1);
   assert.ok(summary.json.tiles.every((tile) => typeof tile.value === 'string'));
@@ -140,8 +161,10 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.1.2');
-  assert.deepEqual(manifest.files.map((file) => file.name).sort(), ['oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py']);
+  assert.equal(manifest.version, '1.4.0');
+  assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
+    'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
+  ]);
   for (const file of manifest.files) {
     const plain = await call('GET', `/bridge/files/${file.name}`);
     assert.equal(plain.status, 200);
@@ -151,13 +174,45 @@ test('the bridge files served match their manifest sha256, compressed and plain'
   assert.equal((await call('GET', '/bridge/files/db.js')).status, 404);
 });
 
+test('command-plan translates move, click, drag, type, key and screen into owner-scoped closed bridge commands', async () => {
+  const ios = (await call('POST', '/devices', {
+    body: { name: 'Roger iPhone', platform: 'ios', computerNodeId: NODE, address: '7C:4B:26:11:22:33' }
+  })).json.device;
+  const clickPlan = await call('POST', `/devices/${ios.id}/command-plan`, {
+    body: { action: 'click', x: 249, y: 540, width: 498, height: 1080 }
+  });
+  assert.equal(clickPlan.status, 200);
+  assert.equal(clickPlan.json.verb, 'pointer-click');
+  assert.equal(clickPlan.json.computerNodeId, NODE);
+  assert.match(clickPlan.json.command, / pointer-click --b64 /);
+  assert.equal((await call('POST', `/devices/${ios.id}/command-plan`, {
+    person: 'bob', body: { action: 'click', x: 10, y: 10, width: 498, height: 1080 }
+  })).status, 404);
+  assert.equal((await call('POST', `/devices/${ios.id}/command-plan`, { body: { action: 'exec' } })).status, 400);
+  await call('POST', `/devices/${ios.id}`, { body: { controlEnabled: false } });
+  assert.equal((await call('POST', `/devices/${ios.id}/command-plan`, { body: { action: 'screen' } })).status, 409);
+
+  const rdpPlan = await call('POST', '/rdp/command-plan', {
+    body: { rdpSessionId: 'rdp_win_1', action: 'click', x: 640, y: 400 }
+  });
+  assert.equal(rdpPlan.status, 200);
+  assert.equal(rdpPlan.json.endpoint, '/api/rdp/sessions/rdp_win_1/input');
+  assert.deepEqual(rdpPlan.json.body, { action: 'click', x: 640, y: 400 });
+  assert.equal((await call('POST', '/rdp/command-plan', {
+    body: { rdpSessionId: 'rdp_win_1', action: 'exec' }
+  })).status, 400);
+});
+
 test('the page, its modules and the launcher are served; another asset name is not', async () => {
   for (const route of ['/ui', '/config/ui']) {
     const page = await call('GET', route);
     assert.equal(page.status, 200);
     assert.match(page.text, /Set up this computer/);
   }
-  for (const asset of ['phone-control.css', 'phone-control.js', 'computer-link.js', 'phone-stage.js', 'phone-setup.js', 'editor-handoff.mjs']) {
+  for (const asset of [
+    'phone-control.css', 'phone-control.js', 'computer-link.js', 'phone-stage.js', 'phone-setup.js',
+    'phone-concierge.js', 'phone-rdp.js', 'session-computer.js', 'session-media.js', 'session-collab.js', 'editor-handoff.mjs'
+  ]) {
     assert.equal((await call('GET', `/ui/${asset}`)).status, 200, asset);
   }
   assert.equal((await call('GET', '/ui/..%2Flib%2Fdb.js')).status, 404);

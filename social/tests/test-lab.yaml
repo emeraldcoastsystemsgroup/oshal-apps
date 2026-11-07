@@ -9,6 +9,9 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel egress case: X, LinkedIn and Facebook profile requests reach their declared hosts with no credential and map to the routes' rows; missing, lapsed or refused connections keep the 409s; the Page legs and LinkedIn publishing make no egress request.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register social-content-routes: the package-owned Workspace content routes and the daily digest bot target.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register draft-limit: an X draft over 280 characters is shortened before it reaches the composer, and one that never fits is said in words (sweep 14: 315 / 280).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0: register workspace-browser: the Signals tile merged into Workspace · Engage (UX audit social--social-signals) and the Workspace's phone layout (social--social-workspace).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch-7 (social--social-composer MERGE): register composer-merge for the Composer redirect to Workspace · Compose, business-experience surface resolution, refine chips, and path-free Connect copy.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Compose and Workspace are one application. composer-merge now proves one Workspace tile and no Composer tile, prepare-post and business-experience on social-workspace, tools/social-composer.html removed, the compiled router's 302 from /api/social/composer to Workspace Compose with every query parameter kept, and every Composer capability in Workspace Compose; workspace-browser adds the prefilled prepare-post link; social-content-routes reads the one Workspace screen.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -144,7 +147,7 @@ cases:
       files:
         - tests/social-content-routes.test.cjs
     expected:
-      - Every /api/social/content call the Workspace and Composer make has a handler; no screen calls the old /api/content routes.
+      - Every /api/social/content call the Workspace makes has a handler; no screen calls the old /api/content routes.
       - Topics come from declared egress hosts, match the caller's focus, skip dismissed articles, decode entities and read only; every source failing answers 502.
       - Focus, settings, dismissals and saved drafts are keyed to the caller; drafting, refining and notes run on the package's own social-writer.
       - The manifest mounts the router and its migration, and social-daily-digest names a bot the package declares or imports.
@@ -181,4 +184,65 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: workspace-browser
+    name: Workspace with Engage and the phone bottom bar
+    purpose: >-
+      Drive tools/social-workspace.html and the Signals address in Chromium over a loopback fixture of the Workspace
+      routes, with no network, accounts or credentials and no publish (UX audit 2026-11-06, social--social-signals and
+      social--social-workspace).
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/workspace-browser.test.cjs
+    expected:
+      - The Signals and Composer tiles are off the social menu and the workspace, marketing-suite and intelligent-career suites; their signals step opens the Workspace; Workspace is the one compose tile with its own icon.
+      - /api/social/signals/ui leads to Workspace · Engage, which leads with the scan switch, never says ingest or cron, and keeps Organize with AI disabled with "No signals yet" until there are signals.
+      - A signal's note opens in the one composer with Save, Copy and Publish.
+      - At 412x915 touch a bottom bar Feed · Engage · Saved · Compose keeps Compose one tap away, tap to comment opens it with the article attached, the X tab chooses the 280 format before X is linked and Publish says "Connect X to publish"; Connect, source and the feed's dismiss are at least 44x44.
+      - A saved draft opens from its ⋯ menu; the selected tab and Draft labels reach 4.5:1 on the Graphite accent.
+      - The old Composer address with prepare-post title, notes and sourceUrl opens Workspace Compose with the draft prefilled and refinable, at 1440x900.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback fixture server and the browser.
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
+    installation: never
+  - id: composer-merge
+    name: Compose and Workspace are one application
+    purpose: >-
+      Verify the social menu carries one Workspace tile and no Composer tile, prepare-post and the Business screen name
+      social-workspace, no second compose page ships, the compiled router answers the old /api/social/composer address
+      with a 302 to Workspace Compose keeping every query parameter, and Workspace Compose carries every Composer
+      capability behind the full-page gate.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/composer-merge.test.cjs
+    expected:
+      - ui.static has social-workspace (Workspace, codicon-layout) and no social-composer; prepare-post and business-experience name social-workspace.
+      - tools/social-composer.html is gone.
+      - GET /api/social/composer answers 302 to /api/social/workspace with view=compose and every query parameter (handoff, title, notes, audience) kept; an explicit view is kept.
+      - Workspace Compose carries Punchier, Shorter, More technical, Add CTA, End with a question, the free prompt, AI draft, LinkedIn/X/Facebook publish, prepare-post handoff, direct query prefill and connected-application offers, all gated on the full page.
+      - Workspace never prints /utilities as visible copy or keeps the 54-word feed callout.
+    prerequisites:
+      - runner:node-test
+      - dependency:express
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the loopback router.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
     installation: never

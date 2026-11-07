@@ -11,6 +11,9 @@
  *                     |                             | a sandbox: delete asks first and sends nothing on Cancel; on OK it
  *                     |                             | deletes and clears that league's board; another league's board
  *                     |                             | stays; a refused delete says so and keeps the board.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06: delete asks in the page (design standard §4.6),
+ *                     |                             | not in a browser dialog: the question names the league, Cancel sends
+ *                     |                             | nothing, the Delete league button sends the DELETE.
  */
 
 'use strict';
@@ -27,11 +30,12 @@ const inline = () => [...HTML.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\
 function page({ confirmed, status = 200 }) {
   const nodes = {};
   const node = (id) => (nodes[id] = nodes[id] || {
-    addEventListener() {}, setAttribute() {}, getAttribute: () => null, querySelectorAll: () => [],
+    addEventListener(type, fn) { listeners[id] = fn; }, setAttribute() {}, getAttribute: () => null, querySelectorAll: () => [],
     innerHTML: '', textContent: '', value: '', hidden: false, style: {},
   });
   const calls = [];
   const asked = [];
+  const listeners = {};
   const sandbox = {
     document: { getElementById: node, querySelectorAll: () => [], addEventListener() {} },
     console: { log() {}, warn() {}, error() {} },
@@ -45,7 +49,7 @@ function page({ confirmed, status = 200 }) {
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(inline(), sandbox, { filename: 'fantasy-football.html' });
-  return { sandbox, nodes, calls, asked };
+  return { sandbox, nodes, calls, asked, listeners };
 }
 
 /** Put league `id`'s trade board on screen the way the page does (loadBoard), then the route's answer. */
@@ -54,19 +58,33 @@ function showBoard(p, id) {
   p.nodes.lineupBody.innerHTML = '<div class="card"><h2>Trades both sides gain from &middot; My team</h2></div>';
 }
 
-test('Cancel sends no DELETE and keeps the board', async () => {
-  const p = page({ confirmed: false });
+test('Delete asks in the page, not in a browser dialog; Cancel sends no DELETE and keeps the board', async () => {
+  const p = page({ confirmed: true });
   showBoard(p, 'L1');
   assert.equal(await p.sandbox.dropManualLeague('L1', 'sweep6 league'), false);
-  assert.deepEqual(p.asked, ['Delete the league "sweep6 league"? This cannot be undone.']);
+  assert.deepEqual(p.asked, [], 'no window.confirm');
+  assert.match(p.nodes.mDropNote.innerHTML, /Delete the league “sweep6 league”\? This cannot be undone\./);
+  assert.match(p.nodes.mDropNote.innerHTML, /id="mDropYes">Delete league</);
+  assert.equal(p.calls.filter((c) => c.method === 'DELETE').length, 0);
+  p.listeners.mDropNo();
+  assert.equal(p.nodes.mDropNote.innerHTML, '', 'Cancel takes the question away');
   assert.equal(p.calls.filter((c) => c.method === 'DELETE').length, 0);
   assert.match(p.nodes.lineupBody.innerHTML, /Trades both sides gain from/);
+});
+
+test('the in-page Delete league button sends the DELETE', async () => {
+  const p = page({ confirmed: false });
+  showBoard(p, 'L1');
+  await p.sandbox.dropManualLeague('L1', 'sweep6 league');
+  p.listeners.mDropYes();
+  await new Promise((r) => setImmediate(r));
+  assert.ok(p.calls.some((c) => c.method === 'DELETE' && /\/manual-leagues\/L1$/.test(c.url)));
 });
 
 test('OK deletes the league and clears its board from the screen', async () => {
   const p = page({ confirmed: true });
   showBoard(p, 'L1');
-  assert.equal(await p.sandbox.dropManualLeague('L1', 'sweep6 league'), true);
+  assert.equal(await p.sandbox.dropManualLeague('L1', 'sweep6 league', true), true);
   assert.ok(p.calls.some((c) => c.method === 'DELETE' && /\/manual-leagues\/L1$/.test(c.url)));
   assert.equal(p.nodes.lineupBody.innerHTML, '', 'the deleted league\'s board is gone');
 });
@@ -74,14 +92,14 @@ test('OK deletes the league and clears its board from the screen', async () => {
 test('deleting another league keeps the board on screen', async () => {
   const p = page({ confirmed: true });
   showBoard(p, 'L1');
-  await p.sandbox.dropManualLeague('L2', 'other');
+  await p.sandbox.dropManualLeague('L2', 'other', true);
   assert.match(p.nodes.lineupBody.innerHTML, /Trades both sides gain from/);
 });
 
 test('a refused delete says so and keeps the board', async () => {
   const p = page({ confirmed: true, status: 500 });
   showBoard(p, 'L1');
-  assert.equal(await p.sandbox.dropManualLeague('L1', 'sweep6 league'), false);
-  assert.match(p.nodes.mNote.textContent, /could not be deleted \(500\)\. Nothing was removed\./);
+  assert.equal(await p.sandbox.dropManualLeague('L1', 'sweep6 league', true), false);
+  assert.match(p.nodes.mDropNote.textContent, /could not be deleted \(500\)\. Nothing was removed\./);
   assert.match(p.nodes.lineupBody.innerHTML, /Trades both sides gain from/);
 });

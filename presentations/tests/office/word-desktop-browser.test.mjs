@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Word in AI Office at 1440x900 with a real mouse (the round-2 trial check, 2026-11-06: the first click on a new document's blank paragraph did not focus it and the typed text was lost; a second click worked): one click on a paragraph that is not yet selected puts the caret in it and the typing lands in the model, for the new document's empty first paragraph and for a second paragraph chosen after it. Real routes over disposable PostgreSQL and the kernel's shared editor from OSHAL_PLATFORM_ROOT.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0: a new document now opens with the caret already on line 1, so the first case takes the caret away before its one click, and the second case adds its paragraph from the app row's Insert menu (Office's in-flow Insert disclosure is gone, docs/ux/design-standard.md §4.3).
  */
 import{test}from'node:test';import assert from'node:assert/strict';import{createRequire}from'node:module';
 import{fixture}from'./fixture.mjs';
@@ -17,6 +18,7 @@ test('Word at 1440x900: one click on the new document\'s blank paragraph puts th
  await page.goto(f.origin+'/api/presentations/editor/app?kind=docx');await page.locator('html[data-office-ready=true]').waitFor();
  assert.equal(await page.locator('.office-word-page [contenteditable=true]').count(),1,'a new document has one paragraph');
  assert.equal((await page.locator('.office-word-page [contenteditable=true]').first().textContent()).trim(),'','and it is empty');
+ await page.evaluate(()=>document.activeElement?.blur());
  await click(page,0);
  assert.deepEqual(await caret(page,0),{active:'office-rich-text',inParagraph:true},'the first click focuses the paragraph');
  await page.keyboard.type('One');
@@ -29,7 +31,7 @@ test('Word at 1440x900: one click on another paragraph moves the caret there, an
  const f=await fixture({http:true}),browser=await chromium.launch({headless:true});t.after(async()=>{await browser.close();await f.close();});
  const page=await browser.newPage(DESKTOP),errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept());
  await page.goto(f.origin+'/api/presentations/editor/app?kind=docx');await page.locator('html[data-office-ready=true]').waitFor();
- await page.locator('#office-insert-menu>summary').click();await page.locator('#add-paragraph').click();
+ await page.getByRole('button',{name:'Insert ▾',exact:true}).click();await page.getByRole('menuitem',{name:'Paragraph',exact:true}).click();
  await page.waitForFunction(()=>document.querySelectorAll('.office-word-page [contenteditable=true]').length===2);
  await click(page,0);
  assert.deepEqual(await caret(page,0),{active:'office-rich-text',inParagraph:true},'one click on the first paragraph puts the caret there');

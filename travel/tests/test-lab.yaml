@@ -158,3 +158,24 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: ux-watch-and-tabs
+    name: Travel Watch shows that it is watching, with a Watched routes list
+    purpose: >-
+      UX audit 2026-11-06: run the shipped watchThis(), renderWatches() and stopWatching(); check the tablist, cabin words, the dateless greeting and hideAssistant.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/travel-watch-and-tabs.test.js
+    expected:
+      - A stored watch turns the button to Watching with aria-pressed true and lists it with Stop watching.
+      - A refused watch leaves Watch and says the watch was not saved.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

@@ -36,6 +36,7 @@
  *                     |                             | draws state.rigs. adopt() now updates the list entry too. Guarded
  *                     |                             | by tests/surface.core.spec.mjs (rename) and
  *                     |                             | tests/surface-adopt.test.js.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (animatronics--animatronics): a pose's view and ▶ are 44×44 and its delete moved into a ⋯ menu; Delete rig is in the rig's ⋯ menu with an in-page confirm instead of a native dialog. The same requests run.
  */
 (function () {
   'use strict';
@@ -186,12 +187,20 @@
     const box = $('poses'); box.replaceChildren();
     const names = Object.keys(state.rig.poses);
     if (!names.length) box.appendChild(el('span', { class: 'muted small', text: 'No poses yet — jog the sliders and capture one.' }));
-    names.forEach((name) => box.appendChild(el('span', { class: 'chip' }, [
-      el('span', { text: name, title: JSON.stringify(state.rig.poses[name]) }),
-      el('button', { class: 'link', text: 'view', title: 'rehearse a 400 ms move to this pose', onclick: () => rehearse({ pose: name, ms: 400 }) }),
-      el('button', { class: 'link', text: '▶', title: 'play on the prop (armed only)', onclick: () => play({ pose: name, ms: 400 }) }),
-      el('button', { class: 'link danger', text: '×', title: 'delete', onclick: () => deletePose(name) }),
-    ])));
+    // UX audit 2026-11-06: view and ▶ are 44×44 targets; delete moved into the pose's ⋯ menu.
+    names.forEach((name, i) => {
+      const menuId = 'pose-menu-' + i;
+      const menu = el('div', { id: menuId, class: 'menu', popover: '', role: 'menu' }, [
+        el('button', { class: 'danger', role: 'menuitem', text: 'Delete pose…', onclick: () => { if (menu.hidePopover) menu.hidePopover(); deletePose(name); } }),
+      ]);
+      box.appendChild(el('span', { class: 'chip' }, [
+        el('span', { text: name, title: JSON.stringify(state.rig.poses[name]) }),
+        el('button', { class: 'pose-act', text: 'view', title: 'rehearse a 400 ms move to this pose', 'aria-label': 'View ' + name, onclick: () => rehearse({ pose: name, ms: 400 }) }),
+        el('button', { class: 'pose-act', text: '▶', title: 'play on the prop (armed only)', 'aria-label': 'Play ' + name + ' on the prop', onclick: () => play({ pose: name, ms: 400 }) }),
+        el('button', { class: 'pose-act', text: '⋯', 'aria-label': 'Actions for ' + name, 'aria-haspopup': 'menu', popovertarget: menuId }),
+        menu,
+      ]));
+    });
   }
   async function deletePose(name) {
     if (!confirm('Delete pose ' + name + '?')) return;
@@ -372,7 +381,10 @@
   function wire() {
     $('new-rig').addEventListener('click', async () => { try { const res = await api('/rigs', { method: 'POST', json: { template: $('template-select').value } }); stopAnimation(); state.frames = null; state.report = null; await loadRigs(res.rig.rig_id); toast('Rig created from ' + $('template-select').value, 'ok'); } catch (e) { toast(e.message, 'error'); } });
     $('save-title').addEventListener('click', async () => { try { adopt(await api('/rigs/' + state.rig.rig_id, { method: 'PATCH', json: { title: $('rig-title').value } })); renderRigs(); } catch (e) { toast(e.message, 'error'); } });
-    $('delete-rig').addEventListener('click', async () => { if (!confirm('Delete rig "' + state.rig.title + '" and its log?')) return; try { await api('/rigs/' + state.rig.rig_id, { method: 'DELETE' }); stopAnimation(); state.rig = null; state.frames = null; state.report = null; await loadRigs(); } catch (e) { toast(e.message, 'error'); } });
+    // Delete rig sits in the rig's ⋯ menu, apart from Rename, and confirms in the page (DS-44), not in a native dialog.
+    $('delete-rig').addEventListener('click', () => { const m = $('rig-menu'); if (m && m.hidePopover) m.hidePopover(); $('delete-confirm-text').textContent = 'Delete rig "' + state.rig.title + '" and its log?'; $('delete-confirm').hidden = false; $('delete-no').focus(); });
+    $('delete-no').addEventListener('click', () => { $('delete-confirm').hidden = true; });
+    $('delete-yes').addEventListener('click', async () => { $('delete-confirm').hidden = true; try { await api('/rigs/' + state.rig.rig_id, { method: 'DELETE' }); stopAnimation(); state.rig = null; state.frames = null; state.report = null; await loadRigs(); } catch (e) { toast(e.message, 'error'); } });
     $('save-rig').addEventListener('click', saveRig);
     $('capture-pose').addEventListener('click', capturePose);
     $('jog-neutral').addEventListener('click', () => { axesOf().forEach((a) => { const ch = channelOfAxis(a); state.angles[a] = ch.neutralDeg; }); stopAnimation(); state.frames = null; renderJog(); view(); if (state.rig.armed && linkUp()) rehearseOrPlayNeutral(); });

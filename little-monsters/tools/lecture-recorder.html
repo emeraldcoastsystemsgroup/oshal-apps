@@ -15,6 +15,7 @@
   2026-06-12     | roger.murphy@agenticfederal.us   | Recording durability: transcript auto-saves to localStorage (resume banner on reload); MediaRecorder captures real audio in 10s chunks persisted to IndexedDB (crash-safe), saved server-side after generation (POST /lectures/:id/audio) with listen/download links
   2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; hero, step cards, draft callout, tabs, result lists and the upload zone use the system with tokens only. Role truth: lecture writes are teacher/admin only, so a student sees a calm "your teacher records the lecture" state with a dashboard button instead of a record button that the routes would refuse; the false "audio stays on your device" wording is gone (the recording is uploaded to the lecture); exit goes through the page frame
   2026-10-18     | maintainer@emeraldcoastsystemsgroup.com     | A student records into a class they own (their private class); the routes admit the class owner. Without live captions (a browser with no speech recognition, or captions that never arrive) the audio is still recorded, and "Make the study materials" first transcribes it on the kernel's local speech recognition (POST /process-lecture with transcribeOnly) and then makes the materials from that text.
+  2026-11-06     | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (lm-recorder): the hero block and the orphan '← Back' are gone (the bottom bar is the way back); the class picker is one row at the top and the round record button is the one primary on the first screen. While recording: a live input-level meter, Pause and Finish; after Finish 'Make the study materials' is the sticky bottom primary. FIX-BROKEN: with no microphone the timer ran and the page said 'Nice!'; now a refused getUserMedia, or no sound within 2 s, stops the recording and shows role="alert" 'No microphone sound — allow the microphone and try again'. An optional lesson title (default: class + date) names the generated lecture; Recent lectures lists GET /lectures/recent below the recorder; the audio-file upload is a closed disclosure under the record button. Guarded by tests/lm-ux-recorder.test.cjs.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -31,7 +32,7 @@
   .rec-ring.recording { border-color: var(--lm-danger); box-shadow: 0 0 0 10px color-mix(in srgb, var(--lm-danger) 12%, transparent); animation: rec-pulse 1.5s infinite; }
   .rec-ring.done { border-color: var(--lm-success); box-shadow: 0 0 0 10px color-mix(in srgb, var(--lm-success) 12%, transparent); }
   @keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-  .rec-btn { width: 64px; height: 64px; border-radius: 50%; border: 0; cursor: pointer; background: var(--lm-danger); box-shadow: var(--lm-shadow-soft); transition: transform 0.15s, border-radius 0.3s, width 0.3s, height 0.3s; }
+  .rec-btn { width: 72px; height: 72px; border-radius: 50%; border: 0; cursor: pointer; background: var(--lm-danger); box-shadow: var(--lm-shadow-soft); transition: transform 0.15s, border-radius 0.3s, width 0.3s, height 0.3s; }
   .rec-btn:hover { transform: scale(1.05); }
   .rec-btn.recording { border-radius: 10px; width: 36px; height: 36px; }
   .rec-timer { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; margin: 4px 0 2px; }
@@ -40,6 +41,18 @@
   .save-badge { color: var(--lm-success); opacity: 0; transition: opacity 0.4s; }
   .save-badge.show { opacity: 1; }
   .btn-block { width: 100%; }
+  .rec-title { font-size: 20px; font-weight: 800; margin: 0 0 12px; }
+  .rec-class-row { display: flex; align-items: center; gap: 10px; }
+  .rec-class-row label { flex: 0 0 auto; margin: 0; font-weight: 700; color: var(--lm-ink-2); font-size: 14px; }
+  .rec-class-row select { flex: 1 1 auto; min-width: 0; }
+  .rec-level { height: 10px; max-width: 240px; margin: 10px auto 4px; border-radius: 999px; background: var(--lm-accent-soft); overflow: hidden; }
+  .rec-level span { display: block; height: 100%; width: 0; background: var(--lm-success); transition: width 0.1s linear; }
+  .rec-controls { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+  .rec-alert { margin-top: 10px; text-align: left; }
+  /* After Finish the one action that matters stays on screen, clear of the frame's bottom bar and the floating assistant. */
+  .gen-bar { position: sticky; bottom: calc(var(--lm-bottom-bar, 0px) + 8px); z-index: 5; margin-top: 14px; padding-top: 8px; background: linear-gradient(transparent, var(--lm-card) 35%); }
+  .recent-date { flex: 0 0 auto; font-size: 12.5px; color: var(--lm-muted); }
+  #recentList a.lm-item { text-decoration: none; color: inherit; }
 
   /* Generation progress: four calm steps that light up while the one model pass runs. */
   .gen-steps { display: grid; gap: 4px; margin-top: 14px; font-size: 14px; color: var(--lm-muted); text-align: left; }
@@ -67,6 +80,7 @@
   .upload-zone:hover, .upload-zone.dragover { border-color: var(--lm-accent); background: var(--lm-accent-soft); color: var(--lm-ink); }
 
   @media (max-width: 640px) {
+    .gen-bar { padding-right: 64px; }
     .action-row { flex-direction: column; }
     .action-row .lm-btn { flex-basis: auto; }
   }
@@ -74,25 +88,15 @@
 </head>
 <body>
 <main class="lm-page is-narrow">
-  <header class="lm-hero">
-    <div>
-      <div class="lm-eyebrow">Lecture recorder</div>
-      <h1 class="lm-display" id="heroTitle">Lecture recorder</h1>
-      <p class="lm-lead" id="heroLead"></p>
-      <div class="lm-hero-actions hide" id="heroActions">
-        <button type="button" class="lm-btn lm-btn-ghost" id="backBtn" onclick="exitRecorder()" title="Back to the dashboard">&#8592; Back</button>
-      </div>
-    </div>
-    <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
-  </header>
+  <h1 class="rec-title" id="heroTitle">Record a lecture</h1>
 
   <div id="roleCheck" class="lm-loading">Checking who's signed in…</div>
 
-  <!-- Learners: lecture writes are teacher/admin only (the routes refuse them), so say so calmly. -->
+  <!-- Learners without a class of their own: lecture writes are accepted only from a class's owner, so say so calmly. -->
   <div id="studentState" class="lm-empty hide">
     <div class="lm-empty-icon">🎧</div>
-    <strong>Nothing to record here.</strong>
-    When a replay is ready, you'll find it in your class along with its flashcards and notes.
+    <strong>Record into your own class.</strong>
+    Create a class of your own from your dashboard to record lectures into it. Your teachers record the lectures of their classes; replays, flashcards and notes appear when they are ready.
     <div><button type="button" class="lm-btn lm-btn-primary" id="studentHome">Go to my dashboard</button></div>
   </div>
 
@@ -100,28 +104,38 @@
     <!-- Draft restore (shown when an unsaved lecture survives a reload/crash) -->
     <div class="lm-callout lm-row is-wrap hide" id="draftBanner">
       <span id="draftInfo" class="lm-spacer">📂 We saved your last lecture.</span>
-      <button type="button" class="lm-btn lm-btn-primary" onclick="resumeDraft()">Resume</button>
+      <button type="button" class="lm-btn lm-btn-soft" onclick="resumeDraft()">Resume</button>
       <button type="button" class="lm-btn lm-btn-ghost" onclick="discardDraft()">Discard</button>
     </div>
 
-    <!-- Step 1: class -->
-    <section class="lm-card">
-      <div class="lm-field" style="margin-bottom:0">
-        <label for="classSelect">1 · Which class is this?</label>
-        <select id="classSelect">
+    <section class="lm-card rec-stage">
+      <div class="rec-class-row">
+        <label for="classSelect">Class</label>
+        <select id="classSelect" class="lm-input">
           <option value="">Choose a class…</option>
         </select>
       </div>
-    </section>
-
-    <!-- Step 2: record -->
-    <section class="lm-card rec-stage">
-      <div class="lm-field" style="margin-bottom:6px;text-align:left"><label>2 · Record the lecture — live captions are written for you</label></div>
-      <div class="rec-ring" id="recorderRing">
-        <button type="button" class="rec-btn" id="recBtn" onclick="toggleRecording()" title="Record" aria-label="Start or stop recording"></button>
+      <div class="rec-ring lm-mt-md" id="recorderRing">
+        <button type="button" class="rec-btn" id="recBtn" onclick="toggleRecording()" title="Record" aria-label="Start or finish recording"></button>
       </div>
       <div class="rec-timer" id="timer">00:00</div>
       <div class="lm-status" id="status">Tap the red button to start listening</div>
+      <div class="rec-level hide" id="levelMeter" role="meter" aria-label="Microphone level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="levelFill"></span></div>
+      <div class="rec-controls hide" id="recControls">
+        <button type="button" class="lm-btn lm-btn-ghost" id="pauseBtn" onclick="togglePause()">Pause</button>
+        <button type="button" class="lm-btn lm-btn-soft" id="finishBtn" onclick="toggleRecording()">Finish</button>
+      </div>
+      <div class="lm-callout is-danger rec-alert hide" id="micAlert" role="alert"></div>
+
+      <!-- Fallback: audio file upload (server pipeline) -->
+      <details class="upload-fallback lm-mt-md" style="text-align:left">
+        <summary>Have a recording file instead? Upload it</summary>
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          Drag &amp; drop an audio file here, or click to choose
+        </div>
+        <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.mp4" class="hide">
+        <div class="lm-status lm-mt-md" id="uploadStatus"></div>
+      </details>
 
       <div class="lm-field" style="text-align:left;margin:14px 0 0">
         <div class="transcript-meta">
@@ -130,9 +144,15 @@
         </div>
         <textarea id="transcriptBox" rows="5" aria-label="Lecture transcript" placeholder="The lecture appears here while you record — or paste or type it yourself."></textarea>
       </div>
+      <div class="lm-field" style="text-align:left;margin:12px 0 0">
+        <label for="lessonTitle">Lesson title (optional)</label>
+        <input id="lessonTitle" class="lm-input" maxlength="200" autocomplete="off">
+      </div>
 
-      <!-- Step 3: make the study materials -->
-      <button type="button" class="lm-btn lm-btn-primary lm-btn-lg btn-block lm-mt-md" id="genMaterialsBtn" onclick="generateFromTranscript()">✨ Make the study materials</button>
+      <!-- After Finish: make the study materials (the sticky bottom primary) -->
+      <div class="gen-bar hide" id="genBar">
+        <button type="button" class="lm-btn lm-btn-primary lm-btn-lg btn-block" id="genMaterialsBtn" onclick="generateFromTranscript()">✨ Make the study materials</button>
+      </div>
       <div class="gen-steps hide" id="genSteps">
         <div id="gs1">📖 Reading the lecture…</div>
         <div id="gs2">📝 Writing the notes…</div>
@@ -157,16 +177,9 @@
       <div class="lm-card is-flat result-content" id="resultContent"></div>
     </section>
 
-    <!-- Fallback: audio file upload (server pipeline) -->
-    <section class="lm-card is-compact">
-      <details class="upload-fallback">
-        <summary>Have a recording file instead? Upload it</summary>
-        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-          Drag &amp; drop an audio file here, or click to choose
-        </div>
-        <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.mp4" class="hide">
-        <div class="lm-status lm-mt-md" id="uploadStatus"></div>
-      </details>
+    <section class="lm-card" id="recentSection" aria-labelledby="recentTitle">
+      <div class="lm-section-head"><h2 id="recentTitle">Recent lectures</h2></div>
+      <div id="recentList"><div class="lm-loading">Loading…</div></div>
     </section>
   </div>
 </main>
@@ -192,6 +205,11 @@ var timerInterval = null;
 var resultData = {};
 var genTicker = null;
 var GEN_LABEL = 'Make the study materials';
+var isPaused = false;
+var NO_MIC = 'No microphone sound — allow the microphone and try again';
+/** Peak below this is digital silence: a muted or absent input, not a quiet room. */
+var SILENCE_PEAK = 0.0005;
+var audioCtx = null, levelTimer = null;
 
 // ── Durability: nothing from a 30-minute class should be losable. ──
 // Transcript: throttled autosave to localStorage, restored via the draft banner.
@@ -235,6 +253,7 @@ function resumeDraft() {
       recordedSeconds = d.secs || 0;
       updateWordCount();
       setStatus('Lecture restored — keep recording or tap "' + GEN_LABEL + '".');
+      showGenBar();
     }
   } catch (_e) { /* noop */ }
   document.getElementById('draftBanner').classList.add('hide');
@@ -315,7 +334,12 @@ function startAudioCapture() {
   audioChunks = [];
   sessionId = 'sess-' + Date.now();
   clearChunks(); // a new take supersedes any recoverable chunks (the draft banner already offered them)
+  // Made inside the tap, so the level meter may run; without it there is no meter and no silence check.
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_e) { audioCtx = null; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { noMicrophone(); return; }
   navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+    if (!isRecording) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+    watchLevel(stream);
     var mime = '';
     var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
     for (var i = 0; i < types.length; i++) { if (MediaRecorder.isTypeSupported(types[i])) { mime = types[i]; break; } }
@@ -325,7 +349,59 @@ function startAudioCapture() {
     };
     recordingStopped = new Promise(function (resolve) { mediaRecorder.onstop = function () { stream.getTracks().forEach(function (t) { t.stop(); }); resolve(); }; });
     mediaRecorder.start(10000); // flush a durable chunk every 10s
-  }).catch(function () { /* captions still work without the audio file */ });
+  }).catch(function (err) {
+    console.error('[Recorder] Microphone refused', err);
+    noMicrophone();
+  });
+}
+
+/**
+ * The live input-level meter, and the no-sound check: when the microphone delivers only silence for the
+ * first 2 s of a running audio context, the recording stops with the alert (never a timer that runs on).
+ */
+function watchLevel(stream) {
+  if (!audioCtx) return;
+  try {
+    var analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024;
+    audioCtx.createMediaStreamSource(stream).connect(analyser);
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(function () { /* no meter */ });
+    var buf = new Float32Array(analyser.fftSize), heard = false, runningMs = 0;
+    document.getElementById('levelMeter').classList.remove('hide');
+    levelTimer = setInterval(function () {
+      if (!audioCtx || audioCtx.state !== 'running') return;
+      analyser.getFloatTimeDomainData(buf);
+      var peak = 0; for (var i = 0; i < buf.length; i++) { var a = Math.abs(buf[i]); if (a > peak) peak = a; }
+      showLevel(peak);
+      if (peak > SILENCE_PEAK) heard = true;
+      runningMs += 100;
+      if (!heard && runningMs >= 2000) noMicrophone();
+    }, 100);
+  } catch (e) { console.error('[Recorder] Level meter unavailable', e); }
+}
+function showLevel(peak) {
+  var pct = Math.min(100, Math.round(Math.sqrt(peak) * 100));
+  document.getElementById('levelFill').style.width = pct + '%';
+  document.getElementById('levelMeter').setAttribute('aria-valuenow', String(pct));
+}
+function stopLevel() {
+  clearInterval(levelTimer); levelTimer = null;
+  document.getElementById('levelMeter').classList.add('hide');
+  if (audioCtx) { try { audioCtx.close(); } catch (_e) { /* already closed */ } audioCtx = null; }
+}
+
+/** No microphone, or no sound from it: stop everything and say what to do. Never a success line. */
+function noMicrophone() {
+  if (!isRecording) return;
+  isRecording = false; isPaused = false;
+  stopCaptions();
+  stopAudioCapture();
+  stopLevel();
+  stopRecordingUi();
+  var alertEl = document.getElementById('micAlert');
+  alertEl.textContent = NO_MIC;
+  alertEl.classList.remove('hide');
+  setStatus('Tap the red button to try again');
+  if (mascot) mascot.setMood('happy');
 }
 
 function stopAudioCapture() {
@@ -398,15 +474,12 @@ function startCaptions() {
   // The Web Speech API stops itself after pauses/silence — fatal in a real
   // class. While the recording is still on, immediately restart.
   recognition.onend = function () {
-    if (isRecording) {
+    if (isRecording && !isPaused) {
       try { recognition.start(); } catch (_e) { /* restarting too fast — next onend retries */ }
     }
   };
   recognition.onerror = function (ev) {
-    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
-      setStatus('Microphone blocked. Allow the mic and try again.', true);
-      stopRecordingUi();
-    }
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') noMicrophone();
     // 'no-speech' / 'network' etc. fall through to onend, which restarts.
   };
   try { recognition.start(); return true; } catch (e) { setStatus('Could not start listening: ' + e.message, true); return false; }
@@ -420,57 +493,81 @@ function updateWordCount() {
   var words = document.getElementById('transcriptBox').value.trim().split(/\s+/).filter(Boolean).length;
   document.getElementById('wordCount').textContent = words + ' word' + (words === 1 ? '' : 's');
 }
-document.getElementById('transcriptBox').addEventListener('input', function () { updateWordCount(); scheduleDraftSave(); });
+document.getElementById('transcriptBox').addEventListener('input', function () {
+  updateWordCount(); scheduleDraftSave();
+  if (document.getElementById('transcriptBox').value.trim().length >= 20) showGenBar();
+});
 
-/** Leave the recorder safely. If recording, confirm + stop (captions are already
- *  auto-saved to localStorage, so nothing is lost), then go back through the page
- *  frame — the host swaps the view when embedded, the window navigates standalone. */
-function exitRecorder() {
-  try {
-    if (isRecording) {
-      if (!window.confirm('Stop recording and go back? Your captions are saved — you can resume later.')) return;
-      toggleRecording(); // existing stop path: stops captions + audio, keeps the transcript
-    }
-    saveDraft();
-  } catch (_e) { /* leave anyway */ }
-  window.LM.navigate('dashboard');
-}
-
-/** Toggle recording on/off. */
+/** Start, or Finish (the record button while recording, and the Finish button). */
 function toggleRecording() {
-  if (isRecording) {
-    isRecording = false;
-    stopCaptions();
-    stopAudioCapture();
-    stopRecordingUi();
-    saveDraft();
-    var words = document.getElementById('transcriptBox').value.trim().split(/\s+/).filter(Boolean).length;
-    setStatus(words > 5 || audioChunks.length ? 'Nice! Now tap "' + GEN_LABEL + '" below 👇' : 'Stopped. Record again or paste the lecture below.');
-    if (mascot) mascot.setMood('proud');
-  } else {
-    if (!document.getElementById('classSelect').value) {
-      setStatus('Pick the class first (step 1) 👆', true);
-      return;
-    }
-    isRecording = true;
-    var captions = startCaptions();
-    startAudioCapture();
-    startTime = Date.now();
-    timerInterval = setInterval(updateTimer, 1000);
-    document.getElementById('recBtn').classList.add('recording');
-    document.getElementById('recorderRing').classList.add('recording');
-    document.getElementById('liveIndicator').innerHTML = '<span class="live-dot"></span>listening…';
-    setStatus(captions ? 'Recording — live captions appear below as you speak'
-      : 'Recording audio — this browser has no live captions, so the recording is turned into text when you make the study materials');
-    if (mascot) mascot.setMood('hyped');
+  if (isRecording) { finishRecording(); return; }
+  if (!document.getElementById('classSelect').value) {
+    setStatus('Pick the class first 👆', true);
+    return;
   }
+  isRecording = true; isPaused = false;
+  document.getElementById('micAlert').classList.add('hide');
+  var captions = startCaptions();
+  startAudioCapture();
+  if (!isRecording) return; // no microphone at all: the alert is showing
+  startTime = Date.now(); recordedSeconds = 0;
+  timerInterval = setInterval(updateTimer, 1000);
+  document.getElementById('recBtn').classList.add('recording');
+  document.getElementById('recorderRing').classList.add('recording');
+  document.getElementById('recControls').classList.remove('hide');
+  document.getElementById('pauseBtn').textContent = 'Pause';
+  document.getElementById('liveIndicator').innerHTML = '<span class="live-dot"></span>listening…';
+  setStatus(captions ? 'Recording — live captions appear below as you speak'
+    : 'Recording audio — this browser has no live captions, so the recording is turned into text when you make the study materials');
+  if (mascot) mascot.setMood('hyped');
 }
+
+function finishRecording() {
+  isRecording = false; isPaused = false;
+  stopCaptions();
+  stopAudioCapture();
+  stopLevel();
+  stopRecordingUi();
+  saveDraft();
+  var words = document.getElementById('transcriptBox').value.trim().split(/\s+/).filter(Boolean).length;
+  setStatus(words > 5 || audioChunks.length ? 'Nice! Now tap "' + GEN_LABEL + '" below 👇' : 'Stopped. Record again or paste the lecture below.');
+  showGenBar();
+  if (mascot) mascot.setMood('proud');
+}
+
+/** Pause keeps the take: captions stop, the audio recorder pauses and the timer holds. */
+function togglePause() {
+  if (!isRecording) return;
+  var btn = document.getElementById('pauseBtn');
+  if (!isPaused) {
+    isPaused = true;
+    stopCaptions();
+    try { if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.pause(); } catch (_e) { /* keeps recording */ }
+    clearInterval(timerInterval);
+    btn.textContent = 'Resume';
+    document.getElementById('liveIndicator').textContent = 'paused';
+    setStatus('Paused — tap Resume to keep going, or Finish when the lecture is over');
+    return;
+  }
+  isPaused = false;
+  try { if (mediaRecorder && mediaRecorder.state === 'paused') mediaRecorder.resume(); } catch (_e) { /* noop */ }
+  startCaptions();
+  startTime = Date.now() - recordedSeconds * 1000;
+  timerInterval = setInterval(updateTimer, 1000);
+  btn.textContent = 'Pause';
+  document.getElementById('liveIndicator').innerHTML = '<span class="live-dot"></span>listening…';
+  setStatus('Recording again');
+}
+
+/** Show the sticky Make the study materials bar (after Finish, a resumed draft or a pasted lecture). */
+function showGenBar() { document.getElementById('genBar').classList.remove('hide'); }
 
 function stopRecordingUi() {
   isRecording = false;
   clearInterval(timerInterval);
   document.getElementById('recBtn').classList.remove('recording');
   document.getElementById('recorderRing').classList.remove('recording');
+  document.getElementById('recControls').classList.add('hide');
   document.getElementById('liveIndicator').textContent = '';
 }
 
@@ -539,7 +636,7 @@ async function generateFromTranscript() {
   var genStatus = document.getElementById('genStatus');
   var btn = document.getElementById('genMaterialsBtn');
   if (isRecording) toggleRecording();
-  if (!classId) { genStatus.textContent = 'Pick the class first (step 1) 👆'; return; }
+  if (!classId) { genStatus.textContent = 'Pick the class first 👆'; return; }
   if (transcript.length < 20) {
     btn.disabled = true;
     var heard = await transcribeRecording(classId, genStatus);
@@ -562,7 +659,7 @@ async function generateFromTranscript() {
   try {
     var resp = await fetch('/api/education/process-transcript', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ classId: classId, transcript: transcript, title: 'Lecture ' + new Date().toLocaleDateString() }),
+      body: JSON.stringify({ classId: classId, transcript: transcript, title: lessonTitle() }),
     });
     var data = await resp.json();
     clearInterval(genTicker);
@@ -602,7 +699,7 @@ function showResults(data, classId) {
     try {
       sessionStorage.setItem('lm-slides-preview', JSON.stringify({
         lectureId: data.lectureId, classId: classId,
-        title: 'Lecture ' + new Date().toLocaleDateString(),
+        title: lessonTitle(),
         slides: slides,
       }));
     } catch (_e) { /* player will fetch by lectureId instead */ }
@@ -689,7 +786,7 @@ function setUploadStatus(msg, isError) {
 
 async function uploadAudioFile(file) {
   var classId = document.getElementById('classSelect').value;
-  if (!classId) { setUploadStatus('Pick the class first (step 1).', true); return; }
+  if (!classId) { setUploadStatus('Pick the class first.', true); return; }
   setUploadStatus('Uploading and processing…');
   var formData = new FormData();
   formData.append('audio', file, file.name || 'lecture.webm');
@@ -746,18 +843,47 @@ async function loadClasses(ownerId) {
 
 /** Learner with no class of their own: the routes accept lecture writes only from a class's owner, so the page says how to get one instead of offering a button that fails. */
 function showStudentState() {
-  document.getElementById('heroTitle').textContent = 'Record into your own class.';
-  document.getElementById('heroLead').textContent = 'Create a class of your own from your dashboard to record lectures into it. Your teachers record the lectures of their classes; replays, flashcards and notes appear when they are ready.';
+  document.getElementById('heroTitle').classList.add('hide');
   document.getElementById('studentState').classList.remove('hide');
   document.getElementById('studentHome').addEventListener('click', function () { window.LM.navigate('dashboard'); });
 }
 
-/** Teacher/admin view: the full recorder. */
+/** The default lesson title: the chosen class and today's date. */
+function defaultTitle() {
+  var sel = document.getElementById('classSelect'), opt = sel.options[sel.selectedIndex];
+  var cls = opt && opt.value ? opt.textContent.replace(/\s*\([^)]*\)\s*$/, '') : 'Lecture';
+  return cls + ' — ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function lessonTitle() { return document.getElementById('lessonTitle').value.trim() || defaultTitle(); }
+function syncTitleHint() { document.getElementById('lessonTitle').placeholder = defaultTitle(); }
+
+/** Recent lectures from the caller's classes (the list the Presentations page reads). */
+async function loadRecent() {
+  var box = document.getElementById('recentList');
+  try {
+    var resp = await fetch('/api/education/lectures/recent?limit=5');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var list = (await resp.json()).lectures || [];
+    if (!list.length) { box.innerHTML = '<div class="lm-empty is-compact">No lectures yet — your first one shows up here.</div>'; return; }
+    box.innerHTML = '<ul class="lm-list">' + list.map(function (l) {
+      var date = String(l.lecture_date || l.created_at || '').slice(0, 10);
+      var href = l.has_slides ? '/api/education/presentation?lectureId=' + encodeURIComponent(l.lecture_id) + '&classId=' + encodeURIComponent(l.class_id || '')
+        : '/api/education/class?classId=' + encodeURIComponent(l.class_id || '');
+      return '<li><a class="lm-item is-clickable" href="' + href + '"><span class="lm-tile-icon" aria-hidden="true">' + (l.has_slides ? '▶' : '📝') + '</span>' +
+        '<span class="lm-item-body"><strong>' + esc(l.class_name || 'Lecture') + '</strong><small>' + (l.has_slides ? 'Presentation, notes and flashcards' : 'Notes') + '</small></span>' +
+        (date ? '<span class="recent-date">' + esc(date) + '</span>' : '') + '</a></li>';
+    }).join('') + '</ul>';
+  } catch (e) {
+    console.error('[Recorder] Recent lectures failed', e);
+    box.innerHTML = '<div class="lm-empty is-compact">Recent lectures could not be loaded right now.</div>';
+  }
+}
+
+/** Teacher/admin, or a student with a class of their own: the full recorder. */
 function showRecorder() {
-  document.getElementById('heroTitle').textContent = 'Record today’s lesson.';
-  document.getElementById('heroLead').textContent = 'Tap record when class starts. When it ends, one tap turns the live captions into a replay presentation, flashcards and notes for the whole class.';
-  document.getElementById('heroActions').classList.remove('hide');
   document.getElementById('recorder').classList.remove('hide');
+  document.getElementById('classSelect').addEventListener('change', syncTitleHint);
+  loadRecent();
 }
 
 // Boot — who is this? Learners get the calm state; teachers/admins (and an unanswered
@@ -771,6 +897,7 @@ function showRecorder() {
   if (owner && !(await loadClasses(owner))) { showStudentState(); return; }
   showRecorder();
   if (!owner) await loadClasses();
+  syncTitleHint();
   checkDraft();
   idb = await openIdb();
   checkOrphanAudio();

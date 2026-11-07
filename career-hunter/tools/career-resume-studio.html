@@ -11,9 +11,12 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | Register the open resume with the shared document handoff: before Jarvis or a concierge reads, edits not yet saved are saved through POST /resume/save and the context carries the resume id and a fingerprint of the saved document; after the turn the studio re-reads GET /resume/doc and redraws the assistant's saved change, or keeps the person's unsaved edits and says so in the status line.
   20 | maintainer@emeraldcoastsystemsgroup.com | Merged: the shared document handoff on the 1.47 document binding, as already live.
   21 | maintainer@emeraldcoastsystemsgroup.com | Show the reason a save failed in the editor log again; the 1.47.2 merge had dropped it.
+  22 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade D): with no career profile the page showed only the word "Resume" and an enabled "Save master resume" answered 422 "no career profile yet — upload a resume first" while the screen offered no upload. Now, with no résumé indexed (GET /resume/state), the page is an empty state whose one primary uploads the résumé through the same route the Job Board onboarding uses (POST /resume/upload, field "resume"), then follows the indexing until the master opens. Save is a secondary button, hidden until a résumé exists and enabled only with an unsaved change; a failed load or save is told beside the action (role=alert) with its fix. The résumé paper carries data-no-glass, so the platform's automatic glass can no longer paint it charcoal in Graphite (it stays white paper with dark ink in every theme). The two raw cross-links moved into a More menu; the empty picker option reads "No tailored résumés yet"; on a phone the Resume Editor opens as a sheet from one "Edit with AI" bar. Guard: tests/career-resume-studio-screen.test.mjs.
+  23 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06: the master resume opens as an editable Word document in AI Office's own editor (tools/career-resume-office.js), with AI Office's standard Concierge beside it in place of Career's resume editor panel. Save to master resume is the one main button; it saves the document's text back through the same whitelisted master save. Tailored job packets keep the classic preview and editor. Without AI Office the master opens in the classic view and says why.
+  24 | maintainer@emeraldcoastsystemsgroup.com | The design standard audit on production (412x743, 1440x900): the page declares its contract (editor, first action type, the preview as its work surface; DS-00), contains overscroll (DS-37), and the document frame's radius is on the scale (10px, DS-17).
 -->
 
-<html lang="en" data-theme="midnight" data-career-surface="resume-studio">
+<html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -50,9 +53,11 @@
   select, button { font: inherit; color: var(--text); background: var(--card);
     border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
   button.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
-  button:disabled { opacity: .5; cursor: default; }
+  button:disabled { cursor: default; }
   /* The .sheet block below is a simulated sheet of PAPER — the printed resume preview. It stays
      white with print inks in every theme, on purpose: it is what the PDF looks like, not chrome. */
+  /* data-no-glass keeps the platform's automatic glass off the paper; the guard below holds if a marker lands anyway. */
+  .sheet[data-oshal-glass] { background: #fff !important; background-image: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
   .sheet { background: #fff; color: #14202e; max-width: 760px; margin: 0 auto; padding: 40px 48px;
     border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
   .sheet h1 { font-size: 22px; margin: 0 0 2px; }
@@ -84,22 +89,66 @@
     border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
   .cover-preview { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
   .empty { color: var(--muted); padding: 40px; text-align: center; }
+  #err { flex-basis: 100%; margin: 0; padding: 10px 12px; border: 1px solid var(--ds-bad); border-radius: var(--ds-radius-m); color: var(--ds-ink); background: var(--ds-surface); }
+  #err[hidden] { display: none; }
+  .ck-menu a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--ds-radius-m); color: var(--ds-ink); text-decoration: none; }
+  .ck-menu a:hover { background: var(--ds-surface-3); }
+  #pick { min-height: 44px; }
+  #aiBar { display: none; }
+  #aiBar[hidden] { display: none !important; }
+  #noProfile[hidden] { display: none; }
+  /* The master resume as a Word document: AI Office's editor fills the page under one app row, and its
+     own Concierge (docked on a desktop, a sheet on a phone) replaces Career's resume editor panel. */
+  html, body { overscroll-behavior: contain; }
+  .office-host[hidden] { display: none; }
+  body[data-view=office] .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100vh; }
+  body[data-view=office] .chat, body[data-view=office] #aiBar { display: none !important; }
+  body[data-view=office] .preview { display: flex; flex-direction: column; overflow: hidden; padding: 8px 12px 0; }
+  body[data-view=office] .toolbar { margin-bottom: 8px; flex-wrap: nowrap; }
+  body[data-view=office] #pick { min-width: 0; flex: 0 1 auto; }
+  .office-host { flex: 1; min-height: 0; background: var(--ds-surface, #fff); border: 1px solid var(--ds-hairline, var(--line)); border-radius: 10px 10px 0 0; overflow: hidden; }
+  #officeFrame { display: block; width: 100%; height: 100%; border: 0; }
+  @media (max-width: 880px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100vh - 64px); }
+    .chat { position: fixed; left: 0; right: 0; bottom: 64px; top: 12vh; z-index: 20; border: 1px solid var(--ds-edge);
+      border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0; background: var(--ds-surface); box-shadow: var(--ds-elev-float); }
+    .chat:not(.open) { display: none; }
+    #aiBar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; height: 64px; padding: 10px 12px; gap: 8px; z-index: 21;
+      background: var(--ds-page); border-top: 1px solid var(--ds-hairline); }
+    #aiBar .ck-btn { flex: 1; }
+    .preview { padding: 14px; }
+    .sheet { padding: 24px 20px; }
+  }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head>
 <body>
 <div class="wrap">
-  <div class="preview">
-    <nav style="margin-bottom:14px"><a href="/api/career-hunter/experience-library">Additional experience library</a> · <a href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit</a></nav>
-    <div class="toolbar">
-      <select id="pick"><option value="">Pick a resume…</option><option value="master">⭐ My resume (master)</option></select>
-      <button id="save" class="primary" disabled>Save &amp; re-render PDF</button>
+  <div class="preview" data-ds-work>
+    <nav class="toolbar" id="docbar">
+      <select id="pick" aria-label="Résumé"><option value="">Pick a resume…</option><option value="master">⭐ My resume (master)</option></select>
+      <button id="save" class="ck-btn" disabled hidden>Save &amp; re-render PDF</button>
       <a id="pdf" href="#" target="_blank" rel="noopener" style="display:none">Open résumé PDF</a>
       <a id="coverPdf" href="#" target="_blank" rel="noopener" style="display:none">Open cover PDF</a>
-      <span id="status" style="color:var(--muted)"></span>
+      <span id="status" class="ck-saved"></span>
+      <button type="button" class="ck-icon" aria-haspopup="menu" aria-label="More" popovertarget="moreMenu">⋯</button>
+      <p id="err" role="alert" hidden></p>
+    </nav>
+    <div class="ck-menu" id="moreMenu" popover role="menu">
+      <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Additional experience library</a>
+      <a role="menuitem" data-career-tool="career-board" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit</a>
+      <button type="button" role="menuitem" id="replaceMaster" hidden>Replace with the saved master resume</button>
     </div>
-    <div id="sheet" class="sheet" hidden></div>
+    <section id="noProfile" class="ck-empty" hidden>
+      <div class="ck-empty-icon" aria-hidden="true">📄</div>
+      <h2 id="noProfileTitle">No résumé yet</h2>
+      <p id="noProfileText">Upload your résumé and Career builds your profile from it.</p>
+      <input type="file" id="resumeFile" accept=".pdf,.docx,.txt,.md" hidden>
+      <button type="button" class="ck-primary" id="uploadBtn">Upload your résumé (PDF or DOCX)</button>
+    </section>
+    <div id="sheet" class="sheet" data-no-glass hidden></div>
+    <div id="officeHost" class="office-host" hidden></div>
     <div id="empty" class="empty">Pick a resume to start editing. The ⭐ master resume is your durable career
       profile — every tailored resume is generated from it — and it is always editable; per-job packets come from
       the Job Board. Then tell the editor what to change ("tighten the summary", "lead the third bullet with the
@@ -114,6 +163,7 @@
     <div id="log" class="log"></div>
   </div>
 </div>
+<div id="aiBar"><button type="button" class="ck-btn" id="aiOpen" aria-expanded="false">Edit with AI</button></div>
 <!-- Surface bridge: publish WHAT IS OPEN so the floating Jarvis can talk about this resume, and
      accept the edits he sends back. Jarvis drives edits as custom{name:'resume_action'} carrying
      the same whitelisted action shape the concierge emits, so both assistants land through the one
@@ -128,6 +178,8 @@
   window.dispatchEvent(new Event('bridge-ready'));
 </script>
 <script src="/api/career-hunter/static/career-job-actions.js"></script>
+<script src="/api/career-hunter/static/career-navigation.js"></script>
+<script src="/api/career-hunter/static/career-resume-office.js"></script>
 <script>
 // Theming is handled by /shared/ui/js/surface-theme.js in <head> — it reads the operator's saved
 // cockpit theme from localStorage, sets data-theme before paint, and live-follows changes.
@@ -142,7 +194,52 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 function setStatus(t){ $('status').textContent = t || ''; }
-function markEdited(){ edits += 1; dirty = true; }
+
+// ── The master resume as a Word document (AI Office's editor and its standard Concierge) ───────
+// Career owns only the mapping and the save into the profile; the editing, undo, revision history
+// and the Concierge's approved edits are AI Office's own (tools/career-resume-office.js).
+const office = window.CareerResumeOffice && window.CareerResumeOffice.createHost({ host: document.getElementById('officeHost'),
+  readMaster: () => fetchDoc('master'),
+  saveMaster: async (resume) => {
+    const res = await fetch(`${API}/resume/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postingId: 'master', resume }) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.ok) throw new Error('Save failed' + (j.error ? ': ' + j.error : '.'));
+    return j;
+  },
+  status: (t) => setStatus(t) });
+function officeOpen(){ return Boolean(office && office.active() && state.postingId === 'master'); }
+function officeView(on){
+  if (!on && !(office && office.active())) return;
+  document.body.dataset.view = on ? 'office' : '';
+  $('replaceMaster').hidden = !on; $('save').className = on ? 'ck-primary' : 'ck-btn';
+  if (!on) office.close();
+}
+async function openOffice(j){
+  try { await office.open(j); officeView(true); $('sheet').hidden = true; $('empty').hidden = true; return true; }
+  catch (e) {
+    officeView(false);
+    add('sys', 'AI Office\u2019s Word editor is not available to you here (' + e.message + '), so your master resume opens in this classic view.');
+    return false;
+  }
+}
+/* Save to master resume: AI Office saves the document, Career reads it and saves it through the master whitelist. */
+async function saveOffice(quiet){
+  const j = await office.saveToMaster();
+  const fresh = await fetchDoc('master');
+  state.resume = fresh.resume || {}; docRevision = revisionOf(fresh); dirty = false;
+  if (!quiet) {
+    showError('');
+    setStatus((j.changed ? 'Saved to your master resume' : 'Matches your master resume') + (j.notes.length ? '. ' + j.notes.join(' ') : ''));
+  }
+  publishContext();
+  return j;
+}
+/* DS-41: a failure is told beside the action, with its fix; '' clears it. */
+function showError(t){ $('err').textContent = t || ''; $('err').hidden = !t; }
+/* Save is secondary and enabled only with an unsaved change (and never while there is no résumé). */
+function syncSave(){ $('save').disabled = Boolean(documentBusy) || !state.postingId || (!dirty && !officeOpen()); }
+function markEdited(){ edits += 1; dirty = true; syncSave(); }
 // The resume routes carry no revision, so the handoff names the saved document by a fingerprint of
 // its content (a 64-bit string hash that works on plain http, where crypto.subtle is unavailable).
 function revisionOf(doc){
@@ -165,7 +262,8 @@ function add(role, text){ const d = document.createElement('div'); d.className =
 function setDocumentBusy(phase){
   documentBusy = phase;
   const blocked = Boolean(phase) || !state.postingId;
-  ['save','msg','send'].forEach(id => { $(id).disabled = blocked; });
+  ['msg','send'].forEach(id => { $(id).disabled = blocked; });
+  syncSave();
   $('pick').disabled = Boolean(phase && phase !== 'loading');
   publishContext();
 }
@@ -300,7 +398,7 @@ function publishContext(){
       recordId: String(state.postingId),
       digest: resumeDigest(),
       fields: { master: isMaster, roles: (state.resume && state.resume.experience || []).length },
-      can: ['custom', 'notify'],
+      can: officeOpen() ? ['notify'] : ['custom', 'notify'],
       // The assistant has to know the EXACT name our handler matches on, and the action vocabulary
       // inside it. Without this it invents a plausible name (observed: update_master_resume_summary)
       // and the edit is relayed, delivered, then silently dropped while the user is told it worked.
@@ -327,6 +425,7 @@ document.addEventListener('surface-bridge:custom', (evt) => {
   // opens — by then our load-time publish has already been and gone.
   if (detail.name === 'request_context') { publishContext(); return; }
   if (detail.name !== 'resume_action' || !readyDocument()) return;
+  if (officeOpen()) { setStatus('Edit the master resume in the document, or ask its Concierge.'); return; }
   const actions = Array.isArray(detail.data && detail.data.actions)
     ? detail.data.actions
     : [detail.data];
@@ -352,7 +451,7 @@ async function loadList(){
     const j = await res.json(); jobs = (j.jobs || []).filter((x) => x.has_resume);
   } catch (e) { /* the master resume stays editable even when the job list is unavailable */ }
   const keep = sel.value || (state.postingId ? String(state.postingId) : '');
-  sel.innerHTML = '<option value="">' + (jobs.length ? 'Pick a resume…' : 'No job packets yet — job packets come from the Job Board.') + '</option>';
+  sel.innerHTML = '<option value="">' + (jobs.length ? 'Pick a resume…' : 'No tailored résumés yet') + '</option>';
   // The master is ALWAYS the first real entry: it is the durable profile packets are generated from.
   const master = document.createElement('option');
   master.value = 'master'; master.textContent = '⭐ My resume (master)';
@@ -363,6 +462,9 @@ async function loadList(){
 }
 
 function openDoc(id){ opening = loadDoc(id); return opening; }
+/* An empty master is what a person with no indexed résumé gets; /resume/state says which. */
+function hasContent(r){ return Boolean(r && (r.headline || r.summary || (r.experience || []).length || (r.skills || []).length || (r.competencies || []).length)); }
+function checkProfile(){ resumeState().then((s) => { if (s && (!s.hasResume || s.indexing)) watchIndexing(); }); }
 
 async function loadDoc(id){
   if (documentBusy && documentBusy !== 'loading') return;
@@ -382,8 +484,12 @@ async function loadDoc(id){
     add('sys', isMaster
       ? 'Editing your MASTER resume — changes here update the durable profile every tailored resume is generated from.'
       : `Editing: ${j.meta && j.meta.title || ''} — ${j.meta && j.meta.company || ''}`);
-    renderPreview(); publishContext();
+    renderPreview(); publishContext(); showError(''); $('save').hidden = false;
+    if (isMaster && !hasContent(state.resume)) checkProfile();
     $('save').textContent = isMaster ? 'Save master resume' : applicationContext ? 'Save & return to application' : 'Save & re-render PDF';
+    if (isMaster && office && hasContent(state.resume)) {
+      if (await openOffice(j)) { if (epoch === documentEpoch) { $('save').textContent = 'Save to master resume'; publishContext(); } return; }
+    } else officeView(false);
     if (!isMaster) {
       $('pdf').href = `${API}/resume?id=${encodeURIComponent(id)}`; $('pdf').style.display = 'inline-block';
       if (coverHtml(state.cover)) { $('coverPdf').href = `${API}/resume?id=${encodeURIComponent(id)}&kind=cover`; $('coverPdf').style.display = 'inline-block'; }
@@ -391,8 +497,9 @@ async function loadDoc(id){
     setStatus('');
   } catch (_) {
     if (epoch === documentEpoch) {
-      $('empty').textContent = 'The selected resume could not be loaded. Choose a resume again to retry.';
-      setStatus('could not load the selected resume');
+      $('empty').textContent = 'The selected resume could not be loaded.';
+      setStatus('');
+      showError('Couldn\u2019t load this résumé. Choose it again in the list to retry.');
     }
   } finally { if (epoch === documentEpoch) setDocumentBusy(''); }
 }
@@ -437,6 +544,13 @@ async function persist(){
 
 async function save(){
   if (!readyDocument()) return;
+  if (officeOpen()) {
+    setDocumentBusy('saving'); setStatus('saving your master resume…');
+    try { saving = saveOffice(false); await saving; }
+    catch (e) { setStatus(''); showError('Couldn\u2019t save to your master resume. ' + e.message); }
+    finally { saving = null; setDocumentBusy(''); }
+    return;
+  }
   const doc = state, epoch = documentEpoch, isMaster = doc.postingId === 'master';
   setDocumentBusy('saving');
   setStatus(isMaster ? 'saving your master resume…' : 'saving + re-rendering…');
@@ -445,15 +559,18 @@ async function save(){
     const j = await saving; if (state !== doc || epoch !== documentEpoch) return;
     if (isMaster) {
       const log = (j.changelog || []).join('; ');
-      setStatus(j.changed ? 'master resume updated' : 'no changes to save');
+      showError(''); setStatus(j.changed ? 'Saved' : 'no changes to save');
       add('sys', j.changed ? ('Updated your master resume: ' + (log || 'saved.')) : 'No changes to save — your master resume already matches.');
     } else {
-      setStatus(j.ok ? 'saved — PDF re-rendered' : 'save failed');
+      showError(j.ok ? '' : 'Couldn\u2019t save. Try again.'); setStatus(j.ok ? 'Saved — PDF re-rendered' : '');
       add('sys', j.ok ? 'Saved and re-rendered the PDF.' : 'Save failed.');
       if(j.ok&&window.parent!==window&&typeof window.parent?.postMessage==='function')window.parent.postMessage({type:'career-documents-saved',postingId:doc.postingId},location.origin);
       if(j.ok&&applicationContext)CareerJobActions.openApplication(Number(doc.postingId),false,'documents');
     }
-  } catch (e) { setStatus('save failed'); add('sys', e.message); }
+  } catch (e) {
+    setStatus(''); add('sys', e.message);
+    showError(/no career profile/i.test(e.message) ? 'Couldn\u2019t save: there is no career profile yet. Upload your résumé first.' : 'Couldn\u2019t save. ' + e.message + ' Try again.');
+  }
   finally { saving = null; if (state === doc && epoch === documentEpoch) setDocumentBusy(''); }
 }
 
@@ -470,6 +587,7 @@ async function settle(){
 async function prepareDocumentHandoff(){
   await settle();
   if (!state.postingId || !state.resume) return null;
+  if (officeOpen()) { setStatus('saving the document into your master resume before the assistant reads…'); await saveOffice(true); setStatus('saved for the assistant'); }
   for (let attempt = 0; dirty && attempt < 3; attempt++) {
     $('save').disabled = true; setStatus('saving your edits before the assistant reads…');
     try { saving = persist(); await saving; } finally { saving = null; $('save').disabled = false; }
@@ -479,7 +597,8 @@ async function prepareDocumentHandoff(){
   const isMaster = state.postingId === 'master', meta = window.__meta || {};
   return { app: 'career-hunter', screen: 'surface', surface: 'resume-studio', recordId: String(state.postingId),
     title: (isMaster ? 'Master resume' : `Tailored resume — ${meta.title || ''} at ${meta.company || ''}`).slice(0, 200),
-    fields: { revision: docRevision, readOnly: false, draft: false, master: isMaster, roles: (state.resume.experience || []).length } };
+    fields: { revision: docRevision, readOnly: false, draft: false, master: isMaster, roles: (state.resume.experience || []).length,
+      ...(officeOpen() ? { officeDocument: office.documentId(), editIn: 'the Word document on this screen; its Concierge edits it' } : {}) } };
 }
 
 async function refreshDocumentHandoff(expected){
@@ -490,6 +609,12 @@ async function refreshDocumentHandoff(expected){
   if (state.postingId !== id) return;
   const revision = revisionOf(fresh);
   if (revision === docRevision) return;
+  if (officeOpen()) {
+    state.resume = fresh.resume || {}; docRevision = revision;
+    await office.replaceFromMaster(); publishContext();
+    setStatus('Updated the document with the change the assistant saved (the earlier text is in Revision history).');
+    return;
+  }
   if (dirty) throw new Error('The assistant saved a change to this resume while you were editing. Your unsaved edits are still here: Save keeps yours, or pick the resume again to load the saved version.');
   state.resume = fresh.resume || {}; state.cover = fresh.cover || {}; window.__meta = fresh.meta || window.__meta; docRevision = revision;
   renderPreview(); publishContext();
@@ -505,6 +630,13 @@ $('pick').addEventListener('change', (e) => { openDoc(e.target.value); });
 $('send').addEventListener('click', send);
 $('msg').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
 $('save').addEventListener('click', save);
+$('replaceMaster').addEventListener('click', async () => {
+  if (!officeOpen() || documentBusy) return;
+  setDocumentBusy('saving'); setStatus('replacing the document with your saved master resume…');
+  try { await office.replaceFromMaster(); setStatus('Replaced with your saved master resume (the earlier text is in Revision history).'); }
+  catch (e) { setStatus(''); showError('Couldn\u2019t replace the document. ' + e.message); }
+  finally { setDocumentBusy(''); }
+});
 loadList();
 // Deep-link: open straight to a resume when the board passes ?id=. Otherwise open the MASTER
 // immediately — the studio must never sit dead with disabled fields while the packet feed loads;
@@ -515,10 +647,46 @@ const applicationContext=new URLSearchParams(location.search).get('application')
 if(applicationContext){
   $('pick').hidden=true;$('pick').disabled=true;
   const nav=document.querySelector('.preview>nav'),back=document.createElement('button');
-  back.textContent='← Return to application';back.onclick=()=>CareerJobActions.openApplication(Number(initial),false,'documents');nav.replaceChildren(back);
+  back.className='ck-btn';back.textContent='← Return to application';back.onclick=()=>CareerJobActions.openApplication(Number(initial),false,'documents');nav.replaceChildren(back,...Array.from(nav.children));
   $('save').textContent='Save & return to application';
 }
 $('pick').value = initial;
+/* No résumé indexed: the page is one empty state whose primary uploads it (the route the Job Board onboarding uses). */
+async function resumeState(){
+  try { const r = await fetch(`${API}/resume/state`, { cache: 'no-store' }); return r.ok ? r.json() : null; } catch (_) { return null; }
+}
+function showNoProfile(indexing, failed){
+  $('noProfile').hidden = false; $('sheet').hidden = true; $('empty').hidden = true;
+  $('save').hidden = true; $('pick').hidden = true; $('aiBar').hidden = true;
+  $('noProfileTitle').textContent = indexing ? 'Indexing your résumé…' : failed ? 'Résumé indexing failed' : 'No résumé yet';
+  $('noProfileText').textContent = indexing ? 'This usually takes 2 to 3 minutes. Your master résumé opens here when it is ready.'
+    : failed ? 'Upload it again to retry.' : 'Upload your résumé and Career builds your profile from it.';
+  $('uploadBtn').hidden = indexing;
+}
+async function watchIndexing(){
+  const s = await resumeState();
+  if (s && s.hasResume && !s.indexing) { $('noProfile').hidden = true; $('aiBar').hidden = false; $('pick').hidden = applicationContext; openDoc('master'); return; }
+  showNoProfile(Boolean(s && s.indexing), Boolean(s && s.ingest && s.ingest.state === 'failed'));
+  if (s && s.indexing) setTimeout(watchIndexing, 6000);
+}
+$('uploadBtn').addEventListener('click', () => $('resumeFile').click());
+$('resumeFile').addEventListener('change', async (event) => {
+  const file = event.target.files && event.target.files[0]; if (!file) return;
+  $('uploadBtn').disabled = true; $('uploadBtn').textContent = 'Uploading…'; showError('');
+  try {
+    const fd = new FormData(); fd.append('resume', file);
+    const r = await fetch(`${API}/resume/upload`, { method: 'POST', body: fd });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+    showNoProfile(true, false); setTimeout(watchIndexing, 6000);
+  } catch (e) {
+    showError('Couldn\u2019t upload your résumé: ' + e.message + '. Choose a PDF or DOCX and try again.');
+  } finally { $('uploadBtn').disabled = false; $('uploadBtn').textContent = 'Upload your résumé (PDF or DOCX)'; event.target.value = ''; }
+});
+$('aiOpen').addEventListener('click', () => {
+  const open = document.querySelector('.chat').classList.toggle('open');
+  $('aiOpen').setAttribute('aria-expanded', String(open)); $('aiOpen').textContent = open ? 'Close the editor' : 'Edit with AI';
+});
 openDoc(initial);
 // The bridge is a module script, so it can resolve AFTER loadDoc's publish attempt. Publish again
 // once it is ready (no-op when the document hasn't loaded yet — loadDoc publishes on its own).

@@ -4,6 +4,9 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Import vids-operator from its single owning application, vids, instead of relying on global aliases or duplicate bot ownership.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.7 (UX audit 2026-11-05, recap-review, D): the two declared offers (Prepare a document, Prepare a video episode) never render because the cockpit's shared mountConnectedActions has turned cross-app continuation off for every application since kernel 5174083d (2026-10-28): it hides its container and offers nothing. The Recap Review page now withholds the brief form whenever no action mounted (a form with nowhere to go is not shown), shows only counters with data, shows one empty state 'No trading sessions this week' with Open Trading when the week had no session, moves the counting rules into a 'How these are counted' disclosure, and drops the overline and the second application heading. Routes, offers and accepts are unchanged.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.8: the brief form follows the shared shape (@ux-career, 2026-11-06): it starts hidden, the connected-actions mount sits in a try so a failed mount withholds it too, and an offer counts only when it mounted a button or a link.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.9: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — daily-trade-recap ("Daily Trade Recap")
@@ -60,7 +63,7 @@ description: >-
   briefing collection reads its report journal and does not generate reports or trade.
 scope: public
 ticketType: daily-trade-recap
-version: 1.3.6
+version: 1.3.9
 
 uses: [jarvis-briefings, test-catalog, app-dependencies]
 testing:

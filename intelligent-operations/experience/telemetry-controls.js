@@ -1,3 +1,5 @@
+/** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Retained context by stream is one table of stream, resource, samples in the 15-minute bank (with each bank's meter) and last sample (UX audit 2026-11-06). */
+/** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Replay a sample (UX audit 2026-11-06: its one button failed with HTTP 503 and left its test setup behind). The run is all or nothing: the detection service takes the scenario rules before anything is saved, each step shows in place (Checking the detection service, Creating test source, Configuring telemetry, Publishing rules, Replaying 100 events), and a failure names its step and the fix in an alert after removing the sources and telemetry the run created. Sources an earlier run left behind are offered for removal. It opens as a sheet from Data pipeline. */
 /** CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Explain the rolling context banks and run a labeled datacenter replay through the real authorized pipeline. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Show every stream as one row of a compact table (window and capacity, each bank's fill with the writing bank marked, last receipt) instead of three large cards per stream. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Batch replay requests and explain actual dependency groups without reusing cloud identities across runs. */
@@ -9,10 +11,11 @@ root.OperationsTelemetry={mount({request,sources,onChanged}){
  function selected(){return streams.find(s=>s.id===$('telemetry-source').value);}
  function select(){const stream=selected();$('telemetry-config').value=JSON.stringify(stream?.config||{resourceKind:'host',idAttribute:'host.id',scopeAttribute:'site.id',maxBankBytes:2097152,maxBankRecords:2000,retentionSeconds:900},null,2);}
  function render(){const choice=$('telemetry-source').value;$('telemetry-source').replaceChildren(text('option','Select a named source'));$('telemetry-source').firstChild.value='';for(const s of sources()){const o=text('option',s.name+' · '+s.environment);o.value=s.id;$('telemetry-source').append(o);}$('telemetry-source').value=choice;$('telemetry-banks').replaceChildren();
-  if(streams.length){const wrap=text('div','');wrap.className='ops-table-wrap';const table=text('table','');table.className='ops-table telemetry-table';const head=text('tr','');for(const h of ['Stream','Window · capacity per bank','Bank 1','Bank 2','Bank 3','Last receipt'])head.append(text('th',h));table.append(head);
+  if(streams.length){const wrap=text('div','');wrap.className='ops-table-wrap';const table=text('table','');table.className='ops-table telemetry-table';const head=text('tr','');for(const h of ['Stream','Resource','Samples in the 15-minute bank','Last sample'])head.append(text('th',h));table.append(head);
    for(const stream of streams){const source=sources().find(s=>s.id===stream.id),row=text('tr',''),name=text('td','');name.append(text('strong',source?.name||stream.source));if(source?.environment)name.append(text('br',''),text('small',source.environment));
-    row.append(name,text('td','≥15 min · '+stream.config.maxBankRecords+' records / '+Math.round(stream.config.maxBankBytes/1024)+' KiB'+(stream.config.autoGrow?' · grows':'')));
-    stream.banks.forEach((bank,i)=>{const cell=text('td',''),box=text('div','');box.className='bank-cell'+(i===stream.active?' writing':'');const cap=bank.capacityBytes??stream.config.maxBankBytes;box.append(text('b',bank.count+' / '+(bank.capacityRecords??stream.config.maxBankRecords)));const bar=text('span','');bar.className='bank-bar';const fill=document.createElement('i');fill.style.width=Math.min(100,Math.round(100*bank.bytes/Math.max(1,cap)))+'%';bar.append(fill);bar.setAttribute('role','meter');bar.setAttribute('aria-label','Bank '+(i+1)+(i===stream.active?' (writing)':' (retained)')+': '+Math.round(bank.bytes/1024)+' of '+Math.round(cap/1024)+' KiB');box.append(bar,text('small',Math.round(bank.bytes/1024)+' / '+Math.round(cap/1024)+' KiB · gen '+bank.generation));cell.append(box);row.append(cell);});
+    const samples=stream.banks.reduce((n,b)=>n+(b.count||0),0),cell=text('td',''),banks=text('div','');banks.className='bank-cells';cell.append(text('strong',samples+(samples===1?' sample':' samples')),banks);
+    row.append(name,text('td',(stream.config.resourceKind||'resource')+' · '+(stream.config.idAttribute||'id')),cell);
+    stream.banks.forEach((bank,i)=>{const box=text('div','');box.className='bank-cell'+(i===stream.active?' writing':'');const cap=bank.capacityBytes??stream.config.maxBankBytes;box.append(text('b',bank.count+' / '+(bank.capacityRecords??stream.config.maxBankRecords)));const bar=text('span','');bar.className='bank-bar';const fill=document.createElement('i');fill.style.width=Math.min(100,Math.round(100*bank.bytes/Math.max(1,cap)))+'%';bar.append(fill);bar.setAttribute('role','meter');bar.setAttribute('aria-label','Bank '+(i+1)+(i===stream.active?' (writing)':' (retained)')+': '+Math.round(bank.bytes/1024)+' of '+Math.round(cap/1024)+' KiB');box.append(bar);banks.append(box);});
     const newest=stream.banks.map(b=>b.newest).filter(Boolean).sort().pop();row.append(text('td',newest?new Date(newest).toLocaleString():'—'));table.append(row);}
    wrap.append(table);$('telemetry-banks').append(wrap);}
   if(!streams.length)$('telemetry-banks').append(text('p','No telemetry sources configured. Register a named source, then map its native resource attributes.'));
@@ -41,26 +44,55 @@ root.OperationsTelemetry={mount({request,sources,onChanged}){
   $('replay-progress').textContent=(saved?'Saved replay · '+new Date(record.completedAt).toLocaleString()+'. ':'')+(passed?'Replay verified. ':'Replay completed with a mismatch. ')+actual.deliveries+' occurrences → '+actual.matched+' rule matches → '+actual.survivors+' symptoms → '+actual.groups+' incident groups.';
  }
  async function history(){const current=generation,revision=++replayGeneration;try{const result=await request('/replays');if(current!==generation||revision!==replayGeneration||running)return;if(result.runs.length)showReplay(result.runs[0],true);}catch(e){if(current===generation&&revision===replayGeneration&&!running)$('replay-progress').textContent=e.message;}}
- async function replay(){if(running)return;running=true;++replayGeneration;$('run-replay').disabled=true;const current=generation;const check=()=>{if(current!==generation)throw Error('Replay stopped because your authorized view changed.');};
-  $('replay-results').replaceChildren();try{
-   const scenario=root.OperationsReplayScenarios.datacenter('demo-'+Date.now().toString(36)),saved={};const progress=message=>{check();$('replay-progress').textContent=message;};
-   progress('Creating an isolated synthetic replay environment…');
-   for(const source of scenario.sources){saved[source.key]=await request('/sources',source);check();await request('/telemetry/configure',{sourceId:saved[source.key].id,config:scenario.configs[source.key],expectedRevision:0});check();await request('/pipeline/policies',{sourceId:saved[source.key].id,policy:scenario.policy,expectedRevision:0});check();}
+ /** The run's steps, in order; a failure names its step and the fix (UX audit 2026-11-06). */
+ const STEPS={check:'Checking the detection service',source:'Creating test source',telemetry:'Configuring telemetry',rules:'Publishing rules',replay:'Replaying 100 events'};
+ const FIX={check:'The detection service could not take the scenario rules, so nothing was saved. Press Check detection service on Data pipeline, then run again.',source:'Run again in a moment.',telemetry:'Run again in a moment.',rules:'Press Check detection service on Data pipeline, then run again.',replay:'Run again; if it stops again, press Check detection service on Data pipeline.'};
+ const synthetic=s=>typeof s?.environment==='string'&&s.environment.startsWith('replay-')&&typeof s.source==='string'&&s.source.startsWith('urn:triagenorth:replay:');
+ let leftover=[];
+ function mark(key,state){const li=$('replay-steps').querySelector('[data-step="'+key+'"]');if(!li)return;li.dataset.state=state;li.querySelector('.step-mark').textContent=state==='done'?'✓':state==='failed'?'✕':state==='active'?'…':'';}
+ function resetSteps(){for(const key of Object.keys(STEPS)){mark(key,'pending');const li=$('replay-steps').querySelector('[data-step="'+key+'"] .step-label');if(li)li.textContent=STEPS[key];}}
+ function alertText(value){const box=$('replay-alert');box.textContent=value;box.hidden=!value;}
+ /** Sources an earlier run saved and never completed; offered for removal so a failed run never stays behind. */
+ async function findLeftovers(){const current=generation;try{const runs=(await request('/replays')).runs||[];if(current!==generation)return;const done=new Set(runs.map(r=>r.environment));leftover=sources().filter(s=>synthetic(s)&&!done.has(s.environment)).map(s=>s.id);}catch{leftover=[];}
+  $('replay-discard').hidden=!leftover.length||running;$('replay-discard').textContent=leftover.length?'Remove test data ('+leftover.length+(leftover.length===1?' source':' sources')+')':'Remove test data';}
+ async function discard(ids){await request('/replays',{discard:{sourceIds:ids}});leftover=leftover.filter(id=>!ids.includes(id));onChanged();}
+ async function removeLeftovers(){if(!leftover.length)return;const button=$('replay-discard');button.disabled=true;try{const n=leftover.length;await discard(leftover.slice());alertText('');$('replay-progress').textContent='Removed '+n+' test '+(n===1?'source':'sources')+' and their telemetry.';}catch(e){alertText('Removing the test data failed: '+e.message+' Press Remove test data to try again.');}finally{button.disabled=false;$('replay-discard').hidden=!leftover.length;}}
+ function openReplay(){const sheet=$('replay-sheet');if(!sheet.open){if(typeof sheet.showModal==='function')sheet.showModal();else sheet.setAttribute('open','');}void history();void findLeftovers();}
+ function closeReplay(){const sheet=$('replay-sheet');if(sheet.open){if(typeof sheet.close==='function')sheet.close();else sheet.removeAttribute('open');}if(location.hash==='#replay')root.history.replaceState(null,'','#data');}
+ async function replay(){if(running)return;running=true;++replayGeneration;$('run-replay').disabled=true;$('replay-discard').hidden=true;const current=generation;const check=()=>{if(current!==generation)throw Error('Replay stopped because your authorized view changed.');};
+  $('replay-results').replaceChildren();alertText('');resetSteps();const created=[];let step='check',admitted=0;
+  const begin=key=>{check();if(step!==key)mark(step,'done');step=key;mark(key,'active');};
+  try{
+   const scenario=root.OperationsReplayScenarios.datacenter('demo-'+Date.now().toString(36)),saved={};
+   begin('check');$('replay-progress').textContent='Checking the detection service…';
+   // The engine publishes the scenario's rules before anything is saved: a service that cannot (the 2026-11-05 503) refuses here with nothing written.
+   await request('/replays',{preflight:{policy:scenario.policy}});
+   begin('source');for(const source of scenario.sources){saved[source.key]=await request('/sources',source);created.push(saved[source.key].id);check();}
+   begin('telemetry');for(const source of scenario.sources){await request('/telemetry/configure',{sourceId:saved[source.key].id,config:scenario.configs[source.key],expectedRevision:0});check();}
+   begin('rules');for(const source of scenario.sources){await request('/pipeline/policies',{sourceId:saved[source.key].id,policy:scenario.policy,expectedRevision:0});check();}
+   begin('replay');const label=$('replay-steps').querySelector('[data-step="replay"] .step-label');
    await request('/topology/scans',{sourceId:saved.hosts.id,scan:scenario.scan});check();
    for(const row of scenario.telemetry){await request('/streams/'+saved[row.key].id+'/'+row.format,row.payload);check();}
    const decisions=[];for(let i=0;i<scenario.events.length;i+=20){
-    progress('Admitting and evaluating '+Math.min(i+20,scenario.events.length)+' / '+scenario.events.length+' synthetic occurrences…');
-    const admitted=await request('/events/batch',{events:scenario.events.slice(i,i+20).map(row=>({sourceId:saved[row.key].id,event:row.event}))});check();
-    if(admitted.results.some(r=>r.status>=400||r.decision!=='validated'))throw Error('A replay delivery was refused or has an uncertain result; inspect the partial run.');
-    const batch=await request('/pipeline/evaluate',{deliveryIds:admitted.results.map(r=>r.id)});check();if(batch.results.some(r=>r.error))throw Error(batch.results.find(r=>r.error).error);decisions.push(...batch.results);
+    const upto=Math.min(i+20,scenario.events.length);label.textContent='Replaying '+upto+' of '+scenario.events.length+' events';$('replay-progress').textContent=label.textContent+'…';
+    const batch=await request('/events/batch',{events:scenario.events.slice(i,i+20).map(row=>({sourceId:saved[row.key].id,event:row.event}))});check();admitted+=batch.results.filter(r=>r.status<400).length;
+    if(batch.results.some(r=>r.status>=400||r.decision!=='validated'))throw Error('A replay delivery was refused or has an uncertain result.');
+    const evaluated=await request('/pipeline/evaluate',{deliveryIds:batch.results.map(r=>r.id)});check();if(evaluated.results.some(r=>r.error))throw Error(evaluated.results.find(r=>r.error).error);decisions.push(...evaluated.results);
    }
-   const survivors=decisions.filter(d=>d.reduction?.workId);progress('Explaining dependency paths and pinning incident context…');
+   const survivors=decisions.filter(d=>d.reduction?.workId);$('replay-progress').textContent='Explaining dependency paths and pinning incident context…';
    const correlation=await request('/topology/correlate',{deliveryIds:survivors.map(d=>d.deliveryId),asOf:scenario.scan.observedAt,collectionId:scenario.scan.collectionId,policy:{id:'replay-dependencies-v1',types:['DEPENDS_ON'],maxDepth:4,maxVisited:100,maxAgeSeconds:900}});check();
-   const packets=[];for(const decision of survivors){packets.push(await request('/telemetry/pin',{workId:decision.reduction.workId}));check();}
-   const record=await request('/replays',{decisionIds:decisions.map(d=>d.id),correlationId:correlation.id});check();showReplay(record);onChanged();
-  }catch(e){if(current===generation)$('replay-progress').textContent=e.message+' Partial records remain inspectable; no infrastructure action was run.';}finally{running=false;$('run-replay').disabled=false;}
+   for(const decision of survivors){await request('/telemetry/pin',{workId:decision.reduction.workId});check();}
+   const record=await request('/replays',{decisionIds:decisions.map(d=>d.id),correlationId:correlation.id});check();mark('replay','done');label.textContent=STEPS.replay;showReplay(record);onChanged();
+  }catch(e){
+   if(current!==generation)return;
+   mark(step,'failed');$('replay-progress').textContent='Run stopped.';
+   let cleanup=created.length?'':' Nothing was saved.';
+   if(created.length){try{await discard(created);cleanup=' The test sources and telemetry this run created were removed.'+(admitted?' The '+admitted+' synthetic occurrences it admitted stay in your records, marked SYNTHETIC.':'');}catch(err){leftover=[...new Set([...leftover,...created])];$('replay-discard').hidden=false;$('replay-discard').textContent='Remove test data';cleanup=' Removing the test data failed too ('+err.message+'). Press Remove test data.';}}
+   alertText('Stopped at '+STEPS[step].toLowerCase()+': '+e.message+' '+FIX[step]+cleanup);
+  }finally{running=false;$('run-replay').disabled=false;}
  }
  $('telemetry-source').addEventListener('change',select);$('telemetry-form').addEventListener('submit',configure);$('telemetry-refresh').addEventListener('click',load);$('run-replay').addEventListener('click',replay);
- return {load,clear,evaluation,history};
+ $('replay-discard').addEventListener('click',()=>{void removeLeftovers();});$('open-replay').addEventListener('click',openReplay);$('replay-sheet-done').addEventListener('click',closeReplay);$('replay-sheet').addEventListener('close',()=>{if(location.hash==='#replay')root.history.replaceState(null,'','#data');});
+ return {load,clear,evaluation,history,openReplay,findLeftovers};
 }};
 })(window);

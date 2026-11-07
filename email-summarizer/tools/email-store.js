@@ -6,6 +6,8 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Inbox's stored-copy controls (Roger, 2026-10-29: the concierge should search a stored copy of the mail): "Search all your mail" searches the person's stored Gmail copy over 180 days (or Gmail directly, 30 days, before there is one); the line under it says how many messages the copy holds, how far back and how fresh, and "Keep a copy" turns on the person's own mail-copy job (every 10 minutes) and stores the first part at once; "Update now" runs one pass. Loaded beside the page's own script, which keeps its listing and reader.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | A copy that stopped updating is said so (Roger, 2026-10-30: his mail-copy job had been suspended by an update of the application ten hours earlier and the line still read "updates every 10 minutes"): when the job is suspended, or the copy is stale while the job reads active, the line says when it stopped and why, and "Turn it back on" re-arms the job (deactivate when it still reads active, then activate), runs one pass and reloads the list from the copy. After a search the list's end note is cleared.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The copy turns itself on (Roger, 2026-11-03: "it better be automated when someone installs the application"): a person whose Gmail is connected no longer has to press Keep a copy, and a job an update stopped restarts when they open the Inbox, so Turn it back on is gone. A person's own decision stands: a job they paused, or a copy whose job they removed, stays off until they press Keep it up to date.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (email-summarizer--email-inbox): a search answered "not connected" shows the page's own connect empty state (one Connect a mailbox primary and its sheet) instead of the server's message, which printed the raw /utilities path and named Yahoo.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (little-monsters--lm-email): withhold the stored-copy line whenever no mailbox is connected so "Search reads Gmail directly (the last 30 days)." never prints above an unconnected empty state; reveal it once the Inbox confirms a linked mailbox.
  */
 (function () {
   'use strict';
@@ -31,7 +33,15 @@
     return (list.schedules || list.jobs || []).find(function (s) { return s.app === SCHEDULE.app && s.name === SCHEDULE.name; }) || null;
   }
 
+  var lastStore = null;
+
   function describe(status, job) {
+    lastStore = { status: status, job: job };
+    if (window.__mailboxConnected !== true) {
+      line.innerHTML = '';
+      line.hidden = true;
+      return;
+    }
     var s = status.store, active = job && job.status === 'active', suspended = job && job.status === 'suspended';
     var stopped = Boolean(s && s.stored && (suspended || (active && status.fresh === false)));
     var stay = !active && s && s.stored;
@@ -46,6 +56,15 @@
     line.innerHTML = '<span>' + esc(copy) + why + esc(keep) + '</span>' + buttons;
     line.hidden = false;
   }
+
+  window.__applyMailStore = function () {
+    if (window.__mailboxConnected !== true) {
+      line.innerHTML = '';
+      line.hidden = true;
+      return;
+    }
+    if (lastStore) describe(lastStore.status, lastStore.job);
+  };
 
   async function refresh() {
     try {
@@ -69,11 +88,17 @@
     tried = true;
     try {
       var box = await json('/api/email/messages?surface=1&max=1');
-      if (box.connected === false || box.provider !== 'google') return;
+      if (box.connected === false) { window.__mailboxConnected = false; line.innerHTML = ''; line.hidden = true; return; }
+      window.__mailboxConnected = true;
+      if (box.provider !== 'google') { if (lastStore) describe(lastStore.status, lastStore.job); return; }
+      if (!line.querySelector('span')) line.innerHTML = '<span></span>';
+      line.hidden = false;
       line.querySelector('span').textContent = SAYING.keep;
       await json('/api/v1/agent/schedules/' + encodeURIComponent(job.id) + '/activate', { method: 'POST', body: JSON.stringify({ class: 'person' }) });
       await json('/api/email/sync', { method: 'POST', body: '{}' });
     } catch (err) {
+      if (!line.querySelector('span')) line.innerHTML = '<span></span>';
+      line.hidden = false;
       line.querySelector('span').textContent = 'Could not turn on your mail copy: ' + err.message;
       var again = document.createElement('button');
       again.type = 'button'; again.className = 'refresh'; again.setAttribute('data-store', 'keep'); again.textContent = 'Try again';
@@ -87,6 +112,7 @@
   var SAYING = { keep: 'Turning on your mail copy and storing the newest mail…', now: 'Storing new mail…' };
   async function act(kind, button) {
     button.disabled = true;
+    if (!line.querySelector('span')) line.innerHTML = '<span></span>';
     line.querySelector('span').textContent = SAYING[kind] || SAYING.now;
     try {
       if (kind === 'keep') {
@@ -106,7 +132,10 @@
   function render(found, words) {
     var more = document.getElementById('more');
     if (more) more.innerHTML = '';
-    if (found.connected === false) { countEl.textContent = ''; items.innerHTML = '<div class="notice">' + esc(found.message || 'Connect a mailbox first.') + '</div>'; return; }
+    if (found.connected === false) {
+      if (typeof window.showNoMailbox === 'function') { window.showNoMailbox(found); return; }
+      countEl.textContent = ''; items.innerHTML = '<div class="notice">Connect a mailbox to search your mail.</div>'; return;
+    }
     var messages = found.messages || [];
     var where = found.source === 'stored' ? ' in your copy' : ' in Gmail';
     countEl.textContent = messages.length + (found.matchedAll === false ? ' close matches' : ' found') + where;

@@ -4,23 +4,25 @@
   1 | maintainer@emeraldcoastsystemsgroup.com | Human PDF workbench: owned sources, drafts, revisions, annotations, forms, find and OCR.
   2 | maintainer@emeraldcoastsystemsgroup.com | The portal theme contract and the kernel screen layout (docs/ux/screen-standard.md): one head with the document actions, glass cards on one grid, every control under an uppercase label on the same height, one type scale, a sortable document table, phone layout. Roger, 2026-10-29: the text was large and unformatted and the boxes were not aligned.
   3 | maintainer@emeraldcoastsystemsgroup.com | An editor layout instead of a stack of cards (Roger, 2026-10-29: "this was about layout"): a top bar with the document and its actions, a left rail with documents and sources, the pages in the middle, a right inspector with the tools; the three panes fill the viewport and scroll on their own, and collapse to two columns, then one, on narrower screens.
+  4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §5.1; reference products Acrobat and PDFgear, CONVENTIONS §5.2): the page declares its contract (an editor whose first action is typing, the pages as the work), the document name opens the document menu, the help paragraphs leave the canvas for Help, and the shared planned-control helper greys the functions both references have that oshal has not built yet.
+  5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: replace planned placeholders with live text markup (highlight, underline, strikethrough), freehand ink and eraser, drawn/image caller signatures, check/cross form marks, blank-page insertion, photo-to-PDF creation, size reduction, Office conversions, facing/single views and night reading mode.
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="light-blue" data-ds-category="editor" data-ds-first-action="type">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PDF workbench</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
-<link rel="stylesheet" href="/api/pdf-workbench/ui/workbench.css">
 <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
+<link rel="stylesheet" href="/api/pdf-workbench/ui/workbench.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <script src="/ui/kernel/table.js" defer></script>
 </head>
 <body>
 <main class="wb">
   <header class="wb-bar">
-    <div class="wb-brand"><p class="kicker">Documents</p><h1>PDF workbench</h1></div>
-    <div class="wb-doc"><h2 id="document-title">Open a document</h2><p id="revision" class="help"></p></div>
+    <div class="wb-brand" data-ef-phone="brand"><p class="kicker">Documents</p><h1>PDF workbench</h1></div>
+    <div class="wb-doc"><button id="doc-menu" type="button" class="pdf-doc-button" aria-haspopup="dialog"><span id="document-title">Untitled PDF</span><span class="pdf-caret" aria-hidden="true">▾</span></button><p id="revision" class="help"></p></div>
     <div id="actions" class="actions">
       <button id="undo" type="button">Undo</button>
       <button id="redo" type="button">Redo</button>
@@ -48,15 +50,18 @@
         <div class="field wide"><label for="title">New document title</label><input id="title" maxlength="160" placeholder="Defaults to the source title"></div>
         <div class="actions"><button id="delete-source" type="button" class="danger">Delete unused original</button><button id="create" type="button" class="primary">Create document</button></div>
       </div>
-      <p class="help">Up to 4 MiB of sources and 32 pages per document. An original used by saved history stays retained.</p>
     </section>
   </aside>
 
-  <section class="pane wb-center" aria-label="Pages">
+  <section class="pane wb-center" aria-label="Pages" data-ds-work>
     <p id="status" class="status" role="status" aria-live="polite"></p>
     <div id="pages" class="pages"></div>
-    <p class="pages-hint help">No document is open. Choose one under Your documents, or upload an original and create a document from it.</p>
-    <p class="help footnote">Select text, images or shapes on the page to edit their properties. Double-click text to type in place. PDF text stays in its own object; it does not reflow like Word. Encrypted or signed files, XFA, active actions, redaction and digital signing remain unsupported. A highlight or ink mark does not remove content.</p>
+  </section>
+  <section id="pdf-help" class="pdf-help" hidden>
+    <p>Select text, images or shapes on the page to edit their properties. Double-click text to type in place. PDF text stays in its own object; it does not reflow like Word.</p>
+    <p>Drawn or uploaded signatures are visual page placements saved in your personal store, not cryptographic or certified digital signatures. Encrypted or certificate-signed files, XFA, active actions and redaction remain unsupported. A highlight or ink mark does not remove content.</p>
+    <p>Converted Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) files reconstruct paragraphs, detected tables and embedded images approximately; complex multi-column layouts may shift. Single-page, two-page and night mode change reading display only and leave exported PDFs unchanged.</p>
+    <p>Up to 4 MiB of sources and 32 pages per document. An original used by saved history stays retained.</p>
   </section>
 
   <aside class="pane wb-right" aria-label="Tools">
@@ -74,7 +79,7 @@
     <section class="pane-section">
       <div class="pane-head"><h3>Annotation</h3><span class="help">on the first selected page</span></div>
       <div class="form">
-        <div class="field"><label for="annotation-kind">Kind</label><select id="annotation-kind"><option value="text">Text note</option><option value="highlight">Highlight</option><option value="ink">Ink stroke</option></select></div>
+        <div class="field"><label for="annotation-kind">Kind</label><select id="annotation-kind"><option value="text">Text note</option><option value="highlight">Highlight</option><option value="underline">Underline</option><option value="strikethrough">Strikethrough</option><option value="ink">Ink stroke</option></select></div>
         <div class="field"><label for="annotation-color">Color</label><input id="annotation-color" type="color" value="#ffcc00"></div>
         <div class="field wide"><label for="annotation-text">Text</label><textarea id="annotation-text" maxlength="2000" rows="3"></textarea><p class="help">ASCII Helvetica text only.</p></div>
         <div class="field"><label for="annotation-rect">Rectangle</label><input id="annotation-rect" value="20,20,180,60"><p class="help">x0,y0,x1,y1</p></div>

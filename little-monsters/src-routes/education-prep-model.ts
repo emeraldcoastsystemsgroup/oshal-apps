@@ -1,10 +1,23 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Versioned original curriculum, session blueprints and private grading.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Load optional 168-topic multi-level video curriculum catalog alongside SAT/ACT lessons.
  */
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import { randomInt } from 'crypto';
 export type Exam = 'SAT' | 'ACT';
+export interface CurriculumVariant {
+  level: string; label: string; mediaId: string; video: string; poster: string; captions: string; durationSeconds: number;
+}
+export interface CurriculumTopic {
+  id: string; course: string; courseLabel: string; topicNumber: number; title: string; summary: string;
+  teacher: string; defaultLevel: string; variants: CurriculumVariant[];
+}
+export interface CurriculumCatalog {
+  version: string;
+  courses: Array<{ id: string; label: string; topicCount: number; variantCount: number }>;
+  topics: CurriculumTopic[];
+}
 export interface Question {
   id: string; family: string; skill: string; sections: Partial<Record<Exam, string>>;
   prompt: string; options: string[]; answer: number; explanation: string; targetSeconds: number;
@@ -19,6 +32,10 @@ export const catalog = JSON.parse(readFileSync(path.join(__dirname, '../data/tes
   version: string; lessons: Lesson[]; questions: Question[];
 };
 export const research = JSON.parse(readFileSync(path.join(__dirname, '../data/test-prep/strategies.json'), 'utf8'));
+const curriculumPath = path.join(__dirname, '../data/test-prep/curriculum-videos.json');
+export const curriculumVideos: CurriculumCatalog = existsSync(curriculumPath)
+  ? (JSON.parse(readFileSync(curriculumPath, 'utf8')) as CurriculumCatalog)
+  : { version: '1', courses: [], topics: [] };
 const resourceIndex = JSON.parse(readFileSync(path.join(__dirname, '../data/test-prep/official-resources.json'), 'utf8'));
 /** Publish publisher links, never the downloaded PDF contents or local storage metadata. */
 export const officialPractice = {

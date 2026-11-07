@@ -6,6 +6,8 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view asserted as behaviour: the head block runs against a stub kit and a stub fetch, so the tests prove what it reads on open (only /readiness, /signals for 7 days, /home-summary and /linkedin-content-queue, all database reads: never /profiles, which asks LinkedIn, Facebook and X live, and never a draft, an organize, a queue write or a post), that the stats and the notifications say what they count (an unreadable metric as not read, the latest 15 of more, the route's own empty note), that the queue reads newest first with each ticket state named, that setup offers Connect only where something is missing, and that a queue answered without JSON, a failed summary or setup read, a refusal and a failure each read as what they are. The Composer's classic and module scripts are run with stubs too: under an audience view it fetches no profiles, adds no handoff listener, appends no section and fetches no connected-actions offer.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | GET /signals answers at most 100 rows (LIMIT 100), so a notifications answer at that cap is not a total: the note must read "The latest 15 of 100 or more", and below the cap it still names the count the route returned.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (social--social-composer, MERGE): social-workspace.html (now ui.static[0]) carries the identical audience-view block and gates its start on !AppView.active().
+ * 5   | maintainer@emeraldcoastsystemsgroup.com     | 1.7.0: Compose and Workspace are one application and tools/social-composer.html is gone, so the contract reads the Workspace page. Its gated start is run with stubs: under an audience view it loads no accounts, feed or settings and imports neither the handoff nor the connected-actions module; the full page does all of it and prefills Compose from prepare-post query parameters.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -16,10 +18,10 @@ const path = require('node:path');
 const test = require('node:test');
 
 const APP = 'social';
-const PAGE = 'tools/social-composer.html';
+const PAGE = 'tools/social-workspace.html';
 const AUDIENCES = ["company", "family"];
 const ALLOWED_PREFIXES = ["/api/social"];
-const GATE_FILE = 'tools/social-composer.html';
+const GATE_FILE = 'tools/social-workspace.html';
 
 const ROOT = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, PAGE), 'utf8');
@@ -161,41 +163,43 @@ test('a failed queue, summary or setup read, a refusal and a failure each read a
     /^Error: Social could not read your notifications or setup \(HTTP 502\)\.$/);
 });
 
-/** @returns {object} A stub element with the members the Composer's scripts touch. */
-function node() { return { value: '', tagName: 'INPUT', textContent: '', innerHTML: '', className: '', disabled: false, style: {}, dataset: {}, focus() {}, setAttribute() {}, addEventListener() {}, dispatchEvent() {}, querySelectorAll: () => [], appendChild() {} }; }
-
 /**
- * @description Run the Composer's classic script with a stub DOM and fetch.
+ * @description Run the Workspace's gated start (the last `if (!window.AppView || !AppView.active())` block) with stub
+ * page functions, a stub DOM and a recording dynamic import, so what each mode starts is asserted as behaviour.
  * @param {string|null} activeView What AppView.active() answers, or null for the full page.
- * @returns {string[]} Every URL the Composer fetched.
+ * @param {string} search The page's location.search.
+ * @param {boolean} framed Whether the page is inside the shell's frame.
+ * @returns {{ calls: string[], imports: string[], text: string }} Every page function called, every module imported, the draft text.
  */
-function runComposer(activeView) {
-  const open = html.lastIndexOf('<script>'), src = html.slice(open + 8, html.indexOf('</script>', open));
-  const fetches = [];
-  new Function('window', 'AppView', 'document', 'fetch', src)({ AppView: { active: () => activeView } }, { active: () => activeView }, { getElementById: node, querySelectorAll: () => [], createElement: node },
-    (url) => { fetches.push(url); return new Promise(() => {}); });
-  return fetches;
+function runStart(activeView, search = '', framed = true) {
+  const at = html.lastIndexOf('if (!window.AppView || !AppView.active()) {');
+  const src = html.slice(at, html.indexOf('</script>', at)).replace(/import\(/g, '__import(');
+  const calls = [], imports = [], text = { value: '' };
+  const fn = (name) => (...args) => { calls.push(args.length && typeof args[0] !== 'function' ? name + ':' + args[0] : name); };
+  const names = ['goView', 'clearArticle', 'setCount', 'showRefine', 'loadAccounts', 'loadFocus', 'loadFeed', 'loadSettings', 'toCompose'];
+  const self = {}, win = { AppView: { active: () => activeView }, self, top: framed ? {} : self };
+  const $ = (id) => (id === 'text' ? text : { appendChild() {} });
+  const __import = (m) => { imports.push(m); return new Promise(() => {}); };
+  new Function('window', 'AppView', 'location', '$', '__import', 'document', ...names, src)(win, win.AppView, { search }, $, __import, { createElement: () => ({ style: {}, setAttribute() {} }) }, ...names.map(fn));
+  return { calls, imports, text: text.value };
 }
 
-/**
- * @description Run the page's module script (imports stripped) against stub modules and a stub DOM.
- * @param {string|null} activeView What AppView.active() answers, or null for the full page.
- * @returns {{ handoff: number, actions: number, appended: number }} How often each start step ran.
- */
-function runModule(activeView) {
-  const src = html.slice(html.indexOf('<script type="module">') + 22, html.indexOf('</script>', html.indexOf('<script type="module">')));
-  const calls = { handoff: 0, actions: 0, appended: 0 };
-  const documentStub = { getElementById: node, createElement: node, body: { append: () => { calls.appended++; } } };
-  new Function('window', 'AppView', 'document', 'receiveHandoff', 'mountConnectedActions', src.replace(/^import .*$/gm, ''))(
-    { AppView: { active: () => activeView } }, { active: () => activeView }, documentStub,
-    () => { calls.handoff++; }, () => { calls.actions++; return Promise.resolve(); });
-  return calls;
-}
-
-test('under an audience view the Composer asks no network for profiles and its module mounts nothing', () => {
-  assert.deepEqual(runComposer('company'), []);
-  assert.deepEqual(runComposer(null), ['/api/social/profiles'], 'the full Composer still loads the connected profiles');
-  assert.deepEqual(runModule('company'), { handoff: 0, actions: 0, appended: 0 });
-  assert.deepEqual(runModule(null), { handoff: 1, actions: 1, appended: 1 }, 'the full page still mounts all three');
+test('under an audience view the Workspace starts nothing; the full page loads, mounts and prefills', () => {
+  assert.deepEqual(runStart('company'), { calls: [], imports: [], text: '' });
+  const full = runStart(null);
+  assert.deepEqual(full.calls, ['goView:feed', 'loadAccounts', 'loadFocus', 'loadFeed:false', 'loadSettings']);
+  assert.deepEqual(full.imports, ['/cockpit/js/app-handoff.js', '/cockpit/js/app-workflows.js'], 'the framed page adds the handoff listener and the connected-actions offers');
+  const linked = runStart(null, '?title=Launch&notes=We+shipped&sourceUrl=https%3A%2F%2Fnews.example.test%2Fa', false);
+  assert.equal(linked.calls[0], 'goView:compose', 'a prepare-post link opens Compose');
+  assert.equal(linked.text, 'Launch\n\nWe shipped\n\nSource: https://news.example.test/a');
+  assert.deepEqual(linked.imports, [], 'a standalone page without a handoff id imports no shell module');
   assert.doesNotMatch(html, /^loadAccounts\(\);$/m, 'no ungated start is left');
+});
+
+test('Workspace (social-workspace.html), the one compose surface, carries the audience view and gates its start', () => {
+  const at = html.indexOf('<script src="/shared/ui/js/app-view.js"></script>');
+  assert.ok(at > html.indexOf('<script src="/shared/ui/js/surface-theme.js"></script>'), 'the kit follows the theme bootstrap');
+  assert.ok(html.indexOf('<link rel="stylesheet" href="/shared/ui/css/app-view.css" />') < at, 'its stylesheet comes first');
+  assert.match(html, /if \(!window\.AppView \|\| !AppView\.active\(\)\)/, 'workspace boot is gated on !AppView.active()');
+  assert.equal(fs.existsSync(path.join(ROOT, 'tools/social-composer.html')), false, 'no second compose page carries a second copy');
 });

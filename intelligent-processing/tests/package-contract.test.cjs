@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Native-port contract: the package declares something runnable (the platform left only an inert declaration that opened nothing). Every workflow phase and the concierge name a bot this package declares or imports, every declared bot is inline with a persona file inside the package that answers in plain prose and teaches no shell, CLI script, workspace path or platform HTTP call, and no screen points at a platform-only route.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The only route a ported package may declare is the store's canonical service-authenticated readiness route, byte-identical to the reviewed brand-graphics module; any other route module (a platform TypeScript port) is still refused.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The queue screen: the tile opens the package's own asset page, which loads its model and calls only the kernel's GET /api/tickets and POST /api/v1/tickets; the model (run as shipped in a VM context) keeps only this queue's tickets, counts a repeating alert once with its newest ticket and status, separates open, waiting and all, and files with this queue's kind.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Regression (UX audit 2026-11-05, F): the application opens on its own queue screen. ribbon.defaultView named the framework `tickets` view, so opening the application showed the global Tickets list of every application; defaultView must name a tile this package declares.
  */
 'use strict';
 const { test } = require('node:test');
@@ -93,4 +94,11 @@ test('the queue model counts each alert once, by its newest ticket, and files on
   assert.deepEqual(Array.from(Q.rows([tickets[0]], 'open')), [], 'a done ticket is not open');
   assert.equal(Q.filing('  ', 'text', true), null);
   assert.equal(JSON.stringify(Q.filing(' Disk full ', '', false)), JSON.stringify({ kind: 'intelligent-processing', title: 'Disk full', start: false }));
+});
+
+test('the application opens on its own queue screen, never the framework Tickets list', () => {
+  const tools = (manifest.ui?.static || []).map(tile => tile.toolName);
+  assert.equal(manifest.ribbon?.defaultView, 'intelligent-processing-queue');
+  assert.ok(tools.includes(manifest.ribbon.defaultView), 'defaultView names a declared tile');
+  assert.notEqual(manifest.ribbon.defaultView, 'tickets');
 });

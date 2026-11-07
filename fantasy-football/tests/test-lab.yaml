@@ -659,8 +659,34 @@ cases:
       files:
         - tests/fantasy-league-delete.test.js
     expected:
-      - Cancel sends no DELETE; OK sends DELETE /manual-leagues/L1 and empties the board area.
+      - Delete asks in the page (no browser dialog); Cancel sends no DELETE; Delete league sends DELETE /manual-leagues/L1 and empties the board area.
       - A 500 reads 'could not be deleted (500). Nothing was removed.' and the board stays.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: split-views
+    name: This week is the home and League setup is its own view
+    purpose: >-
+      UX audit P0 SPLIT (2026-11-06). Run the page's own script in a sandbox: with a saved league the page opens This
+      week on that league's Lineup with setup hidden (the setup form used to push every board below y=1,280); with no
+      league it opens League setup on the walkthrough's first step; the walkthrough shows one group per step with Back
+      and Continue and keeps what was typed; roster slots read as positions and are stored as ESPN slot ids; the cookie
+      steps are withheld where they can never work; the in-page title and tagline are gone.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-split-views.test.js
+    expected:
+      - A saved league opens This week, POSTs /lineup/record for its Lineup and keeps League setup hidden.
+      - No league opens League setup at Step 1 of 5 (League); Save league appears only on the Teams step.
+      - The slots QB x 1, RB x 2, WR x 2 and FLEX x 1 read back as slot ids 0, 2, 4 and 23; an unknown position is named.
     prerequisites:
       - runner:node-test
     sideEffects: none

@@ -11,6 +11,8 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: the dashboard reads sentiment through oshal's own observed outlet ratings (core ADR-061, 2026-10-01; the seed table and its political/economic/kind axes are retired). The lean axis shows sources that usually read below, near and above the others; the by-source table shows each rating with its compared subject-days, subjects and date range, or insufficient data below the stated minimums; the note states the method with its own numbers. A server that reports no ratings gets a plain notice instead of numbers. Guard: tests/surface-ratings.test.js.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: a "Sources & schedules" header link to the operator page (/api/world/operations/app), shown only when its operator-only route answers /ping; the dashboard itself stays read-only.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Phone width: the stacked grid column is minmax(0,1fr) and main may shrink below its content, so the by-source table (nowrap, ~1224px) scrolls inside its own box instead of widening the whole page to 1290px. Guard: scripts/phone-screens.browser.cjs (world).
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (UX audit 2026-11-06): one window control (the select repeating the four pills is gone; the pills are buttons, 44px on a phone), names only (human() turns world:ticker:nvda into NVDA and outlet ids into words), a subject search, and By source shows 15 rows with Show more. Guard: tests/ux-controls.test.js.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.8 (UX audit 2026-11-06): add asset filter chips above subjects, By source / Entity graph tabs under the KPI and lean cards, sortable Lean/Reliability/Sentiment column headers on By source, phone Subject picker collapsing the rail so KPI tiles appear first, and remove Pull-rate ops table from the analyst view.
  */
 
 /**
@@ -144,6 +146,21 @@ export const WORLD_APP_HTML = String.raw`<!doctype html>
   .win-pill { cursor:pointer; user-select:none; background:var(--panel2); color:var(--muted); font:600 11px Inter,system-ui,sans-serif; padding:3px 8px; border-radius:999px; border:1px solid var(--line); }
   .win-pill:hover, .win-pill:focus-visible { border-color:var(--accent); color:var(--ink); outline:none; }
   .win-pill.active { background:var(--panel); border-color:var(--accent); color:var(--accent); }
+  /* One window control (UX audit 2026-11-06): the select that repeated these four pills is gone; the pills are a
+     segmented control, 44px tall on a phone. */
+  .win-pills .win-pill { min-height:32px; padding:0 12px; font-size:12px; }
+  @media (max-width:640px) { .win-pills .win-pill { min-height:44px; padding:0 14px; } }
+  .subj-search { width:100%; box-sizing:border-box; margin:0 0 8px; padding:8px 10px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; font:13px Inter,system-ui,sans-serif; }
+  .kind-chips { display:flex; flex-wrap:wrap; gap:5px; padding:0 12px 10px; border-bottom:1px solid var(--line); }
+  .kind-chip { cursor:pointer; background:var(--panel); color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:4px 10px; font:600 11px Inter,system-ui,sans-serif; }
+  .kind-chip.active { border-color:var(--accent); color:var(--accent); }
+  .subj-picker-btn { display:none; cursor:pointer; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:999px; padding:0 14px; min-height:44px; font:600 12.5px Inter,system-ui,sans-serif; align-items:center; gap:6px; }
+  .view-tabs { display:flex; gap:6px; margin:0 0 14px; }
+  .view-tab { cursor:pointer; background:var(--panel2); color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:6px 14px; min-height:36px; font:600 12px Inter,system-ui,sans-serif; }
+  .view-tab.active { background:var(--panel); border-color:var(--accent); color:var(--accent); }
+  .th-sort { cursor:pointer; background:none; border:0; padding:0; color:inherit; font:inherit; text-transform:inherit; letter-spacing:inherit; display:inline-flex; align-items:center; gap:4px; }
+  .th-sort:hover { color:var(--accent); }
+  .more { margin-top:8px; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 14px; font:600 12px Inter,system-ui,sans-serif; cursor:pointer; min-height:40px; }
   .subj:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
   .wrap { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 52px); }
   .rail { border-right:1px solid var(--line); overflow:auto; background:var(--panel2); }
@@ -182,9 +199,12 @@ export const WORLD_APP_HTML = String.raw`<!doctype html>
      rail becomes a bounded, scrollable strip on top and the detail flows below (page scrolls). */
   @media (max-width: 700px) {
     .wrap { grid-template-columns:minmax(0,1fr); height:auto; }
-    .rail { border-right:none; border-bottom:1px solid var(--line); max-height:40vh; }
+    .rail { display:none; border-right:none; border-bottom:1px solid var(--line); max-height:55vh; background:var(--bg); }
+    .rail.open { display:block; }
+    .subj-picker-btn { display:inline-flex; }
+    .kind-chip, .view-tab, .subj-search { min-height:44px; }
     header { flex-wrap:wrap; }
-    header .sub { margin-left:0; flex-basis:100%; }
+    header .sub { display:none; }
     main { padding:14px; overflow:visible; min-width:0; }
     .bar { grid-template-columns:88px 1fr 46px; gap:8px; }
     .stat { min-width:calc(50% - 5px); flex:1; }
@@ -197,26 +217,28 @@ export const WORLD_APP_HTML = String.raw`<!doctype html>
   <a id="cockpit-link" class="ops" href="/cockpit/">&larr; Cockpit</a>
   <span class="dot"></span>
   <h1>World Intelligence</h1>
-  <label class="win">window
-    <select id="win">
-      <option value="30">30 days</option>
-      <option value="90" selected>90 days</option>
-      <option value="365">1 year</option>
-      <option value="3650">all history</option>
-    </select>
-  </label>
+  <button type="button" id="subjPickerBtn" class="subj-picker-btn" aria-expanded="false" onclick="toggleSubjRail()">Subject &#9662;</button>
   <div class="win-pills" role="group" aria-label="Time window">
-    <div class="pill win-pill" role="button" tabindex="0" data-win="30">30 days</div>
-    <div class="pill win-pill active" role="button" tabindex="0" data-win="90">90 days</div>
-    <div class="pill win-pill" role="button" tabindex="0" data-win="365">1 year</div>
-    <div class="pill win-pill" role="button" tabindex="0" data-win="3650">all history</div>
+    <button type="button" class="pill win-pill" aria-pressed="false" data-win="30" aria-label="30 days">30 d</button>
+    <button type="button" class="pill win-pill active" aria-pressed="true" data-win="90" aria-label="90 days">90 d</button>
+    <button type="button" class="pill win-pill" aria-pressed="false" data-win="365" aria-label="1 year">1 y</button>
+    <button type="button" class="pill win-pill" aria-pressed="false" data-win="3650" aria-label="All history">All</button>
   </div>
-  <span class="sub">bias-aware sentiment &middot; entity graph &middot; pull-rate</span>
+  <span class="sub">bias-aware sentiment &middot; entity graph</span>
   <a id="ops-link" class="ops" href="/api/world/operations/app" hidden>Sources &amp; schedules</a>
 </header>
 <div class="wrap">
-  <aside class="rail">
+  <aside class="rail" id="subjRail">
     <h2>Tracked subjects</h2>
+    <div style="padding:0 12px"><input id="subjSearch" class="subj-search" type="search" placeholder="Search subjects" aria-label="Search tracked subjects"></div>
+    <div class="kind-chips" id="kindChips" role="group" aria-label="Filter by asset class">
+      <button type="button" class="kind-chip active" data-kind="" onclick="setSubjectKind(this, '')">All</button>
+      <button type="button" class="kind-chip" data-kind="ticker" onclick="setSubjectKind(this, 'ticker')">Stocks</button>
+      <button type="button" class="kind-chip" data-kind="market" onclick="setSubjectKind(this, 'market')">Markets</button>
+      <button type="button" class="kind-chip" data-kind="topic" onclick="setSubjectKind(this, 'topic')">Topics</button>
+      <button type="button" class="kind-chip" data-kind="crypto" onclick="setSubjectKind(this, 'crypto')">Crypto</button>
+      <button type="button" class="kind-chip" data-kind="commodity" onclick="setSubjectKind(this, 'commodity')">Commodities</button>
+    </div>
     <div id="subjects"></div>
   </aside>
   <main id="main"><div class="empty">Loading tracked subjects&hellip;</div></main>
@@ -265,8 +287,6 @@ function syncWinPills() {
 
 function setWin(w) {
   win = Number(w) || 90;
-  const sel = document.getElementById('win');
-  if (sel) sel.value = String(win);
   syncWinPills();
   if (subjects.length) select(selected);
 }
@@ -304,16 +324,63 @@ async function load() {
   const el = document.getElementById('subjects');
   if (!subjects.length) { el.innerHTML = '<div class="note" style="padding:16px">No subjects tracked yet. Ask the World Analyst to ingest one, or run the <code>world_ingest</code> tool.</div>'; return; }
   el.innerHTML = subjects.map((s,i) =>
-    '<div class="subj" role="button" tabindex="0" data-i="'+i+'"><div class="nm">'+esc(s.label)+'</div><div class="meta">'+s.items+' items &middot; '+s.entity+'</div></div>'
+    '<div class="subj" role="button" tabindex="0" data-i="'+i+'"><div class="nm">'+esc(s.label || human(s.entity))+'</div><div class="meta">'+s.items+' items</div></div>'
   ).join('');
   el.querySelectorAll('.subj').forEach(n => {
     const pick = () => select(Number(n.dataset.i));
     n.onclick = pick;
     n.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
   });
+  const search = document.getElementById('subjSearch');
+  if (search) search.oninput = () => filterSubjects(search.value);
   select(0);
 }
+let subjKind = '';
+let detailTab = 'sources';
+function toggleSubjRail() {
+  const rail = document.getElementById('subjRail');
+  const btn = document.getElementById('subjPickerBtn');
+  if (!rail) return;
+  const open = rail.classList.toggle('open');
+  if (btn && btn.setAttribute) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function setSubjectKind(btn, kind) {
+  subjKind = kind || '';
+  document.querySelectorAll('.kind-chip').forEach((c) => { c.classList.toggle('active', c === btn); });
+  const search = document.getElementById('subjSearch');
+  filterSubjects(search ? search.value : '');
+}
+/** Narrow the subject list to names containing the typed text and matching the active asset kind. */
+function filterSubjects(text) {
+  const q = String(text || '').trim().toLowerCase();
+  document.querySelectorAll('.subj').forEach((n) => {
+    const s = subjects[Number(n.dataset.i)] || {};
+    const parts = String(s.entity || '').split(':');
+    const kind = parts.length > 2 ? parts[1] : '';
+    const matchKind = !subjKind || kind === subjKind;
+    const matchText = !q || String(s.label || human(s.entity)).toLowerCase().indexOf(q) >= 0;
+    n.hidden = !(matchKind && matchText);
+  });
+}
+/** A stored id in words, never the id itself: "world:ticker:nvda" reads "NVDA", "world:outlet:the-verge" reads "The Verge". */
+function human(id) {
+  const parts = String(id || '').split(':');
+  const kind = parts.length > 2 ? parts[1] : '';
+  const rest = parts.length > 2 ? parts.slice(2).join(':') : String(id || '');
+  if (kind === 'ticker' || kind === 'crypto') return rest.toUpperCase();
+  return rest.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+const KIND_WORDS = { ticker: 'Stocks', market: 'Markets', topic: 'Topics', crypto: 'Crypto', commodity: 'Commodities', outlet: 'Outlets', org: 'Organisations', person: 'People', place: 'Places' };
 function esc(s){ return String(s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function switchDetailTab(tab) {
+  detailTab = tab === 'graph' ? 'graph' : 'sources';
+  document.querySelectorAll('.view-tab').forEach((b) => { b.classList.toggle('active', b.dataset.vtab === detailTab); });
+  const srcCard = document.querySelector && document.querySelector('#p-sent .src-card');
+  if (srcCard) srcCard.hidden = detailTab !== 'sources';
+  const gEl = document.getElementById('p-graph');
+  if (gEl) gEl.hidden = detailTab !== 'graph';
+}
 
 function select(i) {
   selected = i;
@@ -323,23 +390,32 @@ function select(i) {
     if (n.setAttribute) n.setAttribute('aria-selected', j===i ? 'true' : 'false');
   });
   const s = subjects[i]; if (!s) return;
+  const picker = document.getElementById('subjPickerBtn');
+  if (picker) { picker.textContent = (s.label || human(s.entity)) + ' \u25BE'; if (picker.setAttribute) picker.setAttribute('aria-expanded', 'false'); }
+  const rail = document.getElementById('subjRail');
+  if (rail && rail.classList) rail.classList.remove('open');
+  detailTab = 'sources';
   const main = document.getElementById('main');
-  // Progressive load: paint the shell immediately and fill each card as its read lands. The three
-  // reads have very different costs (sentiment ~100ms warm; the pull ledger can run for seconds
-  // cold after a deploy), and a Promise.all holds the whole screen hostage to the slowest one.
   main.innerHTML = '<div id="p-sent">'+waitCard(s.label, 'Reading bias-aware sentiment')+'</div>'
-    + '<div id="p-graph">'+waitCard('Entity graph', 'Walking co-mentions')+'</div>'
-    + '<div id="p-pulls">'+waitCard('Pull-rate', 'Reading the pull ledger')+'</div>';
-  const paint = (id, html) => { if (g === gen) document.getElementById(id).innerHTML = html; };
+    + '<div class="view-tabs" role="tablist" aria-label="Coverage detail">'
+    + '<button type="button" class="view-tab active" data-vtab="sources" onclick="switchDetailTab(\'sources\')">By source</button>'
+    + '<button type="button" class="view-tab" data-vtab="graph" onclick="switchDetailTab(\'graph\')">Entity graph</button>'
+    + '</div>'
+    + '<div id="p-graph" hidden>'+waitCard('Entity graph', 'Walking co-mentions')+'</div>';
+  const paint = (id, html) => {
+    if (g !== gen) return;
+    document.getElementById(id).innerHTML = html;
+    if (id === 'p-sent') {
+      const sc = document.querySelector && document.querySelector('#p-sent .src-card');
+      if (sc) sc.hidden = detailTab !== 'sources';
+    }
+  };
   api('/sentiment?entity='+encodeURIComponent(s.entity)+'&days='+win)
     .then(sent => paint('p-sent', sentimentCards(s, sent)))
     .catch(e => paint('p-sent', failCard(s.label, e)));
   api('/neighbors?id='+encodeURIComponent(s.entity)+'&depth=1')
     .then(nb => paint('p-graph', graphCard(nb)))
     .catch(e => paint('p-graph', failCard('Entity graph', e)));
-  api('/pulls?entity='+encodeURIComponent(s.entity)+'&days='+win)
-    .then(pulls => paint('p-pulls', pullsCard(pulls)))
-    .catch(e => paint('p-pulls', failCard('Pull-rate', e)));
 }
 
 function waitCard(title, msg) { return '<div class="card"><h3>'+esc(title)+'</h3><div class="note">'+msg+'&hellip;</div></div>'; }
@@ -362,7 +438,7 @@ function sourceRow(x) {
   const lean = rated ? fmt(r.lean) + ' <span class="tag">' + esc(r.leanBucket) + '</span>' : '<span class="tag">insufficient data</span>';
   const rel = rated ? Number(r.reliability).toFixed(2) : '&mdash;';
   const observed = r.comparisons ? count(r.comparisons) + ' compared subject-days, ' + count(r.subjects) + ' subjects, ' + esc(r.firstObserved) + ' to ' + esc(r.lastObserved) : 'not compared in the rating window';
-  return '<tr><td>' + esc(x.outlet) + '</td><td>' + lean + '</td><td>' + rel + '</td><td>' + observed + '</td><td>' + count(x.points) + '</td><td class="' + cls(x.value) + '">' + fmt(x.value) + '</td></tr>';
+  return '<tr><td>' + esc(/^world:/.test(String(x.outlet)) ? human(x.outlet) : x.outlet) + '</td><td>' + lean + '</td><td>' + rel + '</td><td>' + observed + '</td><td>' + count(x.points) + '</td><td class="' + cls(x.value) + '">' + fmt(x.value) + '</td></tr>';
 }
 
 // Rated sources by lean (most critical first), then the insufficient ones by name.
@@ -391,18 +467,52 @@ function sentimentCards(s, sent) {
     + '<div class="note">' + ratingNote(sent.ratings) + '</div>'
     + '</div>';
   const rows = (sent.bySource || []).slice().sort(byRating);
-  const srcTable = rows.length ? '<div class="card"><h3>By source</h3><table><thead><tr><th>Source</th><th>Lean</th><th>Reliability</th><th>Observed</th><th>n</th><th>Sentiment</th></tr></thead><tbody>'
-    + rows.map(sourceRow).join('') + '</tbody></table></div>' : '';
+  // 15 rows, then Show more (an unpaginated table of 12,000 words buried the entity graph).
+  const srcTable = rows.length ? '<div class="card src-card"><h3>By source</h3><table><thead><tr><th>Source</th><th><button type="button" class="th-sort" onclick="sortSources(this, 1)">Lean &#8597;</button></th><th><button type="button" class="th-sort" onclick="sortSources(this, 2)">Reliability &#8597;</button></th><th>Observed</th><th>n</th><th><button type="button" class="th-sort" onclick="sortSources(this, 5)">Sentiment &#8597;</button></th></tr></thead><tbody>'
+    + rows.map((x, i) => i < SOURCE_ROWS ? sourceRow(x) : sourceRow(x).replace('<tr>', '<tr class="extra" hidden>')).join('') + '</tbody></table>'
+    + (rows.length > SOURCE_ROWS ? '<button type="button" class="more" onclick="showAllSources(this)">Show ' + (rows.length - SOURCE_ROWS) + ' more</button>' : '') + '</div>' : '';
   return head + axes + srcTable;
 }
 
+const SOURCE_ROWS = 15;
+function cellNum(tr, idx) {
+  const txt = tr && tr.cells && tr.cells[idx] ? tr.cells[idx].textContent : '';
+  const m = String(txt || '').match(/[+-]?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+function sortSources(btn, colIdx) {
+  const card = btn.closest('.card');
+  const tbody = card && card.querySelector('tbody');
+  if (!tbody) return;
+  const dir = btn.dataset.dir === 'desc' ? 'asc' : 'desc';
+  card.querySelectorAll('.th-sort').forEach((b) => { delete b.dataset.dir; });
+  btn.dataset.dir = dir;
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+  const expanded = !card.querySelector('.more');
+  allRows.sort((a, b) => {
+    const va = cellNum(a, colIdx), vb = cellNum(b, colIdx);
+    if ((va == null) !== (vb == null)) return va == null ? 1 : -1;
+    if (va != null && vb != null && va !== vb) return dir === 'asc' ? va - vb : vb - va;
+    return String(a.cells[0] && a.cells[0].textContent || '').localeCompare(String(b.cells[0] && b.cells[0].textContent || ''));
+  });
+  allRows.forEach((r, idx) => {
+    const hide = !expanded && idx >= SOURCE_ROWS;
+    r.classList.toggle('extra', hide);
+    r.hidden = hide;
+    tbody.appendChild(r);
+  });
+}
+function showAllSources(btn) {
+  btn.closest('.card').querySelectorAll('tr.extra').forEach((r) => { r.hidden = false; });
+  btn.remove();
+}
 function graphCard(nb) {
   const neighbors = (nb && nb.neighbors) || [];
   const byType = {};
-  neighbors.forEach(n => { const t = (n.id.split(':')[1]) || 'other'; (byType[t] = byType[t] || []).push(n.props && n.props.label || n.id); });
+  neighbors.forEach(n => { const t = (n.id.split(':')[1]) || 'other'; (byType[t] = byType[t] || []).push(n.props && n.props.label || human(n.id)); });
   return '<div class="card"><h3>Entity graph</h3>'
     + (Object.keys(byType).length ? Object.entries(byType).map(([t,labels]) =>
-        '<div class="grp"><div class="gt">'+t+'</div><div>'+[...new Set(labels)].slice(0,18).map(l=>'<span class="tag">'+esc(l)+'</span>').join('')+'</div></div>'
+        '<div class="grp"><div class="gt">'+esc(KIND_WORDS[t] || human(t))+'</div><div>'+[...new Set(labels)].slice(0,18).map(l=>'<span class="tag">'+esc(l)+'</span>').join('')+'</div></div>'
       ).join('') : '<div class="note">No co-mentioned entities yet.</div>')
     + '</div>';
 }
@@ -417,7 +527,6 @@ function statBox(k,v){ return '<div class="stat"><div class="k">'+k+'</div><div 
 // The full page only: under an audience view the shared kit paints instead (see the head script), so the dashboard
 // neither binds its window control nor reads the subjects, sentiment, graph and pull ledger.
 if (!window.AppView || !AppView.active()) {
-  document.getElementById('win').onchange = (e) => { win = Number(e.target.value) || 90; syncWinPills(); if (subjects.length) select(selected); };
   load().catch(e => { document.getElementById('main').innerHTML = '<div class="empty">Failed to load: '+esc(String(e))+'</div>'; });
 }
 </script>

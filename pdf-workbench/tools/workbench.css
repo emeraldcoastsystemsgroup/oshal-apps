@@ -4,178 +4,244 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Tool cards in balanced columns; thumbnail cards wide enough for their move buttons.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Editor layout: a bar across the top and three panes (left rail 300px, pages, right inspector 360px) that fill the viewport and scroll on their own; the panes are the glass panels and their sections are divided by rules instead of nested cards. Two columns under 1180px with the inspector sections side by side, one column under 760px.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4, phones (the trial check, 2026-11-06: 142 px of bars before content): the app bar is one row, the document title (cut with an ellipsis) beside Save and the shell's More, which now also holds the Document menu and Download.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4): every colour, line, radius, size and space from the --ds-* tokens; solid controls with a 3:1 edge (no gradient, inset highlight, glow, hover lift or fade), one 2px focus ring, radii 10/14/20, the six-size type scale, sentence-case labels, 44px targets on touch, opaque menus and sheets in the top layer, a white paper page in every theme, the modes as the phone's bottom bar, the canvas wide on a desktop (the Documents rail leaves for the document menu), and no platform font name in the source.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: styles for word-level markup selection and handles, live freehand ink SVG overlay, corner resize handles, signature drawing pad, photo reorder list, single-page pager, two-page facing spread and night reading mode.
  */
-:root{
-  --wb-font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,Inter,sans-serif;
-  --wb-mono:"JetBrains Mono","SFMono-Regular",Menlo,Consolas,monospace;
-  --wb-radius:14px;--wb-radius-sm:9px;--wb-gap:14px;--wb-gutter:16px;--wb-control:40px;
-  --wb-line:var(--border-color,rgba(255,255,255,.1));
-  --wb-line-strong:var(--border-color-hover,rgba(255,255,255,.18));
-  --wb-card:var(--bg-card,rgba(28,28,48,.55));
-  --wb-card-hover:var(--bg-card-hover,rgba(40,40,68,.65));
-  --wb-well:var(--bg-secondary,rgba(18,18,30,.85));
-  --wb-field:var(--bg-tertiary,rgba(30,30,52,.7));
-  --wb-text:var(--text-primary,#eeeef5);
-  --wb-soft:var(--text-secondary,#a0a0be);
-  --wb-muted:var(--text-muted,#8a8aa6);
-  --wb-accent:var(--accent-primary,#7c7cff);
-  --wb-accent-hover:var(--accent-primary-hover,#9d9dff);
-  --wb-on-accent:var(--text-on-accent,#fff);
-  --wb-warn:var(--status-warning,#fbbf24);
-  --wb-bad:var(--status-error,#f87171);
-}
-body{margin:0;min-height:100vh;font-family:var(--wb-font);font-size:15px;line-height:1.5;color:var(--wb-text);background-color:var(--bg-primary,#0a0a12);-webkit-font-smoothing:antialiased}
-.wb,:is(.wb,.ef-editor) *,:is(.wb,.ef-editor) *::before,:is(.wb,.ef-editor) *::after{box-sizing:border-box}
+:root{color-scheme:light dark}
+html,body{overscroll-behavior:contain}
+body{margin:0;min-height:100dvh;font:var(--ds-text-body,400 16px/24px system-ui,sans-serif);color:var(--ds-ink,var(--text-primary));background:var(--ds-page,var(--bg-primary))}
+.wb,:is(.wb,.ef-editor) *,:is(.wb,.ef-editor) *::before,:is(.wb,.ef-editor) *::after,.ds-layer,.ds-layer *{box-sizing:border-box}
 [hidden]{display:none!important}
 
-/* Shell: bar across the top, three panes that fill the rest of the viewport */
-.wb{display:grid;grid-template-columns:300px minmax(0,1fr) 360px;grid-template-rows:auto minmax(0,1fr);gap:var(--wb-gap);height:100vh;padding:var(--wb-gutter)}
-.wb-bar{grid-column:1/-1;display:flex;align-items:center;gap:var(--wb-gap) 24px;flex-wrap:wrap;padding:12px 18px;background:var(--wb-card);border:1px solid var(--wb-line);border-radius:var(--wb-radius)}
-.wb-brand{flex:0 0 auto;padding-right:24px;border-right:1px solid var(--wb-line)}
-.wb-doc{flex:1 1 220px;min-width:0}
-.wb-doc h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wb-bar .actions{flex:0 1 auto;margin-left:auto}
-.pane{min-height:0;overflow:auto;background:var(--wb-card);border:1px solid var(--wb-line);border-radius:var(--wb-radius)}
-.pane-section{padding:16px 18px;border-bottom:1px solid var(--wb-line)}
+/* Before the shared editor starts (or if it cannot): one bar and three panes. */
+.wb{display:grid;grid-template-columns:240px minmax(0,1fr) 320px;grid-template-rows:auto minmax(0,1fr);gap:16px;height:100dvh;padding:16px}
+.wb-bar{grid-column:1/-1;display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:8px 16px;background:var(--ds-surface);border:1px solid var(--ds-edge);border-radius:14px}
+.pane{min-height:0;overflow:auto;background:var(--ds-surface);border:1px solid var(--ds-edge);border-radius:14px}
+.pane-section{padding:16px;border-bottom:1px solid var(--ds-edge)}
 .pane-section:last-child{border-bottom:0}
-.pane-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
-.pane-head>:first-child{min-width:0}
-.pane-section>:last-child{margin-bottom:0}
-.wb-center{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
-.wb-center .footnote{margin-top:auto;padding-top:12px}
+.pane-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 
-/* Type */
-.kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--wb-accent);margin:0 0 2px}
-:is(.wb,.ef-editor) h1{margin:0;font-size:20px;line-height:1.2;font-weight:800;letter-spacing:-.02em}
-:is(.wb,.ef-editor) h2{margin:0;font-size:17px;font-weight:700;letter-spacing:-.005em}
-:is(.wb,.ef-editor) h3{margin:0;font-size:14px;font-weight:700}
-.help{font-size:12.5px;color:var(--wb-muted);margin:6px 0 0}
+/* Type: the six sizes (12, 14, 16, 18, 24, 15 on a desktop body); sentence case; ink-2 for help. */
+:is(.wb,.ef-editor,.ds-layer) h1{margin:0;font:var(--ds-text-heading)}
+:is(.wb,.ef-editor,.ds-layer) h2{margin:0;font:var(--ds-text-heading)}
+:is(.wb,.ef-editor,.ds-layer) h3{margin:0;font:600 14px/20px var(--ds-font)}
+.kicker{display:none}
+.help{font:var(--ds-text-help);color:var(--ds-ink-2);margin:4px 0 0}
 .pane-head .help,.wb-doc .help{margin:0}
-.status{font-size:13.5px;color:var(--wb-warn);margin:0;min-height:1.4em}
-.pages-hint{display:none;margin:0}
-.pages:empty+.pages-hint{display:block}
+.status{font:var(--ds-text-help);color:var(--ds-ink-2);margin:0;min-height:20px}
 
-/* Controls: one height, one radius, the theme's focus ring */
-:is(.wb,.ef-editor) button,:is(.wb,.ef-editor) .btn,:is(.wb,.ef-editor) input,:is(.wb,.ef-editor) select,:is(.wb,.ef-editor) textarea{font:inherit;font-size:14px;line-height:1.3;color:var(--wb-text);min-height:var(--wb-control);padding:8px 12px;margin:0;border:1px solid var(--wb-line-strong);border-radius:var(--wb-radius-sm);background:color-mix(in srgb,var(--wb-field) 92%,transparent)}
-:is(.wb,.ef-editor) input,:is(.wb,.ef-editor) select,:is(.wb,.ef-editor) textarea{width:100%}
-:is(.wb,.ef-editor) input[type=checkbox]{width:auto;min-height:0;padding:0;accent-color:var(--wb-accent)}
-:is(.wb,.ef-editor) input[type=color]{width:100%;padding:4px;cursor:pointer}
-:is(.wb,.ef-editor) input[type=file]{padding:7px 10px;font-size:13px}
-:is(.wb,.ef-editor) input::placeholder,:is(.wb,.ef-editor) textarea::placeholder{color:var(--wb-muted)}
-:is(.wb,.ef-editor) textarea{min-height:76px;resize:vertical}
-:is(.wb,.ef-editor) :is(input,select,textarea):focus,:is(.wb,.ef-editor) :is(button,.btn):focus-visible{outline:none;border-color:var(--wb-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--wb-accent) 28%,transparent)}
-:is(.wb,.ef-editor) button,:is(.wb,.ef-editor) .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:auto;cursor:pointer;font-weight:600;text-decoration:none;white-space:nowrap;background:linear-gradient(145deg,color-mix(in srgb,var(--wb-card-hover) 96%,transparent),color-mix(in srgb,var(--wb-card) 70%,transparent));box-shadow:inset 0 1px 0 color-mix(in srgb,var(--wb-text) 9%,transparent);transition:border-color .15s ease,transform .15s ease}
-:is(.wb,.ef-editor) :is(button,.btn):hover:not(:disabled){border-color:var(--wb-accent);transform:translateY(-1px)}
-:is(.wb,.ef-editor) button:disabled{opacity:.55;cursor:default}
-:is(.wb,.ef-editor) .primary{background:var(--wb-accent);border-color:var(--wb-accent);color:var(--wb-on-accent)}
-:is(.wb,.ef-editor) .primary:hover:not(:disabled){background:var(--wb-accent-hover);border-color:var(--wb-accent-hover)}
-:is(.wb,.ef-editor) .danger{background:color-mix(in srgb,var(--wb-bad) 14%,transparent);border-color:var(--wb-bad);color:var(--wb-bad)}
-:is(.wb,.ef-editor) .btn-sm{min-height:32px;padding:4px 10px;font-size:13px}
-:is(.wb,.ef-editor) .link{min-height:0;padding:0;border:0;box-shadow:none;background:none;color:var(--wb-accent);font-weight:600;text-align:left;white-space:normal;overflow-wrap:anywhere}
-:is(.wb,.ef-editor) .link:hover:not(:disabled){text-decoration:underline;transform:none}
-.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.btn-grid button{width:100%;white-space:normal;line-height:1.2;padding:6px 10px}
-.btn-grid .wide{grid-column:1/-1}
-
-/* Forms: a grid of fields, label above control, help line under it */
-.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px var(--wb-gap);align-items:end;margin:0 0 14px}
+/* Controls (§2.2, §4.1): solid, a 3:1 edge, no lift; disabled is solid and greyed, never faded. */
+:is(.wb,.ef-editor,.ds-layer) :is(button,.btn,input,select,textarea){font:inherit;color:var(--ds-ink);min-height:44px;margin:0;padding:0 16px;border:1px solid var(--ds-line-control);border-radius:10px;background:var(--ds-surface-2)}
+:is(.wb,.ef-editor,.ds-layer) :is(input,select,textarea){width:100%;background:var(--ds-surface);font-size:16px}
+:is(.wb,.ef-editor,.ds-layer) textarea{min-height:88px;padding:8px 12px;resize:vertical}
+:is(.wb,.ef-editor,.ds-layer) input[type=checkbox]{width:20px;min-height:20px;padding:0;accent-color:var(--ds-accent)}
+:is(.wb,.ef-editor,.ds-layer) input[type=color]{padding:4px;cursor:pointer}
+:is(.wb,.ef-editor,.ds-layer) input[type=file]{padding:8px 12px;font-size:14px}
+:is(.wb,.ef-editor,.ds-layer) input::placeholder{color:var(--ds-ink-2)}
+:is(.wb,.ef-editor,.ds-layer) :is(button,.btn){display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;cursor:pointer;font-weight:600;text-decoration:none;white-space:nowrap;box-shadow:none;transform:none;transition:background-color var(--ds-dur-fast,120ms) var(--ds-ease,ease)}
+:is(.wb,.ef-editor,.ds-layer) :is(button,.btn):hover:not(:disabled){background:var(--ds-surface-3)}
+:is(.wb,.ef-editor,.ds-layer) :is(button,input,select,textarea,summary,a):focus-visible{outline:2px solid var(--ds-focus);outline-offset:2px;box-shadow:none}
+:is(.wb,.ef-editor,.ds-layer) button:disabled{opacity:1;color:var(--ds-ink-disabled);background:var(--ds-surface-2);border-color:var(--ds-hairline);cursor:default}
+:is(.wb,.ef-editor,.ds-layer) .primary{background:var(--ds-accent);border-color:var(--ds-accent);color:var(--ds-on-accent)}
+:is(.wb,.ef-editor,.ds-layer) .primary:hover:not(:disabled){background:var(--ds-accent);box-shadow:inset 0 0 0 1px var(--ds-on-accent)}
+:is(.wb,.ef-editor,.ds-layer) .primary:disabled{background:var(--ds-surface-2);border-color:var(--ds-hairline);color:var(--ds-ink-disabled)}
+:is(.wb,.ef-editor,.ds-layer) :is(.danger,[data-ds-destructive]):not(.ds-danger-fill){border-color:var(--ds-bad);color:var(--ds-bad);background:var(--ds-surface-2)}
+:is(.wb,.ef-editor,.ds-layer) .ds-danger-fill{background:var(--ds-bad);border-color:var(--ds-bad);color:var(--ds-page)}
+:is(.wb,.ef-editor,.ds-layer) .link{min-height:44px;padding:0;border:0;background:none;color:var(--ds-accent-ink);text-decoration:underline;text-align:left;white-space:normal;overflow-wrap:anywhere}
+.btn-grid{display:flex;flex-wrap:wrap;gap:8px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:12px 16px;align-items:end;margin:0 0 16px}
 .form:last-child{margin-bottom:0}
-.field{display:grid;gap:5px;min-width:0;align-content:start}
-.field>label,.field>.name{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--wb-soft)}
-.field .help{margin:0}
+.field{display:grid;gap:4px;min-width:0;align-content:start}
+.field>label,.field>.name{font:600 14px/20px var(--ds-font);color:var(--ds-ink)}
 .wide,.form .actions{grid-column:1/-1}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .row>:is(input,select){flex:1 1 9rem;width:auto;min-width:0}
-.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
-#forms:empty::before{content:"Open a document with form fields to fill them here.";grid-column:1/-1;font-size:12.5px;color:var(--wb-muted)}
-
-/* Document table */
-.table-wrap{overflow:auto;max-width:100%;border:1px solid var(--wb-line);border-radius:var(--wb-radius-sm);background:color-mix(in srgb,var(--wb-well) 55%,transparent)}
-.table-wrap table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
-.table-wrap th{position:sticky;top:0;z-index:1;text-align:left;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--wb-muted);padding:8px 10px;border-bottom:1px solid var(--wb-line-strong);white-space:nowrap;background:color-mix(in srgb,var(--wb-well) 96%,var(--wb-accent))}
-.table-wrap td{padding:7px 10px;border-bottom:1px solid var(--wb-line);vertical-align:middle;overflow-wrap:anywhere}
-.table-wrap tbody tr:last-child td{border-bottom:0}
-.table-wrap tbody tr:hover td{background:color-mix(in srgb,var(--wb-card-hover) 55%,transparent)}
-.num,.ks-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.empty td{color:var(--wb-muted);font-style:italic;text-align:center;padding:14px 10px}
-.table-wrap th .ks-sort{all:unset;display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;width:100%}
-.table-wrap th.num .ks-sort{justify-content:flex-end}
-.table-wrap th .ks-sort::after{content:"";width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:5px solid currentColor;opacity:.28;flex:none}
-.table-wrap th[aria-sort=ascending] .ks-sort::after{opacity:1;color:var(--wb-accent)}
-.table-wrap th[aria-sort=descending] .ks-sort::after{opacity:1;color:var(--wb-accent);transform:rotate(180deg)}
-.table-wrap th[aria-sort]{color:var(--wb-text)}
-
-/* Page thumbnails */
-.pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:12px}
+.actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
+#forms:empty::before{content:"Open a document with form fields to fill them here.";grid-column:1/-1;font:var(--ds-text-help);color:var(--ds-ink-2)}
+.table-wrap{overflow:auto;max-width:100%;border:1px solid var(--ds-edge);border-radius:10px}
+.table-wrap table{width:100%;border-collapse:collapse;font:var(--ds-text-help)}
+.table-wrap th{position:sticky;top:0;text-align:left;font:600 12px/16px var(--ds-font);letter-spacing:.06em;text-transform:uppercase;color:var(--ds-ink-2);padding:8px 12px;border-bottom:1px solid var(--ds-edge);background:var(--ds-surface)}
+.table-wrap td{padding:8px 12px;border-bottom:1px solid var(--ds-edge);overflow-wrap:anywhere}
+.table-wrap th .ks-sort{all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;min-height:44px}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.empty td{color:var(--ds-ink-2);text-align:center}
+.pages{display:grid;gap:16px}
 .pages:empty{display:none}
-.page{display:grid;gap:8px;padding:10px;min-width:0;overflow:hidden;border:1px solid var(--wb-line);border-radius:var(--wb-radius-sm);background:color-mix(in srgb,var(--wb-field) 70%,transparent)}
-.page.selected{border-color:var(--wb-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--wb-accent) 45%,transparent)}
-.page>label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer}
-.page img{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;background:#fff;border:1px solid var(--wb-line);border-radius:6px}
-.page .row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.page .row button{min-height:32px;padding:4px 6px;font-size:12.5px;line-height:1.2;white-space:normal}
-
-/* Results */
-.result{font-family:var(--wb-mono);font-size:12.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;margin:12px 0 0;padding:10px 12px;border:1px solid var(--wb-line);border-radius:var(--wb-radius-sm);background:color-mix(in srgb,var(--wb-well) 55%,transparent)}
+.page{display:grid;gap:8px;min-width:0}
+.page img{display:block;width:100%;background:#fff;border:1px solid var(--ds-hairline)}
+.result{font:12px/16px var(--ds-mono);white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;margin:12px 0 0;padding:8px 12px;border:1px solid var(--ds-edge);border-radius:10px;background:var(--ds-surface-2)}
 .result:empty{display:none}
+.pdf-help p{margin:0 0 12px;font:var(--ds-text-help);color:var(--ds-ink)}
 
-/* Two columns: the inspector drops under the pages with its sections side by side */
-@media(max-width:1180px){
-  .wb{grid-template-columns:280px minmax(0,1fr);grid-template-rows:auto auto auto;height:auto;min-height:100vh}
-  .pane{overflow:visible}
-  .wb-left{grid-row:2}
-  .wb-center{grid-row:2;min-height:420px}
-  .wb-right{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
-  .wb-right .pane-section{border-right:1px solid var(--wb-line)}
-  .wb-right .pane-section:nth-child(2n),.wb-right .pane-section:last-child{border-right:0}
-  .wb-right .pane-section:last-child,.wb-right .pane-section:nth-last-child(2):nth-child(odd){border-bottom:0}
-}
-/* One column on a phone */
-@media(max-width:760px){
-  :root{--wb-gutter:12px}
-  .wb{grid-template-columns:1fr;grid-template-rows:none}
-  .wb-left,.wb-center,.wb-right{grid-row:auto;grid-column:1}
-  .wb-brand{border-right:0;padding-right:0}
-  .wb-bar .actions{margin-left:0;width:100%;justify-content:flex-start}
-  .actions>*{flex:1 1 auto}
-  :is(.wb,.ef-editor) :is(input,select,textarea,button,.btn){font-size:16px;min-height:44px}
-  :is(.wb,.ef-editor) .btn-sm{min-height:44px}
-  .pages{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
-  .page .row button{min-height:40px}
-  .wb-right{grid-template-columns:1fr}
-  .wb-right .pane-section{border-right:0;border-bottom:1px solid var(--wb-line)}
-  .wb-right .pane-section:last-child{border-bottom:0}
-}
-@media(prefers-reduced-motion:reduce){:is(.wb,.ef-editor) button,:is(.wb,.ef-editor) .btn{transition:none}}
-/* Shared editor: the full page stays central; actions have deliberate menus. */
-.ef-editor .wb-center{display:block;min-width:0;min-height:0;padding:24px;border:0;background:transparent}
-.ef-editor .wb-left,.ef-editor .wb-right{display:block;min-width:0;width:auto;border:0;overflow:visible}
-.ef-editor .wb-bar{width:100%;padding:12px 16px;box-sizing:border-box;flex-wrap:wrap;gap:12px}
-.ef-editor .pages{display:flex;flex-direction:column;align-items:center;gap:24px}
-.ef-editor .page{width:min(100%,820px);box-sizing:border-box;padding:12px;overflow:visible}
-.pdf-page-surface{position:relative;width:100%;background:white;isolation:isolate}
-.ef-editor .pdf-page-surface>img{display:block;position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:fill;margin:0;border:0;border-radius:0}
+/* ── The shared editor, to the design standard ── */
+.pdf-chrome.ef-editor{font:var(--ds-text-body);background:var(--ds-page)}
+.pdf-chrome .ef-shell{background:var(--ds-page)}
+.pdf-chrome .ef-header-slot{border-bottom:1px solid var(--ds-hairline);background:var(--ds-page)}
+.pdf-chrome .ef-tools,.pdf-chrome .ef-panes,.pdf-chrome .ef-more-tools>summary,.pdf-chrome .ef-close-drawer,.pdf-chrome .ef-pane-heading{display:none!important}
+.pdf-chrome .ef-more-tools{margin:0;padding:0;border:0}
+.pdf-chrome .ef-status-slot{border-top:1px solid var(--ds-hairline)}
+.pdf-chrome .ef-error{font:var(--ds-text-help);color:var(--ds-bad)}
+.pdf-chrome .ef-viewport{background:var(--ds-surface-2)}
+.pdf-chrome .ef-inspector,.pdf-chrome .ef-navigation{background:var(--ds-surface);border-color:var(--ds-edge)}
+.pdf-chrome .ef-properties{padding:16px}
+.pdf-chrome .ef-property{font:600 14px/20px var(--ds-font);color:var(--ds-ink);gap:4px}
+.pdf-chrome .ef-property-group>legend{font:600 14px/20px var(--ds-font)}
+.pdf-chrome .ef-property>:is(input,textarea,select){min-height:44px;border-radius:10px;border-color:var(--ds-line-control);background:var(--ds-surface);font-size:16px}
+.pdf-chrome :is(.ef-empty,.ef-field-status,.ef-save-state,.ef-selection){font:var(--ds-text-help);color:var(--ds-ink-2)}
+.pdf-chrome .wb-right>.pane-section,.pdf-chrome .wb-left>.pane-section{display:none}
+.pdf-chrome .ef-concierge{background:var(--ds-surface);border-color:var(--ds-edge)}
+.pdf-chrome .ef-assistant{background:var(--ds-surface)}
+.pdf-chrome .ef-assistant-header{min-height:56px;padding:8px 16px;border-color:var(--ds-hairline)}
+.pdf-chrome .ef-assistant-header h2,.ds-layer .ef-assistant-header h2{font:var(--ds-text-heading)}
+.pdf-chrome .ef-assistant-help,.ds-layer .ef-assistant-help{font:var(--ds-text-help);color:var(--ds-ink-2)}
+.pdf-chrome .ef-assistant-composer,.ds-layer .ef-assistant-composer{border-radius:14px;border-color:var(--ds-line-control);background:var(--ds-surface)}
+.pdf-chrome .ef-assistant-icon,.ds-layer .ef-assistant-icon{border-radius:10px;font-size:18px!important}
+.pdf-chrome .ef-assistant button:disabled,.ds-layer .ef-assistant button:disabled{opacity:1;color:var(--ds-ink-disabled)}
+.pdf-chrome .ef-assistant-controls>.ef-assistant-send,.ds-layer .ef-assistant-controls>.ef-assistant-send{border-radius:10px;font-size:14px!important}
+.pdf-prompts{display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto}
+.pdf-chip{min-height:44px;padding:0 16px;border-radius:10px;font:600 14px/20px var(--ds-font)}
+
+/* App row (§3.1): Done or the document menu, Search, Undo, Redo, Save while there is something to save, the one primary, More. */
+.pdf-chrome .wb-bar{display:flex;align-items:center;flex-wrap:nowrap;gap:8px;min-height:56px;padding:6px 16px;border:0;border-radius:0;background:var(--ds-page)}
+.pdf-chrome .wb-brand{display:none}
+.pdf-chrome .wb-doc{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0}
+.pdf-chrome .wb-doc #revision{font:var(--ds-text-meta);color:var(--ds-ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pdf-doc-button{flex:0 1 auto;min-width:0;max-width:320px;justify-content:flex-start!important;padding:0 12px!important}
+.pdf-doc-button #document-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-caret{flex:none}
+.pdf-chrome #actions{flex:none;flex-wrap:nowrap;margin-left:auto;gap:8px}
+.pdf-icon{min-width:44px;padding:0!important;font-size:18px!important;border-color:transparent!important;background:transparent!important}
+.pdf-icon:hover:not(:disabled){background:var(--ds-surface-3)!important}
+.pdf-icon:disabled{background:transparent!important;border-color:transparent!important}
+.pdf-done{border-color:transparent!important;background:transparent!important;color:var(--ds-accent-ink)!important;padding:0 8px!important}
+
+/* Modes (N5): the bottom bar on a phone, a group of the app row on a desktop; a mode shows one strip of tools. */
+.pdf-modebar{display:flex;align-items:center;min-width:0}
+.pdf-modes,.pdf-strip{display:flex;align-items:center;gap:8px;min-width:0}
+.pdf-strip{overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
+.pdf-edit-tools{display:contents}
+.pdf-mode,.pdf-tool{flex:none;min-height:44px;padding:0 12px!important;gap:8px}
+.pdf-glyph{font-size:16px;line-height:1}
+.pdf-tool[aria-pressed=true],.ds-layer button[aria-pressed=true]{background:var(--ds-ink)!important;color:var(--ds-page)!important;border-color:var(--ds-ink)!important}
+.pdf-strip-color{width:40px!important;min-width:40px;height:36px;min-height:36px!important;padding:2px!important;flex:none}
+.pdf-strip-range{width:84px!important;min-width:84px;min-height:36px!important;padding:0!important;border:0!important;background:transparent!important;accent-color:var(--ds-accent);flex:none}
+
+/* The work: a white paper page in every theme (N7), the person's PDFs as thumbnails (N2). */
+.pdf-chrome .wb-center{display:block;min-width:0;min-height:100%;padding:24px;border:0;background:transparent}
+.pdf-chrome:not([data-pdf-view=document]) .pages{display:none}
+.pdf-chrome .pages{display:flex;flex-direction:column;align-items:center;gap:24px}
+.pdf-chrome .page{width:min(100%,820px);padding:0;border:0;background:transparent}
+.pdf-chrome .page>label,.pdf-chrome .page>.row{display:none}
+.pdf-blank{display:flex;justify-content:center}
+.pdf-paper{position:relative;width:min(100%,820px);aspect-ratio:612/792;background:#fff;border:1px solid var(--ds-hairline);cursor:text}
+.pdf-local-text{position:absolute;min-width:80px;min-height:24px;padding:2px 4px;color:#111827;font:16px/1.4 system-ui,sans-serif;white-space:pre;outline:2px solid #2563eb;background:#fff}
+.pdf-home{position:relative;min-height:100%}
+.pdf-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:24px 16px;padding-bottom:96px}
+.pdf-card{display:grid!important;grid-template-rows:auto auto auto;justify-items:start!important;align-content:start;gap:4px;min-height:0!important;padding:0!important;border:0!important;background:transparent!important;text-align:left;white-space:normal!important}
+.pdf-thumb{display:block;width:100%;aspect-ratio:1/1.294;background:#fff;border:1px solid var(--ds-hairline);border-radius:6px;overflow:hidden}
+.pdf-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.pdf-card-title{font:600 14px/20px var(--ds-font);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pdf-card-meta{font:var(--ds-text-meta);color:var(--ds-ink-2)}
+.pdf-new{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:8;min-width:96px}
+.pdf-page-surface{position:relative;width:100%;background:#fff;isolation:isolate}
+.ef-editor .pdf-page-surface>img{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:fill;margin:0;border:0}
 .ef-editor .pdf-object{position:absolute!important;min-height:0!important;min-width:0!important;margin:0;padding:0!important;border:1px solid transparent!important;border-radius:0;background:transparent!important;box-shadow:none!important;color:transparent;touch-action:none;cursor:move}
 .ef-editor .pdf-object:hover{border-color:#60a5fa!important}
 .ef-editor .pdf-object.is-selected,.ef-editor .pdf-object:focus-visible{outline:2px solid #2563eb;outline-offset:1px;z-index:2}
-.ef-editor .pdf-inline-text{position:absolute;z-index:6;min-width:80px;min-height:44px;padding:4px;border:2px solid #2563eb;background:white;color:#111827;font:16px system-ui;box-sizing:border-box}
-.pdf-preview-state{position:absolute;z-index:5;left:12px;top:12px;padding:8px 12px;border-radius:6px;background:#111827;color:#fff;pointer-events:none;font-size:14px}
+.ef-editor .pdf-inline-text{position:absolute;z-index:6;min-width:80px;min-height:44px;padding:4px;border:2px solid #2563eb;border-radius:0;background:#fff;color:#111827;font:16px system-ui}
+.pdf-chrome[data-pdf-tool=highlight] .pdf-page-surface,.pdf-chrome[data-pdf-tool=underline] .pdf-page-surface,.pdf-chrome[data-pdf-tool=strikethrough] .pdf-page-surface,.pdf-chrome[data-pdf-tool=note] .pdf-page-surface,.pdf-chrome[data-pdf-tool=pen] .pdf-page-surface,.pdf-chrome[data-pdf-tool=eraser] .pdf-page-surface,.pdf-chrome[data-pdf-tool=check] .pdf-page-surface,.pdf-chrome[data-pdf-tool=cross] .pdf-page-surface{touch-action:none;cursor:crosshair}
+.pdf-chrome:is([data-pdf-tool=highlight],[data-pdf-tool=underline],[data-pdf-tool=strikethrough],[data-pdf-tool=note],[data-pdf-tool=pen],[data-pdf-tool=eraser],[data-pdf-tool=check],[data-pdf-tool=cross]) .pdf-object{pointer-events:none}
+.pdf-resize-handle{position:absolute;right:-6px;bottom:-6px;width:16px;height:16px;border:2px solid #fff;border-radius:4px;background:#2563eb;cursor:nwse-resize;z-index:4;touch-action:none}
+.pdf-live-ink{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
+.pdf-word-selection{position:absolute;inset:0;pointer-events:none;z-index:5}
+.pdf-word-highlight{position:absolute;background:rgb(37 99 235 / .24);border-bottom:2px solid #2563eb;pointer-events:none}
+.pdf-word-handle{position:absolute!important;width:24px!important;min-width:24px!important;height:24px!important;min-height:24px!important;padding:0!important;margin:-12px 0 0 -12px!important;border-radius:12px!important;border:2px solid #fff!important;background:#2563eb!important;pointer-events:auto;touch-action:none;cursor:ew-resize}
+.pdf-word-bar{position:absolute;transform:translate(-50%,-100%);display:flex;gap:4px;padding:4px;border:1px solid var(--ds-edge);border-radius:10px;background:var(--ds-surface);box-shadow:var(--ds-elev-float);pointer-events:auto;z-index:6}
+.pdf-pager{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 auto 16px}
+.pdf-pager-label{font:600 14px/20px var(--ds-font);color:var(--ds-ink-2);font-variant-numeric:tabular-nums}
+.pdf-chrome[data-pdf-layout=single] .pages>.page:not(.is-current-page){display:none}
+.pdf-chrome[data-pdf-layout=two-page] .pages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;justify-items:center;gap:24px;max-width:1440px;margin:0 auto}
+.pdf-chrome[data-pdf-night=true] .pdf-page-surface{background:#141821}
+.pdf-chrome[data-pdf-night=true] .pdf-page-surface>img,.pdf-chrome[data-pdf-night=true] .pdf-paper{filter:invert(.92) hue-rotate(180deg)}
+.pdf-sig-box{display:grid;gap:12px;margin:12px 0}
+.pdf-sig-pad{display:block;width:100%;height:150px;background:#fff;border:1px solid var(--ds-line-control);border-radius:10px;touch-action:none;cursor:crosshair}
+.pdf-sig-upload-preview{display:block;max-width:100%;max-height:120px;object-fit:contain;padding:8px;background:#fff;border:1px solid var(--ds-hairline);border-radius:10px}
+.pdf-sig-list,.pdf-photo-list{display:grid;gap:8px;margin:12px 0}
+.pdf-sig-row,.pdf-photo-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;border:1px solid var(--ds-hairline);border-radius:10px;background:var(--ds-surface-2)}
+.pdf-sig-row img,.pdf-photo-row img{width:64px;height:44px;object-fit:contain;background:#fff;border:1px solid var(--ds-hairline);border-radius:6px;flex:none}
+.pdf-sig-name{flex:1 1 120px;min-width:0;font:600 14px/20px var(--ds-font);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pdf-sheet-result{display:grid;gap:8px;margin-top:16px;padding:12px;border:1px solid var(--ds-edge);border-radius:10px;background:var(--ds-surface-2)}
+.pdf-sheet-result p{margin:0;font:600 14px/20px var(--ds-font)}
+.pdf-disclosure{margin:0 0 12px}
+.pdf-preview-state{position:absolute;z-index:5;left:12px;top:12px;padding:8px 12px;border-radius:10px;background:#111827;color:#fff;pointer-events:none;font:var(--ds-text-help)}
 .preview-pending>img{opacity:.6}.preview-failed>.pdf-preview-state{background:#7f1d1d}
-.pdf-context-toolbar{display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
-.pdf-command-menu{position:relative}.pdf-command-menu summary,.pdf-advanced-section>summary{cursor:pointer;min-height:44px;padding:10px 14px;box-sizing:border-box;line-height:24px;list-style-position:inside}
-.pdf-command-menu[open]>.pdf-menu-items,.pdf-command-menu[open]>button,.pdf-command-menu[open]>.row{position:relative;z-index:7}
-.pdf-menu-items,.pdf-page-menu .row{display:flex;flex-direction:column;gap:4px;padding:8px;background:var(--bg-card,#fff);border:1px solid var(--border-color,#6b7280);border-radius:8px}
-.ef-editor .pdf-menu-items button,.ef-editor .pdf-page-menu .row button,.ef-editor .pdf-context-toolbar>button,.ef-editor .pdf-command-menu>button{min-height:44px;padding:10px 14px;font:inherit}
-.pdf-advanced-section{border-bottom:1px solid var(--border-color,#6b7280)}.pdf-advanced-section .pane-head{display:none}.ef-editor .wb-right .pane-section{border:0;padding:12px 4px}
-.ef-editor .wb-right .btn-grid{display:flex;flex-direction:column;gap:8px}.ef-editor .wb-right button{min-height:44px}
-@media(max-width:799px){.ef-editor .wb-center{padding:12px}.ef-editor .wb-brand{display:none}.ef-editor .wb-doc h2{font-size:18px}.ef-editor .wb-bar{padding:8px}.pdf-context-toolbar{gap:8px}}
-.pdf-object-tree>div{display:flex;flex-direction:column;gap:8px}.pdf-object-tree summary{min-height:44px;box-sizing:border-box;padding:10px 4px;cursor:pointer}.pdf-object-list{display:flex;flex-direction:column;gap:4px;padding:4px 0 8px}.ef-editor .pdf-object-list button{min-height:44px;width:100%;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pdf-object-list button[aria-pressed=true]{border-color:var(--accent-primary);background:var(--bg-secondary)}.pdf-image-library{display:flex;flex-direction:column;gap:8px}.ef-editor .wb-left button,.ef-editor .wb-left input,.ef-editor .wb-left select{min-height:44px;max-width:100%;box-sizing:border-box}
+.pdf-object-tree>div{display:flex;flex-direction:column;gap:8px}
 
-.ef-editor .wb-right button,.ef-editor .wb-right input:not([type=checkbox]),.ef-editor .wb-right select{min-height:44px;box-sizing:border-box}.ef-editor .wb-right .btn-grid{display:flex;flex-direction:column;gap:8px}.ef-editor .pdf-advanced-section>summary{min-height:44px;box-sizing:border-box;padding-top:12px;padding-bottom:12px}
+/* Menus and sheets (§4.3, §4.4): modal top-layer dialogs, opaque, one float elevation, a plain scrim. */
+.ds-layer{margin:auto;padding:0;max-width:min(480px,calc(100vw - 32px));max-height:calc(100dvh - 32px);border:1px solid var(--ds-hairline);border-radius:20px;background:var(--ds-surface);color:var(--ds-ink);box-shadow:var(--ds-elev-float);overflow:auto;font:var(--ds-text-body)}
+.ds-layer::backdrop{background:var(--ds-scrim,rgb(0 0 0 / .4))}
+.ds-layer.ds-menu::backdrop{background:transparent}
+.ds-layer.ds-anchored{position:fixed;margin:0;inset:auto;min-width:240px;border-radius:14px}
+.ds-layer-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:56px;padding:0 8px 0 16px;background:var(--ds-surface);border-bottom:1px solid var(--ds-hairline)}
+.ds-layer-title{margin:0;font:var(--ds-text-heading)}
+.ds-layer-done{border-color:transparent!important;background:transparent!important;color:var(--ds-accent-ink)!important}
+.ds-layer-body{padding:16px}
+.ds-layer.ds-menu .ds-layer-body{padding:8px 0}
+.ds-menu-list{display:flex;flex-direction:column;background:var(--ds-surface)}
+.ds-menu-row{justify-content:flex-start!important;width:100%!important;min-height:44px;padding:0 16px!important;border:0!important;border-radius:0!important;background:transparent!important;font-weight:400!important;text-align:left}
+.ds-menu-row:hover:not(:disabled){background:var(--ds-surface-3)!important}
+.ds-menu-row[aria-checked=true]::after{content:"✓";margin-left:auto}
+.ds-menu-row.ds-danger{color:var(--ds-bad)!important}
+.ds-menu-row:disabled{background:transparent!important}
+.ds-menu-sep{margin:4px 0;border:0;border-top:1px solid var(--ds-hairline)}
+.ds-layer .pane-section{display:block;padding:0;border:0}
+.ds-layer .pane-head{display:none}
+.ds-layer .ef-inspector{display:block!important;position:static!important;width:auto;max-height:none;border:0;box-shadow:none}
+.ds-layer .ef-assistant{height:min(60dvh,520px);min-height:360px}
+.ds-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.ds-confirm .ds-layer-body p{margin:0;font:var(--ds-text-body)}
+.pdf-page-tools{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.pdf-page-tools #sources{width:auto;max-width:200px}
+.pdf-page-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:16px}
+.pdf-page-tile{display:grid;gap:8px}
+.pdf-page-tile img{display:block;width:100%;aspect-ratio:1/1.294;object-fit:contain;background:#fff;border:1px solid var(--ds-hairline);border-radius:6px}
+.pdf-page-tile label{display:flex;align-items:center;gap:8px;min-height:44px;font:600 14px/20px var(--ds-font)}
+.pdf-page-moves{display:flex;gap:8px}
+.pdf-page-moves button{flex:1;padding:0 8px!important}
 
-/* App rules still apply after the shared shell moves its retained nodes. */
-.ef-editor{font-size:13px}.ef-editor .wb-bar{min-height:64px;padding:8px 12px;border:0;border-radius:0}.ef-editor .wb-brand{padding-right:12px}.ef-editor .wb-brand h1{font-size:18px}.ef-editor .wb-brand .kicker{display:none}.ef-editor .wb-doc h2{font-size:15px}.ef-editor #actions button{min-height:44px}.ef-editor .wb-left,.ef-editor .wb-right{border-radius:0;background:transparent}.ef-editor .pdf-object:hover{transform:none!important}
-
-.ef-editor .pdf-command-menu>summary{border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);font-size:13px;min-height:44px}.ef-editor .pdf-command-menu[open]>.pdf-menu-items,.ef-editor .pdf-page-menu[open]>.row{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;z-index:10;box-shadow:0 8px 24px #17203326}.ef-editor #actions .pdf-command-menu>.pdf-menu-items{right:0;left:auto}.ef-editor .pdf-menu-items>button{width:100%;text-align:left;justify-content:flex-start}.ef-editor .pdf-context-toolbar>button{border-radius:8px}
-/* One app bar row on a phone: title, Save, More (the shell moves the rest into More). */
-@media(max-width:800px){.ef-editor .wb-bar{flex-wrap:nowrap;gap:8px;min-height:0;padding:6px 10px}.ef-editor .wb-doc{flex:1;min-width:0}.ef-editor .wb-doc h2{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ef-editor .wb-doc #revision{margin:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ef-editor .wb-bar #actions{flex:none;width:auto;margin-left:auto;flex-wrap:nowrap}.ef-editor .wb-bar #actions>*{flex:none}}
+/* Desktop (§3.3): the canvas and a 320px Format pane; the concierge docks as a fourth column when opened. */
+@media(min-width:801px){
+ .pdf-chrome .ef-body{grid-template-columns:minmax(0,1fr) 320px!important}
+ .pdf-chrome .ef-navigation{display:none!important}
+ .pdf-chrome.ef-has-concierge[data-editor-concierge=open] .ef-body{grid-template-columns:minmax(0,1fr) 320px 360px!important}
+ .pdf-chrome .pdf-phone-only{display:none!important}
+ .pdf-chrome .pdf-modebar{flex:0 1 auto;overflow:hidden}
+ .pdf-chrome .wb-doc{flex:0 1 auto}
+ .pdf-chrome :is(.wb-bar button){min-height:36px;padding:0 12px}
+ .pdf-chrome .pdf-icon{min-width:36px}
+ .ds-layer.ds-full{max-width:min(960px,calc(100vw - 48px))}
+}
+@media(min-width:1040px) and (pointer:fine){.pdf-chrome.ef-editor{font:var(--ds-text-body)}}
+/* Phone (§3.1): one app row, the modes in the bottom bar, sheets from the bottom. */
+@media(max-width:800px){
+ .pdf-chrome .wb-bar{padding:4px 8px;min-height:52px;gap:4px}
+ .pdf-chrome .wb-doc #revision{display:none}
+ .pdf-chrome #actions{gap:4px}
+ .pdf-chrome #actions .pdf-search{display:none}
+ .pdf-chrome #actions :is(.pdf-save,.pdf-primary){padding:0 12px}
+ .pdf-chrome .pdf-doc-button{min-width:88px}
+ .pdf-chrome .wb-center{padding:12px 12px 88px}
+ .pdf-chrome .pdf-modebar{position:fixed;left:0;right:0;bottom:0;z-index:30;height:calc(56px + env(safe-area-inset-bottom,0px));padding:0 8px env(safe-area-inset-bottom,0px);background:var(--ds-page);border-top:1px solid var(--ds-hairline)}
+ .pdf-chrome .pdf-modes{flex:1;gap:4px}
+ .pdf-chrome .pdf-mode{flex:1 1 0;flex-direction:column;gap:0;min-width:0;height:52px;padding:0 4px!important;border:0!important;background:transparent!important;font:600 12px/16px var(--ds-font)}
+ .pdf-chrome .pdf-mode .pdf-glyph{font-size:18px}
+ .pdf-chrome .pdf-strip{flex:1}
+ .pdf-chrome .pdf-strip .pdf-tool{flex-direction:column;gap:0;height:52px;padding:0 8px!important;border:0!important;font:600 12px/16px var(--ds-font)}
+ .pdf-chrome .pdf-strip .pdf-tool:not([aria-pressed=true]){background:transparent!important}
+ .pdf-chrome .pdf-doc-button{max-width:none;flex:1 1 auto}
+ .pdf-new{bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+ .ds-layer:not(.ds-anchored){width:100%;max-width:none;margin:auto 0 0;max-height:min(80dvh,calc(100dvh - 56px));border-radius:20px 20px 0 0;border-bottom:0}
+ .ds-layer.ds-full{height:calc(100dvh - 56px)}
+ .ds-layer .ef-assistant{height:min(64dvh,560px)}
+}
+@media(prefers-reduced-motion:reduce){:is(.wb,.ef-editor,.ds-layer) :is(button,.btn){transition:none}}

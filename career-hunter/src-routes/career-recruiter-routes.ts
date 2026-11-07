@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Extracted caller-scoped recruiter tracker CRUD routes from the route composition root.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The tracker opens the caller's own database alone (recruiters never read the shared corpus), and the first write creates it with the engine's own per-user schema (engine/jobhunter/db.py USER_SCHEMA). Add recruiter answered 404 {error:'no data'} for anyone who had not ingested a resume, because openUserDb returns null until the corpus AND the per-user database exist. Guard: tests/career-recruiter-first-write.test.mjs.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (grade F): after a status change every list answered 500 "unable to open database file" (production journal 05:24:25Z-05:24:47Z, principal admin) and the screen showed 0 of 18 firms. The tracker was the one Career reader that opened a person's store plainly read-only: a store whose header still says WAL (the engine writes in WAL and only switches back at exit) cannot create its -shm on the kernel's read pin. Reads now open it the way openUserDb does (immutable when the owner mount holds no pending WAL), and a tracker write leaves the file in rollback-journal mode so the generation it publishes opens anywhere. Guard: tests/career-recruiter-read-after-write.test.mjs.
  */
 
 /**
@@ -13,6 +14,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import Database from 'better-sqlite3';
 import { type Request, type Response, type Router } from 'express';
 import { createChildLogger } from '@/shared/logger';
@@ -52,13 +54,43 @@ export function engineUserSchema(file: string = ENGINE_DB_MODULE): string {
  */
 function openRecruiterDb(userSub: string, write: boolean): any {
   const { userDb, userDir } = userPaths(userSub);
-  if (fs.existsSync(userDb)) return new Database(userDb, { readonly: !write });
+  if (fs.existsSync(userDb)) return write ? new Database(userDb) : new Database(readSource(userDb), { readonly: true });
   if (!write) return null;
   fs.mkdirSync(userDir, { recursive: true });
   const created = new Database(userDb);
   try { created.exec(engineUserSchema()); } catch (err) { created.close(); fs.rmSync(userDb, { force: true }); throw err; }
   logger.info({ userSub }, 'career user store created by its first recruiter write');
   return created;
+}
+
+/**
+ * @description Where a read opens the store. The kernel pins a published generation for a read; a
+ * file still marked WAL with nothing pending cannot create its -shm there ("unable to open database
+ * file"), so it opens immutable, exactly as openUserDb does. A pending WAL is never bypassed.
+ * @param userDb - The caller's store file.
+ * @returns A filename or file: URI for a read-only open.
+ */
+export function readSource(userDb: string): string {
+  const wal = `${userDb}-wal`;
+  const pending = fs.existsSync(wal) && fs.lstatSync(wal).size > 0;
+  if (process.env.OSHAL_CAREER_OWNER_MOUNT !== '1' || pending) return userDb;
+  return `${pathToFileURL(userDb).href}?immutable=1`;
+}
+
+/**
+ * @description Leave a store this request wrote in rollback-journal mode, as the engine leaves it at
+ * exit, so the generation the kernel publishes from it opens for any reader. A refusal is harmless:
+ * the next writer finds the file as it was, and reads still open it immutable.
+ * @param db - The open write handle.
+ * @returns Nothing.
+ */
+export function leavePortable(db: any): void {
+  try {
+    const mode = db.prepare('PRAGMA journal_mode').get();
+    if (String(mode?.journal_mode || '').toLowerCase() === 'wal') db.exec('PRAGMA journal_mode = DELETE');
+  } catch (err) {
+    logger.warn({ err }, 'recruiter store journal mode kept');
+  }
 }
 
 function listRecruiters(req: Request, res: Response): void {
@@ -119,7 +151,7 @@ function addRecruiter(req: Request, res: Response): void {
   } catch (err) {
     logger.error({ err, userSub }, 'career recruiter add failed');
     res.status(500).json({ error: 'add failed' });
-  } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'recruiter database close failed'); } }
+  } finally { leavePortable(db); try { db.close(); } catch (err) { logger.warn({ err }, 'recruiter database close failed'); } }
 }
 
 function updateRecruiter(req: Request, res: Response): void {
@@ -140,7 +172,7 @@ function updateRecruiter(req: Request, res: Response): void {
   } catch (err) {
     logger.error({ err, userSub, id }, 'career recruiter update failed');
     res.status(500).json({ error: 'update failed' });
-  } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'recruiter database close failed'); } }
+  } finally { leavePortable(db); try { db.close(); } catch (err) { logger.warn({ err }, 'recruiter database close failed'); } }
 }
 
 function deleteRecruiter(req: Request, res: Response): void {
@@ -157,7 +189,7 @@ function deleteRecruiter(req: Request, res: Response): void {
   } catch (err) {
     logger.error({ err, userSub, id }, 'career recruiter delete failed');
     res.status(500).json({ error: 'delete failed' });
-  } finally { try { db.close(); } catch (err) { logger.warn({ err }, 'recruiter database close failed'); } }
+  } finally { leavePortable(db); try { db.close(); } catch (err) { logger.warn({ err }, 'recruiter database close failed'); } }
 }
 
 /**

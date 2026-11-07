@@ -38,7 +38,7 @@ test('the shipped Systems panel reads through three confirmed actions, saves a l
   await page.locator('#live-cluster summary').click();await page.getByText('Your Kubernetes connection is selected',{exact:false}).waitFor();
   assert.deepEqual(await page.locator('#live-account option').evaluateAll(o=>o.map(x=>x.value)),['primary'],'only the person\'s own Kubernetes connections are offered');
   await page.waitForFunction(()=>[...document.querySelectorAll('#live-scope option')].some(o=>o.value==='cluster-uid'));
-  await page.getByText('Records refreshed',{exact:false}).waitFor();await page.getByRole('button',{name:'Read live cluster',exact:true}).click();await page.getByText('Live read at',{exact:false}).waitFor();
+  await page.locator('#status',{hasText:/^Updated /}).waitFor();await page.getByRole('button',{name:'Read live cluster',exact:true}).click();await page.getByText('Live read at',{exact:false}).waitFor();
   assert.deepEqual(effects.map(e=>e.op),['kubernetes-list-nodes','kubernetes-list-pods','kubernetes-list-deployments']);assert.deepEqual(effects[0].body,{});assert.deepEqual(effects[1].body,{namespace:'operations-demo'});
   await page.locator('#live-results').getByText('Nodes · 2',{exact:true}).waitFor();await page.locator('#live-results').getByText('127598544Ki',{exact:false}).first().waitFor();await page.locator('#live-results').getByText('Pods in operations-demo · 2',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Save as inventory scan',exact:true}).click();await page.getByText('Saved as a complete live inventory scan',{exact:false}).waitFor();

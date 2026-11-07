@@ -8,6 +8,7 @@
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Added tenant-safe targeting and transactional, idempotent reminder delivery
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Minimize notification reads to the authenticated caller's rendered response fields
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Delegate owner-scoped guardianAction (RP-LM-01) and timelineAction (RP-LM-05) mutations on POST /notify while keeping authorization.yaml unchanged
  * ---------------------------------------------------------------------------
  *
  * @module education-notification-routes
@@ -17,6 +18,8 @@ exports.createEducationNotificationRoutes = createEducationNotificationRoutes;
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
 const education_access_1 = require("./education-access");
+const education_guardian_service_1 = require("./education-guardian-service");
+const education_timelines_service_1 = require("./education-timelines-service");
 const education_calendar_support_1 = require("./education-calendar-support");
 const logger = (0, logger_1.createChildLogger)({ module: 'education-notification-routes' });
 const CHANNELS = new Set(['in-app', 'email', 'sms']);
@@ -42,6 +45,14 @@ async function listNotifications(ctx, req, res) {
 }
 /** Send only to self or to a student the caller is entitled to view. */
 async function sendNotification(ctx, req, res) {
+    if (req.body?.guardianAction) {
+        await (0, education_guardian_service_1.handleGuardianMutation)(ctx.pool, req, res);
+        return;
+    }
+    if (req.body?.timelineAction) {
+        await (0, education_timelines_service_1.handleTimelineMutation)(ctx.pool, req, res);
+        return;
+    }
     try {
         const caller = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
         const studentId = String(req.body?.studentId ?? '');

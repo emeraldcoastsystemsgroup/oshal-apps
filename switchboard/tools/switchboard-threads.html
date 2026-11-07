@@ -1,4 +1,12 @@
 <!doctype html>
+<!--
+  CHANGE LOG
+  =============================================================================
+  SEQ | AUTHOR                                  | DESCRIPTION
+  =============================================================================
+  1   | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (switchboard--switchboard-threads, MERGE): navigate /api/switchboard/threads to /api/switchboard/inbox?group=person unless ?stay=1; replace inline window.top.location button with top-level Connect accounts link, solid accent tokens, and system font stack.
+  =============================================================================
+-->
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8" />
@@ -38,8 +46,9 @@
     --text:    var(--text-primary,    var(--sb-text));
     --text2:   var(--text-secondary,  var(--sb-text2));
     --muted:   var(--text-muted,      var(--sb-muted));
-    --accent:  var(--accent-primary,  var(--sb-accent));
-    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    --accent:  var(--ds-accent,       var(--accent-primary, var(--sb-accent)));
+    --accent-grad: var(--ds-accent, var(--accent));
+    --on-accent: var(--ds-on-accent,  var(--text-on-accent, #fff));
     --ok:      var(--status-success,  var(--sb-ok));
     --warn:    var(--status-warning,  var(--sb-warn));
     --err:     var(--status-error,    var(--sb-err));
@@ -59,7 +68,8 @@
   html,body { height:100%; }
   body {
     margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+    font-family:var(--ds-font, system-ui, sans-serif);
+    overscroll-behavior:contain;
     -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
   }
   .tnum { font-variant-numeric:tabular-nums; }
@@ -131,8 +141,8 @@
   }
   .replybtn:hover, .replyaction:hover { border-color:var(--accent); }
   .replybtn svg, .replyaction svg { width:14px; height:14px; }
-  .replyaction.primary { border:0; color:#fff; background:var(--accent-grad); }
-  .replyaction:disabled { opacity:.55; cursor:not-allowed; }
+  .replyaction.primary { border:0; color:var(--on-accent); background:var(--ds-accent, var(--accent)); }
+  .replyaction:disabled { background:var(--ds-surface-2, var(--surface)); color:var(--ds-ink-disabled, var(--muted)); border-color:var(--line); opacity:1; cursor:not-allowed; }
   .replybox { background:var(--card); border:1px solid var(--line); border-radius:var(--r-md); padding:14px; margin:0 0 16px; }
   .replybox .label { color:var(--muted); font-size:11.5px; margin-bottom:8px; }
   .replybox textarea { width:100%; min-height:110px; resize:vertical; border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface); color:var(--text); font:inherit; line-height:1.5; padding:11px 12px; outline:none; }
@@ -166,14 +176,14 @@
   @keyframes sh { 100% { transform:translateX(100%); } }
 
   .hero { text-align:center; padding:56px 32px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); grid-column:1 / -1; }
-  .hero .badge { width:64px; height:64px; border-radius:19px; background:var(--accent-grad); display:grid; place-items:center; margin:0 auto 18px; box-shadow:0 12px 30px rgba(0,0,0,.2); }
-  .hero .badge svg { width:32px; height:32px; color:#fff; }
+  .hero .badge { width:64px; height:64px; border-radius:19px; background:color-mix(in srgb, var(--accent) 14%, var(--surface)); display:grid; place-items:center; margin:0 auto 18px; }
+  .hero .badge svg { width:32px; height:32px; color:var(--accent); }
   .hero h2 { font-size:22px; font-weight:680; letter-spacing:-.02em; margin:0 0 8px; }
   .hero p { color:var(--muted); font-size:14.5px; max-width:44ch; margin:0 auto 22px; line-height:1.55; }
   .cta {
     appearance:none; border:0; cursor:pointer; font:inherit; font-size:14.5px; font-weight:620;
-    background:var(--accent-grad); color:#fff; padding:12px 26px; border-radius:var(--pill);
-    display:inline-flex; align-items:center; gap:9px; box-shadow:0 10px 26px rgba(0,0,0,.18);
+    background:var(--ds-accent, var(--accent)); color:var(--on-accent); min-height:44px; padding:10px 22px; border-radius:var(--r-sm);
+    display:inline-flex; align-items:center; gap:9px;
   }
   .cta:hover { filter:brightness(1.06); }
   .cta svg { width:16px; height:16px; }
@@ -242,6 +252,15 @@
 <script>
 (function () {
   "use strict";
+
+  try {
+    var sp = new URLSearchParams(window.location.search || "");
+    if (sp.get("stay") !== "1" && window.location && typeof window.location.replace === "function") {
+      sp.set("group", "person");
+      window.location.replace("/api/switchboard/inbox?" + sp.toString() + (window.location.hash || ""));
+      return;
+    }
+  } catch (e) {}
 
   var API = "/api/switchboard/threads";
 
@@ -406,8 +425,8 @@
     shell.innerHTML=''
       + '<div class="hero"><div class="badge"><svg><use href="#i-thread"/></svg></div>'
       + '<h2>One thread per person</h2>'
-      + '<p>'+esc(msg||"Connect your Google account and Switchboard folds every mail and mention into one timeline per person.")+'</p>'
-      + '<button class="cta" onclick="window.top.location=\'/utilities\'"><svg><use href="#i-mail"/></svg> Connect accounts</button></div>';
+      + '<p>'+esc(msg||"Connect an account to see one thread per person.")+'</p>'
+      + '<a class="cta" href="/utilities" target="_top"><svg><use href="#i-mail"/></svg> Connect accounts</a></div>';
   }
 
   // ── labelled sample (API unreachable / opened standalone) ──────────────────

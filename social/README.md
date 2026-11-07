@@ -1,5 +1,7 @@
 # Social (social) — OSHAL app package
 
+1.7.0 makes Compose and Workspace one application: the menu has one **Workspace** tile (Feed · Engage · Saved · Compose) and no separate Composer tile. Every Composer capability lives in Workspace · Compose — AI draft, refine chips and free prompt, LinkedIn / X / Facebook publish, the prepare-post handoff (and a direct `?title=&notes=&sourceUrl=` prefill) and connected-application offers. The old `/api/social/composer` address answers a 302 to `/api/social/workspace?view=compose` with every query parameter kept, prepare-post and the Business screen open `social-workspace`, and `tools/social-composer.html` is gone. Proven by `tests/composer-merge.test.cjs` and `tests/workspace-browser.test.cjs`.
+
 1.5.3 adds the family audience view beside the company one (ADR-164 D6): Jarvis (the Home shell) opens this package's first surface with `?audience=family`, and the shared kit paints the same account-scoped card in the family grammar; the reads and the model are unchanged. Proven by `tests/audience-view.test.cjs` (Test Lab case `audience-view`) and the store's `scripts/audience-views.browser.cjs` over `tests/audience-view.fixture.cjs`, which expects the same card under both audiences.
 
 Draft, review, and publish across your networks from one surface (ADR-036/038):
@@ -21,10 +23,10 @@ Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 2, "skill with a surface" — 
 the surface carves):
 
 - **In this package:** the app manifest (ticketType `linkedin-content-post` + the
-  LinkedIn Content Assistant workflow), the `/api/social` routes (Workspace +
-  Composer draft/publish with the confirm gate, the Signals feed read + AI
+  LinkedIn Content Assistant workflow), the `/api/social` routes (Workspace
+  draft/publish with the confirm gate, the Signals feed read + AI
   organize, Facebook Pages stream + publish, X timeline + follow), the surfaces
-  (`tools/social-workspace.html`, `social-signals.html`, `social-composer.html`,
+  (`tools/social-workspace.html`, `social-signals.html`,
   `facebook-stream.html`), and a package copy of the comms-bot persona for the
   registrar.
 - **Stays in the OSHAL kernel:** the communications-bot node (comms container +
@@ -41,7 +43,7 @@ the surface carves):
 
 | Tile | URL | What |
 |---|---|---|
-| Workspace | `/api/social/workspace` | Who to engage (left) + draft/refine/publish (right) |
+| Workspace | `/api/social/workspace` | Feed · Engage · Saved · Compose: who to engage + draft/refine/publish (the old Composer address `/api/social/composer` opens Compose here) |
 | LinkedIn Assistant | `/api/linkedin-assistant/panel` | The kernel-resident content assistant (draft→approve→publish) |
 | Signals | `/api/social/signals/ui` | Inbox-fed social notifications + AI-organized briefing |
 | Accounts | `/utilities` | Connect/disconnect LinkedIn / X / Facebook (kernel-served) |

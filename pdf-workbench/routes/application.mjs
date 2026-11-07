@@ -1,7 +1,7 @@
-/** CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | Return a fresh transient contract edit key without changing saved source or retry semantics. */
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Human and held-agent requests share original PDF authority and durable revisions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Find exact saved field values through the same original-owner read boundary without exhausting model steps.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Return fresh transient contract edit keys and mount word-box, signature, view-preference, photo-to-PDF, size-reduction and OOXML export routes.
  */
 import {createRequire} from 'node:module';
 import {resolve} from 'node:path';
@@ -10,15 +10,25 @@ import {PdfStore} from './project-store.mjs';
 import {findFormFields} from './form-lookup.mjs';
 import {engine} from './engine-client.mjs';
 import {contentObjects} from '../tools/content-model.mjs';
-import {PdfError,id,integer,exact,fail,LIMITS,CONTRACT,editingContract,digest,readablePages} from './model.mjs';
+import {PdfError,id,integer,exact,fail,LIMITS,editingContract,digest,readablePages} from './model.mjs';
+
 const require=createRequire(import.meta.url),{Router,json}=require('express'),multer=require('multer');
-const parse=json({limit:6*1024*1024,strict:true});
-async function readableObjects(store,document,{fullText=false}={}){const sources=await store.editingSources(document.id,document.revision),inspection=await store.inspectSaved(document.id,document.revision);return document.model.pages.flatMap((page,index)=>contentObjects(sources.find(s=>s.id===page.source)?.pages[page.index],document.model,page.id,inspection.pages[index]).map(({image,text,...object})=>({...object,...(text===undefined?{}:{text:fullText?text:Array.from(text).slice(0,512).join(''),textLength:text.length,textTruncated:Boolean(object.textTruncated)||!fullText&&text.length>512}),...(image?{hasImage:true}:{})})));}
+const parse=json({limit:12*1024*1024,strict:true});
 const upload=multer({storage:multer.memoryStorage(),limits:{files:1,fileSize:LIMITS.bytes,fields:2,fieldSize:1024,parts:3}}).single('file');
 const middleware=(fn,req,res)=>new Promise((done,reject)=>fn(req,res,error=>error?reject(error):done()));
-function revision(value){if(value===undefined)return; if(typeof value!=='string'||! /^(?:[1-9][0-9]?|100)$/.test(value))fail(400,'pdf_invalid_revision');return Number(value);}
+
+async function readableObjects(store,document,{fullText=false}={}){
+ const sources=await store.editingSources(document.id,document.revision),inspection=await store.inspectSaved(document.id,document.revision);
+ return document.model.pages.flatMap((page,index)=>{
+  const srcPage=page.blank?{cropBox:page.cropBox,objects:[],objectCount:0}:sources.find(s=>s.id===page.source)?.pages[page.index];
+  return contentObjects(srcPage,document.model,page.id,inspection.pages[index]).map(({image,text,...object})=>({...object,...(text===undefined?{}:{text:fullText?text:Array.from(text).slice(0,512).join(''),textLength:text.length,textTruncated:Boolean(object.textTruncated)||!fullText&&text.length>512}),...(image?{hasImage:true}:{})}));
+ });
+}
+
+function revision(value){if(value===undefined)return;if(typeof value!=='string'||! /^(?:[1-9][0-9]?|100)$/.test(value))fail(400,'pdf_invalid_revision');return Number(value);}
 function closedRequest(req){if(Object.keys(req.query??{}).some(key=>/owner|tenant|issuer|subject/i.test(key))||req.headers?.['x-oshal-tenant-id']||req.headers?.['x-tenant-id'])fail(400,'pdf_personal_scope_only');}
 function pathBody(req,param){const value={...req.body};if(value.id!==undefined){if(id(value.id)!==id(req.params[param]))fail(400,'pdf_path_body_mismatch');delete value.id;}return value;}
+
 /** Ordinary native artifact chunks retain the original caller and producer's current source/grants. */
 export async function artifactBytes(ctx,ref){
  if(typeof ref!=='string'||! /^art_[a-f0-9]{64}$/.test(ref))fail(400,'pdf_invalid_artifact');
@@ -27,13 +37,58 @@ export async function artifactBytes(ctx,ref){
  while(offset<meta.size){await access(ctx,'create');const chunk=await ctx.intent('artifact.exchange',{op:'chunk',ref,offset});const data=typeof chunk?.dataBase64==='string'?Buffer.from(chunk.dataBase64,'base64'):Buffer.alloc(0);if(chunk.ref!==ref||chunk.offset!==offset||chunk.size!==meta.size||!data.length||data.length>65536||data.toString('base64')!==chunk.dataBase64||offset+data.length>meta.size||chunk.done!==(offset+data.length===meta.size))fail(503,'pdf_artifact_invalid_chunk');pieces.push(data);offset+=data.length;}
  const data=Buffer.concat(pieces),latest=await ctx.intent('artifact.exchange',{op:'metadata',ref});if(latest.size!==meta.size||latest.sha256!==meta.sha256||latest.type!==meta.type||digest(data)!==meta.sha256)fail(409,'pdf_artifact_source_changed');await access(ctx,'create');return data;
 }
+
+async function readModelPart(req,store){
+ const d=(await store.get(id(req.params.document),revision(req.query.revision))).document,part=req.params.part,offset=integer(Number(req.params.offset),0,4095),query=req.query.query;
+ if(part.startsWith('form-fields:'))return findFormFields(d,{query:part.slice(12),offset:String(offset)});
+ if(part==='form-fields'&&query!==undefined)return findFormFields(d,{query,offset:String(offset)});
+ if(query!==undefined&&(typeof query!=='string'||!query.length||query.length>128||!['objects','object-text','image-assets'].includes(part)))fail(400,'pdf_invalid_field_lookup_part');
+ let rows;
+ if(part==='objects'||part==='object-text'){
+  rows=await readableObjects(store,d,{fullText:part==='object-text'});if(query!==undefined)rows=rows.filter(object=>object.page+'/'+object.id===query);
+  if(part==='object-text'){
+   if(!query||rows.length!==1||typeof rows[0].text!=='string')fail(404,'pdf_content_object_unavailable');
+   const text=rows[0].text;if(offset>text.length||offset>0&&/[\uDC00-\uDFFF]/.test(text[offset])&&/[\uD800-\uDBFF]/.test(text[offset-1]))fail(400,'pdf_invalid_text_offset');
+   let end=Math.min(text.length,offset+1024);if(end<text.length&&/[\uD800-\uDBFF]/.test(text[end-1]))end--;
+   return{document:d.id,revision:d.revision,part,page:rows[0].page,object:rows[0].id,offset,total:text.length,value:text.slice(offset,end),truncated:Boolean(rows[0].textTruncated),nextOffset:end<text.length?end:null};
+  }
+ }else if(part==='image-assets'){rows=(await store.imageList()).assets;if(query!==undefined)rows=rows.filter(asset=>asset.id===query||asset.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()));}
+ else rows=part==='pages'?readablePages(d):part==='annotations'?d.model.annotations:part==='fields'?Object.entries(d.model.fields).map(([name,value])=>({name,value})):part==='form-fields'?d.inspection.fields:null;
+ if(!rows||offset>=rows.length)fail(404,'pdf_model_part_unavailable');
+ return{document:d.id,revision:d.revision,part,offset,total:rows.length,value:rows[offset],nextOffset:offset+1<rows.length?offset+1:null};
+}
+
+function mountExtensionRoutes(router,run){
+ router.get('/preferences',run('view',(_req,store)=>store.getPreferences()));
+ router.put('/preferences',run('view',(req,store)=>store.savePreferences(req.body),true));
+ router.get('/signatures',run('read',(_req,store)=>store.listSignatures()));
+ router.post('/signatures',run('change',(req,store)=>store.saveSignature(req.body),true));
+ router.get('/signatures/:signature/content',run('read',async(req,store)=>{const s=await store.signatureContent(id(req.params.signature));return{send:res=>res.type(s.type).send(s.data)};}));
+ router.post('/signatures/:signature/place',run('change',(req,store)=>store.placeSignatureAsset(id(req.params.signature),req.body),true));
+ router.delete('/signatures/:signature',run('delete',(req,store)=>store.removeSignature(id(req.params.signature))));
+ router.post('/documents/from-photos',run('create',(req,store)=>store.createFromPhotos(req.body),true));
+ router.get('/documents/:document/pages/:page/words',run('read',(req,store)=>store.pageWords(id(req.params.document),id(req.params.page),revision(req.query.revision))));
+ router.post('/documents/:document/compress',run('change',(req,store)=>store.compressDocument(id(req.params.document),pathBody(req,'document')),true));
+ router.post('/documents/:document/convert',run('export',async(req,store)=>{
+  const body=pathBody(req,'document');exact(body,['format','revision']);
+  const rev=body.revision===undefined?undefined:integer(body.revision,1,100),docId=id(req.params.document);
+  const out=await store.convertDocument(docId,{format:body.format,revision:rev});
+  return{format:out.format,type:out.type,bytes:out.bytes,sha256:out.sha256,filename:out.filename,approximateLayout:true,downloadUrl:`/api/pdf-workbench/documents/${docId}/export/${out.format}`+(rev?`?revision=${rev}`:'')};
+ },true));
+ router.get('/documents/:document/export/:format',run('export',async(req,store)=>{
+  const out=await store.convertDocument(id(req.params.document),{format:req.params.format,revision:revision(req.query.revision)});
+  return{send:res=>{res.setHeader('Content-Disposition',`attachment; filename="${out.filename}"`);res.type(out.type).send(out.data);}};
+ }));
+}
+
 export function createPdfRoutes(packageCtx,fixtureRuns){
  if(!packageCtx?.authorization?.registerResource)throw new Error('pdf_native_authorization_required');
  packageCtx.authorization.registerResource('documents',{authorize:({actor,operation,grant})=>actor.isActive&&!!actor.issuer&&!!actor.sub&&grant.scope==='own'&&!grant.fields&&!operation.tenantId});
  const router=Router(),root=packageCtx.appPackageDir??resolve(import.meta.dirname,'..');
  const run=(permission,work,body=false)=>async(req,res)=>{let ctx;try{closedRequest(req);ctx=bindRequest(packageCtx);await access(ctx,permission);if(body)await middleware(body==='upload'?upload:parse,req,res);const result=await work(req,new PdfStore(ctx),ctx);await access(ctx,permission);res.setHeader('Cache-Control','private, no-store');res.setHeader('X-Content-Type-Options','nosniff');if(result?.send)await result.send(res);else{const{httpStatus,...value}=result;if(httpStatus)res.status(httpStatus);res.json(value);}}catch(error){if(ctx)try{await access(ctx,permission);}catch(denial){error=denial;}if(res.headersSent)return;const busy=['55P03','40P01','40001'].includes(error.code);res.status(busy?503:error.status??503).json({error:busy?'pdf_storage_busy':error instanceof PdfError?error.code:error.code?.startsWith('LIMIT_')?'pdf_upload_limit':'pdf_service_unavailable',...(busy?{retryAfterMs:100}:{})});}};
  router.get('/app',run('view',async()=>({send:res=>res.type('html').sendFile(resolve(root,'tools/workbench.html'))})));
- for(const file of ['workbench.mjs','workbench.css','editor.mjs','content-model.mjs'])router.get('/ui/'+file,run('view',async()=>({send:res=>res.type(file.endsWith('.css')?'text/css':'text/javascript').sendFile(resolve(root,'tools',file))})));
+ for(const file of ['workbench.mjs','workbench.css','editor.mjs','editor-tools.mjs','editor-sheets.mjs','content-model.mjs'])router.get('/ui/'+file,run('view',async()=>({send:res=>res.type(file.endsWith('.css')?'text/css':'text/javascript').sendFile(resolve(root,'tools',file))})));
+ mountExtensionRoutes(router,run);
  router.post('/documents/:document/draft-preview',run('change',(req,store)=>store.draftPreview(id(req.params.document),req.body),true));
  router.get('/permissions',run('view',async(_req,_store,ctx)=>({permissions:await permissions(ctx)})));
  router.get('/documents/:document/editing-sources',run('read',async(req,store)=>{const document=id(req.params.document),version=revision(req.query.revision);return{sources:await store.editingSources(document,version),inspection:await store.inspectSaved(document,version)};}));
@@ -49,24 +104,7 @@ export function createPdfRoutes(packageCtx,fixtureRuns){
  router.get('/documents',run('read',(_req,store)=>store.list()));
  router.post('/documents',run('create',(req,store)=>store.create(req.body),true));
  router.get('/documents/:document',run('read',async(req,store)=>{const result=await store.get(id(req.params.document),revision(req.query.revision));if(req.query.receipt!=='1')return result;const d=result.document;return{document:{id:d.id,title:d.title,revision:d.revision,currentRevision:d.currentRevision,sha256:d.inspection.sha256,bytes:d.inspection.bytes,pages:readablePages(d),annotations:d.model.annotations.length,fieldValues:Object.keys(d.model.fields).length,formFields:d.inspection.fields.length},history:result.history};}));
- router.get('/documents/:document/model/:part/:offset',run('read',async(req,store)=>{
-  const d=(await store.get(id(req.params.document),revision(req.query.revision))).document,part=req.params.part,offset=integer(Number(req.params.offset),0,4095),query=req.query.query;
-  if(part.startsWith('form-fields:'))return findFormFields(d,{query:part.slice(12),offset:String(offset)});
-  if(part==='form-fields'&&query!==undefined)return findFormFields(d,{query,offset:String(offset)});
-  if(query!==undefined&&(typeof query!=='string'||!query.length||query.length>128||!['objects','object-text','image-assets'].includes(part)))fail(400,'pdf_invalid_field_lookup_part');
-  let rows;
-  if(part==='objects'||part==='object-text'){
-   rows=await readableObjects(store,d,{fullText:part==='object-text'});if(query!==undefined)rows=rows.filter(object=>object.page+'/'+object.id===query);
-   if(part==='object-text'){
-    if(!query||rows.length!==1||typeof rows[0].text!=='string')fail(404,'pdf_content_object_unavailable');
-    const text=rows[0].text;if(offset>text.length||offset>0&&/[\uDC00-\uDFFF]/.test(text[offset])&&/[\uD800-\uDBFF]/.test(text[offset-1]))fail(400,'pdf_invalid_text_offset');
-    let end=Math.min(text.length,offset+1024);if(end<text.length&&/[\uD800-\uDBFF]/.test(text[end-1]))end--;
-    return{document:d.id,revision:d.revision,part,page:rows[0].page,object:rows[0].id,offset,total:text.length,value:text.slice(offset,end),truncated:Boolean(rows[0].textTruncated),nextOffset:end<text.length?end:null};
-   }
-  }else if(part==='image-assets'){rows=(await store.imageList()).assets;if(query!==undefined)rows=rows.filter(asset=>asset.id===query||asset.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()));}
-  else rows=part==='pages'?readablePages(d):part==='annotations'?d.model.annotations:part==='fields'?Object.entries(d.model.fields).map(([name,value])=>({name,value})):part==='form-fields'?d.inspection.fields:null;
-  if(!rows||offset>=rows.length)fail(404,'pdf_model_part_unavailable');return{document:d.id,revision:d.revision,part,offset,total:rows.length,value:rows[offset],nextOffset:offset+1<rows.length?offset+1:null};
- }));
+ router.get('/documents/:document/model/:part/:offset',run('read',readModelPart));
  router.get('/documents/:document/text',run('read',async(req,store,ctx)=>{const saved=await store.content(id(req.params.document),revision(req.query.revision),'read');return engine(ctx,{op:'text',data:saved.data.toString('base64')});}));
  router.get('/documents/:document/text/:page/:offset',run('read',async(req,store,ctx)=>{const saved=await store.content(id(req.params.document),revision(req.query.revision),'read'),page=integer(Number(req.params.page),0,31),offset=integer(Number(req.params.offset),0,1048576),result=await engine(ctx,{op:'text',data:saved.data.toString('base64')});const found=result.pages[page];if(!found||offset>found.text.length)fail(404,'pdf_text_unavailable');const text=found.text.slice(offset,offset+4096);return{page,offset,text,truncated:found.truncated,totalCodeUnits:found.text.length,nextOffset:offset+text.length<found.text.length?offset+text.length:null};}));
  router.get('/documents/:document/forms/find',run('read',async(req,store)=>findFormFields((await store.get(id(req.params.document),revision(req.query.revision))).document,{query:req.query.query,offset:req.query.offset})));

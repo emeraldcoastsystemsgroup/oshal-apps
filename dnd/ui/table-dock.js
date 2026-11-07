@@ -6,6 +6,9 @@
  * 2026-09-14 15:20:00 | maintainer@emeraldcoastsystemsgroup.com     | Carry the dock out of table-screens.js, which had grown past the package's own 800 executable-line decomposition guard. The dock is one concern - whose turn it is, what that actor may do right now, and why a control is locked - so it moves whole rather than being trimmed to fit: turn-button state, the identity and hero/downed/automated variants, action selection, and the initiative bar.
  * 2026-10-12 05:30:00 | maintainer@emeraldcoastsystemsgroup.com     | K4: showTvLobby names the campaign (and join code) a TV joined, and on a TV the initiative bar names the campaign before the scene, so the TV reads as the game My Games lists rather than the scene's title.
  * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Sweep 9: each initiative chip says which side it is on, for screen readers and the concierge's screen snapshot ("enemy" for a monster, "party" for a hero or AI companion; visually hidden). The bar listed Vesh / AMBUSH ARCHER beside Della / AI COMPANION with nothing telling sides apart, and the concierge called the enemy archer an AI-controlled hero.
+ * 2026-11-06 08:10:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table): End Turn and Move are hidden while no campaign runs on this screen (renderDock toggles #turnctl.idle).
+ * 2026-11-06 09:35:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-tv): the TV lobby card names the campaign once and shows the join code as a large badge instead of a second line repeating the status strip (the strip keeps naming the campaign before the scene, K4); TV Mode gets an auto-hiding corner bar with Full screen and Sound on/off (wireTvBar).
+ * 2026-11-07 01:12:00 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-tv): showTvLobby displays the direct phone join address under the 48px+ join code badge so players can join from the couch without guessing the URL.
  */
 
 'use strict';
@@ -96,6 +99,8 @@ function renderAutomatedDock(t, acts) {
 function renderDock() {
   if (TV) return;
   renderQuestThread();
+  // End Turn and Move act on a running campaign only; with none on this screen they are not shown.
+  $('turnctl').classList.toggle('idle', !campaign || !board);
   if (board && board.mode === 'exploration' && activeExploration()) {
     renderExplorationDock(); return;
   }
@@ -125,11 +130,47 @@ function selectAction(a) {
   else if (selectedAction) banner(a.aoeShape ? `Aim ${a.name} — tap an enemy to sweep the ${a.aoeShape} toward them` : `Aim ${a.name} — tap a highlighted target`);
   renderDock();
 }
-/** @description The TV lobby, naming the campaign the screen joined as My Games lists it, with its join code. */
+/** @description The TV lobby, naming the campaign the screen joined as My Games lists it, with its join code and URL. */
 function showTvLobby() {
+  // The campaign's name once, then the join code and direct join address big enough to read from the couch.
   const name = campaign && campaign.name ? esc(campaign.name) : 'Your game';
-  const code = campaign && campaign.join_code ? ` · join code <b>${esc(campaign.join_code)}</b>` : '';
-  overlay(`<h1>The party is gathering…</h1><p class="read"><b>${name}</b>${code}<br>Waiting for the host to start the quest.</p><p><span class="spin"></span></p>`, 'tv-lobby');
+  let joinUrl = '';
+  try {
+    if (campaign && campaign.join_code && typeof location !== 'undefined' && location.href) {
+      const u = new URL(location.href);
+      joinUrl = u.host ? `${u.host}${u.pathname}?join=${campaign.join_code}` : `${u.pathname}?join=${campaign.join_code}`;
+    }
+  } catch (_e) { joinUrl = ''; }
+  const code = campaign && campaign.join_code
+    ? `<div class="tv-code"><span>Join code</span><strong>${esc(campaign.join_code)}</strong>${joinUrl ? `<small class="tv-join-url">Join at ${esc(joinUrl)}</small>` : ''}</div>`
+    : '';
+  overlay(`<h1>${name}</h1>${code}<p>The party is gathering. Waiting for the host to start the quest.</p><p><span class="spin"></span></p>`, 'tv-lobby');
+}
+/**
+ * @description TV Mode's corner bar, as on Game Show's Big Screen: Full screen and Sound on/off. It shows on a pointer
+ *   move or a key and hides 3 s later; Sound on is the press that lets the browser play the narration.
+ */
+function wireTvBar() {
+  if (document.getElementById('tvBar')) return;
+  const bar = document.createElement('div'); bar.id = 'tvBar'; bar.className = 'tv-bar';
+  bar.innerHTML = '<button type="button" id="tvFull">Full screen</button><button type="button" id="tvSound" aria-pressed="false">Sound on</button>';
+  $('stage').appendChild(bar);
+  let hideAt = 0;
+  const show = () => { bar.classList.add('on'); clearTimeout(hideAt); hideAt = setTimeout(() => bar.classList.remove('on'), 3000); };
+  ['pointermove', 'pointerdown', 'keydown'].forEach((name) => document.addEventListener(name, show));
+  $('tvFull').onclick = () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else document.documentElement.requestFullscreen().catch(() => {}); };
+  // A browser plays nothing before a press on the page, so the bar offers Sound on until the TV has had one.
+  let heard = false;
+  const playing = () => heard && !_voiceMutedByPlayer && voiceOn;
+  const paint = () => { $('tvSound').textContent = playing() ? 'Sound off' : 'Sound on'; $('tvSound').setAttribute('aria-pressed', playing() ? 'true' : 'false'); };
+  $('tvSound').onclick = () => {
+    const turnOn = !playing();
+    heard = true;
+    setVoiceMuted(!turnOn);
+    if (turnOn && _gesturePlayback) resumeGesturePlayback();
+    paint();
+  };
+  paint(); show();
 }
 function updateInitiativeBar() {
   const bar = $('initiative');

@@ -1,0 +1,64 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness, package contract, persona template, and 1-click caller-scoped Inject suites for Bot Forge.
+version: 1
+cases:
+  - id: package-readiness
+    name: Installed package readiness
+    purpose: Verify metadata-only readiness without model spend or user data reads.
+    level: integration
+    runner:
+      kind: smoke
+      smoke: package-readiness
+    expected:
+      - The installed codex-packer package identity satisfies its manifest smoke assertions.
+    prerequisites: []
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: safe-smoke
+  - id: package-and-persona-contracts
+    name: Native Bot Forge manifest and interview persona guards
+    purpose: Verify codex-packer routes, inline bot declarations, and interview step-tracking rules.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/package-contract.test.cjs
+        - tests/persona-template.test.cjs
+    expected:
+      - Manifest binds codex-packer inline and mounts only readiness plus the native Bot Forge workspace.
+      - Persona preserves interview Known-so-far step tracking and operator output format fidelity.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: forge-one-click-inject
+    name: Bot Forge 1-click Inject Permission Preview and caller-scoped publication
+    purpose: Verify draft compilation, mandatory Permission Preview dialog, live publish_authored confirmation, and structured refusal handling in unit and Chromium acceptance tests.
+    level: e2e
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/forge-inject.test.cjs
+    expected:
+      - Clicking Inject saves and compiles the caller-owned draft and opens Permission Preview without calling publish.
+      - Cancelling Permission Preview leaves publish uncalled; confirming calls publish and displays the live caller-scoped package receipt.
+      - Kernel 403, 409, and 422 refusals display clear error banners and never claim live publication.
+    prerequisites: [runner:node-test]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close ephemeral loopback server and headless browser context.
+    limits:
+      timeoutMs: 45000
+    installation: never

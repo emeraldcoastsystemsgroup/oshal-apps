@@ -12,6 +12,7 @@ exports.saveProfile = saveProfile;
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owner/tenant-scoped durable test-prep state with optimistic concurrency.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Retry rolled-back native collection conflicts from fresh reads; keep completed saves immutable and idempotent.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Allow learner profile lesson completion for both SAT/ACT lessons and the 168-topic video curriculum.
  */
 const crypto_1 = require("crypto");
 const education_transactions_1 = require("./education-transactions");
@@ -145,7 +146,9 @@ async function saveProfile(pool, actor, input) {
             await client.query('SELECT student_id FROM lm_students WHERE student_id = $1 AND tenant_id = $2 FOR UPDATE', params(actor));
         const profile = await readProfile(client, actor);
         if (input.action === 'lesson') {
-            if (!education_prep_model_1.catalog.lessons.some(l => l.id === input.lessonId))
+            const knownLesson = education_prep_model_1.catalog.lessons.some(l => l.id === input.lessonId)
+                || education_prep_model_1.curriculumVideos.topics.some(t => t.id === input.lessonId);
+            if (!knownLesson)
                 throw new education_prep_model_1.PrepError('Unknown lesson.');
             profile.lessons[input.lessonId] = { completedAt: Date.now(), version: education_prep_model_1.catalog.version };
         }

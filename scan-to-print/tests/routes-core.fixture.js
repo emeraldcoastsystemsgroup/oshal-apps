@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The print service: mount createScanToPrintServiceRoutes at /api/scan-to-print/service the way the manifest mounter does for `service-or-oidc` (a request carrying the fixture's service secret gets oshalCallerSub from X-Oshal-User-Sub and no session; anything else needs the session), stub requireTrustedServiceUserIdentity with the real contract (session passes, a secret without a user is 403, a secret with one narrows the identity to that user, non-operator), model the printer-settings UPDATE and the JSON slice_profile column, and accept slicer/printer socket seams.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: `options.ctx` adds the kernel's activation ports (`tools`, `authorization`) to the person's route factory context, so tools.core can capture the package tools and the resource adapter that factory registers; fakePool is exported for kernel.core, which activates the package through the real core runtime over this same SQL-dispatching store.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Keep historical SQL-dispatching lifecycle fixtures explicitly synthetic; new genuine calibration proofs use their isolated PostgreSQL fixture.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Support scan_print_share_link rows and revocation updates in the SQL-dispatching route fixture.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -80,11 +81,12 @@ function insert(tables, table, sql, values, returning) {
   cols(/\(([^)]+)\)\s+VALUES/.exec(sql)[1]).forEach((name, i) => {
     row[name] = ['silhouette', 'remote_response', 'slice_profile'].includes(name) && typeof values[i] === 'string' ? JSON.parse(values[i]) : values[i];
   });
-  const id = { scan_print_job: 'job_id', scan_print_image: 'image_id', scan_print_printer: 'printer_id', scan_print_submission: 'submission_id' }[table];
+  const id = { scan_print_job: 'job_id', scan_print_image: 'image_id', scan_print_printer: 'printer_id', scan_print_submission: 'submission_id', scan_print_share_link: 'share_id' }[table];
   if (!row[id]) row[id] = randomUUID();
   if (table === 'scan_print_job') Object.assign(row, { state: 'capturing', known_dimensions: [], settings: {}, report: null, failure_reason: null });
   if (table === 'scan_print_image') row.view = null;
   if (table === 'scan_print_printer' && row.auto_start === undefined) row.auto_start = false;
+  if (table === 'scan_print_share_link' && row.revoked_at === undefined) row.revoked_at = null;
   tables[table].push(row);
   return { rows: [pick(row, cols(returning))], rowCount: 1 };
 }
@@ -127,12 +129,15 @@ function query(tables, sql, p) {
   else if (/^UPDATE scan_print_printer SET auto_start = COALESCE\(\$3, auto_start\), slice_profile = COALESCE\(\$4::jsonb, slice_profile\)/.test(sql)) {
     hit.forEach((r) => { if (p[2] !== null) r.auto_start = p[2]; if (p[3] !== null) r.slice_profile = JSON.parse(p[3]); r.updated_at = new Date().toISOString(); });
   }
+  else if (/^UPDATE scan_print_share_link SET revoked_at = \$4/.test(sql)) {
+    hit.forEach((r) => { r.revoked_at = p[3]; });
+  }
   else throw new Error(`fixture cannot run: ${sql.slice(0, 80)}`);
   return { rows: returning ? hit.map((r) => pick(r, cols(returning[1]))) : [], rowCount: hit.length };
 }
 
 function fakePool(control) {
-  const tables = { scan_print_job_editor: [],scan_print_job: [], scan_print_image: [], scan_print_printer: [], scan_print_submission: [] };
+  const tables = { scan_print_job_editor: [], scan_print_share_link: [], scan_print_job: [], scan_print_image: [], scan_print_printer: [], scan_print_submission: [] };
   const pool={ tables,connect:async()=>({query:(...args)=>pool.query(...args),release(){}}), async query(sql, params = []) {
     const text = typeof sql === 'string' ? sql : sql.text, values = typeof sql === 'string' ? params : sql.values;
     if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(text.trim())||/^SELECT set_config/.test(text))return{rows:[],rowCount:0};

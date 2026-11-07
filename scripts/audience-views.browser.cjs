@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Prove every store page (each package ships tests/audience-view.fixture.cjs; nothing is listed here, so packages never edit a shared table) that provides an audience view (ADR-164 D6) in headless Chromium: the real page file served at its declared URL, the real shared kit from a core checkout, synthetic read-only data for the page's own routes, no provider calls and no writes. Each audience must paint from the kit (root, stats, sections, escape to the cockpit), the full UI must stay hidden, and without an audience the full page must run untouched.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | A package fixture may export one entry or an array of entries, one per page that provides views: Shopping serves views on two pages (the dashboard, which the Home preset opens, and the concierge chat page, its first surface, which the shells frame), and the one-entry contract could prove only one of them. A single entry is read exactly as before; entries of one package keep their fixture order.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | A declared surface whose address carries a query (Shopping's List, /api/purchasing/dashboard?view=lists) is served on its path; the page still opens at the full address.
  * -----------------------------------------------------------------------------
  *
  * Usage: node scripts/audience-views.browser.cjs            (all pages)
@@ -29,7 +30,7 @@ const PAGES = fs.readdirSync(store, { withFileTypes: true }).filter(d => d.isDir
 function serve(entry) {
   const app = express(); const writes = []; const reads = [];
   app.use((req, res, next) => { if (req.method !== 'GET') { writes.push(req.method + ' ' + req.path); return res.status(405).end(); } next(); });
-  app.get(entry.url, (_req, res) => res.sendFile(path.join(store, entry.file)));
+  app.get(entry.url.split('?')[0], (_req, res) => res.sendFile(path.join(store, entry.file)));
   for (const extra of entry.assets || []) app.get(extra.url, (_req, res) => res.sendFile(path.join(store, extra.file)));
   for (const [route, body] of Object.entries(entry.reads)) app.get(route, (req, res) => { reads.push(req.path); res.json(typeof body === 'function' ? body(req) : body); });
   app.use('/cockpit', express.static(path.join(core, 'src/pages/cockpit')));

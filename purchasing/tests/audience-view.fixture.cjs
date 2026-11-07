@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Shopping family audience view (ADR-164 D6): the page, its declared URL, synthetic read-only answers shaped like GET /api/purchasing/lists (list_id, name, status, created_at, item_count = pending lines, oldest first), /lists/:id/items (shop_list_items rows of every status but removed: title, quantity, unit_price as the numeric column's string, status, created_at) and /home-summary (the four metrics, partial), and what the family view must show. The purchased line is newest so the painted "Last added" proves the pending filter runs in the browser. The package stylesheet is served so the full page paints as deployed. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | Two pages now: the dashboard entry is unchanged, and the concierge chat page (/api/purchasing/chat, Shopping's first surface, the page the Studio, Orbit, Commons and Jarvis shells frame) is a second entry over the SAME synthetic reads, asserting its company view (four stats with the whole-cent cart total and its unpriced line, the cart table newest first with unit and line prices, the lists table with the cart's list marked) and its family view (the dashboard's words). Its full page is proven by the concierge start painting the Deals chip after the profile and cart reads, which only runs without an audience. The module exports an array; the harness accepts one entry or several.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-05: List (?view=lists) is Shopping's one declared surface and the shells' first, so its entry carries both audiences with the list card; the chat page entry goes (not a declared tile any more; its views stay covered by audience-view.test.cjs).
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -75,17 +76,12 @@ const COMPANY = {
   statValues: { lines: '3', total: '$8.40', lists: '2', handoffs: '1' },
 };
 
-/** @param {{ iso: (hours: number) => string }} h Helpers from the harness. @returns {object[]} The page entries: the dashboard, then the chat page. */
+/** @param {{ iso: (hours: number) => string }} h Helpers from the harness. @returns {object[]} The List screen, Shopping's one declared surface (the chat page is no longer a declared tile). */
 module.exports = ({ iso }) => [
   {
-    app: 'purchasing', file: 'purchasing/tools/shopping-dashboard.html', url: '/api/purchasing/dashboard', fullMarker: '.tab.active[data-view="shop"]',
+    app: 'purchasing', file: 'purchasing/tools/shopping-dashboard.html', url: '/api/purchasing/dashboard?view=lists', fullMarker: '#add-title',
     assets: [{ url: '/api/purchasing/purchasing.css', file: 'purchasing/tools/purchasing.css' }],
     reads: reads(iso),
-    audiences: { family: FAMILY },
-  },
-  {
-    app: 'purchasing', file: 'purchasing/tools/shopping-chat.html', url: '/api/purchasing/chat', fullMarker: '.chip.active[data-chip="Deals"]',
-    reads: reads(iso),
-    audiences: { company: COMPANY, family: FAMILY },
+    audiences: { company: FAMILY, family: FAMILY },
   },
 ];

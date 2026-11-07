@@ -17,6 +17,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | Register character-required-fields: Save character names an empty required field instead of doing nothing.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register lora-read-tools: the director's character and model reads bound to lora.read.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing director tool case to saved-source context and held edits without provider calls.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the character-required-fields case expects "Hero image" (under a closed Advanced that a gap opens) and a Subject slug made from the Name; the workspace-foundation case covers the studio opening ready on New character step 1, Properties without a creation form, no inline Concierge, the phone's character list with one + New character, the stepper, and the training actions withheld without a GPU worker.
 version: 1
 cases:
   - id: character-required-fields
@@ -29,7 +30,9 @@ cases:
       files:
         - tests/character-required-fields.test.cjs
     expected:
-      - An empty Hero image reads 'Fill in Hero image on the worker to save the character. Nothing was saved.', is focused, and no request is sent.
+      - An empty Hero image reads 'Fill in Hero image to save the character. Nothing was saved.', opens the closed Advanced, is focused, and no request is sent.
+      - A blank Subject slug is made from the Name; a typed one is kept.
+      - Step 1 holds Name, Trigger word and Identity sentence; the other six fields are under Advanced, and no label says "on the worker".
       - A filled form posts /characters and reports the save.
     prerequisites:
       - runner:node-test
@@ -336,8 +339,12 @@ cases:
     level: browser
     runner: {kind: node-test, scope: package, files: [tests/workspace-foundation.test.mjs]}
     expected:
-      - Shared properties edit the actual source controls and preserve the native domain command path.
-      - Phone navigation and inspector remain usable without horizontal overflow or provider calls.
+      - With no character selected the work area is New character step 1 with Create character, Advanced closed, and steps 2-4 waiting for a character.
+      - Properties never repeats the creation form, and there is no inline Concierge column or pane button.
+      - Create character posts once with the Subject slug made from the Name and continues at 2 Dataset; a missing Hero image opens Advanced and sends nothing.
+      - A phone opens on the character list (versions, best score) with one + New character at the bottom right, and a tap opens the character.
+      - Train, Validate, Improve and Overnight are withheld unless GET /worker reports a GPU worker, and offered when it does.
+      - Shared properties edit the actual source controls without horizontal overflow or provider calls.
     prerequisites: [runner:node, browser:chromium, source:core-dependencies, source:kernel-shared-ui]
     sideEffects: fixture-write
     isolation:

@@ -3,8 +3,11 @@
 SEQ | AUTHOR | DESCRIPTION
 1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette in Stories while retaining the existing editable brief and handoff behavior.
 2 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit paints the signed-in account's own story videos (waiting or being made, one count because the route counts queued and running together; finished in five days, not finished, last change, and the newest three with where each stands) from the same GET /home-summary the full page reads, in plain words. The module script's start steps (handoff listener, connected-actions mount, Refresh handler, summary read) run only when no audience view renders, so the view reads once, writes nothing and never starts a story.
+3 | maintainer@emeraldcoastsystemsgroup.com | Buttons on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06): body-size labels at 600 (15px on a desktop with a fine pointer), 44px, 16px sides, radius m, a solid secondary fill with the control edge, one line; the audience kit's .av-btn keeps the kit's own height, spacing and wrapping. The app row is a toolbar (36px with 12px sides on a desktop with a fine pointer, 4px gaps on a phone); Undo, Redo and More have no fill or edge; a saved source project is a list row.
+4 | maintainer@emeraldcoastsystemsgroup.com | A page button never runs out of its pane: where the 180px Saved pane is narrower than a label (beside an open concierge, under 1100px) it ends in an ellipsis.
+5 | maintainer@emeraldcoastsystemsgroup.com | Style the app row's Saved caption alongside automatic saving in source-project-editor.mjs.
 -->
-<html lang="en" data-theme="workspace"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Creative Studio</title>
+<html lang="en" data-theme="workspace" data-ds-category="editor" data-ds-first-action="type"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Creative Studio</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
@@ -104,50 +107,89 @@ SEQ | AUTHOR | DESCRIPTION
   A.boot({ app: 'creative-studio', escapeLabel: 'Open Creative Studio in the cockpit', audiences: { family: family, company: family } });
 })();
 </script>
+<!-- The design standard (docs/ux/design-standard.md; UX audit decision creative-studio--creative-studio; REFP CONVENTIONS §5.7): the brief is
+     the work and starts right under the one app row (Undo, Redo, Comment, Save source, the one primary, ⋯ More); the name is
+     not repeated under the Today bar; one copy of each field (Title and Brief in the brief, Source link in Properties); the
+     scenes are list rows with a ⋯ row menu; the counters are one line; functions both reference products have and this
+     page lacks are greyed "Not available yet" controls in their reference places (§4.10, DS-45). -->
 <style>
-:root {
-  --ink: var(--text-primary, #edf0fa);
-  --muted: var(--text-secondary, #a2adc5);
-  --accent: color-mix(in srgb, var(--accent-primary, #b0b8ff) 45%, var(--ink));
-  --border: var(--border-color, #ffffff1c);
-}
-*{box-sizing:border-box}body{margin:0;background:var(--bg-primary, #10131e);color:var(--ink);font:15px/1.55 system-ui}main{max-width:1180px;margin:auto;padding:40px 24px}header{margin-bottom:30px}h1{font-size:clamp(28px,5vw,44px);letter-spacing:-.035em;margin:8px 0}h2{font-size:19px;margin:0 0 18px}.eyebrow{color:var(--accent);text-transform:uppercase;font-size:11px;letter-spacing:.16em}.hint{color:var(--muted);font-size:13px}#metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}.metric,.panel{border:1px solid var(--border);border-radius:18px;background:var(--bg-card, #202638)}.metric{padding:18px}.metric strong{display:block;font-size:27px;font-weight:650}.metric span{color:var(--muted);font-size:12px}.layout{display:grid;grid-template-columns:1.05fr 1fr;gap:22px}.panel{padding:24px;min-width:0}.record{border-bottom:1px solid var(--border);padding:16px 0;overflow-wrap:anywhere}.record:first-child{padding-top:0}.record p{color:var(--muted);margin:5px 0 12px;font-size:13px}label{display:block;color:var(--muted);font-size:12px;margin:15px 0 6px}input,textarea,select{font:inherit;color:var(--ink);background:var(--bg-secondary, #0e1320);border:1px solid var(--border);border-radius:10px;width:100%;padding:11px;display:block;margin-top:7px}textarea{min-height:190px;resize:vertical}button,a{font:inherit}button{color:var(--ink);background:var(--bg-tertiary, #202638);border:1px solid var(--border);border-radius:9px;padding:9px 13px;cursor:pointer;margin:5px 6px 5px 0}button:hover{background:var(--bg-card-hover, #2a3146)}button:disabled{opacity:.5;cursor:wait}.primary{background:var(--accent-primary, #b7beff);color:var(--text-on-accent, #fff);font-weight:650}a{color:var(--accent)}#status{min-height:24px;color:var(--accent);overflow-wrap:anywhere}.connected-app-actions{display:flex;flex-wrap:wrap;margin-top:16px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:720px){main{padding:22px 16px}.layout{grid-template-columns:1fr}.panel{padding:18px}}
-
-/* The same editor anatomy surrounds the actual brief, evidence and generation controls. */
+:root{--accent:var(--ds-accent-ink,var(--accent-primary));--ink:var(--ds-ink,var(--text-primary));--muted:var(--ds-ink-2,var(--text-muted));--border:var(--ds-edge,var(--border-color));--line:var(--ds-line-control,var(--border-color))}
+*{box-sizing:border-box}html,body{overscroll-behavior:contain}body{margin:0;background:var(--ds-page,var(--bg-primary));color:var(--ink);font:400 16px/24px system-ui,sans-serif}
+main{max-width:1180px;margin:auto;padding:24px 16px}h1{font:700 18px/24px system-ui,sans-serif;margin:0}h2{font:600 18px/24px system-ui,sans-serif;margin:0 0 8px}
+.hint{color:var(--muted);font-size:14px;line-height:20px;margin:8px 0}.layout{display:grid;grid-template-columns:1fr 1fr;gap:24px}.panel{min-width:0}
+label{display:block;color:var(--ink);font:600 14px/20px system-ui,sans-serif;margin:16px 0 4px}
+input,textarea,select{font:400 16px/24px system-ui,sans-serif;color:var(--ink);background:var(--ds-surface,var(--bg-secondary));border:1px solid var(--line);border-radius:var(--ds-radius-m,10px);width:100%;padding:10px 12px;display:block;margin-top:4px}
+textarea{min-height:240px;resize:vertical}
+button{font:var(--ds-text-body,400 16px/24px system-ui,sans-serif);font-weight:600;min-height:44px;padding:0 16px;margin:0;border-radius:var(--ds-radius-m,10px);border:1px solid var(--line);background:var(--ds-surface-2,var(--bg-tertiary));color:var(--ink);cursor:pointer;transition:background-color 120ms}button:where(:not(.av-btn)){white-space:nowrap}
+button:hover{background:var(--ds-surface-3,var(--bg-card-hover))}button:disabled{opacity:1;color:var(--ds-ink-disabled,var(--text-muted));cursor:default}
+.primary{background:var(--ds-accent,var(--accent-primary));border-color:var(--ds-accent,var(--accent-primary));color:var(--ds-on-accent,var(--text-on-accent,#fff))}.primary:hover{background:var(--ds-accent,var(--accent-primary));box-shadow:inset 0 0 0 1px var(--ds-on-accent,#fff)}
+a{color:var(--accent);text-decoration:underline}#status{min-height:0;margin:8px 0 0;color:var(--muted);font-size:14px;line-height:20px;overflow-wrap:anywhere}#status:empty{display:none}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--ds-focus,var(--accent-primary));outline-offset:2px}
+.brief-metrics{margin:0 0 12px;font-size:14px;line-height:20px;color:var(--muted)}.brief-metrics:empty{display:none}
+.table-scroll{overflow:auto}.records{width:100%;border-collapse:collapse;font-size:14px;line-height:20px}.records th{text-align:left;font-size:12px;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px;border-bottom:1px solid var(--border);white-space:nowrap}.records td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top}.records strong.item{display:inline;font-size:inherit;font-weight:600}.records td:last-child{white-space:nowrap}#records>p.hint{margin:8px 0 0}
+.records th .ks-sort{all:unset;display:inline-flex;align-items:center;gap:4px;cursor:pointer;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit}.records th .ks-sort::after{content:'';border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:5px solid currentColor;opacity:.28}.records th[aria-sort] .ks-sort::after{opacity:1}.records th[aria-sort=descending] .ks-sort::after{transform:rotate(180deg)}
+.own-tab-all{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
+.library-links{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-top:12px}.library-links a{display:inline-flex;align-items:center;min-height:44px}
+/* The brief: the work. The choice row above it, then Title, Brief and Brand kit. */
+.brief-doc{display:grid;gap:4px;align-content:start}.brief-doc label{margin-top:8px}.brief-choices{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.brief-kinds{display:flex;gap:8px}.brief-kinds [aria-checked=true]{background:var(--ink);border-color:var(--ink);color:var(--ds-page,var(--bg-primary))}
+.brief-kit{margin-top:8px}
+.brief-state{margin:4px 0 0;font-size:12px;line-height:16px;color:var(--muted)}
+/* The app row: icons, Comment, Save source, the primary and ⋯ More in one row; Save source and Comment move into More on a phone. */
+.source-project-actions{display:flex;align-items:center;gap:8px;min-width:0}.source-spacer{flex:1}
+.source-saved-caption{font-size:13px;line-height:20px;color:var(--muted);white-space:nowrap}.source-saved-caption:empty{display:none}
+.source-icon{min-width:44px;padding:0;font-size:18px;line-height:24px;border-color:transparent;background:transparent}.source-icon:hover:not(:disabled){background:var(--ds-surface-3,var(--bg-card-hover))}
+.source-project-actions button{min-height:var(--ds-control-h,44px);padding:0 12px}
+/* A label never wraps and never runs out of its pane: where a pane is narrower than a label (the 180px Saved pane beside an open concierge or under 1100px) it ends in an ellipsis. */
+.library-links>button,.brief-doc button,.source-story>button,.brief-primary>button{max-width:100%;overflow:hidden;text-overflow:ellipsis}.brief-primary{min-width:0;max-width:100%}.source-project-actions .source-icon{min-width:var(--ds-control-h,44px);padding:0}.source-project-actions [data-ds-not-yet]{background:var(--ds-surface-2,var(--bg-tertiary))}
+.source-phone{display:none}
+.source-story{margin-top:24px}.source-scenes{display:grid}.source-scene{display:flex;align-items:center;gap:8px;min-height:48px;border-bottom:1px solid var(--ds-hairline,var(--border))}
+.source-scene-pick{flex:1;min-width:0;justify-content:flex-start;text-align:left;border-color:transparent;background:transparent;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.source-scene-pick[aria-pressed=true]{background:var(--ds-surface-3,var(--bg-card-hover));font-weight:600}
+.source-scene-more{border-color:transparent;background:transparent}.source-story>button{margin-top:12px}.source-empty{margin:8px 0;color:var(--muted);font-size:14px;line-height:20px}
+.source-library-row{display:block;width:100%;margin:0;padding:8px 12px;text-align:left;overflow-wrap:anywhere;white-space:normal;font-weight:400;border-width:0 0 1px;border-color:var(--ds-hairline,var(--border));border-radius:0;background:transparent}
+.source-menu{position:fixed;inset:auto;margin:0;min-width:240px;padding:4px 0;border:1px solid var(--ds-hairline,var(--border-color));border-radius:var(--ds-radius-l,14px);background:var(--ds-surface,var(--bg-primary));color:var(--ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16)}
+.source-menu .source-menu-item{white-space:normal;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;width:100%;min-height:44px;padding:8px 16px;border:0;border-radius:0;background:transparent;text-align:left;font-weight:400}
+.source-menu .source-menu-item:hover{background:var(--ds-surface-3,var(--bg-card-hover))}.source-menu .source-destructive{color:var(--ds-bad,var(--status-error))}
+.source-menu [data-ds-not-yet] .ds-not-yet-note{font-size:12px;line-height:16px}
+.source-confirm{width:min(440px,calc(100% - 32px));padding:16px 24px 24px;border:1px solid var(--ds-hairline,var(--border-color));border-radius:var(--ds-radius-xl,20px);background:var(--ds-surface,var(--bg-primary));color:var(--ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16)}
+.source-confirm::backdrop{background:rgb(0 0 0 / .40)}.source-confirm h2{margin:0}.source-confirm p{margin:8px 0 0}.source-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px}
+.source-tertiary{border-color:transparent;background:transparent;color:var(--accent);text-decoration:underline}.source-confirm-go{background:var(--ds-bad,var(--status-error));border-color:var(--ds-bad,var(--status-error));color:var(--ds-page,#fff)}
+/* The shared editor around the brief. */
+/* The shared editor's own buttons and fields on this page's scales (DS-17, DS-18): 14px words, 10px and 6px corners. */
+.ef-editor .ef-button,.ef-editor .ef-discard{font-size:14px;border-radius:10px}.ef-editor .ef-property>input,.ef-editor .ef-property>textarea,.ef-editor .ef-property>select{font-size:14px}
+.ef-editor .ef-property>input,.ef-editor .ef-property>textarea,.ef-editor .ef-property>select{border-color:var(--ds-line-control,var(--border-color))}
+.ef-editor .ef-property,.ef-editor .ef-field-status,.ef-editor .ef-empty{font-size:12px}.ef-editor .ef-more-tools>summary{font-size:14px}
+@media(max-width:800px){.ef-editor .ef-property>input,.ef-editor .ef-property>textarea,.ef-editor .ef-property>select{font-size:16px}}
 main.ef-editor{max-width:none;padding:0;margin:0}.ef-editor .layout{display:contents}
-.ef-editor .ef-navigation>.panel,.ef-editor .ef-viewport>.panel,.ef-editor .brief-inspector{padding:16px;border:0;border-radius:0;background:transparent;min-width:0}
-.ef-editor .ef-viewport>.panel{overflow:auto}.ef-editor .ef-header-slot>header{margin:0;padding:12px 16px}
-.ef-editor .ef-header-slot h1{font-size:20px;margin:0}.ef-editor .ef-header-slot .eyebrow{display:none}
-.ef-editor #metrics{grid-template-columns:1fr;gap:8px}.ef-editor #metrics .metric{padding:10px}.ef-editor #metrics .metric strong{font-size:20px}
-.ef-editor .connected-app-actions{display:flex;flex-wrap:wrap;gap:8px}.ef-editor button{min-height:40px}
-.ef-editor textarea#notes{min-height:45dvh}.ef-editor .brief-inspector h2{font-size:14px}
-@media(max-width:800px){.ef-editor button,.ef-editor input,.ef-editor select{min-height:44px}.ef-editor input,.ef-editor textarea,.ef-editor select{font-size:16px}}
-
-.source-project-actions{display:flex;flex-wrap:wrap;gap:8px}.source-scene{display:flex;flex-wrap:wrap;gap:6px;border-block-end:1px solid var(--border);padding:10px 0}.source-scene>button:first-child{flex-basis:100%;text-align:left}.source-scene button[aria-pressed="true"]{outline:2px solid var(--accent)}
-</style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><div class="eyebrow">Connected creative workspace</div><h1>Creative Studio</h1><p class="hint">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p></header><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh">Refresh evidence</button><a href="/api/vids/app">Open Vids Studio</a></section><section class="panel"><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></main><script type="module">
+.ef-editor .ef-navigation>.panel,.ef-editor .ef-viewport>.panel,.ef-editor .brief-inspector{padding:16px;min-width:0}
+.ef-editor .ef-viewport>.panel{overflow:auto}.ef-editor .ef-header-slot>header{display:flex;align-items:center;gap:16px;margin:0;padding:2px 16px;min-height:48px}
+.ef-editor .ef-header-slot>header>.source-project-actions{flex:1}
+.ef-editor textarea#notes{min-height:max(240px,40dvh)}.ef-editor .brief-inspector h2{font-size:16px}
+@media(max-width:800px){.source-menu{left:0;right:0;bottom:0;top:auto;width:100%;min-width:0;max-height:70dvh;overflow:auto;border-radius:20px 20px 0 0;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px))}
+.ef-editor input,.ef-editor textarea,.ef-editor select{font-size:16px}.source-wide{display:none}.source-phone{display:flex}.source-project-actions{gap:4px}.ef-editor .ef-header-slot>header{padding:2px 8px}.ef-editor .ef-viewport>.panel{padding:8px 16px 16px}}
+</style><script src="/ui/kernel/table.js" defer></script></head><body><main><header><a class="own-tab-all" href="/cockpit/" target="_top" data-ef-phone="brand">All apps</a><h1 data-ef-phone="brand">Creative Studio</h1></header><div class="layout"><section class="panel" id="libraryPanel"><p id="metrics" class="brief-metrics" aria-label="Saved work"></p><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><div class="library-links"><button id="refresh" type="button">Refresh evidence</button><a href="/cockpit/?app=vids" target="_top">Open Vids Studio</a></div></section><section class="panel" id="briefPanel"><div class="brief-doc" data-ds-work><div class="brief-choices"><button type="button" data-ds-not-yet data-ds-backlog="RP-CRS-01" data-ds-label="Templates">Templates</button></div><label>Title<input id="title" maxlength="120" placeholder="Name this story"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="What story should the video tell?"></textarea></label><div class="brief-kit"><button type="button" data-ds-not-yet data-ds-backlog="RP-CRS-03" data-ds-label="Brand kit">Brand kit</button></div><p id="briefState" class="brief-state"></p><input id="sourceUrl" type="url" maxlength="2000" hidden><p id="status" role="status" aria-live="polite"></p><p class="hint" id="renderHint">Open episode workflow hands the brief and its scenes to the video editor as an editable draft.</p></div></section></div></main><script type="module" src="/shared/ui/js/planned-control.js"></script><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
-import {mountConnectedActions,requestHandoff} from '/cockpit/js/app-workflows.js';
-// The full page only: under an audience view the shared kit paints instead (see the head script), so no handoff listener
-// is bound, no connected-actions offer is fetched, no Refresh handler is bound and the summary is not read a second time.
+import {requestHandoff} from '/cockpit/js/app-workflows.js';
+// Audience view (ADR-164 D6): under a view this module mounts nothing, binds nothing and reads nothing; without an
+// audience, or on a core without the shared kit, the full page starts.
 if (!window.AppView || !AppView.active()) {
 const app="creative-studio",title=document.querySelector('#title'),notes=document.querySelector('#notes'),sourceUrl=document.querySelector('#sourceUrl'),status=document.querySelector('#status');
 
 // Briefs keep their actual source controls; rendered outputs retain an explicit editor handoff.
 let briefEditor,sourceEditor,sourceAssistant;
 const briefIdentity='brief:'+crypto.randomUUID();
+// One copy of each field: Title and Brief live in the brief; Source link is edited here, in Properties (the decision's item 3).
 function briefProperties(){
   if(sourceEditor?.properties())return sourceEditor.properties();
-  const fields=[{key:'title',label:'Title',type:'text',value:title.value,group:'Brief'},{key:'sourceUrl',label:'Source link',type:'text',value:sourceUrl.value,group:'Brief'}];
-  const mode=document.querySelector('#mode');
-  if(mode)fields.push({key:'mode',label:'Build',type:'select',value:mode.value,options:[...mode.options].map(option=>({value:option.value,label:option.textContent})),group:'Output'});
-  return fields;
+  return [{key:'sourceUrl',label:'Source link',type:'text',value:sourceUrl.value,group:'Output'}];
 }
 function applyBriefProperty(key,value,expected){
   if(sourceEditor?.properties())return sourceEditor.applyProperty(key,value,expected);
-  if(expected.documentId!==(sourceEditor?.getState().documentId??briefIdentity)||!['title','sourceUrl','mode'].includes(key))throw Error('Select the current brief before editing.');
+  if(expected.documentId!==(sourceEditor?.getState().documentId??briefIdentity)||!['sourceUrl'].includes(key))throw Error('Select the current brief before editing.');
   const field=document.getElementById(key);if(!field)throw Error('This brief property is unavailable.');
   const previous=field.value;field.value=String(value);
-  if(!field.checkValidity()){field.value=previous;throw Error('Correct the '+key+' value.');}
+  if(!field.checkValidity()){field.value=previous;throw Error('Enter a full link, starting with https://.');}
   field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));
 }
 
@@ -155,22 +197,26 @@ async function continueBrief(offer,button){
   try{
     await briefEditor?.flushPending();
     if(!notes.value.trim())throw Error('Write or select a brief before opening its editor.');
-    button.disabled=true;
+    if(button)button.disabled=true;
     await requestHandoff(app,offer,{title:title.value.trim(),notes:sourceEditor?.handoffNotes()??notes.value.trim(),sourceUrl:sourceUrl.value.trim()},()=>{status.textContent='Opening the receiving editor…';});
     status.textContent='Brief handed to the receiving editor.';
   }catch(error){
     status.textContent=error.message;
     if(error.cockpitUrl){const link=document.createElement('a');link.href=error.cockpitUrl;link.target='_top';link.textContent='Open this studio in the cockpit';status.append(' ',link);}
-  }finally{button.disabled=false;}
+  }finally{if(button)button.disabled=false;}
 }
-function briefHandoffs(inspector){
-  const row=document.createElement('div');row.className='brief-editor-actions';
-  for(const [offer,label] of [['prepare-document','Edit brief as document'],['prepare-episode','Open episode workflow']]){
-    const button=document.createElement('button');button.type='button';button.textContent=label;
-    button.onclick=()=>continueBrief(offer,button);row.append(button);
-  }
-  inspector.append(row);
+// The one primary of the app row, set up by the page (see the primary script below).
+const primary=document.createElement('span');primary.className='brief-primary';
+let syncKinds=null;
+const episode=document.createElement('button');episode.type='button';episode.textContent='Open episode workflow';episode.onclick=()=>continueBrief('prepare-episode',episode);
+episode.className='primary';primary.append(episode);
+/** On a phone the shared editor's panes are sheets: Back closes one instead of leaving the application (DS-39). */
+function backClosesPanes(root,backCloses){
+  const layer=backCloses({isOpen:()=>Boolean(root.dataset.editorPanel),close:()=>briefEditor?.showPanel(null)});
+  new MutationObserver(()=>{if(matchMedia('(max-width:800px)').matches&&root.dataset.editorPanel)layer.opened();else if(!root.dataset.editorPanel)layer.closed();}).observe(root,{attributes:true,attributeFilter:['data-editor-panel']});
 }
+/** The brief's caption: whether it is saved, and how long it is ("Saved" caption, design standard §5.1). */
+function showBriefState(){const state=sourceEditor?.getState(),words=(notes.value.trim().match(/\S+/g)||[]).length,caption=document.querySelector('#briefState');if(caption)caption.textContent=(state?.status||'Unsaved brief')+' · '+words+(words===1?' word':' words');}
 async function mountBriefWorkspace(){
   const {createEditorFoundation}=await import('/shared/ui/js/editor-foundation.js');
   const {createEditorAssistant}=await import('/shared/ui/js/editor-assistant.js');
@@ -178,19 +224,22 @@ async function mountBriefWorkspace(){
   if(panels.length!==2)return;
   const inspector=document.createElement('section');inspector.className='brief-inspector';
   const heading=document.createElement('h2');heading.textContent='Output';inspector.append(heading);
-  for(const key of ['sourceUrl','mode']){const field=document.getElementById(key);if(field)inspector.append(field.closest('label'));}
-  for(const key of ['render','renderHint']){const action=document.getElementById(key);if(action)inspector.append(action);}
-  const note=document.createElement('p');note.className='hint';note.textContent='Generated video is a rendered output. Edit scenes here; connected workflows open a separate draft from your brief text. Scene objects remain in this source project.';inspector.append(note);briefHandoffs(inspector);
-  const metrics=document.getElementById('metrics');panels[0].prepend(metrics);root.append(inspector);
+  inspector.append(document.getElementById('renderHint'));
+  root.append(inspector);
   sourceAssistant=createEditorAssistant({app,bot:'story-editor',title:'Source AI partner',root,prepare:()=>sourceEditor.prepare(),refresh:context=>sourceEditor.refreshFromAssistant(context),getState:()=>sourceEditor?.getState()??{documentId:briefIdentity,revision:0,dirty:true,busy:true}});
-  briefEditor=createEditorFoundation({root,ai:sourceAssistant.element,navigation:panels[0],viewport:panels[1],inspector,header:root.querySelector('header'),
+  briefEditor=createEditorFoundation({root,navigationLabel:'Saved',ai:sourceAssistant.element,navigation:panels[0],viewport:panels[1],inspector,header:root.querySelector('header'),
     getState:()=>sourceEditor?.getState()??({documentId:briefIdentity,revision:0,title:title.value||'New brief',dirty:Boolean(notes.value||title.value),readOnly:false,status:'Brief draft · generation is a separate action'}),
     getSelection:()=>sourceEditor?.getSelection()??({kind:'brief',ids:['current']}),getProperties:briefProperties,applyProperty:applyBriefProperty,actions:{save:()=>sourceEditor?.save(),undo:()=>sourceEditor?.undo(),redo:()=>sourceEditor?.redo()}});
-  const {installSourceEditor}=await import('/api/creative-studio/source-project-editor.mjs');
-  sourceEditor=installSourceEditor({app,kind:'story',viewport:panels[1],navigation:panels[0],header:root.querySelector('header'),foundation:()=>briefEditor,
+  const editorModule=await import('/api/creative-studio/source-project-editor.mjs');
+  sourceEditor=editorModule.installSourceEditor({app,kind:'story',viewport:panels[1],navigation:panels[0],header:root.querySelector('header'),foundation:()=>briefEditor,primary,
+    menu:()=>[{label:'Edit brief as document',run:()=>continueBrief('prepare-document')},{label:'Open episode workflow',run:()=>continueBrief('prepare-episode'),hidden:primary.contains(episode)}],
+    planned:{comment:'RP-CRS-06',download:'RP-CRS-04',resize:'RP-CRS-02',schedule:'RP-CRS-05',sceneTool:{backlog:'RP-CRS-07',label:'Trim'}},
     readBrief:()=>({title:title.value,notes:notes.value,sourceUrl:sourceUrl.value,mode:document.getElementById('mode')?.value||'episode'}),
-    writeBrief:model=>{title.value=model.title;notes.value=model.notes;sourceUrl.value=model.sourceUrl;if(document.getElementById('mode'))document.getElementById('mode').value=model.mode;},message:text=>{status.textContent=text;},onChange:()=>sourceAssistant?.refresh()});
-  briefEditor.refresh();sourceAssistant.refresh();
+    writeBrief:model=>{title.value=model.title;notes.value=model.notes;sourceUrl.value=model.sourceUrl;if(document.getElementById('mode')){document.getElementById('mode').value=model.mode;syncKinds?.();}},message:text=>{status.textContent=text;},onChange:()=>{sourceAssistant?.refresh();showBriefState();}});
+  briefEditor.refresh();sourceAssistant.refresh();backClosesPanes(root,editorModule.backCloses);showBriefState();
+  // One assistant entry, closed until asked for: on a desktop the Concierge column opens from the Today bar's Concierge (or the
+  // editor's own Concierge button outside Today) instead of taking a fixed column beside the brief.
+  if(!matchMedia('(max-width:800px)').matches){const focused=document.activeElement;root.querySelector(':scope>[data-editor-foundation]')?.dispatchEvent(new CustomEvent('editor-concierge:hide'));if(document.activeElement!==focused)document.activeElement?.blur();}
 
   root.addEventListener('input',()=>briefEditor.refresh());root.addEventListener('change',()=>briefEditor.refresh());
   window.addEventListener('pagehide',event=>{if(!event.persisted){sourceAssistant?.destroy();briefEditor.destroy();}},{once:true});
@@ -198,10 +247,12 @@ async function mountBriefWorkspace(){
 
 const fill=c=>{title.value=String(c.title||'').slice(0,120);notes.value=String(c.notes||'').slice(0,2000);sourceUrl.value=c.sourceUrl||'';notes.dispatchEvent(new Event('input',{bubbles:true}));};
 receiveHandoff({app,action:'prepare-brief',version:1,contextType:'research-brief',fields:['title','notes','sourceUrl']},fill);
-await mountConnectedActions({app,element:document.querySelector('.connected-app-actions'),contextForOffer:()=>notes.value.trim()?{title:title.value.trim(),notes:notes.value.trim(),sourceUrl:sourceUrl.value.trim()}:null});
-await mountBriefWorkspace().catch(error=>{status.textContent='The shared editor could not open: '+error.message;});
+// Without the shared editor the brief still works: its one primary sits under the brief instead of in the app row.
+await mountBriefWorkspace().catch(error=>{status.textContent='The shared editor could not open: '+error.message;if(!primary.isConnected)document.querySelector('#briefPanel .brief-doc').append(primary);});
 const localInstants=t=>String(t).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})/g,m=>{const d=new Date(m);return Number.isFinite(d.getTime())?d.toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):m;});
-async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();metrics.replaceChildren();for(const m of data.metrics||[]){const card=document.createElement('div');card.className='metric';const v=document.createElement('strong'),l=document.createElement('span');v.textContent=m.value;l.textContent=m.label;card.append(v,l);metrics.append(card);}const rows=[],notes=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');if(context){const b=document.createElement('button');b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});c3.append(b);}}wrap.append(table);list.append(wrap);}for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
+// The counters are one meta line, and a counter with no figure is not shown (§5.4).
+function meta(host,list){host.replaceChildren();const known=(list||[]).filter(m=>/^\d+$/.test(String(m.value).trim()));if(!known.length)return;const shown=known.every(m=>Number(m.value)===0)?['No story videos yet.']:known.map(m=>m.value+' '+String(m.label).toLowerCase());shown.forEach((text,n)=>{if(n)host.append(' · ');const span=document.createElement('span');span.className='metric';span.textContent=text;host.append(span);});}
+async function refresh(){const list=document.querySelector('#records'),metrics=document.querySelector('#metrics');try{const r=await fetch('/api/'+app+'/home-summary',{cache:'no-store'}),data=await r.json();if(!r.ok)throw Error('Saved evidence cannot be checked right now.');list.replaceChildren();meta(metrics,data.metrics);const rows=[],notes=[];for(const item of data.items||[]){const context=item.actions?.[0]?.context;if(!item.detail&&!context){notes.push(item.text);continue;}rows.push({item,context});}sourceEditor?.showDownload(rows.length>0);if(rows.length){const wrap=document.createElement('div');wrap.className='table-scroll';const table=document.createElement('table');table.className='records';table.setAttribute('data-sortable','');const hr=table.createTHead().insertRow();for(const h of ['Item','Detail','']){const th=document.createElement('th');th.textContent=h;if(!h)th.setAttribute('data-sortable','false');hr.append(th);}const tbody=table.createTBody();for(const {item,context} of rows){const tr=tbody.insertRow(),c1=tr.insertCell(),detail=tr.insertCell(),c3=tr.insertCell();const name=document.createElement('strong');name.className='item';name.textContent=item.text;c1.append(name);detail.textContent=localInstants(item.detail||'');if(context){const b=document.createElement('button');b.type='button';b.textContent='Use this evidence';b.addEventListener('click',()=>{fill(context);status.textContent='Evidence loaded. Edit the brief before continuing.';});c3.append(b);}}wrap.append(table);list.append(wrap);}for(const text of notes){const p=document.createElement('p');p.className='hint';p.textContent=text;list.append(p);}}catch(e){list.textContent=e.message;metrics.replaceChildren();}}
 document.querySelector('#refresh').addEventListener('click',refresh);
 await refresh();
 }

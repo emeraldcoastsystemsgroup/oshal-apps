@@ -1,5 +1,24 @@
 # Career presentation
 
+## UX audit 2026-11-06 — open items
+
+These come from the coordinator decisions in Roger's UX audit (2026-11-05). They were measured, not built tonight.
+
+- **Highest salary ranks pay across currencies.** `BROWSE_SORT_MAP.salary` in `src-routes/career-browse-feed.ts` orders by
+  `COALESCE(p.salary_max,p.salary_min,0)` and never reads `salary_currency`, so an INR 1,200,000–1,600,000 posting outranks
+  $200,000 USD roles. The order is served by the expression index `idx_corpus_pay`, which only a writable corpus can build
+  (a request reads the corpus read-only), so a currency-aware key would scan the active corpus (6.7 s measured without the
+  index) until the nightly pull builds a matching index. Done when: Highest salary ranks USD pay (or pay converted to annual
+  USD) ahead of other currencies, the nightly pull builds the matching index without slowing the pull or the match, and a
+  regression case with an INR posting above a USD one fails on the old order.
+- **The Discover swipe deck as the Job Board's phone layout.** Mobile left the menu; its deck (Pass, Save, Undo, More) is not
+  yet the phone layout of the board's New matches stage. Done when: at 412 px the New matches stage offers the deck, its
+  actions reach the same approval routes, and `/api/career-hunter/mobile` opens the board stage.
+- **Screen aliases for merged tools.** A cockpit address naming a removed tool (`?screen=career-submissions`,
+  `career-application-status`, `career-approvals`, `career-mobile`) opens Career's default screen, because the shell answers
+  only registered views (`RibbonNav.requestedView`) and a manifest has no alias key. In-package links already open the board
+  stage. Done when: an old `?screen=` address opens the Job Board on its stage, through a kernel-supported alias.
+
 ## Nightly source review — next stages
 
 [The review](SOURCE-REVIEW.md) rechecks failing sources, repairs on evidence and reports. These are not built.

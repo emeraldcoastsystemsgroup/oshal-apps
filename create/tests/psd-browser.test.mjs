@@ -1,11 +1,13 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove human PSD review/cancellation, editable pixels/history/save/reopen and original download in real desktop/phone Chromium.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: automatic saving saves the edited PSD layers without a Save press, and PSD original and report is reached through the document menu.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { requireCore } from './project-api.fixture.mjs';
 import { psdBrowserFixture } from './psd-browser.fixture.mjs';
+import { inMenu } from './browser/create-editor-fixture.mjs';
 import { groupedPsd, makePsd } from './fixtures/psd-fixtures.mjs';
 const { chromium } = requireCore('playwright');
 test('real desktop and phone PSD controls retain editable pixels, history and immutable original', async t => {
@@ -13,7 +15,7 @@ test('real desktop and phone PSD controls retain editable pixels, history and im
   for(const viewport of [{width:1440,height:1000},{width:390,height:844}])await t.test(`PSD human workflow ${viewport.width}px`,async()=>{
     const context=await browser.newContext({viewport}),page=await context.newPage();try{
       const errors=[];page.on('pageerror',error=>errors.push(error.message));
-      await page.goto(api.origin+'/api/create/editor');await page.locator('#importPsd').waitFor({state:'visible'});await page.waitForFunction(()=>!document.getElementById('importPsd').disabled);
+      await page.goto(api.origin+'/api/create/editor');await page.locator('#importPsd').waitFor({state:'attached'});await page.waitForFunction(()=>!document.getElementById('importPsd').disabled);
       const before=(await api.call('/projects')).body.projects.length,bytes=groupedPsd();
       await page.locator('#psdFile').setInputFiles({name:'editable.psd',mimeType:'image/vnd.adobe.photoshop',buffer:bytes});
       await page.locator('#psdReview').waitFor({state:'visible'});assert.equal((await api.call('/projects')).body.projects.length,before);
@@ -31,10 +33,10 @@ test('real desktop and phone PSD controls retain editable pixels, history and im
       });assert.equal(pixels[3],255);for(const[index,expected]of[128,0,127].entries())assert.ok(Math.abs(pixels[index]-expected)<=1,`isolated opacity reference channel${index}: ${pixels[index]} vs ${expected}; tolerance1`);
       await page.evaluate(async()=>{const {state,edit}=await import('/api/create/editor/editor-state.mjs');state.selected='psd-1';edit({type:'update',id:'psd-1',patch:{opacity:.25,x:1}});});
       await page.locator('#undo').click();assert.equal(await page.evaluate(async()=>{const{state}=await import('/api/create/editor/editor-state.mjs');return state.project.layers.find(l=>l.id==='psd-1').opacity}),1);
-      await page.locator('#redo').click();await page.locator('#saveProject').click();await page.waitForFunction(async()=>{const{state}=await import('/api/create/editor/editor-state.mjs');return!state.saving&&state.revision===2;});
+      await page.locator('#redo').click();await page.waitForFunction(async()=>{const{state}=await import('/api/create/editor/editor-state.mjs');return!state.saving&&state.revision===2;});
       await page.goto(api.origin+'/api/create/editor?project='+record.id);await page.waitForFunction(()=>!document.getElementById('psdSource').disabled);
       const saved=await api.call('/projects/'+record.id);assert.equal(saved.body.project.revision,2);assert.equal(saved.body.project.document.layers.find(l=>l.id==='psd-1').opacity,.25);
-      await page.locator('#psdSource').click();await page.locator('#psdSourceDetails').waitFor({state:'visible'});
+      await (await inMenu(page,'#psdSource')).click();await page.locator('#psdSourceDetails').waitFor({state:'visible'});
       assert.equal(await page.locator('#psdSourceDetails').evaluate(d=>d.scrollWidth<=d.clientWidth+1),true);
       const downloading=page.waitForEvent('download');await page.locator('#psdDownloadOriginal').click();const download=await downloading;assert.deepEqual(await readFile(await download.path()),bytes);await page.getByRole('button',{name:'Close',exact:true}).click();
       const flat=makePsd({layers:[{tag:'TySh'}],color:[1,2,3]});await page.locator('#psdFile').setInputFiles({name:'unsupported.psd',mimeType:'image/vnd.adobe.photoshop',buffer:flat});await page.locator('#psdReview').waitFor({state:'visible'});

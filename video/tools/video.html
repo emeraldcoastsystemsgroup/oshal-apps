@@ -9,6 +9,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Video Studio — OSHAL</title>
+<!-- 1.13.1 | maintainer@emeraldcoastsystemsgroup.com | When rendering is unconfigured, withhold the studio split behind an Open Video editor card; when configured, step 1-2-3-4 with Cancel, localStorage draft persistence, 44px controls, and clean empty state. -->
 <!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | With rendering not configured, the subtitle under the title says so from the first paint and names what Storyboard it does offer: the Generate hint showed only after a storyboard, so the screen and the concierge (sweep 9: "will generate a storyboard and render a real .mp4") promised a render this installation cannot make. -->
 <!-- unreleased | maintainer@emeraldcoastsystemsgroup.com | Generate video says when rendering is not configured on this installation: a 503 native_executor_unavailable shows "Video rendering is not configured on this installation" with the kernel's reason instead of the raw code, and when /pump/status reports the render executor unconfigured (check native-render-unconfigured) the Generate button is disabled with that reason in place of the "Veo renders each scene" promise. -->
 <!-- 1.6.1 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit paints the signed-in account's saved series (where each stands, episodes finished, season cut), the episodes and season cuts the studio saved a watch link for (opening in a new tab) and the home summary's counts, from GET /series and GET /home-summary only. Every start step of the full page (the videos list, which scans the caller's connected storage, the series read, the control and joke-pump listeners, Create's brand-kit read, the handoff listener and the connected-actions mount) runs only when no audience view renders. -->
@@ -142,11 +143,17 @@
   }
   * { box-sizing:border-box; }
   [hidden] { display:none !important; }
-  .brand-chip { margin-top:6px; border:1px dashed var(--line); background:transparent; color:var(--text); border-radius:999px; padding:4px 11px; font:inherit; font-size:12px; cursor:pointer; }
+  .brand-chip { margin-top:6px; min-height:44px; display:inline-flex; align-items:center; border:1px dashed var(--line); background:transparent; color:var(--text); border-radius:999px; padding:8px 14px; font:inherit; font-size:12.5px; cursor:pointer; }
   .brand-chip:hover { border-color:var(--accent); }
   body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
-  .top h1 { font-size:19px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
+  .top { padding:14px 22px 10px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .top h1 { font-size:18px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
+  .unconfigured-card { max-width:560px; margin:48px auto; padding:24px; background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .unconfigured-card h2 { margin:0 0 8px; font-size:18px; }
+  .unconfigured-card p { margin:0 0 18px; color:var(--muted); line-height:1.5; font-size:14px; }
+  .step-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .step-tab { min-height:44px; padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:var(--panel); color:var(--muted); font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+  .step-tab[aria-selected="true"] { background:var(--panel2); color:var(--text); border-color:var(--accent); }
   .split { display:flex; height:calc(100vh - 64px); }
   .pane { overflow-y:auto; padding:18px 20px; }
   .left { flex:1; border-right:1px solid var(--line); }
@@ -158,10 +165,10 @@
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
   .toggles { display:flex; gap:18px; align-items:center; margin-top:12px; flex-wrap:wrap; }
-  .toggles label { display:flex; align-items:center; gap:7px; margin:0; font-size:13px; color:var(--text); }
-  .toggles input { width:auto; }
-  .rangewrap { display:flex; align-items:center; gap:10px; } .rangewrap input { flex:1; }
-  .btn { border:none; border-radius:9px; padding:11px 18px; font-size:14px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
+  .toggles label { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:4px 2px; margin:0; font-size:13px; color:var(--text); cursor:pointer; }
+  .toggles input { width:18px; height:18px; }
+  .rangewrap { display:flex; align-items:center; gap:10px; } .rangewrap input { flex:1; min-height:44px; }
+  .btn { min-height:44px; border:none; border-radius:9px; padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer; background:var(--accent); color:var(--text-on-accent, #fff); }
   .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
   .btn:disabled { opacity:.5; cursor:default; }
   .bar { display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap; }
@@ -199,113 +206,127 @@
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-  <div class="top">
-    <h1>🎬 Video Studio</h1>
-    <div class="sub" id="studioSub">Shape it → storyboard it → render a real short with voiceover &amp; captions for TikTok / Shorts / Reels.</div>
+  <section class="unconfigured-card" id="unconfiguredCard" hidden>
+    <h2>Video generation is off on this installation</h2>
+    <p id="unconfiguredReason">Video rendering is not configured on this installation. Use Video editor to trim, title, score and export clips.</p>
+    <div class="bar">
+      <button type="button" class="btn" id="openEditorBtn" onclick="openVideoEditor()">Open Video editor</button>
+      <button type="button" class="btn ghost" id="draftAnywayBtn" onclick="revealStoryboardOnly()">Draft a text storyboard</button>
+    </div>
+  </section>
+
+  <div class="top" id="studioHeader">
+    <div>
+      <h1>Video Studio</h1>
+      <div class="sub" id="studioSub">Shape an idea, review scenes, and render a short video with voiceover and captions.</div>
+    </div>
   </div>
-  <div class="split">
+  <div class="split" id="studioSplit">
     <div class="pane left">
-      <div class="lbl">1 · Shape your video</div>
-      <div class="grid2">
-        <div><label>Style</label><input id="style" value="clean explainer" placeholder="e.g. futuristic live-action, stick figures" />
-          <button type="button" class="brand-chip" data-brand-target="style" hidden>🎨 Use my brand colors</button></div>
-        <div><label>Tone</label><input id="tone" value="energetic" placeholder="e.g. playful, calm tutorial" /></div>
+      <nav class="step-tabs" role="tablist" aria-label="Video Studio steps">
+        <button type="button" class="step-tab" id="stepTab1" role="tab" aria-selected="true" onclick="setStep(1)">1 · Shape</button>
+        <button type="button" class="step-tab" id="stepTab2" role="tab" aria-selected="false" onclick="setStep(2)">2 · Idea</button>
+        <button type="button" class="step-tab" id="stepTab3" role="tab" aria-selected="false" onclick="setStep(3)">3 · Storyboard</button>
+        <button type="button" class="step-tab" id="stepTab4" role="tab" aria-selected="false" onclick="setStep(4)">4 · Generate</button>
+      </nav>
+
+      <div id="stepPane1">
+        <div class="lbl">1 · Shape</div>
+        <div class="grid2">
+          <div><label for="style">Style</label><input id="style" value="clean explainer" placeholder="e.g. clean documentary, illustrated" />
+            <button type="button" class="brand-chip" data-brand-target="style" hidden>Use my brand colors</button></div>
+          <div><label for="tone">Tone</label><input id="tone" value="energetic" placeholder="e.g. calm tutorial, upbeat" /></div>
+        </div>
+        <div class="grid3">
+          <div><label for="aspect">Aspect</label>
+            <select id="aspect"><option value="9:16">9:16 (Shorts/Reels/TikTok)</option><option value="1:1">1:1 (Square)</option><option value="16:9">16:9 (Wide)</option></select>
+          </div>
+          <div><label for="voice">Voice</label>
+            <select id="voice"><option value="swarm">Voiceover (default voice)</option><option value="none">No voiceover</option></select>
+          </div>
+          <div><label for="music">Music</label>
+            <select id="music"><option value="none">No music</option><option value="upbeat">Upbeat</option><option value="chill">Chill</option></select>
+          </div>
+        </div>
+        <label for="len">Target length: <b id="lenVal">20</b>s</label>
+        <div class="rangewrap"><span class="hint">4s</span><input id="len" type="range" min="4" max="90" step="2" value="20" /><span class="hint">90s</span></div>
+        <div class="toggles">
+          <label><input id="captions" type="checkbox" checked /> Burn-in captions</label>
+        </div>
+        <div class="bar">
+          <button type="button" class="btn" id="nextIdeaBtn" onclick="setStep(2)">Next: Idea</button>
+        </div>
       </div>
-      <div class="grid3">
-        <div><label>Aspect</label>
-          <select id="aspect"><option value="9:16">9:16 (Shorts/Reels/TikTok)</option><option value="1:1">1:1 (Square)</option><option value="16:9">16:9 (Wide)</option></select>
-        </div>
-        <div><label>Voice</label>
-          <select id="voice"><option value="swarm">Voiceover (default voice)</option><option value="none">No voiceover</option></select>
-        </div>
-        <div><label>Music</label>
-          <select id="music"><option value="none">No music</option><option value="upbeat">Upbeat</option><option value="chill">Chill</option></select>
+
+      <div id="stepPane2" hidden>
+        <div class="lbl">2 · Idea</div>
+        <textarea id="idea" placeholder="e.g. A four-shot morning coffee demo ending with a warm pour and a closing tip."></textarea>
+        <div class="bar">
+          <button type="button" class="btn" id="sbBtn" onclick="storyboard()">Storyboard it</button>
+          <button type="button" class="btn ghost" id="sbCancelBtn" onclick="cancelStoryboard()" hidden>Cancel</button>
+          <span class="hint" id="sbHint"></span>
         </div>
       </div>
-      <label>Target length: <b id="lenVal">20</b>s</label>
-      <div class="rangewrap"><span class="hint">4s</span><input id="len" type="range" min="4" max="90" step="2" value="20" /><span class="hint">90s</span></div>
-      <div class="toggles">
-        <label><input id="captions" type="checkbox" checked /> Burn-in captions</label>
-      </div>
-
-      <div class="lbl" style="margin-top:20px">2 · Your idea</div>
-      <textarea id="idea" placeholder="e.g. A futuristic muscle-cat bakes a cake over a campfire — cinematic, funny payoff."></textarea>
-      <div class="bar">
-        <button class="btn ghost" id="sbBtn" onclick="storyboard()">✨ Storyboard it</button>
-        <span class="hint" id="sbHint"></span>
-      </div>
-
-      <!--
-        SERIES — a multi-episode show, written by the screenplay-writer bot and rendered on the
-        remote Vids node. Unlike a single clip (interactive, rendered here), a series is a queued
-        ticket: write -> you approve the scripts -> render -> assemble. The scripts are approved
-        BEFORE anything renders, because a bad script caught afterwards costs real render credits.
-      -->
-      <details id="seriesBox" style="margin-top:22px;border:1px solid var(--line,#2a2a3a);border-radius:10px;padding:12px 14px">
-        <summary style="cursor:pointer;font-weight:600">🎬 Make a series instead <span class="hint">— multiple episodes, written by the swarm</span></summary>
-
-        <div class="lbl" style="margin-top:14px">Series title</div>
-        <input id="seriesTitle" placeholder="e.g. The Breakfast Crew" />
-
-        <div class="lbl" style="margin-top:12px">What is the show about?</div>
-        <textarea id="seriesPremise" placeholder="e.g. A pancake, a slice of toast and a shy blueberry tell each other terrible jokes at breakfast. Each episode ends on a punchline and everyone laughs."></textarea>
-
-        <div class="lbl" style="margin-top:12px">Style lock <span class="hint">— the look every frame reuses</span></div>
-        <input id="seriesStyle" placeholder="e.g. tactile claymation miniature, warm kitchen morning light" />
-        <button type="button" class="brand-chip" data-brand-target="seriesStyle" hidden>🎨 Use my brand colors</button>
-
-        <div class="lbl" style="margin-top:12px">Cast <span class="hint">— one per line: Name — description. Put props after “with”.</span></div>
-        <textarea id="seriesCast" rows="3" placeholder="Pippa Pancake — Golden fluffy pancake with a syrup swirl; eager and clumsy.&#10;Toasty Toast — Warm brown toast slice with a bow tie; proud, a little boastful."></textarea>
-        <div class="hint" style="margin-top:4px">Leave blank and the screenwriter invents a cast. The first clause must end in the character’s own noun — “bean with two glow sticks”, not “bean drummer holding glow sticks” — or the drumsticks end up talking.</div>
-
-        <div class="bar" style="margin-top:12px;gap:14px;align-items:center;flex-wrap:wrap">
-          <label>Episodes <input id="seriesCount" type="number" min="1" max="20" value="1" style="width:64px" /></label>
-          <label>Scenes each <input id="seriesScenes" type="number" min="2" max="10" value="4" style="width:64px" /></label>
-          <span class="hint">Four scenes is the proven shape: setup → problem → turn → punchline.</span>
-        </div>
-
-        <div class="bar" style="margin-top:10px">
-          <button class="btn" id="seriesBtn" onclick="createSeries()">🎬 Write the series</button>
-          <span class="hint" id="seriesHint"></span>
-        </div>
-        <div id="seriesList" style="margin-top:12px"></div>
-      </details>
-
-      <!--
-        THE JOKE PUMP. The same conductor, run on a schedule instead of by hand. Two switches per
-        show and they mean different things: "On" puts the show in the rotation (it will be written,
-        which is free); "Auto-approve" is the operator standing in for the approval gate, and is the
-        only thing that lets the pump spend render credits. A show can be On without it — the pump
-        writes the scripts and parks them for you.
-      -->
-      <details id="pumpBox" style="margin-top:14px;border:1px solid var(--line,#2a2a3a);border-radius:10px;padding:12px 14px">
-        <summary style="cursor:pointer;font-weight:600">🔁 The joke pump <span class="hint">— keep the shows producing on their own</span></summary>
-
-        <div class="bar" style="margin-top:12px;gap:10px;flex-wrap:wrap;align-items:center">
-          <button class="btn ghost" onclick="pumpLoad()">↻ Refresh</button>
-          <button class="btn ghost" onclick="pumpImport()">⬇ Import the show library</button>
-          <button class="btn" id="pumpRunBtn" onclick="pumpRun()">▶ Run one cycle now</button>
-          <button class="btn ghost" onclick="pumpLoad(true)">🔍 Probe the render node</button>
-          <span class="hint" id="pumpHint"></span>
-        </div>
-
-        <div id="pumpNode" class="hint" style="margin-top:10px"></div>
-        <div id="pumpShows" style="margin-top:12px"></div>
-
-        <div class="lbl" style="margin-top:16px">Recent cycles <span class="hint">— including the ones it declined to run, and why</span></div>
-        <div id="pumpRuns" class="hint" style="margin-top:6px">—</div>
-      </details>
 
       <div id="sbWrap" style="display:none">
-        <div class="lbl" style="margin-top:20px">3 · Storyboard <span class="hint" id="sbMeta"></span></div>
-        <label>Title</label><input id="title" />
+        <div class="lbl" style="margin-top:8px">3 · Storyboard <span class="hint" id="sbMeta"></span></div>
+        <label for="title">Title</label><input id="title" />
         <div class="scenes" id="scenes"></div>
-        <div class="bar">
-          <button class="btn" id="genBtn" onclick="generate()">🎬 Generate video</button>
-          <span class="hint" id="genHint">Veo renders each scene (~2–5 min/scene) — this can take several minutes.</span>
+        <div class="bar" id="sbStepActions">
+          <button type="button" class="btn" id="toGenStepBtn" onclick="setStep(4)">Next: Generate</button>
+          <span class="hint" id="draftSavedHint"></span>
         </div>
       </div>
+
+      <div id="stepPane4" hidden>
+        <div class="lbl">4 · Generate</div>
+        <div class="bar">
+          <button type="button" class="btn" id="genBtn" onclick="generate()">Generate video</button>
+          <span class="hint" id="genHint">Renders each scene in order (about 2–5 minutes per scene).</span>
+        </div>
+      </div>
+
       <div class="result" id="result"></div>
+
+      <details id="moreBox" style="margin-top:24px;border:1px solid var(--line,#2a2a3a);border-radius:10px;padding:12px 14px">
+        <summary style="cursor:pointer;font-weight:600;min-height:36px">More · Series &amp; scheduled production</summary>
+
+        <details id="seriesBox" style="margin-top:12px;border:1px solid var(--line,#2a2a3a);border-radius:10px;padding:12px 14px">
+          <summary style="cursor:pointer;font-weight:600">Series episodes</summary>
+          <div class="lbl" style="margin-top:14px">Series title</div>
+          <input id="seriesTitle" placeholder="e.g. The Breakfast Crew" />
+          <div class="lbl" style="margin-top:12px">Premise</div>
+          <textarea id="seriesPremise" placeholder="e.g. Short kitchen tutorials where each episode solves one everyday cooking mistake."></textarea>
+          <div class="lbl" style="margin-top:12px">Style lock</div>
+          <input id="seriesStyle" placeholder="e.g. warm natural kitchen morning light" />
+          <button type="button" class="brand-chip" data-brand-target="seriesStyle" hidden>Use my brand colors</button>
+          <div class="lbl" style="margin-top:12px">Cast <span class="hint">— one per line: Name — description</span></div>
+          <textarea id="seriesCast" rows="3" placeholder="Host — Friendly home cook in a linen apron."></textarea>
+          <div class="bar" style="margin-top:12px;gap:14px;align-items:center;flex-wrap:wrap">
+            <label>Episodes <input id="seriesCount" type="number" min="1" max="20" value="1" style="width:64px" /></label>
+            <label>Scenes each <input id="seriesScenes" type="number" min="2" max="10" value="4" style="width:64px" /></label>
+          </div>
+          <div class="bar" style="margin-top:10px">
+            <button type="button" class="btn ghost" id="seriesBtn" onclick="createSeries()">Write the series</button>
+            <span class="hint" id="seriesHint"></span>
+          </div>
+          <div id="seriesList" style="margin-top:12px"></div>
+        </details>
+
+        <details id="pumpBox" style="margin-top:12px;border:1px solid var(--line,#2a2a3a);border-radius:10px;padding:12px 14px">
+          <summary style="cursor:pointer;font-weight:600">Scheduled episodes</summary>
+          <div class="bar" style="margin-top:12px;gap:10px;flex-wrap:wrap;align-items:center">
+            <button type="button" class="btn ghost" onclick="pumpLoad()">Refresh</button>
+            <button type="button" class="btn ghost" onclick="pumpImport()">Import show library</button>
+            <button type="button" class="btn ghost" id="pumpRunBtn" onclick="pumpRun()">Run one cycle</button>
+            <span class="hint" id="pumpHint"></span>
+          </div>
+          <div id="pumpNode" class="hint" style="margin-top:10px"></div>
+          <div id="pumpShows" style="margin-top:12px"></div>
+          <div class="lbl" style="margin-top:16px">Recent cycles</div>
+          <div id="pumpRuns" class="hint" style="margin-top:6px">—</div>
+        </details>
+      </details>
     </div>
 
     <div class="pane right">
@@ -317,6 +338,69 @@
 <script>
 const $ = (id) => document.getElementById(id);
 let SB = null; // current storyboard
+let SB_ABORT = null;
+const DRAFT_KEY = 'oshal.video.storyboardDraft.v1';
+
+function setStep(step) {
+  [1, 2, 3, 4].forEach((n) => {
+    const tab = $('stepTab' + n);
+    if (tab) tab.setAttribute('aria-selected', n === step ? 'true' : 'false');
+  });
+  if ($('stepPane1')) $('stepPane1').hidden = step !== 1;
+  if ($('stepPane2')) $('stepPane2').hidden = step !== 2;
+  if ($('sbWrap')) $('sbWrap').style.display = step === 3 && SB ? 'block' : 'none';
+  if ($('stepPane4')) $('stepPane4').hidden = step !== 4;
+}
+
+function openVideoEditor() {
+  if (typeof window !== 'undefined' && window.top && window.top !== window && window.top.location) {
+    window.top.location.assign('/cockpit/?app=video&view=video-editor');
+    return;
+  }
+  if (typeof location !== 'undefined') location.assign('/api/video/editor');
+}
+
+function revealStoryboardOnly() {
+  if ($('unconfiguredCard')) $('unconfiguredCard').hidden = true;
+  if ($('studioHeader')) $('studioHeader').hidden = false;
+  if ($('studioSplit')) $('studioSplit').hidden = false;
+}
+
+function saveStoryboardDraft(metaText) {
+  if (!SB) return;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        storyboard: SB,
+        meta: metaText || $('sbMeta').textContent || '',
+        idea: $('idea').value || '',
+      }));
+      if ($('draftSavedHint')) $('draftSavedHint').textContent = 'Draft kept on this device.';
+    }
+  } catch (_) { /* private/stub window without storage */ }
+}
+
+function restoreStoryboardDraft() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || !saved.storyboard || !Array.isArray(saved.storyboard.scenes)) return;
+    SB = saved.storyboard;
+    if (saved.idea && !$('idea').value) $('idea').value = saved.idea;
+    $('title').value = SB.title || '';
+    $('sbMeta').textContent = saved.meta || '';
+    renderScenes();
+  } catch (_) { /* ignore malformed draft */ }
+}
+
+function cancelStoryboard() {
+  if (SB_ABORT) { SB_ABORT.abort(); SB_ABORT = null; }
+  $('sbBtn').disabled = false;
+  if ($('sbCancelBtn')) $('sbCancelBtn').hidden = true;
+  $('sbHint').textContent = 'Storyboard cancelled.';
+}
 
 function readShape() {
   const voiceSel = $('voice').value;
@@ -354,18 +438,30 @@ function collectScenes() {
 async function storyboard() {
   const idea = $('idea').value.trim();
   if (!idea) { $('sbHint').textContent = 'Type an idea first.'; return; }
-  $('sbBtn').disabled = true; $('sbHint').textContent = 'Directing…'; hideResult();
+  $('sbBtn').disabled = true; $('sbHint').textContent = 'Writing scenes and narration…'; hideResult();
+  if ($('sbCancelBtn')) $('sbCancelBtn').hidden = false;
+  SB_ABORT = typeof AbortController === 'function' ? new AbortController() : null;
   try {
-    const r = await fetch('/api/video/storyboard', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idea, shape: readShape() }) });
+    const opts = { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idea, shape: readShape() }) };
+    if (SB_ABORT) opts.signal = SB_ABORT.signal;
+    const r = await fetch('/api/video/storyboard', opts);
     const j = await r.json().catch(() => null);
     if (!r.ok || !j) throw new Error(storyboardError(r.status, j));
     SB = j.storyboard;
     $('title').value = SB.title;
     $('sbMeta').textContent = `· ${SB.scenes.length} ${SB.scenes.length === 1 ? 'scene' : 'scenes'} · ~${j.seconds}s · est ~$${j.estCostUsd}`;
     renderScenes();
+    saveStoryboardDraft($('sbMeta').textContent);
+    setStep(3);
     $('sbWrap').style.display = 'block'; $('sbHint').textContent = '';
-  } catch (e) { $('sbHint').textContent = e.message; }
-  finally { $('sbBtn').disabled = false; }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    $('sbHint').textContent = e.message;
+  } finally {
+    SB_ABORT = null;
+    $('sbBtn').disabled = false;
+    if ($('sbCancelBtn')) $('sbCancelBtn').hidden = true;
+  }
 }
 
 async function generate() {
@@ -404,7 +500,7 @@ function generateError(status, j) {
   return (j && (j.error || j.message)) || 'generation failed';
 }
 
-/* Generate stays off while the installation reports no render executor; the hint says why. */
+/* Generate stays off while the installation reports no render executor; the screen withholds the render split behind the Open Video editor card. */
 let RENDER_UNCONFIGURED = null;
 async function renderReadiness() {
   try {
@@ -415,6 +511,10 @@ async function renderReadiness() {
     RENDER_UNCONFIGURED = 'Video rendering is not configured on this installation' + (node.reason ? ' (' + node.reason + ')' : '') + '.';
     $('genBtn').disabled = true; $('genBtn').title = RENDER_UNCONFIGURED;
     $('genHint').textContent = RENDER_UNCONFIGURED;
+    if ($('unconfiguredReason')) $('unconfiguredReason').textContent = RENDER_UNCONFIGURED + ' Open Video editor to assemble, caption and export clips.';
+    if ($('unconfiguredCard')) $('unconfiguredCard').hidden = false;
+    if ($('studioHeader')) $('studioHeader').hidden = true;
+    if ($('studioSplit')) $('studioSplit').hidden = true;
     // Said at the top from the first paint: the Generate hint only shows after a storyboard, so the screen (and the
     // concierge reading it) promised a rendered .mp4 here. What this installation does offer is named instead.
     $('studioSub').textContent = 'Shape it → storyboard it. ' + RENDER_UNCONFIGURED + ' Storyboard it writes the scenes, '
@@ -429,7 +529,7 @@ async function loadList() {
   try {
     const r = await fetch('/api/video/list'); const j = await r.json();
     const vids = j.videos || [];
-    if (!vids.length) { $('list').innerHTML = '<div class="empty">No videos yet — shape an idea and hit Generate.</div>'; return; }
+    if (!vids.length) { $('list').innerHTML = '<div class="empty">No rendered videos yet.</div>'; return; }
     // ADR-139 standard tag: a rendered short is a sendable artifact (chip + right-click
     // injected by the shared component). Only kernel-proxied download URLs qualify.
     $('list').innerHTML = vids.map((v) => `<div class="vid"${v.downloadUrl && String(v.downloadUrl).startsWith('/api/')
@@ -542,12 +642,8 @@ async function pumpLoad(probe) {
     $('pumpHint').textContent = '';
 
     const n = st.node || {};
-    const p = n.probe || null;
-    $('pumpNode').innerHTML = `<b>Render node:</b> ${n.available ? '✅ free' : '⏸ ' + esc(n.check || 'busy')}`
-      + ` — ${esc(n.reason || '')}`
-      + (p ? ` <span class="hint">(chrome ${p.chromeTotal}, signed-in ${p.chromeDebug}, ${p.availableMb}MB available, commit ${p.commitPct}%)</span>` : '')
-      + `<br><b>Scheduler:</b> ${st.pumpEnabled ? 'on' : 'off (set VIDEO_PUMP_ENABLED=true to let it run by itself)'}`
-      + (st.dueNext ? ` · <b>next up:</b> ${esc(st.dueNext.title)}` : ' · nothing due');
+    $('pumpNode').innerHTML = (n.available ? 'Ready' : esc(n.reason || n.check || 'Paused'))
+      + (st.dueNext ? ` · Next: ${esc(st.dueNext.title)}` : '');
 
     const rows = (shows.shows || []).map((s) => {
       const e = s.enrollment;
@@ -626,6 +722,7 @@ async function pumpRun() {
    joke pump. */
 if (!window.AppView || !AppView.active()) {
   $('len').addEventListener('input', () => { $('lenVal').textContent = $('len').value; });
+  restoreStoryboardDraft();
   loadList();
   loadSeries();
   renderReadiness();

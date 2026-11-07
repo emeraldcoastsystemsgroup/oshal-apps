@@ -10,6 +10,10 @@
  *   a hint that they act on the camera selected in the list; the persona says a disabled mark belongs only to its own button.
  *   Seams: every /api/camera read answers an empty fleet, and the shell's shared theme assets are empty stand-ins. Needs the
  *   store toolchain (express, playwright, chromium) and the kernel checkout (OSHAL_KERNEL_ROOT).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: with no camera node the page is the Camera screen only.
+ *   The snapshot reads "Turn on camera" as an enabled button and the shutter as disabled with why ("Turn on the camera
+ *   first"), and it reads no Fleet, Control, Telemetry, Event log, Connect, Disconnect or Concierge at all: they are withheld
+ *   until a camera node is registered, not shown disabled with a paragraph.
  */
 'use strict';
 const test = require('node:test');
@@ -38,7 +42,7 @@ async function serve() {
   return { server, base: `http://127.0.0.1:${server.address().port}` };
 }
 
-test('the concierge\'s snapshot reads the laptop Connect as enabled and names what the disabled Connect needs', async (t) => {
+test('the concierge\'s snapshot reads Turn on camera as enabled and no fleet control while no camera node is registered', async (t) => {
   assert.ok(fs.existsSync(SNAPSHOT), `the kernel checkout must be present (set OSHAL_KERNEL_ROOT); missing ${SNAPSHOT}`);
   const { server, base } = await serve();
   const browser = await chromium.launch();
@@ -47,12 +51,15 @@ test('the concierge\'s snapshot reads the laptop Connect as enabled and names wh
   await page.goto(`${base}/shell`);
   const frame = page.frameLocator('#active-app-frame');
   await frame.locator('#btnLocalConnect').waitFor();
+  await page.waitForTimeout(300);
   const text = await page.evaluate(() => window.captureScreenState(document.getElementById('active-app-frame')).text);
   const lines = text.split('\n');
-  const laptop = lines.find((l) => l.startsWith('[button] Connect my laptop camera'));
-  assert.equal(laptop, '[button] Connect my laptop camera', text);
-  assert.ok(lines.includes('[button] Connect (disabled: Opens the link to the camera selected in the list; select a camera first)'), text);
-  assert.ok(lines.includes('[button] Disconnect (disabled: Closes the link to the camera selected in the list)'), text);
+  assert.ok(lines.includes('[button] Turn on camera'), text);
+  assert.ok(lines.includes('[button] Take a photo (disabled; the page\'s note: Turn on the camera first)'), text);
+  for (const gone of [/^\[button\] Connect\b/, /^\[button\] Disconnect\b/, /^#+ (Fleet|Control|Telemetry|Event log|Concierge)\b/i, /Delete all media/, /Prepare a diagnostic brief/]) {
+    assert.ok(!lines.some((l) => gone.test(l)), 'withheld with no camera node: ' + gone + '\n' + text);
+  }
   const persona = fs.readFileSync(path.join(PKG, 'personas', 'camera-operator.yaml'), 'utf8');
   assert.match(persona, /a "\(disabled\)" mark belongs only to the one button on\s+that line/);
+  assert.match(persona, /"Turn on camera"/);
 });

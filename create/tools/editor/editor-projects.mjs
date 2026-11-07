@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Save immutable revisions, reopen owned work and explicitly resolve stale-tab conflicts.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Cancel a queued autosave when a concierge handoff saves now, so the pending timer cannot overlap that save.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Commit or refuse focused shared properties before capturing a saved revision.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-editor): automatic saving replaces the Save button, so a new image with content is saved through the same POST /projects route after the same pause as later revisions (Save a copy, conflicts and failures keep their rules); the document menu's Delete image removes the open saved image through the existing DELETE route.
  */
 import { $, state, dirty, canEdit, api, jsonRequest, openDocument, notify, error, handle } from './editor-state.mjs';
 import { createProject, serializeProject } from './model.mjs';
@@ -26,10 +27,22 @@ export async function saveProject(copy = false) {
   finally { state.saving = false; notify(); }
 }
 
-/** Autosave existing projects only; the first save is an explicit user action. */
+/** @description Whether the open image holds anything worth keeping: a layer, or any edit since it opened.
+ * @returns {boolean} True once there is something to save. */
+export const hasContent = () => state.project.layers.length > 0 || state.history.canUndo();
+
+/** @description Automatic saving runs while the person keeps it on, nothing blocks it and their role may write this image.
+ * A new image is first saved once it has content, through the same create route the explicit Save used.
+ * @returns {boolean} True when a pending change will be saved without a press. */
+export function autosaveReady() {
+  if (!$('autosave').checked || state.loading || state.saving || state.conflict || state.saveFailed || !dirty()) return false;
+  return state.id ? canEdit() : Boolean(state.permissions.create) && canEdit() && hasContent();
+}
+
+/** Save after a pause; Save a copy and conflict resolution stay explicit. */
 export function queueAutosave() {
   clearTimeout(saveTimer);
-  if (!$('autosave').checked || !state.id || !canEdit() || !dirty() || state.saving || state.conflict || state.saveFailed) return;
+  if (!autosaveReady()) return;
   saveTimer = setTimeout(() => saveProject().catch(failure => error(failure.message)), 1500);
 }
 
@@ -72,13 +85,18 @@ function projectRow(record) {
   const name = document.createElement('strong'), meta = document.createElement('small'), buttons = document.createElement('div');
   name.textContent = record.title; meta.textContent = `Revision ${record.revision} · ${new Date(record.updatedAt).toLocaleString()}`;
   buttons.className = 'project-buttons'; buttons.append(action('Open', () => openSaved(record.id)), action('Revisions', () => revisions(row, record)));
-  buttons.append(action('Delete project', async () => {
-    if (state.saving || state.loading) throw new Error('Wait for the current action to finish.');
-    if (!window.confirm(`Delete “${record.title}” and its saved revisions?`)) return;
-    await api(`/projects/${record.id}`, jsonRequest('DELETE', { baseRevision: record.revision }));
-    if (state.id === record.id) openDocument(createProject()); await showProjects();
-  }, !state.permissions.delete)); row.append(name, meta, buttons); return row;
+  buttons.append(action('Delete project', async () => { if (await deleteRecord(record)) await showProjects(); }, !state.permissions.delete)); row.append(name, meta, buttons); return row;
 }
+
+/** Delete one saved image and its revisions after confirmation; the open canvas resets when it was that image. */
+async function deleteRecord(record) {
+  if (state.saving || state.loading) throw new Error('Wait for the current action to finish.');
+  if (!window.confirm(`Delete “${record.title}” and its saved revisions?`)) return false;
+  await api(`/projects/${record.id}`, jsonRequest('DELETE', { baseRevision: record.revision }));
+  if (state.id === record.id) openDocument(createProject());
+  return true;
+}
+
 
 /** The project list is always read afresh in the signed-in account. */
 export async function showProjects() {
@@ -100,7 +118,10 @@ export function bindProjects() {
   $('saveProject').onclick = handle(() => saveProject()); $('saveCopy').onclick = handle(() => saveProject(true));
   $('openProjects').onclick = handle(showProjects); $('closeProjects').onclick = () => $('projectDialog').close();
   $('newProject').onclick = handle(() => { if (state.permissions.create && mayReplace()) openDocument(createProject()); });
-  $('autosave').onchange = queueAutosave;
+  $('autosave').onchange = () => notify();
+  $('deleteProject').onclick = handle(async () => {
+    if (state.id) await deleteRecord({ id: state.id, title: state.project.name, revision: state.revision });
+  });
   window.addEventListener('beforeunload', event => { if (dirty() && state.project.layers.length) { event.preventDefault(); event.returnValue = ''; } });
   window.addEventListener('pagehide', () => clearTimeout(saveTimer));
 }

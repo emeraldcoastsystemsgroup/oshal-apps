@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise actual Career HTML and shared theme code in Chromium, preserving drafts, print content and read-only palette changes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The title filter is always visible; there is no longer a summary to open first.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: every screen's <html> carries data-career-surface (the experience library lost it, so its colours were undefined while this proof still passed on body colours alone).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -42,6 +43,7 @@ for (const screen of Object.keys(screens)) test(`${screen} follows saved and liv
   const page = await pageFor(t);
   await page.goto(`${fixture.origin}/api/career-hunter/${screen}`);
   const initial = await colors(page);
+  assert.ok(await page.evaluate(() => document.documentElement.hasAttribute('data-career-surface')), `${screen} carries data-career-surface`);
   assert.equal(initial.theme, 'workspace');
   assert.equal(initial.actualForeground, initial.foreground);
   assert.equal(initial.actualBackground, initial.background);

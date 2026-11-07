@@ -1,3 +1,9 @@
+# CHANGE LOG
+# -----------------------------------------------------------------------------
+# SEQ | AUTHOR | DESCRIPTION
+# -----------------------------------------------------------------------------
+# 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0, UX audit 2026-11-06: with no camera node the screen is this device's capture screen (live preview, 72 px shutter, Photo/Video/Timelapse, captures strip); Fleet, Control, Telemetry, Event log and Delete all media live on a Cameras screen shown only when a node is registered; inline Concierge card removed; diagnostic brief moved to More as a themed sheet, withheld when no action is offered; same routes.
+# -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — camera ("Camera Ops")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -46,7 +52,7 @@ description: >-
   run a low-latency preview. A control concierge turns natural language into one
   validated command; a human confirms anything destructive. Sim engine built in,
   real GoPro (Open GoPro HTTP) at the camera node.
-version: 1.1.2
+version: 1.2.0
 testing:
   version: 1
   catalog: tests/test-lab.yaml

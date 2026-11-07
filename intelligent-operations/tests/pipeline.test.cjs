@@ -105,7 +105,7 @@ test('the shipped Data view publishes and evaluates through real SQL and percola
   const saved=await post('/sources',{name:source.name,source:source.source,environment:source.environment});
   for(let i=0;i<4;i++){const raw=example();raw.id='browser-'+i;if(i===3)raw.data.alertType='Ignored';await post('/events',{sourceId:saved.id,event:raw});}
   browser=await chromium.launch({headless:true});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base+'/api/intelligent-operations/app#data');await page.getByText('Records refreshed',{exact:false}).waitFor();
+  await page.goto(base+'/api/intelligent-operations/app#data');await page.locator('#status',{hasText:/^Updated /}).waitFor();
   await page.getByRole('tab',{name:'Rules',exact:true}).click();await page.getByText('Saved generations and advanced JSON',{exact:true}).click();await page.locator('#policy-json').fill(JSON.stringify(policy({rules:[{name:'Only selected type',enabled:true,capture:true,query:{term:{alertType:example().data.alertType}}}]})));
   await page.locator('#policy-import-json').click();await page.getByRole('button',{name:'Publish and activate',exact:true}).click();await page.waitForFunction(()=>document.getElementById('policy-active').textContent.includes('binding revision 1'),{}, {timeout:15000});
   const binding=(await pipelineRecords(x.p,x.owner)).bindings[0];index='ops-rules-'+hash(['detection-owner-v1',x.owner])+'-'+binding.policyId;
@@ -120,7 +120,7 @@ test('the shipped Data view publishes and evaluates through real SQL and percola
   await page.getByRole('tab',{name:'Correlation',exact:true}).click();assert.match(await page.locator('#correlation-history').innerText(),/exact-asset fallback groups/);
   const persisted=await pipelineRecords(x.p,x.owner);assert.equal(persisted.correlations.length,1);assert.equal(persisted.correlations[0].deliveryIds.length,1);
   const foreign=await pipelineRecords(x.f.caller('another-reader'),'another-reader');assert.equal(foreign.correlations.length,0);
-  await page.reload();await page.getByText('Records refreshed',{exact:false}).waitFor();await page.getByRole('tab',{name:'Correlation',exact:true}).click();await page.getByText('1 groups from 1 events',{exact:true}).waitFor();
+  await page.reload();await page.locator('#status',{hasText:/^Updated /}).waitFor();await page.getByRole('tab',{name:'Correlation',exact:true}).click();await page.getByText('1 groups from 1 events',{exact:true}).waitFor();
   for(const width of [1440,390,320]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}
   assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await x.close();if(index)assert.equal((await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'DELETE'})).ok,true);}

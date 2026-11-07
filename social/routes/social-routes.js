@@ -32,6 +32,7 @@
  * 2026-10-10 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Native kernel egress (OSHAL_EGRESS=kernel): the X legs (POST /post to X, GET /twitter/timeline, POST /twitter/follow, the X profile) and the LinkedIn and Facebook profile reads in GET /profiles send their requests to the declared hosts with no Authorization header and no access_token, the kernel applying the caller's twitter / linkedin / meta-business connection; connection state comes from connectors.metadata (none or lapsed reads as not connected, as the broker's null did), a kernel "not connected" refusal answers the same 409 no_twitter_connection, the X user id comes from GET /2/users/me because the connection row is not the package's to read there, and GET /readiness reads the Facebook connections from the metadata. Outside the kernel every path is unchanged. The Facebook Page legs stay on the broker: they send Page access tokens the package itself takes from /me/accounts.
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | POST /draft and POST /signals/organize run on the package's own social-writer (a0…0040): the native kernel refused the email-summarizer comms bot (b0…0001) with "this bot requires an enrolled node", so the Workspace and Composer could not draft at all. A package's own node-posture bot answers a plain completion there.
  * 2026-10-13 14:50:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: an X draft came back at 315 of 280 characters and the person had to trim it before it could publish. POST /draft for X goes through draftWithinXLimit: a draft over 280 is sent back to the bot to shorten (at most twice), and one still over answers `tooLong` {length, max}, which the composer says in words. Guard: tests/social-draft-limit.test.cjs.
+ * 2026-11-06 21:15:00 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: unify Compose and Workspace into one surface; GET /composer 302-redirects to /api/social/workspace?view=compose preserving query parameters; tools/social-composer.html is removed (Workspace · Compose carries every Composer capability).
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -237,7 +238,13 @@ function createSocialRoutes(ctx) {
     const assetRoot = ctx.appPackageDir
         ? path.join(ctx.appPackageDir, 'tools')
         : path.join(LOAD_TIME_PACKAGE_DIR, 'tools');
-    router.get('/composer', servePage(assetRoot, 'social-composer.html'));
+    /** GET /composer — the old Composer address: redirects (302) to the one Workspace, opened on Compose, keeping every query parameter. */
+    router.get('/composer', (req, res) => {
+        const q = new URLSearchParams(req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '');
+        if (!q.get('view'))
+            q.set('view', 'compose');
+        res.redirect(302, `/api/social/workspace?${q.toString()}`);
+    });
     /** GET /facebook — the Facebook Pages stream surface (read feed + publish to a Page). */
     router.get('/facebook', servePage(assetRoot, 'facebook-stream.html'));
     /** GET /workspace — the combined Social Workspace: engagement signals (who to engage)

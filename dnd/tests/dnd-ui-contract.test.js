@@ -55,6 +55,7 @@
  * 2026-07-23 11:36:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Require death-save presenters to survive equivalent DM replies, retry after interruption, and explain accumulated failures.
  * 2026-07-23 12:35:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Load campaign selection and shared exploration in the ordered tabletop bundle.
  * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Admit exactly one inline script in table.html, the audience-view boot (ADR-164 D6): it must sit in the head after the shared kit, boot the kit for this application and name no tabletop function, so game logic still lives only in the ordered classic bundle.
+ * 2026-11-07 05:10:00 | maintainer@emeraldcoastsystemsgroup.com     | Allow the kernel speech service as the native narrator (0.22.2) while browser speech stays banned.
  */
 
 'use strict';
@@ -388,7 +389,7 @@ test('each turn gets one natural-language owner announcement keyed by turn seria
 });
 
 test('the gameplay surface can enter and exit table-only full screen', () => {
-  assert.match(html, /id="fullscreenBtn"[^>]*>⛶ PLAY FULL SCREEN<\/button>/);
+  assert.match(html, /id="fullscreenBtn"[^>]*>Full screen<\/button>/);
   assert.match(appScript, /document\.documentElement\.requestFullscreen\(\{ navigationUI: 'hide' \}\)/);
   assert.match(appScript, /document\.addEventListener\('fullscreenchange'/);
   assert.match(appScript, /document\.body\.classList\.toggle\('table-fullscreen', immersiveRequested\)/);
@@ -616,7 +617,10 @@ test('captions track the bounded neural-only speech lifecycle and can be dismiss
   assert.match(appScript, /Dungeon Master Settings/);
   assert.match(voiceSource, /activeNarrator \? 'ready' : 'idle'/);
   assert.match(voiceSource, /return `\$\{label\} \(natural backup\)`/);
-  assert.doesNotMatch(appScript, /\/api\/voice\/synthesize|speechSynthesis|SpeechSynthesisUtterance|browserSpeak/);
+  // Browser speech stays banned (robotic, not a natural server voice). The kernel's own speech service is a server
+  // voice and is the native kernel's narrator when /tts has none (0.22.2, Roger: "the audio doesnt work").
+  assert.doesNotMatch(appScript, /speechSynthesis|SpeechSynthesisUtterance|browserSpeak/);
+  assert.match(voiceSource, /async function fetchKernelVoice\(text, deadlineAt\)[\s\S]{0,400}'\/api\/voice\/synthesize'/);
   assert.doesNotMatch(voiceSource, /4500|DM_VOICES|DM_VOICE\b/);
   assert.match(voiceSource, /localStorage\.removeItem\('dnd-device-voice'\)/);
   assert.match(appScript, /no robotic substitute will play/i);

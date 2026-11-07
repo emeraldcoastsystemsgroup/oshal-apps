@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Side-effect-free Nexus home summary tiles and metrics for Phone & Device Control.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: real counts only - the person's phones, the computers whose bridge last reported, and the last thing sent with whether the computer said it worked. No "mirrored frames" (there were never any). The owner comes from the parent router's kernel check.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: point the empty-state fix link to phone-control-execution after merging phone-control-config into the Connect sheet.
  */
 
 'use strict';
@@ -40,7 +41,7 @@ function createHomeSummaryRoutes(ctx) {
         { label: 'Last action', value: last ? `${last.action} ${last.ok ? 'worked' : 'failed'}` : 'None yet', tone: last && !last.ok ? 'warn' : 'neutral' }
       ],
       metrics: { phones: phones.length, computersSetUp: bridged, lastActionAt: last ? last.createdAt : null },
-      items: phones.length ? [] : [{ text: 'Set up one of your computers to connect a phone', tone: 'neutral', fix: 'phone-control-config' }]
+      items: phones.length ? [] : [{ text: 'Set up one of your computers to connect a phone', tone: 'neutral', fix: 'phone-control-execution' }]
     });
   });
 

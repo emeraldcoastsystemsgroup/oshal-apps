@@ -12,6 +12,8 @@
 # 2026-10-30 00:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.11.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 # 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.12.0: a person can now play against the computer. A show poster is one press to a running game; you play at your own seat (POST /seat role: player), which removes the two permanent freezes; the dock says what happened and what to do; the broadcast set stays dark under every theme; the game ends with the winner and Play again. No schema or authorization change.
 # 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com   | 0.12.1-0.12.7, the live test of 0.12.0: clues, the dock and the lobby fit the screen; every Jeopardy column fits a phone; PRESS holds its place; Wheel pods show the running total; the opening titles no longer eat a person's first chance to buzz; the keyboard is in the answer box when it appears; a phone clicker waits while the host judges, so a second answer is not dropped. 0.12.8: the store gate runs the browser guards; README, description and this log follow.
+# 2026-11-06 09:45:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.13.0, UX audit 2026-11-06: the Review tile is gone (Play is first; stage.html carries the family audience view; the lobby has Recent games). Clicker: one header row with a ? (Help sheet), no New game, a 240px dome that steps aside for a full-width Answer, team and Show me as in the You sheet. Stage: no duplicate header, ? and More (New game asks first) on the marquee, 44px dock tools, the host line in the dock, both teams above the dock on a phone, Join this game for a host without a podium. Host Desk split into a live console and a Show setup sheet (own questions as answer rows), a revealing answer key and a Voice off chip. Game views keep the zoom lock (data-ds-game). Two new UI scripts (gs-sheets.js, gs-host-desk.js); no route, schema or authorization change.
+# 2026-11-06 15:45:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.13.1: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Game Show (AI game night, live at the table or across phones)
@@ -78,7 +80,7 @@ description: >-
   with the rehearsal view. Four shows ship on the one modular engine: Family Feud
   (with Fast Money), Jeopardy (with Double Jeopardy), Wheel of Fortune, and Whammy;
   the host can also play their OWN questions, no AI required.
-version: 0.12.8
+version: 0.13.1
 
 testing:
   version: 1
@@ -174,11 +176,10 @@ bots:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
-    - toolName: game-show-review
-      label: Game Show Review
-      icon: codicon codicon-notebook
-      iframeUrl: /api/game-show/review
-      section: top
+    # Game Show Review's tile is gone (UX audit 2026-11-06, MERGE): Play is the first tile, its lobby shows Recent games,
+    # and stage.html carries the family view the Home shell opens with ?audience=family. routes/review.js stays mounted,
+    # so /api/game-show/review still answers. To bring the tile back, restore this entry above game-show-stage:
+    #   - { toolName: game-show-review, label: Game Show Review, icon: codicon codicon-notebook, iframeUrl: /api/game-show/review, section: top }
     - { toolName: game-show-stage,   label: Play,        icon: codicon codicon-game,           iframeUrl: /api/game-show/stage,               section: top }
     - { toolName: game-show-tv,      label: Big Screen,  icon: codicon codicon-device-desktop,  iframeUrl: "/api/game-show/stage?view=tv",       section: top }
     - { toolName: game-show-clicker, label: Clicker,     icon: codicon codicon-radio-tower,     iframeUrl: "/api/game-show/stage?view=clicker",  section: top }

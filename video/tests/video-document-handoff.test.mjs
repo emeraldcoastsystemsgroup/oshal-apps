@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove Video's automatic concierge handoff through actual controls, project operations and PostgreSQL/RLS, retaining editable timeline data and concurrent browser drafts.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Video 1.13.0 (the oshal design standard): another project opens from the Project menu's Open sheet, as a person opens it.
  */
 import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -90,7 +91,8 @@ test('a late automatic save never adopts its previous project into a newly opene
   await page.locator('#projectName').fill('Saved before switching');
   const handoff = begin(page).then(value => ({ value }), failure => ({ error: failure.message }));
   await seen;
-  await page.locator('#projectList').selectOption(second.body.project.id);
+  await page.getByRole('button', { name: 'Project', exact: true }).click(); await page.getByRole('menuitem', { name: 'Open…' }).click();
+  await page.locator('dialog.ds-layer[open]').getByRole('button', { name: /^Other project/ }).click();
   await page.waitForFunction(() => document.querySelector('#projectName').value === 'Other project');
   release(); const result = await handoff; assert.match(result.error, /open project changed/);
   assert.equal(await page.locator('#projectName').inputValue(), 'Other project');

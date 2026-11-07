@@ -9,6 +9,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Register the native-kernel access-review case: the inventory comes from the connectors.metadata intent with the framework's expired/expiring rules, never the framework store, and a kernel without that intent answers 503.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Register search-rank: a search lists the best name and id matches first ("google" finds the Google sign-in connector before the Google Cloud APIs).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | The list contract case also proves providers sharing a label read apart by their id (sweep 8: three identical 'Account API' cards).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | Register hub-views (UX audit 2026-11-06 split): Your accounts by default with the attention item first, the Connector catalog hiding unconfigured stubs and paging at 48.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -170,6 +171,28 @@ cases:
       - '"google" lists the Google sign-in connector first, then Google-named connectors, and Google Cloud APIs whose id merely starts with googleapis last.'
       - A multi-word query matches word starts in the name; category and auth kind still match below any name match.
       - A search renders one ranked list instead of category groups sorted by name.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: hub-views
+    name: Identity Hub opens on Your accounts; the catalog is its own view
+    purpose: Run the shipped tools/identity.html script in a VM over a stub DOM and a synthetic /api/connect/list - no browser, server or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/identity-views.test.cjs
+    expected:
+      - The page opens on Your accounts, which lists only granted and needs-attention accounts with the attention item first; with none it shows an empty state.
+      - Add a connection and the Connector catalog tab open the catalog, and the address keeps the view for Reload.
+      - The catalog hides connectors whose sign-in is not configured until Show unavailable is on, shows 48 cards then Show more, and lists Other last.
+      - One primary per view; an unconnected card has no pill and no Not connected yet line; the labels are Needs attention and Available.
     prerequisites:
       - runner:node-test
     sideEffects: none

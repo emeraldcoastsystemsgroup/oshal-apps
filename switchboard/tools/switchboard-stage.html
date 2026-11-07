@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Stage — Switchboard</title>
+<!-- CHANGE LOG
+     1 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (switchboard--switchboard-stage): navigate /api/switchboard/stage
+       to /api/switchboard/compose; keep solid disabled Tailor per channel and Use as-is buttons with a visible reason beside them,
+       withhold unconnected channels, show the Connect accounts empty state when none are connected, and use solid accent fills. -->
 <!-- ONE link gives this standalone surface every OSHAL theme; the active one is chosen by the
      data-theme on <html> above (and kept in sync live by surface-theme.js). Every colour below is
      DERIVED from a framework token with a hardcoded fallback, so the surface is native to all 11
@@ -39,7 +43,8 @@
     --text2:   var(--text-secondary,  var(--sb-text2));
     --muted:   var(--text-muted,      var(--sb-muted));
     --accent:  var(--accent-primary,  var(--sb-accent));
-    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    --accent-grad: var(--ds-accent, var(--accent));
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
     --ok:      var(--status-success,  var(--sb-ok));
     --warn:    var(--status-warning,  var(--sb-warn));
     --err:     var(--status-error,    var(--sb-err));
@@ -60,7 +65,7 @@
   html,body { height:100%; }
   body {
     margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",system-ui,sans-serif;
+    font-family:var(--ds-font, system-ui, sans-serif);
     -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.45;
   }
   .tnum { font-variant-numeric:tabular-nums; }
@@ -123,25 +128,25 @@
     cursor:pointer; display:inline-flex; align-items:center; gap:8px; transition:all var(--ease) .15s; position:relative;
   }
   .plat .sw { width:9px; height:9px; border-radius:3px; }
-  .plat .dot { width:6px; height:6px; border-radius:50%; background:var(--muted); opacity:.5; }
-  .plat.on { border-color:var(--accent); color:var(--text); background:color-mix(in srgb,var(--accent) 12%,transparent); }
-  .plat.on .dot { background:var(--ok); opacity:1; }
-  .plat.off { opacity:.55; }
+  .plat .dot { width:6px; height:6px; border-radius:50%; background:var(--ds-ink-disabled, var(--muted)); }
+  .plat.on { border-color:transparent; color:var(--on-accent); background:var(--accent); }
+  .plat.on .dot { background:var(--on-accent); }
   .plat:hover { border-color:var(--lineh); }
-  .plat .nc { font-size:10.5px; color:var(--muted); font-weight:600; }
 
   /* actions */
   .actions { display:flex; gap:11px; align-items:center; flex-wrap:wrap; margin-top:18px; }
   .btn {
     appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--text2);
-    font:inherit; font-size:14px; font-weight:600; padding:11px 20px; border-radius:var(--pill);
+    font:inherit; font-size:14px; font-weight:600; min-height:44px; padding:11px 20px; border-radius:var(--pill);
     cursor:pointer; display:inline-flex; align-items:center; gap:9px; transition:all var(--ease) .15s;
   }
   .btn svg { width:16px; height:16px; }
   .btn:hover { border-color:var(--accent); color:var(--accent); }
-  .btn:disabled { opacity:.5; cursor:not-allowed; }
-  .btn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 10px 26px rgba(0,0,0,.18); }
-  .btn.primary:hover { filter:brightness(1.07); color:#fff; transform:translateY(-1px); }
+  .btn:disabled { opacity:1; background:var(--ds-surface-2, var(--surface)); border-color:var(--line); color:var(--ds-ink-disabled, var(--muted)); cursor:not-allowed; }
+  .btn.primary { background:var(--accent-grad); border-color:transparent; color:var(--on-accent); }
+  .btn.primary:hover { filter:brightness(1.07); color:var(--on-accent); }
+  .btn.primary:disabled { opacity:1; background:color-mix(in srgb,var(--accent) 35%,var(--surface)); border-color:transparent; color:var(--text2); cursor:not-allowed; }
+  .stagehint { font-size:12.5px; color:var(--muted); }
   .btn.sm { font-size:12.5px; padding:8px 14px; }
   .btn .spin { animation:spin 1s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
@@ -191,10 +196,14 @@
 
   /* states */
   .hero { text-align:center; padding:52px 32px; background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); margin-top:8px; }
-  .hero .badge { width:64px; height:64px; border-radius:19px; background:var(--accent-grad); display:grid; place-items:center; margin:0 auto 18px; box-shadow:0 12px 30px rgba(0,0,0,.2); }
-  .hero .badge svg { width:32px; height:32px; color:#fff; }
+  .hero[hidden] { display:none; }
+  .hero .badge { width:64px; height:64px; border-radius:19px; background:var(--accent-grad); display:grid; place-items:center; margin:0 auto 18px; }
+  .hero .badge svg { width:32px; height:32px; color:var(--on-accent); }
   .hero h2 { font-size:22px; font-weight:680; letter-spacing:-.02em; margin:0 0 8px; }
   .hero p { color:var(--muted); font-size:14.5px; max-width:46ch; margin:0 auto 22px; line-height:1.55; }
+  .cta { appearance:none; border:0; cursor:pointer; font:inherit; font-size:14.5px; font-weight:620; background:var(--accent-grad); color:var(--on-accent); min-height:44px; padding:12px 26px; border-radius:var(--pill); display:inline-flex; align-items:center; gap:9px; }
+  .cta:hover { filter:brightness(1.06); }
+  .cta svg { width:16px; height:16px; }
 
   .footnote { margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); display:flex; align-items:center; gap:8px; }
   .footnote svg { width:13px; height:13px; color:var(--accent); }
@@ -241,8 +250,16 @@
     </div>
   </header>
 
+  <!-- empty state when no publishing account is connected -->
+  <section class="hero" id="emptyState" hidden>
+    <div class="badge"><svg><use href="#i-megaphone"/></svg></div>
+    <h2>Connect an account to broadcast</h2>
+    <p>Connect X, LinkedIn, or Facebook in Connections to send one message across your channels.</p>
+    <a class="cta" href="/utilities" target="_top">Connect accounts</a>
+  </section>
+
   <!-- source editor + channel picker -->
-  <section class="panel">
+  <section class="panel" id="broadcastPanel">
     <div class="phead">
       <span class="ic"><svg><use href="#i-megaphone"/></svg></span>
       <h2>Your broadcast</h2>
@@ -257,8 +274,9 @@
     <div class="plats" id="plats"><!-- channel chips injected --></div>
 
     <div class="actions">
-      <button class="btn primary" id="tailorBtn"><svg><use href="#i-bot"/></svg> Tailor per channel</button>
-      <button class="btn" id="asisBtn"><svg><use href="#i-copy"/></svg> Use as-is</button>
+      <button type="button" class="btn primary" id="tailorBtn" aria-describedby="stageHint" disabled><svg><use href="#i-bot"/></svg> Tailor per channel</button>
+      <button type="button" class="btn" id="asisBtn" aria-describedby="stageHint" disabled><svg><use href="#i-copy"/></svg> Use as-is</button>
+      <span class="stagehint" id="stageHint" role="status">Connect an account to broadcast</span>
     </div>
   </section>
 
@@ -268,11 +286,11 @@
   <!-- the ONE send bar -->
   <div class="stagebar" id="stagebar">
     <span class="note" id="stagenote">Review each channel's text above — the broadcast sends exactly what you see.</span>
-    <button class="btn primary sendbtn" id="sendBtn"><svg><use href="#i-send"/></svg> Send to <span class="tnum" id="sendN">0</span> channels</button>
+    <button type="button" class="btn primary sendbtn" id="sendBtn"><svg><use href="#i-send"/></svg> Send to <span class="tnum" id="sendN">0</span> channels</button>
     <div class="confirmwrap" id="confirmwrap">
       <span class="warnpub" id="confirmlbl">Post to 0 channels now?</span>
-      <button class="btn sm primary" id="doconfirm"><svg><use href="#i-check"/></svg> Confirm</button>
-      <button class="btn sm" id="cancelconfirm"><svg><use href="#i-x"/></svg></button>
+      <button type="button" class="btn sm primary" id="doconfirm"><svg><use href="#i-check"/></svg> Confirm</button>
+      <button type="button" class="btn sm" id="cancelconfirm" aria-label="Cancel"><svg><use href="#i-x"/></svg> Cancel</button>
     </div>
   </div>
   <div class="sumline" id="sumline"></div>
@@ -284,6 +302,12 @@
 (function () {
   "use strict";
 
+  if (typeof window !== "undefined" && window.location && typeof window.location.replace === "function" &&
+      /(?:^|\/)stage\/?$/.test(window.location.pathname || "") && !/[?&]stay=1\b/.test(window.location.search || "")) {
+    window.location.replace("/api/switchboard/compose" + (window.location.search || "") + (window.location.hash || ""));
+    return;
+  }
+
   var API = "/api/switchboard";
   // brand metadata for the channel chips + card marks
   var BRAND = {
@@ -292,33 +316,61 @@
     facebook: { label:"Facebook", v:"--fb", icon:"#i-dm" }
   };
 
-  var state = { workspace:"", targets:[], selected:{}, preview:false, sending:false };
+  var state = { workspace:"", targets:[], selected:{}, preview:false, sending:false, loaded:false };
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ var d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
 
+  function connectedTargets(){
+    return state.targets.filter(function(t){ return !!t.connected; });
+  }
+  function selectedList(){
+    return connectedTargets().map(function(t){ return t.platform; }).filter(function(p){ return !!state.selected[p]; });
+  }
+  function disabledReason(){
+    if(!connectedTargets().length) return "Connect an account to broadcast";
+    if(!selectedList().length) return "Pick a channel to broadcast";
+    if(!$("src").value.trim()) return "Write your message";
+    return "";
+  }
+  function syncActions(){
+    var reason = disabledReason();
+    var blocked = !!reason;
+    var tBtn = $("tailorBtn"), aBtn = $("asisBtn"), hint = $("stageHint");
+    if(tBtn && !tBtn.dataset.busy) tBtn.disabled = blocked;
+    if(aBtn) aBtn.disabled = blocked;
+    if(hint) hint.textContent = reason;
+  }
+
   // ── source char count ──────────────────────────────────────────────────────
   $("src").addEventListener("input", function(){
     var n=$("src").value.length; $("srccc").textContent=n+" character"+(n===1?"":"s");
+    syncActions();
   });
 
-  // ── channel chips (publishable targets only — Stage sends, it doesn't draft-only) ──
+  // ── channel chips (connected publishable targets only — withhold unconnected) ──
   function renderPlats(){
     var host=$("plats"); host.innerHTML="";
-    state.targets.forEach(function(t){
+    var conn = connectedTargets();
+    var noConn = state.loaded && !state.preview && conn.length === 0;
+    var emptyEl = $("emptyState"), panelEl = $("broadcastPanel");
+    if(emptyEl) emptyEl.hidden = !noConn;
+    if(panelEl) panelEl.hidden = noConn;
+    if(noConn){ $("cardsWrap").innerHTML = ""; refreshBar(); }
+    conn.forEach(function(t){
       var b=BRAND[t.platform]||{label:t.platform,v:"--muted"};
-      var on = state.selected[t.platform];
+      var on = !!state.selected[t.platform];
       var el=document.createElement("button");
-      el.className="plat"+(on?" on":"")+(t.connected?"":" off");
+      el.type="button";
+      el.className="plat"+(on?" on":"");
+      el.setAttribute("aria-pressed", on?"true":"false");
       el.innerHTML='<span class="sw" style="background:var('+b.v+')"></span>'
-        + '<span class="dot"></span>'+esc(b.label)
-        + (t.connected?'':'<span class="nc">· not connected</span>');
-      el.title = t.connected ? "" : "Connect "+b.label+" at /utilities to broadcast there";
+        + '<span class="dot"></span>'+esc(b.label);
       el.addEventListener("click", function(){ state.selected[t.platform]=!state.selected[t.platform]; renderPlats(); });
       host.appendChild(el);
     });
+    syncActions();
   }
-  function selectedList(){ return state.targets.map(function(t){return t.platform;}).filter(function(p){return state.selected[p];}); }
 
   // ── workspace selector (portal-wide shared scope, ADR-113) ─────────────────
   function loadWorkspaces(){
@@ -339,6 +391,7 @@
     return fetch(API+"/compose/targets?workspace="+encodeURIComponent(state.workspace),{headers:{Accept:"application/json"}})
       .then(function(r){ return r.ok? r.json():Promise.reject(r.status); })
       .then(function(d){
+        state.loaded=true;
         state.preview=false; $("previewpill").classList.remove("show");
         state.targets=(d.targets||[]).filter(function(t){ return t.publishable && t.inWorkspace; });
         state.selected={};
@@ -350,6 +403,7 @@
 
   // ── labelled sample (API unreachable / opened standalone) ──────────────────
   function loadSample(){
+    state.loaded=true;
     state.preview=true; $("previewpill").classList.add("show");
     state.targets=[
       { platform:"x", label:"X", limit:280, publishable:true, connected:true, inWorkspace:true },
@@ -357,11 +411,11 @@
       { platform:"facebook", label:"Facebook", limit:63206, publishable:true, connected:false, inWorkspace:true }
     ];
     state.selected={ x:true, linkedin:true };
-    renderPlats();
     if(!$("src").value){
       $("src").value="Switchboard's Stage pane is live — one broadcast, every channel, one confirm.";
       $("srccc").textContent=$("src").value.length+" characters";
     }
+    renderPlats();
   }
 
   // ── per-channel cards ──────────────────────────────────────────────────────
@@ -410,15 +464,19 @@
 
   // ── fill the cards: bot-tailored (Compose /variants) or as-is ──────────────
   function tailor(){
+    var reason = disabledReason();
+    if(reason){
+      syncActions();
+      if(!$("src").value.trim()) $("src").focus();
+      return;
+    }
     var text=$("src").value.trim();
-    if(!text){ $("src").focus(); return; }
     var platforms=selectedList();
-    if(!platforms.length){ return; }
     if(state.preview){
       renderCards(platforms.map(function(p){ return { platform:p, text: p==="x" ? text.slice(0,240) : text }; }));
       return;
     }
-    var btn=$("tailorBtn"); btn.disabled=true; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Tailoring…';
+    var btn=$("tailorBtn"); btn.disabled=true; btn.dataset.busy="1"; btn.innerHTML='<svg class="spin"><use href="#i-refresh"/></svg> Tailoring…';
     fetch(API+"/compose/variants",{ method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/json" },
       body:JSON.stringify({ text:text, platforms:platforms, workspaceId:state.workspace }) })
       .then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
@@ -428,13 +486,17 @@
         renderCards(platforms.map(function(p){ return { platform:p, text: byP[p]||text }; }));
       })
       .catch(function(){ renderCards(platforms.map(function(p){ return { platform:p, text:text }; })); })
-      .finally(function(){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-bot"/></svg> Tailor per channel'; });
+      .finally(function(){ delete btn.dataset.busy; btn.innerHTML='<svg><use href="#i-bot"/></svg> Tailor per channel'; syncActions(); });
   }
   function asIs(){
+    var reason = disabledReason();
+    if(reason){
+      syncActions();
+      if(!$("src").value.trim()) $("src").focus();
+      return;
+    }
     var text=$("src").value.trim();
-    if(!text){ $("src").focus(); return; }
     var platforms=selectedList();
-    if(!platforms.length){ return; }
     renderCards(platforms.map(function(p){ return { platform:p, text:text }; }));
   }
 
@@ -479,6 +541,7 @@
   $("doconfirm").addEventListener("click", doBroadcast);
   $("wsel").addEventListener("change", function(){ state.workspace=$("wsel").value; try{ localStorage.setItem("switchboard.ws",state.workspace||""); }catch(e){} loadTargets(); });
 
+  syncActions();
   loadWorkspaces().then(loadTargets);
 })();
 </script>

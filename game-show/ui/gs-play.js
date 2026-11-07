@@ -6,6 +6,7 @@
  * 2026-07-26 19:05:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast chrome: GS.sfx (small WebAudio cue synth, unlocked by the first pointer press), GS.onBeat (event→cue scoring fed by gs-core), and GS.play — the full-bleed set frame (marquee, beams, floor, lower-third caption, control dock), the podium-character row drawn from live seats/scores, the once-per-game opening titles, and sync() which stamps body[data-gs-show] and turns state deltas (buzz lock, round 0→1) into one-shot beats.
  * 2026-07-26 21:40:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Integration fix: restore GS.qrNode (the join-link QR the browser playthrough asserts on the TV lobby shot) — it was dropped when the chrome was rebuilt; the img hides itself when /qr is unavailable so the code text always suffices.
  * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | The broadcast frame fits what is above it: play.fit reserves exactly the dock's height so nothing sits for good behind it, the host's opening line leaves once the game has moved on, your nameplate shows your first name, and play.news is the plain line of what just happened (the room's events reached nobody on the stage, so a right answer, a wrong one and the answer to a missed clue all passed in silence).
+ * 2026-11-06 08:45:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06 (stage): the frame's marquee takes the stage's tools (? and ⋯ More) through opts.tools, and with a dock the set draws no lower third: the dock's first line is the host's line (play.hostLine, fresh for 20 s), so the dock never covers it and the line is not shown twice. Your own podium carries class me (a phone draws a gold ring on it instead of the name plate).
  */
 
 /* global window, document, setTimeout */
@@ -165,7 +166,7 @@
     var cls = 'gp-char' + (seat.team ? ' team' + seat.team : '') +
       (buzz.lockedBy === seat.seatId ? ' buzzed' : '') +
       (board.control === seat.seatId ? ' control' : '') +
-      (focusSeatId === seat.seatId ? ' focus' : '');
+      (focusSeatId === seat.seatId ? ' focus' : '') + (seat.me ? ' me' : '');
     var pod = GS.el('div', { class: 'gp-podium' },
       GS.el('div', { class: 'gp-nameplate' }, seat.me ? String(seat.name).split(' ')[0] + ' ★' : seat.name));
     if (withScore) pod.appendChild(GS.el('div', { class: 'gp-charscore' }, String(scoreFor(seat.seatId))));
@@ -238,6 +239,16 @@
     return guess && guess.kind === 'npc' ? guess.content + ' · ' + line : line;
   };
 
+  /**
+   * @description The host's line while it is fresh (20 s), for the stage dock's first line; '' once the game moved on.
+   * @returns {string} The line, or ''.
+   */
+  play.hostLine = function () {
+    var host = (GS.state || {}).host || {};
+    if (!host.line) return '';
+    return host.at && (Date.now() + (GS.skew || 0) - host.at) > 20000 ? '' : String(host.line);
+  };
+
   /** @description Reserve the dock's real height under the set, so the page can always scroll clear of it. */
   play.fit = function () {
     var dock = document.querySelector('.gp-dock-inner'), frame = document.querySelector('.gp-frame.has-dock');
@@ -273,15 +284,16 @@
       GS.el('div', { class: 'gp-logo' }, (GS.show && GS.show.title) || 'GAME SHOW'),
       st.round ? GS.el('span', { class: 'gp-round' }, 'ROUND ' + st.round) : null,
       GS.el('div', { class: 'gs-grow' }),
-      GS.room && GS.room.joinCode ? GS.el('div', { class: 'gp-code' }, GS.el('small', {}, 'CODE '), GS.room.joinCode) : null));
+      GS.room && GS.room.joinCode ? GS.el('div', { class: 'gp-code' }, GS.el('small', {}, 'CODE '), GS.room.joinCode) : null,
+      opts.tools || null));
     var set = GS.el('div', { class: 'gp-set' }, centerNode);
     if (st.timer) set.appendChild(GS.el('div', { class: 'gp-clock' }, GS.controls.bigClock()));
     frame.appendChild(set);
     frame.appendChild(play.characters(opts.focus, opts.mood));
     // No line, no strip — an empty lower-third reads as a broken mystery box
-    // (the exact bug the player-experience pass killed; keep its contract).
-    var staleOnStage = opts.dock && host.at && (Date.now() + (GS.skew || 0) - host.at) > 20000;
-    if (host.line && !staleOnStage) {
+    // (the exact bug the player-experience pass killed; keep its contract). On the stage the dock carries the
+    // host's line (play.hostLine), so no strip is drawn under the dock to be covered by it.
+    if (host.line && !opts.dock) {
       frame.appendChild(GS.el('div', { class: 'gs-caption gp-lower' },
         GS.el('span', { class: 'mc' }, 'HOST'), host.line));
     }

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family view asserted as behaviour: the head block runs against a stub kit and a stub fetch, so the tests prove what it reads on open (GET /home-summary, /leaderboard and /shows only: never /rooms, whose listing runs the ended-room retention DELETE, never a room's state, sync, cost, QR or camera stills, never a POST), that the stats are the route's three counts in plain words plus the top score, that the title names the table's state (marked live, waiting to start, ended in 5 days, nothing open, no game nights, sources that could not be checked), that each room tile carries its plain status and its update through AppView.when, that an unnamed room and a hall-of-fame score are named from the show catalog, that a data key such as 'constructor' stays a word, and that failed scores or names, a partly unreadable record, a 401, a 403 and a failed read each read as what they are. The page's module script (top-level await, so run as an async function body) is proved to mount no connected actions and read nothing under the view while the full page still mounts them and reads its saved evidence.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: the review page's module now asks its action host whether any connected action rendered, so the stub element answers querySelector. Game Show Review's tile is gone, so the Home shell's first tile is Play (stage.html). Play carries the same family view: its head block is the review page's block byte for byte (so every behaviour test below covers it), the kit loads right after the theme bootstrap there too, and gs-app.js starts the game only when no view paints.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -188,7 +189,7 @@ test('a refusal and a failure each read as what they are', async () => {
 });
 
 /** @returns {object} A stub element with the members the page's module script touches on start. */
-function node() { return { value: '', textContent: '', className: '', append() {}, replaceChildren() {}, addEventListener() {} }; }
+function node() { return { value: '', textContent: '', className: '', hidden: false, append() {}, replaceChildren() {}, addEventListener() {}, querySelector() { return null; } }; }
 
 /**
  * @description Run the page's module script (imports stripped) against stub modules, a stub DOM and a stub fetch. The
@@ -209,4 +210,18 @@ async function runModule(activeView) {
 test('under an audience view the page\x27s module script mounts nothing and reads nothing; the full page still mounts its actions and reads its evidence', async () => {
   assert.deepEqual(await runModule('family'), { handoffs: 0, mounted: 0, reads: [] });
   assert.deepEqual(await runModule(null), { handoffs: 0, mounted: 1, reads: ['GET ' + H] });
+});
+
+test('Play (stage.html), now the first tile, carries the same family view and starts the game only without one', () => {
+  const stage = fs.readFileSync(path.join(ROOT, 'ui/stage.html'), 'utf8');
+  const at = stage.indexOf('<script src="/shared/ui/js/app-view.js"></script>');
+  assert.ok(at > stage.indexOf('<script src="/shared/ui/js/surface-theme.js"></script>'), 'the kit follows the theme bootstrap');
+  assert.ok(stage.indexOf('<link rel="stylesheet" href="/shared/ui/css/app-view.css" />') < at, 'its stylesheet comes first');
+  const s = stage.indexOf('<script>', at), e = stage.indexOf('</script>', s);
+  assert.equal(stage.slice(s + 8, e), block, 'the same head block as the review page');
+  const appJs = fs.readFileSync(path.join(ROOT, 'ui/gs-app.js'), 'utf8');
+  assert.match(appJs, /function start\(\) \{\s*\/\/[^\n]*\n\s*if \(window\.AppView && window\.AppView\.active\(\)\) return;/, 'start() returns under a view');
+  const manifest = fs.readFileSync(path.join(ROOT, 'oshal-app.yaml'), 'utf8');
+  const first = manifest.slice(manifest.indexOf('  static:')).match(/^\s*-\s*\{?\s*toolName:\s*([\w-]+)/m)[1];
+  assert.equal(first, 'game-show-stage', 'Play is the first tile the shell opens');
 });

@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped Node test suite with exact files and honest fixture boundaries; retain readiness smoke identity.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register the schema-lock guard (2.3.5): the compiled bootstrap hands the kernel the stable package advisory-lock key.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 2.3.6: the family audience view registered beside the company one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7 (payroll--payroll-home): register payroll-ux-batch7 covering keyboard role="tab" switching, phone 4+More navigation, and the 4-step Add employee dialog/sheet.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -390,6 +391,29 @@ cases:
       - The boot names this application and exactly the audiences the page provides, with an escape label.
       - The full page start runs only when the kit renders no audience, and when the kit is absent.
       - The head block parses, reads only this package's routes and builds no HTML from data.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: payroll-ux-batch7
+    name: Payroll module tabs and 4-step employee onboarding
+    purpose: >-
+      Verify Payroll's module navigation uses semantic role="tab" buttons with keyboard arrow/Home/End switching and a phone (<600px) 4+More bottom bar, and Add employee opens as a 4-step sheet/dialog with blur validation, engine-verified Work state options, 44px W-4 switches, and Save on step 4.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/payroll-ux-batch7.test.mjs
+    expected:
+      - Module tabs use button role="tab" inside role="tablist" and switch active views and focus by ArrowLeft, ArrowRight, Home, and End.
+      - Phone (<600px) moves module navigation to Employees, Run payroll, Pay stubs, Reports, and More (Pay & file, Settlement, Settings).
+      - Work state offers the verified payroll-state-tax supportedStates() options, W-4 checkboxes render as 44px switches, and Termination date is withheld on new hires.
+      - The 4-step Add employee sheet/dialog checks required fields on blur and saves an employee from step 4.
     prerequisites:
       - runner:node-test
     sideEffects: none

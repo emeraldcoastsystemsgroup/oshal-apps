@@ -9,6 +9,7 @@
  *   board's rows, take connected state from connectors.metadata, and answer a missing connection (metadata or the kernel's
  *   "not connected" refusal) with the package's own not-connected answer. LinkedIn and Facebook publishing answer 501
  *   without a request. Outside the kernel the broker token still travels as a Bearer header.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit batch 7: match noGoogleConnection wording ('in Connections' instead of raw '/utilities').
  */
 'use strict';
 const test = require('node:test');
@@ -142,7 +143,7 @@ test('the Today feed reads Gmail and Calendar through the kernel egress with no 
 });
 
 test('the Today feed says connect Google when the metadata has none or the kernel refuses', async () => {
-  const connect = { connected: false, message: 'Connect your Google account at /utilities to light up your board.' };
+  const connect = { connected: false, message: 'Connect your Google account in Connections to light up your board.' };
   let r = await call(createSwitchboardRoutes, 'GET /feed', { meta: { connections: [usable('slack')] }, query: { surface: '1' }, answer: () => assert.fail('no request without a connection') });
   assert.deepEqual(r.res.body, connect);
   r = await call(createSwitchboardRoutes, 'GET /feed', { meta: { connections: [{ ...usable('gmail'), revoked: true }] }, answer: () => assert.fail('no request') });

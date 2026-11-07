@@ -6,6 +6,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | First Scan to Print authorization catalog (ADR-149, 0.7.0; BACKLOG B18). The print service's agent tools became in-process package tools, which the kernel admits only for a package that declares a catalog, so every mounted route, every tool, the operator bot and the photo intake are bound to named permissions here. Until now the package had no catalog and, under enforce, admitted only holders of the application's @app-admin assignment; that posture is mirrored, not widened: one maker role carries the whole app.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Bind calibration read/edit tools and routes to existing scan.read/scan.edit; print.send remains independent.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.8.6: a narrow `scanner` role (app.open, scan.read, scan.edit, scan.source.change) so a person can take photos and build the model without registering a printer address or sending a print. The trial's visitor seats hold it (Roger, 2026-11-06: no dead ends; approved by @release-coordinator). maker and source-editor are unchanged.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: bind 3D mesh crop/transform/undo/reset and share-link creation/revocation to scan.edit, mesh-state and share listing to scan.read, and scan-to-print-tools.js plus the read-only shared viewer/artifacts to app.open.
 #
 # One resource, `scan`, with `own` scope only. Ownership stays where it was: every store statement filters on
 # owner_sub (src-routes/job-store.ts), every table FORCEs row security on the owner (migrations/001-scan-to-print.sql),
@@ -58,6 +59,7 @@ bindings:
     - { id: app-script, method: GET, path: /assets/scan-to-print.js, allOf: [app.open] }
     - { id: app-script-gl, method: GET, path: /assets/scan-to-print-gl.js, allOf: [app.open] }
     - { id: app-script-camera, method: GET, path: /assets/scan-to-print-camera.js, allOf: [app.open] }
+    - { id: app-script-tools, method: GET, path: /assets/scan-to-print-tools.js, allOf: [app.open] }
     - { id: capabilities, method: GET, path: /capabilities, allOf: [scan.read] }
     - { id: list-jobs, method: GET, path: /jobs, allOf: [scan.read] }
     - { id: create-job, method: POST, path: /jobs, allOf: [scan.source.change] }
@@ -76,6 +78,16 @@ bindings:
     - { id: read-artifact, method: GET, path: /jobs/:jobId/artifacts/:key, allOf: [scan.read] }
     - { id: add-depth, method: POST, path: /jobs/:jobId/depth, allOf: [scan.edit] }
     - { id: frame-suggestions, method: GET, path: /jobs/:jobId/frame-suggestions, allOf: [scan.read] }
+    - { id: mesh-state, method: GET, path: /jobs/:jobId/mesh-state, allOf: [scan.read] }
+    - { id: mesh-crop, method: POST, path: /jobs/:jobId/mesh/crop, allOf: [scan.edit] }
+    - { id: mesh-transform, method: POST, path: /jobs/:jobId/mesh/transform, allOf: [scan.edit] }
+    - { id: mesh-undo, method: POST, path: /jobs/:jobId/mesh/undo, allOf: [scan.edit] }
+    - { id: mesh-reset, method: POST, path: /jobs/:jobId/mesh/reset, allOf: [scan.edit] }
+    - { id: list-shares, method: GET, path: /jobs/:jobId/shares, allOf: [scan.read] }
+    - { id: create-share, method: POST, path: /jobs/:jobId/shares, allOf: [scan.edit] }
+    - { id: revoke-share, method: DELETE, path: /jobs/:jobId/shares/:shareId, allOf: [scan.edit] }
+    - { id: shared-viewer, method: GET, path: /shared/:token, allOf: [app.open] }
+    - { id: shared-artifact, method: GET, path: /shared/:token/artifacts/:kind, allOf: [app.open] }
     - { id: list-printers, method: GET, path: /printers, allOf: [scan.read] }
     - { id: add-printer, method: POST, path: /printers, allOf: [printer.manage] }
     - { id: remove-printer, method: DELETE, path: /printers/:printerId, allOf: [printer.manage] }

@@ -38,6 +38,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Log opened at 1.10.3 - this file predates the log and its earlier history is in git. Sub-tab race close-out (ADR-136 D2 tail): loadScoreboard and loadFeed now capture RENDER_TOKEN and tabGen() before their first await and bail after it, matching loadMovers and loadWatchlistPanel; loadAlgos is a plain function because it awaits nothing (its caller ignores the return). No handler attribute existed here and none is introduced - every action stays a delegated data-* listener.
  * 12 | maintainer@emeraldcoastsystemsgroup.com   | Add the Quant desk sub-tab (view-quant.js).
   * 12 | maintainer@emeraldcoastsystemsgroup.com | Show collector-time coverage and filing observation timestamps separately from disclosure dates; historical timing remains unvalidated.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | The design standard (DS-23; UX audit decision intelligent-trades--intelligent-trades-home): the watchlist row's Remove (×) is a full 44px target, its inline 28x26 size gone; a watchlist price reads with two decimals; on a phone a row is symbol, last, today and Remove (the symbol opens Research); an empty watchlist says so in three words.
  */
 
 let PENDING_RESEARCH = null;
@@ -293,21 +294,23 @@ function wlShellHtml(bodyHtml) {
     '<button class="btn ghost sm" data-wl="add">Add</button> <span class="sub wl-msg"></span></div>' +
     '<div class="wl-body">' + bodyHtml + '</div>';
 }
+/** A watchlist price as a quote reads: always two decimals ('$181.60', not '$181.6'). */
+const wlPrice = (n) => (n < 0 ? '-$' : '$') + Math.abs(Number(n)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function wlRowsHtml(items) {
-  if (!items.length) return '<div class="foot" style="margin:0">Nothing on the watchlist yet — add a ticker to follow it here.</div>';
-  return '<div style="overflow-x:auto"><table><thead><tr><th>Symbol</th><th class="num">Last</th><th class="num">Today</th><th>Congress</th><th class="num">Added</th><th></th></tr></thead><tbody>' + items.map(it => {
+  if (!items.length) return '<div class="foot" style="margin:0">No tickers yet.</div>';
+  return '<div style="overflow-x:auto"><table class="wl-table"><thead><tr><th>Symbol</th><th class="num">Last</th><th class="num">Today</th><th class="wl-wide">Congress</th><th class="num wl-wide">Added</th><th></th></tr></thead><tbody>' + items.map(it => {
     const q = it.quote || null, ch = q && q.dayChangePct != null ? Number(q.dayChangePct) : null, sym = esc(it.symbol);
     const c = it.congress || null;
     const congress = c
       ? '<span class="pill">' + (c.net == null ? 'feed' : (Number(c.net) >= 0 ? '+' : '') + Number(c.net)) + '</span><div class="foot" style="margin:2px 0 0">disclosed ' + esc(cgDay(c.disclosureDate)) + '</div>'
       : '<span class="foot" style="margin:0">unavailable</span>';
     return '<tr><td><a href="#" data-wl="research" data-sym="' + sym + '"><strong>' + sym + '</strong></a>' + (it.note ? ' <span class="foot" style="margin:0">' + esc(it.note) + '</span>' : '') + '</td>' +
-      '<td class="num">' + (q && q.price != null ? money(q.price) + (q.source === 'world-archive' ? '<div class="foot" style="margin:0" title="' + esc(q.note || '') + '">stored ' + esc(rsDay(q.asOf)) + '</div>' : q.source === 'schwab' ? '<div class="foot" style="margin:0">' + esc(q.note || 'Schwab quote') + (q.asOf ? ' ' + esc(fmtDate(q.asOf)) : '') + '</div>' : '') : '—') + '</td>' +
+      '<td class="num">' + (q && q.price != null ? wlPrice(q.price) + (q.source === 'world-archive' ? '<div class="foot" style="margin:0" title="' + esc(q.note || '') + '">stored ' + esc(rsDay(q.asOf)) + '</div>' : q.source === 'schwab' ? '<div class="foot" style="margin:0">' + esc(q.note || 'Schwab quote') + (q.asOf ? ' ' + esc(fmtDate(q.asOf)) : '') + '</div>' : '') : '—') + '</td>' +
       '<td class="num ' + (ch == null ? '' : (ch >= 0 ? 'ok' : 'err')) + '">' + (ch == null ? '—' : pct(ch)) + '</td>' +
-      '<td>' + congress + '</td>' +
-      '<td class="num foot" style="margin:0">' + (it.addedAt ? esc(rsDay(it.addedAt)) : '—') + '</td>' +
-      '<td style="text-align:right;white-space:nowrap"><button class="btn ghost sm" data-wl="research" data-sym="' + sym + '">Research</button> ' +
-      '<button class="icon-btn" data-wl="remove" data-sym="' + sym + '" title="Remove from watchlist" aria-label="Remove" style="width:28px;min-height:26px;font-size:13px">&times;</button></td></tr>';
+      '<td class="wl-wide">' + congress + '</td>' +
+      '<td class="num foot wl-wide" style="margin:0">' + (it.addedAt ? esc(rsDay(it.addedAt)) : '—') + '</td>' +
+      '<td class="wl-actions" style="text-align:right;white-space:nowrap"><button class="btn ghost sm wl-research" data-wl="research" data-sym="' + sym + '">Research</button> ' +
+      '<button class="icon-btn" data-wl="remove" data-sym="' + sym + '" title="Remove from watchlist" aria-label="Remove">&times;</button></td></tr>';
   }).join('') + '</tbody></table></div>';
 }
 /* Delegated: the host outlives every repaint of its rows; wiring once per host element (data-wl-wired). */

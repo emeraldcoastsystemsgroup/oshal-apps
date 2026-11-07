@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Execute the shipped editor with delayed document/model/save responses: selection, draft, persisted target and bridge capability stay bound to one document, including failures and packet deep links. No user files or external services are used.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Save is enabled only with an unsaved change (a freshly loaded packet keeps it disabled until an edit), and a failed read is told in the page's alert line instead of the status caption.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,7 +40,8 @@ test('a late master response cannot replace the more recently selected packet or
   const chosen=e.api.loadDoc('225');assert.equal(e.api.state().postingId,null);
   await e.api.save();assert.ok(!e.requests.some(r=>r.method==='POST'));
   b.resolve(response(packet));await chosen;
-  assert.equal(e.api.state().postingId,225);assert.equal(e.$('save').disabled,false);
+  assert.equal(e.api.state().postingId,225);assert.equal(e.$('save').disabled,true,'nothing to save yet');
+  e.custom([{op:'set_summary',text:'Edited summary'}]);assert.equal(e.$('save').disabled,false,'an edit enables Save');
   a.resolve(response(master));await tick();
   assert.equal(e.api.state().postingId,225);assert.equal(e.api.state().resume.headline,'Job packet');
   assert.equal(e.$('pick').value,'225');assert.equal(e.contexts.at(-1).recordId,'225');
@@ -50,7 +52,7 @@ test('failed document reads and empty selection leave no previous draft availabl
   assert.equal(e.api.state().postingId,'master');
   await e.api.loadDoc('404');e.custom([{op:'set_headline',text:'Wrong target'}]);await e.api.save();
   assert.equal(e.api.state().postingId,null);assert.equal(e.$('sheet').hidden,true);assert.equal(e.$('save').disabled,true);
-  assert.match(e.$('status').textContent,/could not load/);assert.ok(!e.requests.some(r=>r.method==='POST'));
+  assert.match(e.$('err').textContent,/Couldn.t load this résumé/);assert.equal(e.$('err').hidden,false);assert.ok(!e.requests.some(r=>r.method==='POST'));
   await e.api.loadDoc('');assert.equal(e.api.state().postingId,null);assert.equal(e.$('pick').disabled,false);
 });
 

@@ -1,4 +1,6 @@
 # CHANGE LOG
+# 37 | maintainer@emeraldcoastsystemsgroup.com | 1.48.1: ux-audit-screens also runs the live Job Board's stage guard (career-job-lists-stages).
+# 36 | maintainer@emeraldcoastsystemsgroup.com | Register ux-audit-screens (UX audit 2026-11-06): the real Career screens in Chromium over synthetic fixtures (recruiters, experience library, Resume Studio, Career Review, Job Board stages, To approve, Strengthen, Mobile, Search, Settings, Submission activity, Companies) and the recruiter read-after-write route guard.
 # 35 | maintainer@emeraldcoastsystemsgroup.com | Register the nightly source review: evidence-only repairs, respected refusals, the public-only guard, budgets and the Companies page report.
 # 34 | maintainer@emeraldcoastsystemsgroup.com | Name the refused Resume Studio save, and the route's reason shown in the editor log, in the document handoff proof.
 # 33 | maintainer@emeraldcoastsystemsgroup.com | Cover fixed native model-policy reads, guarded completions, actual attribution and zero-model cache reuse without widening selectors or budgets.
@@ -1650,4 +1652,79 @@ cases:
       mode: disposable
       cleanup: Close the loopback server and remove temporary synthetic configuration files; no systemd service is created.
     limits: {timeoutMs: 30000, maxMemoryMb: 128}
+    installation: never
+  - id: ux-audit-screens
+    name: Career screens to the design standard (UX audit 2026-11-06)
+    purpose: Drive the shipped Career screens in Chromium over synthetic same-origin fixtures, and the recruiter routes over a disposable store pinned read-only the way the kernel pins a read.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-recruiter-read-after-write.test.mjs
+        - tests/career-recruiters-screen.test.mjs
+        - tests/career-screen-surfaces.test.mjs
+        - tests/career-resume-studio-screen.test.mjs
+        - tests/career-review-screen.test.mjs
+        - tests/career-board-stages.test.mjs
+        - tests/career-approvals-stage.test.mjs
+        - tests/career-strengthen-screen.test.mjs
+        - tests/career-mobile-screen.test.mjs
+        - tests/career-search-layout.test.mjs
+        - tests/career-settings-home.test.mjs
+        - tests/career-submission-activity.test.mjs
+        - tests/career-companies-views.test.mjs
+        - tests/career-job-lists-stages.test.mjs
+    expected:
+      - A status change then a list over a WAL-header store on a read-only pin shows every firm; a failed list is an alert with Retry, never the empty state.
+      - Every Career screen carries data-career-surface; the experience library's fields have an edge and one primary at a time.
+      - With no résumé, Resume Studio is one empty state that uploads it; Save is secondary and enabled only by a change; the paper stays white.
+      - The Job Board is one pipeline whose stages answer the old addresses; an empty stage offers Find jobs; To approve explains an empty add.
+      - Career Review hides the brief without a connected action; Strengthen and Mobile empty states offer the step that fills them.
+      - Search results start under the search row on a phone with filters in one sheet; Settings is one home of sections that saves on change.
+      - Submission activity has one status row, lane chips and a counters row; Companies splits the table from Source health.
+    prerequisites: [runner:node-test, fixture:store-toolchain]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Close the browser contexts and remove the temporary recruiter store."}
+    limits: {timeoutMs: 120000, maxMemoryMb: 512}
+    installation: never
+  - id: resume-office-mapping
+    name: The master resume as a Word document maps back exactly and saves through the whitelist
+    purpose: >-
+      Resume Studio's master resume is an AI Office Word document (tools/career-resume-office.js). The document Career
+      makes passes AI Office's own model validation, an untouched document maps back to exactly the master, and an edited
+      one saved through the real resume base-save keeps the career profile valid; a changed role heading, a removed role
+      and an extra section are said.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/career-resume-office.test.mjs
+    expected:
+      - The headline and bullet edits land in career_db.json with roles, titles and unsent fields intact; a removed role refuses the save in words.
+    prerequisites: [runner:node-test, fixture:career-python]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "Remove the temporary career profiles."}
+    limits: {timeoutMs: 60000}
+    installation: never
+  - id: resume-office-browser
+    name: Resume Studio edits the master resume with AI Office's editor and standard Concierge
+    purpose: >-
+      In Chromium over AI Office's real forced-RLS fixture and Career's real engine: edit the headline, ask the Concierge to
+      tighten a bullet (a scripted fixture model proposes one office-apply-edits card), approve, Save to master resume,
+      re-open and see both; a second person cannot read the document; at 412x743 the document comes first with one main
+      button and the Concierge opens as a sheet.
+    level: browser
+    runner:
+      kind: playwright
+      scope: package
+      files:
+        - tests/career-resume-office-browser.spec.mjs
+    expected:
+      - Both changes are in the document after re-opening and in career_db.json; bob's read answers 404; the phone layout holds.
+    prerequisites: [runner:playwright, browser:chromium, fixture:office-postgres-35689, harness:kernel-platform-export]
+    sideEffects: fixture-write
+    isolation: {mode: disposable, cleanup: "The Office fixture drops its database and role; the temporary profile is removed."}
+    limits: {timeoutMs: 180000, maxMemoryMb: 1024}
     installation: never

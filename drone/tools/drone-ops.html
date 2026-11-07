@@ -15,7 +15,14 @@
        server prints its plain reply, and any other chat failure reads in plain words, not the raw error.
      3 | maintainer@emeraldcoastsystemsgroup.com | Draft show is off with the other flight commands while no drone is registered
        (it stayed on and answered 'pattern generation failed ... needs 2-8 drones, got 0'); a switched-off flight command says
-       why in its title and gets its own hint back when a drone appears. -->
+       why in its title and gets its own hint back when a drone appears.
+     4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (layout only, no flight logic changed): Land, Return home
+       and Abort ALL sit in a 52px flight bar fixed at the bottom of the canvas, and on a phone at the bottom of the screen,
+       so scrolling the rail never moves them off screen; the rail is two views, Fly (fleet, telemetry, flight controls,
+       event log) and Plan (patterns, mission builder, saved missions, operator chat); Plan waypoints, Direct goto, 3D and
+       CAM are one exclusive segmented control; with no drone one empty state on the canvas says so once; the event and
+       capture polls ask only for a registered drone; Prepare a diagnostic brief opens as a sheet from Brief in the app
+       row; small buttons are 44px; on desktop the canvas keeps at least 60% of the width and the rail scrolls on its own. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the signed-in account's OWN saved
      flight plans (how many, which are not flown yet, the latest ones with their shape and where each one stands) from
      the SAME GET /api/drone/missions the full page reads, plus two counts of GET /api/drone/home-summary (plans started
@@ -270,6 +277,36 @@
     .panel-box, .mission-row, .wp-list li, code { overflow-wrap: anywhere; }
   }
 </style>
+<style>
+  /* UX audit 2026-11-06: the flight bar, Fly | Plan views, the exclusive map view control, the canvas empty state, 44px targets. */
+  .btn, .btn.small { min-height: 44px; }
+  @media (min-width: 761px) { .main { grid-template-columns: minmax(0, 1fr) minmax(300px, min(380px, 40%)); } .side { overflow-y: auto; overscroll-behavior: contain; } }
+  .side[data-view="plan"] #eventBox { display: none; }
+  .view-tabs { position: sticky; top: -12px; z-index: 3; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: -4px 0 0; border: 1px solid var(--dr-line); border-radius: 10px; background: var(--dr-surface); }
+  .view-tab { min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--dr-text); font: inherit; font-weight: 600; cursor: pointer; }
+  .view-tab[aria-selected="true"] { background: var(--dr-text); color: var(--dr-bg); }
+  .side-view { display: flex; flex-direction: column; gap: 12px; }
+  .side-view[hidden] { display: none; }
+  .segmented { gap: 0 !important; background: var(--dr-surface); border: 1px solid var(--dr-line); border-radius: 10px; padding: 3px; }
+  .segmented .btn { border: 0; background: transparent; }
+  .segmented .btn[aria-pressed="true"] { background: var(--dr-accent); color: #0b1020; }
+  .flight-bar { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 6; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 6px; border: 1px solid var(--dr-line); border-radius: 12px; background: var(--dr-surface); }
+  .flight-bar .btn { min-height: 52px; font-size: 15px; }
+  .map-wrap #previewBar { bottom: 84px !important; }
+  .map-wrap .map-hint { bottom: 84px; }
+  .canvas-empty { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; width: min(360px, calc(100% - 32px)); text-align: center; padding: 16px; border: 1px solid var(--dr-line); border-radius: 12px; background: var(--dr-surface); }
+  .canvas-empty strong { font-size: 17px; }
+  .canvas-empty p { margin: 6px 0 0; color: var(--dr-muted); font-size: 14px; }
+  @media (max-width: 760px) {
+    body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    .flight-bar { position: fixed; left: 0; right: 0; bottom: 0; border-radius: 0; border-width: 1px 0 0; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); }
+    .map-wrap #previewBar { bottom: 62px !important; }
+    .map-wrap .map-hint { bottom: 10px; }
+    .mode-toggle.segmented { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .mode-toggle.segmented .btn { padding: 6px 4px; font-size: 12px; }
+    .view-tabs { position: static; margin: 0; }
+  }
+</style>
 </head>
 <body>
 <div class="app">
@@ -280,17 +317,19 @@
     <span id="providerPill" class="pill">SIM</span>
     <div class="spacer"></div>
     <div class="batt"><span id="battPct">–%</span><div class="batt-bar"><div id="battFill" class="batt-fill"></div></div></div>
+    <button id="briefBtn" class="btn small" type="button" aria-haspopup="dialog" aria-controls="evidenceReview">Brief</button>
   </div>
   <div id="noDroneBanner" class="nodrone" role="status" hidden></div>
   <div class="main">
     <div class="map-wrap">
       <canvas id="map"></canvas>
-      <div class="mode-toggle">
-        <button id="modePlan" class="btn small primary" onclick="setMode('plan')">Plan waypoints</button>
-        <button id="modeGoto" class="btn small" onclick="setMode('goto')">Direct goto</button>
-        <button id="mode3d" class="btn small" onclick="toggle3d()" title="Perspective view — drag to orbit, wheel to zoom, double-click for auto-orbit">3D</button>
-        <button id="modeCam" class="btn small" onclick="toggleCam()" title="Synthetic FPV — simulated view from the selected drone's nose (not a camera feed)">CAM</button>
+      <div class="mode-toggle segmented" role="group" aria-label="Map view">
+        <button id="modePlan" class="btn small primary" aria-pressed="true" onclick="setView('plan')">Plan waypoints</button>
+        <button id="modeGoto" class="btn small" aria-pressed="false" onclick="setView('goto')">Direct goto</button>
+        <button id="mode3d" class="btn small" aria-pressed="false" onclick="setView('3d')" title="Perspective view — drag to orbit, wheel to zoom, double-click for auto-orbit">3D</button>
+        <button id="modeCam" class="btn small" aria-pressed="false" onclick="setView('cam')" title="Synthetic FPV — simulated view from the selected drone's nose (not a camera feed)">CAM</button>
       </div>
+      <div id="canvasEmpty" class="canvas-empty" role="status" hidden><strong>No drone connected</strong><p id="canvasEmptyText">Flight and planning start when a drone node or flight simulator is registered with this installation.</p></div>
       <div class="map-hint" id="mapHint">Click the map to add waypoints · rings every 100 m · dashed circle = geofence</div>
       <div id="previewBar" style="position:absolute;left:12px;bottom:130px;display:none;gap:6px;align-items:center;background:color-mix(in srgb, var(--dr-surface) 90%, transparent);border:1px solid var(--dr-line);border-radius:8px;padding:6px 10px;z-index:4">
         <button id="pvPlay" class="btn small primary" onclick="pvToggle()">▶ Preview</button>
@@ -300,14 +339,22 @@
         <button class="btn small" onclick="pvStop()" title="Close preview">✕</button>
       </div>
       <div class="toast" id="toast"></div>
+      <div class="flight-bar" id="flightBar" role="group" aria-label="Flight safety">
+        <button class="btn" onclick="cmd('land')">Land</button>
+        <button class="btn" onclick="cmd('rtl')">Return home</button>
+        <button class="btn danger" onclick="abortAll()" title="Abort every drone's mission — fleet-wide safety sweep">Abort ALL</button>
+      </div>
     </div>
     <div class="side">
+      <div class="view-tabs" role="tablist" aria-label="Ground station">
+        <button id="tabFly" class="view-tab" role="tab" type="button" aria-selected="true" aria-controls="sideFly" onclick="showSide('fly')">Fly</button>
+        <button id="tabPlan" class="view-tab" role="tab" type="button" aria-selected="false" aria-controls="sidePlan" onclick="showSide('plan')">Plan</button>
+      </div>
+      <div id="sideFly" class="side-view" role="tabpanel" aria-labelledby="tabFly">
       <div class="panel-box">
         <h2>Fleet</h2>
         <div id="fleetList"></div>
-        <div style="color:var(--dr-muted);font-size:11px;margin-top:6px">
-          Real drones join through a drone node on their companion box. No drone node or flight simulator ships with this installation, so none can be added here.
-        </div>
+        <div id="fleetJoinHint" style="color:var(--dr-muted);font-size:11px;margin-top:6px">Real drones join through a drone node on their companion box.</div>
       </div>
       <div class="panel-box" id="videoBox" style="display:none">
         <h2>Live camera — <span id="videoDrone"></span></h2>
@@ -342,10 +389,7 @@
           <button class="btn primary" onclick="takeoff()">Takeoff</button>
         </div>
         <div class="row" style="margin-top:6px">
-          <button class="btn" onclick="cmd('land')">Land</button>
-          <button class="btn" onclick="cmd('rtl')">Return home</button>
           <button class="btn danger" onclick="cmd('abort')">Abort mission</button>
-          <button class="btn danger" onclick="abortAll()" title="Abort every drone's mission — fleet-wide safety sweep">Abort ALL</button>
           <button class="btn small" onclick="cmd('battery')">Swap battery</button>
         </div>
         <div class="row" style="margin-top:6px">
@@ -363,6 +407,8 @@
           <span id="camState" style="color:var(--dr-muted);font-size:11px"></span>
         </div>
       </div>
+      </div>
+      <div id="sidePlan" class="side-view" role="tabpanel" aria-labelledby="tabPlan" hidden>
       <div class="panel-box">
         <h2>Fleet show — choreographed patterns</h2>
         <div class="row">
@@ -416,7 +462,8 @@
           <button class="btn primary" onclick="sendChat()">Send</button>
         </div>
       </div>
-      <div class="panel-box">
+      </div>
+      <div class="panel-box" id="eventBox">
         <h2>Event log</h2>
         <div class="events" id="events"></div>
       </div>
@@ -501,6 +548,7 @@ async function doCamera(op) {
 /** Captures gallery: structured shot records → small SYNTHETIC frame renders (labeled). */
 let capturesCache = [];
 async function pollCaptures() {
+  if (!fleetList.some((f) => f.droneId === selDrone)) return; // no registered drone: nothing to ask for
   try {
     const r = await api('/fleet/' + selDrone + '/captures');
     capturesCache = r.captures || [];
@@ -619,8 +667,7 @@ function renderFleet() {
 }
 function setMode(m) {
   mode = m;
-  $('modePlan').classList.toggle('primary', m === 'plan');
-  $('modeGoto').classList.toggle('primary', m === 'goto');
+  syncSegment();
   updateMapHint();
 }
 function updateMapHint() {
@@ -684,10 +731,12 @@ const NO_FENCE = 'Planning needs a geofence and a home position, which come from
 function applyFleetAvailability(r) {
   fleetUnavailable = r && r.configured === false ? (r.detail || r.reason || 'No drone is connected to this installation.') : null;
   const banner = $('noDroneBanner');
-  banner.hidden = !fleetUnavailable;
+  // One empty state, on the canvas (UX audit 2026-11-06): the banner, map hint, Fleet card and Mission builder no longer repeat it.
+  const empty = typeof document.getElementById === 'function' ? document.getElementById('canvasEmpty') : null;
+  banner.hidden = true;
+  if (empty) { empty.hidden = !fleetUnavailable; const line = document.getElementById('canvasEmptyText'); if (line) line.textContent = r && r.fence ? 'Flight commands start when a drone node or flight simulator is registered here. You can still plan and save missions.' : 'Flight and planning start when a drone node or flight simulator is registered with this installation.'; }
   if (fleetUnavailable) {
-    banner.innerHTML = '<strong>No drone connected.</strong> ' + esc(fleetUnavailable) + ' Flight commands stay off until a drone node or flight simulator is registered with this installation. '
-      + (r.fence ? 'You can still plan and save missions.' : esc(NO_FENCE));
+    banner.innerHTML = '<strong>No drone connected.</strong> ' + esc(fleetUnavailable);
     $('providerPill').textContent = 'NOT CONNECTED'; $('providerPill').className = 'pill alert';
     $('statusPill').textContent = 'NO DRONE';
   }
@@ -711,6 +760,8 @@ function applyFleetAvailability(r) {
     if (!('hint' in b.dataset)) b.dataset.hint = b.title || '';
     b.disabled = noFence; b.title = noFence ? NO_FENCE : b.dataset.hint;
   }
+  // Inputs and Clear that cannot lead to a save are off with Save (no fence, nothing to plan against).
+  for (const b of document.querySelectorAll('button[onclick="clearDraftWps()"], button[onclick="clearAllDrafts()"], #missionName, #wpAlt, #lineLedOn, #lineLedColor')) b.disabled = noFence;
 }
 async function pollState() {
   try {
@@ -733,6 +784,7 @@ async function pollState() {
   } catch (e) { /* transient; keep last state */ }
 }
 async function pollEvents() {
+  if (!fleetList.some((f) => f.droneId === selDrone)) return; // no registered drone: nothing to ask for
   try {
     const { events } = await api('/fleet/' + selDrone + '/events?since=' + lastEventSeq);
     for (const ev of events) {
@@ -770,7 +822,8 @@ function draw() { if (view3d) draw3d(); else draw2d(); }
 function draw2d() {
   const c = $('map');
   // The hint says why the map is blank instead of promising "click the map to add waypoints".
-  if (!fence || !home) { $('mapHint').textContent = fleetUnavailable ? NO_FENCE : 'Waiting for the drone\'s home position and geofence…'; return; }
+  if (!fence || !home) { $('mapHint').textContent = fleetUnavailable ? '' : 'Waiting for the drone\'s home position and geofence…'; $('mapHint').hidden = !!fleetUnavailable; return; }
+  $('mapHint').hidden = false;
   const g = c.getContext('2d');
   const wrap = c.parentElement.getBoundingClientRect();
   if (c.width !== Math.floor(wrap.width) || c.height !== Math.floor(wrap.height)) {
@@ -975,9 +1028,24 @@ function drawTrailAndDrone(g) {
 // ── 3D perspective view (self-contained — no external libs; CSP-safe) ────────
 function toggle3d() { view3d = !view3d; if (view3d) viewCam = false; syncViewButtons(); }
 function toggleCam() { viewCam = !viewCam; if (viewCam) view3d = false; syncViewButtons(); }
+/** One exclusive map view (UX audit 2026-11-06: Plan waypoints and CAM stayed selected together). Plan and goto are the 2D map's click modes; 3D and CAM replace the 2D map. */
+function setView(v) {
+  if (v === 'plan' || v === 'goto') { view3d = false; viewCam = false; setMode(v); syncViewButtons(); return; }
+  view3d = v === '3d'; viewCam = v === 'cam'; syncViewButtons();
+}
+function syncSegment() {
+  const on = viewCam ? 'modeCam' : view3d ? 'mode3d' : mode === 'goto' ? 'modeGoto' : 'modePlan';
+  for (const id of ['modePlan', 'modeGoto', 'mode3d', 'modeCam']) { const b = $(id); if (!b) continue; b.classList.toggle('primary', id === on); b.setAttribute('aria-pressed', String(id === on)); }
+}
+/** The rail's two views: Fly (fleet, telemetry, flight controls, event log) and Plan (patterns, missions, chat). */
+function showSide(view) {
+  const plan = view === 'plan';
+  $('sideFly').hidden = plan; $('sidePlan').hidden = !plan;
+  $('tabFly').setAttribute('aria-selected', String(!plan)); $('tabPlan').setAttribute('aria-selected', String(plan));
+  document.querySelector('.side').dataset.view = plan ? 'plan' : 'fly';
+}
 function syncViewButtons() {
-  $('mode3d').classList.toggle('primary', view3d);
-  $('modeCam').classList.toggle('primary', viewCam);
+  syncSegment();
   const want = view3d || viewCam;
   if (want && !rafHandle) animate3d();
   if (!want && rafHandle) { cancelAnimationFrame(rafHandle); rafHandle = null; draw(); }
@@ -1678,11 +1746,17 @@ if (!window.AppView || !AppView.active()) (async function boot() {
 })();
 </script>
 
-<style>/* The hand-off panel floats beside a wide screen; on a phone it sits in the page flow after the content, so it never covers the rows above it. */
-.handoff-dock{position:fixed;right:16px;bottom:16px;z-index:1000;width:min(360px,calc(100vw - 32px))}
-@media (max-width:760px){.handoff-dock{position:static;width:auto;margin:16px}}</style>
+<style>/* Prepare a diagnostic brief opens from Brief in the app row (UX audit 2026-11-06): over the canvas on a wide screen, so the
+   rail's chat, Send and Event log stay uncovered; a full-width sheet on a phone. Closed, it takes no space and covers nothing. */
+.handoff-dock:not([open]){display:none}
+.handoff-dock>summary{display:none}
+.handoff-dock[open]{position:fixed;left:16px;top:72px;z-index:1000;width:min(380px,calc(100vw - 32px))}
+.brief-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.brief-head h2{margin:0;font-size:16px}
+@media (max-width:760px){.handoff-dock[open]{left:0;right:0;top:auto;bottom:0;width:auto;max-height:85vh!important;border-radius:16px 16px 0 0!important}}</style>
 <details id="evidenceReview" class="handoff-dock" style="max-height:65vh;overflow:auto;background:#142034;color:#edf4ff;border:1px solid #557399;border-radius:14px;padding:12px;box-sizing:border-box;box-shadow:0 8px 30px #0005">
  <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
+ <div class="brief-head"><h2>Prepare a diagnostic brief</h2><button id="briefDone" class="btn small" type="button">Done</button></div>
  <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
  <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>
  <label>Brief<textarea id="evidenceNotes" rows="5" style="width:100%;box-sizing:border-box;margin:6px 0"></textarea></label>
@@ -1698,6 +1772,25 @@ pick.addEventListener('change',()=>{notes.value=records[pick.selectedIndex]?.act
 panel.addEventListener('toggle',async()=>{if(!panel.open||loaded)return;try{const response=await fetch("/api/drone/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}});
 if(panel.open)panel.dispatchEvent(new Event('toggle'));
 })().catch(()=>{document.getElementById('evidenceState').textContent='Connected actions are unavailable.';});
+</script>
+<script>
+// Brief opens the diagnostic brief sheet; Done and Escape close it (the connected-actions script above loads it on first open).
+(function () {
+  const panel = document.getElementById('evidenceReview'), open = document.getElementById('briefBtn'), done = document.getElementById('briefDone');
+  if (!panel || !open) return;
+  open.addEventListener('click', () => { panel.open = !panel.open; if (panel.open) done.focus(); });
+  done.addEventListener('click', () => { panel.open = false; open.focus(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panel.open) panel.open = false; });
+})();
+// On a phone the flight bar is the screen's bottom bar: tell the Today page its height so the concierge button rests above it, never on Abort ALL.
+(function () {
+  const bar = document.getElementById('flightBar');
+  let outer = null; try { if (window.top !== window && window.top.document) outer = window.top.document.documentElement; } catch (_) { outer = null; }
+  if (!bar || !outer) return;
+  const sync = () => { if (window.matchMedia('(max-width: 760px)').matches) outer.style.setProperty('--oshal-app-bottom-inset', Math.round(bar.getBoundingClientRect().height) + 'px'); else outer.style.removeProperty('--oshal-app-bottom-inset'); };
+  sync(); window.addEventListener('resize', sync);
+  window.addEventListener('pagehide', () => { try { outer.style.removeProperty('--oshal-app-bottom-inset'); } catch (_) {} });
+})();
 </script>
 
 </body>

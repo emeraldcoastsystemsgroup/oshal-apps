@@ -1,12 +1,13 @@
-"use strict";
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * DATE/TIME           | AUTHOR                                      | DESCRIPTION
+ * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 2026-07-17 20:10:00 | roger.murphy@emeraldcoastsystemsgroup.com   | The big catalog (operator request: "100 profiles, 100 backdrops, 10000 permutations"): EXACTLY 100 backgrounds across 8 groups (studio, corporate, city, nature, home & life, work environments, historical, fantasy), 70 clothing styles, 30 headwear, 26 props (NEW interchangeable layer — pitchfork to espresso cup), 12 finishes, 4 framings. Every entry grouped for optgroup pickers. Counts are ENFORCED by the package test suite so the catalog can't silently decay.
- * 2026-08-29 10:00:00 | maintainer@emeraldcoastsystemsgroup.com     | Catalog v2 (operator: "lots of different backdrops … a lot more options"): +100 backgrounds (Sun & Sea, Sports & Action, World & Travel, Season & Weather, Sci-Fi & Space, Fantasy Realms, Retro & Pop, Grand & Formal → 200), +40 clothing (→110), +20 headwear (→50), +34 props (→60), +8 finishes (→20) and a `wide` scene framing (→5). Every prior id untouched (gallery rows reference them); the new counts are the test-enforced contract.
+ * 1   | roger.murphy@emeraldcoastsystemsgroup.com   | The big catalog (operator request: "100 profiles, 100 backdrops, 10000 permutations"): EXACTLY 100 backgrounds across 8 groups (studio, corporate, city, nature, home & life, work environments, historical, fantasy), 70 clothing styles, 30 headwear, 26 props (NEW interchangeable layer — pitchfork to espresso cup), 12 finishes, 4 framings. Every entry grouped for optgroup pickers. Counts are ENFORCED by the package test suite so the catalog can't silently decay.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Catalog v2 (operator: "lots of different backdrops … a lot more options"): +100 backgrounds (Sun & Sea, Sports & Action, World & Travel, Season & Weather, Sci-Fi & Space, Fantasy Realms, Retro & Pop, Grand & Formal → 200), +40 clothing (→110), +20 headwear (→50), +34 props (→60), +8 finishes (→20) and a `wide` scene framing (→5). Every prior id untouched (gallery rows reference them); the new counts are the test-enforced contract.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.17.4: Add `lorica-segmentata` Roman legion armor (→111 clothing) and `galea-helm` Roman centurion plumed helmet (→51 headwear) so Roman warrior portraits wear authentic legionary armor instead of a senatorial toga.
  */
+"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FRAMINGS = exports.FINISHES = exports.PROPS = exports.HEADWEAR = exports.CLOTHING = exports.BACKGROUNDS = void 0;
 /** @description EXACTLY 200 interchangeable backgrounds (test-enforced). */
@@ -322,7 +323,8 @@ exports.CLOTHING = [
     { id: 'rugby-kit', label: 'Rugby Kit', icon: '🏉', group: 'Sun & Sport', prompt: 'a striped rugby jersey with a raised collar' },
     { id: 'jockey-silks', label: 'Jockey Silks', icon: '🏇', group: 'Sun & Sport', prompt: 'bright jockey racing silks' },
     { id: 'fencing-whites', label: 'Fencing Whites', icon: '🤺', group: 'Sun & Sport', prompt: 'fencing whites with a padded jacket' },
-    // ── Warriors & Sci-Fi (12) ───────────────────────────────────────────────
+    // ── Warriors & Sci-Fi (13) ───────────────────────────────────────────────
+    { id: 'lorica-segmentata', label: 'Roman Legion Armor', icon: '🦅', group: 'Warriors & Sci-Fi', prompt: 'polished Roman lorica segmentata steel strip armor over a crimson military tunic with a red centurion cloak pinned at the shoulder' },
     { id: 'samurai-armor', label: 'Samurai Armor', icon: '🏯', group: 'Warriors & Sci-Fi', prompt: 'lacquered samurai o-yoroi armor with silk cords' },
     { id: 'kung-fu-silk', label: 'Kung Fu Silk', icon: '🐉', group: 'Warriors & Sci-Fi', prompt: 'a mandarin-collar silk kung-fu jacket with frog buttons' },
     { id: 'ninja-shozoku', label: 'Ninja Shozoku', icon: '🥷', group: 'Warriors & Sci-Fi', prompt: 'a dark ninja shozoku with wrapped forearms' },
@@ -377,6 +379,7 @@ exports.HEADWEAR = [
     { id: 'flower-crown', label: 'Flower Crown', icon: '🌸', group: 'Occasion', prompt: 'a delicate flower crown' },
     { id: 'laurel-wreath', label: 'Laurel Wreath', icon: '🏺', group: 'Occasion', prompt: 'a golden laurel wreath' },
     { id: 'wizard-hat', label: 'Wizard Hat', icon: '🧙', group: 'Fantasy & History', prompt: 'a tall pointed wizard hat' },
+    { id: 'galea-helm', label: 'Roman Centurion Helmet', icon: '🦅', group: 'Fantasy & History', prompt: 'a brass-trimmed Roman centurion galea helmet with a red horsehair crest and open cheek guards leaving the face completely visible' },
     { id: 'viking-helm', label: 'Viking Helm', icon: '🛡️', group: 'Fantasy & History', prompt: 'a riveted iron viking helm' },
     { id: 'kabuto', label: 'Samurai Kabuto', icon: '🏯', group: 'Fantasy & History', prompt: 'a lacquered samurai kabuto helmet' },
     { id: 'tricorn', label: 'Pirate Tricorn', icon: '🏴‍☠️', group: 'Fantasy & History', prompt: 'a weathered leather tricorn hat' },

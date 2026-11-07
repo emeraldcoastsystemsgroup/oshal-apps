@@ -17,6 +17,7 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: no rail now means the package's own catalog: the no-rail case expects the turn, search, menu, cart and order handoff to answer from it with an ubereats.com link; register the uber-catalog unit suite.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: register place-cache (the cache module over the harness pool) and re-describe routes-real-restaurants with the cache cases (a POST saves, a fresh saved search asks Google nothing, Refresh asks, the quota fallback serves the saved answer with its time, nothing past 30 days, GET never writes).
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: real restaurants. The cart-totals, no-rail and uber-catalog cases are retired with the cart and the curated catalog; registered instead: uber-link (the Uber Eats location token pinned to the browser-proven string), places (the Google Places client over a recording fetch, key-free), routes-real-restaurants (the compiled routes: address required, geocode once, the restaurants with their Uber Eats links, the recorded hand-off, the chat proposal, ownership, read-only admission, the photo route), places-unavailable (API not enabled, key not configured, no address: said in words, never an empty result); the commerce-bridge, not-connected, allergens and surface-mobile cases re-described for the new surface.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1 (UX audit 2026-11-06): register address-saved (a first profile save carries empty lists, so the address sticks; the page saves a typed address once), remembered-clean (state notes leave the list, a repeated note is listed once, Forget removes every copy) and one-home (the Restaurants tile merged into Order Food, ?view=browse opens it on its results, one assistant entry, the page follows its theme).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -408,4 +409,68 @@ cases:
     limits:
       timeoutMs: 120000
       maxMemoryMb: 1024
+    installation: never
+  - id: address-saved
+    name: The delivery address a diner types is kept
+    purpose: >-
+      Drive the compiled POST /profile over a pool that refuses NULL in the NOT NULL list columns as the native store does, and run the page's own rememberAddress over a recording fetch.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-address-saved.test.js
+        - tests/eats-routes-harness.js
+    expected:
+      - A first save of only the address answers 200 and reads back; a later save keeps the saved diet and cuisines.
+      - The page saves a typed address once, never an empty or unchanged one; a person-asked search and a concierge turn save it, the boot read does not.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
+    installation: never
+  - id: remembered-clean
+    name: What the concierge remembers holds only what the person said, once
+    purpose: >-
+      Run the compiled rememberedList and forgetNote over notes that include the concierge's own state and one taste said twice.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-remembered-clean.test.js
+    expected:
+      - State notes such as address pending and not on boarded leave the list; tastes, allergies and budgets stay.
+      - A note that says the same as a newer one is listed once; Forget removes every copy that says the same thing, for the caller only.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
+    installation: never
+  - id: one-home
+    name: One Eats home that follows its theme
+    purpose: >-
+      Read the manifest and the shipped page: the merged Restaurants tile, the ?view=browse reader, the assistant entry and the theme tokens.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/eats-one-home.test.js
+    expected:
+      - The manifest has one tile (eats-concierge) and ribbon.hideAssistant; ?view=browse opens Order Food on its results.
+      - No parent-token copy and no dark fill or literal ink outside the photo badges; the hand-off is said once; Map and the chips are 44px targets.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 20000
     installation: never

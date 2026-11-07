@@ -39,6 +39,7 @@
  *                     |                             | to advertise a 200 MiB .ply the kernel refuses at 10 MiB.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Calibration source tools use actual route-backed native held approvals; keep package-handler registration limited to in-process print tools.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register real original-owned calibration tools and pass the bound context to source and output guards.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount interactive 3D mesh crop/rotate/undo/reset routes, caller-scoped read-only share links, GLB/USDZ capabilities, and scan-to-print-tools.js (0.10.0).
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -55,6 +56,8 @@ const logger_1 = require("@/shared/logger");
 const surface_files_1 = require("./surface-files");
 const data_dir_1 = require("./data-dir");
 const job_routes_1 = require("./job-routes");
+const mesh_edit_routes_1 = require("./mesh-edit-routes");
+const share_routes_1 = require("./share-routes");
 const upload_limits_1 = require("./upload-limits");
 const print_routes_1 = require("./print-routes");
 const service_routes_1 = require("./service-routes");
@@ -69,7 +72,7 @@ const slicer_1 = require("./engine/print/slicer");
 const image_ingest_1 = require("./image-ingest");
 const logger = (0, logger_1.createChildLogger)({ module: 'scan-to-print-routes' });
 /** @description The scripts the surface loads, served from one `/assets` mount. */
-const SURFACE_SCRIPTS = ['scan-to-print.js', 'scan-to-print-gl.js', 'scan-to-print-camera.js'];
+const SURFACE_SCRIPTS = ['scan-to-print.js', 'scan-to-print-gl.js', 'scan-to-print-camera.js', 'scan-to-print-tools.js'];
 /**
  * @description Resolve the authenticated caller's sub. The mount is `auth: oidc`; a service-rail
  * caller resolved by the mounter arrives as `oshalCallerSub` and is honoured too.
@@ -148,6 +151,7 @@ function capabilitiesOf(env, deps) {
     }
     return {
         app: 'scan-to-print', views: views_1.VIEW_NAMES, lanes: ['silhouettes', 'pointcloud', 'depth'], limits: pipeline_1.RECONSTRUCTION_LIMITS, upload: (0, upload_limits_1.effectiveUploadLimits)(job_routes_1.UPLOAD_LIMITS, env),
+        exports: ['stl', 'obj', 'glb', 'usdz', 'svg', 'report', 'gcode'],
         depth: depth_decode_1.DEPTH_UPLOAD_LIMITS, printers: { kinds: printer_adapters_1.PRINTER_KINDS, slicerConfigured }, video: ffmpeg,
         printService: { mountPath: '/api/scan-to-print/service', startsOnlyWhenPrinterAutoStart: true },
         slicerEngine: { address: `${deps.slicer.host}:${deps.slicer.port}`, expectedBuildHash: deps.slicer.expectedBuildHash, installHint: deps.slicer.installHint },
@@ -185,6 +189,8 @@ function createScanToPrintRoutes(ctx, opts = {}) {
     (0, scan_authorization_1.registerScanToPrintAuthorization)(ctx);
     (0, print_tools_1.registerPrintTools)(ctx, { ...deps, capabilities: () => capabilitiesOf(env, deps) });
     router.use((0, job_routes_1.createJobRoutes)(deps));
+    router.use((0, mesh_edit_routes_1.createMeshEditRoutes)(deps));
+    router.use((0, share_routes_1.createShareRoutes)(deps));
     router.use((0, print_routes_1.createPrintRoutes)(deps));
     return router;
 }

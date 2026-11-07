@@ -4,6 +4,8 @@
   SEQ | AUTHOR | DESCRIPTION
   1 | maintainer@emeraldcoastsystemsgroup.com | "Search all your mail" and the stored-copy line under the Inbox heading (email-store.js): search the person's stored Gmail copy, see how much it holds and how fresh it is, and turn on the job that keeps it current.
   2 | maintainer@emeraldcoastsystemsgroup.com | The list pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the page asked for one page of 30 and never asked for more). Fifty at a time, the next page loads as the list is scrolled to its end (or with "Load more"), following the answer's next cursor (the copy's before/skip or the mailbox's own page), the heading counts what is loaded, and the end of the list says how far back it reaches: everything in the copy (still filling or not) or the mailbox's last 7 days.
+  3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (email-summarizer--email-inbox, FIX-LAYOUT). On a phone the list fills the screen and a message opens as its own view with a back chevron; the phone's Back returns to the list (a history entry per open message), so there is no half-empty "Select a message" pane. With no mailbox the frame holds one centred empty state with ONE primary "Connect a mailbox" (a sheet with the Google (Gmail) and Outlook / Microsoft 365 rows) instead of a 360px list beside a blank reader. The search box states the real scope of the selected mailbox ("Search Gmail · last 30 days", or 180 with a complete copy); Outlook, Yahoo and no mailbox cannot be searched, so the field is disabled with that reason as its help line. A search with no mailbox keeps the Connect button and never prints a path (email-store.js). Refresh is 44x44 and the mailbox switch 44px tall. Guarded by tests/surface-provider.test.mjs, tests/mailbox-connect.test.cjs and tests/mail-store-browser.test.cjs.
+  4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (little-monsters--lm-email, FIX-LAYOUT). With no mailbox connected, withhold the Any mailbox switch, Refresh button, disabled search row and stored-copy caption until a mailbox is linked; pass the active screen (including /cockpit/?app=little-monsters&screen=lm-email when framed in Little Monsters Email) as ?return= on /connectors/<id>/authorize so OAuth sign-in returns to Little Monsters Email instead of Intelligent Communication or Connections.
 -->
 <head>
 <meta charset="UTF-8" />
@@ -42,12 +44,25 @@
      over-/under-shoots the iframe's flex area. Responsive so the 380px list column
      stacks instead of crushing the reader in the narrow cockpit content area. */
   .wrap { display:grid; grid-template-columns: minmax(280px,360px) 1fr; height:100%; }
-  @media (max-width:760px) { .wrap { grid-template-columns:1fr; grid-template-rows:minmax(0,42%) 1fr; } .list { border-right:none; border-bottom:1px solid var(--line); } }
+  /* No mailbox: one empty state across the whole frame, no reader beside it. */
+  .wrap.no-mailbox { grid-template-columns:1fr; }
+  .wrap.no-mailbox .reader { display:none; }
+  .wrap.no-mailbox .list { border-right:none; }
+  /* Phone: list-detail. The list fills the screen; an open message covers it as its own view (the list keeps its place). */
+  .reader .back { display:none; align-items:center; gap:4px; min-height:44px; min-width:44px; padding:0 12px 0 4px; margin:0 0 8px -4px; border:0; background:none; color:var(--ds-accent-ink, var(--accent)); font:inherit; font-size:16px; font-weight:600; cursor:pointer; }
+  @media (max-width:760px) {
+    .wrap { grid-template-columns:1fr; grid-template-rows:1fr; }
+    .list { border-right:none; }
+    .reader { display:none; }
+    .wrap.reading .reader { display:block; position:fixed; inset:0; z-index:5; background:var(--bg); overscroll-behavior:contain; }
+    .reader .back { display:inline-flex; }
+  }
   .list { border-right:1px solid var(--line); overflow-y:auto; background:var(--panel); }
   .list-head { position:sticky; top:0; background:var(--panel); padding:14px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; }
   .list-head h2 { font-size:15px; margin:0; font-weight:600; }
   .list-head .count { color:var(--muted); font-size:12px; }
-  .refresh { margin-left:auto; background:var(--panel2); border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:4px 9px; cursor:pointer; font-size:12px; }
+  .refresh { margin-left:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:0 14px; min-height:44px; cursor:pointer; font-size:14px; }
+  #refresh { width:44px; padding:0; font-size:18px; }
   .refresh:hover { color:var(--text); }
   .list-head .mailbox { margin-left:auto; }
   .list-head .mailbox + .refresh { margin-left:6px; }
@@ -68,8 +83,34 @@
   .notice a { color:var(--accent); }
   .notice .btn { margin:12px 6px 6px 0; }
   .notice .connect-note { margin-top:8px; }
+  .es .btn { background:var(--ds-accent, var(--accent)); color:var(--ds-on-accent, var(--text-on-accent, #fff)); min-height:44px; font-size:15px; padding:10px 18px; border-radius:10px; margin-top:16px; }
+/* mailbox-sheet-css:start */
+  /* The empty state (design standard 4.8): a 48px line icon, a heading, one sentence and the one primary, in the top third. */
+  .es { text-align:center; padding:56px 16px 24px; }
+  .es .es-icon { width:48px; height:48px; color:var(--ds-ink-2, var(--muted)); }
+  .es h2 { font-size:18px; line-height:24px; margin:12px 0 6px; color:var(--text); }
+  .es p { margin:0 auto; max-width:30em; color:var(--ds-ink-2, var(--muted)); font-size:15px; }
+  /* The skeleton of what arrives: greyed headings and blocks only. */
+  .skel { margin-top:8px; display:grid; gap:18px; }
+  .skel h3 { margin:0 0 8px; font-size:14px; color:var(--ds-ink-disabled, var(--muted)); font-weight:600; }
+  .skel .bar { height:44px; border-radius:10px; background:var(--ds-surface-2, var(--panel2)); margin-bottom:8px; }
+  .skel .bar.short { width:62%; }
+  /* The connect sheet: a modal dialog in the top layer; a bottom sheet on a phone. */
+  dialog.connect-sheet { border:1px solid var(--ds-edge, var(--line)); border-radius:20px; padding:0 0 12px; width:min(440px, calc(100% - 32px)); background:var(--ds-surface, var(--bg)); color:var(--text); box-shadow:0 2px 6px rgb(0 0 0 / .08), 0 12px 32px rgb(0 0 0 / .16); }
+  dialog.connect-sheet::backdrop { background:rgb(0 0 0 / .40); }
+  .connect-sheet .handle { width:36px; height:5px; border-radius:3px; background:var(--ds-ink-disabled, var(--line)); margin:8px auto 0; }
+  .connect-sheet .sheet-head { display:flex; align-items:center; min-height:56px; padding:0 8px 0 20px; }
+  .connect-sheet .sheet-head h3 { margin:0; font-size:18px; flex:1; }
+  .connect-sheet .sheet-done { background:none; border:0; color:var(--ds-accent-ink, var(--accent)); font:inherit; font-weight:600; min-width:64px; min-height:44px; cursor:pointer; }
+  .connect-sheet .sheet-row { display:flex; align-items:center; width:calc(100% - 24px); margin:0 12px 8px; min-height:56px; padding:0 16px; border-radius:10px; border:1px solid var(--ds-line-control, var(--line)); background:var(--ds-surface-2, var(--panel2)); color:var(--text); font:inherit; font-size:16px; font-weight:600; text-align:left; cursor:pointer; }
+  .connect-sheet .sheet-row::after { content:"\203A"; margin-left:auto; font-size:22px; color:var(--ds-ink-2, var(--muted)); }
+  .connect-sheet .connect-note { margin:4px 20px 0; color:var(--muted); font-size:14px; }
+  @media (max-width: 640px) {
+    dialog.connect-sheet { width:100%; max-width:none; margin:auto 0 0; border-radius:20px 20px 0 0; padding-bottom:calc(12px + env(safe-area-inset-bottom)); }
+  }
+/* mailbox-sheet-css:end */
   .actions { margin:22px 0 10px; display:flex; gap:10px; align-items:center; }
-  .btn { background:var(--accent); color:#fff; border:none; border-radius:7px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:600; }
+  .btn { background:var(--ds-accent, var(--accent)); color:var(--ds-on-accent, var(--text-on-accent, #fff)); border:none; border-radius:7px; padding:9px 16px; cursor:pointer; font-size:13px; font-weight:600; }
   .btn:hover { filter:brightness(1.1); }
   .btn.secondary { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
   .draft { margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
@@ -79,15 +120,16 @@
   .more { padding:14px 16px 18px; text-align:center; color:var(--muted); font-size:12px; line-height:1.5; }
   .more .refresh { margin-left:0; font-size:13px; padding:7px 14px; }
   .store-search { display:flex; gap:6px; padding:10px 16px 0; }
-  .store-search input { flex:1; min-width:0; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:8px 10px; font:inherit; font-size:13px; }
+  .store-search input { flex:1; min-width:0; min-height:44px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:0 12px; font:inherit; font-size:14px; }
+  .store-search input:disabled, .store-search button:disabled { opacity:1; color:var(--ds-ink-disabled, var(--muted)); background:var(--ds-surface-2, var(--panel2)); cursor:default; }
+  .search-help { margin:6px 16px 0; color:var(--ds-ink-2, var(--muted)); font-size:13px; }
+  .search-help[hidden], #provider[hidden], #refresh[hidden], .store-search[hidden], .store-line[hidden] { display:none; }
   .store-search .refresh { margin-left:0; }
   .store-line { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 16px 10px; color:var(--muted); font-size:12px; border-bottom:1px solid var(--line); }
   .store-line span { flex:1 1 100%; }
   .store-line .refresh { margin-left:0; }
   @media (max-width:640px) {
-    .wrap { grid-template-columns:1fr; grid-template-rows:minmax(0,40%) 1fr; }
-    .list { border-right:none; border-bottom:1px solid var(--line); }
-    .reader { padding:16px 14px; }
+    .reader { padding:12px 14px 24px; }
     .reader .rsubj { font-size:17px; }
     .actions { flex-wrap:wrap; }
     .btn, select.btn { font-size:16px; padding:10px 14px; min-height:44px; }
@@ -100,13 +142,14 @@
 <body>
   <div class="wrap">
     <div class="list">
-      <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><select class="refresh mailbox" id="provider" aria-label="Mailbox"><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option></select><button class="refresh" id="refresh">↻</button></div>
-      <form class="store-search" id="storeSearch" role="search"><input type="search" id="storeQuery" placeholder="Search all your mail" aria-label="Search all your mail" maxlength="300" /><button class="refresh" type="submit">Search</button></form>
+      <div class="list-head"><h2>📥 Inbox</h2><span class="count" id="count"></span><select class="refresh mailbox" id="provider" aria-label="Mailbox" hidden><option value="">Any mailbox</option><option value="google">Google</option><option value="outlook">Outlook</option></select><button class="refresh" id="refresh" type="button" aria-label="Refresh" title="Refresh" hidden>↻</button></div>
+      <form class="store-search" id="storeSearch" role="search" hidden><input type="search" id="storeQuery" placeholder="Search Gmail · last 30 days" aria-label="Search Gmail · last 30 days" aria-describedby="searchHelp" maxlength="300" /><button class="refresh" id="searchGo" type="submit">Search</button></form>
+      <div class="search-help" id="searchHelp" hidden></div>
       <div class="store-line" id="storeLine" role="status" hidden></div>
       <div id="items"><div class="empty">Loading…</div></div>
       <div class="more" id="more" role="status"></div>
     </div>
-    <div class="reader" id="reader"><div class="empty">Select a message to read it.</div></div>
+    <div class="reader" id="readerPane"><button type="button" class="back" id="backToList" aria-label="Back to Inbox">‹ Inbox</button><div id="reader"><div class="empty">Select a message to read it.</div></div></div>
   </div>
 
 <script>
@@ -124,25 +167,45 @@ const providerEl = document.getElementById('provider');
 // this installation has no Yahoo connector and its runtime answers a Yahoo read 501 (no Yahoo Mail reader).
 const PROVIDERS = ['', 'google', 'outlook'];
 const NOTICE = {
-  no_google_connection: ['No Google account connected.', 'Connect Google →'],
-  no_outlook_connection: ['No Outlook / Microsoft 365 account connected.', 'Connect Outlook →'],
-  no_mail_connection: ['No mailbox connected.', 'Connect a mailbox'],
-  reconnect_required: ['This mailbox needs to be reconnected.', 'Reconnect →'],
+  no_google_connection: ['Connect Google to see your mail', 'Connect Google'],
+  no_outlook_connection: ['Connect Outlook to see your mail', 'Connect Outlook'],
+  no_mail_connection: ['Connect a mailbox to see your mail', 'Connect a mailbox'],
+  reconnect_required: ['Reconnect your mailbox to see your mail', 'Reconnect'],
 };
 /* mailbox-connect:start */
-// Which mailbox connectors a notice offers. 'Connect Google or Outlook' used to open the whole Connections page (over
-// a thousand connector declarations, unfiltered); each button now starts that provider's own sign-in directly.
-const MAIL_CONNECTORS = { gmail: 'Connect Google (Gmail)', outlook: 'Connect Outlook / Microsoft 365' };
+// Which mailbox connectors the connect sheet offers. Each row starts that provider's own sign-in directly (the whole
+// Connections page lists over a thousand connector declarations). The empty state has ONE primary, which opens the sheet.
+const MAIL_CONNECTORS = { gmail: 'Google (Gmail)', outlook: 'Outlook / Microsoft 365' };
+const CONNECT_LINE = 'Your mail will show here, newest first, ready to read and answer.';
+const MAIL_ICON = '<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
 function noticeConnectors(error){ return error === 'no_google_connection' ? ['gmail'] : error === 'no_outlook_connection' ? ['outlook'] : ['gmail', 'outlook']; }
 function connectNotice(p){
   const n = NOTICE[p.error] || NOTICE.no_mail_connection;
-  const buttons = noticeConnectors(p.error).map(function (id) { return '<button type="button" class="btn" data-connect="'+id+'">'+esc(MAIL_CONNECTORS[id])+'</button>'; }).join(' ');
-  return '<div class="notice">'+esc(n[0])+'<br>'+buttons+' <a href="/utilities?category=email" target="_top">Mail connections</a><div class="connect-note" role="status"></div></div>';
+  const rows = noticeConnectors(p.error).map(function (id) { return '<button type="button" class="sheet-row" data-connect="'+id+'">'+esc(MAIL_CONNECTORS[id])+'</button>'; }).join('');
+  return '<div class="es" role="region" aria-label="'+esc(n[0])+'">'+MAIL_ICON+'<h2>'+esc(n[0])+'</h2><p>'+esc(CONNECT_LINE)+'</p>'
+    + '<button type="button" class="btn" data-connect-open>'+esc(n[1])+'</button></div>'
+    + '<dialog class="connect-sheet" aria-label="'+esc(n[1])+'"><div class="handle" aria-hidden="true"></div><div class="sheet-head"><h3>'+esc(n[1])+'</h3><button type="button" class="sheet-done" data-connect-close>Done</button></div>'
+    + '<div class="sheet-body">'+rows+'<div class="connect-note" role="status"></div></div></dialog>';
 }
-/** Start a mailbox provider's sign-in at the top level; a refusal is said in the notice instead. */
+/** Same-origin page the OAuth callback returns to: Little Monsters Email when framed there, else the cockpit screen. */
+function connectReturn(){
+  try {
+    if (typeof window === 'undefined' || !window.location) return '';
+    const p = window.parent && window.parent !== window ? window.parent.location : null;
+    const t = window.top && window.top !== window ? window.top.location : null;
+    const inLm = p && (p.pathname || '').replace(/\/+$/, '') === '/api/education/email';
+    if (t && /^\/cockpit(\/|$)/.test(t.pathname || '')) {
+      return inLm && !(t.search || '').includes('lm-email') ? '/cockpit/?app=little-monsters&screen=lm-email' : t.pathname + (t.search || '');
+    }
+    if (inLm) return '/api/education/email';
+  } catch (e) { /* cross-origin frame: kernel falls back to Connections */ }
+  return '';
+}
+/** Start a mailbox provider's sign-in at the top level; a refusal is said in the sheet instead. */
 async function startMailboxConnect(id, noteEl, nav){
   try {
-    const r = await fetch('/connectors/' + encodeURIComponent(id) + '/authorize', { credentials: 'same-origin' });
+    const ret = connectReturn();
+    const r = await fetch('/connectors/' + encodeURIComponent(id) + '/authorize' + (ret ? '?return=' + encodeURIComponent(ret) : ''), { credentials: 'same-origin' });
     const b = await r.json().catch(function () { return {}; });
     if (!r.ok || !b.authorize_url) throw new Error(b.detail || b.message || 'This sign-in is not available right now.');
     const url = new URL(b.authorize_url);
@@ -155,9 +218,32 @@ async function startMailboxConnect(id, noteEl, nav){
   }
 }
 /* mailbox-connect:end */
-/** Wire the connect buttons a notice just rendered into `root`. */
+/* mailbox-sheet:start */
+/** The connect sheet opens in the top layer and pushes a history entry, so the phone's Back closes it (design standard DS-39). */
+function sheetControl(dialog){
+  let pushed = false;
+  function close(fromBack){
+    if (dialog.open) dialog.close();
+    if (pushed && !fromBack) { pushed = false; history.back(); }
+    pushed = false;
+  }
+  function open(){
+    if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    if (typeof history !== 'undefined' && history.pushState) { history.pushState({ connectSheet: true }, ''); pushed = true; }
+  }
+  dialog.addEventListener('cancel', function (e) { e.preventDefault(); close(false); });
+  dialog.addEventListener('click', function (e) { if (e.target === dialog) close(false); });
+  window.addEventListener('popstate', function () { if (pushed) close(true); });
+  return { open: open, close: close };
+}
+/* mailbox-sheet:end */
+/** Wire the empty state a notice just rendered into `root`: its primary opens the sheet, each row starts a sign-in. */
 function bindConnectButtons(root){
   if (!root || !root.querySelectorAll) return;
+  const dialog = root.querySelector('dialog.connect-sheet');
+  const sheet = dialog ? sheetControl(dialog) : null;
+  root.querySelectorAll('[data-connect-open]').forEach(function (b) { b.onclick = function () { if (sheet) sheet.open(); }; });
+  root.querySelectorAll('[data-connect-close]').forEach(function (b) { b.onclick = function () { if (sheet) sheet.close(false); }; });
   root.querySelectorAll('[data-connect]').forEach(function (b) {
     b.onclick = function () { startMailboxConnect(b.getAttribute('data-connect'), b.parentElement.querySelector('.connect-note'), function (href) { (window.top || window).location.assign(href); }); };
   });
@@ -174,6 +260,55 @@ const MAILBOX_NAME = { google: ' · Google', outlook: ' · Outlook', yahoo: ' ·
 // The listing: `next` is the answer's cursor for the page after the last one loaded (the copy's before/skip, or the
 // mailbox's own page), `token` tells a late answer that the list was reloaded meanwhile.
 let paging = { next: null, loaded: 0, source: '', store: null, reach: null, busy: false, token: 0 };
+const wrap = document.querySelector ? document.querySelector('.wrap') : null;
+const refreshBtn = document.getElementById('refresh');
+const searchForm = document.getElementById('storeSearch');
+const storeLineEl = document.getElementById('storeLine');
+function setMailboxChrome(connected){
+  window.__mailboxConnected = connected;
+  providerEl.hidden = !connected;
+  if (refreshBtn) refreshBtn.hidden = !connected;
+  if (searchForm) searchForm.hidden = !connected;
+  if (!connected && storeLineEl) { storeLineEl.innerHTML = ''; storeLineEl.hidden = true; }
+}
+/** No mailbox: one empty state across the frame (no reader beside it, no switch/refresh/search chrome). */
+function showNoMailbox(payload){
+  setMailboxChrome(false);
+  countEl.textContent = '';
+  moreEl.innerHTML = '';
+  items.innerHTML = connectNotice(payload);
+  bindConnectButtons(items);
+  if (wrap) wrap.classList.add('no-mailbox');
+  searchScope(false);
+}
+/** What the search box can search for the mailbox the list read: Gmail (the copy's 180 days when complete, else 30), nothing else. */
+function searchScope(connected){
+  const input = document.getElementById('storeQuery'), go = document.getElementById('searchGo'), help = document.getElementById('searchHelp');
+  const store = paging.store || {};
+  const days = paging.source === 'stored' && store.complete ? 180 : 30;
+  const reason = !connected ? 'Connect a mailbox to search your mail.'
+    : mailbox === 'google' ? ''
+    : (mailbox === 'outlook' ? 'Outlook' : mailbox === 'yahoo' ? 'Yahoo Mail' : 'This mailbox') + ' cannot be searched here yet: search reads Gmail only.';
+  const words = reason ? 'Search is not available' : 'Search Gmail · last ' + days + ' days';
+  input.placeholder = words;
+  if (input.setAttribute) input.setAttribute('aria-label', words);
+  input.disabled = !!reason;
+  if (go) go.disabled = !!reason;
+  if (help) { help.textContent = connected ? reason : ''; help.hidden = !connected || !reason; }
+}
+/** Phone: an open message is its own view; it pushes a history entry so the phone's Back returns to the list (DS-39). */
+let reading = false;
+function narrow(){ return typeof window.matchMedia === 'function' && window.matchMedia('(max-width:760px)').matches; }
+function showReader(){
+  if (!wrap || !narrow()) return;
+  wrap.classList.add('reading');
+  const pane = document.getElementById('readerPane');
+  if (pane) pane.scrollTop = 0;
+  if (!reading && typeof history !== 'undefined' && history.pushState) { history.pushState({ inboxMessage: true }, ''); reading = true; }
+}
+function hideReader(){ if (wrap) wrap.classList.remove('reading'); }
+if (window.addEventListener) window.addEventListener('popstate', function () { if (reading) { reading = false; hideReader(); } });
+document.getElementById('backToList').onclick = function () { if (reading) history.back(); else hideReader(); };
 function day(iso){ const t = Date.parse(iso || ''); return t ? new Date(t).toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'}) : ''; }
 function firstUrl(){ return withProvider('/api/email/messages?max=' + PAGE + '&surface=1', providerEl.value); }
 function nextUrl(){
@@ -204,6 +339,7 @@ function appendItems(messages){
 /** Start the listing over: the first page of the chosen mailbox. */
 async function load(){
   paging = { next: null, loaded: 0, source: '', store: null, reach: null, busy: false, token: paging.token + 1 };
+  if (wrap) wrap.classList.remove('no-mailbox');
   items.innerHTML = '<div class="empty">Loading…</div>';
   moreEl.innerHTML = '';
   countEl.textContent = '';
@@ -221,7 +357,9 @@ async function more(first){
     if (!r.ok) { (first ? items : moreEl).innerHTML = '<div class="notice">Could not load inbox ('+r.status+').</div>'; return; }
     const payload = await r.json();
     if (token !== paging.token) return;
-    if (payload.connected === false) { countEl.textContent = ''; items.innerHTML = connectNotice(payload); bindConnectButtons(items); return; }
+    if (payload.connected === false) { showNoMailbox(payload); return; }
+    setMailboxChrome(true);
+    if (typeof window.__applyMailStore === 'function') window.__applyMailStore();
     mailbox = payload.provider || '';
     const messages = payload.messages || [];
     if (first) items.innerHTML = '';
@@ -229,6 +367,7 @@ async function more(first){
     paging.source = payload.source || '';
     paging.store = payload.store || null;
     paging.reach = payload.reach || null;
+    if (first) searchScope(true);
     paging.loaded += messages.length;
     appendItems(messages);
     if (!paging.loaded) { items.innerHTML = '<div class="empty">Inbox is clear. 🎉</div>'; moreEl.innerHTML = ''; countEl.textContent = ''; return; }
@@ -255,6 +394,7 @@ if (typeof IntersectionObserver === 'function' && document.querySelector) {
 async function open(m, el){
   if (active) active.classList.remove('active');
   el.classList.add('active'); active = el;
+  showReader();
   if (mailbox === 'yahoo') {
     // Yahoo is read list-only (core's fixed read-only IMAP reader): show what the list carries.
     reader.innerHTML = `<div class="rsubj">${esc(m.subject)}</div>

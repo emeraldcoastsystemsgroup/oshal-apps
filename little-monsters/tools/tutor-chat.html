@@ -7,14 +7,17 @@
 <!--
   CHANGE LOG
   ---------------------------------------------------------------------------
-  DATE           | AUTHOR                    | DESCRIPTION
+  SEQ | AUTHOR                                    | DESCRIPTION
   ---------------------------------------------------------------------------
-  2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — tutor chat UI
-  2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
-  2026-09-25     | oshal maintainers <maintainer@emeraldcoastsystemsgroup.com> | Upgrade tutor replies through the shared response renderer with a safe plain-text fallback and preserve grounding/read-aloud controls
-  2026-09-26     | maintainer@emeraldcoastsystemsgroup.com     | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; every color is a token so the light classroom skin reads correctly; bubbles, composer, camera modal and suggestions use the system's buttons, pills, fields and modal; the header names the real class (or all classes) instead of a selector that never existed; toasts replace alerts
-  2026-10-18     | maintainer@emeraldcoastsystemsgroup.com | The tutor keeps the chosen class (selectTutorClass) for grounding.
-  2026-10-22     | maintainer@emeraldcoastsystemsgroup.com | Phone width: the header wraps and the class picker shrinks; Read aloud sat 17px past a 412px screen.
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Initial creation — tutor chat UI
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  3   | maintainer@emeraldcoastsystemsgroup.com   | Upgrade tutor replies through the shared response renderer with a safe plain-text fallback and preserve grounding/read-aloud controls
+  4   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, cockpit theme links and glass; every color is a token so the light classroom skin reads correctly; bubbles, composer, camera modal and suggestions use the system's buttons, pills, fields and modal; the header names the real class (or all classes) instead of a selector that never existed; toasts replace alerts
+  5   | maintainer@emeraldcoastsystemsgroup.com   | The tutor keeps the chosen class (selectTutorClass) for grounding
+  6   | maintainer@emeraldcoastsystemsgroup.com   | Phone width: the header wraps and the class picker shrinks; Read aloud sat 17px past a 412px screen
+  7   | maintainer@emeraldcoastsystemsgroup.com   | UX audit (lm-tutor): the page is its own assistant (body data-lm-assistant="self", so the frame hides the shell's orb that covered Send); a phone composer of one row, + (a Camera / File sheet), a 16px box, mic and Send as the one 44px primary; New chat beside the class picker (drops a reply still in flight); Read aloud moves into the header ⋯; the header says "Textbook grounded" only when the class has the caller's own or approved materials (the reply's own rule), otherwise "No class materials yet"; pipe tables in replies render as tables; the starter chips sit in one sideways row above the composer; Send's glyph wears the theme's accent ink
+  8   | maintainer@emeraldcoastsystemsgroup.com   | Add History control placeholder left of New chat for saved tutoring threads
+  9   | maintainer@emeraldcoastsystemsgroup.com   | Implement owner-scoped saved tutoring threads with a History drawer listing threads newest-first, restoring prior turns to continue a thread, and deleting saved threads (RP-LM-02)
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -29,11 +32,23 @@
 
   /* Header */
   .tutor-head { display: flex; align-items: center; gap: 12px; padding: 12px var(--lm-gutter); border-bottom: 1px solid var(--lm-line); background: var(--lm-card); }
+  .history-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); background: var(--lm-card); }
+  .history-open { flex: 1 1 auto; min-width: 0; min-height: var(--lm-touch); text-align: left; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 4px 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .history-open strong { display: block; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-open small { color: var(--lm-muted); font-size: 12.5px; }
   .tutor-avatar { width: 42px; height: 42px; border-radius: 50%; background: var(--lm-accent-soft); padding: 4px; flex: 0 0 42px; }
   .tutor-who { min-width: 0; flex: 1; }
   .tutor-name { font-weight: 800; font-size: 16px; letter-spacing: -0.2px; }
   .tutor-class { font-size: 12.5px; color: var(--lm-muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tts-toggle.is-on { background: var(--lm-accent-soft); color: var(--lm-accent); border-color: var(--lm-accent-line); }
+  .tutor-class .ground-off { color: var(--lm-muted); }
+  .tutor-class .ground-on { color: var(--lm-success); font-weight: 700; }
+  /* Header ⋯: the read-aloud toggle lives here (one secondary action beside the class picker). */
+  .tutor-more { position: relative; flex: 0 0 auto; }
+  .tutor-more > summary { list-style: none; cursor: pointer; font-size: 20px; line-height: 1; }
+  .tutor-more > summary::-webkit-details-marker { display: none; }
+  .tutor-more-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; display: grid; gap: 2px; padding: 8px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); box-shadow: var(--lm-shadow); z-index: 70; }
+  .tutor-more-menu .lm-btn { justify-content: flex-start; width: 100%; }
 
   /* Conversation */
   .tutor-messages { flex: 1; min-height: 0; overflow-y: auto; padding: 18px var(--lm-gutter); display: flex; flex-direction: column; gap: 12px; }
@@ -57,6 +72,10 @@
   .msg .rr-doc-section h4 { margin: 8px 0 3px; font-size: 14px; }
   .msg .rr-doc-section p { margin: 4px 0; }
   .msg img.msg-photo { max-width: 220px; border-radius: 10px; margin-top: 8px; display: block; }
+  .msg .msg-table { overflow-x: auto; margin: 8px 0; }
+  .msg .msg-table table { border-collapse: collapse; font-size: 14px; }
+  .msg .msg-table th, .msg .msg-table td { border: 1px solid var(--lm-line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  .msg .msg-table th { background: var(--lm-bg-2); font-weight: 700; }
   .grounding { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
   .grounding details { font-size: 12.5px; color: var(--lm-muted); }
   .grounding summary { cursor: pointer; user-select: none; }
@@ -68,17 +87,27 @@
   .tutor-welcome img { width: clamp(88px, 14vw, 132px); height: auto; filter: drop-shadow(0 12px 22px color-mix(in srgb, var(--lm-ink) 18%, transparent)); }
   .tutor-welcome h2 { font-size: clamp(24px, 3.4vw, 32px); }
   .tutor-welcome p { max-width: 46ch; }
-  .suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; max-width: 640px; }
-  .suggestion { white-space: normal; text-align: center; }
+  /* Starter chips: one sideways-scrolling row directly above the composer, so none slides under it. */
+  .suggestions { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; scrollbar-width: none; padding: 10px var(--lm-gutter) 2px; flex: 0 0 auto; }
+  .suggestions::-webkit-scrollbar { display: none; }
+  .suggestion { white-space: nowrap; flex: 0 0 auto; }
 
   /* Composer */
   .attach-preview { padding: 8px var(--lm-gutter) 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .attach-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; border-radius: 12px; border: 1px solid var(--lm-line); background: var(--lm-card); font-size: 13px; color: var(--lm-ink-2); max-width: 100%; }
   .attach-chip img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; }
   .attach-chip .attach-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
-  .tutor-compose { display: flex; gap: 8px; align-items: flex-end; padding: 12px var(--lm-gutter) 14px; border-top: 1px solid var(--lm-line); background: var(--lm-card); }
-  .tutor-compose textarea { flex: 1; resize: none; max-height: 120px; line-height: 1.4; }
-  .tutor-compose .lm-btn-icon { flex: 0 0 var(--lm-touch); font-size: 19px; }
+  .tutor-compose { position: relative; display: flex; gap: 8px; align-items: flex-end; padding: 12px var(--lm-gutter) 14px; border-top: 1px solid var(--lm-line); background: var(--lm-card); }
+  /* 16px text so a phone never zooms the page when the box takes focus. */
+  .tutor-compose textarea { flex: 1; min-width: 0; resize: none; max-height: 120px; line-height: 1.4; font-size: 16px; }
+  .tutor-compose .lm-btn-icon { flex: 0 0 var(--lm-touch); height: var(--lm-touch); font-size: 19px; }
+  /* Send is the one primary; its glyph wears the theme's accent ink (Graphite's near-white accent needs dark ink). */
+  #sendBtn { color: var(--ds-on-accent, var(--text-on-accent, var(--lm-on-accent))); }
+  /* + opens a small sheet (Camera, File) on a phone; a wide screen keeps the two buttons. */
+  #plusBtn { display: none; }
+  .attach-sheet { position: absolute; left: 10px; bottom: calc(100% + 6px); display: grid; gap: 2px; min-width: 210px; padding: 8px; background: var(--lm-card); border: 1px solid var(--lm-line); border-radius: var(--lm-radius-md); box-shadow: var(--lm-shadow); z-index: 70; }
+  .attach-sheet[hidden] { display: none; }
+  .attach-sheet .lm-btn { justify-content: flex-start; width: 100%; }
   .mic-btn.listening { background: var(--lm-danger); color: var(--lm-on-accent); border-color: var(--lm-danger); animation: pulse-mic 1.5s infinite; }
   @keyframes pulse-mic { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--lm-danger) 25%, transparent); } }
 
@@ -89,14 +118,19 @@
 
   @media (max-width: 640px) {
     .tutor-compose { gap: 6px; padding-inline: 10px; }
+    #plusBtn { display: inline-flex; }
+    #camBtn, #attachBtn { display: none; }
+    .suggestions { padding-inline: 10px; }
     .attach-preview { padding-inline: 10px; }
-    .tutor-head { padding-inline: 12px; flex-wrap: wrap; row-gap: 8px; }
-    .tutor-head #classSelect { min-width: 0 !important; flex: 1 1 150px; }
+    .tutor-head { padding-inline: 12px; flex-wrap: wrap; row-gap: 8px; column-gap: 6px; }
+    .tutor-who { flex: 1 1 calc(100% - 56px); }
+    .tutor-head #classSelect { min-width: 0 !important; flex: 1 1 96px; max-width: 100%; }
+    .tutor-head #newChatBtn { padding-inline: 10px; }
     .msg { max-width: 92%; }
   }
 </style>
 </head>
-<body>
+<body data-lm-assistant="self">
 
 <main class="tutor-shell" aria-label="Class tutor">
   <header class="tutor-head">
@@ -105,10 +139,17 @@
       <div class="tutor-name" id="tutorName">Class Tutor</div>
       <div class="tutor-class" id="tutorClass">—</div>
     </div>
-    <select id="classSelect" class="lm-input" aria-label="Select class for textbook grounding" style="width:auto;min-width:170px;max-width:250px;padding:6px 10px;font-size:13px" onchange="selectTutorClass(this.value)">
+    <select id="classSelect" class="lm-input" aria-label="Select class for textbook grounding" style="width:auto;min-width:170px;max-width:250px;padding:6px 10px;font-size:13px" onchange="selectTutorClass(this.value, true)">
       <option value="">All classes</option>
     </select>
-    <button type="button" class="lm-btn lm-btn-ghost tts-toggle" id="ttsToggle" aria-pressed="false" title="Read every reply aloud">Read aloud: Off</button>
+    <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" id="historyBtn" aria-label="Saved tutoring history" title="Saved tutoring history">🕘</button>
+    <button type="button" class="lm-btn lm-btn-ghost" id="newChatBtn" title="Start a fresh conversation">New chat</button>
+    <details class="tutor-more" id="tutorMore">
+      <summary class="lm-btn lm-btn-quiet lm-btn-icon" aria-label="More tutor options" title="More">⋯</summary>
+      <div class="tutor-more-menu">
+        <button type="button" class="lm-btn lm-btn-quiet tts-toggle" id="ttsToggle" aria-pressed="false" title="Read every reply aloud">🔈 Read replies aloud: Off</button>
+      </div>
+    </details>
   </header>
 
   <div class="tutor-messages" id="messages" aria-live="polite">
@@ -116,25 +157,31 @@
       <img src="/api/education/logo-256.png" alt="">
       <h2 class="lm-display">Hi! I'm your study buddy.</h2>
       <p class="lm-lead">Ask me anything about your class — type, tap the mic to talk, or snap a photo of your work. I use your class materials to help you understand.</p>
-      <div class="suggestions">
-        <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="I need help understanding what we learned today">Help with today's lesson</button>
-        <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="Can you quiz me on the last chapter?">Quiz me</button>
-        <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="I'm stuck on my homework, can you walk me through it step by step?">Homework help</button>
-        <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="Explain this to me like I'm 5">Simple explanation</button>
-        <button type="button" class="lm-btn lm-btn-soft suggestion" data-action="companion">🤝 Study with me</button>
-        <button type="button" class="lm-btn lm-btn-soft suggestion" data-say="I'm feeling frustrated and overwhelmed with this work. Can you help me calm down and break things into smaller steps?">🌤️ I'm stressed</button>
-      </div>
     </div>
+  </div>
+
+  <div class="suggestions" id="suggestions" aria-label="Ways to start" data-lm-scroll-row>
+    <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="I need help understanding what we learned today">Help with today's lesson</button>
+    <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="Can you quiz me on the last chapter?">Quiz me</button>
+    <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="I'm stuck on my homework, can you walk me through it step by step?">Homework help</button>
+    <button type="button" class="lm-btn lm-btn-ghost suggestion" data-say="Explain this to me like I'm 5">Simple explanation</button>
+    <button type="button" class="lm-btn lm-btn-soft suggestion" data-action="companion">🤝 Study with me</button>
+    <button type="button" class="lm-btn lm-btn-soft suggestion" data-say="I'm feeling frustrated and overwhelmed with this work. Can you help me calm down and break things into smaller steps?">🌤️ I'm stressed</button>
   </div>
 
   <!-- The photo/file the student is about to send -->
   <div class="attach-preview hide" id="attachPreview"></div>
 
   <div class="tutor-compose">
+    <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" id="plusBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="attachSheet" title="Add a photo or file" aria-label="Add a photo or file">+</button>
+    <div class="attach-sheet" id="attachSheet" role="menu" hidden>
+      <button type="button" class="lm-btn lm-btn-quiet" role="menuitem" data-attach="camera">&#128247; Camera</button>
+      <button type="button" class="lm-btn lm-btn-quiet" role="menuitem" data-attach="file">&#128206; File</button>
+    </div>
     <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" id="camBtn" onclick="openCamera()" title="Take a photo of your work" aria-label="Take a photo of your work">&#128247;</button>
     <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon" id="attachBtn" onclick="document.getElementById('fileInput').click()" title="Attach a picture or document" aria-label="Attach a picture or document">&#128206;</button>
-    <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Speak your question" aria-label="Speak your question">&#127908;</button>
     <textarea class="lm-input" id="input" rows="1" placeholder="Ask me anything, or snap a photo of your worksheet" aria-label="Your question" onkeydown="handleKey(event)"></textarea>
+    <button type="button" class="lm-btn lm-btn-ghost lm-btn-icon mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Speak your question" aria-label="Speak your question">&#127908;</button>
     <button type="button" class="lm-btn lm-btn-primary lm-btn-icon" id="sendBtn" onclick="sendFromInput()" title="Send" aria-label="Send">&#x27A4;</button>
   </div>
 </main>
@@ -142,6 +189,21 @@
 <!-- Fallback file inputs (used only if the live camera isn't available) -->
 <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hide" onchange="handleAttach(event)">
 <input type="file" id="fileInput" accept="image/*,.pdf" class="hide" onchange="handleAttach(event)">
+
+<!-- Saved tutoring threads drawer (RP-LM-02) -->
+<div class="lm-modal" id="historyDrawer" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+  <div class="lm-modal-card">
+    <div class="lm-modal-head">
+      <div>
+        <h2 id="historyTitle">Saved conversations</h2>
+        <p class="lm-subtle lm-small" id="historySub">Your past tutoring threads, newest first.</p>
+      </div>
+      <button type="button" class="lm-btn lm-btn-quiet lm-btn-icon" id="historyCloseBtn" aria-label="Close history">✕</button>
+    </div>
+    <div id="historyStatus" class="lm-status lm-mb-sm" role="status" aria-live="polite"></div>
+    <div id="historyList" class="lm-stack"></div>
+  </div>
+</div>
 
 <!-- Live camera — a real getUserMedia capture, not a file picker -->
 <div class="lm-modal" id="camModal" role="dialog" aria-modal="true" aria-label="Take a photo">
@@ -171,6 +233,8 @@ var tutorResponseRendererReady = import('/dist/response-renderer.js').catch(func
 
 var params = new URLSearchParams(window.location.search);
 var activeClassId = params.get('classId') || '';
+var activeThreadId = '';
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var tutorClasses = [];
 /** The composer hint: the full sentence on a wide screen, a short one where four buttons share the row with the box. */
 function composerHint() {
@@ -185,11 +249,44 @@ var pendingAttachment = null;
 /** Short, non-blocking notice (never an alert for a non-destructive message). */
 function notice(text) { if (window.LM && window.LM.toast) window.LM.toast(text); }
 
-function selectTutorClass(classId) {
+/**
+ * @description Whether the chosen class has materials the tutor's reply can ground on. Mirrors the reply's own
+ * rule (src-routes/education-tutor-routes.ts searchAuthorizedGrounding: the caller's own uploads, or rows with
+ * share_status 'approved'), read through the two list routes the class page already uses.
+ * @param {string} classId The class to check.
+ * @returns {Promise<boolean>} True when at least one own or approved material exists; false on any refusal.
+ */
+function classHasMaterials(classId) {
+  var base = '/api/education/classes/' + encodeURIComponent(classId);
+  function count(path) {
+    return fetch(base + path).then(function (r) { return r.ok ? r.json() : { materials: [] }; })
+      .then(function (d) { return (d && Array.isArray(d.materials)) ? d.materials.length : 0; })
+      .catch(function () { return 0; });
+  }
+  return Promise.all([count('/materials'), count('/shared-materials')]).then(function (n) { return n[0] + n[1] > 0; });
+}
+
+var groundCheck = 0;
+/** @description Choose the class the tutor grounds on and say truthfully whether it has materials. @param {string} classId The class id, or '' for all classes. @returns {Promise<void>} */
+function selectTutorClass(classId, userChanged) {
+  var prev = activeClassId;
   activeClassId = classId || '';
+  if (userChanged && prev !== activeClassId) activeThreadId = '';
   var el = document.getElementById('tutorClass');
   var cls = (tutorClasses || []).find(function (c) { return c.class_id === activeClassId; });
-  el.textContent = cls ? cls.name + (cls.subject ? ' · ' + cls.subject : '') + ' · Textbook grounded' : 'Any of your classes';
+  if (!cls) { el.textContent = 'Any of your classes'; return Promise.resolve(); }
+  var label = cls.name + (cls.subject ? ' · ' + cls.subject : '') + ' · ';
+  el.textContent = label;
+  var mine = ++groundCheck;
+  return classHasMaterials(cls.class_id).then(function (has) {
+    if (mine !== groundCheck) return;
+    var badge = document.createElement('span');
+    badge.className = has ? 'ground-on' : 'ground-off';
+    badge.id = 'groundBadge';
+    badge.textContent = has ? 'Textbook grounded' : 'No class materials yet';
+    el.textContent = label;
+    el.appendChild(badge);
+  });
 }
 
 /** Name the class this conversation is about — the real one, or all of them when the floating tutor opens without a class. */
@@ -289,7 +386,7 @@ function capturePhoto() {
 function toggleTTS() {
   ttsEnabled = !ttsEnabled;
   var btn = document.getElementById('ttsToggle');
-  btn.textContent = ttsEnabled ? 'Read aloud: On' : 'Read aloud: Off';
+  btn.textContent = ttsEnabled ? '🔊 Read replies aloud: On' : '🔈 Read replies aloud: Off';
   btn.setAttribute('aria-pressed', ttsEnabled ? 'true' : 'false');
   btn.classList.toggle('is-on', ttsEnabled);
 }
@@ -319,70 +416,192 @@ function handleKey(e) {
   }, 0);
 }
 
-/** Send a message to the tutor bot. */
-async function sendMessage(text) {
-  if (isProcessing) return;
-  isProcessing = true;
-
-  // Hide welcome screen
+/** @description Show the student's turn (with the photo thumbnail, if any) and leave the welcome state. @param {string} text The question. @param {object|null} attachment The photo/document being sent. @returns {void} */
+function showStudentTurn(text, attachment) {
   var welcome = document.getElementById('welcome');
   if (welcome) welcome.classList.add('hide');
-
-  // Take ownership of any pending attachment, then clear the composer chip.
-  var attachment = pendingAttachment;
-  pendingAttachment = null;
-  renderAttachPreview();
-
-  // Add student message (with the photo thumbnail, if any)
+  var chips = document.getElementById('suggestions');
+  if (chips) chips.classList.add('hide');
   var studentId = addMessage(text || (attachment ? "Here's my work — can you help?" : ''), 'student');
   if (attachment && attachment.isImage) {
     var sEl = document.getElementById(studentId);
     if (sEl) { var im = document.createElement('img'); im.className = 'msg-photo'; im.src = attachment.dataUrl; sEl.appendChild(im); }
   }
+}
 
-  // Show typing indicator
+/** @description POST one tutor turn. A photo/doc rides along so the tutor can read handwritten work (vision) per the guardrails. @param {string} text The question. @param {object|null} attachment The attachment. @returns {Promise<object>} The tutor's answer. */
+async function postTutorTurn(text, attachment) {
+  var payload = { message: text, classId: activeClassId || params.get('classId') || '' };
+  if (activeThreadId) payload.threadId = activeThreadId;
+  if (attachment && attachment.base64) {
+    payload.imageData = attachment.base64;
+    payload.imageMediaType = attachment.mediaType;
+  }
+  var resp = await fetch('/api/education/tutor-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error('Tutor unavailable');
+  return resp.json();
+}
+
+/** Send a message to the tutor bot. */
+async function sendMessage(text) {
+  if (isProcessing) return;
+  isProcessing = true;
+  var generation = chatGeneration;
+
+  // Take ownership of any pending attachment, then clear the composer chip.
+  var attachment = pendingAttachment;
+  pendingAttachment = null;
+  renderAttachPreview();
+  showStudentTurn(text, attachment);
+
   var typingId = addMessage('<span class="dots"><span></span><span></span><span></span></span> Thinking…', 'typing');
-
   document.getElementById('sendBtn').disabled = true;
 
   try {
-    // POST to tutor chat endpoint. When a photo/doc is attached, include it so the
-    // tutor can analyze the student's handwritten work (vision) per the guardrails.
-    var payload = { message: text, classId: activeClassId || params.get('classId') || '' };
-    if (attachment && attachment.base64) {
-      payload.imageData = attachment.base64;
-      payload.imageMediaType = attachment.mediaType;
-    }
-    var resp = await fetch('/api/education/tutor-chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    // Remove typing indicator
+    var data = await postTutorTurn(text, attachment);
     removeMessage(typingId);
-
-    if (!resp.ok) throw new Error('Tutor unavailable');
-
-    var data = await resp.json();
+    // A reply to a conversation the student already cleared with New chat is dropped.
+    if (generation !== chatGeneration) return;
+    if (data.threadId) activeThreadId = String(data.threadId);
     var reply = data.response || data.message || 'Sorry, I had trouble with that. Try again?';
-
     var tutorMsgId = addMessage(reply, 'tutor');
     if (data.grounded && Array.isArray(data.sources) && data.sources.length) {
       appendGroundingBadge(tutorMsgId, data.sources);
     }
-
-    // TTS if enabled
-    if (ttsEnabled) {
-      speakText(reply);
-    }
+    if (ttsEnabled) speakText(reply);
   } catch (err) {
     removeMessage(typingId);
-    addMessage('Sorry, I couldn\'t connect. Please try again in a moment.', 'tutor');
+    if (generation === chatGeneration) addMessage('Sorry, I couldn\'t connect. Please try again in a moment.', 'tutor');
+  } finally {
+    isProcessing = false;
+    document.getElementById('sendBtn').disabled = false;
   }
+}
 
-  isProcessing = false;
-  document.getElementById('sendBtn').disabled = false;
+var chatGeneration = 0;
+/** @description Start a fresh conversation: clear the thread, any pending photo, the companion check-ins and speech, and show the welcome and starter chips again. @returns {void} */
+function newChat() {
+  chatGeneration++;
+  activeThreadId = '';
+  document.querySelectorAll('#messages .msg').forEach(function (m) { m.remove(); });
+  var welcome = document.getElementById('welcome');
+  if (welcome) welcome.classList.remove('hide');
+  var chips = document.getElementById('suggestions');
+  if (chips) chips.classList.remove('hide');
+  clearAttachment();
+  if (companionTimer) { clearInterval(companionTimer); companionTimer = null; }
+  try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (_e) { /* no speech engine */ }
+  var input = document.getElementById('input');
+  input.value = ''; input.style.height = 'auto'; input.focus();
+}
+
+function formatHistoryDate(iso) {
+  if (!iso) return 'Saved';
+  var d = new Date(iso);
+  return isNaN(d.getTime()) ? 'Saved' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function openHistoryDrawer() {
+  var cls = (tutorClasses || []).find(function (c) { return c.class_id === activeClassId; });
+  document.getElementById('historySub').textContent = cls
+    ? 'Saved conversations for ' + cls.name + ', newest first.'
+    : 'Your saved tutoring conversations, newest first.';
+  document.getElementById('historyStatus').textContent = '';
+  document.getElementById('historyDrawer').classList.add('is-open');
+  loadHistoryThreads();
+}
+function closeHistoryDrawer() {
+  document.getElementById('historyDrawer').classList.remove('is-open');
+}
+async function loadHistoryThreads() {
+  var list = document.getElementById('historyList');
+  list.innerHTML = '<div class="lm-loading">Loading saved conversations…</div>';
+  var payload = { action: 'list' };
+  if (activeClassId && UUID_RE.test(activeClassId)) payload.classId = activeClassId;
+  try {
+    var resp = await fetch('/api/education/tutor-chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    var data = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
+    var threads = data.threads || [];
+    if (!threads.length) {
+      list.innerHTML = '<div class="lm-empty"><strong>No saved conversations yet.</strong>Ask a question and your thread is saved automatically for you.</div>';
+      return;
+    }
+    list.innerHTML = threads.map(function (t) {
+      var q = String(t.firstQuestion || t.title || 'Homework question');
+      return '<div class="history-row" data-thread-row="' + escapeHtml(t.threadId) + '">' +
+        '<button type="button" class="history-open" data-thread-open="' + escapeHtml(t.threadId) + '">' +
+          '<strong>' + escapeHtml(q) + '</strong>' +
+          '<small>' + escapeHtml(formatHistoryDate(t.updatedAt || t.createdAt)) + '</small>' +
+        '</button>' +
+        '<button type="button" class="lm-btn lm-btn-ghost lm-btn-sm" data-thread-delete="' + escapeHtml(t.threadId) + '" aria-label="Delete conversation ' + escapeHtml(q) + '">Delete</button>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    list.innerHTML = '<div class="lm-callout is-warning">' + escapeHtml(err.message) + '</div>';
+  }
+}
+async function restoreHistoryThread(threadId) {
+  var status = document.getElementById('historyStatus');
+  status.className = 'lm-status lm-mb-sm'; status.textContent = 'Opening conversation…';
+  try {
+    var resp = await fetch('/api/education/tutor-chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', threadId: threadId }),
+    });
+    var data = await resp.json().catch(function () { return {}; });
+    if (!resp.ok || !data.thread) throw new Error(data.error || 'Could not load conversation.');
+    var t = data.thread;
+    chatGeneration++;
+    activeThreadId = String(t.threadId);
+    if (t.classId && t.classId !== activeClassId) {
+      var sel = document.getElementById('classSelect');
+      if (sel) sel.value = t.classId;
+      selectTutorClass(t.classId, false);
+    }
+    document.querySelectorAll('#messages .msg').forEach(function (m) { m.remove(); });
+    var msgs = Array.isArray(t.messages) ? t.messages : [];
+    document.getElementById('welcome').classList.toggle('hide', msgs.length > 0);
+    document.getElementById('suggestions').classList.toggle('hide', msgs.length > 0);
+    msgs.forEach(function (m) {
+      var kind = m.role === 'assistant' ? 'tutor' : 'student';
+      var id = addMessage(String(m.content || ''), kind);
+      if (kind === 'tutor' && Array.isArray(m.sources) && m.sources.length) appendGroundingBadge(id, m.sources);
+    });
+    closeHistoryDrawer();
+    document.getElementById('input').focus();
+  } catch (err) {
+    status.className = 'lm-status lm-mb-sm is-error'; status.textContent = err.message;
+  }
+}
+async function deleteHistoryThread(threadId) {
+  var status = document.getElementById('historyStatus');
+  try {
+    var resp = await fetch('/api/education/tutor-chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', threadId: threadId }),
+    });
+    var data = await resp.json().catch(function () { return {}; });
+    if (!resp.ok) throw new Error(data.error || 'Could not delete conversation.');
+    if (activeThreadId === threadId) newChat();
+    status.className = 'lm-status lm-mb-sm is-success'; status.textContent = 'Conversation deleted.';
+    await loadHistoryThreads();
+  } catch (err) {
+    status.className = 'lm-status lm-mb-sm is-error'; status.textContent = err.message;
+  }
+}
+
+/** @description Open or close the phone's + sheet (Camera, File). @param {boolean} [open] Force a state; toggles when omitted. @returns {void} */
+function toggleAttachSheet(open) {
+  var sheet = document.getElementById('attachSheet'), plus = document.getElementById('plusBtn');
+  var show = typeof open === 'boolean' ? open : sheet.hidden;
+  sheet.hidden = !show;
+  plus.setAttribute('aria-expanded', show ? 'true' : 'false');
 }
 
 /** Add a message to the chat. Returns the message element ID. */
@@ -431,14 +650,44 @@ function upgradeTutorMessage(div, text) {
   }).catch(function () { /* the escaped tutor renderer remains visible */ });
 }
 
+/** @description Split one pipe-table row into its cells. @param {string} line An escaped row like "| a | b |". @returns {string[]} The trimmed cells. */
+function pipeCells(line) {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(function (c) { return c.trim(); });
+}
+
+/** @description True for a Markdown table's separator row ("| --- | :---: |"). @param {string} line One line. @returns {boolean} */
+function isPipeSeparator(line) {
+  return /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(line || '');
+}
+
+/**
+ * @description Read a Markdown pipe table starting at lines[i] (a header row followed by a separator row).
+ * Cells are already HTML-escaped, so they are inserted as they are.
+ * @param {string[]} lines The reply's lines.
+ * @param {number} i Index of the header row.
+ * @returns {{html:string,next:number}|null} The table and the index after it, or null when no table starts here.
+ */
+function pipeTable(lines, i) {
+  if (!/^\s*\|.*\|\s*$/.test(lines[i] || '') || !isPipeSeparator(lines[i + 1])) return null;
+  var head = pipeCells(lines[i]);
+  var rows = [], j = i + 2;
+  for (; j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j]); j++) rows.push(pipeCells(lines[j]));
+  var html = '<div class="msg-table"><table><thead><tr>' + head.map(function (c) { return '<th scope="col">' + c + '</th>'; }).join('') + '</tr></thead><tbody>'
+    + rows.map(function (r) { return '<tr>' + head.map(function (_h, k) { return '<td>' + (r[k] || '') + '</td>'; }).join('') + '</tr>'; }).join('')
+    + '</tbody></table></div>';
+  return { html: html, next: j };
+}
+
 /** Minimal, safe markdown -> HTML for tutor replies. Input MUST already be HTML-escaped.
- *  Handles **bold**, `code`, bullet/numbered lists, and line breaks (ADHD-friendly formatting). */
+ *  Handles **bold**, `code`, bullet/numbered lists, pipe tables and line breaks (ADHD-friendly formatting). */
 function mdToHtml(s) {
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
   var lines = s.split('\n'), out = [], inUl = false;
   function closeUl() { if (inUl) { out.push('</ul>'); inUl = false; } }
   for (var i = 0; i < lines.length; i++) {
     var ln = lines[i];
+    var table = pipeTable(lines, i);
+    if (table) { closeUl(); out.push(table.html); i = table.next - 1; continue; }
     var m = ln.match(/^\s*(?:[-•]|\d+\.)\s+(.*)$/);
     if (m) {
       if (!inUl) { out.push('<ul>'); inUl = true; }
@@ -597,6 +846,34 @@ document.querySelectorAll('.suggestion').forEach(function (btn) {
   });
 });
 document.getElementById('ttsToggle').addEventListener('click', toggleTTS);
+document.getElementById('historyBtn').addEventListener('click', openHistoryDrawer);
+document.getElementById('historyCloseBtn').addEventListener('click', closeHistoryDrawer);
+document.getElementById('historyDrawer').addEventListener('click', function (e) {
+  if (e.target.id === 'historyDrawer') { closeHistoryDrawer(); return; }
+  var openBtn = e.target.closest('[data-thread-open]');
+  if (openBtn) { restoreHistoryThread(openBtn.dataset.threadOpen); return; }
+  var delBtn = e.target.closest('[data-thread-delete]');
+  if (delBtn) deleteHistoryThread(delBtn.dataset.threadDelete);
+});
+document.getElementById('newChatBtn').addEventListener('click', newChat);
+document.getElementById('plusBtn').addEventListener('click', function (e) { e.stopPropagation(); toggleAttachSheet(); });
+document.querySelectorAll('#attachSheet [data-attach]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    toggleAttachSheet(false);
+    if (b.dataset.attach === 'camera') openCamera(); else document.getElementById('fileInput').click();
+  });
+});
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('#attachSheet')) toggleAttachSheet(false);
+  var more = document.getElementById('tutorMore');
+  if (more.open && !e.target.closest('#tutorMore')) more.open = false;
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  toggleAttachSheet(false);
+  closeHistoryDrawer();
+  document.getElementById('tutorMore').open = false;
+});
 document.getElementById('input').placeholder = composerHint();
 labelClass();
 

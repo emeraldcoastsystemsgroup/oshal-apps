@@ -1,3 +1,5 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (layout only): register home-layout (the account line, one stale chip, the title once, 50 rows then Show more, the phone bottom bar with More).
 version: 1
 cases:
   - id: package-readiness
@@ -239,4 +241,26 @@ cases:
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
+    installation: never
+  - id: home-layout
+    name: Kalshi home tells the account truth and fits a phone
+    purpose: Run the shipped onceTitle, accountLine and renderStaleChip from tools/kalshi.html in a VM and read its markup - no browser, server, exchange or order.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/kalshi-home-layout.test.js
+    expected:
+      - A market title shows once when its subtitle repeats it.
+      - A 409 portfolio read reads Kalshi account not connected · paper mode with its fix; a connected account names its environment.
+      - An old calibration table or scan is one warning chip with Scan now.
+      - A phone gets Markets, Scan, Account, Scorecard and More; the list shows 50 rows then Show more; the Why panel dates a scan verdict; the lookup is a 44px field by the search.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

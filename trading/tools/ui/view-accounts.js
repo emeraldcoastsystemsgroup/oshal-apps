@@ -33,6 +33,7 @@
  * 2026-10-25 | maintainer@emeraldcoastsystemsgroup.com | Keep paper capital and paper day change outside the real-capital headline.
   * 8 | maintainer@emeraldcoastsystemsgroup.com | Label native day P&L as open-position scope; closed-trade results and cash flows are not reconstructed.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Separate account detail and strategy links, show actual authority and open-position gain/loss.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | The design standard, UI only: the real-capital hero is drawn only once a real account is connected or its read failed (a dashboard shows no tile without a figure, §5.4), the account tiles are the page's declared work, a tile is a card rather than a button around its own buttons, the connected-login roster with Discover opens from ⚙ Settings instead of the landing, an idle paper tile says it is not started in one sentence without empty balance rows, a paper tile no longer repeats its type, and the positions rollup with no position is not drawn.
  */
 
 /* The tile models of the CURRENT paint, in display order — the delegated click handler resolves a
@@ -48,12 +49,14 @@ let ACCT_EVENT_REFS = new Set();
  * @returns {string} HTML for #main.
  */
 function accountsSkeleton() {
-  return '<div class="panel"><div class="hero-total"><span class="n" id="heroTotal">…</span><span class="sub" id="heroSub">Total value · all accounts</span> <span id="heroDay" class="sub"></span></div>' +
+  return '<div class="panel" id="heroPanel" hidden><div class="hero-total"><span class="n" id="heroTotal">…</span><span class="sub" id="heroSub">Total value · all accounts</span> <span id="heroDay" class="sub"></span></div>' +
       '<div class="err" id="heroMissing" style="font-size:12px;margin-top:6px" hidden></div></div>' +
-    '<div class="tiles" id="tiles"><div style="grid-column:1/-1">' + spinner('Loading accounts…') + '</div></div>' +
+    '<div class="tiles" id="tiles" data-ds-work><div style="grid-column:1/-1">' + spinner('Loading accounts…') + '</div></div>' +
     '<div class="panel" id="wlHost">' + spinner('Loading watchlist…') + '</div>' +
     '<div class="panel"><h2>Positions across all accounts</h2><div id="rollup">' + spinner('Reading every account…') + '</div></div>' +
-    '<div class="panel">' +
+    // The connected-login roster and Discover are configuration: they open from the ⚙ Settings screen (openSettings in
+    // app.js moves this panel there), not on the landing (UX audit decision intelligent-trades--intelligent-trades-home).
+    '<div class="panel" id="rosterPanel" hidden>' +
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">Connected Schwab accounts</h2>' +
         '<button class="btn ghost sm" style="margin-left:auto" id="discoverBtn">Discover accounts</button></div>' +
       '<div class="foot" style="margin:0 0 10px">Log into Schwab once from the cockpit (Settings → Connections) and every account under that login pulls in here. Re-run discovery after connecting a new login — and check <strong>all accounts</strong> on Schwab’s consent screen.</div>' +
@@ -193,8 +196,12 @@ function tileHtml(m, i) {
     : (m.enabled ? '<span class="pill ok" style="margin:0">TRADING</span>' : '<span class="pill foot" style="margin:0">VIEW-ONLY</span>');
   const num = (v) => loading ? '…' : (m.state === 'ok' && v != null ? money(v) : '—');
   const day = loading ? '…' : (m.state !== 'ok' ? '—' : (m.dayChange == null ? '<span class="foot">n/a</span>' : dollarPctCell(m.dayChange, m.dayChangePct)));
+  // An idle tile (a paper book not started yet) says so in one sentence; the full guidance stays on the account page and in
+  // the tooltip. Its balance rows have no figure yet, so they are not drawn (design standard §4.8, §5.4).
+  const idle = m.state === 'idle';
+  const firstSentence = (text) => { const t = String(text || ''); const at = t.search(/\.\s/); return at < 0 ? t : t.slice(0, at + 1); };
   const note = (m.state === 'error' || m.state === 'unavailable') ? '<div class="err" style="font-size:12px">' + esc(m.note) + '</div>'
-    : m.state === 'idle' ? '<div class="foot" style="font-size:12px;margin:0">' + esc(m.note) + '</div>' : '';
+    : idle ? '<div class="foot" style="font-size:12px;margin:0" title="' + esc(m.note) + '">' + esc(firstSentence(m.note)) + '</div>' : '';
   const strat = m.nativeReadOnly ? '<span class="foot">'+esc(m.executionLabel||'Checking trading status…')+'</span><br><span class="foot">'+esc(m.protectionLabel||'Checking watcher status…')+'</span>' : m.notTrading
     ? '<span class="foot">No book yet — create one to trade this account (it starts disabled).</span>'
     : m.nativePaper ? 'Paper autopilot: ' + (m.nativePaper.armed ? '<span class="ok">armed</span>' : '<span class="foot">off</span>')
@@ -204,12 +211,14 @@ function tileHtml(m, i) {
     ? '<button class="btn sm ghost" data-act="create">Create book…</button>'
     : '<button class="btn sm primary" data-act="open">Open account →</button>' +
       (m.kind === 'live' && m.bookId ? '<button class="btn sm ghost" data-act="toggle">' + (m.enabled ? 'Stop trading' : 'Start trading…') + '</button>' : '');
-  return '<div class="tile' + (m.enabled ? '' : ' view-only') + '" data-i="' + i + '" role="button" tabindex="0">' +
+  // The tile is a card, not a button: its own buttons (Open account →, Manage strategy →) are the controls, so no control
+  // sits inside another (UX audit decision intelligent-trades--intelligent-trades-home). A tap on the card still opens it.
+  return '<div class="tile' + (m.enabled ? '' : ' view-only') + '" data-i="' + i + '">' +
     '<div class="t-name"><span>' + esc(m.label) + '</span>' + pill + '</div>' + note +
-    '<div class="t-eq">' + num(m.equity) + '</div>' +
+    (idle ? '' : '<div class="t-eq">' + num(m.equity) + '</div>' +
     '<div class="t-row"><span>' + (m.nativeReadOnly ? 'Open-position gain / loss' : 'Day P&amp;L') + '</span><b>' + (m.nativeReadOnly ? detailsMoney(m.state==='ok'?detailsGain(m.positions||[]):null) : day) + '</b></div>' +
-    '<div class="t-row"><span>Cash</span><b>' + num(m.cash) + '</b></div>' +
-    '<div class="t-row"><span>Type</span><b>' + esc(m.accountType || m.kind) + '</b></div>' +
+    '<div class="t-row"><span>Cash</span><b>' + num(m.cash) + '</b></div>') +
+    (m.nativePaper ? '' : '<div class="t-row"><span>Type</span><b>' + esc(m.accountType || m.kind) + '</b></div>') +
     '<div class="t-strat">' + strat + '</div>' +
     '<div class="t-actions">' + actions + '</div>' +
   '</div>';
@@ -225,7 +234,7 @@ function paintTiles(models) {
   ACCT_TILES = sortTiles(models);
   host.innerHTML = ACCT_TILES.length
     ? ACCT_TILES.map(tileHtml).join('')
-    : '<div class="panel" style="grid-column:1/-1;margin:0"><div class="foot" style="margin:0">No accounts yet — connect a Schwab login, then hit Discover accounts below.</div></div>';
+    : '<div class="panel" style="grid-column:1/-1;margin:0"><div class="foot" style="margin:0">No accounts yet — connect a Schwab login, then press Discover accounts in ⚙ Settings.</div></div>';
 }
 
 /**
@@ -343,6 +352,10 @@ function heroCoverage(j, models) {
  */
 function paintHero(j, err, models) {
   const t = $('heroTotal'), d = $('heroDay'), s = $('heroSub'), miss = $('heroMissing'); if (!t || !d) return;
+  // A dashboard shows no tile it has no figure for (design standard §5.4; UX audit decision intelligent-trades--intelligent-trades-home):
+  // the real-capital total stays hidden until a real (non-paper) account is connected or a read of one failed.
+  const panel = $('heroPanel');
+  if (panel) panel.hidden = !heroHasRealAccount(j, err);
   if (err || !j) {
     t.innerHTML = '<span class="err" style="font-size:16px">balances unavailable</span>';
     d.innerHTML = err ? '<span class="err">' + esc(err.message) + '</span>' : '';
@@ -367,6 +380,20 @@ function paintHero(j, err, models) {
 }
 
 /**
+ * @description Whether the real-capital hero has anything real to show: a failed read (it says so), a measured or partial
+ *   real-capital group, or any non-paper account row. Paper money never counts as real capital.
+ * @param {object|null} j - The /summary payload, or null when it failed.
+ * @param {Error|null} err - The failure, when j is null.
+ * @returns {boolean} true when the hero should be drawn.
+ */
+function heroHasRealAccount(j, err) {
+  if (err || !j) return true;
+  const real = j.capital && j.capital.real;
+  if (real && (real.equity != null || real.partial)) return true;
+  return (j.accounts || []).some((row) => row && row.kind !== 'paper' && row.ref !== 'paper');
+}
+
+/**
  * @description The cross-account positions rollup (top 60 by market value), or the empty/error line.
  * @param {object|null} j - The /summary payload.
  * @param {Error|null} err - The failure, when j is null.
@@ -376,6 +403,8 @@ function paintRollup(j, err) {
   const host = $('rollup'); if (!host) return;
   if (err || !j) { host.innerHTML = '<div class="err">' + esc(err ? err.message : 'summary unavailable') + '</div>'; return; }
   const rows = (j.positionsRollup || []).slice(0, 60);
+  // With no open position anywhere the rollup panel has no figure, so it is not drawn (design standard §5.4).
+  const panel = host.closest ? host.closest('.panel') : null; if (panel) panel.hidden = !rows.length;
   if (!rows.length) { host.innerHTML = '<div class="foot" style="margin:0">No open positions across accounts.</div>'; return; }
   host.innerHTML = '<table><thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Market value</th><th>Held in</th></tr></thead><tbody>' +
     rows.map((p) =>

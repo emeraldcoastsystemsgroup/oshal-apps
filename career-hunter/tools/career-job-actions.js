@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Prepare & submit, Application status, Approvals and Mobile left the menu as Job Board stages, so a link naming one of them opens the Job Board on that stage (Approvals through ?view=approve) instead of asking the shell for a screen it no longer has.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Turning a job on names no spending figure; its cap is set on the Jobs screen.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Resolve the registered member-qualified Career screen in an application group before sending stage or queue navigation.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Explain the submitted-packet regeneration refusal separately from an unsuccessful draft generation.
@@ -28,9 +29,12 @@
   async function promote(id,options){
     return post('/api/career-hunter/jobs/'+id+'/status',{status:'promoted',favorite:true});
   }
+  /* UX audit 2026-11-06: these screens became stages of the Job Board; their links open the board on that stage. */
+  const MERGED_INTO_BOARD={'career-submissions':'career-board','career-application-status':'career-board','career-approvals':'career-board','career-mobile':'career-board'};
   function navigate(tool,href){
     if(root.parent===root){root.location.href=href;return;}
-    let target=tool;
+    if(tool==='career-approvals')href='/api/career-hunter/board-native?view=approve';
+    let target=MERGED_INTO_BOARD[tool]||tool;
     try{
       // Groups qualify borrowed surfaces; a standalone Career workspace keeps
       // the short name. Use the admitted rail instead of guessing its front door.

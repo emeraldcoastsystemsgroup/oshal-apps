@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise real Create scan launchers, access-gated owner summaries, exact navigation and narrow layouts without camera, provider or business activity.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Home has no studio grid or quick starts and New is Home's sheet, so the scan studio opens from its saved-work card, the sheet's Blank 3D scan start and its 3D scan to print card; the 3D & print format now holds the scan, scene and CAD cards (one of them the scan); a locked card keeps its Access link; the template search is #tq.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -70,10 +71,8 @@ async function open(t, screen = 'home', options = {}) {
   await page.goto(`${fixture.origin}/${embedded ? 'fixture' : 'api/create'}/${screen}${options.query ?? ''}`);
   const surface = embedded ? page.frameLocator('iframe') : page;
   if (options.holdAccess) await controls.accessSeen;
-  else if (screen === 'home') {
-    await surface.locator('#studioGrid .studio').first().waitFor();
-    await surface.locator('#weekNote').filter({ hasText: /Counts come|Can't check/ }).waitFor();
-  } else await surface.locator('#sections .card').first().waitFor();
+  else if (screen === 'home') await surface.locator('#weekNote').filter({ hasText: /Counts come|Can't check/ }).waitFor();
+  else await surface.locator('#newSheet[open] #sections .card').first().waitFor();
   return { page, surface, fixture, state, ...controls };
 }
 
@@ -85,9 +84,13 @@ function clean(value) {
     && ![SUMMARY, URL].includes(row.path)), []);
 }
 
-function studio(surface) { return surface.locator('#studioGrid .studio').filter({ hasText: '3D Scan-to-Print' }); }
-function starter(surface) { return surface.locator(`#starterTiles [data-tool="${TOOL}"]`); }
-function newCard(surface) { return surface.locator('#sections .card').filter({ hasText: '3D scan to print' }); }
+function work(surface) { return surface.locator('#recentGrid .wcard .wopen').filter({ hasText: 'Synthetic scan model' }); }
+function blank(surface) { return surface.locator('#newSheet[open] #blankRow .blank[data-blank="scan"]'); }
+function newCard(surface) { return surface.locator('#newSheet[open] #sections .card').filter({ hasText: '3D scan to print' }); }
+async function sheet(surface) {
+  if (!await surface.locator('#newSheet[open]').count()) await surface.locator('#newBtn').click();
+  await surface.locator('#newSheet[open]').waitFor();
+}
 
 async function expectLaunch(value, action) {
   await action(); await value.page.waitForFunction(() => window.navigationMessages.length === 1);
@@ -117,25 +120,23 @@ async function cubeContrast(card) {
   });
 }
 
-test('Home exposes one scan studio and its owner summary through the existing access gate', async t => {
+test('Home shows the scan owner summary through the existing access gate and its card opens the scan studio', async t => {
   const value = await open(t), { surface, fixture } = value;
-  assert.equal(await studio(surface).count(), 1);
+  assert.equal(await surface.locator('#studioGrid').count(), 0, 'the rail lists the studios, not Home');
   assert.equal(await surface.locator('#recentGrid .title').innerText(), 'Synthetic scan model');
   assert.match(await surface.locator('#metrics').innerText(), /2\s+Saved scans/);
   const access = fixture.requests.findIndex(row => row.path === '/api/authorization/me' && row.query.app === APP);
   assert.ok(access >= 0 && fixture.requests.findIndex(row => row.path === SUMMARY) > access);
-  await capture(value, 'home-scan-studios', '#studios');
-  await expectLaunch(value, () => studio(surface).click());
+  await capture(value, 'home-scan-work', '#recent');
+  await expectLaunch(value, () => work(surface).click());
 });
 
-test('Home Quick start filters to one 3D scan entry and sends no artifact or camera query', async t => {
+test('New\'s Blank 3D scan start opens the scan studio with no artifact or camera query', async t => {
   const value = await open(t), { surface } = value;
-  assert.equal(await starter(surface).count(), 1);
-  assert.equal(await starter(surface).getAttribute('data-cat'), '3d');
-  assert.match(await starter(surface).innerText(), /3D scan to print/);
-  await surface.locator('#chips [data-cat="3d"]').click();
-  assert.equal(await surface.locator('#starterTiles .tile:not(.hidden)').count(), 1);
-  await expectLaunch(value, () => starter(surface).click());
+  await sheet(surface);
+  assert.equal(await blank(surface).count(), 1);
+  assert.match(await blank(surface).innerText(), /3D scan\s+Take photos/);
+  await expectLaunch(value, () => blank(surface).click());
 });
 
 test('New 3D & print category contains one starter with the exact embedded handoff', async t => {
@@ -143,7 +144,7 @@ test('New 3D & print category contains one starter with the exact embedded hando
   const category = surface.locator('#cats .cat').filter({ hasText: '3D & print' });
   assert.equal(await category.count(), 1); await category.click();
   assert.equal(await category.getAttribute('aria-pressed'), 'true');
-  assert.equal(await surface.locator('#sections .card').count(), 1);
+  assert.deepEqual(await surface.locator('#sections .card .name').allTextContents(), ['3D scan to print', '3D scene & model', 'CAD model']);
   assert.equal(await newCard(surface).count(), 1);
   await capture(value, 'new-3d-category');
   await expectLaunch(value, () => newCard(surface).click());
@@ -151,19 +152,20 @@ test('New 3D & print category contains one starter with the exact embedded hando
 
 test('New keyboard search finds the single 3D starter without inventing an Office template query', async t => {
   const value = await open(t, 'new'), { surface } = value;
-  await surface.locator('#q').fill('3D scan to print');
+  await surface.locator('#tq').fill('3D scan to print');
   assert.equal(await surface.locator('#sections .card').count(), 1);
-  await expectLaunch(value, () => surface.locator('#q').press('Enter'));
+  await expectLaunch(value, () => surface.locator('#tq').press('Enter'));
 });
 
-test('denied Home scan studio and Quick start never navigate or request the owner summary', async t => {
+test('denied Home scan start and card in New never navigate or request the owner summary', async t => {
   const value = await open(t, 'home', { denied: true }), { page, surface, fixture } = value;
-  assert.equal(await studio(surface).getAttribute('aria-disabled'), 'true');
-  assert.equal(await starter(surface).getAttribute('aria-disabled'), 'true');
-  await studio(surface).evaluate(node => node.click()); await starter(surface).evaluate(node => node.click());
+  await sheet(surface); await newCard(surface).locator('.lock').waitFor();
+  assert.equal(await blank(surface).getAttribute('aria-disabled'), 'true');
+  assert.equal(await newCard(surface).getAttribute('aria-disabled'), 'true');
+  await blank(surface).evaluate(node => node.click()); await newCard(surface).evaluate(node => node.click());
   assert.deepEqual(await page.evaluate(() => window.navigationMessages), []);
   assert.equal(fixture.requests.some(row => row.path === SUMMARY || row.path === URL), false);
-  assert.equal(await studio(surface).locator('a').getAttribute('href'), '/access?app=scan-to-print'); clean(value);
+  assert.equal(await newCard(surface).locator('a').getAttribute('href'), '/access?app=scan-to-print'); clean(value);
 });
 
 test('denied New scan starter stays visibly locked and sends no navigation or summary', async t => {
@@ -187,8 +189,8 @@ test('an unavailable scan summary stays visibly unknown while its studio can sti
   const value = await open(t, 'home', { summaryFailure: true }), { surface } = value;
   assert.match(await surface.locator('#weekNote').innerText(), /Can't check:.*3D Scan-to-Print/);
   assert.equal(await surface.locator('#metrics .metric').count(), 0);
-  assert.equal(await surface.locator('#recentGrid .card').count(), 0);
-  await expectLaunch(value, () => studio(surface).click());
+  assert.equal(await surface.locator('#recentGrid .wcard').count(), 0);
+  await sheet(surface); await expectLaunch(value, () => blank(surface).click());
 });
 
 test('a valid empty scan summary retains an empty state without an unavailable claim', async t => {
@@ -200,8 +202,8 @@ test('a valid empty scan summary retains an empty state without an unavailable c
 
 for (const screen of ['home', 'new']) test(`standalone ${screen} opens only the fixed scan URL without inherited query context`, async t => {
   const value = await open(t, screen, { embedded: false, profileFailure: true, query: '?cat=3d&artifact=fixture-only&job=unrelated' });
-  const target = screen === 'home' ? studio(value.surface) : newCard(value.surface);
-  await target.click(); await value.page.waitForURL(`${value.fixture.origin}${URL}`);
+  await sheet(value.surface); await (screen === 'home' ? blank(value.surface) : newCard(value.surface)).click();
+  await value.page.waitForURL(`${value.fixture.origin}${URL}`);
   assert.equal(value.page.url(), `${value.fixture.origin}${URL}`); clean(value);
 });
 
@@ -209,8 +211,10 @@ for (const theme of ['workspace', 'midnight']) test(`scan entries remain reachab
   for (const screen of ['home', 'new']) {
     const value = await open(t, screen, { width: 390, theme }), { surface } = value;
     assert.equal(await surface.locator('html').getAttribute('data-theme'), theme);
-    const target = screen === 'home' ? starter(surface) : newCard(surface);
+    await sheet(surface);
+    const target = screen === 'home' ? blank(surface) : newCard(surface);
     assert.equal(await target.count(), 1);
+    await target.scrollIntoViewIfNeeded();   // the Blank row scrolls sideways inside the sheet; the page itself never does
     const box = await target.evaluate(node => ({ left: node.getBoundingClientRect().left, right: node.getBoundingClientRect().right,
       width: innerWidth, pageWidth: document.documentElement.scrollWidth }));
     assert.ok(box.left >= -1 && box.right <= box.width + 1 && box.pageWidth <= box.width + 1);

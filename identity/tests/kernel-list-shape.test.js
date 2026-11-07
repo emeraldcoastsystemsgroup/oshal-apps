@@ -11,6 +11,8 @@
  *   address yet, ...") instead of "HTTP 400".
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The kernel now sends per-account rows: a lapsed grant WITH its account row still reads Reconnect and
  *   needs attention, and a renewable (renewed-by-the-kernel) grant reads Connected.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit split: the count reads 'Needs attention' and 'Available', and a connector with no configured sign-in
+ *   is hidden from the catalog until 'Show unavailable' is on.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -54,7 +56,7 @@ async function surface(providers, routes = {}) {
   const sandbox = { document, window, fetch: fetchStub, console: { warn() {}, error() {}, log() {} }, setTimeout, clearTimeout };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(`${script}\n;globalThis.__surface = { load, startConsent };`, sandbox, { filename: 'identity.html' });
+  vm.runInContext(`${script}\n;globalThis.__surface = { load, startConsent, showAll: () => { showUnavailable = true; renderProviders(); } };`, sandbox, { filename: 'identity.html' });
   await sandbox.__surface.load();
   return { nodes, requested, tabs, surface: sandbox.__surface };
 }
@@ -72,7 +74,7 @@ function native(id, auth, status, extra = {}) {
 }
 
 test('native connector kinds and liveness render the right actions and attention counts', async () => {
-  const { nodes } = await surface([
+  const surfaceRun = await surface([
     native('google', 'oauth', 'connected', { category: 'email' }),
     native('github', 'personal_token', 'not_connected'),
     native('tmdb', 'api_key', 'connected'),
@@ -81,6 +83,7 @@ test('native connector kinds and liveness render the right actions and attention
     native('slack', 'oauth', 'not_connected', { configured: false }),
     native('dropbox', 'oauth', 'expiring'),
   ]);
+  const { nodes } = surfaceRun;
   const main = nodes.get('main').innerHTML;
   assert.match(card(main, 'google'), /data-start="google">Reconnect</);
   assert.match(card(main, 'google'), /pill ok">Connected/);
@@ -94,11 +97,13 @@ test('native connector kinds and liveness render the right actions and attention
     assert.match(card(main, lapsed), /data-start="[a-z]+">Reconnect</);
     assert.match(card(main, lapsed), /Saved sign-in has lapsed/);
   }
-  assert.match(card(main, 'slack'), /Not configured/);
+  assert.ok(!main.includes('<span class="name">slack</span>'), 'a connector with no configured sign-in is hidden until Show unavailable');
   assert.match(card(main, 'dropbox'), /pill soon">Expiring/);
+  surfaceRun.surface.showAll();
+  assert.match(card(nodes.get('main').innerHTML, 'slack'), /Not configured/);
   const metrics = nodes.get('identityMetrics').innerHTML;
-  assert.match(metrics, /Need attention<\/span><strong>2</);
-  assert.match(metrics, /Ready to enable<\/span><strong>6</);
+  assert.match(metrics, /Needs attention<\/span><strong>2</);
+  assert.match(metrics, /Available<\/span><strong>6</);
 });
 
 test('consent follows the start route when it redirects, without asking the kernel route', async () => {
@@ -170,5 +175,5 @@ test('a lapsed native grant listed with its account row reads Reconnect, as Sett
     assert.match(card(main, label), /data-start="[a-z]+">Reconnect</);
   }
   assert.match(card(main, 'Google'), /pill ok">Connected/);
-  assert.match(nodes.get('identityMetrics').innerHTML, /Need attention<\/span><strong>2</);
+  assert.match(nodes.get('identityMetrics').innerHTML, /Needs attention<\/span><strong>2</);
 });

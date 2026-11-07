@@ -71,6 +71,8 @@
  * 16 | maintainer@emeraldcoastsystemsgroup.com | Save durable calibration before native AI reading and preserve failed, invalid, concurrent and switched-object source drafts.
  * 17 | maintainer@emeraldcoastsystemsgroup.com | 0.8.5, phones (Roger, trial.oswarm.ai, 2026-11-06, F2/F3: "I can't use it due to the page layout"): one primary action, Take photos (it creates the object with a default name when none is open and opens the guided camera, or the phone's photo picker, which offers its camera, when the live camera is refused), then Make 3D model once Front, Top and Right are placed, then Download STL; a three-slot checklist with thumbnails sits directly under it with the photo grid; video, .ply, silhouettes and frame suggestions move under a closed Advanced; Take photos names the object for today without a prompt (New object still asks, prefilled), and the name is edited in place; Make 3D model starts the same reconstruction as the Properties step; a seat without scan.edit (canReconstruct false) is not offered Make 3D model, a video or a .ply; the camera reveals itself inside the editor viewport only, never by scrolling the page that frames it.
  * 18 | maintainer@emeraldcoastsystemsgroup.com | 0.8.7, the trial check (2026-11-06): Make 3D model was offered before the ruler measurement it needs and its first press answered 422 in developer words ("knownDimensions must be a list of 1 to 3 {axis, mm} entries"), because the measurement field sat only in the Properties sheet on a phone. Once Front, Top and Right are placed, a "2 · Measure" field (the width, written to the same Width X calibration field) shows directly above Make 3D model, which stays disabled until a width is entered or saved; that refusal now reads as a sentence. A reload reopens the object that was open in that tab (sessionStorage); removing a photo asks first; the name and tagline are not repeated on a phone (data-ef-phone="brand"), where the app bar names the open object instead.
+ * 19 | maintainer@emeraldcoastsystemsgroup.com | 0.9.0, the design standard (docs/ux/design-standard.md; Roger, 2026-11-06, F2, F3 and F12; the reference products Polycam and KIRI Engine, lanes/design-standard-2026-11-06/reference-products/CONVENTIONS.md §5.8). No native alert, confirm or prompt anywhere (DS-30): New object names the object for today without asking, and every question (discard a calibration draft, delete an object, remove a photo, turn auto-start on, send a print) is an in-page sheet with Cancel and the action named; a Bambu printer's slice settings are fields in the Printers sheet instead of three prompts. One primary on every screen (DS-24): New object is an item of the Object ▾ menu (New object, Printers…, Export…, Delete object; the ⋯ More sheet on a phone), Reconstruct and Send to printer are secondary, and the first action is Take a photo, with Choose photos, Use a video and Import a LiDAR scan as the start card's other ways in (mode first, C-SCN-2). An object shows its steps (1 Capture · 2 Scale · 3 Model · 4 Print) and a Photos · Video · LiDAR file choice; Printers is a sheet, not a panel crushing the object list; the model viewer has Export, Print and the reference tools; Export is its own sheet listing the files with one Export at its bottom (N13). The planned tools both references have (Crop, Rotate, Measure, GLB and USDZ, Share, AR) are greyed "Not available yet" controls in their places (DS-45, RP-SCN-01 to -06). The concierge's help names the object.
+ * 20 | maintainer@emeraldcoastsystemsgroup.com | 0.10.0: GLB and USDZ export rows and download links (RP-SCN-04), plus the window.ScanToPrintApp seam consumed by scan-to-print-tools.js for interactive 3D Crop, Rotate/Lay-flat, Measure, Share, and AR (RP-SCN-01..06).
  */
 (function () {
   'use strict';
@@ -130,11 +132,22 @@
     const {createEditorAssistant}=await import('/shared/ui/js/editor-assistant.js');
     scanAssistant=createEditorAssistant({app:'scan-to-print',bot:'scan-to-print-operator',title:'Scan to Print AI partner',root,getState:sourceState,prepare:prepareScanSource,refresh:refreshScanSource});
     const {registerDocumentSession}=await import('/shared/ui/js/document-handoff.js');registerDocumentSession({app:'scan-to-print',prepare:prepareScanSource,refresh:refreshScanSource});
-    const start = { when: () => !state.job, lede: 'Photograph an object from the front, top and right, and get a 3D model you can print.', label: 'Take photos', run: () => takePhotos(), replaces: $('empty-panel') };
+    const help = scanAssistant.element && scanAssistant.element.querySelector('.ef-assistant-help');
+    if (help) help.textContent = 'Ask about this object or request a change. Your draft is saved before each message.';
+    // A video or a .ply needs the reconstruct right; until an object has told us the seat holds it, only photos are offered.
+    const may = () => state.mayReconstruct === true;
+    const start = { when: () => !state.job, lede: 'Photograph an object from the front, top and right, and get a 3D model you can print.',
+      desktopLede: 'Photograph an object from the front, top and right, and get a 3D model you can print.', label: 'Take a photo', run: () => takePhotos(), replaces: $('empty-panel'),
+      secondary: [{ label: 'Choose photos', run: () => startWith('photos') }, { label: () => (may() ? 'Use a video' : ''), run: () => startWith('video') },
+        { label: () => (may() ? 'Import a LiDAR scan (.ply)' : ''), run: () => startWith('lidar') }] };
     scanEditor = createEditorFoundation({ root, navigationLabel: 'Objects', start, navigation: root.querySelector('aside'), viewport: root.querySelector('main'), inspector, header: document.querySelector('body>header'),
       ai:scanAssistant.element,getState:sourceState,
       getSelection: () => ({ kind: 'scan object', ids: state.job ? [state.job.job_id] : [] }), getProperties: scanProperties, applyProperty: applyScanProperty,
       actions: { save: saveDimensions } });
+    // The work is the editor's viewport (data-ds-work, the design standard's contract); on desktop the concierge opens from
+    // the Today bar's Concierge, so the first screen is the canvas and its one first action (F12: one assistant entry).
+    root.querySelector('.ef-viewport')?.setAttribute('data-ds-work', '');
+    if (!window.matchMedia('(max-width:800px)').matches) scanAssistant.element.dispatchEvent(new CustomEvent('editor-concierge:hide', { bubbles: true }));
     root.addEventListener('input', () => {scanEditor.refresh();scanAssistant.refresh();}); root.addEventListener('change', () => {scanEditor.refresh();scanAssistant.refresh();});
     window.addEventListener('pagehide', event => { if (!event.persisted) scanEditor.destroy(); }, { once: true });
   }
@@ -254,7 +267,7 @@
     state.jobs = (await api('/jobs')).jobs;
     const list = $('job-list');
     list.replaceChildren();
-    if (!state.jobs.length) list.appendChild(el('p', { class: 'muted', text: 'No objects yet. Create one to begin.' }));
+    if (!state.jobs.length) list.appendChild(el('p', { class: 'muted', text: 'No objects yet.' }));
     state.jobs.forEach((job) => {
       // A choice puts the object in view: on a phone the Objects sheet closes, even when it is the object already open.
       const item = el('button', { class: 'job-item' + (state.job && state.job.job_id === job.job_id ? ' active' : ''), onclick: () => { scanEditor?.showPanel(null); void openJob(job.job_id).catch(e=>toast(e.message,'error')); } }, [
@@ -264,17 +277,16 @@
       list.appendChild(item);
     });
   }
-  async function createJob(ask) {
-    const named = 'Object · ' + new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-    const title = ask ? window.prompt('Name the object (e.g. "phone stand")', named) : named;
-    if (!title || !title.trim()) return;
-    const { job } = await api('/jobs', { method: 'POST', json: { title: title.trim() } });
+  /** A new object is named for today and opened at 1 Capture; its name is edited in place (no prompt, DS-30). */
+  async function createJob() {
+    const title = 'Object · ' + new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    const { job } = await api('/jobs', { method: 'POST', json: { title } });
     await loadJobs();
     await openJob(job.job_id);
   }
   async function openJob(jobId) {
     if(state.savingCalibration){toast('Wait for the calibration save.','error');return;}
-    if((sourceDirty()||scanEditor?.hasPending())&&!window.confirm('Discard the unsaved calibration and open the saved object?'))return;
+    if((sourceDirty()||scanEditor?.hasPending())&&!(await ask('Discard the unsaved calibration and open the saved object?',{yes:'Discard'})))return;
     const generation=++state.loadGeneration,signature=calibrationSignature();
     const [detail,source]=await Promise.all([api('/jobs/'+jobId),api('/jobs/'+jobId+'/calibration').then(value=>({value}),error=>({error}))]);
     if(generation!==state.loadGeneration)return;
@@ -284,12 +296,12 @@
   }
 
   async function deleteJob() {
-    if (!state.job || !window.confirm('Delete "' + state.job.title + '" and all its files?')) return;
+    if (!state.job || !(await ask('Delete "' + state.job.title + '" and all its files?', { yes: 'Delete', danger: true }))) return;
     closeCamera();
     await api('/jobs/' + state.job.job_id, { method: 'DELETE' });
     state.job = null; state.detail = null;state.calibration=null;state.sourceError=null;state.viewGeneration++;state.loadGeneration++;
     try { sessionStorage.removeItem(OPEN_KEY); } catch { /* storage off */ }
-    $('job-panel').hidden = true; $('empty-panel').hidden = false; $('header-title').textContent = '';
+    $('job-panel').hidden = true; $('empty-panel').hidden = false; $('header-title').textContent = ''; $('delete-job').disabled = true; $('open-export').disabled = true; renderSteps();
     if ($('scan-inspector')) $('scan-inspector').hidden = true; scanEditor?.refresh();
     await loadJobs();
   }
@@ -317,7 +329,43 @@
     $('save-dims').disabled=!state.calibration?.canEdit;$('reconstruct').disabled=!state.calibration?.canEdit||state.job.source_kind==='pointcloud';$('reconstruct').title=state.job.source_kind==='pointcloud'?'Reimport the original point cloud to rebuild this capture lane.':'';$('scale-step').hidden=state.job.source_kind==='pointcloud';
     if(state.sourceError)toast(state.sourceError,'error');
     loadSubmissions();
+    $('delete-job').disabled = !state.job;
+    if (state.calibration && typeof state.calibration.canReconstruct === 'boolean') state.mayReconstruct = state.calibration.canReconstruct;
+    if (state.modeJob !== job.job_id) { state.modeJob = job.job_id; setMode(MODES[job.source_kind] || 'photos'); }
+    renderSteps();
     if ($('scan-inspector')) $('scan-inspector').hidden = false; scanEditor?.refresh();
+  }
+
+  // ── Steps and capture modes ──────────────────────────────────────────────────
+  const MODES = { photos: 'photos', video: 'video', pointcloud: 'lidar' };
+  /** Where the open object is: 1 Capture until Front, Top and Right are placed, 2 Scale until it is measured, 3 Model until it is built, 4 Print. */
+  function currentStep() {
+    if (!state.job || !state.detail) return 'capture';
+    if (state.outputsFresh) return 'print';
+    if (state.job.source_kind === 'pointcloud') return 'model';
+    const images = state.detail.images || [];
+    if (!['front', 'top', 'right'].every((v) => images.some((i) => i.view === v))) return 'capture';
+    return measured() ? 'model' : 'scale';
+  }
+  /** Mark the current step in every stepper (the app row on desktop, the object's own line on a phone). */
+  function renderSteps() {
+    if (typeof document.querySelectorAll !== 'function') return;
+    const step = currentStep();
+    for (const item of document.querySelectorAll('[data-stp-steps] li')) { if (item.dataset.step === step) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current'); }
+  }
+  /** Mode first (C-SCN-2): show the capture controls of one source, Photos, Video or LiDAR file. */
+  function setMode(mode) {
+    if (typeof document.querySelectorAll !== 'function') return;
+    for (const button of document.querySelectorAll('#capture-modes [data-mode]')) button.setAttribute('aria-checked', String(button.dataset.mode === mode));
+    for (const part of document.querySelectorAll('.stp-mode[data-stp-mode]')) part.hidden = part.dataset.stpMode !== mode;
+    const take = $('take-photos'); if (take) take.hidden = mode !== 'photos';
+  }
+  /** The start card's other ways in: an object named for today, then that source's file picker. */
+  async function startWith(mode) {
+    if (!state.job) await createJob();
+    if (!state.job) return;
+    setMode(mode);
+    ({ photos: $('photos'), video: $('video'), lidar: $('pointcloud') })[mode].click();
   }
 
   function renderImages(images) {
@@ -361,9 +409,9 @@
     $('make-model').hidden = !complete || !may || stl || state.job.source_kind === 'pointcloud';
     $('measure-step').hidden = !complete || !may || state.job.source_kind === 'pointcloud';
     syncMeasure();
-    $('download-stl').hidden = !stl; if (stl) $('download-stl').href = BASE + '/jobs/' + state.job.job_id + '/artifacts/stl?download';
-    $('take-photos').className = complete ? 'ghost' : 'primary'; $('take-photos').textContent = complete ? 'Take more photos' : 'Take photos';
-    for (const id of ['video-pick', 'pointcloud-row', 'reconstruct']) if ($(id)) $(id).hidden = !may;
+    $('download-stl').hidden = !stl; if (stl) { $('download-stl').href = BASE + '/jobs/' + state.job.job_id + '/artifacts/stl?download'; $('download-stl').setAttribute('download', fileName(state.job.title, 'stl')); }
+    $('take-photos').className = complete ? 'ghost' : 'primary'; $('take-photos').textContent = complete ? 'Take more photos' : 'Take a photo';
+    for (const id of ['video-pick', 'pointcloud-row', 'reconstruct', 'mode-video', 'mode-lidar']) if ($(id)) $(id).hidden = !may;
   }
   const OPEN_KEY = 'scan-to-print:open-object';
   /** True when the scale has one positive measurement, typed now or saved with the object. */
@@ -431,7 +479,7 @@
     try { await api('/jobs/' + state.job.job_id + '/images/' + imageId, { method: 'PATCH', json: { view: view || null } }); await openJob(state.job.job_id); } catch (e) { toast(e.message, 'error'); }
   }
   async function removeImage(imageId) {
-    if (!window.confirm('Remove this photo from "' + state.job.title + '"?')) return;
+    if (!(await ask('Remove this photo from "' + state.job.title + '"?', { yes: 'Remove', danger: true }))) return;
     clearOutputs('Photos changed. Reconstruct to refresh the model and downloads.');
     try { await api('/jobs/' + state.job.job_id + '/images/' + imageId, { method: 'DELETE' }); await openJob(state.job.job_id); } catch (e) { toast(e.message, 'error'); }
   }
@@ -532,8 +580,9 @@
     $('report').replaceChildren(el('p', { class: 'muted', role: 'status', text: message }));
     $('drawing-wrap').hidden = true; $('viewer-wrap').hidden = true; $('print-step').hidden = true;
     $('drawing').removeAttribute('src'); $('viewer-info').textContent = '';
-    $('send').disabled = true;
+    $('send').disabled = true; $('open-export').disabled = true;
     if (state.viewer) state.viewer.clear();
+    renderSteps();
   }
 
   function renderReport(report, artifacts) {
@@ -558,15 +607,40 @@
     card.appendChild(el('ul', { class: 'limits' }, report.limitations.map((w) => el('li', { text: w }))));
     const links = el('p', { class: 'downloads' });
     ['stl', 'obj', 'svg', 'report', 'gcode'].forEach((k) => { if (artifacts[k]) links.appendChild(el('a', { href: BASE + '/jobs/' + state.job.job_id + '/artifacts/' + k + '?download', text: k.toUpperCase() })); });
+    if (artifacts.stl) ['glb', 'usdz'].forEach((k) => links.appendChild(el('a', { href: BASE + '/jobs/' + state.job.job_id + '/artifacts/' + k + '?download', text: k.toUpperCase() })));
     if (artifacts.contours) links.appendChild(el('button', { class: 'link', text: 'Open in CAD Studio →', title: 'The front / top / right outlines become a real CAD part (holes, fillets, STEP)', onclick: openInCadStudio }));
     card.appendChild(links);
     if (artifacts.svg) $('drawing').src = BASE + '/jobs/' + state.job.job_id + '/artifacts/svg?t=' + Date.parse(state.job.updated_at);
+    renderExport(artifacts); $('open-export').disabled = !state.outputsFresh; renderSteps();
     if (artifacts.stl) loadStl();
+  }
+
+  // ── Export: its own sheet listing the files, one Export at its bottom (N13, C-SCN-7) ──────────
+  /** The saved file's name: the object's title made safe, then its kind's extension (the native kernel sends no Content-Disposition). */
+  function fileName(title, key) { return (String(title || '').replace(/[^A-Za-z0-9_.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'scan') + '.' + ({ report: 'json', contours: 'json' }[key] || key); }
+  const EXPORTS = [['stl', 'STL', 'the printable mesh'], ['obj', 'OBJ', 'mesh for other 3D tools'], ['glb', 'GLB', 'binary glTF 2.0 scene for web and AR', 'stl'], ['usdz', 'USDZ', 'Apple AR Quick Look scene', 'stl'], ['svg', 'Drawing (SVG)', 'third-angle views, mm'], ['report', 'Report', 'extents, volume, checks'], ['gcode', 'G-code', 'sliced for printing']];
+  function renderExport(artifacts) {
+    const list = $('export-list'); if (!list) return;
+    const rows = EXPORTS.filter(([key, , , srcKey]) => artifacts && artifacts[srcKey || key]).map(([key, label, note], index) => el('label', { class: 'export-row' }, [
+      el('input', Object.assign({ type: 'radio', name: 'export-kind', value: key }, index === 0 ? { checked: '' } : {})), el('span', { text: label }), el('small', { text: note })]));
+    list.replaceChildren(...rows);
+    $('export-go').disabled = !rows.length;
+  }
+  function openExport() {
+    if (!state.job || !state.outputsFresh) return;
+    const sheet = $('export-sheet'); if (sheet && !sheet.open) sheet.showModal();
+  }
+  function exportChosen() {
+    const chosen = document.querySelector('input[name="export-kind"]:checked');
+    if (!state.job || !chosen) return;
+    const link = el('a', { href: BASE + '/jobs/' + state.job.job_id + '/artifacts/' + chosen.value + '?download', download: fileName(state.job.title, chosen.value) });
+    document.body.appendChild(link); link.click(); link.remove();
+    $('export-sheet').close();
   }
   async function loadStl() {
     const epoch = state.outputEpoch, jobId = state.job.job_id;
     try {
-      if (!state.viewer) state.viewer = window.ScanToPrintViewer.mount($('viewer'));
+      if (!state.viewer) state.viewer = (window.ScanToPrintGl || window.ScanToPrintViewer).mount($('viewer'));
       const res = await fetch(BASE + '/jobs/' + jobId + '/artifacts/stl', { credentials: 'same-origin' });
       if (!res.ok) throw new Error('STL fetch failed');
       const bytes = await res.arrayBuffer();
@@ -646,24 +720,29 @@
     } catch (e) { toast(e.message, 'error'); }
   }
   async function setAutoStart(p, on) {
-    if (on && !window.confirm('Turn on auto-start for ' + p.label + '?\n\nJobs that agents and apps send through the print service will START this printer without anyone pressing Print. Only turn this on if the plate is cleared after every print.')) return;
+    if (on && !(await ask('Turn on auto-start for ' + p.label + '?\n\nJobs that agents and apps send through the print service will START this printer without anyone pressing Print. Only turn this on if the plate is cleared after every print.', { yes: 'Turn auto-start on' }))) return;
     try {
       await api('/printers/' + p.printer_id, { method: 'PATCH', json: on ? { autoStart: true, confirm: true } : { autoStart: false } });
       await loadPrinters();
       toast(on ? 'Auto-start is on for ' + p.label + '.' : 'Auto-start is off for ' + p.label + '. Service jobs will wait on the printer.', 'ok');
     } catch (e) { toast(e.message, 'error'); }
   }
-  async function editSlice(p) {
+  /** A Bambu printer's build plate, filament and nozzle: fields in the Printers sheet, not prompts (DS-30). */
+  function editSlice(p) {
     const current = p.slice_profile || {};
     const model = (state.profiles && state.profiles.printers || []).find((m) => m.modelId === p.device_model);
-    const plates = (state.profiles && state.profiles.plates || []).join(', ');
-    const plate = window.prompt('Build plate for ' + p.label + (plates ? ' (' + plates + ')' : ''), current.plate || (model && model.defaultPlate) || 'Textured PEI Plate');
-    if (plate === null) return;
-    const filament = window.prompt('Filament profile (e.g. Bambu PLA Basic, Bambu PETG HF)', current.filament || 'Bambu PLA Basic');
-    if (filament === null) return;
-    const nozzle = window.prompt('Nozzle diameter (0.2, 0.4, 0.6 or 0.8)', current.nozzle || '0.4');
-    if (nozzle === null) return;
-    try { await api('/printers/' + p.printer_id, { method: 'PATCH', json: { sliceProfile: { plate, filament, nozzle } } }); await loadPrinters(); toast('Slice settings saved for ' + p.label + '.', 'ok'); } catch (e) { toast(e.message, 'error'); }
+    $('slice-printer').textContent = p.label;
+    $('slice-plates').replaceChildren(...((state.profiles && state.profiles.plates) || []).map((plate) => el('option', { value: plate })));
+    $('slice-plate').value = current.plate || (model && model.defaultPlate) || 'Textured PEI Plate';
+    $('slice-filament').value = current.filament || 'Bambu PLA Basic';
+    $('slice-nozzle').value = current.nozzle || '0.4';
+    state.slicing = p; $('slice-form').hidden = false; $('slice-plate').focus();
+  }
+  async function saveSlice() {
+    const p = state.slicing; if (!p) return;
+    const sliceProfile = { plate: $('slice-plate').value.trim(), filament: $('slice-filament').value.trim(), nozzle: $('slice-nozzle').value };
+    if (!sliceProfile.plate || !sliceProfile.filament) { toast('Enter the build plate and the filament profile.', 'error'); return; }
+    try { await api('/printers/' + p.printer_id, { method: 'PATCH', json: { sliceProfile } }); state.slicing = null; $('slice-form').hidden = true; await loadPrinters(); toast('Slice settings saved for ' + p.label + '.', 'ok'); } catch (e) { toast(e.message, 'error'); }
   }
   /** Replace a printer's stored access code in place: its pinned identity stays. */
   function editCode(p, anchor) {
@@ -695,7 +774,7 @@
     const startPrint = $('start-print').checked;
     const printer = state.printers.find((p) => p.printer_id === printerId);
     const what = isBambu(printer) ? 'sliced for ' + modelName(printer) : 'as ' + fileKind.toUpperCase();
-    const ok = window.confirm('Send "' + state.job.title + '" ' + what + ' to ' + printer.label + (startPrint ? ' AND START PRINTING' : '') + '?\n\nThis leaves the swarm and reaches your printer' + (isBambu(printer) ? ' over your home network.' : ' host.'));
+    const ok = await ask('Send "' + state.job.title + '" ' + what + ' to ' + printer.label + (startPrint ? ' AND START PRINTING' : '') + '?\n\nThis leaves the swarm and reaches your printer' + (isBambu(printer) ? ' over your home network.' : ' host.'), { yes: startPrint ? 'Send and print' : 'Send' });
     if (!ok) return;
     try {
       $('send').disabled = true;
@@ -784,7 +863,7 @@
   function selectCamView(view) {
     cam.view = view;
     $('cam-guide').textContent = view.toUpperCase() + ' — ' + cam.lib.guideFor(view);
-    $('cam-shutter').textContent = 'Capture ' + view.toUpperCase();
+    $('cam-shutter').setAttribute('aria-label', 'Capture ' + view); $('cam-shutter').title = 'Capture ' + view;
     renderCamViews();
   }
   function renderCamViews() {
@@ -824,7 +903,7 @@
     } catch (e) { toast(e.message, 'error'); } finally { $('cam-shutter').disabled = false; }
   }
   function setSequenceUi(running) {
-    $('cam-auto').textContent = running ? 'Stop' : 'Record six views';
+    $('cam-auto').textContent = running ? 'Stop' : 'Auto';
     $('cam-skip').hidden = !running; $('cam-shutter').hidden = running; $('cam-flip').disabled = running;
     if (!running) $('cam-count').hidden = true;
   }
@@ -850,14 +929,74 @@
     catch (e) { toast('Could not switch camera: ' + e.message, 'error'); }
   }
 
+  // ── Sheets, the Object menu and in-page questions (no native dialogs, DS-30) ─────────────────────
+  let asking = null;
+  /**
+   * @description Ask the person in the page, never with window.confirm: a modal sheet with the question, Cancel and the
+   * action named. Resolves true for the action, false for Cancel, Escape or a tap outside.
+   * @param {string} message - The question.
+   * @param {{yes?: string, danger?: boolean}} [options] - The action's words, and whether it destroys something.
+   * @returns {Promise<boolean>} The answer.
+   */
+  function ask(message, options) {
+    const opts = options || {}, sheet = $('ask-sheet');
+    if (asking) settleAsk(false);
+    $('ask-text').textContent = message; $('ask-yes').textContent = opts.yes || 'Continue';
+    $('ask-yes').className = opts.danger ? 'ghost danger-action' : 'ghost';
+    return new Promise((resolve) => { asking = resolve; sheet.showModal(); $('ask-no').focus(); });
+  }
+  function settleAsk(answer) {
+    const resolve = asking; asking = null;
+    const sheet = $('ask-sheet'); if (sheet.open) sheet.close();
+    if (resolve) resolve(answer);
+  }
+  /** A sheet closes with Done, a tap on its scrim or Escape. */
+  function wireSheet(sheet) {
+    sheet.addEventListener('click', (ev) => { if (ev.target === sheet || (ev.target && ev.target.closest && ev.target.closest('[data-stp-close]'))) sheet.close(); });
+  }
+  function openSheet(id) { const sheet = $(id); if (!sheet.open) sheet.showModal(); }
+  function closeMenu() { const menu = $('object-menu-items'); if (menu && typeof menu.hidePopover === 'function' && menu.matches(':popover-open')) menu.hidePopover(); }
+  /** The Object menu opens under its trigger, its right edge on the trigger's, kept on screen. */
+  function placeMenu(ev) {
+    const menu = $('object-menu-items'), trigger = $('object-menu'), open = ev.newState === 'open';
+    trigger.setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    const box = trigger.getBoundingClientRect(), width = menu.offsetWidth;
+    menu.style.top = Math.round(box.bottom + 4) + 'px';
+    menu.style.left = Math.round(Math.max(8, Math.min(box.right - width, window.innerWidth - width - 8))) + 'px';
+  }
+  /** The viewer's Print tool: the print step, in the inspector on desktop and the Properties sheet on a phone. */
+  function showPrint() {
+    if (window.matchMedia('(max-width:800px)').matches) scanEditor?.showPanel('properties');
+    const step = $('print-step'); if (!step || step.hidden) return;
+    // Scroll only the pane that holds the step, never the page that frames the editor (F3).
+    const port = step.closest('.ef-inspector, .ef-sheet-content, .ef-viewport'); if (!port) return;
+    port.scrollTop += step.getBoundingClientRect().top - port.getBoundingClientRect().top - 8;
+  }
+
   // ── Boot ───────────────────────────────────────────────────────────────────
   async function boot() {
+    const capsRead = api('/capabilities');
     await mountScanWorkspace().catch(e => toast('The shared editor could not open: ' + e.message, 'error'));
-    try { state.capabilities = await api('/capabilities'); } catch (e) { toast('Capabilities unavailable: ' + e.message, 'error'); }
+    try { state.capabilities = await capsRead; } catch (e) { toast('Capabilities unavailable: ' + e.message, 'error'); }
     if (state.capabilities && state.capabilities.video && !state.capabilities.video.configured) $('video-note').textContent = 'Frame extraction is not configured: ' + state.capabilities.video.error;
     $('upload-note').textContent = uploadNote(uploadLimits());
-    $('new-job').addEventListener('click', () => createJob(true).catch((e) => toast(e.message, 'error')));
-    $('delete-job').addEventListener('click', () => deleteJob().catch((e) => toast(e.message, 'error')));
+    $('new-job').addEventListener('click', () => { closeMenu(); createJob().catch((e) => toast(e.message, 'error')); });
+    $('object-menu-items').addEventListener('toggle', placeMenu);
+    $('open-printers').addEventListener('click', () => { closeMenu(); openSheet('printers'); });
+    $('print-printers').addEventListener('click', () => openSheet('printers'));
+    $('open-export').addEventListener('click', () => { closeMenu(); openExport(); });
+    $('tool-export').addEventListener('click', openExport);
+    $('tool-print').addEventListener('click', showPrint);
+    $('export-go').addEventListener('click', exportChosen);
+    $('capture-modes').addEventListener('click', (ev) => { const b = ev.target && ev.target.closest && ev.target.closest('[data-mode]'); if (b) setMode(b.dataset.mode); });
+    $('slice-save').addEventListener('click', () => void saveSlice());
+    $('slice-cancel').addEventListener('click', () => { state.slicing = null; $('slice-form').hidden = true; });
+    for (const id of ['printers', 'export-sheet']) wireSheet($(id));
+    $('ask-yes').addEventListener('click', () => settleAsk(true));
+    $('ask-no').addEventListener('click', () => settleAsk(false));
+    $('ask-sheet').addEventListener('cancel', (ev) => { ev.preventDefault(); settleAsk(false); });
+    $('delete-job').addEventListener('click', () => { closeMenu(); deleteJob().catch((e) => toast(e.message, 'error')); });
     $('photos').addEventListener('change', (ev) => { uploadPhotos(ev.target.files); ev.target.value = ''; });
     $('photo-capture').addEventListener('change', (ev) => { uploadPhotos(ev.target.files); ev.target.value = ''; });
     $('open-camera').addEventListener('click', () => openCamera().catch((e) => toast(e.message, 'error')));
@@ -905,6 +1044,15 @@
       let open = null; try { open = sessionStorage.getItem(OPEN_KEY); } catch { /* storage off: start from the list */ }
       if (open && !state.job && state.loadGeneration === untouched && (state.jobs || []).some((job) => job.job_id === open)) await openJob(open).catch((e) => toast(e.message, 'error'));
     }
+  }
+  if (typeof window !== 'undefined') {
+    window.ScanToPrintApp = {
+      BASE, api, toast, ask, fmt, fileName,
+      getJob: () => state.job,
+      isFresh: () => state.outputsFresh,
+      getViewer: () => state.viewer,
+      reloadJob: () => (state.job ? openJob(state.job.job_id) : Promise.resolve()),
+    };
   }
   // The full page only: under an audience view (?audience=company) the shared kit paints instead (see the page's head
   // script), so no capability or object read, no listener, no camera and no ?artifact intake (which creates an object) starts.

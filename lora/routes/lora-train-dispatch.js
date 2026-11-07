@@ -15,6 +15,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Sign the dataset import's download and callbacks with the per-dispatch callback grant the task receives in OSHAL_LORA_CALLBACK_GRANT (fresh nonce, timestamp, HMAC over method, path and body hash) instead of sending the fleet SWARM_SERVICE_SECRET; the callback body now travels as the exact signed bytes. Export the director id for the ingest module.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Download the staged image with an empty signed POST to /api/lora/ingest/dataset-download/:id. The worker's GET was refused by the kernel's application-authorization layer under ADR-149 enforce (authorization_identity_required), and the signed-package-callbacks rail that now admits worker requests accepts POST only.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Quote box-side paths as PowerShell expandable strings through one validating helper (psBoxPath). The dataset import wrapped its curated directory, image and caption paths in psLiteral (single quotes), so the default box root "$env:USERPROFILE/lora-characters" reached the worker unexpanded and the first live run failed New-Item with DriveNotFound ($env:String); the training and validation commands had always double-quoted the same root. The helper admits exactly a box path (an optional leading $env:NAME, then letters, digits, space and _ . : ( ) - / \), refuses every quote, backtick, further $, newline, control character and "..", and now also quotes the interpreter, script, --box-root and --dataset paths so a malformed root fails at dispatch instead of being pasted into a shell. The write fragment is exported so a real-PowerShell guard can run the shipped statements.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Export hasEdgeWorker(): whether pickEdgeClient would find an online GPU edge worker right now, for the studio's one read-only GET /worker. The studio withholds Train, Validate, Improve and Overnight where none is registered (UX audit 2026-11-06), from the same selection the dispatch uses, so the page never offers an action the dispatch would refuse as box_required.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MAX_DATASET_IMAGE_BYTES = exports.LORA_DIRECTOR_AGENT_ID = void 0;
@@ -35,6 +36,7 @@ exports.dispatchBoxCommand = dispatchBoxCommand;
 exports.buildCaptionWriteFragment = buildCaptionWriteFragment;
 exports.buildCaptionUpdateCommand = buildCaptionUpdateCommand;
 exports.guardTrainingDataset = guardTrainingDataset;
+exports.hasEdgeWorker = hasEdgeWorker;
 /**
  * LoRA Studio — ticket-gated box dispatch. Training and validation run on the GPU edge box; per the
  * ADR-070 privilege rule, the box is reached ONLY through the queue/worker path on an authorized
@@ -143,6 +145,13 @@ function pickEdgeClient() {
     }
     // Prefer a real REMOTE box (advertises a tailnetHostname) over the controller's own local node.
     return online.find((c) => host(c).length > 0) ?? online[0] ?? null;
+}
+/**
+ * @description Whether a GPU edge worker is online now, by the same selection every dispatch uses.
+ * @returns true when pickEdgeClient finds a worker; the studio withholds its training actions otherwise.
+ */
+function hasEdgeWorker() {
+    return pickEdgeClient() !== null;
 }
 /** A bare box-script python invocation (kohya venv interpreter, double-quoted for $env expansion). */
 function pyScript(script, args) {

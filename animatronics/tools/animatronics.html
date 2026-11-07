@@ -7,6 +7,12 @@
   served by this package's route (/api/animatronics/assets/…); the theme is inherited from the
   surrounding cockpit through the shared surface-theme bootstrap with local fallbacks. (.html is
   exempt from the CHANGE LOG header.)
+  UX audit 2026-11-06 (animatronics--animatronics, SPLIT): two views. Perform (the default) holds the rig view with
+  Replay, jog, poses, scenarios, look-at, talk and one Log (rehearsal, command log, build note); on a phone the rig view
+  stays at the top and the rest are bottom-bar sheets (Jog · Poses · Scenarios · Look · More). Rig setup holds templates
+  and rigs (New rig is its one primary), calibration, the controller and the supply budget. Pose actions are 44×44 with
+  delete in a ⋯ menu; Delete rig is in the rig's ⋯ menu with an in-page confirm; Save calibration says it disarms the
+  rig. Headings lose their inline sentences (Help holds them). E-STOP stays in the header. No request changed.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -194,100 +200,213 @@
     #rig-title { width: 100% !important; max-width: 100%; }
     .toast { left: 12px; right: 12px; max-width: none; }
   }
+  /* UX audit 2026-11-06: Perform and Rig setup, sheets on a phone, 44px pose actions, row menus, the in-page delete
+     confirm, Help, and the toast above the bottom bar. */
+  .view-bar { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--an-line); background: var(--an-panel); }
+  .view-tab { min-height: 44px; padding: 0 16px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--an-muted); font-weight: 600; cursor: pointer; }
+  .view-tab[aria-pressed="true"], .view-tab[aria-expanded="true"] { color: var(--an-text); border-bottom-color: var(--an-accent); }
+  .view-tab.phone, .sheet-head { display: none; }
+  body[data-view="perform"] [data-part="setup"], body[data-view="setup"] [data-part="perform"] { display: none !important; }
+  body[data-view="setup"] #more-setup, body[data-view="perform"] #more-perform { display: none; }
+  body[data-view="perform"] .layout { grid-template-columns: minmax(0, 1fr) 300px; }
+  body[data-view="setup"] .layout { grid-template-columns: 260px minmax(0, 1fr) 300px; }
+  .hint { margin: -4px 0 8px; }
+  .chip .pose-act { min-width: 44px; min-height: 44px; padding: 0 8px; border: 1px solid var(--an-line); border-radius: 8px; background: var(--an-panel); color: var(--an-text); cursor: pointer; }
+  button.row-menu { min-width: 44px; min-height: 44px; border: 1px solid var(--an-line); border-radius: 8px; background: var(--an-panel2); color: var(--an-text); cursor: pointer; }
+  .menu[popover] { margin: 0; padding: 4px; min-width: 200px; border: 1px solid var(--an-line); border-radius: 10px; background: var(--an-panel); color: var(--an-text); }
+  .menu[popover] button { display: block; width: 100%; min-height: 44px; text-align: left; padding: 0 12px; border: 0; background: none; color: var(--an-text); cursor: pointer; }
+  .menu[popover] button.danger { color: var(--an-danger); }
+  .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; margin: 6px 0; border: 1px solid var(--an-danger); border-radius: 8px; background: var(--an-panel2); }
+  .confirm[hidden] { display: none; }
+  button.danger-solid { background: var(--an-danger); color: #fff; border: 0; border-radius: 8px; min-height: 44px; padding: 0 16px; font-weight: 700; cursor: pointer; }
+  dialog#help { max-width: 560px; width: calc(100% - 32px); border: 1px solid var(--an-line); border-radius: 12px; background: var(--an-panel); color: var(--an-text); padding: 0 16px 16px; }
+  dialog#help::backdrop { background: rgba(0,0,0,.5); }
+  dialog#help .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 56px; }
+  dl.help dt { font-weight: 600; margin-top: 8px; } dl.help dd { margin: 2px 0 0; color: var(--an-muted); }
+  @media (max-width: 760px) {
+    .view-tab.desk { display: none; }
+    .view-tab.phone { display: inline-flex; flex: 1; justify-content: center; align-items: center; min-height: 56px; padding: 0 2px; font-size: 12px; border-bottom: 0; border-top: 2px solid transparent; }
+    .view-tab[aria-expanded="true"] { border-top-color: var(--an-accent); }
+    .view-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 72px env(safe-area-inset-bottom, 0px) 4px; border-top: 1px solid var(--an-line); border-bottom: 0; }
+    body[data-view] .layout { grid-template-columns: minmax(0, 1fr); padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+    .rig-view { position: sticky; top: 52px; z-index: 4; background: var(--an-panel); }
+    .sheet:not(.open) { display: none !important; }
+    .sheet.open { position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 25; max-height: 48vh; overflow: auto; margin: 0; padding: 0 14px 14px;
+      border-radius: 16px 16px 0 0; border: 1px solid var(--an-line); background: var(--an-panel); box-shadow: 0 -10px 30px rgba(0,0,0,.35); }
+    .sheet.open + .sheet.open, .sheet.open ~ .sheet.open { position: static; box-shadow: none; border: 0; max-height: none; }
+    .sheet.open .sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 56px; position: sticky; top: 0; background: var(--an-panel); }
+    .sheet.open > h2 { display: none; }
+    .toast { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: 84px; }
+  }
+  /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
+     sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
+  .view-bar, .menu[popover], dialog#help, .toast { background: linear-gradient(var(--an-panel), var(--an-panel)), var(--an-bg); }
+  @media (max-width: 760px) { .sheet.open, .sheet.open .sheet-head, .rig-view { background: linear-gradient(var(--an-panel), var(--an-panel)), var(--an-bg); } }
 </style>
 </head>
-<body>
+<body data-view="perform">
 <header>
   <h1>Animatronics</h1>
   <span id="armed-pill" class="badge">disarmed</span>
   <span id="link-pill" class="badge">controller: not connected</span>
   <span class="spacer"></span>
   <button id="release" class="ghost" title="Release the controller's e-stop latch (the rig still has to be armed again)" disabled>Release</button>
+  <button id="help-open" class="ghost" type="button" aria-haspopup="dialog">Help</button>
   <button id="estop" class="estop" title="Outputs off on the controller, rig disarmed on the server" disabled>E-STOP</button>
 </header>
+<!-- Two views, one job each (UX audit 2026-11-06, SPLIT). Perform: the rig view with jog, poses, scenarios, look-at,
+     talk and the log; Rig setup: templates and rigs, calibration, the controller and the supply budget. Desktop: a tab
+     row. Phone: a bottom bar (Jog · Poses · Scenarios · Look · More), each a sheet over the fixed rig view. -->
+<nav class="view-bar" aria-label="Animatronics views">
+  <button type="button" class="view-tab desk" id="tab-perform" data-view="perform" aria-pressed="true">Perform</button>
+  <button type="button" class="view-tab desk" id="tab-setup" data-view="setup" aria-pressed="false">Rig setup</button>
+  <button type="button" class="view-tab phone" data-sheet="jog" aria-expanded="false">Jog</button>
+  <button type="button" class="view-tab phone" data-sheet="poses" aria-expanded="false">Poses</button>
+  <button type="button" class="view-tab phone" data-sheet="scenarios" aria-expanded="false">Scenarios</button>
+  <button type="button" class="view-tab phone" data-sheet="look" aria-expanded="false">Look</button>
+  <button type="button" class="view-tab phone" id="tab-more" aria-haspopup="menu" popovertarget="more-menu">More</button>
+</nav>
+<div id="more-menu" class="menu" popover role="menu" aria-label="More">
+  <button type="button" role="menuitem" data-sheet="talk">Talk</button>
+  <button type="button" role="menuitem" data-sheet="log">Log</button>
+  <button type="button" role="menuitem" id="more-setup" data-view="setup">Rig setup</button>
+  <button type="button" role="menuitem" id="more-perform" data-view="perform">Perform</button>
+</div>
 <div class="layout">
-  <aside>
+  <aside data-part="setup">
     <div class="row"><select id="template-select"></select><button id="new-rig" class="primary">New rig</button></div>
     <div id="rigs"></div>
     <p class="muted small">A rig is servos with calibration and software limits, grouped into mechanisms. Start from a template; change the calibration once the mechanism is on the bench.</p>
   </aside>
   <main>
-    <div id="empty" class="muted">Create a rig from a template, or pick one on the left.</div>
+    <div id="empty" class="muted">Create a rig from a template, or pick one in <button type="button" class="link" data-view="setup">Rig setup</button>.</div>
     <div id="editor" hidden>
-      <section class="step">
-        <h2>Rig view <small id="view-hint">the drawing follows the rehearsal — what the servos were asked to do</small></h2>
+      <section class="step rig-view" data-part="perform">
+        <h2>Rig view</h2><p class="hint small muted" id="view-hint">the drawing follows the rehearsal — what the servos were asked to do</p>
         <svg id="view" viewBox="0 0 480 360" role="img" aria-label="Rig view"></svg>
         <div class="timeline"><input id="timeline" type="range" min="0" max="0" value="0" /><span id="time-label" class="small muted">—</span><button id="replay" class="ghost" disabled>Replay</button><span id="stream-state" class="badge">idle</span></div>
       </section>
-      <section class="step">
-        <h2>Rig <small>calibration and limits — saving a rig change disarms it</small></h2>
-        <div class="row"><input id="rig-title" type="text" style="width:260px" /><button id="save-title" class="ghost">Rename</button><span class="spacer"></span><button id="delete-rig" class="link danger">Delete rig</button></div>
+      <section class="step" data-part="setup">
+        <h2>Rig</h2>
+        <div class="row"><input id="rig-title" type="text" style="width:260px" aria-label="Rig name" /><button id="save-title" class="ghost">Rename</button><span class="spacer"></span><button type="button" class="row-menu" id="rig-menu-open" aria-label="Rig actions" aria-haspopup="menu" popovertarget="rig-menu">⋯</button></div>
+        <div id="rig-menu" class="menu" popover role="menu" aria-label="Rig actions"><button id="delete-rig" type="button" role="menuitem" class="danger">Delete rig…</button></div>
+        <div id="delete-confirm" class="confirm" role="alertdialog" aria-labelledby="delete-confirm-text" hidden><span id="delete-confirm-text"></span><button type="button" id="delete-yes" class="danger-solid">Delete</button><button type="button" id="delete-no" class="ghost">Cancel</button></div>
         <div class="row small">
           <span class="muted">Supply</span><select id="supply-source"><option value="bench">bench</option><option value="wall">wall</option><option value="battery">battery</option><option value="usb">usb</option></select>
           <input id="supply-volts" type="number" step="0.1" /> V <input id="supply-amps" type="number" step="0.1" /> A
           <span class="muted">Controller</span><select id="controller-board"></select><select id="controller-transport"><option value="web-serial">web-serial</option><option value="wifi-tcp">wifi-tcp</option></select><input id="controller-baud" type="number" step="1" /> baud
         </div>
         <div style="overflow:auto"><table id="channels"><thead><tr><th>channel</th><th>out</th><th>servo</th><th>centre µs</th><th>µs/°</th><th>rev</th><th>min °</th><th>max °</th><th>neutral °</th><th>min µs</th><th>max µs</th><th>°/s</th></tr></thead><tbody></tbody></table></div>
-        <div class="row"><button id="save-rig" class="primary">Save calibration</button><span id="axes-label" class="muted small"></span></div>
+        <div class="row"><button id="save-rig" class="ghost">Save calibration · disarms the rig</button><span id="axes-label" class="muted small"></span></div>
       </section>
-      <section class="step">
-        <h2>Jog <small id="jog-hint">sliders move the drawing; arm with the controller connected to move the prop</small></h2>
+      <section class="step sheet" data-part="perform" data-sheet-id="jog" aria-label="Jog">
+        <div class="sheet-head"><strong>Jog</strong><button type="button" class="link" data-close-sheet>Done</button></div>
+        <h2>Jog</h2><p class="hint small muted" id="jog-hint">sliders move the drawing; arm with the controller connected to move the prop</p>
         <div id="jog"></div>
         <div class="row"><button id="capture-pose" class="ghost">Capture as pose…</button><button id="jog-neutral" class="ghost">Neutral</button></div>
       </section>
-      <section class="step">
-        <h2>Poses <small>view = rehearse the move here · ▶ = play on the prop</small></h2>
+      <section class="step sheet" data-part="perform" data-sheet-id="poses" aria-label="Poses">
+        <div class="sheet-head"><strong>Poses</strong><button type="button" class="link" data-close-sheet>Done</button></div>
+        <h2>Poses</h2>
         <div id="poses" class="chips"></div>
       </section>
-      <section class="step">
-        <h2>Scenarios <small>a timed script of scenes — the Glicksman shape</small></h2>
+      <section class="step sheet" data-part="perform" data-sheet-id="scenarios" aria-label="Scenarios">
+        <div class="sheet-head"><strong>Scenarios</strong><button type="button" class="link" data-close-sheet>Done</button></div>
+        <h2>Scenarios</h2>
         <div class="row"><select id="scenario-select"></select><button id="new-scenario" class="ghost">New…</button><button id="delete-scenario" class="link danger">Delete</button><span class="spacer"></span><button id="rehearse" class="ghost">Rehearse</button><button id="play" class="primary" disabled>▶ Play</button></div>
         <textarea id="scenario-json" spellcheck="false"></textarea>
         <div class="row"><button id="save-scenario" class="ghost">Save scenario</button><span class="muted small">steps: move {pose | axes, ms, ease} · hold {ms} · together {steps} · run {scenario} · repeat {times, steps}</span></div>
       </section>
-      <section class="step">
-        <h2>Look at <small>click a bearing: eyes lead, neck follows; the residual is what neither can reach</small></h2>
+      <section class="step sheet" data-part="perform" data-sheet-id="look" aria-label="Look at">
+        <div class="sheet-head"><strong>Look at</strong><button type="button" class="link" data-close-sheet>Done</button></div>
+        <h2>Look at</h2>
         <div class="row"><div id="lookpad"><div class="mark" style="left:50%;top:50%"></div></div><div id="look-readout" class="small muted">azimuth ±60°, elevation ±30° across the pad</div></div>
       </section>
-      <section class="step">
-        <h2>Rehearsal <small>rate-limited servos and the supply budget, before any pulse</small></h2>
+      <section class="step sheet" data-part="perform" data-sheet-id="log" aria-label="Log">
+        <div class="sheet-head"><strong>Log</strong><button type="button" class="link" data-close-sheet>Done</button></div>
+        <h2>Rehearsal</h2>
         <div id="verdict" class="verdict muted">No rehearsal yet.</div>
         <div style="overflow:auto"><table id="report-channels"><thead><tr><th>channel</th><th>asked °/s</th><th>rated °/s</th><th>lag °</th><th>saturated frames</th><th>settled</th><th>travel °</th></tr></thead><tbody></tbody></table></div>
         <div id="power" class="small" style="margin-top:8px"></div>
       </section>
-      <section class="step">
+      <section class="step sheet" data-part="perform" data-sheet-id="log" aria-label="Command log">
         <h2>Command log</h2>
         <ul id="runs"></ul>
       </section>
       <!-- The declared hand-off (integrations.offers prepare-document "Prepare a build note" -> AI Office prepare-brief).
            Inside the rig editor, so it is only on screen when a rig is open; the note is the rig's name, the last
            rehearsal verdict and the supply budget as this page shows them, labelled as a rehearsal, not a bench test. -->
-      <section class="step" id="build-note">
-        <h2>Build note <small>this rig and its last rehearsal, as a brief in AI Office</small></h2>
+      <section class="step sheet" id="build-note" data-part="perform" data-sheet-id="log" aria-label="Build note">
+        <h2>Build note</h2>
         <div id="buildActions" class="row"></div>
       </section>
     </div>
   </main>
   <aside class="right">
-    <section class="step">
+    <section class="step" data-part="setup">
       <h2>Controller</h2>
-      <div class="row"><button id="connect" class="primary">Connect (Web Serial)</button><button id="disconnect" class="ghost" disabled>Disconnect</button></div>
+      <div class="row"><button id="connect" class="ghost">Connect (Web Serial)</button><button id="disconnect" class="ghost" disabled>Disconnect</button></div>
       <p id="serial-support" class="muted small"></p>
       <div id="link-info" class="kv"></div>
-      <div class="row" style="margin-top:10px"><button id="arm" class="primary" disabled>Arm rig…</button><button id="disarm" class="ghost" disabled>Disarm</button></div>
-      <p class="muted small">Arming sends hello, every channel's clamps and the neutral frame. Play, look-at and jog stream frames the server compiled. E-STOP turns outputs off on the controller first, then disarms on the server.</p>
+      <div class="row" style="margin-top:10px"><button id="arm" class="ghost" disabled>Arm rig…</button><button id="disarm" class="ghost" disabled>Disarm</button></div>
     </section>
-    <section class="step">
+    <section class="step" data-part="setup">
       <h2>Supply budget</h2>
       <div id="budget" class="kv muted">—</div>
     </section>
-    <section class="step">
+    <section class="step sheet" data-part="perform" data-sheet-id="talk" aria-label="Talk">
+      <div class="sheet-head"><strong>Talk</strong><button type="button" class="link" data-close-sheet>Done</button></div>
       <h2>Talk</h2>
-      <p class="muted small">"Make it glance left and blink", "why does the jaw lag", "add a SURPRISED scenario". The director in the chat rail edits the same libraries through route-backed tools and rehearses every change; it cannot arm or play.</p>
+      <p class="muted small">Ask the director in the assistant panel, for example "make it glance left and blink"; it edits and rehearses, and it cannot arm or play.</p>
     </section>
   </aside>
 </div>
+<dialog id="help" aria-labelledby="help-title">
+  <div class="sheet-head"><strong id="help-title">How Animatronics works</strong><button type="button" class="link" id="help-close">Done</button></div>
+  <dl class="help">
+    <dt>Rig view</dt><dd>The drawing follows the rehearsal: what the servos were asked to do.</dd>
+    <dt>Rig</dt><dd>Calibration and limits. Saving a calibration change disarms the rig; a rename does not.</dd>
+    <dt>Jog</dt><dd>Sliders move the drawing; arm with the controller connected to move the prop.</dd>
+    <dt>Poses</dt><dd>View rehearses the move here; ▶ plays it on the prop (armed only).</dd>
+    <dt>Scenarios</dt><dd>A timed script of scenes. Steps: move {pose | axes, ms, ease} · hold {ms} · together {steps} · run {scenario} · repeat {times, steps}.</dd>
+    <dt>Look at</dt><dd>Click a bearing: the eyes lead and the neck follows; the residual is what neither can reach.</dd>
+    <dt>Rehearsal</dt><dd>Rate-limited servos and the supply budget, before any pulse.</dd>
+    <dt>Build note</dt><dd>This rig and its last rehearsal, as a brief in AI Office.</dd>
+    <dt>Controller</dt><dd>Arming sends hello, every channel's clamps and the neutral frame. Play, look-at and jog stream frames the server compiled. E-STOP turns outputs off on the controller first, then disarms on the server.</dd>
+  </dl>
+</dialog>
 <div id="toast" class="toast" hidden></div>
+<script>
+// Views and sheets (UX audit 2026-11-06). Only where things are shown changes; animatronics.js keeps every request.
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function closeSheets() {
+    document.querySelectorAll('.sheet.open').forEach(function (n) { n.classList.remove('open'); });
+    document.querySelectorAll('[data-sheet][aria-expanded]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+  }
+  function setView(v) {
+    var view = v === 'setup' ? 'setup' : 'perform';
+    document.body.setAttribute('data-view', view); closeSheets();
+    ['perform', 'setup'].forEach(function (id) { $('tab-' + id).setAttribute('aria-pressed', String(id === view)); });
+    history.replaceState(null, '', location.pathname + location.search + (view === 'setup' ? '#view=setup' : ''));
+  }
+  /** Open one sheet group (the Log sheet is the rehearsal, the command log and the build note together). */
+  function openSheet(id) {
+    var wasOpen = document.querySelector('[data-sheet-id="' + id + '"].open');
+    setView('perform');
+    if (wasOpen) return;
+    document.querySelectorAll('[data-sheet-id="' + id + '"]').forEach(function (n) { n.classList.add('open'); });
+    document.querySelectorAll('.view-bar [data-sheet="' + id + '"]').forEach(function (b) { b.setAttribute('aria-expanded', 'true'); });
+  }
+  document.querySelectorAll('[data-view]').forEach(function (b) { if (b !== document.body) b.addEventListener('click', function () { var m = $('more-menu'); if (m.hidePopover) try { m.hidePopover(); } catch (_) {} setView(b.getAttribute('data-view')); }); });
+  document.querySelectorAll('[data-sheet]').forEach(function (b) { b.addEventListener('click', function () { var m = $('more-menu'); if (m.hidePopover) try { m.hidePopover(); } catch (_) {} openSheet(b.getAttribute('data-sheet')); }); });
+  document.querySelectorAll('[data-close-sheet]').forEach(function (b) { b.addEventListener('click', closeSheets); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheets(); });
+  $('help-open').addEventListener('click', function () { var d = $('help'); if (d.showModal) d.showModal(); else d.setAttribute('open', ''); });
+  $('help-close').addEventListener('click', function () { $('help').close(); });
+  setView(/(^|[#&])view=setup\b/.test(location.hash) ? 'setup' : 'perform');
+})();
+</script>
 <script src="/api/animatronics/assets/protocol.js"></script>
 <script src="/api/animatronics/assets/animatronics-serial.js"></script>
 <script src="/api/animatronics/assets/animatronics-view.js"></script>

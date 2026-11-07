@@ -11,6 +11,8 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Rewards page: level and XP, the equipped monster with its accessory, mystery-box opening (pick one of three), tricks and parade animations, monster and accessory collection with equip
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass link and literal pink/dark palette; hero with level ring and XP, feature card for boxes, tab strip and card grid for the collection, rarity as semantic pills, a retryable load-failure state, "—" until the rewards route answers, confetti and banners drawn from tokens, LM.toast for equip results
+  3   | maintainer@emeraldcoastsystemsgroup.com   | LM-FRAME (UX audit 2026-11-06): the hero keeps its mascot on a phone (.lm-hero.is-mascot); every other page shrinks it to a 32px mark.
+  4   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (lm-monsters): the '45 XP' pill becomes a progress bar '45 / 100 XP · 55 to the next box'; with no box the Mystery Boxes card's one primary is 'Earn XP' (opens Games) and 'Open a box' appears only when a box waits, so no faded primary; the level-up sentence is said once (in the box card); locked slots show a neutral '?' egg instead of a greyed Pinky (there is no per-species art: every monster is the one mascot in a different colour); the XP and rarity badges use ink on a tinted surface (dark brown on olive was illegible in Ocean and Graphite); the parade stays clear of the floating assistant's corner and the phone bottom bar.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -49,7 +51,8 @@
   @keyframes pop { 0% { transform: scale(.6); } 60% { transform: scale(1.3); } 100% { transform: scale(1); } }
   .reveal { margin-top: 10px; font-size: 15px; font-weight: 700; min-height: 22px; }
   /* Parade strip and the new-trick banner */
-  .parade { position: fixed; left: 0; right: 0; bottom: 0; height: 90px; pointer-events: none; z-index: 40; overflow: hidden; }
+  /* Clear of the floating assistant's corner (the right 64px) and above the phone bottom bar. */
+  .parade { position: fixed; left: 0; right: 64px; bottom: var(--lm-bottom-bar, 0px); height: 90px; pointer-events: none; z-index: 40; overflow: hidden; }
   .parade .p { position: absolute; bottom: 6px; width: 62px; height: 62px; object-fit: contain; animation: march linear forwards; }
   @keyframes march { from { left: -70px; } to { left: 105%; } }
   .newtrick { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 60; display: none; padding: 10px 18px; border-radius: var(--lm-radius-pill);
@@ -58,7 +61,19 @@
   /* Collection tabs and tiles (tabs lifted to the 44px touch target) */
   .lm-tabs .lm-tab { min-height: var(--lm-touch); }
   .lm-card.it { display: grid; justify-items: center; gap: 6px; padding: 12px 8px; text-align: center; }
-  .lm-card.it:disabled { opacity: .45; cursor: default; }
+  .lm-card.it:disabled { opacity: 1; cursor: default; background: var(--ds-surface-2, var(--lm-bg-2)); }
+  .lm-card.it:disabled .nm { color: var(--ds-ink-disabled, var(--lm-muted)); }
+  /* A locked slot: a neutral egg with a question mark, never another monster's picture. */
+  .egg { width: 44px; height: 56px; border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%; display: grid; place-items: center; font-size: 22px; font-weight: 800;
+    background: color-mix(in srgb, var(--lm-ink) 8%, var(--lm-card)); border: 2px dashed var(--lm-line-strong); color: var(--lm-muted); }
+  /* Badges: ink on a tinted surface, legible in every theme. */
+  .rar { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--lm-radius-pill); font-size: 12px; font-weight: 700; color: var(--lm-ink);
+    background: color-mix(in srgb, var(--rar, var(--lm-muted)) 16%, var(--lm-card)); border: 1px solid color-mix(in srgb, var(--rar, var(--lm-muted)) 45%, transparent); text-transform: capitalize; }
+  .rar::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--rar, var(--lm-muted)); }
+  .rar.r-common { --rar: var(--lm-muted); } .rar.r-uncommon { --rar: var(--lm-success); } .rar.r-rare { --rar: var(--lm-info); } .rar.r-legendary { --rar: var(--lm-gold); }
+  .xp-progress { display: grid; gap: 6px; flex: 1 1 220px; min-width: 0; }
+  .xp-progress .lm-progress { width: 100%; }
+  .xp-text { font-weight: 700; font-size: 14px; color: var(--lm-ink); font-variant-numeric: tabular-nums; }
   .lm-card.it:disabled:hover { transform: none; box-shadow: var(--lm-shadow-soft); border-color: var(--lm-line); }
   .it .pic { width: 62px; height: 62px; display: grid; place-items: center; }
   .it .pic img { width: 100%; height: 100%; object-fit: contain; }
@@ -73,14 +88,14 @@
 </head>
 <body>
 <main class="lm-page">
-  <header class="lm-hero">
+  <header class="lm-hero is-mascot">
     <div>
       <div class="lm-eyebrow">Rewards</div>
       <h1 class="lm-display">My Monsters</h1>
-      <p class="lm-lead">Your monster grows with you. Study, play and ace quizzes to level up — every new level drops a mystery box.</p>
+      <p class="lm-lead">Your monster grows with you.</p>
       <div class="lm-hero-actions">
         <span class="lm-level" id="levelChip"><span class="lm-level-ring" id="levelRing" style="--pct:0"><span id="lvlNum">—</span></span><span id="lvl">Level —</span></span>
-        <span class="lm-pill is-gold" id="xp">— XP</span>
+        <div class="xp-progress"><div class="lm-progress" role="progressbar" aria-labelledby="xp" aria-valuemin="0" aria-valuemax="100" id="xpBar"><span id="xpFill" style="width:0%"></span></div><span class="xp-text" id="xp">— XP</span></div>
       </div>
     </div>
     <div class="stage">
@@ -97,7 +112,7 @@
         <div class="lm-card-kicker">Mystery boxes</div>
         <div class="box-line" id="boxMsg"><span class="box-count" id="boxCount">—</span><span class="box-label" id="boxLabel">boxes to open</span></div>
         <p class="lm-help" id="boxHint">Play games, ace quizzes and study to level up — every level drops a box!</p>
-        <div class="lm-row is-wrap lm-mt-md"><button type="button" class="lm-btn lm-btn-primary lm-btn-lg" id="openBtn" onclick="startOpen()" disabled>🎁 Open a box</button></div>
+        <div class="lm-row is-wrap lm-mt-md"><button type="button" class="lm-btn lm-btn-primary lm-btn-lg hide" id="openBtn" onclick="startOpen()">🎁 Open a box</button><button type="button" class="lm-btn lm-btn-primary lm-btn-lg hide" id="earnBtn" onclick="window.LM.navigate('arcade')">🎮 Earn XP</button></div>
         <div class="picker" id="picker">
           <button type="button" class="gift" data-b="0" onclick="pick(0)" aria-label="Box one">🎁</button>
           <button type="button" class="gift" data-b="1" onclick="pick(1)" aria-label="Box two">🎁</button>
@@ -175,7 +190,7 @@ function skinStyle(item) {
   return s + ';';
 }
 function findItem(id) { return state && state.catalog ? state.catalog.find(function (i) { return i.id === id; }) : null; }
-function rarityPill(r) { var k = String(r || '').toLowerCase(); return '<span class="lm-pill ' + (RARITY[k] || 'is-neutral') + '">' + esc(k || '—') + '</span>'; }
+function rarityPill(r) { var k = String(r || '').toLowerCase(); return '<span class="rar ' + (RARITY[k] ? 'r-' + k : '') + '">' + esc(k || '—') + '</span>'; }
 /** Level threshold follows the package rule the frame's level chip also uses (100 × 1.5^(level−1)). */
 function levelNeeded(level) { return Math.floor(100 * Math.pow(1.5, Math.max(1, level) - 1)); }
 
@@ -183,23 +198,28 @@ function renderLevel() {
   var hasLevel = typeof state.level === 'number', hasXp = typeof state.xp === 'number';
   document.getElementById('lvl').textContent = hasLevel ? 'Level ' + state.level : 'Level —';
   document.getElementById('lvlNum').textContent = hasLevel ? state.level : '—';
-  document.getElementById('xp').textContent = hasXp ? state.xp + ' XP' : '— XP';
   var needed = hasLevel ? levelNeeded(state.level) : 0, inLevel = (hasXp && needed > 0) ? state.xp % needed : 0;
-  document.getElementById('levelRing').style.setProperty('--pct', needed > 0 ? Math.min(100, Math.round((inLevel / needed) * 100)) : 0);
+  var pct = needed > 0 ? Math.min(100, Math.round((inLevel / needed) * 100)) : 0;
+  document.getElementById('xp').textContent = hasLevel && hasXp && needed > 0 ? inLevel + ' / ' + needed + ' XP · ' + (needed - inLevel) + ' to the next box' : '— XP';
+  document.getElementById('xpFill').style.width = pct + '%';
+  document.getElementById('xpBar').setAttribute('aria-valuenow', String(pct));
+  document.getElementById('levelRing').style.setProperty('--pct', pct);
   document.getElementById('levelChip').title = (hasLevel && hasXp && needed > 0) ? inLevel + ' / ' + needed + ' XP toward level ' + (state.level + 1) : '';
 }
 function renderBoxes() {
   var boxes = typeof state.boxes === 'number' ? state.boxes : null;
   document.getElementById('boxCount').textContent = boxes == null ? '—' : boxes;
   document.getElementById('boxLabel').textContent = boxes === 1 ? 'box to open' : 'boxes to open';
-  document.getElementById('openBtn').disabled = !(boxes > 0);
+  document.getElementById('openBtn').classList.toggle('hide', !(boxes > 0));
+  document.getElementById('openBtn').disabled = false;
+  document.getElementById('earnBtn').classList.toggle('hide', boxes == null || boxes > 0);
   document.getElementById('boxHint').style.display = boxes > 0 ? 'none' : '';
 }
 
 async function loadState() {
   var errorBox = document.getElementById('loadError');
   try { var r = await fetch('/api/education/rewards'); state = r.ok ? await r.json() : null; } catch (e) { state = null; }
-  if (!state) { errorBox.classList.remove('hide'); document.getElementById('openBtn').disabled = true; document.getElementById('collHint').textContent = ''; return; }
+  if (!state) { errorBox.classList.remove('hide'); document.getElementById('openBtn').classList.add('hide'); document.getElementById('earnBtn').classList.add('hide'); document.getElementById('collHint').textContent = ''; return; }
   errorBox.classList.add('hide');
   renderLevel(); renderBoxes(); renderAvatar(); renderGrid();
   startTrickIdle();
@@ -230,9 +250,9 @@ function renderGrid() {
     if (!have) d.disabled = true;
     d.setAttribute('aria-pressed', equipped ? 'true' : 'false');
     d.title = have ? (equipped ? (it.type === 'accessory' ? 'Tap to take it off' : 'Wearing now') : 'Tap to wear it') : 'Locked — open boxes to find it';
-    var pic = it.type === 'monster'
-      ? '<img src="' + MASCOT + '" alt="" style="' + (have ? skinStyle(it) : 'filter:grayscale(1) opacity(.6)') + '">'
-      : '<span class="em">' + (have ? esc(it.emoji) : '❔') + '</span>';
+    var pic = !have ? '<span class="egg" aria-hidden="true">?</span>'
+      : it.type === 'monster' ? '<img src="' + MASCOT + '" alt="" style="' + skinStyle(it) + '">'
+      : '<span class="em">' + esc(it.emoji) + '</span>';
     d.innerHTML = '<div class="pic">' + pic + '</div><div class="nm">' + (have ? esc(it.name) : 'Locked') + '</div>' + rarityPill(it.rarity);
     if (have) { d.onclick = function () { equip(it, equipped); }; }
     grid.appendChild(d);

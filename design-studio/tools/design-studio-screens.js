@@ -17,6 +17,12 @@
  *                     |                             | button only when the view offers one (Send to printer, with a
  *                     |                             | finished set and a chosen printer) and lists the set's files as
  *                     |                             | links; the record-the-manifest dialog is gone, the set is made.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06: one primary on a product page, the next open phase's
+ *                     |                             | action (onePrimary); a reasoned phase is closed with Mark done by hand,
+ *                     |                             | shown as secondary. Guard: tests/ux-words.test.js.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.9 (UX audit 2026-11-06): sort products newest-first by updated_at and
+ *                     |                             | render the one-line #phase-stepper bar above product posters so phases 7+
+ *                     |                             | and closed progress are visible without scrolling.
  */
 window.DesignStudioScreens = (function screens() {
   'use strict';
@@ -29,7 +35,8 @@ window.DesignStudioScreens = (function screens() {
   function renderProducts(host, projects) {
     host.textContent = '';
     if (!projects.length) { host.append(el('p', { class: 'empty wide', id: 'products-empty' }, 'No products yet. Press New product: the walkthrough writes the brief and proposes the phase chain; the design partner on the rail works through it with you.')); return; }
-    projects.forEach((p, i) => {
+    const ordered = projects.slice().sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    ordered.forEach((p, i) => {
       const a = el('a', { class: 'poster', href: `#/product/${encodeURIComponent(p.id)}`, dataset: { product: p.id } });
       a.append(el('p', { class: 'step' }, `${i + 1} · product`), el('h2', null, p.name));
       const fig = el('p', { class: 'figure' }); fig.append(el('span', null, `${p.closedPhases}/${p.phases.length}`), el('small', null, 'phases closed'));
@@ -70,7 +77,7 @@ window.DesignStudioScreens = (function screens() {
     const act = view.action || { label: 'Close the phase', close: true };
     const closeable = view.met && !(closure && !closure.stale) && entry.kind !== 'build';
     if (entry.kind === 'brief' && closure && !closure.stale) return Object.assign(el('button', { type: 'button', class: 'btn btn-primary', id: `act-${entry.kind}` }, 'Edit the brief'), { onclick: () => onAction(entry, view, { edit: true }) });
-    if (closeable && !act.brief) return Object.assign(el('button', { type: 'button', class: 'btn btn-primary', id: `act-${entry.kind}` }, 'Close the phase'), { onclick: () => onAction(entry, view, { close: true }) });
+    if (closeable && !act.brief) return Object.assign(el('button', { type: 'button', class: 'btn btn-primary', id: `act-${entry.kind}` }, act.byHand ? act.label : 'Close the phase'), { onclick: () => onAction(entry, view, act.byHand ? act : { close: true }) });
     if (act.href && !act.top) return el('a', { class: 'btn btn-primary', id: `act-${entry.kind}`, href: act.href, target: '_blank', rel: 'noopener' }, act.label);
     const b = el('button', { type: 'button', class: 'btn btn-primary', id: `act-${entry.kind}`, disabled: act.disabled || undefined }, act.label);
     b.onclick = () => onAction(entry, view, act);
@@ -89,8 +96,22 @@ window.DesignStudioScreens = (function screens() {
     if (!closure) return el('p', { class: 'closed' }, 'open');
     return el('p', { class: `closed${closure.stale ? ' stale' : ''}` }, `${closure.stale ? 'stale · closed' : 'closed'} ${when(closure.closed_at)} by ${closure.closed_by} at ${closure.revision}${closure.stale ? ' · the artifact has moved on; close it again' : ''}`);
   }
+  function renderStepper(rows) {
+    const nav = $('phase-stepper');
+    if (!nav) return;
+    nav.textContent = '';
+    const next = rows.find(({ entry, closure }) => !(closure && !closure.stale) && entry.kind !== 'build') || rows[rows.length - 1];
+    rows.forEach(({ entry, closure }, i) => {
+      const state = closure && !closure.stale ? 'closed' : closure && closure.stale ? 'stale' : next && next.entry.kind === entry.kind ? 'active' : 'open';
+      const mark = state === 'closed' ? '✓ ' : state === 'stale' ? '! ' : '';
+      const b = el('button', { type: 'button', class: 'phase-step-pill', dataset: { state, phase: entry.kind } }, `${mark}${i + 1} · ${TITLES[entry.kind] || entry.kind}`);
+      b.onclick = () => { const p = $(`poster-${entry.kind}`); if (p && p.scrollIntoView) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      nav.append(b);
+    });
+  }
   function renderProduct(host, project, rows, onAction) {
     host.textContent = '';
+    renderStepper(rows);
     rows.forEach(({ entry, view, closure }, i) => {
       const poster = el('article', { class: `poster${entry.kind === 'build' ? ' wide' : ''}`, id: `poster-${entry.kind}`, dataset: { stage: view.stage || '', engine: entry.engine, closed: closure && !closure.stale ? '1' : '0' } });
       poster.append(el('p', { class: 'step' }, `${i + 1} · ${TITLES[entry.kind] || entry.kind} · ${entry.engine}`), el('h2', null, TITLES[entry.kind] || entry.kind));
@@ -101,6 +122,16 @@ window.DesignStudioScreens = (function screens() {
       if (Array.isArray(view.files) && view.files.length) poster.append(filesList(entry, view.files));
       poster.append(act);
       host.append(poster);
+    });
+    onePrimary(host, rows);
+  }
+  /** One primary on a product page (UX audit 2026-11-06): the next open phase's action; every other phase's button, and
+   *  a closing by hand, reads as secondary. */
+  function onePrimary(host, rows) {
+    const next = rows.find(({ entry, closure }) => !(closure && !closure.stale) && entry.kind !== 'build') || rows[rows.length - 1];
+    host.querySelectorAll('.poster .act .btn-primary').forEach((b) => {
+      const byHand = b.textContent === 'Mark done by hand';
+      if (!next || b.id !== `act-${next.entry.kind}` || byHand) b.classList.remove('btn-primary');
     });
   }
 
@@ -207,5 +238,5 @@ window.DesignStudioScreens = (function screens() {
     if (!$('build-dialog').open) $('build-dialog').showModal();
   }
 
-  return { renderProducts, renderProposal, collectBrief, collectProposal, fillBrief, renderProduct, renderSettings, collectSettings, openCloseDialog, openBuildDialog, TITLES };
+  return { renderProducts, renderProposal, collectBrief, collectProposal, fillBrief, renderProduct, onePrimary, renderSettings, collectSettings, openCloseDialog, openBuildDialog, TITLES };
 }());

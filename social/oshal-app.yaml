@@ -8,6 +8,9 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | social-daily-digest targets social-writer (a0...0040), the phase bot of the one workflow social owns (linkedin-content-post): a fire opens the workflow whose bot is the target, and the imported communications-bot runs only email-summarizer's workflow, so every fire was refused WorkflowNotLoaded.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | social-writer runs inline (posture: inline, same UUID a0000000-0000-0000-0000-000000000040). As a dedicated-node bot bound to enrolled node 9a367ce4, every Composer and Workspace AI Draft and Refine (POST /api/social/draft, /api/social/content/*) was refused 502 "social-writer is bound to enrolled node ..., which answers it; this request cannot run it here" (live 2026-10-11): the kernel runs a route-called node bot only when no node is bound. The node binding itself is unchanged. Guarded by scripts/check-store-bots.mjs: the four social route entries left its PENDING list, so a node posture fails the store gate again.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.5: declare social-writer as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0 (UX audit 2026-11-06): the Signals tile is merged into Workspace · Engage and taken off the menu (its address leads there; the signals routes still answer; restore the ui.static entry and tools/social-signals.html from 549cd0e9 to bring it back). Workspace gets its own icon (Composer and Workspace both showed the same pencil), a phone bottom bar Feed · Engage · Saved · Compose, network tabs that choose the format before an account is linked, Organize with AI in Engage, a saved-draft ⋯ menu and 44px touch targets. Home's fix links lead to the Workspace. Guarded by tests/workspace-browser.test.cjs.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: UX audit batch 7 (social--social-composer MERGE): move social-composer below social-workspace in ui.static with label Compose (retained because business-experience and prepare-post name surface social-composer); /api/social/composer opens Workspace's Compose (?view=compose) while both Workspace and Composer carry the Business/Home audience view. Guard: tests/composer-merge.test.cjs.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: unify Compose and Workspace into one social-workspace surface (remove the duplicate social-composer tile from ui.static and route prepare-post handoffs to social-workspace; /api/social/composer 302-redirects to /api/social/workspace?view=compose preserving query parameters).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — social (Social swarm, ADR-038)
@@ -62,7 +65,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.5.5
+version: 1.7.0
 status: active
 
 source:
@@ -199,26 +202,19 @@ bots:
 
 ui:
   static:
-    - toolName: social-composer
-      label: Composer
-      icon: codicon codicon-edit
-      iframeUrl: /api/social/composer
-      section: top
     - toolName: social-workspace
       label: Workspace
-      icon: codicon codicon-edit
+      icon: codicon codicon-layout
       iframeUrl: /api/social/workspace
       section: top
+    # social-composer (/api/social/composer) is unified into Workspace · Compose (/api/social/workspace?view=compose).
     - toolName: linkedin-assistant
       label: LinkedIn Assistant
       icon: codicon codicon-rocket
       iframeUrl: /api/linkedin-assistant/panel   # kernel-resident surface — stays framework-served
       section: top
-    - toolName: social-signals
-      label: Signals
-      icon: codicon codicon-radio-tower
-      iframeUrl: /api/social/signals/ui
-      section: top
+    # social-signals (Signals, /api/social/signals/ui) is merged into Workspace · Engage (UX audit 2026-11-06). Its address
+    # leads there. To bring the tile back, restore this entry and tools/social-signals.html from store commit 549cd0e9.
     - toolName: social-accounts
       label: Accounts
       icon: codicon codicon-account
@@ -299,7 +295,7 @@ integrations:
     - id: prepare-post
       contextType: communication-brief
       version: 1
-      surface: social-composer
+      surface: social-workspace
       fields:
         - title
         - notes

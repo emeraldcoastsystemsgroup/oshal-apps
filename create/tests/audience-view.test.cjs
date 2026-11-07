@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: New merged into Create Home and Home became Create's first surface (the one the shells frame), so the audience view now lives on tools/create-home.html; under a view Home starts nothing, without one it runs every start step. The studio list expectation includes CAD Studio and LoRA Studio, which 1.18.8 added to the view.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -14,10 +15,10 @@ const path = require('node:path');
 const test = require('node:test');
 
 const APP = 'create';
-const PAGE = 'tools/create-new.html';
+const PAGE = 'tools/create-home.html';
 const AUDIENCES = ["family","company"];
 const ALLOWED_PREFIXES = ["/api/create"];
-const GATE_FILE = 'tools/create-new.html';
+const GATE_FILE = 'tools/create-home.html';
 
 const ROOT = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, PAGE), 'utf8');
@@ -74,7 +75,7 @@ function loadFamily(answers) {
     const status = a === undefined ? 404 : (a.http || 200), body = a === undefined ? {} : a.http ? a.body : a;
     return Promise.resolve({ ok: status < 400, status, json: () => (body === undefined ? Promise.reject(new SyntaxError('not JSON')) : Promise.resolve(body)) });
   };
-  new Function('window', 'fetch', block)({ AppView: kit, location: { pathname: '/api/create/new', assign: (u) => assigned.push(u) } }, fetchStub);
+  new Function('window', 'fetch', block)({ AppView: kit, location: { pathname: '/api/create/home', assign: (u) => assigned.push(u) } }, fetchStub);
   assert.ok(config && typeof config.audiences.family === 'function', 'the block boots the family audience');
   return { config, family: config.audiences.family, urls, assigned };
 }
@@ -141,7 +142,7 @@ test('fed the JSON the real route builds, the view counts the projects and lists
   assert.deepEqual(projects.items, [
     { title: 'Synthetic autumn poster', text: 'Layered image', meta: 'Updated W(2026-09-28T09:00:00.000Z)', href: '/api/create/editor?project=' + ID1 },
     { title: 'Synthetic bake sale flyer', text: 'Layered image', meta: 'Updated W(2026-09-27T08:00:00.000Z)', href: '/api/create/editor?project=' + ID2 }]);
-  assert.deepEqual(section(model, 'studios').items.map((i) => i.title), ['AI Office', 'Portrait Studio', 'Video Studio', 'Vids Studio', 'Stories', '3D Scan-to-Print', 'Image editor']);
+  assert.deepEqual(section(model, 'studios').items.map((i) => i.title), ['AI Office', 'Portrait Studio', 'Video Studio', 'Vids Studio', 'Stories', '3D Scan-to-Print', 'CAD Studio', 'LoRA Studio', 'Image editor']);
   assert.deepEqual(model.actions.map((a) => [a.label, !!a.primary]), [['Open Create', true]]);
 });
 
@@ -166,7 +167,7 @@ test('every refusal is said in the card with no figure in its place, and the act
     assert.equal(model.title, 'Your projects are not available right now', sentence);
     assert.equal(model.lede, sentence + ' No figure is shown in its place.');
     assert.equal(model.stats, undefined); assert.equal(model.sections, undefined);
-    model.actions[0].onClick(); assert.deepEqual(loaded.assigned, ['/api/create/new']);
+    model.actions[0].onClick(); assert.deepEqual(loaded.assigned, ['/api/create/home']);
   }
 });
 
@@ -174,8 +175,9 @@ test('under an audience view the page starts nothing; without one it still runs 
   const tail = html.slice(html.lastIndexOf('<script>'), html.lastIndexOf('</script>'));
   const gate = tail.indexOf('if (!window.AppView || !AppView.active()) {');
   assert.ok(gate > 0, 'the page start is gated');
-  for (const step of ['  render();\n  Object.keys(STUDIO)', 'accessFor(app).then', "fetchJson('/api/presentations/sections/starters')", "new URLSearchParams(location.search).get('cat')"]) {
+  for (const step of ['  renderBlanks();\n  loadStarters();\n  openFromAddress();', 'accessFor(s.app).then', 'loadSummaries();', 'loadBrandCard();']) {
     assert.ok(tail.indexOf(step) > gate, step + ' is inside the gate');
   }
-  assert.match(tail, /catch \(_\) \{\}\r?\n  \}\r?\n\}\)\(\);\s*$/, 'the gate closes after the last start step');
+  assert.doesNotMatch(tail.slice(0, gate), /\n  (?:renderBlanks|loadStarters|openFromAddress|loadSummaries)\(\);/, 'nothing starts before the gate');
+  assert.match(tail, /loadBrandCard\(\);\r?\n  \}\);\r?\n  \}\r?\n\}\)\(\);\s*$/, 'the gate closes after the last start step');
 });

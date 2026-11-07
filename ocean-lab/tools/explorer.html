@@ -1,15 +1,13 @@
 <!doctype html>
 <!--
-  Explorer — the 300 mm wave explorer as a RECORD (ADR-160 S2): its design vector, the stage computed on
-  every read with the sentence that `fabricable` is not a safety claim, the five-row sea-state table and
-  the year it adds up to, the open "What is not true" limits, and every run recorded against it; and
-  (ADR-160 S3) the parts model: every watertight part with its program and "Open in CAD Studio", the
-  bought rows with what nobody published shown as not published, the displacement budget that gates
-  parts-complete, and the generated design document. The numbers come from the package's routes
-  (/api/ocean-lab/vehicles); this page computes nothing itself, so it cannot disagree with the record. Consumes the framework theme tokens READ-ONLY. (.html is exempt
-  from the CHANGE LOG header and the file-size rules.)
+  Explorer — the 300 mm wave explorer as a RECORD (ADR-160 S2 & S3): split into two views
+  (?view=design for Design & sea states; ?view=parts for Parts & BOM) with a bottom bar on a phone,
+  structured stage checklist, one primary action (Evaluate in seawater), in-page delete confirmation,
+  and per-part row overflow actions. The numbers come from /api/ocean-lab/vehicles; this page computes
+  nothing itself. Consumes framework theme tokens READ-ONLY. (.html is exempt from CHANGE LOG header
+  and file-size rules.)
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="midnight" data-ds-category="studio" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,64 +17,233 @@
 <script src="/shared/ui/js/surface-theme.js"></script>
 <style>
   :root {
-    --bg: var(--bg-primary, #0b1220);
-    --panel: var(--bg-card, #111a2c);
-    --panel2: var(--bg-tertiary, #16223a);
-    --line: var(--border-color, #2a3a58);
-    --text: var(--text-primary, #e8eefc);
-    --dim: var(--text-secondary, #b4c0da);
-    --muted: var(--text-muted, #8492b0);
-    --accent: var(--accent-primary, #7c7cff);
-    --ok: var(--status-success, #34d399);
-    --warn: var(--status-warning, #fbbf24);
-    --danger: var(--status-error, #f87171);
+    --bg: var(--ds-page, var(--bg-primary, #0b1220));
+    --panel: var(--ds-surface, var(--bg-card, #111a2c));
+    --panel2: var(--ds-surface-2, var(--bg-tertiary, #16223a));
+    --panel3: var(--ds-surface-3, #1d2c4a);
+    --line: var(--ds-edge, var(--border-color, #2a3a58));
+    --ctl-line: var(--ds-line-control, var(--border-color, #3b4f76));
+    --text: var(--ds-ink, var(--text-primary, #e8eefc));
+    --dim: var(--ds-ink-2, var(--text-secondary, #b4c0da));
+    --muted: var(--ds-ink-2, var(--text-muted, #9fb0d0));
+    --disabled-ink: var(--ds-ink-disabled, #6f7f9f);
+    --accent: var(--ds-accent, var(--accent-primary, #7c7cff));
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #ffffff));
+    --ok: var(--ds-ok, var(--status-success, #34d399));
+    --warn: var(--ds-warn, var(--status-warning, #fbbf24));
+    --danger: var(--ds-bad, var(--status-error, #f87171));
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  .page { max-width: 1280px; margin: 0 auto; padding: 20px 18px 60px; }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
-  p.lede { color: var(--dim); margin: 0 0 14px; max-width: 900px; }
-  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 0 0 14px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
-  .stage { display: inline-block; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 6px; padding: 4px 10px; border: 1px solid var(--accent); color: var(--accent); }
-  .ladder { list-style: none; display: flex; gap: 6px; padding: 0; margin: 10px 0; flex-wrap: wrap; }
-  .ladder li { font-size: 11.5px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
-  .ladder li.reached { border-color: var(--ok); color: var(--ok); }
-  .fabricable { border-left: 3px solid var(--warn); padding: 6px 10px; color: var(--dim); background: var(--panel2); border-radius: 4px; }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
-  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
-  th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
-  td.num, th.num { text-align: right; }
-  .controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; }
+  html, body { max-width: 100%; overflow-x: hidden; overscroll-behavior-y: contain; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--ds-font, system-ui, sans-serif); }
+  .page { width: 100%; max-width: 1280px; margin: 0 auto; padding: 16px 16px 64px; }
+  h1 { font-size: 24px; line-height: 32px; font-weight: 700; margin: 0 0 4px; }
+  h2 { font-size: 18px; line-height: 24px; font-weight: 600; color: var(--text); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  h3 { font-size: 16px; line-height: 24px; font-weight: 600; margin: 16px 0 8px; }
+  p.lede { color: var(--dim); margin: 0 0 12px; font-size: 14px; line-height: 20px; }
+  section.card {
+    background: linear-gradient(var(--panel), var(--panel)), var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin: 0 0 16px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; position: relative; }
+  .card-head h2 { margin: 0; }
+  .view-bar {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--line);
+    margin: 0 0 16px;
+    padding: 0;
+  }
+  .view-tab {
+    appearance: none;
+    background: transparent;
+    color: var(--dim);
+    border: 0;
+    border-bottom: 3px solid transparent;
+    min-height: 44px;
+    padding: 0 16px;
+    font: 600 15px/20px var(--ds-font, system-ui, sans-serif);
+    cursor: pointer;
+  }
+  .view-tab[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  .stage-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+  .stage { display: inline-block; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 6px; padding: 4px 10px; border: 1px solid var(--accent); color: var(--text); background: var(--panel2); }
+  .ladder { list-style: none; display: flex; gap: 8px; padding: 0; margin: 8px 0 12px; flex-wrap: wrap; }
+  .ladder li { font-size: 12px; line-height: 16px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--dim); }
+  .ladder li.reached { border-color: var(--ok); color: var(--ok); font-weight: 600; }
+  .gate-list { list-style: none; padding: 0; margin: 12px 0; border-top: 1px solid var(--line); }
+  .gate-list li { border-bottom: 1px solid var(--line); }
+  .gate-item summary {
+    min-height: 44px;
+    padding: 10px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text);
+    list-style: none;
+  }
+  .gate-item summary::-webkit-details-marker { display: none; }
+  .gate-item summary::after { content: "▾"; color: var(--dim); font-size: 14px; }
+  .gate-item[open] summary::after { content: "▴"; }
+  .gate-static { min-height: 44px; padding: 10px 4px; display: flex; align-items: center; font-weight: 600; }
+  .gate-body { padding: 0 8px 12px 16px; color: var(--dim); font-size: 14px; }
+  .gate-parts { margin: 4px 0 0; padding-left: 18px; }
+  .gate-parts li { border: 0; padding: 2px 0; overflow-wrap: anywhere; }
+  .fabricable { border-left: 3px solid var(--warn); padding: 8px 12px; color: var(--dim); background: var(--panel2); border-radius: 6px; margin: 12px 0 0; font-size: 14px; }
+  .table-scroll { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 8px 0 0; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  td.act, th.act { width: 48px; text-align: right; padding-right: 4px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 0 0 12px; }
   .ctl { display: flex; flex-direction: column; gap: 4px; }
-  .ctl label { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: .05em; }
-  input[type="number"] { width: 120px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font: inherit; }
-  .btn { border: 1px solid var(--line); background: var(--panel2); color: var(--text); border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; }
-  .btn:hover { border-color: var(--accent); }
-  .btn:disabled { opacity: .5; cursor: default; }
-  .figures { display: flex; flex-wrap: wrap; gap: 18px 28px; margin-top: 10px; }
-  .figure .v { font-size: 22px; font-weight: 600; }
-  .figure .k { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .05em; }
-  .refusal { color: var(--danger); font-weight: 600; }
-  .note { color: var(--muted); font-size: 12.5px; }
-  .tag { font-size: 10.5px; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; color: var(--muted); white-space: nowrap; }
+  .ctl label { font-size: 14px; line-height: 20px; color: var(--text); font-weight: 600; }
+  input[type="number"] {
+    width: 136px;
+    min-height: 44px;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--ctl-line);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 16px;
+    font-family: inherit;
+  }
+  .btn {
+    min-height: 44px;
+    border: 1px solid var(--ctl-line);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 0 16px;
+    font: 600 15px/20px var(--ds-font, system-ui, sans-serif);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+  }
+  .btn:hover:not(:disabled) { background: var(--panel3); }
+  .btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+  .btn.primary:hover:not(:disabled) { background: var(--accent); box-shadow: inset 0 0 0 1px var(--on-accent); }
+  .btn.tertiary { background: transparent; border-color: transparent; color: var(--text); text-decoration: underline; }
+  .btn.danger-solid { background: var(--danger); color: var(--bg); border-color: transparent; }
+  .btn:disabled { background: var(--panel2); color: var(--disabled-ink); border-color: var(--line); opacity: 1; cursor: default; }
+  .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    border: 1px solid var(--ctl-line);
+    background: var(--panel2);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 0;
+    font: 700 18px/1 var(--ds-font, system-ui, sans-serif);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .icon-btn:hover { background: var(--panel3); }
+  .float-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    min-width: 200px;
+    background: linear-gradient(var(--panel), var(--panel)), var(--bg);
+    border: 1px solid var(--ctl-line);
+    border-radius: 14px;
+    padding: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.16);
+    z-index: 60;
+  }
+  #part-menu { position: fixed; top: 0; left: 0; right: auto; }
+  .menu-item {
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 0 12px;
+    font: 600 15px/20px var(--ds-font, system-ui, sans-serif);
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+  }
+  .menu-item:hover { background: var(--panel3); }
+  .menu-item.destructive { color: var(--danger); }
+  dialog.confirm-dialog {
+    max-width: 440px;
+    width: calc(100% - 32px);
+    background: linear-gradient(var(--panel), var(--panel)), var(--bg);
+    color: var(--text);
+    border: 1px solid var(--ctl-line);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.16);
+  }
+  dialog.confirm-dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog.confirm-dialog h3 { margin: 0 0 8px; font-size: 18px; }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px; }
+  .figure { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .figure .v { font-size: 24px; line-height: 32px; font-weight: 700; }
+  .figure .k { font-size: 12px; line-height: 16px; color: var(--dim); margin-top: 4px; }
+  .refusal { color: var(--danger); font-weight: 600; overflow-wrap: anywhere; }
+  .note { color: var(--dim); font-size: 14px; line-height: 20px; overflow-wrap: anywhere; margin: 4px 0; }
+  .tag { font-size: 12px; line-height: 16px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; color: var(--dim); white-space: nowrap; font-weight: 400; }
   .tag.blocking { border-color: var(--danger); color: var(--danger); }
   .tag.published { border-color: var(--ok); color: var(--ok); }
   .tag.reconstructed, .tag.assumed { border-color: var(--warn); color: var(--warn); }
-  ul.limits { margin: 0; padding-left: 18px; }
-  ul.limits li { margin: 0 0 6px; }
-  #status { min-height: 1.4em; }
+  ul.limits { margin: 8px 0 0; padding-left: 18px; }
+  ul.limits li { margin: 0 0 8px; overflow-wrap: anywhere; }
+  #status { min-height: 20px; margin: 0 0 8px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   [hidden] { display: none !important; }
+  @media (max-width: 760px) {
+    .page { padding: 12px 16px calc(84px + env(safe-area-inset-bottom, 0px)); }
+    .view-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 40;
+      margin: 0;
+      height: calc(56px + env(safe-area-inset-bottom, 0px));
+      padding: 0 8px env(safe-area-inset-bottom, 0px);
+      background: linear-gradient(var(--panel), var(--panel)), var(--bg) !important;
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+      gap: 4px;
+    }
+    .view-tab {
+      flex: 1;
+      padding: 0 8px;
+      font-size: 12px;
+      border-bottom: 0;
+      border-top: 3px solid transparent;
+    }
+    .view-tab[aria-pressed="true"] { border-top-color: var(--accent); border-bottom-color: transparent; }
+    .controls .ctl { flex: 1 1 140px; }
+    .controls input[type="number"] { width: 100%; }
+  }
 </style>
 </head>
 <body>
-<div class="page">
+<div class="page" data-ds-work>
   <header>
     <h1>Explorer</h1>
-    <p class="lede">The 300 mm wave explorer from the design study, as a saved vehicle. Change the wing stop angle or the tether
-      length, save, and evaluate: the sea-state table and the year recompute from the vector, and the stage drops the
-      moment the vector changes. Simulation only — nothing here was built, wetted or tested.</p>
+    <p class="lede">The 300 mm wave explorer, simulated: nothing here was built or tested.</p>
   </header>
 
   <p id="status" role="status" class="note">Loading the record…</p>
@@ -84,80 +251,120 @@
 
   <section class="card" id="no-vehicle" hidden>
     <h2>No explorer yet</h2>
-    <p class="note">Create the Explorer from the study's committed seed. It starts at <b>concept</b>: nothing is evaluated until you ask.</p>
-    <button class="btn" id="create-explorer" type="button">Create the Explorer from the study's seed</button>
+    <p class="note">Create the Explorer from the study's committed seed at concept stage.</p>
+    <button class="btn primary" id="create-explorer" type="button">Create the Explorer from the study's seed</button>
   </section>
 
   <div id="record" hidden>
-    <section class="card">
-      <h2>Stage</h2>
-      <span class="stage" id="stage-badge">—</span>
-      <ul class="ladder" id="stage-ladder"></ul>
-      <p id="stage-because" class="note"></p>
-      <p id="stage-blocked" class="note"></p>
-      <p class="fabricable" id="fabricable"></p>
-      <button class="btn" id="delete-explorer" type="button">Delete this explorer</button>
-    </section>
+    <nav class="view-bar" id="view-bar" aria-label="Explorer views">
+      <button type="button" class="view-tab" id="tab-design" data-view="design" aria-pressed="true">Design &amp; sea states</button>
+      <button type="button" class="view-tab" id="tab-parts" data-view="parts" aria-pressed="false">Parts &amp; BOM</button>
+    </nav>
 
-    <section class="card">
-      <h2>Design vector</h2>
-      <div class="controls">
-        <div class="ctl"><label for="stop-angle">Wing stop angle, °</label><input id="stop-angle" type="number" min="5" max="45" step="0.5" /></div>
-        <div class="ctl"><label for="tether-length">Tether length, m</label><input id="tether-length" type="number" min="0.5" max="20" step="0.1" /></div>
-        <button class="btn" id="save-design" type="button">Save design</button>
-        <button class="btn" id="evaluate" type="button">Evaluate in seawater</button>
-        <button class="btn" id="evaluate-air" type="button">Evaluate in air</button>
-      </div>
-      <p id="medium-refusal" class="refusal" role="alert" hidden></p>
-      <table id="vector-table"><thead><tr><th>Parameter</th><th>Value</th><th>Source</th></tr></thead><tbody></tbody></table>
-    </section>
+    <div id="view-design">
+      <section class="card" id="stage-card">
+        <div class="card-head">
+          <h2>Stage</h2>
+          <div>
+            <button class="icon-btn" id="stage-more-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="stage-more-menu" aria-label="More actions" title="More actions">⋯</button>
+            <div class="float-menu" id="stage-more-menu" role="menu" hidden>
+              <button class="menu-item destructive" id="delete-explorer" type="button" role="menuitem" data-ds-destructive>Delete this explorer</button>
+            </div>
+          </div>
+        </div>
+        <div class="stage-row">
+          <span class="stage" id="stage-badge">—</span>
+        </div>
+        <ul class="ladder" id="stage-ladder"></ul>
+        <p id="stage-because" class="note"></p>
+        <p id="stage-blocked" class="note" hidden></p>
+        <ul class="gate-list" id="stage-gates"></ul>
+        <p class="fabricable" id="fabricable"></p>
+      </section>
 
-    <section class="card">
-      <h2>Sea states</h2>
-      <p id="table-note" class="note"></p>
-      <table id="sea-table">
-        <thead><tr><th>Sea state</th><th class="num">H, m</th><th class="num">T, s</th><th class="num">Share of year</th><th class="num">Speed, m/s</th><th class="num">Knots</th><th class="num">km/day</th><th class="num">Ceiling, m/s</th><th>Under way</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="figures" id="summary"></div>
-      <p id="within-model" class="note"></p>
-    </section>
+      <section class="card">
+        <h2>Design vector</h2>
+        <div class="controls">
+          <div class="ctl"><label for="stop-angle">Wing stop angle, °</label><input id="stop-angle" type="number" min="5" max="45" step="0.5" /></div>
+          <div class="ctl"><label for="tether-length">Tether length, m</label><input id="tether-length" type="number" min="0.5" max="20" step="0.1" /></div>
+          <button class="btn primary" id="evaluate" type="button">Evaluate in seawater</button>
+          <button class="btn" id="save-design" type="button">Save design</button>
+        </div>
+        <p id="medium-refusal" class="refusal" role="alert" hidden></p>
+        <div class="table-scroll">
+          <table id="vector-table"><thead><tr><th>Parameter</th><th>Value</th><th>Source</th></tr></thead><tbody></tbody></table>
+        </div>
+      </section>
 
-    <section class="card" id="parts-card">
-      <h2>Parts and geometry <span id="parts-count" class="tag">0 watertight parts</span></h2>
-      <p class="note" id="parts-note">Loading the parts model…</p>
-      <p><span class="stage" id="budget-badge">—</span> <span id="budget-why" class="note"></span></p>
-      <table id="printed-parts">
-        <thead><tr><th>Part</th><th class="num">Qty</th><th>Program</th><th>Material</th><th class="num">Mass each, g</th><th class="num">Displaces, L</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <h2 style="margin-top:14px">Bought and fabricated</h2>
-      <table id="bought-parts">
-        <thead><tr><th>Item</th><th class="num">Qty</th><th>Make</th><th>Carried by</th><th class="num">Mass each, g</th><th class="num">Approx., USD</th><th>Source</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <ul class="limits" id="parts-problems"></ul>
-      <p><a id="design-md" class="btn" href="#" target="_blank" rel="noopener">Design document (design.md)</a></p>
-      <p id="cad-status" class="note" role="status"></p>
-    </section>
+      <section class="card">
+        <h2>Sea states</h2>
+        <p id="table-note" class="note"></p>
+        <div class="table-scroll">
+          <table id="sea-table">
+            <thead><tr><th>Sea state</th><th class="num">H, m</th><th class="num">T, s</th><th class="num">Share of year</th><th class="num">Speed, m/s</th><th class="num">Knots</th><th class="num">km/day</th><th class="num">Ceiling, m/s</th><th>Under way</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="figures" id="summary"></div>
+        <p id="within-model" class="note"></p>
+      </section>
 
-    <div class="grid">
+      <section class="card">
+        <h2>Runs</h2>
+        <button class="btn" id="record-hull-drop" type="button">Record a hull drop from Embodied (air)</button>
+        <div class="table-scroll">
+          <table id="runs">
+            <thead><tr><th>#</th><th>Medium</th><th>Plant</th><th>Engine</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="runs-withheld" class="note" hidden></p>
+      </section>
+    </div>
+
+    <div id="view-parts" hidden>
+      <section class="card" id="parts-card">
+        <h2>Parts and geometry <span id="parts-count" class="tag">0 watertight parts</span></h2>
+        <p class="note" id="parts-note">Loading the parts model…</p>
+        <p><span class="stage" id="budget-badge">—</span> <span id="budget-why" class="note"></span></p>
+        <div class="table-scroll">
+          <table id="printed-parts">
+            <thead><tr><th>Part</th><th class="num">Qty</th><th>Program</th><th>Material</th><th class="num">Mass each, g</th><th class="num">Displaces, L</th><th class="act"><span class="note">More</span></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <h3>Bought and fabricated</h3>
+        <div class="table-scroll">
+          <table id="bought-parts">
+            <thead><tr><th>Item</th><th class="num">Qty</th><th>Make</th><th>Carried by</th><th class="num">Mass each, g</th><th class="num">Approx., USD</th><th>Source</th><th class="act"><span class="note">More</span></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <ul class="limits" id="parts-problems"></ul>
+        <p style="margin-top:12px"><a id="design-md" class="btn" href="#" target="_blank" rel="noopener">Design document (design.md)</a></p>
+        <p id="cad-status" class="note" role="status"></p>
+      </section>
+
       <section class="card">
         <h2>Open limits <span id="limit-count" class="tag">0</span></h2>
         <ul class="limits" id="limits"></ul>
       </section>
-      <section class="card">
-        <h2>Runs</h2>
-        <button class="btn" id="record-hull-drop" type="button">Record a hull drop from Embodied (air)</button>
-        <table id="runs">
-          <thead><tr><th>#</th><th>Medium</th><th>Plant</th><th>Engine</th><th>Result</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <p id="runs-withheld" class="note" hidden></p>
-      </section>
     </div>
   </div>
 </div>
+
+<div class="float-menu" id="part-menu" role="menu" hidden>
+  <button class="menu-item" id="part-menu-open-cad" type="button" role="menuitem" data-open-part="">Open in CAD Studio</button>
+</div>
+
+<dialog class="confirm-dialog" id="delete-dialog" aria-labelledby="delete-dialog-title" hidden>
+  <h3 id="delete-dialog-title">Delete this explorer?</h3>
+  <p class="note">Deletes this explorer with its design vector, evaluations, and recorded runs. This cannot be undone.</p>
+  <div class="dialog-actions">
+    <button class="btn tertiary" id="delete-cancel" type="button">Cancel</button>
+    <button class="btn danger-solid" id="delete-confirm" type="button" data-ds-destructive>Delete explorer</button>
+  </div>
+</dialog>
 
 <script>
   /* Engine loader: the script is served beside this page; try the page-relative and the absolute mount. */

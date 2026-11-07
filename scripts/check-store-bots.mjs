@@ -29,6 +29,7 @@
  *
  * Usage: node scripts/check-store-bots.mjs [repositoryRoot]
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | Register audio-engineer concierge persona for Audio Studio 1.2.0.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,6 +42,7 @@ const RETIRED = [/\/app\/scripts\//, /node scripts\/oshal-/, /example\.com/i];
 
 /** Concierge personas whose screen answers a person directly: each must answer in plain prose. */
 export const CONCIERGES = [
+  'audio/personas/audio-engineer.yaml',
   'create/personas/create-editor.yaml',
   'video/personas/video-editor.yaml',
   'calendar/personas/calendar-concierge.yaml',

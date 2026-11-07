@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Scoped relational storage, forced two-arm RLS session binding, and immutable revision CAS for Phone & Device Control.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0, every control real or removed: the person's phones (each tied to the computer that bridges it), the history of what the page sent and what the computer answered, and the last bridge report per computer. The 1.0.0 device rows (the three starter devices seeded per person and any its pairing buttons wrote, every one carrying the invented key and PIN) are deleted once with their drawn frames. Nothing here reaches a phone or a network: the person's own computer does that.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: phone_control_phones.form ('phone' or 'tv', default 'phone') distinguishes an Android phone from a Fire TV or Android TV connected over network adb.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: add owner-scoped session preferences (including monitorId and privacyScreen), chat messages, whiteboard strokes, saved captures, file transfer records, and Bluetooth HID TV device support for RP-PHC-01..13.
  */
 
 'use strict';
@@ -19,6 +21,7 @@ const DATA_DIR = process.env.OSHAL_PACKAGE_DATA_DIR || path.join(os.tmpdir(), 'o
 const DEFAULT_DB_PATH = process.env.OSHAL_PHONE_CONTROL_DB || path.join(DATA_DIR, 'phone_control.sqlite');
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'migrations');
 const PLATFORMS = Object.freeze(['android', 'ios']);
+const FORMS = Object.freeze(['phone', 'tv']);
 const NODE_ID = /^[0-9a-fA-F-]{8,64}$/;
 const ADDRESS = /^[A-Za-z0-9._:\[\]-]{1,160}$/;
 const LIMITS = Object.freeze({ name: 120, summary: 400, action: 40, error: 400, report: 18000 });
@@ -64,7 +67,81 @@ const STEPS = Object.freeze([
       PRIMARY KEY (owner_issuer, owner_sub, computer_node_id)
     );`
   },
-  { id: 'phone-control-1.1.0-remove-1.0.0-starter-rows', run: removeStarterRows }
+  { id: 'phone-control-1.1.0-remove-1.0.0-starter-rows', run: removeStarterRows },
+  {
+    id: 'phone-control-1.2.0-form',
+    sql: "ALTER TABLE phone_control_phones ADD COLUMN form TEXT NOT NULL DEFAULT 'phone' CHECK (form IN ('phone', 'tv'));"
+  },
+  {
+    id: 'phone-control-1.4.0-session-features',
+    sql: `CREATE TABLE IF NOT EXISTS phone_control_preferences (
+      owner_issuer TEXT NOT NULL,
+      owner_sub TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      input_mode TEXT NOT NULL DEFAULT 'touch' CHECK (input_mode IN ('touch', 'mouse')),
+      quality TEXT NOT NULL DEFAULT 'balanced' CHECK (quality IN ('high', 'balanced', 'low')),
+      lock_on_end INTEGER NOT NULL DEFAULT 0 CHECK (lock_on_end IN (0, 1)),
+      privacy_screen INTEGER NOT NULL DEFAULT 0 CHECK (privacy_screen IN (0, 1)),
+      monitor_index INTEGER NOT NULL DEFAULT 0,
+      monitor_id TEXT NOT NULL DEFAULT 'primary',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (owner_issuer, owner_sub, target_key)
+    );
+    CREATE TABLE IF NOT EXISTS phone_control_chat (
+      message_id TEXT PRIMARY KEY,
+      owner_issuer TEXT NOT NULL,
+      owner_sub TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      sender TEXT NOT NULL CHECK (sender IN ('operator', 'remote')),
+      body TEXT NOT NULL,
+      delivered_remote INTEGER NOT NULL DEFAULT 0 CHECK (delivered_remote IN (0, 1)),
+      delivery_note TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_phone_control_chat_target ON phone_control_chat (owner_issuer, owner_sub, target_key, created_at);
+    CREATE TABLE IF NOT EXISTS phone_control_whiteboard (
+      stroke_id TEXT PRIMARY KEY,
+      owner_issuer TEXT NOT NULL,
+      owner_sub TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      color TEXT NOT NULL,
+      points_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_phone_control_whiteboard_target ON phone_control_whiteboard (owner_issuer, owner_sub, target_key, created_at);
+    CREATE TABLE IF NOT EXISTS phone_control_captures (
+      capture_id TEXT PRIMARY KEY,
+      owner_issuer TEXT NOT NULL,
+      owner_sub TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      target_name TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('screenshot', 'recording')),
+      mime TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      bytes INTEGER NOT NULL,
+      sha256 TEXT NOT NULL,
+      width INTEGER NOT NULL DEFAULT 0,
+      height INTEGER NOT NULL DEFAULT 0,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_phone_control_captures_owner ON phone_control_captures (owner_issuer, owner_sub, created_at);
+    CREATE TABLE IF NOT EXISTS phone_control_transfers (
+      transfer_id TEXT PRIMARY KEY,
+      owner_issuer TEXT NOT NULL,
+      owner_sub TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      direction TEXT NOT NULL CHECK (direction IN ('upload', 'download', 'staged')),
+      file_name TEXT NOT NULL,
+      remote_path TEXT,
+      bytes INTEGER NOT NULL DEFAULT 0,
+      sha256 TEXT,
+      status TEXT NOT NULL CHECK (status IN ('completed', 'staged', 'refused')),
+      note TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_phone_control_transfers_owner ON phone_control_transfers (owner_issuer, owner_sub, created_at);`
+  }
 ]);
 
 // 1.0.0 cleanup begins: every device row 1.0.0 wrote carried its invented mirroring handshake (a TBS key, a PIN
@@ -161,8 +238,9 @@ function refusal(status, code, message) {
 /** @description One phone as the page sees it. @param {object} row A row. @returns {object} The phone. */
 function phone(row) {
   return {
-    id: row.phone_id, name: row.name, platform: row.platform, computerNodeId: row.computer_node_id,
-    address: row.address, controlEnabled: Boolean(row.control_enabled), createdAt: row.created_at, updatedAt: row.updated_at
+    id: row.phone_id, name: row.name, platform: row.platform, form: row.form || 'phone',
+    computerNodeId: row.computer_node_id, address: row.address, controlEnabled: Boolean(row.control_enabled),
+    createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
 
@@ -179,10 +257,12 @@ function getPhone(db, owner, id) {
   return row ? phone(row) : null;
 }
 
-/** @description Record a phone the person connected through one of their computers. The same phone on the same computer is the same record. @param {DatabaseSync} db Store. @param {object} owner Who. @param {object} input name, platform, computerNodeId, address. @returns {{phone:object,created:boolean}} The record. */
+/** @description Record a phone or TV the person connected through one of their computers. The same device on the same computer is the same record. @param {DatabaseSync} db Store. @param {object} owner Who. @param {object} input name, platform, form?, computerNodeId, address. @returns {{phone:object,created:boolean}} The record. */
 function savePhone(db, owner, input = {}) {
   const platform = String(input.platform || '');
   if (!PLATFORMS.includes(platform)) throw refusal(400, 'platform_invalid', 'A phone is android or ios.');
+  const form = input.form === undefined ? 'phone' : String(input.form);
+  if (!FORMS.includes(form)) throw refusal(400, 'form_invalid', 'A device form is phone or tv.');
   const node = String(input.computerNodeId || '');
   if (!NODE_ID.test(node)) throw refusal(400, 'computer_required', 'Name the computer that connects this phone.');
   const address = String(input.address || '');
@@ -192,13 +272,14 @@ function savePhone(db, owner, input = {}) {
     AND computer_node_id = ? AND platform = ? AND address = ?`).get(owner.issuer, owner.sub, node, platform, address);
   const now = new Date().toISOString();
   if (existing) {
-    db.prepare('UPDATE phone_control_phones SET name = ?, updated_at = ? WHERE phone_id = ?').run(name, now, existing.phone_id);
+    db.prepare('UPDATE phone_control_phones SET name = ?, form = ?, updated_at = ? WHERE phone_id = ?')
+      .run(name, form, now, existing.phone_id);
     return { phone: getPhone(db, owner, existing.phone_id), created: false };
   }
   const id = `ph_${crypto.randomUUID()}`;
-  db.prepare(`INSERT INTO phone_control_phones (phone_id, owner_issuer, owner_sub, name, platform, computer_node_id, address,
-    control_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
-    .run(id, owner.issuer, owner.sub, name, platform, node, address, now, now);
+  db.prepare(`INSERT INTO phone_control_phones (phone_id, owner_issuer, owner_sub, name, platform, form, computer_node_id, address,
+    control_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+    .run(id, owner.issuer, owner.sub, name, platform, form, node, address, now, now);
   return { phone: getPhone(db, owner, id), created: true };
 }
 

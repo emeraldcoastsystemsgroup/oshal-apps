@@ -24,6 +24,8 @@
  * 2026-08-06 10:15:00 | maintainer@emeraldcoastsystemsgroup.com | SECURITY: remove TMDB credentials from generic orchestrator dispatch. The controller resolves TMDB only for its bounded catalog call and sends the model sanitized candidate records.
  * 2026-10-10 | maintainer@emeraldcoastsystemsgroup.com | Native kernel: the TMDB key is the kernel's (manifest egress credential). A cached configuration read
  *            | decides `connected`, routes pass the kernel sentinel, and the surface never claims a key it cannot see.
+ * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | UX audit (FIX-BROKEN): the concierge printed its raw JSON envelope. The reply is now parsed
+ *            | by the package's own movies-envelope module (fenced, prose-wrapped or bare); an unreadable envelope is a plain apology.
  *
  * @module movies-routes
  */
@@ -40,7 +42,7 @@ import {
   tmdbSearch, tmdbTrending, tmdbDetails, tmdbWhereToWatch, tmdbTrailer, tmdbRecommendations,
   buildTicketsUrl, tmdbConfiguration, kernelEgress, KERNEL_KEY, type TmdbTitle,
 } from './tmdb-client';
-import { extractEnvelopeJson, asStringArray, sayOr } from '@/app/routes/concierge-envelope';
+import { parseMoviesEnvelope, type ChatEnvelope } from './movies-envelope';
 import { ConciergeStore } from '@/app/routes/concierge-store';
 
 const logger = createChildLogger({ module: 'movies-routes' });
@@ -171,8 +173,6 @@ async function addToWatchlist(pool: Pool, sub: string, t: TmdbTitle): Promise<vo
 
 // ── Concierge brain ────────────────────────────────────────────────────────--
 
-interface ChatEnvelope { say: string; show: string[]; watchlist: string[]; remember: string[]; }
-
 function buildConciergePrompt(o: {
   message: string; history: Array<{ role: string; content: string }>;
   candidates: TmdbTitle[]; profile: any; notes: string[]; watchlistTitles: string[];
@@ -205,17 +205,9 @@ function buildConciergePrompt(o: {
   ].filter(Boolean).join('\n');
 }
 
-/** Parse the Movies concierge reply envelope (shared extraction in concierge-envelope.ts). */
+/** Parse the Movies concierge reply envelope (package-local, movies-envelope.ts: the native kernel's shared helper reads no string). */
 export function parseEnvelope(text: string): ChatEnvelope {
-  const fallbackSay = (text || '').trim();
-  const o = extractEnvelopeJson(text);
-  if (!o) return { say: fallbackSay, show: [], watchlist: [], remember: [] };
-  return {
-    say: sayOr(o, fallbackSay),
-    show: asStringArray(o.show),
-    watchlist: asStringArray(o.watchlist),
-    remember: asStringArray(o.remember),
-  };
+  return parseMoviesEnvelope(text);
 }
 
 // ── Router ─────────────────────────────────────────────────────────────────--

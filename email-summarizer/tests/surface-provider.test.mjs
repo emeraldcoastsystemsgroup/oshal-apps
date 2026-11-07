@@ -9,6 +9,8 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Yahoo is no longer offered: this installation has no Yahoo connector and its runtime answers every Yahoo read 501. The switch has no Yahoo option, a saved 'yahoo' falls back to the server's pick, and the no-mailbox notice (Inbox, My Day and its audience view) names Google and Outlook only. A Yahoo list the server picks on its own (a core that reads Yahoo) still opens list-only.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | The connect notices offer one sign-in button per mailbox provider (tests/mailbox-connect.test.cjs) and keep an All connections link, instead of one link to the unfiltered Connections page.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | The Inbox lists fifty at a time (max=50) and pages; with no `next` in the answer it asks for nothing more, so the reads and drafts below still follow the one list request.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: a missing mailbox is an empty state with ONE primary that opens the connect sheet (no Mail connections link, no /utilities path); My Day greets by local time, hides the mailbox switch until a mailbox is connected, falls back from a saved mailbox that is not connected, and shows the greyed skeleton of what it holds; the Inbox search states its real scope and is disabled with its reason where it cannot search.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (little-monsters--lm-email): with no mailbox connected, the Inbox withholds the Any mailbox switch, Refresh button, disabled search row, search help and stored-copy caption, and reveals them once a mailbox is linked.
  */
 
 import assert from 'node:assert/strict';
@@ -58,9 +60,31 @@ test('the inbox asks for the saved mailbox and shows the Outlook connect notice 
     { connected: false, provider: 'outlook', error: 'no_outlook_connection' },
   ], 'outlook');
   assert.equal(calls[0].url, '/api/email/messages?max=50&surface=1&provider=outlook');
-  assert.match(byId('items').innerHTML, /No Outlook \/ Microsoft 365 account connected\./);
-  assert.match(byId('items').innerHTML, /data-connect="outlook">Connect Outlook \/ Microsoft 365</);
-  assert.match(byId('items').innerHTML, /href="\/utilities\?category=email" target="_top">Mail connections</);
+  assert.match(byId('items').innerHTML, /<h2>Connect Outlook to see your mail<\/h2>/);
+  assert.match(byId('items').innerHTML, /data-connect="outlook">Outlook \/ Microsoft 365</);
+  assert.doesNotMatch(byId('items').innerHTML, /utilities|Mail connections|Yahoo/, 'no path and no second link');
+  assert.equal(byId('provider').hidden, true, 'no mailbox: switch withheld');
+  assert.equal(byId('refresh').hidden, true, 'no mailbox: refresh withheld');
+  assert.equal(byId('storeSearch').hidden, true, 'no mailbox: disabled search row withheld');
+  assert.equal(byId('searchHelp').hidden, true, 'no mailbox: search help withheld');
+  assert.equal(byId('storeLine').hidden, true, 'no mailbox: store line withheld');
+  assert.equal(byId('storeQuery').disabled, true, 'no mailbox: the search is disabled');
+});
+
+test('the inbox search states the real scope of the mailbox it read', async () => {
+  const gmail = await runSurface('email-inbox.html', [{ provider: 'google', source: 'live', messages: [], next: null }]);
+  assert.equal(gmail.byId('provider').hidden, false);
+  assert.equal(gmail.byId('refresh').hidden, false);
+  assert.equal(gmail.byId('storeSearch').hidden, false);
+  assert.equal(gmail.byId('storeQuery').placeholder, 'Search Gmail · last 30 days');
+  assert.equal(gmail.byId('storeQuery').disabled, false);
+  assert.equal(gmail.byId('searchHelp').hidden, true);
+  const copy = await runSurface('email-inbox.html', [{ provider: 'google', source: 'stored', store: { stored: 900, complete: true }, messages: [], next: null }]);
+  assert.equal(copy.byId('storeQuery').placeholder, 'Search Gmail · last 180 days', 'a complete copy searches its 180 days');
+  const outlook = await runSurface('email-inbox.html', [{ provider: 'outlook', source: 'live', messages: [], next: null }], 'outlook');
+  assert.equal(outlook.byId('storeQuery').disabled, true);
+  assert.equal(outlook.byId('searchGo').disabled, true);
+  assert.equal(outlook.byId('searchHelp').textContent, 'Outlook cannot be searched here yet: search reads Gmail only.');
 });
 
 test('the inbox lets the server pick, then reads and drafts on the mailbox the list used', async () => {
@@ -111,7 +135,33 @@ test("My Day summarizes the digest's own mailbox and names the missing one", asy
     ['/api/email/summary?provider=outlook', 'POST'],
   ]);
   assert.equal(ready.byId('aiBody').textContent, 'Busy day');
+  assert.equal(ready.byId('provider').hidden, false, 'a connected mailbox shows the switch');
   const none = await runSurface('email-my-day.html', [{ connected: false, provider: null, error: 'no_mail_connection' }]);
   assert.equal(none.calls[0].url, '/api/email/digest?surface=1');
-  assert.match(none.byId('content').innerHTML, /No mailbox connected\.<br><button type="button" class="btn" data-connect="gmail">Connect Google \(Gmail\)<\/button> <button type="button" class="btn" data-connect="outlook">/);
+  const html = none.byId('content').innerHTML;
+  assert.match(html, /<h2>Connect a mailbox to see your day<\/h2>/);
+  assert.equal((html.match(/class="btn"/g) || []).length, 1, 'one primary');
+  assert.match(html, /<button type="button" class="btn" data-connect-open>Connect a mailbox<\/button>/);
+  assert.match(html, /<dialog class="connect-sheet"[^>]*>[\s\S]*data-connect="gmail">Google \(Gmail\)<\/button><button type="button" class="sheet-row" data-connect="outlook">Outlook \/ Microsoft 365</);
+  assert.doesNotMatch(html, /Mail connections|utilities/);
+  assert.deepEqual([...html.matchAll(/<h3>([^<]+)<\/h3>/g)].map((m) => m[1]).slice(1), ['Priority mail', 'Follow-ups', 'Today'], 'the greyed skeleton names what arrives');
+  assert.doesNotMatch(html, /<section>[^]*?(@|Subject|From)/, 'skeleton blocks only, no invented mail');
+  assert.equal(none.byId('provider').hidden, true, 'no mailbox: no switch');
+});
+
+test('My Day reads any connected mailbox when the saved one is not connected, because the switch is hidden', async () => {
+  const digest = { provider: 'outlook', date: '2026-09-27', unreadCount: 0, total: 0, events: [], topSenders: [] };
+  const run = await runSurface('email-my-day.html', [{ connected: false, provider: 'google', error: 'no_google_connection' }, digest, { summary: 'Quiet' }], 'google');
+  assert.deepEqual(run.calls.slice(0, 2).map((c) => c.url), ['/api/email/digest?surface=1&provider=google', '/api/email/digest?surface=1']);
+  assert.equal(run.byId('provider').hidden, false);
+});
+
+test('My Day greets by the local time of day instead of a fixed "Good day"', async () => {
+  const html = readFileSync(new URL('../tools/email-my-day.html', import.meta.url), 'utf8');
+  assert.doesNotMatch(html, /☀️ Good day/);
+  const run = await runSurface('email-my-day.html', [{ connected: false, provider: null, error: 'no_mail_connection' }]);
+  const h = new Date().getHours();
+  assert.equal(run.byId('greet').textContent, h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening');
+  const greeting = new Function(html.match(/function greeting\(now\)\{[^\n]+\}/)[0] + '; return greeting;')();
+  assert.deepEqual([9, 13, 20].map((hour) => greeting(new Date(2026, 10, 6, hour))), ['Good morning', 'Good afternoon', 'Good evening']);
 });

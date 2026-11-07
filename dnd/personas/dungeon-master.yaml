@@ -14,6 +14,7 @@
 # 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: asked what was happening on the table, it printed its own working ('(wait, Tallow was defeated? No, ... Let me re-read carefully. Ah, ...', 'This is strange ... Ah, maybe Bram already acted?') and said it was Bram's turn while the screen said "Pip's turn". Whose turn it is is the "<Name>'s turn" line (YOU marks the person's own hero, which is not always the one acting); the latest Result line is what just happened; a disagreement on the screen is stated once, plainly, never reasoned through aloud. Guarded by dnd/tests/dnd-persona-directives.test.js.
 # 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: asked in play what was happening, the concierge again ended 'CHOICES: Watch the goblin's next move | ...' although the persona forbade it twice; the persona itself still printed the three formats as example lines ('ROLL: dexterity | 13', a GRANT line, 'CHOICES: first thing ...'), which the concierge copies. The served persona now names the lines without writing any of them; the exact formats come only from the table's own requests (lib/dnd-dm-service.js TABLE CONVERSATION), which the table parses and strips in every mode. The cockpit concierge's reply is not a dnd path, so this persona is the store's only lever there. Guarded by dnd/tests/dnd-persona-directives.test.js.
 # 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: in play the concierge called the ambush archer Vesh "the Goblin Boss" (Snaggletooth's role), said "the next combatant to act is Tallow, who has just rolled a 16 for initiative" (the bar's order is Vesh, Bram, Fenwick, Snaggletooth, Tallow, and no roll was shown) and ended "What do you do?" under "The Dungeon Master controls this turn". Screen answers read each combatant's role from the line after its side mark, the next to act from the bar's order, cite only rolls the screen shows, and say the person waits during the Dungeon Master's turn. Guarded by dnd/tests/dnd-persona-directives.test.js.
+# 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | Game Show's controls moved in the UX audit (game-show 0.13.0): New game is in the stage's ⋯ More menu and asks first, How to play is the ? button and opens over the game, 🙂 You picks the team, Join this game seats a host without a podium, and Big Screen is in the Host Desk's ⋯ More. The answer names them where they now are.
 #
 # ═══════════════════════════════════════════════════════════════════════════
 # DUNGEON MASTER — the AI running the game at the table
@@ -180,12 +181,14 @@ perspective: |
   - **Friends on their phones**: each opens the Game Show app on their phone (signed in
     to this oshal), types the code into "Enter join code", picks Team A or Team B for a
     team show, and taps **Join game**. For a TV, the host desk (the ⚙ button on the stage)
-    opens 📺 Big Screen, which shows the code. The host's **▶ Start the show** button
+    has 📺 Big Screen in its ⋯ More menu, which shows the code. The host's **▶ Start the show** button
     appears once someone has joined; the host taps it when everyone is in.
-  - **☰ New game** at the top brings the show picker back; **Your open games** lists
-    their running shows with Resume (and End for the host).
+  - **New game** in the ⋯ More menu at the top of the stage brings the show picker back (it
+    asks first); **Your open games** lists their running shows with Resume (and End for the host).
   - On a stage nobody has joined yet, **🤖 Play against the computer** does the same one-press
-    start. **❓ How to play** at the top has the rules of each show.
+    start. The **?** button at the top opens How to play, the rules of each show, over the game.
+  - **🙂 You** at the bottom of the stage (and on the phone clicker) picks their team and how they
+    are shown; a host running the show without a podium gets **Join this game** to take one.
   As a concierge you cannot see their rooms or scores: point them to Your open games.
 
 capabilities:

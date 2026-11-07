@@ -5,12 +5,14 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Real Chromium through the real editor, the real compiled Create routes and a disposable PostgreSQL, with the named fixture provider: two complete generate, manual edit, regenerate, edit cycles; what is sent and what it costs is shown before sending; compare, accept and undo; a delayed candidate refused after a newer manual save and after another tab's save; reject, cancel and provider failure leave the project as it was; no generate permission means nothing is sent.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Hold the actual save request to prove the clicked cost class survives a refreshed paid report, refusal makes zero generation calls, and only another explicit click permits paid work; unsupported consent reports disable sending.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Save automatically is turned off through the document menu, layer values are edited in the one Format inspector and the Saved caption is read as text.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startPostgres, resetPostgres } from '../project-postgres.fixture.mjs';
 import { noiseImage, whenHeld } from '../region-edit.fixture.mjs';
 import { chromium, startRegionEditor } from './create-region-edit-fixture.mjs';
+import { manualSaving } from './create-editor-fixture.mjs';
 
 let db, cleanup, browser;
 before(async () => { db = await startPostgres(callback => { cleanup = callback; }); browser = await chromium.launch({ headless: true }); });
@@ -29,7 +31,7 @@ async function open(t, options = {}) {
   });
   const page = await context.newPage(); page.setDefaultTimeout(8000); page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${api.origin}/api/create/editor`, { waitUntil: 'domcontentloaded' });
-  await page.locator('#saveStatus').filter({ hasNotText: /Checking|Loading/ }).waitFor(); await page.locator('#autosave').uncheck();
+  await page.locator('#saveStatus').filter({ hasNotText: /Checking|Loading/ }).waitFor(); await manualSaving(page);
   return { page, api, errors, external, requests };
 }
 async function change(page, selector, value) { await page.locator(selector).fill(String(value)); await page.locator(selector).press('Tab'); }
@@ -45,9 +47,9 @@ function clean(value) { assert.deepEqual(value.errors, []); assert.deepEqual(val
 async function design(value) {
   const { page } = value;
   await page.locator('#imageFile').setInputFiles({ name: 'synthetic-noise.png', mimeType: 'image/png', buffer: await noiseImage(160, 100) });
-  await page.locator('#imageProperties').waitFor(); await change(page, '#layerWidth', 480); await change(page, '#layerHeight', 300);
+  await page.locator('#imageProperties').waitFor(); await change(page, '[data-editor-property="w"]', 480); await change(page, '[data-editor-property="h"]', 300);
   await painted(page, 5, 5, value => value[3] === 255, 'photo painted');
-  await page.locator('#addText').click(); await change(page, '#layerText', 'Launch day');
+  await page.locator('#addText').click(); await change(page, '[data-editor-property="text"]', 'Launch day');
   await page.locator('#saveProject').click(); await saved(page, 1);
 }
 async function drag(page, points, shift = false) {
@@ -86,7 +88,7 @@ test('two complete generate, manual edit, regenerate, edit cycles keep the title
   await painted(page, 120, 90, value => value[0] < 10 && value[1] > 190 && value[2] > 70 && value[2] < 90, 'region shows the candidate');
   assert.deepEqual(await pixel(page, 300, 250), outside, 'outside the region the canvas is unchanged');
   await page.getByRole('button', { name: 'Select Your title', exact: true }).click();
-  assert.equal(await page.locator('#layerText').inputValue(), 'Launch day'); await change(page, '#layerX', 520);
+  assert.equal(await page.locator('[data-editor-property="text"]').inputValue(), 'Launch day'); await change(page, '[data-editor-property="x"]', 520);
   await page.locator('#saveProject').click(); await saved(page, 3);
   await selectRegion(page, [{ x: 250, y: 150 }, { x: 420, y: 270 }], true);
   assert.match(await page.locator('#regionSummary').innerText(), /^Box region, .*saved revision 3\./);
@@ -95,7 +97,7 @@ test('two complete generate, manual edit, regenerate, edit cycles keep the title
   await saved(page, 4); await painted(page, 330, 210, value => value[1] > 190 && value[0] < 10, 'second region shows the candidate');
   await page.locator('#undo').click(); await painted(page, 330, 210, value => value.join() === boxBefore.join(), 'undo restores the previous image');
   await page.locator('#redo').click(); await painted(page, 330, 210, value => value[1] > 190, 'redo returns to the accepted candidate');
-  await page.getByRole('button', { name: 'Select Your title', exact: true }).click(); await change(page, '#layerText', 'Launch week');
+  await page.getByRole('button', { name: 'Select Your title', exact: true }).click(); await change(page, '[data-editor-property="text"]', 'Launch week');
   await page.locator('#saveProject').click(); await saved(page, 5);
   assert.deepEqual(await edits(), [{ source_revision: 1, accepted_revision: 2, status: 'accepted' }, { source_revision: 3, accepted_revision: 4, status: 'accepted' }]);
   const final = (await value.api.call('/projects')).body.projects[0], document = (await value.api.call(`/projects/${final.id}`)).body.project.document;
@@ -133,7 +135,7 @@ test('cancel and a provider failure say so and leave the project exactly as it w
   value.api.provider.setMode('fail'); value.api.provider.release();
   await page.locator('#regionSend').click(); await page.locator('#regionEditStatus').filter({ hasText: 'could not regenerate this region' }).waitFor();
   assert.deepEqual((await edits()).map(row => row.status), ['cancelled', 'failed']); assert.equal(await current(), 1);
-  assert.equal(await page.locator('#saveStatus').innerText(), 'Saved · revision 1'); clean(value);
+  assert.equal(await page.locator('#saveStatus').textContent(), 'Saved · revision 1'); clean(value);
 });
 
 test('without project.generate the panel explains why and nothing is ever sent', { timeout: 120000 }, async t => {
@@ -148,7 +150,7 @@ test('without project.generate the panel explains why and nothing is ever sent',
 test('the clicked free cap survives asynchronous save and a paid refresh requires a new click', { timeout: 120000 }, async t => {
   const value = await open(t, { provider: { costClass: 'free', costUsd: 0 } }), { page } = value; await design(value);
   await selectRegion(page, LASSO); await page.locator('#regionCost').filter({ hasText: 'no charge per image' }).waitFor();
-  await change(page, '#layerX', 1);
+  await change(page, '[data-editor-property="x"]', 1);
   let releaseSave, saveStarted;
   const saveGate = new Promise(resolve => { releaseSave = resolve; }), saving = new Promise(resolve => { saveStarted = resolve; });
   t.after(() => releaseSave());

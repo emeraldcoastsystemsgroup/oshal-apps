@@ -8,6 +8,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Supply browser timers and abort controllers to exercise immediate filters cancelling pending debounce work.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Pin three-page navigation and the desktop-only independently scrollable filter rail.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Keep the primary keyword form above saved searches and filters, and exercise Enter/button submission with page reset.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the keyword label is visually hidden ("Search all openings") and the submit button reads Search.
  */
 /**
  * Guards for the Search Jobs screen (`tools/career-search.html`).
@@ -116,7 +117,9 @@ test('the primary keyword search is directly below the heading and outside the f
   const form = html.match(/<form id="keywordSearch"[\s\S]*?<\/form>/)?.[0];
   assert.ok(form);
   assert.match(form, /role="search"/);
-  assert.match(form, /<label for="q">Search jobs<\/label>/);
+  // UX audit 2026-11-06: the shell names the screen, so the field's label is for assistive technology and the button reads Search.
+  assert.match(form, /<label for="q" class="sr-only">Search all openings<\/label>/);
+  assert.match(form, /<button type="submit" class="ck-primary">Search<\/button>/);
   assert.match(form, /<input id="q"[^>]*type="search"/);
   assert.match(form, /type="submit"/);
   assert.match(form, /titles, full descriptions, and employers/);

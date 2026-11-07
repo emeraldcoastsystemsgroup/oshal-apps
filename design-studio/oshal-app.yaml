@@ -34,6 +34,8 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.4.5: a send that failed no longer reads as a file sent; the poster gives the print service's reason.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.4.6: a bound part that is a bare box reads blocks, not parts-complete (the owner printed-sent one and saw a plain block); the partner designs parts for what they do.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.7: "plant" is no longer a routing word ("I spent the afternoon in the garden, what should I plant?" reached Design Studio); its plant work is reached through "mechanism", "design" and the application's name.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.8 (UX audit 2026-11-06): one primary on a product page (the next open phase); a phase no engine measures is closed with Mark done by hand, as a secondary; a failed or absent engine read is said in words with what to do, never the route path. Guard: tests/ux-words.test.js.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.9 (UX audit 2026-11-06): add one-line phase progress stepper above product posters, move process/closure prose into Help dialog, put Settings and Help in header overflow menu, hide duplicate Reload when framed in the cockpit shell, sort products newest-first, and pin New product to the bottom right on Products.
 name: design-studio
 suite: ai-engineering   # ADR-097: primary catalog shelf — exactly one
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -58,7 +60,7 @@ description: >-
   engine's evidence line and the artifact revision. The design partner on the
   right rail works through the chain with you. The spider is the first product;
   a lifting machine is the first whose plant is generated from its own design.
-version: 0.4.7
+version: 0.4.9
 status: active
 scope: person
 # The print set (ADR-203 D7) is written under this package's own lasting directory on the native kernel

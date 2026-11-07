@@ -1,5 +1,7 @@
 <!DOCTYPE html>
-<!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Accessible SAT/ACT Study Lab and saved timed practice. -->
+<!-- CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Accessible SAT/ACT Study Lab and saved timed practice.
+  2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lm-test-prep, SPLIT): the ~3,800px page becomes three in-page views behind a Plan · Practice · Lessons segmented control (?view= links each one). Plan: four stat tiles 2 per row on a phone, the plan form that saves on change ('Saved', no Save button), Today's focus, the one primary Start diagnostic, the coach and the skill table. Practice: practice time, the two launchers, resume, history and trend. Lessons: a searchable lesson list grouped by section, topic training, methods and official practice. A timed session is exam mode: one 48px bar (Question n of N, timer, Hide clock, Saved, ⋯ with Save now and Reload saved session, Exit) with no hero, frame bar or tabs.
+  3 | maintainer@emeraldcoastsystemsgroup.com | 1.9.0: wire all 168 curriculum video topics across 8 courses with course filter, level selector, search, posters, captions, and byte-range playback inside Lessons. -->
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SAT & ACT Study Lab — Little Monsters</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -9,30 +11,51 @@
 <body><main class="lm-page">
 <header class="lm-hero"><div><div class="lm-eyebrow">Little Monsters · SAT & ACT</div><h1 class="lm-display">Small steps. Stronger skills.</h1>
 <p class="lm-lead">Find the gaps. Learn the method. Build your pace.</p></div><img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162"></header>
+<header id="prep-exambar" class="prep-exambar" hidden aria-label="Practice session">
+<div class="prep-qblock"><h2 id="prep-qtitle" class="prep-qtitle"></h2><span id="prep-saved" class="prep-saved" aria-hidden="true"></span></div>
+<span class="prep-clock" id="prep-clock" role="timer" aria-label="Time remaining"></span>
+<button type="button" class="lm-btn lm-btn-ghost prep-barbtn" id="prep-clockbtn" data-action="clock">Hide clock</button>
+<details class="prep-exam-more" id="prep-exam-more"><summary aria-label="More session actions" title="More">⋯</summary>
+<div class="prep-exam-menu"><button type="button" id="prep-menu-save" data-action="save">Save now</button><button type="button" id="prep-menu-reload" data-action="reload">Reload saved session</button></div></details>
+<button type="button" class="lm-btn lm-btn-secondary prep-barbtn" data-action="exit">Exit</button>
+</header>
 <p id="prep-error" class="lm-callout" role="alert" hidden></p><p id="prep-status" role="status" aria-live="polite"></p>
 <div id="prep-home">
+<div class="prep-tabs" role="tablist" aria-label="SAT & ACT">
+<button type="button" role="tab" id="prep-tab-plan" data-tab="plan" aria-controls="prep-view-plan" aria-selected="true">Plan</button>
+<button type="button" role="tab" id="prep-tab-practice" data-tab="practice" aria-controls="prep-view-practice" aria-selected="false" tabindex="-1">Practice</button>
+<button type="button" role="tab" id="prep-tab-lessons" data-tab="lessons" aria-controls="prep-view-lessons" aria-selected="false" tabindex="-1">Lessons</button>
+</div>
+<div id="prep-view-plan" class="prep-view" role="tabpanel" aria-labelledby="prep-tab-plan">
 <section class="lm-section" aria-labelledby="prep-dashboard-heading"><div class="lm-section-head"><h2 id="prep-dashboard-heading">Your test prep dashboard</h2><span class="lm-pill">Saved to your student account</span></div><div id="prep-metrics" class="lm-grid" style="--min:150px"></div></section>
-<section class="lm-card" aria-labelledby="prep-coach-heading"><div class="lm-eyebrow">Your study concierge</div><h2 id="prep-coach-heading">Test Prep Coach</h2><p id="prep-coach-message"></p><div id="prep-coach-tip"></div><div id="prep-coach-actions" class="prep-controls"></div><p class="lm-help">Ask Jarvis: “Start SAT practice for my weak areas,” “Make training on percentages,” or “Show my slow answers.”</p></section>
-<section class="lm-card"><h2>Your study plan</h2><form id="prep-goal" class="prep-controls">
+<section class="lm-card lm-section" aria-labelledby="prep-plan-heading"><div class="lm-section-head"><h2 id="prep-plan-heading">Your study plan</h2><span id="prep-plan-saved" class="lm-help" role="status" aria-live="polite"></span></div><form id="prep-goal" class="prep-controls">
 <label>Test<select id="prep-exam"><option>SAT</option><option>ACT</option></select></label>
 <label>Test date <span class="lm-help">(optional)</span><input id="prep-date" type="date"></label>
 <label>Daily focus<select id="prep-budget"><option value="10">10 minutes</option><option value="15" selected>15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label>
-<button class="lm-btn lm-btn-secondary" type="submit">Save plan</button></form>
-<div class="prep-controls"><label>Practice time<select id="prep-multiplier"><option value="1">Standard time</option><option value="1.5">1.5× time</option><option value="2">2× time</option></select></label>
-<label id="prep-science-label" hidden><input id="prep-science" type="checkbox"> Include ACT Science</label></div>
-<p class="lm-help">Practice settings do not grant accommodations for the real exam. Confirm your school’s ACT Science requirement.</p></section>
+<label id="prep-science-label" class="prep-flag" hidden><input id="prep-science" type="checkbox"> Include ACT Science</label></form>
+<p class="lm-help">Changes save as you make them. Confirm your school’s ACT Science requirement.</p></section>
 <section class="lm-section"><div class="lm-section-head"><h2>Today’s focus</h2><span id="prep-count" class="lm-pill"></span></div><div id="prep-focus" class="lm-grid" style="--min:240px"></div></section>
+<section class="lm-section"><article class="lm-card"><div class="lm-eyebrow">01 · Find your starting point</div><h2>Skill diagnostic</h2><p>One question per skill. A starting signal, with more evidence collected in practice.</p><button class="lm-btn lm-btn-primary" data-start="diagnostic">Start diagnostic</button></article></section>
+<section class="lm-card lm-section" aria-labelledby="prep-coach-heading"><div class="lm-eyebrow">Your study concierge</div><h2 id="prep-coach-heading">Test Prep Coach</h2><p id="prep-coach-message"></p><div id="prep-coach-tip"></div><div id="prep-coach-actions" class="prep-controls"></div><p class="lm-help">Ask Jarvis: “Start SAT practice for my weak areas,” “Make training on percentages,” or “Show my slow answers.”</p></section>
+<section class="lm-section"><div class="lm-section-head"><h2>Your progress</h2><p class="lm-help">Knowledge and speed, tracked separately.</p></div><div class="prep-table-wrap"><table class="prep-table"><caption class="lm-help">First and latest fresh questions in each skill. Five fresh answers establish an initial signal; ten allow a comparison.</caption><thead><tr><th>Skill</th><th>Fresh</th><th>Accuracy</th><th>Correct-answer pace</th><th>Change</th></tr></thead><tbody id="prep-skills"></tbody></table></div><p id="prep-window" class="lm-help"></p></section>
+</div>
+<div id="prep-view-practice" class="prep-view" role="tabpanel" aria-labelledby="prep-tab-practice" hidden>
+<section class="lm-card lm-section"><h2>Practice settings</h2><div class="prep-controls"><label>Practice time<select id="prep-multiplier"><option value="1">Standard time</option><option value="1.5">1.5× time</option><option value="2">2× time</option></select></label></div>
+<p class="lm-help">Practice settings do not grant accommodations for the real exam.</p></section>
 <section class="lm-section"><div class="lm-grid" style="--min:240px">
-<article class="lm-card"><div class="lm-eyebrow">01 · Find your starting point</div><h2>Skill diagnostic</h2><p>One question per skill. A starting signal, with more evidence collected in practice.</p><button class="lm-btn lm-btn-primary" data-start="diagnostic">Start diagnostic</button></article>
 <article class="lm-card"><div class="lm-eyebrow">02 · Work on what matters</div><h2>Focused practice</h2><p>Up to eight questions from your weakest or slowest skills. Fresh questions come first.</p><button class="lm-btn lm-btn-primary" data-start="practice">Practice my focus areas</button></article>
 <article class="lm-card"><div class="lm-eyebrow">03 · Build endurance</div><h2>Full-length pacing</h2><p id="prep-format"></p><p>Original foundation-level variants, fixed modules, raw accuracy. This is not an official or adaptive mock and cannot predict your exam score.</p><button class="lm-btn lm-btn-secondary" data-start="simulation">Start pacing simulation</button></article>
 </div></section>
 <section class="lm-section" id="prep-resume-section" hidden><h2>Continue your practice</h2><div id="prep-resume" class="prep-list"></div></section>
-<section class="lm-section"><div class="lm-section-head"><h2>Your progress</h2><p class="lm-help">Knowledge and speed, tracked separately.</p></div><div class="prep-table-wrap"><table class="prep-table"><caption class="lm-help">First and latest fresh questions in each skill. Five fresh answers establish an initial signal; ten allow a comparison.</caption><thead><tr><th>Skill</th><th>Fresh</th><th>Accuracy</th><th>Correct-answer pace</th><th>Change</th></tr></thead><tbody id="prep-skills"></tbody></table></div><p id="prep-window" class="lm-help"></p></section>
-<section class="lm-section"><h2>Lessons & short videos</h2><p>A monster teaches the full method, a useful shortcut, and the trap to avoid. Every video has a transcript.</p><div id="prep-lessons" class="lm-grid" style="--min:240px"></div></section>
 <section class="lm-section"><h2>Practice history</h2><div id="prep-history" class="prep-list"></div></section>
 <section class="lm-section" aria-labelledby="prep-trend-heading"><h2 id="prep-trend-heading">Recent practice accuracy</h2><div id="prep-trend" class="prep-trend"></div><p class="lm-help">Last ten completed sessions. Different question mixes and repeated items affect these percentages; use the skill table to compare fresh-question progress.</p></section>
-<section class="lm-card" aria-labelledby="prep-training-heading"><h2 id="prep-training-heading">Create topic training</h2><p>Save a lesson, worked example, recall cards and tips. Come back to your cards and notes whenever you need them.</p>
+</div>
+<div id="prep-view-lessons" class="prep-view" role="tabpanel" aria-labelledby="prep-tab-lessons" hidden>
+<section class="lm-section" aria-labelledby="prep-lessons-heading"><div class="lm-section-head"><h2 id="prep-lessons-heading">Lessons & short videos</h2><span id="prep-lesson-count" class="lm-help" role="status"></span></div><p>A monster teaches the full method, a useful shortcut, and the trap to avoid. Every video has a transcript.</p>
+<div class="prep-controls"><label class="prep-search">Find a lesson<input id="prep-lesson-search" type="search" placeholder="Try percentages or commas"></label></div><div id="prep-lessons"></div></section>
+<section id="prep-curriculum-section" class="lm-section" aria-labelledby="prep-curriculum-heading" hidden><div class="lm-section-head"><h2 id="prep-curriculum-heading">Video curriculum</h2><span id="prep-curriculum-count" class="lm-help" role="status"></span></div><p>168 K–12 curriculum video lessons across 8 subjects, filmed at 1080p with English captions and multi-level explanations.</p>
+<div class="prep-controls"><label>Course<select id="prep-curriculum-course"><option value="all">All courses</option></select></label><label>Level<select id="prep-curriculum-level"><option value="beginner">Beginner</option><option value="intermediate" selected>Intermediate</option><option value="advanced">Advanced</option></select></label><label class="prep-search">Find a topic<input id="prep-curriculum-search" type="search" placeholder="Try fractions, ecosystems, or grammar"></label></div><div id="prep-curriculum-list" class="prep-list"></div></section>
+<section class="lm-card lm-section" aria-labelledby="prep-training-heading"><h2 id="prep-training-heading">Create topic training</h2><p>Save a lesson, worked example, recall cards and tips. Come back to your cards and notes whenever you need them.</p>
 <form id="prep-training-form"><div class="prep-controls"><label>Topic<select id="prep-training-topic" required></select></label><label>Content<select id="prep-training-mode"><option value="guided">Study pack from the method library</option><option value="personalized">Personalized explanation</option></select></label></div>
 <label>What would help? <span class="lm-help">Optional learning goal</span><textarea id="prep-training-goal" class="prep-note" maxlength="300" placeholder="For example: break the algebra into smaller steps."></textarea></label><p class="lm-help">Personalized explanations use your configured study model. Study packs work immediately.</p><button class="lm-btn lm-btn-primary" type="submit">Create and save training</button></form></section>
 <section class="lm-section"><h2>Your saved training</h2><div id="prep-training-list" class="prep-list"></div></section>
@@ -40,6 +63,7 @@
 <div class="prep-controls"><label>Section<select id="prep-strategy-section"><option value="all">All sections</option></select></label><label>Find a method<input id="prep-strategy-search" type="search" placeholder="Try percentages or evidence"></label></div><p id="prep-strategy-count" class="lm-help" role="status"></p><div id="prep-strategies" class="prep-list"></div></section>
 <section class="lm-section" aria-labelledby="prep-official-heading"><h2 id="prep-official-heading">Official free practice</h2><p>Try unfamiliar publisher questions to check whether your skills transfer. These links open the official resources. Work done there is not automatically timed or added to your Little Monsters progress.</p><p id="prep-official-note" class="lm-callout"></p>
 <div class="prep-controls"><a class="lm-btn lm-btn-ghost" href="https://bluebook.app.collegeboard.org/" target="_blank" rel="noopener noreferrer">SAT adaptive practice in Bluebook ↗</a><a class="lm-btn lm-btn-ghost" href="https://www.act.org/content/act/en/products-and-services/the-act/test-preparation/free-act-test-prep.html" target="_blank" rel="noopener noreferrer">ACT timed and untimed online practice ↗</a></div><div id="prep-official" class="lm-grid" style="--min:240px"></div><p class="lm-help">Links checked <span id="prep-official-date"></span>. Keep the test number and paper/online scoring format matched.</p></section>
+</div>
 </div>
 <section id="prep-session" class="lm-card" hidden aria-label="Practice session"></section>
 <section id="prep-lesson" class="lm-card" hidden aria-label="Study lesson"></section>

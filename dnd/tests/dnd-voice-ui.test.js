@@ -12,6 +12,7 @@
  * 2026-07-23 02:35:01 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove the table identifies gravelly Cloud Algenib as primary and never offers Kore.
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Prove action, dice, and NPC-pace gameplay preferences persist and affect runtime behavior.
  * 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep the DM Settings label visible and expose active natural playback as speaking.
+ * 2026-11-07 04:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Prove the table falls back to the kernel's speech service when /tts has no narrator (native kernel), and stays silent only when that has no voice either.
  */
 
 'use strict';
@@ -225,4 +226,30 @@ test('Dungeon Master gameplay switches persist action, dice, and NPC pace behavi
   assert.match(fixture.state.storage.get('dnd-dm-play-preferences-v1'), /"npcPace":"quick"/);
   fixture.api.setDmPlaySetting('npcPace', 'invalid');
   assert.equal(fixture.api.dmPlaySetting('npcPace'), 'quick');
+});
+
+test('with no table narrator, the kernel speech service narrates (native kernel)', async () => {
+  const calls = [];
+  const fixture = voiceContext({
+    fetch: async (url) => {
+      calls.push(String(url));
+      if (String(url).endsWith('/tts')) return { json: async () => ({ ok: false, unavailable: true }) };
+      return { json: async () => ({ data: { audioData: 'UklGRg==', format: 'audio/wav' } }) };
+    },
+  });
+  const result = await fixture.api.fetchSelectedNeuralVoice('The torchlight flickers.', Date.now() + 20000);
+  assert.deepEqual(calls, ['/api/dnd/tts', '/api/voice/synthesize']);
+  assert.equal(result.ok, true);
+  assert.equal(result.audio, 'UklGRg==');
+  assert.equal(result.mime, 'audio/wav');
+  assert.equal(result.provider, 'oshal-voice');
+});
+
+test('the kernel speech fallback stays silent when the kernel has no voice either', async () => {
+  const fixture = voiceContext({
+    fetch: async (url) => ({ json: async () => (String(url).endsWith('/tts')
+      ? { ok: false, unavailable: true } : { data: { fallback: 'browser' } }) }),
+  });
+  const result = await fixture.api.fetchSelectedNeuralVoice('Roll for initiative.', Date.now() + 20000);
+  assert.equal(result, null);
 });

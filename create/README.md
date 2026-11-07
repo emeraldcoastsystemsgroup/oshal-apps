@@ -105,18 +105,16 @@ The package ships:
   cockpit when **Application colors** is enabled for `?app=create` (ADR-085 bundled skin, the Little Monsters
   mechanism): white paper, a lilac→sky→mint wash, one violet accent with a violet→teal
   gradient, a 76px icon-over-label rail, gradient wordmark;
-- **the home surface** — [`tools/create-home.html`](tools/create-home.html): a compact
-  introduction, workspace search and one *Browse templates* action; *Continue creating*
-  (recent saved work across every studio), *Quick start* (twelve formats in a wrapping
-  grid, each opening its studio), *Your studios*
-  (built from this app's own cockpit profile, so the cards are the rail), *This week*
-  (each studio's own counts);
-- **the New screen** — [`tools/create-new.html`](tools/create-new.html): the "Create a design"
-  flow. A Home return, format categories (Image designs, Presentations, Documents, Spreadsheets, Portraits, Video, Stories, 3D & print), search,
-  purpose chips, and template cards drawn from each studio's own catalog — AI Office publishes what a
-  deck, a document and a workbook are each *for* (`GET /api/presentations/sections/starters`), and a
-  card opens AI Office already set to that kind, starter and look (`app-navigate` + a validated
-  `query`, cockpit ≥ the tool-query change; standalone, the studio URL carries the same query);
+- **the home surface** — [`tools/create-home.html`](tools/create-home.html): your work first, as
+  picture cards newest first (a render for saved images, a tinted cover with the studio glyph elsewhere),
+  with search in the app row and one *New* button at the bottom right (UX audit 2026-11-06);
+- **the New sheet** — opened by Home's *New* (a sheet on a phone, a dialog on a desktop): a Blank row first
+  (Image 1080 × 1080 and 1920 × 1080, Presentation, Document, Spreadsheet, Video, Portrait, Story, 3D scan,
+  each a real blank start in its studio), then templates with search and one row of format chips. The Office
+  templates come from AI Office's own catalog (`GET /api/presentations/sections/starters`) and open AI Office
+  set to that kind, starter and look (`app-navigate` + a validated `query`). The old New page,
+  [`tools/create-new.html`](tools/create-new.html), only forwards now: to Home with the sheet open, and a
+  shell's `?audience=` view to Home, which serves that view;
 - **static entry routes** — `GET /api/create/new`, `GET /api/create/home` and `GET /api/create/theme/create.css`,
   static files served from the installed package dir captured at factory time;
 - **the image editor and project API** — `/api/create/editor`, owned immutable
@@ -271,8 +269,9 @@ pending; no GitHub Actions were used.
 
 ## Audience views (1.9.3)
 
-The whole-portal shells open the New surface inside their own frame (ADR-164 D6): Jarvis (the Home shell) with
-`/api/create/new?audience=family`, and Studio, Orbit and Commons (the Business shells) with `?audience=company`. Under
+The whole-portal shells open Create's first surface inside their own frame (ADR-164 D6): Jarvis (the Home shell) with
+`?audience=family`, and Studio, Orbit and Commons (the Business shells) with `?audience=company`. Since the UX audit of
+2026-11-06 that surface is Home (`/api/create/home`); the old `/api/create/new?audience=` forwards there. Under
 either, the shared kit paints one account-scoped card from `GET /api/create/home-summary` (the package's bound summary
 read, `project.view` + `project.read`, owner-scoped): the count of the account's own image projects, the newest six with
 their update time and an image-editor link, and what Create can open. The view asks no studio for its access, reads no AI
@@ -309,8 +308,7 @@ kernel's role-guidance page.
 
 | Tile | URL | Owner |
 |---|---|---|
-| Create (New) | `/api/create/new` | this package — categories, purpose chips and template cards; the Office cards come from `GET /api/presentations/sections/starters` (the owning app's catalog) and every card opens its studio on that purpose through `app-navigate` + `query` |
-| Home | `/api/create/home` | this package |
+| Home | `/api/create/home` | this package — your work and the New sheet (Blank starts and templates); `/api/create/new` forwards here with the sheet open |
 | Brand Kit | `/api/create/brand` | this package — the person's brand kit (see below) |
 | AI Office | `/api/presentations/sections/ui` | presentations |
 | Image editor | `/api/create/editor` | create — manual layered projects |

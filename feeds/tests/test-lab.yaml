@@ -89,3 +89,24 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: ux-not-connected-controls
+    name: Feeds withholds Live, Sync now and the gear until Slack is connected
+    purpose: >-
+      UX audit 2026-11-06: run the shipped setStatus(); the bar shows only Connect Slack before Slack is connected; the drawer is opaque, saves on change and closes with Done; the page says Slack channels and DMs.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/feeds-not-connected-controls.test.js
+    expected:
+      - Not connected hides liveToggle, syncBtn and gearBtn; connected shows them.
+      - The drawer paints the panel over the page colour and has Done, no Save.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

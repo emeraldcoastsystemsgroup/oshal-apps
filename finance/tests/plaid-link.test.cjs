@@ -3,6 +3,7 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-05: Add account is on the Linked banks screen (?view=banks, renderBanks), off the read-only overview.
  * 3   | maintainer@emeraldcoastsystemsgroup.com     | Demo sweep 1: with no Plaid keys the shipped connect screen (renderConnect, run from the page) and the Link routes say bank linking is not set up on this installation (and Demo connect outside Sandbox says why), never an operator setting name, and the page no longer promises Sandbox Demo-connect beside disabled buttons.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | T8: Link retries without the return address on INVALID_FIELD; removeItem answers providerDisconnected (ITEM_NOT_FOUND counts, INVALID_ACCESS_TOKEN refuses with the reconnect-or-dashboard message); Disconnect reports an orphaned link honestly and keeps the row on INVALID_ACCESS_TOKEN (409); Sync skips an unreadable link with a note and still syncs the others.
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Real Plaid Link on Finance. Pins: Link asks for transactions with investments optional and sends PLAID_REDIRECT_URI when set; balances read /accounts/get; transactions page past one page; removeItem treats an already-gone item as removed and surfaces any other refusal. The compiled routes list each linked institution in /status, disconnect at Plaid before deleting the row, keep the row on a Plaid refusal (502), remove an unreadable legacy link locally, clear the saved snapshot, and never touch another person's link. The page offers Add account, Disconnect per institution and resumes an OAuth redirect with the saved link token. Provider responses are recorded doubles shaped like Plaid's documented fields; no credential or network is used. Run: node --test tests/plaid-link.test.cjs
@@ -241,8 +242,8 @@ test('Sync skips a link whose stored credential cannot be read and still syncs t
 
 test('the page offers Add account, Disconnect per institution and resumes an OAuth redirect', () => {
   const html = fs.readFileSync(path.join(ROOT, 'tools', 'finance.html'), 'utf8');
-  assert.match(html, /id="addBtn"[^>]*>Add account</);
-  assert.match(html, /\$\('addBtn'\)\.onclick = startLink;/);
+  assert.match(html, /id="addAccount"[^>]*>Add account</);
+  assert.match(html, /\$\('addAccount'\)\.onclick = startLink;/);
   assert.match(html, /api\('\/items\/' \+ encodeURIComponent\(itemId\), \{ method: 'DELETE' \}\)/);
   assert.match(html, /has\('oauth_state_id'\)/);
   assert.match(html, /receivedRedirectUri/);

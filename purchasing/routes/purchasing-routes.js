@@ -37,6 +37,9 @@
  * 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No Walmart rail is said, not refused before the concierge speaks. The chat turn probes the runtime's Walmart `status` first; where it answers mode not_connected (the native kernel declares a walmart connector but runs no Walmart operation, refusing search with 503 and failing the whole call) the turn skips the catalog and the concierge answers with that fact, which never tells the shopper to connect Walmart. /config carries `rail` and the sentence. Guard: tests/purchasing-no-rail.test.js.
  * 2026-10-12 | maintainer@emeraldcoastsystemsgroup.com | Sweep 9: neither the Home concierge nor Jarvis could put an item on the shopping list the screen adds to (no tool wrote a list). POST /lists/default/items adds to the shopper's default list (the first active one, which Home shows; created on first use), so the approval-held shopping-list-add tool needs no list id. Any other list id is still checked for ownership.
  * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | Several free-text items in one call. Asked from Jarvis to "add milk, eggs, bread and bananas to my grocery cart", the concierge proposed one card (milk) and stopped: shopping-list-add takes one item, and the model did not chain four approvals. POST /lists/:listId/items also takes {items:[{title, quantity?}]} (1 to 30 free-text entries, each stored exactly as a single title-only add is) and answers {items}; shopping-list-add-many is its approval-held tool, one card for the whole list. Guard: tests/shopping-list-add-many.test.cjs.
+ * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (shop-lists): POST /lists/:listId/items/:itemId updates one of the shopper's own rows that is not removed: checked true ticks it off (status 'done', which checkout already leaves out like any non-pending line) and false puts it back; quantity steps it (lineQuantity clamps 1..MAX). The List screen's checkbox and -/+ stepper call it. Totals and checkout are unchanged.
+ * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | GET /chat (the Assistant page, merged into List) serves the List page, so Life's Shopping tile and the framework rail's Shopping item land on List (the native bridge drops a redirect's Location header). POST /chat is unchanged.
+ * 2026-11-06 | maintainer@emeraldcoastsystemsgroup.com | POST /profile saves a part of the profile: an UPDATE that keeps what the body leaves out, else a first INSERT with dietary, brands, retailer and onboarded filled. The single INSERT ... ON CONFLICT passed NULL into those NOT NULL columns, so every partial save ('set my monthly budget to $250', the UX audit's 'Budget open') failed with 'SQL NOT NULL constraint failed'.
  *
  * @module purchasing-routes
  */
@@ -537,7 +540,9 @@ function createPurchasingRoutes(ctx) {
     };
     // ── Surfaces ─────────────────────────────────────────────────────────────--
     router.get('/dashboard', serveFile(surfaceDir, 'shopping-dashboard.html'));
-    router.get('/chat', serveFile(surfaceDir, 'shopping-chat.html'));
+    // The Assistant page merged into List (UX audit 2026-11-05): its address shows List. The native package bridge drops a
+    // Location header, so a redirect cannot work there; the address serves the List page itself (its ?audience= included).
+    router.get('/chat', serveFile(surfaceDir, 'shopping-dashboard.html'));
     router.get('/purchasing.css', serveFile(surfaceDir, 'purchasing.css'));
     router.get('/config', shopper(async (_req, res, sub) => {
         if (await walmartRailAbsent(pool, sub)) {
@@ -665,6 +670,23 @@ function createPurchasingRoutes(ctx) {
         await pool.query(`UPDATE shop_list_items SET status = 'removed' WHERE item_id = $1 AND user_sub = $2`, [req.params.itemId, sub]);
         res.json({ ok: true });
     }));
+    // One row's own controls on the List screen: tick off (status 'done', left out of checkout) or back on, and the quantity.
+    router.post('/lists/:listId/items/:itemId', shopper(async (req, res, sub) => {
+        const b = req.body || {};
+        const quantity = b.quantity === undefined ? null : (0, cart_totals_1.lineQuantity)(b.quantity);
+        const status = b.checked === undefined ? null : (b.checked === true ? 'done' : 'pending');
+        if (quantity === null && status === null) {
+            res.status(400).json({ error: 'quantity or checked is required' });
+            return;
+        }
+        const r = await pool.query(`UPDATE shop_list_items SET quantity = COALESCE($4, quantity), status = COALESCE($5, status)
+       WHERE item_id = $1 AND list_id = $2 AND user_sub = $3 AND status != 'removed' RETURNING *`, [req.params.itemId, req.params.listId, sub, quantity, status]);
+        if (!r.rowCount) {
+            res.status(404).json({ error: 'not your item' });
+            return;
+        }
+        res.json({ item: r.rows[0] });
+    }));
     // ── Checkout handoff (deep link) ───────────────────────────────────────────
     router.post('/checkout', shopper(async (req, res, sub) => {
         const listId = req.body?.listId || (await getOrCreateDefaultList(pool, sub));
@@ -769,26 +791,26 @@ function createPurchasingRoutes(ctx) {
         res.json({ profile: await loadProfile(pool, sub) });
     }));
     router.post('/profile', shopper(async (req, res, sub) => {
-        const b = req.body || {};
-        const r = await pool.query(`INSERT INTO shop_profile
-         (user_sub, display_name, household_size, dietary, brands_love, brands_avoid,
-          preferred_retailer, preferred_store, budget_monthly, notes, onboarded, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7,'walmart'),$8,$9,$10,COALESCE($11,false),NOW())
-       ON CONFLICT (user_sub) DO UPDATE SET
-         display_name=COALESCE(EXCLUDED.display_name, shop_profile.display_name),
-         household_size=COALESCE(EXCLUDED.household_size, shop_profile.household_size),
-         dietary=COALESCE(EXCLUDED.dietary, shop_profile.dietary),
-         brands_love=COALESCE(EXCLUDED.brands_love, shop_profile.brands_love),
-         brands_avoid=COALESCE(EXCLUDED.brands_avoid, shop_profile.brands_avoid),
-         preferred_retailer=COALESCE(EXCLUDED.preferred_retailer, shop_profile.preferred_retailer),
-         preferred_store=COALESCE(EXCLUDED.preferred_store, shop_profile.preferred_store),
-         budget_monthly=COALESCE(EXCLUDED.budget_monthly, shop_profile.budget_monthly),
-         notes=COALESCE(EXCLUDED.notes, shop_profile.notes),
-         onboarded=(EXCLUDED.onboarded OR shop_profile.onboarded), updated_at=NOW()
-       RETURNING *`, [sub, b.displayName ?? null, b.householdSize ?? null, b.dietary ?? null, b.brandsLove ?? null,
-            b.brandsAvoid ?? null, b.preferredRetailer ?? null, b.preferredStore ?? null,
-            b.budgetMonthly ?? null, b.notes ?? null, b.onboarded ?? null]);
-        res.json({ profile: r.rows[0] });
+      const b = req.body || {};
+      // An UPDATE keeps every field the body leaves out. A first save INSERTs with the NOT NULL columns filled here: an explicit
+      // NULL into a NOT NULL column is refused even when it has a DEFAULT, so 'set my monthly budget' failed with "SQL NOT NULL
+      // constraint failed" (dietary, brands) on every installation. No ON CONFLICT: one row per shopper, read by its key.
+      let r = await pool.query(`UPDATE shop_profile SET display_name=COALESCE($2, display_name), household_size=COALESCE($3, household_size),
+           dietary=COALESCE($4, dietary), brands_love=COALESCE($5, brands_love), brands_avoid=COALESCE($6, brands_avoid),
+           preferred_retailer=COALESCE($7, preferred_retailer), preferred_store=COALESCE($8, preferred_store),
+           budget_monthly=COALESCE($9, budget_monthly), notes=COALESCE($10, notes), onboarded=(COALESCE($11, false) OR onboarded), updated_at=NOW()
+         WHERE user_sub=$1 RETURNING *`,
+        [sub, b.displayName ?? null, b.householdSize ?? null, b.dietary ?? null, b.brandsLove ?? null, b.brandsAvoid ?? null,
+         b.preferredRetailer ?? null, b.preferredStore ?? null, b.budgetMonthly ?? null, b.notes ?? null, b.onboarded ?? null]);
+      if (!r.rowCount) {
+        r = await pool.query(`INSERT INTO shop_profile
+             (user_sub, display_name, household_size, dietary, brands_love, brands_avoid,
+              preferred_retailer, preferred_store, budget_monthly, notes, onboarded, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW()) RETURNING *`,
+          [sub, b.displayName ?? null, b.householdSize ?? null, b.dietary ?? [], b.brandsLove ?? [], b.brandsAvoid ?? [],
+           b.preferredRetailer ?? 'walmart', b.preferredStore ?? null, b.budgetMonthly ?? null, b.notes ?? null, b.onboarded ?? false]);
+      }
+      res.json({ profile: r.rows[0] });
     }));
     // The shopper's ONE open cart + items — what the assistant works on.
     // Shape: { listId, items, total } unchanged (other surfaces read it); totalCents is the exact

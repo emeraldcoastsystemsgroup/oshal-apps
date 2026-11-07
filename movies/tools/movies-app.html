@@ -118,7 +118,7 @@
     padding:14px 16px;border-radius:14px;font-size:16px;outline:none;backdrop-filter:blur(var(--blur))}
   .search input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
   .btn{cursor:pointer;border:none;border-radius:12px;font-weight:700;font-size:14px;padding:13px 18px;
-    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;transition:.15s;white-space:nowrap}
+    background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--ds-on-accent,var(--text-on-accent,#fff));transition:.15s;white-space:nowrap}
   .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
   .btn.ghost{background:var(--card);color:var(--text);border:1px solid var(--border)}
   .btn.ghost:hover{background:var(--card-hover)}
@@ -142,7 +142,6 @@
     border-radius:999px;font-size:11px;font-weight:700;padding:3px 7px;color:var(--accent)}
   .meta{padding:9px 11px 11px}
   .meta .name{font-weight:700;font-size:13px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .meta .year{color:var(--muted);font-size:12px;margin-top:2px}
 
   /* Watchlist strip */
   .wlrow{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px}
@@ -155,19 +154,21 @@
     background:linear-gradient(transparent,rgba(0,0,0,.85));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* Detail modal */
+  /* The title sheet is opaque and its page is dimmed by the theme's scrim, with no blur (design standard §2.1 Float, §2.7):
+     a translucent sheet over a dark scrim left the synopsis at about 1.2:1 in Light Blue (UX audit 2026-11-06). */
   .modal{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;
-    background:rgba(5,5,12,.7);backdrop-filter:blur(4px);overflow:auto;padding:40px 16px}
+    background:var(--ds-scrim,rgba(5,5,12,.55));overflow:auto;padding:40px 16px}
   .modal.show{display:flex}
-  .sheet{background:var(--bg2);border:1px solid var(--border2);border-radius:18px;max-width:760px;width:100%;
-    overflow:hidden;backdrop-filter:blur(var(--blur));box-shadow:0 30px 80px rgba(0,0,0,.6)}
-  .sheet .hero{position:relative;aspect-ratio:16/8;background:#14142a}
-  .sheet .hero img{width:100%;height:100%;object-fit:cover;opacity:.6}
-  .sheet .hero .x{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
+  .sheet{background:var(--ds-surface,var(--bg-primary,#0a0a12));color:var(--ds-ink,var(--text-primary,var(--text)));border:1px solid var(--border2);border-radius:18px;max-width:760px;width:100%;
+    overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+  .sheet .hero2{position:relative;aspect-ratio:16/8;background:#14142a}
+  .sheet .hero2 img{width:100%;height:100%;object-fit:cover;opacity:.6}
+  .sheet .hero2 .x{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;
     background:rgba(0,0,0,.6);color:#fff;font-size:18px}
   .sheet .body{padding:18px 20px 22px}
   .sheet h2{margin:0 0 4px;font-size:21px}
   .sheet .sub2{color:var(--muted);font-size:13px;margin-bottom:12px}
-  .sheet .ov{font-size:14px;line-height:1.6;color:#d8d8ea;margin-bottom:16px}
+  .sheet .ov{font-size:14px;line-height:1.6;color:var(--ds-ink-2,var(--text-secondary,var(--muted)));margin-bottom:16px}
   .where{margin:14px 0}
   .where .lab{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
   .provs{display:flex;flex-wrap:wrap;gap:8px}
@@ -184,7 +185,7 @@
   .msgs{max-height:260px;overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
   .msg{max-width:82%;padding:10px 13px;border-radius:13px;font-size:14px;line-height:1.45}
   .msg.bot{background:var(--card);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px}
-  .msg.me{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px;font-weight:600}
+  .msg.me{background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--ds-on-accent,var(--text-on-accent,#fff));align-self:flex-end;border-bottom-right-radius:4px;font-weight:600}
   .chatin{display:flex;gap:10px;padding:12px 14px;border-top:1px solid var(--border)}
   .chatin input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:12px;outline:none}
   .chatin input:focus{border-color:var(--accent)}
@@ -223,6 +224,62 @@
     .secrow{flex-wrap:wrap}
     .secrow .sub{margin-left:0;width:100%}
   }
+
+  /* ── Media home (UX audit 2026-11-06, design standard §5.2): artwork first, one primary per title ── */
+  body{padding-bottom:8px}
+  .topbar{display:flex;align-items:center;gap:12px;padding-top:12px;padding-bottom:4px;position:sticky;top:0;z-index:20;
+    background:var(--ds-surface,var(--bg-primary,#0a0a12))}
+  .chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+  .chip{appearance:none;border:1px solid var(--border2);background:transparent;color:var(--text);font:inherit;font-size:13px;font-weight:600;
+    padding:0 14px;min-height:36px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .chip.on{background:var(--accent);border-color:transparent;color:var(--ds-on-accent,var(--text-on-accent,#fff))}
+  .chip:focus-visible,.tabs button:focus-visible,.linkbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .tabs{display:flex;gap:4px;margin-left:auto}
+  .tabs button{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;padding:0 14px;min-height:40px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .tabs button span{font-size:16px}
+  .tabs button.on{color:var(--text);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+  .askbtn{padding:0 16px;min-height:40px}
+  .linkbtn{appearance:none;background:none;border:0;padding:10px 6px;min-height:44px;font:inherit;font-weight:700;color:var(--accent);cursor:pointer}
+  .view[hidden]{display:none}
+  .row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(132px,150px);gap:12px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x proximity}
+  .row .card{scroll-snap-align:start}
+  .row .empty{grid-column:1/-1}
+  .card{position:relative}
+  .card .rm{position:absolute;right:6px;top:6px;width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;background:rgba(0,0,0,.65);color:#fff;font-size:16px}
+  .hero{position:relative;border-radius:18px;overflow:hidden;min-height:300px;margin:8px 0 18px;background:#14142a;display:flex;align-items:flex-end}
+  .hero .art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .hero .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,6,12,.88) 0%,rgba(6,6,12,.55) 55%,rgba(6,6,12,.15) 100%),linear-gradient(0deg,rgba(6,6,12,.7),transparent 55%)}
+  .hero .copy{position:relative;padding:26px 28px;max-width:620px;color:#fff}
+  .hero .kick{font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;opacity:.85}
+  .hero h1{margin:4px 0 2px;font-size:30px;line-height:1.15}
+  .hero .hy{font-size:13px;opacity:.85}
+  .hero p{font-size:14px;line-height:1.5;margin:10px 0 16px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:#e9e9f2}
+  .hero .acts{display:flex;gap:10px;flex-wrap:wrap}
+  .hero .btn.ghost{background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.4)}
+  a.btn{display:inline-block;text-decoration:none}
+  .askmodal{align-items:stretch;justify-content:flex-end;padding:0}
+  .asksheet{background:var(--ds-surface,var(--bg-primary,#0a0a12));color:var(--ds-ink,var(--text-primary,var(--text)));border-left:1px solid var(--border2);
+    width:min(420px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.35)}
+  .asksheet .chathead{justify-content:space-between}
+  .asksheet .msgs{flex:1;max-height:none}
+  .x2{appearance:none;border:0;background:transparent;color:var(--text);font-size:24px;width:44px;height:44px;border-radius:50%;cursor:pointer}
+  .sugg{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 12px}
+  .sugg[hidden]{display:none}
+  .pickrow{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start}
+  @media (max-width:640px){
+    body{padding-bottom:76px}
+    .topbar{flex-wrap:nowrap;padding-top:10px}
+    .chip{min-height:44px}
+    .askbtn{margin-left:auto;min-height:44px;min-width:48px}
+    .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;margin:0;gap:0;justify-content:space-around;padding:4px 6px calc(4px + env(safe-area-inset-bottom));
+      background:var(--ds-surface,var(--bg-primary,#0a0a12));border-top:1px solid var(--border2)}
+    .tabs button{flex:1;flex-direction:column;gap:2px;font-size:12px;min-height:56px;justify-content:center}
+    .hero{min-height:260px;margin-top:4px}
+    .hero .copy{padding:18px}
+    .hero h1{font-size:24px}
+    .askmodal{align-items:flex-end;justify-content:center}
+    .asksheet{width:100%;height:auto;max-height:78vh;min-height:52vh;border-left:0;border-top:1px solid var(--border2);border-radius:18px 18px 0 0;box-shadow:0 -20px 60px rgba(0,0,0,.35)}
+  }
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--accent2);color:#fff;font-weight:700;
     padding:11px 18px;border-radius:12px;box-shadow:0 10px 30px var(--accent-glow);opacity:0;transition:.25s;pointer-events:none;z-index:80}
   .toast.show{opacity:1}
@@ -252,11 +309,6 @@
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
-  <header>
-    <div class="logo">🎬</div>
-    <div class="brand">OSHAL Movies &amp; TV<small>What to watch &amp; where</small></div>
-    <div class="pill"><span class="dot" id="connDot"></span><span id="connTxt">checking…</span></div>
-  </header>
 <section class="col" id="planningPanel" hidden aria-label="Planning draft"><h2>Plan your movie night</h2><label for="planningDraft">Review your request</label><textarea id="planningDraft" rows="4" maxlength="6000" style="display:block;box-sizing:border-box;width:100%;margin:10px 0;padding:12px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:12px;font:inherit"></textarea><button type="button" class="btn" id="usePlanningDraft">Use in concierge</button><p id="planningStatus" role="status">Connect below when needed, then move this draft into the concierge. Sending remains your choice.</p></section>
 <section class="col connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
 
@@ -267,37 +319,65 @@
       <h2>Connect a TMDB key</h2>
       <p>Movies &amp; TV uses The Movie Database (free) to find what to watch, where it's streaming, and trailers. Paste a TMDB API key on the <code>Cloud / Connections</code> page (or set <code>TMDB_API_KEY</code>). Streaming + tickets open in their own apps — OSHAL never streams or sells.</p>
       <a class="btn" href="/utilities" target="_top">Open Connections</a>
-      <p style="margin-top:14px;font-size:12px"><span id="recheck" style="color:var(--accent);cursor:pointer;font-weight:700">Refresh</span></p>
+      <p style="margin-top:14px;font-size:12px"><button type="button" class="linkbtn" id="recheck">Refresh</button></p>
     </div>
   </div>
 
+  <!-- Media home (design standard §5.2, UX audit 2026-11-06): artwork first. Home · Search · Watchlist are views of this
+       one page (a bottom bar on a phone, tabs on a computer); the concierge is a sheet opened from Ask. -->
   <div id="appWrap" style="display:none">
-    <div class="col">
+    <div class="topbar col">
+      <div class="chips" id="typeChips" role="group" aria-label="Show">
+        <button type="button" class="chip on" data-type="all" aria-pressed="true">All</button>
+        <button type="button" class="chip" data-type="movie" aria-pressed="false">Movies</button>
+        <button type="button" class="chip" data-type="tv" aria-pressed="false">TV</button>
+      </div>
+      <nav class="tabs" id="tabs" aria-label="Movies &amp; TV">
+        <button type="button" data-view="home" class="on" aria-current="page"><span aria-hidden="true">⌂</span>Home</button>
+        <button type="button" data-view="search"><span aria-hidden="true">⌕</span>Search</button>
+        <button type="button" data-view="watchlist"><span aria-hidden="true">☰</span>Watchlist</button>
+      </nav>
+      <button type="button" class="btn ghost askbtn" id="askBtn" aria-haspopup="dialog">Ask</button>
+    </div>
+
+    <section class="view col" id="view-home" aria-label="Home">
+      <div class="hero" id="hero" hidden></div>
+      <div id="picksSec" hidden><div class="secrow"><h2>Picks for you</h2></div><div class="row" id="picks"></div></div>
+      <div class="secrow"><h2 id="secTitle">Trending this week</h2><span class="sub" id="secSub"></span></div>
+      <div class="row" id="grid"></div>
+      <div id="wlSec" hidden><div class="secrow"><h2>On your watchlist</h2></div><div class="row" id="wlRow"></div></div>
+    </section>
+
+    <section class="view col" id="view-search" aria-label="Search" hidden>
       <div class="search">
-        <input id="q" placeholder="Search a movie or show — “Dune”, “sci-fi thrillers”, “The Bear”…" />
+        <input id="q" type="search" placeholder="Search movies and shows" aria-label="Search movies and shows" />
         <button class="btn" id="goBtn">Search</button>
       </div>
+      <div class="grid" id="results"></div>
+    </section>
 
-      <div class="secrow" id="wlSec" style="display:none"><h2>Your watchlist</h2></div>
-      <div class="wlrow" id="watchlist" style="display:none"></div>
+    <section class="view col" id="view-watchlist" aria-label="Watchlist" hidden>
+      <div class="secrow"><h2>Watchlist</h2><span class="sub" id="wlCount"></span></div>
+      <div class="grid" id="watchlist"></div>
+    </section>
+  </div>
 
-      <div class="secrow"><h2 id="secTitle">Trending this week</h2><span class="sub" id="secSub"></span></div>
-      <div class="grid" id="grid"></div>
-    </div>
-
-    <div class="assist">
-      <div class="chatbox">
-        <div class="chathead"><div class="logo">🎬</div> Ask the Movie Concierge</div>
-        <div class="msgs" id="msgs"><div class="hint">Try: “a feel-good movie on Netflix tonight” or “shows like Severance”.</div></div>
-        <div class="chatin">
-          <input id="chatq" placeholder="What are you in the mood to watch?" />
-          <button class="btn" id="sendBtn">Send</button>
-        </div>
+  <div class="modal" id="modal"><div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Title"></div></div>
+  <div class="modal askmodal" id="askModal">
+    <div class="asksheet" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+      <div class="chathead"><span id="askTitle">Movie Concierge</span><button type="button" class="x2" id="askClose" aria-label="Close">×</button></div>
+      <div class="msgs" id="msgs"><div class="hint">Tell me the mood, a show you liked, or the services you have.</div></div>
+      <div class="sugg" id="sugg">
+        <button type="button" class="chip">A feel-good movie for tonight</button>
+        <button type="button" class="chip">Shows like Severance</button>
+        <button type="button" class="chip">Something under two hours</button>
+      </div>
+      <div class="chatin">
+        <input id="chatq" placeholder="What are you in the mood to watch?" aria-label="Ask the Movie Concierge" />
+        <button class="btn" id="sendBtn">Send</button>
       </div>
     </div>
   </div>
-
-  <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
   <div class="toast" id="toast"></div>
 
 <script>
@@ -306,6 +386,8 @@ const $=s=>document.querySelector(s);
 // Jarvis-style durable session: a stable conversation id kept client-side so the SAME thread
 // deterministically resumes after you navigate away and the iframe reloads.
 let convId=localStorage.getItem('oshalMoviesConv')||'';
+// What each view last read, so the type chips filter without another request.
+const shown={type:'all',trending:[],results:null,query:'',watchlist:[],picks:[]};
 
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2100);}
 async function jget(u){const r=await fetch(u);return r.json();}
@@ -314,107 +396,173 @@ async function jdel(u){const r=await fetch(u,{method:'DELETE'});return r.json();
 function esc(s){const d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
 function skeletons(n,cls){return Array.from({length:n},()=>`<div class="skel ${cls}"></div>`).join('');}
 function emptyState(glyph,msg){return `<div class="empty"><div class="ico">${glyph}</div><div>${esc(msg)}</div></div>`;}
+function ofType(items){return (items||[]).filter(o=>shown.type==='all'||o.mediaType===shown.type);}
+function caption(o){return [o.title,o.year].filter(Boolean).join(' · ');}
 
-// ── Poster cards ───────────────────────────────────────────────────────────--
+// ── Poster cards: artwork with one caption line (title · year) ───────────────
 function card(o){
   const el=document.createElement('div');el.className='card';el.tabIndex=0;el.setAttribute('role','button');
-  el.setAttribute('aria-label',`${esc(o.title)}${o.year?` (${o.year})`:''} — details & where to watch`);
-  const img=o.posterUrl?`<img src="${o.posterUrl}" onerror="this.remove()" alt="${esc(o.title)} poster" loading="lazy">`:'';
-  const rate=o.rating?`<span class="rate">★ ${o.rating}</span>`:'';
-  el.innerHTML=`<div class="poster"><span class="emoji" aria-hidden="true">${o.mediaType==='tv'?'📺':'🎬'}</span>${img}
-      <span class="badge">${o.mediaType==='tv'?'TV':'Movie'}</span>${rate}</div>
-    <div class="meta"><div class="name" title="${esc(o.title)}">${esc(o.title)}</div><div class="year">${esc(o.year||'')}</div></div>`;
+  el.setAttribute('aria-label',`${caption(o)} — details & where to watch`);
+  const img=o.posterUrl?`<img src="${o.posterUrl}" onerror="this.remove()" alt="" loading="lazy">`:'';
+  el.innerHTML=`<div class="poster"><span class="emoji" aria-hidden="true">${o.mediaType==='tv'?'📺':'🎬'}</span>${img}</div>
+    <div class="meta"><div class="name" title="${esc(caption(o))}">${esc(caption(o))}</div></div>`;
   const open=()=>openDetail(o.mediaType,o.id);
   el.onclick=open;el.onkeydown=(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open();}};
   return el;
 }
+function fill(el,items,empty){
+  el.innerHTML='';ofType(items).forEach(o=>el.appendChild(card(o)));
+  if(!ofType(items).length&&empty)el.innerHTML=emptyState('🍿',empty);
+}
+// Kept for the concierge's picks and for older callers: fills the Home row under a heading.
 function renderGrid(items,title,sub){
-  $('#secTitle').textContent=title;$('#secSub').textContent=sub||'';
-  const grid=$('#grid');grid.innerHTML='';
-  (items||[]).forEach(o=>grid.appendChild(card(o)));
-  if(!(items||[]).length) grid.innerHTML=emptyState('🍿','Nothing found — try another title or mood.');
+  $('#secTitle').textContent=title;$('#secSub').textContent=sub||'';fill($('#grid'),items,'Nothing found — try another title.');
 }
 
-// ── Detail modal ─────────────────────────────────────────────────────────────
-function provChips(list){return (list||[]).map(p=>`<span class="prov">${p.logoUrl?`<img src="${p.logoUrl}" onerror="this.remove()">`:''}${p.name}</span>`).join('');}
+// ── Hero: the first trending title, Where to watch as the one primary, + Watchlist beside it ──
+async function renderHero(){
+  const hero=$('#hero');const o=ofType(shown.trending)[0];
+  if(!o){hero.hidden=true;return;}
+  hero.hidden=false;
+  const art=o.backdropUrl||o.posterUrl;
+  hero.innerHTML=`${art?`<img class="art" src="${art}" onerror="this.remove()" alt="">`:''}<div class="shade"></div>
+    <div class="copy"><div class="kick">Trending this week</div><h1>${esc(o.title)}</h1><div class="hy">${esc([o.year,o.mediaType==='tv'?'TV series':'Movie'].filter(Boolean).join(' · '))}</div>
+    <p>${esc(o.overview||'')}</p><div class="acts" id="heroActs"><button type="button" class="btn" id="heroWatch">Where to watch</button><button type="button" class="btn ghost" id="heroAdd">+ Watchlist</button></div></div>`;
+  $('#heroWatch').onclick=()=>openDetail(o.mediaType,o.id);
+  $('#heroAdd').onclick=()=>addToWatchlist(o);
+  // The where-to-watch page link comes with the title's detail; once read, the primary goes straight there.
+  try{const d=await jget(`${API}/title?type=${o.mediaType}&id=${o.id}`);const w=(d&&d.where)||{};
+    const btn=$('#heroWatch');if(btn&&w.link&&$('#hero').contains(btn)){const a=document.createElement('a');a.className='btn';a.id='heroWatch';a.href=w.link;a.target='_blank';a.rel='noopener';
+      a.textContent=(w.flatrate&&w.flatrate[0]&&w.flatrate[0].name)?`Where to watch · ${w.flatrate[0].name}`:'Where to watch';btn.replaceWith(a);}}catch(e){}
+}
+
+// ── Detail sheet ─────────────────────────────────────────────────────────────
+function provChips(list){return (list||[]).map(p=>`<span class="prov">${p.logoUrl?`<img src="${p.logoUrl}" onerror="this.remove()">`:''}${esc(p.name)}</span>`).join('');}
+async function addToWatchlist(t){await jpost(`${API}/watchlist`,{key:t.key,mediaType:t.mediaType,id:t.id,title:t.title,year:t.year,posterUrl:t.posterUrl,tmdbUrl:t.tmdbUrl});toast('Added to watchlist');loadWatchlist();}
 async function openDetail(type,id){
+  closeAsk();
   const sheet=$('#sheet');sheet.innerHTML='<div class="body">'+skeletons(1,'poster')+'<div class="hint" style="margin-top:12px">Loading…</div></div>';
   $('#modal').classList.add('show');document.body.style.overflow='hidden';
   let d;try{d=await jget(`${API}/title?type=${type}&id=${id}`);}catch(e){d={error:'network'};}
   if(d.error){sheet.innerHTML='<div class="body">'+emptyState('⚠️','Could not load this title — try again.')+'<div style="text-align:center"><button class="btn ghost" onclick="closeDetail()">Close</button></div></div>';return;}
   const t=d.title;const w=d.where||{};
-  const hero=t.backdropUrl?`<img src="${t.backdropUrl}" onerror="this.remove()">`:'';
+  const hero=t.backdropUrl?`<img src="${t.backdropUrl}" onerror="this.remove()" alt="">`:'';
   let where='';
   if(w.flatrate&&w.flatrate.length) where+=`<div class="where"><div class="lab">Stream</div><div class="provs">${provChips(w.flatrate)}</div></div>`;
   if(w.rent&&w.rent.length) where+=`<div class="where"><div class="lab">Rent</div><div class="provs">${provChips(w.rent)}</div></div>`;
   if(w.buy&&w.buy.length) where+=`<div class="where"><div class="lab">Buy</div><div class="provs">${provChips(w.buy)}</div></div>`;
   if(!where) where=`<div class="where"><div class="lab">Where to watch</div><div class="hint" style="text-align:left;padding:4px 0">No streaming info for your region — check the link below.</div></div>`;
   const acts=[];
-  if(w.link) acts.push(`<a class="btn watch" href="${w.link}" target="_blank" rel="noopener">▶ Where to watch</a>`);
+  if(w.link) acts.push(`<a class="btn" href="${w.link}" target="_blank" rel="noopener">▶ Where to watch</a>`);
+  acts.push(`<button class="btn ghost" id="wlAdd">+ Watchlist</button>`);
   if(d.trailer) acts.push(`<a class="btn ghost" href="${d.trailer}" target="_blank" rel="noopener">🎞 Trailer</a>`);
   if(d.tickets) acts.push(`<a class="btn ghost" href="${d.tickets}" target="_blank" rel="noopener">🎟 Tickets</a>`);
-  acts.push(`<button class="btn ghost" id="wlAdd">+ Watchlist</button>`);
-  sheet.innerHTML=`<div class="hero">${hero}<button class="x" onclick="closeDetail()" aria-label="Close">×</button></div>
+  sheet.innerHTML=`<div class="hero2">${hero}<button class="x" onclick="closeDetail()" aria-label="Close">×</button></div>
     <div class="body">
       <h2>${esc(t.title)}</h2>
       <div class="sub2">${esc(t.year||'')} · ${t.mediaType==='tv'?'TV series':'Movie'}${t.genres&&t.genres.length?' · '+esc(t.genres.join(', ')):''}${t.rating?' · ★ '+t.rating:''}</div>
       <div class="ov">${esc(t.overview||'No description available.')}</div>
       ${where}
       <div class="acts">${acts.join('')}</div>
-      ${(d.recommendations&&d.recommendations.length)?`<div class="secrow" style="margin-top:18px"><h2>More like this</h2></div><div class="grid" id="recGrid"></div>`:''}
+      ${(d.recommendations&&d.recommendations.length)?`<div class="secrow" style="margin-top:18px"><h2>More like this</h2></div><div class="row" id="recGrid"></div>`:''}
     </div>`;
-  const add=$('#wlAdd');if(add)add.onclick=async()=>{await jpost(`${API}/watchlist`,{key:t.key,mediaType:t.mediaType,id:t.id,title:t.title,year:t.year,posterUrl:t.posterUrl,tmdbUrl:t.tmdbUrl});toast('Added to watchlist');loadWatchlist();};
+  const add=$('#wlAdd');if(add)add.onclick=()=>addToWatchlist(t);
   const rg=$('#recGrid');if(rg)(d.recommendations||[]).forEach(o=>rg.appendChild(card(o)));
 }
 function closeDetail(){$('#modal').classList.remove('show');document.body.style.overflow='';}
 $('#modal').onclick=(e)=>{if(e.target.id==='modal')closeDetail();};
-document.addEventListener('keydown',(e)=>{if(e.key==='Escape'&&$('#modal').classList.contains('show'))closeDetail();});
 
-// ── Search / trending ──────────────────────────────────────────────────────--
+// ── Views: Home · Search · Watchlist ─────────────────────────────────────────
+function showView(name){
+  ['home','search','watchlist'].forEach(v=>{$('#view-'+v).hidden=v!==name;});
+  document.querySelectorAll('#tabs [data-view]').forEach(b=>{const on=b.dataset.view===name;b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  if(name==='search')setTimeout(()=>$('#q').focus(),0);
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('#tabs [data-view]').forEach(b=>{b.onclick=()=>showView(b.dataset.view);});
+document.querySelectorAll('#typeChips [data-type]').forEach(b=>{b.onclick=()=>{
+  shown.type=b.dataset.type;
+  document.querySelectorAll('#typeChips [data-type]').forEach(c=>{const on=c===b;c.classList.toggle('on',on);c.setAttribute('aria-pressed',on?'true':'false');});
+  redraw();
+};});
+function redraw(){
+  fill($('#grid'),shown.trending,'Nothing trending of this kind right now.');renderHero();
+  $('#picksSec').hidden=!ofType(shown.picks).length;fill($('#picks'),shown.picks);
+  if(shown.results)fill($('#results'),shown.results,`Nothing found for “${shown.query}” — try another title.`);
+  drawWatchlist();
+}
+
+// ── Search (title search over The Movie Database) / trending ─────────────────
+async function loadTrending(){
+  const grid=$('#grid');grid.innerHTML=skeletons(8,'poster');
+  try{
+    const d=await jget(`${API}/trending`);
+    if(d&&d.error&&!(d.items||[]).length){grid.innerHTML=emptyState('⚠️',d.error==='not_configured'?'No TMDB key configured yet — add one on the Connections page.':d.error);return;}
+    shown.trending=d.items||[];fill(grid,shown.trending,'Nothing trending right now.');renderHero();
+  }catch(e){grid.innerHTML=emptyState('⚠️','Couldn’t reach the movie database — try again.');}
+}
 async function search(q){
-  const grid=$('#grid');grid.innerHTML=skeletons(12,'poster');
-  $('#secTitle').textContent=q?`Results for “${q}”`:'Trending this week';$('#secSub').textContent='';
+  if(!q){showView('search');return;}
+  const res=$('#results');res.innerHTML=skeletons(8,'poster');
   const go=$('#goBtn');go.disabled=true;
   try{
-    const d=q?await jget(`${API}/search?q=${encodeURIComponent(q)}`):await jget(`${API}/trending`);
-    if(d&&d.error&&!(d.items||[]).length){grid.innerHTML=emptyState('⚠️',d.error==='not_configured'?'No TMDB key configured yet — add one on the Connections page.':d.error);return;}
-    renderGrid(d.items,q?`Results for “${q}”`:'Trending this week',(d.items||[]).length?'tap a poster for where to watch':'');
-  }catch(e){grid.innerHTML=emptyState('⚠️','Couldn’t reach the movie database — try again.');}
+    const d=await jget(`${API}/search?q=${encodeURIComponent(q)}`);
+    if(d&&d.error&&!(d.items||[]).length){res.innerHTML=emptyState('⚠️',d.error==='not_configured'?'No TMDB key configured yet — add one on the Connections page.':d.error);return;}
+    shown.query=q;shown.results=d.items||[];fill(res,shown.results,`Nothing found for “${q}” — try another title.`);
+  }catch(e){res.innerHTML=emptyState('⚠️','Couldn’t reach the movie database — try again.');}
   finally{go.disabled=false;}
 }
 $('#goBtn').onclick=()=>search($('#q').value.trim());
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')search($('#q').value.trim());});
 
-// ── Watchlist ────────────────────────────────────────────────────────────────
-async function loadWatchlist(){
-  const d=await jget(`${API}/watchlist`);const items=d.items||[];
-  const row=$('#watchlist');
-  $('#wlSec').style.display=items.length?'flex':'none';row.style.display=items.length?'flex':'none';
-  row.innerHTML='';
+// ── Watchlist: its own view (and a row on Home once anything is saved) ───────
+function wlTitle(i){return {id:i.tmdb_id,mediaType:i.media_type,title:i.title,year:i.year,posterUrl:i.poster_url};}
+function drawWatchlist(){
+  const items=shown.watchlist.filter(i=>shown.type==='all'||i.media_type===shown.type);
+  $('#wlCount').textContent=items.length?`${items.length} saved`:'';
+  const grid=$('#watchlist');grid.innerHTML='';
   items.forEach(i=>{
-    const el=document.createElement('div');el.className='wl';
-    const img=i.poster_url?`<img src="${i.poster_url}" onerror="this.style.opacity=.2" alt="${esc(i.title)} poster">`:'<img alt="">';
-    el.innerHTML=`${img}<button class="rm" title="Remove from watchlist" aria-label="Remove ${esc(i.title)} from watchlist">×</button><div class="wn" title="${esc(i.title)}">${esc(i.title)}</div>`;
-    el.querySelector('img').onclick=()=>openDetail(i.media_type,i.tmdb_id);
-    el.querySelector('.rm').onclick=async(e)=>{e.stopPropagation();await jdel(`${API}/watchlist/${i.row_id}`);loadWatchlist();};
-    row.appendChild(el);
+    const el=card(wlTitle(i));
+    const rm=document.createElement('button');rm.className='rm';rm.type='button';rm.textContent='×';
+    rm.title='Remove from watchlist';rm.setAttribute('aria-label',`Remove ${i.title} from watchlist`);
+    rm.onclick=async(e)=>{e.stopPropagation();await jdel(`${API}/watchlist/${i.row_id}`);loadWatchlist();};
+    el.querySelector('.poster').appendChild(rm);grid.appendChild(el);
   });
+  if(!items.length)grid.innerHTML=emptyState('🔖','Nothing saved yet. Tap + Watchlist on a title to keep it here.');
+  $('#wlSec').hidden=!items.length;fill($('#wlRow'),items.map(wlTitle));
+}
+async function loadWatchlist(){
+  try{const d=await jget(`${API}/watchlist`);shown.watchlist=(d.items||[]).filter(x=>!x.status||x.status==='want');}catch(e){shown.watchlist=[];}
+  drawWatchlist();
 }
 
-// ── Assistant ────────────────────────────────────────────────────────────────
+// ── Concierge sheet (the mood box moved here from under the posters) ─────────
+function openAsk(){closeDetail();$('#askModal').classList.add('show');document.body.style.overflow='hidden';setTimeout(()=>$('#chatq').focus(),0);}
+function closeAsk(){$('#askModal').classList.remove('show');if(!$('#modal').classList.contains('show'))document.body.style.overflow='';}
+window.openAsk=openAsk;
+$('#askBtn').onclick=openAsk;$('#askClose').onclick=closeAsk;
+$('#askModal').onclick=(e)=>{if(e.target.id==='askModal')closeAsk();};
+document.addEventListener('keydown',(e)=>{if(e.key!=='Escape')return;if($('#modal').classList.contains('show'))closeDetail();else if($('#askModal').classList.contains('show'))closeAsk();});
+document.querySelectorAll('#sugg .chip').forEach(b=>{b.onclick=()=>{$('#chatq').value=b.textContent;send();};});
 function pushMsg(role,text){
   const m=$('#msgs');const hint=m.querySelector('.hint');if(hint)hint.remove();
   const d=document.createElement('div');d.className='msg '+(role==='me'?'me':'bot');d.textContent=text;
   m.appendChild(d);m.scrollTop=m.scrollHeight;return d;
 }
+function pushPicks(cards){
+  const m=$('#msgs');const row=document.createElement('div');row.className='pickrow';
+  cards.forEach(o=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=caption(o);b.onclick=()=>openDetail(o.mediaType,o.id);row.appendChild(b);});
+  m.appendChild(row);m.scrollTop=m.scrollHeight;
+}
 async function send(){
   const inp=$('#chatq');const t=inp.value.trim();if(!t)return;inp.value='';
+  $('#sugg').hidden=true;
   pushMsg('me',t);const thinking=pushMsg('bot','…');
   try{
     const d=await jpost(`${API}/chat`,{message:t,conversationId:convId});
     convId=d.conversationId||convId;if(convId)localStorage.setItem('oshalMoviesConv',convId);
     thinking.textContent=d.reply||'…';
-    if((d.cards||[]).length) renderGrid(d.cards,'Picks for you','tap a poster for where to watch');
+    if((d.cards||[]).length){shown.picks=d.cards;$('#picksSec').hidden=!ofType(shown.picks).length;fill($('#picks'),shown.picks);pushPicks(d.cards);}
     if((d.added||[]).length) loadWatchlist();
   }catch(e){thinking.textContent='Sorry — something went wrong. Try again.';}
 }
@@ -426,14 +574,12 @@ $('#recheck').onclick=()=>boot();
 async function boot(){
   let c={};try{c=await jget(`${API}/config`);}catch(e){}
   const connected=!!c.connected;
-  $('#connDot').classList.toggle('on',connected);
-  $('#connTxt').textContent=connected?'TMDB connected':'Not configured';
   $('#gateWrap').style.display=connected?'none':'block';
   $('#appWrap').style.display=connected?'block':'none';
   if(!connected)return;
-  search('');loadWatchlist();
+  loadTrending();loadWatchlist();
   try{const cv=await jget(`${API}/conversation?id=${encodeURIComponent(convId||'')}`);if(cv.messages&&cv.messages.length){
-    convId=cv.conversationId;if(convId)localStorage.setItem('oshalMoviesConv',convId);$('#msgs').innerHTML='';
+    convId=cv.conversationId;if(convId)localStorage.setItem('oshalMoviesConv',convId);$('#msgs').innerHTML='';$('#sugg').hidden=true;
     cv.messages.forEach(m=>pushMsg(m.role==='user'?'me':'bot',m.content));}}catch(e){}
 }
 // The full page only: under an audience view the shared kit paints instead (see the head script).
@@ -447,7 +593,7 @@ import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
 if (!window.AppView || !AppView.active()) {
 const panel=document.getElementById('planningPanel'),draft=document.getElementById('planningDraft');
 receiveHandoff({"app":"movies","action":"plan-movie","contextType":"planning-brief","version":1,"fields":["title","notes","sourceUrl"]},context=>{draft.value=[context.title,context.notes,context.sourceUrl?'Source: '+context.sourceUrl:''].filter(Boolean).join('\n\n');panel.hidden=false;draft.focus();});
-document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}const input=document.getElementById('chatq');input.value=draft.value.replace(/\s+/g,' ').trim();input.focus();input.scrollIntoView({block:'center'});document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
+document.getElementById('usePlanningDraft').onclick=()=>{if(document.getElementById('appWrap').style.display==='none'){document.getElementById('planningStatus').textContent='Your draft is ready. Complete the connection below, refresh its status, then use this draft.';return;}if(window.openAsk)window.openAsk();const input=document.getElementById('chatq');input.value=draft.value.replace(/\s+/g,' ').trim();input.focus();document.getElementById('planningStatus').textContent='Draft copied to the concierge. Review it and choose Send when ready.';};
 const element=document.querySelector('.connected-app-actions');
 // The offers continue from a request: the concierge and search (inside #appWrap, shown only when connected) or a
 // received planning draft. With neither on screen there is nothing to hand on, so the offers stay hidden instead of

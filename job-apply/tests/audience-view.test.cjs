@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company view asserted as behaviour: the head block runs against a stub kit and a stub fetch, so the tests prove what it reads on open (only GET /home-summary, the one read this page has; never a write, never the connected-actions plan), that the stats are the route's five ledger counts with their tones (failed or unknown wants attention, a verified count is the one figure backed by retained confirmation evidence, an unavailable count is named as not checked), that the title ladder names the account's state (failed or unknown to review, runs active, verified in five days, no runs active, no runs yet, some sources not checked), that the runs table reads company, state and last update from the route's detail string (a company that itself carries a slash, an underscore state shown with spaces, the route's own 'date unavailable' passed through), that the notes list carries the route's own non-run sentences, and that a 401, a 403, a 503 with the route's body, a non-JSON failure and a failure with its own error each read as what they are. The page's module script (top-level await, so run as an async function body) is proved to bind no handoff listener, mount no connected actions and read nothing under the view while the full page still runs every start step.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: the full page lost its dead brief form, so it binds no hand-off listener and mounts no connected actions either; it still reads the summary once.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -188,5 +189,6 @@ async function runModule(activeView) {
 
 test('under an audience view the page\x27s module script binds nothing, mounts nothing and reads nothing; the full page still runs every start step', async () => {
   assert.deepEqual(await runModule('company'), { handoffs: 0, mounted: 0, reads: [] });
-  assert.deepEqual(await runModule(null), { handoffs: 1, mounted: 1, reads: ['GET /api/job-apply/home-summary'] });
+  // UX audit 2026-11-06: the full page no longer takes a brief, so it binds no hand-off and mounts no connected actions.
+  assert.deepEqual(await runModule(null), { handoffs: 0, mounted: 0, reads: ['GET /api/job-apply/home-summary'] });
 });

@@ -65,9 +65,6 @@
   .layout { display: grid; grid-template-columns: 250px 1fr; min-height: calc(100vh - 49px); }
   aside { border-right: 1px solid var(--ss-line); padding: 12px; background: var(--ss-panel); overflow: auto; }
   main { padding: 14px 18px 40px; overflow: auto; min-width: 0; }
-  .project-item { display: flex; justify-content: space-between; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--ss-line); border-radius: 8px; background: var(--ss-panel2); color: var(--ss-text); cursor: pointer; }
-  .project-item.active { border-color: var(--ss-accent); }
-  .project-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ss-line); color: var(--ss-muted); white-space: nowrap; }
   .badge.godot { border-color: #478cbf; color: #6fb1e6; }
   .badge.blender { border-color: #e87d0d; color: #f5a14a; }
@@ -98,7 +95,6 @@
   #status { min-height: 18px; }
   #status.bad { color: var(--ss-danger); }
   #status.ok { color: var(--ss-ok); }
-  .new-form { border: 1px solid var(--ss-accent); }
   @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--ss-line); max-height: 220px; } .preview-grid { grid-template-columns: 1fr; } }
 
 body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-primary)}
@@ -106,31 +102,99 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
 .scene-foundation button,.scene-foundation select,.scene-foundation summary {min-height:44px}
 .scene-foundation summary {display:flex;align-items:center;font-weight:600;cursor:pointer}
 .scene-foundation details {padding:8px 0}
-.scene-foundation .scene-object-tree button,.scene-foundation .scene-frame-tools button,.scene-foundation header button:not(.primary),.scene-foundation .ef-navigation>button,.scene-foundation .ef-navigation>div>button {font:inherit;border:1px solid var(--border-color);border-radius:8px;padding:10px;background:var(--bg-secondary);color:var(--text-primary)}
-.scene-foundation .scene-object-tree {display:grid;gap:8px}
-.scene-foundation .scene-object-tree button {text-align:left;width:100%;white-space:normal;overflow-wrap:anywhere}
-.scene-foundation .scene-object-tree [aria-pressed=true] {border-color:var(--accent-primary);background:var(--bg-tertiary)}
+/* Secondary actions are solid with one edge in every theme (Refresh objects was the browser's flat grey). */
+.scene-foundation button.ghost,.scene-foundation button.scene-secondary,.scene-foundation .scene-object-tree button,.scene-foundation .scene-frame-tools button,.scene-foundation .scene-projects button,.scene-foundation header button:not(.primary):not([role=tab]),.scene-foundation header summary,.scene-sheet button.ghost {font:inherit;font-weight:600;border:1px solid var(--border-color);border-radius:8px;padding:8px 12px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);cursor:pointer}
+.scene-foundation button.primary {font:inherit;font-weight:650;border:1px solid var(--accent-primary);border-radius:8px;padding:8px 16px;background:var(--accent-primary);color:var(--text-on-accent,#fff);cursor:pointer}
+.scene-foundation button.primary:disabled,.scene-foundation button.ghost:disabled,.scene-foundation header button:disabled,.scene-foundation button.scene-secondary:disabled,.scene-foundation .scene-frame-tools button:disabled {opacity:1;cursor:default;color:var(--text-muted);background:var(--bg-card-solid,var(--bg-primary));border-color:var(--border-color)}
+.scene-sr {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* Navigation: the project selector (full names) and the scene tree (icon + name on one line, the type in the tooltip). */
+.scene-foundation .ef-navigation h2 {font-size:13px;margin:14px 0 8px}
+.scene-foundation .scene-projects {display:grid;gap:6px}
+.scene-foundation .scene-projects button {display:grid;gap:4px;justify-items:start;text-align:left;width:100%;white-space:normal;overflow-wrap:break-word;font-weight:500}
+.scene-foundation .scene-projects button[aria-current=true] {border-color:var(--accent-primary)}
+.scene-foundation .scene-object-tree {display:grid;gap:4px;margin-top:8px}
+.scene-foundation .scene-object-tree button {display:flex;align-items:center;gap:8px;text-align:left;width:100%;white-space:nowrap;font-weight:500}
+.scene-foundation .scene-object-tree [aria-pressed=true] {border-color:var(--accent-primary);background:var(--bg-tertiary,var(--bg-secondary))}
+.scene-foundation .scene-node-icon {flex:none;display:inline-flex;color:var(--accent-primary)}
+.scene-foundation .scene-node-icon svg,.scene-type-icon svg {width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.scene-foundation .scene-node-name {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media(min-width:1101px){
+ .scene-foundation.ef-editor .ef-body {grid-template-columns:240px minmax(0,1fr) 300px}
+ .scene-foundation.ef-editor.ef-has-concierge[data-editor-concierge=open] .ef-body:has(>.ef-concierge) {grid-template-columns:240px minmax(0,1fr) 300px clamp(300px,24vw,360px)}
+}
+/* The work: the preview fills the centre; Script & build gets the whole centre for the source editor. */
+.scene-foundation .scene-viewport {display:flex;flex-direction:column;gap:10px;box-sizing:border-box}
+.scene-foundation .scene-viewport>* {flex:none}
+.scene-foundation .scene-viewport>.scene-panel {flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+.scene-foundation #scene-panel>section.step {flex:1;min-height:0;display:flex;flex-direction:column;margin:0}
+.scene-foundation .scene-stage {flex:1;min-height:260px;display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));grid-auto-rows:minmax(240px,1fr);border-radius:10px;background:var(--bg-secondary)}
+.scene-foundation #preview-img,.scene-foundation #viewer {width:100%;height:100%;min-height:240px;aspect-ratio:auto;object-fit:contain;box-sizing:border-box;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary)}
+.scene-foundation #build-panel {display:grid;gap:12px;align-content:start}
+.scene-foundation #build-panel>section.step {margin:0}
+.scene-foundation #build-panel #file-text {min-height:42vh}
 .scene-foundation .ef-inspector .step {padding:0;border:0}.scene-foundation .ef-inspector textarea {max-width:100%;min-width:0}
-.scene-foundation .preview-grid {grid-template-columns:1fr}.scene-foundation #viewer {height:320px}
-.scene-foundation #preview-img {width:100%;height:48vh;max-height:600px;object-fit:contain;background:var(--bg-secondary)}
-.scene-foundation .scene-frame-tools {display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px}
-.scene-foundation .scene-frame-tools p {width:100%;font-size:12px;margin:0;color:var(--text-secondary)}
-.scene-foundation .scene-frame-tools input {width:90px;min-height:44px}.scene-foundation .scene-timeline details {padding:8px 12px}
-.scene-foundation .scene-timeline .revisions {max-height:120px;overflow:auto}
+.scene-foundation .scene-frame-tools {display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0}
+.scene-foundation .scene-frame-tools h3 {width:100%;margin:0;font-size:13px}
+.scene-foundation .scene-frame-tools p {width:100%;font-size:12px;margin:0;color:var(--text-secondary,var(--text-muted))}
+.scene-foundation .scene-frame-tools input {width:90px;min-height:44px}
 .scene-foundation .ef-navigation>div:has(>button+button) {display:flex;gap:8px;flex-wrap:wrap}
-.scene-foundation header details {position:relative}.scene-foundation header details[open] {z-index:20}
+/* The app row: views, then the menus; Revision history and Help open as a panel under their button. */
+.scene-views {display:inline-flex;gap:2px;padding:2px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-card-solid,var(--bg-primary))}
+.scene-views [role=tab] {font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;min-height:40px;background:transparent;color:var(--text-primary);cursor:pointer}
+.scene-views [role=tab][aria-selected=true] {background:var(--text-primary);color:var(--bg-primary)}
+.scene-foundation header summary {list-style:none}.scene-foundation header summary::-webkit-details-marker {display:none}
+.scene-foundation header details {position:relative;padding:0}.scene-foundation header details[open] {z-index:20}
 .scene-foundation header details button {display:block;width:100%}
-@media(max-width:800px){.scene-foundation header {flex-wrap:wrap}.scene-foundation header>span.small {display:none}.scene-foundation .ef-navigation,.scene-foundation .ef-inspector {max-height:none;border:0}.scene-foundation #preview-img {max-height:50vh}}
+.scene-foundation header .scene-pop>:not(summary) {position:absolute;right:0;top:calc(100% + 6px);width:min(420px,80vw);max-height:70vh;overflow:auto;box-sizing:border-box;padding:12px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);box-shadow:0 10px 28px rgba(0,0,0,.18);z-index:30}
+.scene-help-text p {margin:0 0 8px;font-size:13px;line-height:1.5}
+/* The first screen: three types with nothing saved; the projects newest first and one New at the bottom right once there are some. */
+.scene-foundation .scene-home {display:flex;flex-direction:column;min-height:100%;box-sizing:border-box}
+.scene-foundation .scene-home h2,.scene-sheet h2 {font-size:18px;margin:4px 0 10px}
+.scene-foundation #home-list {display:flex;flex-direction:column;flex:1}
+.scene-types {display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.scene-types button {display:grid;justify-items:start;align-content:start;gap:6px;min-height:104px;padding:16px;text-align:left;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);font:inherit;cursor:pointer}
+.scene-types button:hover,.scene-card:hover {border-color:var(--accent-primary)}
+.scene-type-icon {color:var(--accent-primary)}.scene-type-icon svg {width:30px;height:30px}
+.scene-type-label {font-weight:650;font-size:16px}
+.scene-type-note,.scene-card-meta {font-size:12px;color:var(--text-muted)}
+.scene-cards {display:grid;gap:10px;align-items:start;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.scene-card {display:grid;gap:6px;justify-items:start;align-content:start;min-height:72px;padding:14px;text-align:left;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);font:inherit;cursor:pointer}
+.scene-card-title {font-weight:650;overflow-wrap:break-word}
+.scene-card-thumb {justify-self:stretch;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:var(--bg-secondary)}
+.scene-foundation .scene-fab {position:sticky;bottom:16px;align-self:flex-end;margin-top:auto;min-height:52px;padding:12px 22px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+.scene-sheet {width:min(640px,calc(100vw - 32px));box-sizing:border-box;padding:18px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary)}
+.scene-sheet::backdrop {background:rgba(0,0,0,.32)}
+.scene-sheet>.ghost {margin-top:14px;min-height:44px}
+@media(max-width:800px){
+ .scene-foundation header {flex-wrap:nowrap;gap:6px;padding:6px 8px}
+ .scene-foundation .ef-sheet-content>button {text-align:left;font-weight:600}
+ .scene-foundation .ef-navigation,.scene-foundation .ef-inspector {max-height:none;border:0}
+ .scene-foundation .scene-stage {min-height:52dvh}
+ .scene-views [role=tab] {padding:8px 10px}
+ .scene-sheet {margin:auto 0 0;width:100%;max-width:none;border-radius:16px 16px 0 0}
+}
 </style>
 <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />
 </head>
 <body>
 <header>
-  <h1>Scene Studio</h1>
-  <span class="muted small">Godot games · Blender models · driven by you and the swarm through their MCP servers</span>
+  <h1 data-ef-phone="brand">Scene Studio</h1>
+  <span id="engine-pill" class="badge" title="" data-ef-phone="more">engine…</span>
+  <div id="scene-views" class="scene-views" role="tablist" aria-label="Views" hidden>
+    <button type="button" role="tab" id="view-scene" aria-selected="true" aria-controls="scene-panel">Scene</button>
+    <button type="button" role="tab" id="view-build" aria-selected="false" aria-controls="build-panel" tabindex="-1">Script &amp; build</button>
+  </div>
   <span class="spacer"></span>
-  <span id="engine-pill" class="badge" title="">engine…</span>
-  <button id="new-project" class="primary">New project</button>
+  <button id="new-project" type="button" class="ghost" data-ef-phone="more">New project</button>
+  <details id="scene-history" class="scene-pop" data-ef-phone="more" hidden><summary>Revision history</summary></details>
+  <details id="scene-help" class="scene-pop" data-ef-phone="more">
+    <summary>Help</summary>
+    <div class="scene-help-text">
+      <p>Scene Studio makes <strong>Godot</strong> games and 3-D scenes and <strong>Blender</strong> models. You and the swarm drive Godot and Blender through their MCP servers.</p>
+      <p>Pick New, choose what to make, then ask the <strong>Scene Studio director</strong> in the chat to build it — for example "a small island with three palm trees and a red boat" — or edit it here.</p>
+      <p>Every change is a revision you can undo. Previews are rendered by Blender; a Godot scene is exported to glTF first. Code you or the director write runs in the engine's sandbox, which has no network access.</p>
+    </div>
+  </details>
 </header>
 <div class="layout">
   <aside>
@@ -144,25 +208,18 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
     </div>
     <p id="execution-access" class="small" hidden>Source editing is available. Running project code, Godot tools, model import and rendering require execution access.</p>
 <div id="status" class="small"></div>
-    <section id="new-form" class="step new-form" hidden>
-      <h2>New project</h2>
-      <div class="row">
-        <label><input type="radio" name="kind" value="godot" checked /> Godot game or 3-D scene</label>
-        <label><input type="radio" name="kind" value="blender" /> Blender model</label>
+    <section id="home" class="scene-home" aria-label="Projects">
+      <div id="home-types" hidden>
+        <h2>New</h2>
+        <p class="muted">Choose what to make. It opens ready, with its first preview.</p>
+        <div class="scene-types" data-scene-types></div>
       </div>
-      <div class="row">
-        <input id="new-title" type="text" placeholder="Name" maxlength="120" />
-        <select id="new-template"></select>
-        <button id="create-project" class="primary">Create</button>
-        <button id="cancel-new" class="ghost">Cancel</button>
+      <div id="home-list" hidden>
+        <h2>Projects</h2>
+        <div id="home-cards" class="scene-cards"></div>
+        <button id="home-new" type="button" class="primary scene-fab" data-ef-floating>+ New</button>
       </div>
     </section>
-    <div id="empty-panel">
-      <p>Create a <strong>Godot</strong> project for a game or a 3-D scene, or a <strong>Blender</strong> project for a model. Then ask the
-        <strong>Scene Studio director</strong> in the chat to build it — for example "a small island with three palm trees and a red boat".</p>
-      <p class="muted small">Every change is a revision you can undo. Previews are rendered by Blender; a Godot scene is exported to glTF first.
-        Code you or the director write runs in the engine's sandbox, which has no network access.</p>
-    </div>
     <div id="project-panel" hidden>
       <div class="row">
         <h2 id="project-heading" style="margin:0"></h2>
@@ -179,7 +236,7 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
           <label class="small">quality <select id="preview-samples"><option value="16">draft</option><option value="32" selected>normal</option><option value="96">high</option></select></label>
           <span id="preview-info" class="small muted"></span>
         </div>
-        <div class="preview-grid">
+        <div class="preview-grid scene-stage">
           <img id="preview-img" alt="Rendered preview" hidden />
           <canvas id="viewer" hidden></canvas>
         </div>
@@ -187,7 +244,7 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
       <section id="run-section" class="step" hidden>
         <h2>Run <small>headless Godot, a few seconds — prints and errors</small></h2>
         <div class="row">
-          <button id="run-project" class="primary">Run</button>
+          <button id="run-project" class="ghost">Run</button>
           <label class="small">seconds <input id="run-seconds" type="number" min="1" max="30" value="5" /></label>
           <span id="run-info" class="small muted"></span>
         </div>
@@ -198,7 +255,7 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
         <ul id="file-list" class="files"></ul>
         <div class="row">
           <input id="file-path" type="text" placeholder="path, e.g. player.gd" style="flex:1;min-width:160px" />
-          <button id="save-file" class="primary">Save file</button>
+          <button id="save-file" class="ghost">Save file</button>
           <button id="delete-file" class="ghost">Delete file</button>
           <a id="download-file" class="small" href="#" hidden>download</a>
         </div>
@@ -209,7 +266,7 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
       </section>
       <section id="godot-tools" class="step" hidden>
         <h2>Godot MCP tool <small>call one godot-mcp tool directly</small></h2>
-        <div class="row"><select id="godot-tool"></select><button id="run-godot-tool" class="primary">Call</button></div>
+        <div class="row"><select id="godot-tool"></select><button id="run-godot-tool" class="ghost">Call</button></div>
         <textarea id="godot-args" class="short" spellcheck="false">{"scenePath": "main.tscn", "parentNodePath": "root", "nodeType": "OmniLight3D", "nodeName": "Lamp"}</textarea>
         <pre id="godot-result" hidden></pre>
       </section>
@@ -220,7 +277,7 @@ bpy.ops.mesh.primitive_monkey_add(location=(0, 0, 1.2))
 result = {"objects": sorted(o.name for o in bpy.data.objects)}</textarea>
         <div class="row">
           <label class="small"><input id="blender-save" type="checkbox" checked /> keep the changes (new revision)</label>
-          <button id="run-blender" class="primary">Run</button>
+          <button id="run-blender" class="ghost">Run</button>
           <button id="blender-summary" class="ghost">File summary</button>
         </div>
         <pre id="blender-result" hidden></pre>
@@ -231,14 +288,14 @@ result = {"objects": sorted(o.name for o in bpy.data.objects)}</textarea>
           <select id="import-from"></select>
           <input id="import-name" type="text" placeholder="model name, e.g. boat" maxlength="64" />
           <label class="small"><input id="import-instance" type="checkbox" checked /> add it to the main scene</label>
-          <button id="import-model" class="primary">Import</button>
+          <button id="import-model" class="ghost">Import</button>
         </div>
       </section>
       <section class="step">
         <h2>Export</h2>
         <div class="row">
           <select id="export-format"></select>
-          <button id="export-project" class="primary">Export</button>
+          <button id="export-project" class="ghost">Export</button>
           <a id="export-link" class="small" href="#" hidden></a>
         </div>
       </section>
@@ -249,6 +306,11 @@ result = {"objects": sorted(o.name for o in bpy.data.objects)}</textarea>
     </div>
   </main>
 </div>
+<dialog id="new-sheet" class="scene-sheet" aria-labelledby="new-sheet-title">
+  <h2 id="new-sheet-title">New</h2>
+  <div class="scene-types" data-scene-types></div>
+  <button type="button" id="cancel-new" class="ghost">Cancel</button>
+</dialog>
 <script src="/shared/ui/js/stl-viewer.js"></script>
 <script src="/api/scene-studio/assets/scene-studio.js"></script>
 </body>

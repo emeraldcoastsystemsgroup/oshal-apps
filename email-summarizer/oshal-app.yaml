@@ -24,6 +24,9 @@
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.5: The mail copy's catch-up on new mail resumes where the last pass stopped (migration 004, gap_top_at/gap_low_at). Roger's copy, four days behind after the job was stopped, re-read every message earlier passes had stored and gained 85, 65, then 13 messages a pass without closing the gap.
 # 21 | maintainer@emeraldcoastsystemsgroup.com | 1.6.6: The mail copy turns itself on (Roger, 2026-11-03: "it better be automated when someone installs the application"). Opening the Inbox with Gmail connected activates the mail-copy job and stores the first mail, and a job an update stopped restarts the same way; Keep a copy and Turn it back on are gone. A job the person paused, or a copy whose job they removed, stays off until they press Keep it up to date. Guarded by tests/mail-store-browser.test.cjs.
 # 22 | maintainer@emeraldcoastsystemsgroup.com | 1.6.7: mail-copy and social-publish declare startsItself, so a kernel that reads it starts them when a person uses the application, the mail copy once Gmail is connected. Older kernels ignore the key and the Inbox still starts the mail copy.
+# 23 | maintainer@emeraldcoastsystemsgroup.com | 1.6.8 (UX audit 2026-11-06, email-myday, email-inbox, email-golive, email-engage): My Day and the Inbox show one Connect a mailbox primary (a sheet with Google (Gmail) and Outlook / Microsoft 365) instead of two primaries, a path and a link; My Day greets by local time, hides the mailbox switch until a mailbox is connected and shows a greyed skeleton of what it holds; the Inbox is list-detail on a phone, centres its no-mailbox state, names its search's real scope and disables it with the reason where it cannot search; Engage says what it reads (Slack and X), asks to connect one instead of saying nothing is waiting, and refreshes from one button; Go Live says "Save stream" without an announce channel, tells what a save queued, names who announces each stream, and keeps Delete behind its ⋯ menu and an in-page confirm, after a greyed Edit (RP-COM-01). Primary labels use the theme's on-accent ink. Guarded by tests/surface-provider.test.mjs, mailbox-connect.test.cjs, mail-store-browser.test.cjs and social-desk-browser.test.cjs.
+# 24 | maintainer@emeraldcoastsystemsgroup.com | 1.6.9: on Engage too, the desk's New post is drawn as a secondary button, so Connect a channel is the screen's one primary (the trial check of 1.6.8 at 1440 counted two).
+# 25 | maintainer@emeraldcoastsystemsgroup.com | 1.6.10: UX audit batch 7 (little-monsters--lm-email FIX-LAYOUT): withhold the Inbox's stored-copy caption, Any mailbox switch, Refresh button and disabled search row when no mailbox is connected, and pass ?return=/cockpit/?app=little-monsters&screen=lm-email on /connectors/<id>/authorize when framed in Little Monsters Email. Guard: tests/mail-store-browser.test.cjs, tests/mailbox-connect.test.cjs, tests/surface-provider.test.mjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -88,7 +91,7 @@ description: >-
   mail is a single explicit-confirm gated action; every social publish goes out
   on the person's own connection through the kernel. The bot does the reasoning
   on its own harness/model with cost captured per user.
-version: 1.6.7
+version: 1.6.10
 testing:
   version: 1
   catalog: tests/test-lab.yaml

@@ -9,6 +9,9 @@
   5 | maintainer@emeraldcoastsystemsgroup.com | The family audience view for the Home shell (ADR-164 D6): with ?audience=family the shared kit, loaded right after the theme bootstrap, paints the signed-in account's saved characters in plain words from GET /api/lora/home-summary alone (three counts, the three newest characters with their latest recorded version and score). The full page's own first read, GET /characters, saves the starter character for a new account, and every other studio read needs a character that read picks, so the view makes none of them; it never trains, validates, improves, imports or changes anything. The studio's control wiring and its character-list start now run only when no audience view renders; without the parameter the studio runs unchanged.
   6 | maintainer@emeraldcoastsystemsgroup.com | GET /characters no longer saves the starter character (a GET is admitted read-only and must not write; the native host refused it, so the list failed to load for every account). An account with no characters now sees an explicit "Add the starter character" action, which calls POST /characters/starter and paints the list it returns; a refusal (a viewer may not create characters) is shown in place. The audience-view note no longer gives the starter as the reason the view skips /characters.
   7 | maintainer@emeraldcoastsystemsgroup.com | Save character with a required field empty (Hero image on the worker) did nothing and said nothing: the browser's validity bubble did not show in the docked frame. The form is novalidate and names each empty required field by its label in the result line, focusing the first; nothing is sent.
+  8 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lora--lora-studio, grade D). The studio opens ready: with no character selected the work area is New character at step 1 (Name, Trigger word, Identity sentence; Subject slug, Hero image and the other four under a closed Advanced) with Create character the one primary; a blank Subject slug is made from the Name, and a missing Hero image opens Advanced and is named. The Properties pane no longer repeats the creation form: it shows a selected character's facts (and Delete). A stepper in the app row, 1 Identity · 2 Dataset (Characters & dataset) and 3 Train · 4 Scorecards (Training & scorecards), shows one step's controls at a time; Train, Validate, Improve and Overnight are step 3's actions, withheld unless one GET /worker read on open says a GPU worker is registered. On a phone the first screen is the character list (thumbnail, versions, best score) with one + New character at the bottom right, and a tap opens the character. The inline Concierge column is retired (no editor-assistant column or pane button); the shell's Concierge stays the one entry and still reaches the open source through registerDocumentSession. Copy: "Hero image on the worker" is "Hero image", "prepare its own curated dataset on the GPU worker" and the byte limit are gone from the labels.
+  9 | maintainer@emeraldcoastsystemsgroup.com | The steps are painted again once the shared editor has mounted: the character list can finish first, and the Saved source panel (Reload saved source) then showed under New character with no character chosen.
+  10 | maintainer@emeraldcoastsystemsgroup.com | + New character carries data-ef-floating (kernel PR #197), so on a phone the shell orb rests above it instead of on it.
 -->
 <html lang="en" data-theme="light-blue">
 <head>
@@ -189,7 +192,7 @@
 .split.ef-editor{display:block;height:100dvh;max-width:none;margin:0}.ef-editor .ef-header-slot>.top{padding:12px 16px;margin:0}.ef-editor .top h1{font-size:20px}
 .ef-editor .ef-navigation>.left,.ef-editor .ef-viewport>.right,.ef-editor .lora-inspector{width:auto;max-width:none;height:auto;min-width:0;overflow:auto;border:0;padding:14px;flex:none}
 .ef-editor .ef-viewport>.right{height:100%}.ef-editor .lora-inspector .bar{display:flex;flex-wrap:wrap;gap:8px}.ef-editor .lora-inspector button{min-height:40px}
-.ef-editor .character-config dl{display:none}.ef-editor #datasetRows{overflow-wrap:anywhere}.ef-editor #actions{margin-top:0}
+.ef-editor .character-config dl{margin:0}.ef-editor #datasetRows{overflow-wrap:anywhere}.ef-editor #actions{margin-top:0}
 @media(max-width:800px){.ef-editor .btn,.ef-editor summary,.ef-editor input{min-height:44px}.ef-editor input,.ef-editor textarea{font-size:16px}}
 
 
@@ -199,6 +202,27 @@
 .ef-editor .source-edit-panel textarea{min-height:160px;line-height:1.55}.ef-editor .source-edit-panel button{min-height:44px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:8px 12px;font:inherit;margin:0 6px 6px 0}
 .ef-editor .source-edit-panel button:hover{border-color:var(--accent-primary)}.ef-editor .source-edit-panel button:disabled{opacity:.5}
 .ef-editor #datasetRows .card{overflow-wrap:anywhere}.ef-editor #datasetRows [data-dataset-id]{width:100%;text-align:left;white-space:normal}
+/* Steps, the phone's character list and its one New (UX audit 2026-11-06). Theme tokens only; tap targets at least 44px. */
+.lora-steps[hidden],.lora-home[hidden],.lora-work[hidden],.lora-panel[hidden],#trainActions[hidden],#noFacts[hidden]{display:none!important}
+.lora-steps{display:flex;flex-wrap:wrap;gap:16px;margin-top:10px}
+.lora-view{display:flex;align-items:center;gap:6px}
+.lora-view-name{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-right:2px}
+.lora-step{min-height:44px;padding:0 14px;border:1px solid var(--border-color);border-radius:22px;background:var(--bg-card);color:var(--text-primary);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.lora-step[aria-current=step]{border-color:var(--accent-primary);color:var(--accent-primary);box-shadow:inset 0 0 0 1px var(--accent-primary)}
+.lora-step:disabled{opacity:.5;cursor:default}
+.lora-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.lora-list-head .lbl{margin:0}
+.lora-list-head .btn{min-height:44px}
+.lora-panel-title{font-size:16px;margin:0 0 6px}
+.lora-advanced{margin-top:4px}.lora-advanced>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;font-size:13px}
+.lora-advanced>summary::before{content:'▸';margin-right:6px}.lora-advanced[open]>summary::before{content:'▾'}
+.lora-advanced-fields{display:grid;gap:10px;margin-top:6px}
+.character-editor fieldset>.bar{margin-top:4px}
+.lora-home{padding:4px 0 150px}
+.lora-row{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;margin:0 0 8px;padding:10px 12px;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card);color:var(--text-primary);font:inherit;text-align:left;cursor:pointer}
+.lora-row .avatar{flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--bg-tertiary),var(--accent-primary));display:flex;align-items:center;justify-content:center;font-size:22px}
+.lora-row .nm{display:block;font-weight:600;font-size:15px}.lora-row .tg{display:block;color:var(--text-muted);font-size:12.5px;margin-top:2px}
+.lora-fab{position:fixed;right:16px;bottom:calc(56px + 76px + env(safe-area-inset-bottom,0px));z-index:31;min-height:48px;padding:0 20px;border-radius:24px;color:var(--text-on-accent,#fff);box-shadow:0 2px 10px color-mix(in srgb,var(--text-primary) 22%,transparent)}
+@media(max-width:800px){.lora-view-name,.top .sub{display:none}.lora-steps{flex-wrap:nowrap;gap:4px;margin-top:6px}.lora-view{gap:4px}.lora-step{padding:0 9px;font-size:13px;white-space:nowrap}}
 
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
@@ -206,62 +230,90 @@
 </head>
 <body>
   <div class="top">
-    <h1>🧬 LoRA Studio</h1>
+    <h1 data-ef-phone="brand">🧬 LoRA Studio</h1>
     <div class="sub">Train a reusable character → validate it on a fixed matrix → improve the weak spots and retrain. Every version scored, so "better" is a number.</div>
+    <nav class="lora-steps" id="loraSteps" aria-label="Steps">
+      <div class="lora-view" role="group" aria-label="Characters &amp; dataset"><span class="lora-view-name" aria-hidden="true">Characters &amp; dataset</span>
+        <button type="button" class="lora-step" data-step="identity">1 Identity</button><button type="button" class="lora-step" data-step="dataset">2 Dataset</button></div>
+      <div class="lora-view" role="group" aria-label="Training &amp; scorecards"><span class="lora-view-name" aria-hidden="true">Training &amp; scorecards</span>
+        <button type="button" class="lora-step" data-step="train">3 Train</button><button type="button" class="lora-step" data-step="scorecards">4 Scorecards</button></div>
+    </nav>
   </div>
   <div class="split">
     <div class="pane left">
-      <div class="lbl">Characters</div>
-      <details class="character-editor" id="characterEditor">
-        <summary>Create a character</summary>
-        <p class="hint">Save the identity here, then prepare its own curated dataset on the GPU worker. Saving starts no training and creates no schedule.</p>
-        <form id="characterForm" novalidate>
-          <fieldset id="characterFields">
-            <label>Subject slug<input name="subject" maxlength="64" required autocomplete="off" /></label>
-            <label>Display name<input name="displayName" maxlength="2048" autocomplete="off" /></label>
-            <label>Trigger word<input name="triggerWord" maxlength="2048" autocomplete="off" /></label>
-            <label>Hero image on the worker<input name="heroImage" maxlength="2048" required autocomplete="off" /></label>
-            <label>Identity sentence<textarea name="identPrompt" maxlength="2048" required></textarea></label>
-            <label>Negative prompt<textarea name="negativePrompt" maxlength="2048"></textarea></label>
-            <label>Expected structure<textarea name="identityStructure" maxlength="2048"></textarea></label>
-            <label>Structure violation<textarea name="identityViolation" maxlength="2048"></textarea></label>
-            <span class="hint">Provide both structural prompts or neither. Each field is limited to 2048 UTF-8 bytes.</span>
-            <label>Base checkpoint<input name="baseModel" maxlength="2048" placeholder="v1-5-pruned-emaonly-fp16.safetensors" autocomplete="off" /></label>
-            <button class="btn" type="submit">Save character</button>
-            <button class="btn ghost" id="cancelCharacter" type="button">Cancel</button>
-          </fieldset>
-        </form>
-        <div class="result" id="createResult" role="status" aria-live="polite"></div>
-      </details>
+      <div class="lora-list-head"><div class="lbl">Characters</div><button class="btn sm" id="newCharacterBtn" type="button">+ New character</button></div>
       <div class="result" id="charsStatus" role="status" aria-live="polite"></div>
       <div id="chars"><div class="spin">Loading…</div></div>
       <div id="actions" style="display:none">
-        <div class="lbl" style="margin-top:20px">Actions · <span id="actName"></span></div>
+        <div class="lbl">Character · <span id="actName"></span></div>
         <div class="character-config" id="characterConfig"></div>
-        <div class="bar">
-          <button class="btn" id="trainBtn" onclick="act('train')">⚙️ Train new version</button>
-          <button class="btn ghost" id="valBtn" onclick="act('validate')">📊 Validate latest</button>
-          <button class="btn ghost" id="impBtn" onclick="act('improve')">🎯 Improve</button>
-        </div>
-        <label class="toggle"><input type="checkbox" id="autoTog" onchange="setAuto()" /> Improve overnight (autonomous, gated review)</label>
-        <div class="bar"><button class="btn ghost sm" id="overnightBtn" onclick="act('improve-overnight')">🌙 Run overnight now</button></div>
         <div class="bar"><button class="btn ghost sm" id="deleteCharBtn" type="button">Delete character</button><button class="btn ghost sm" id="deleteCharCancel" type="button" style="display:none">Keep it</button></div>
-        <div class="result" id="result"></div>
-        <div class="character-editor" id="datasetPanel" style="margin-top:16px">
-          <div class="lbl">Curated dataset</div>
-          <p class="hint" id="artifactHint">Send an owner-owned image here from Portrait Studio or another image source, then choose this character before queueing it to the GPU worker.</p>
-          <label class="hint" style="display:grid;gap:4px">Caption for the training pair
-            <textarea id="datasetCaption" maxlength="2048" placeholder="Leave blank to use this character's trigger word."></textarea>
-          </label>
-          <div class="bar"><button class="btn sm" id="importArtifactBtn" type="button" disabled>Import selected image</button><button class="btn ghost sm" id="refreshDatasetBtn" type="button">Refresh dataset</button></div>
-          <div id="datasetRows" class="hint" style="margin-top:10px">Loading dataset receipts…</div>
-        </div>
       </div>
     </div>
     <div class="pane right">
-      <div class="lbl">Versions <span class="hint" id="verMeta"></span></div>
-      <div id="vers"><div class="empty">Select a character to see its trained versions and scorecards.</div></div>
-      <div id="gallery"></div>
+      <section class="lora-home" id="phoneHome" hidden aria-label="Your characters">
+        <div id="phoneChars"></div>
+        <button class="btn lora-fab" id="newCharacterFab" type="button" data-ef-floating>+ New character</button>
+      </section>
+      <div class="lora-work" id="loraWork">
+        <p class="hint" id="sourceEditStatus" role="status"></p>
+        <div class="result" id="result" role="status" aria-live="polite"></div>
+        <section class="lora-panel" data-step-panel="identity" id="stepIdentity">
+          <section class="character-editor" id="characterEditor" aria-labelledby="newCharacterTitle">
+            <h2 class="lora-panel-title" id="newCharacterTitle">New character</h2>
+            <p class="hint">Saving starts no training and creates no schedule.</p>
+            <form id="characterForm" novalidate>
+              <fieldset id="characterFields">
+                <label>Name<input name="displayName" maxlength="2048" required autocomplete="off" /></label>
+                <label>Trigger word<input name="triggerWord" maxlength="2048" autocomplete="off" /></label>
+                <label>Identity sentence<textarea name="identPrompt" maxlength="2048" required></textarea></label>
+                <details class="lora-advanced" id="characterAdvanced">
+                  <summary>Advanced</summary>
+                  <div class="lora-advanced-fields">
+                    <label>Subject slug<input name="subject" maxlength="64" autocomplete="off" placeholder="Made from the name" /></label>
+                    <label>Hero image<input name="heroImage" maxlength="2048" required autocomplete="off" /></label>
+                    <label>Negative prompt<textarea name="negativePrompt" maxlength="2048"></textarea></label>
+                    <label>Expected structure<textarea name="identityStructure" maxlength="2048"></textarea></label>
+                    <label>Structure violation<textarea name="identityViolation" maxlength="2048"></textarea></label>
+                    <span class="hint">Provide both structural prompts or neither.</span>
+                    <label>Base checkpoint<input name="baseModel" maxlength="2048" placeholder="v1-5-pruned-emaonly-fp16.safetensors" autocomplete="off" /></label>
+                  </div>
+                </details>
+                <div class="bar"><button class="btn" type="submit">Create character</button><button class="btn ghost" id="cancelCharacter" type="button">Cancel</button></div>
+              </fieldset>
+            </form>
+            <div class="result" id="createResult" role="status" aria-live="polite"></div>
+          </section>
+        </section>
+        <section class="lora-panel" data-step-panel="dataset" id="stepDataset" hidden>
+          <div class="character-editor" id="datasetPanel">
+            <h2 class="lora-panel-title">Dataset</h2>
+            <p class="hint" id="artifactHint">Send an owner-owned image here from Portrait Studio or another image source, then choose this character before queueing it to the GPU worker.</p>
+            <label class="hint" style="display:grid;gap:4px">Caption for the training pair
+              <textarea id="datasetCaption" maxlength="2048" placeholder="Leave blank to use this character's trigger word."></textarea>
+            </label>
+            <div class="bar"><button class="btn sm" id="importArtifactBtn" type="button" disabled>Import selected image</button><button class="btn ghost sm" id="refreshDatasetBtn" type="button">Refresh dataset</button></div>
+            <h3 class="lbl" style="margin-top:16px">Dataset images</h3>
+            <div id="datasetRows" class="hint">Loading dataset receipts…</div>
+          </div>
+        </section>
+        <section class="lora-panel" data-step-panel="train" id="stepTrain" hidden>
+          <div id="trainActions" hidden>
+            <div class="bar">
+              <button class="btn" id="trainBtn" onclick="act('train')">⚙️ Train new version</button>
+              <button class="btn ghost" id="valBtn" onclick="act('validate')">📊 Validate latest</button>
+              <button class="btn ghost" id="impBtn" onclick="act('improve')">🎯 Improve</button>
+            </div>
+            <label class="toggle"><input type="checkbox" id="autoTog" onchange="setAuto()" /> Improve overnight (autonomous, gated review)</label>
+            <div class="bar"><button class="btn ghost sm" id="overnightBtn" onclick="act('improve-overnight')">🌙 Run overnight now</button></div>
+          </div>
+          <div class="lbl" style="margin-top:16px">Versions <span class="hint" id="verMeta"></span></div>
+          <div id="vers"><div class="empty">Select a character to see its trained versions and scorecards.</div></div>
+        </section>
+        <section class="lora-panel" data-step-panel="scorecards" id="stepScorecards" hidden>
+          <div id="gallery"></div>
+        </section>
+      </div>
     </div>
   </div>
 
@@ -269,6 +321,7 @@
 const $ = (id) => document.getElementById(id);
 let CHARS = [], SEL = null;
 let loraEditor, creationDraft=false;
+let STEP='identity', HOME=true, GPU_WORKER=null;
 const characterDraft='character-draft:'+crypto.randomUUID();
 let identitySource = null, captionObject = null, datasetObjects = [], sourceBusy = false, identityLoad = 0, datasetLoad = 0, loraAssistant = null, sourceSelectionEpoch = 0, modelDispatchBusy = false, currentModels = [], sourceUnavailableReason = "";
 function sourceSelection() { return { kind: creationDraft || !SEL ? 'character draft' : captionObject ? 'dataset image' : 'character', ids: [creationDraft || !SEL ? characterDraft : captionObject?.id ?? identitySource?.characterId ?? SEL] }; }
@@ -318,6 +371,7 @@ async function chooseDatasetObject(id) { try {
     if (!row)
         return;
     captionObject = { ...row };
+    if (SEL && STEP !== 'dataset') showStep('dataset');
     paintCaptionSource();
     sourceMessage(identitySource?'Editing '+row.filename+'. Saving a caption does not train or change image bytes.':'Read-only dataset evidence. '+sourceUnavailableReason);
 }
@@ -381,7 +435,7 @@ async function refreshLoraSource(expected) { if (expected?.recordId && expected.
     throw Error('The source changed while loading. Your draft remains here.'); if (!identity.ok || !dataset.ok)
     throw Error('The saved source could not be refreshed.'); identitySource = identity.j; $('editIdentityName').value = identity.j.displayName; datasetObjects = dataset.j.images ?? []; if (captionObject)
     captionObject = datasetObjects.find(row => row.id === captionObject.id) ?? null; paintCaptionSource(); await loadChars(); await loadDataset(subject); }
-function mountSourceControls(inspector) { const panel = document.createElement('section'); panel.id = 'sourceEditPanel'; panel.className = 'source-edit-panel'; panel.innerHTML = '<h3>Saved source</h3><button id="reloadSavedSource" type="button">Reload saved source</button><div id="identitySourceEditor" hidden><label>Display name<input id="editIdentityName" maxlength="120" disabled></label><button id="saveIdentityName" type="button" disabled>Save identity name</button><p class="hint">Trigger words, hero anchors and trained weights keep their original identity.</p></div><div id="savedCaptionEditor" hidden><h4 id="selectedSourceFilename">Selected dataset image</h4><p id="captionReceipt" class="hint"></p><label>Caption source<textarea id="editSavedCaption" maxlength="2048" rows="5"></textarea></label><div class="bar"><button id="saveSavedCaption" type="button">Save caption</button><button id="retrySavedCaption" type="button">Retry worker sync</button></div><p class="hint">Applied caption on the worker</p><pre id="appliedCaption" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><p class="hint">Saving caption text retains the original image and every trained model. Training waits for the matching worker acknowledgement.</p></div><p id="sourceEditStatus" class="hint" role="status"></p>'; inspector.prepend(panel); $('reloadSavedSource').onclick = () => { if (SEL)
+function mountSourceControls() { const panel = document.createElement('section'); panel.id = 'sourceEditPanel'; panel.className = 'source-edit-panel'; panel.innerHTML = '<h3>Saved source</h3><div id="identitySourceEditor" hidden><label>Display name<input id="editIdentityName" maxlength="120" disabled></label><button id="saveIdentityName" type="button" disabled>Save identity name</button><p class="hint">Trigger words, hero anchors and trained weights keep their original identity.</p></div><button id="reloadSavedSource" type="button">Reload saved source</button>'; $('stepIdentity').append(panel); const captions = document.createElement('section'); captions.className = 'source-edit-panel'; captions.innerHTML = '<div id="savedCaptionEditor" hidden><h4 id="selectedSourceFilename">Selected dataset image</h4><p id="captionReceipt" class="hint"></p><label>Caption source<textarea id="editSavedCaption" maxlength="2048" rows="5"></textarea></label><div class="bar"><button id="saveSavedCaption" type="button">Save caption</button><button id="retrySavedCaption" type="button">Retry worker sync</button></div><p class="hint">Applied caption on the worker</p><pre id="appliedCaption" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><p class="hint">Saving caption text retains the original image and every trained model. Training waits for the matching worker acknowledgement.</p></div>'; $('stepDataset').append(captions); $('reloadSavedSource').onclick = () => { if (SEL)
     void select(SEL).catch(error => sourceMessage(error.message)); }; for (const id of ['editIdentityName', 'editSavedCaption'])
     $(id).addEventListener('input', notifySource); for (const [id, fn] of [['saveIdentityName', saveIdentitySource], ['saveSavedCaption', () => saveCaptionSource(false)], ['retrySavedCaption', () => saveCaptionSource(true)]]) {
     $(id).onpointerdown = event => { if (document.activeElement?.matches('[data-editor-property]'))
@@ -392,10 +446,11 @@ function mountSourceControls(inspector) { const panel = document.createElement('
     event.preventDefault();
     event.returnValue = '';
 } }); }
-function loraSourceState() { return { documentId: sourceDocumentId(), revision: sourceRevision(), selection: sourceSelection(), title: SEL ? CHARS.find(row => row.subject === SEL)?.display_name || SEL : 'New character', dirty: sourceDirty(), readOnly: Boolean(SEL && !creationDraft && !identitySource?.canConfigure), busy: sourceBusy || modelDispatchBusy || $('characterFields').disabled, status: creationDraft || !SEL ? 'Character draft · Save character starts no training' : captionObject ? 'Caption source revision ' + sourceRevision() + ' · ' + (captionObject.caption_status ?? 'applied') : 'Saved identity · trained outputs stay immutable' }; }
+function loraSourceState() { return { documentId: sourceDocumentId(), revision: sourceRevision(), selection: sourceSelection(), title: SEL ? CHARS.find(row => row.subject === SEL)?.display_name || SEL : 'New character', dirty: sourceDirty(), readOnly: Boolean(SEL && !creationDraft && !identitySource?.canConfigure), busy: sourceBusy || modelDispatchBusy || $('characterFields').disabled, status: creationDraft || !SEL ? 'Character draft · Create character starts no training' : captionObject ? 'Caption source revision ' + sourceRevision() + ' · ' + (captionObject.caption_status ?? 'applied') : 'Saved identity · trained outputs stay immutable' }; }
 
 function characterProperties(){
-  if(creationDraft||!SEL)return [...$('characterForm').elements].filter(field=>field.name).map(field=>({key:field.name,label:field.closest('label')?.firstChild.textContent.trim()||field.name,type:field.tagName==='TEXTAREA'?'textarea':'text',value:field.value,group:'New character'}));
+  // The New character form is the work area's step 1; Properties shows only a selected character's facts (no duplicate form).
+  if(creationDraft||!SEL)return [];
   const character=CHARS.find(row=>row.subject===SEL);if(!character)return [];
   if(captionObject)return[{key:'filename',label:'Dataset image',type:'text',value:captionObject.filename,disabled:true,group:'Selected image'},{key:'savedCaption',label:'Caption source',type:'textarea',value:$('editSavedCaption')?.value??captionObject.caption??'',disabled:!identitySource?.canConfigure,group:'Selected image'}];
   return [{key:'display_name',label:'Character',type:'text',value:identitySource?$('editIdentityName').value:character.display_name||SEL,disabled:!identitySource?.canConfigure,group:'Saved identity'},
@@ -412,16 +467,15 @@ function applyCharacterProperty(key,value,expected){
 }
 async function mountLoraWorkspace(){
   const{createEditorFoundation}=await import('/shared/ui/js/editor-foundation.js');
-  const{createEditorAssistant}=await import('/shared/ui/js/editor-assistant.js');
   const root=document.querySelector('.split'),navigation=root.querySelector('.left'),viewport=root.querySelector('.right'),inspector=document.createElement('section');
-  inspector.className='lora-inspector';inspector.append($('actions'));root.append(inspector);mountSourceControls(viewport);viewport.prepend($('characterEditor'));const datasetLabel=document.createElement('h3');datasetLabel.className='lbl';datasetLabel.textContent='Dataset images';navigation.append(datasetLabel,$('datasetRows'));
-  loraAssistant=createEditorAssistant({app:'lora',bot:'lora-director',title:'LoRA source AI partner',root,prepare:prepareLoraSource,refresh:refreshLoraSource,getState:loraSourceState});
-  loraEditor=createEditorFoundation({root,ai:loraAssistant.element,navigation,viewport,inspector,header:document.querySelector('.top'),
+  const noFacts=document.createElement('p');noFacts.id='noFacts';noFacts.className='hint';noFacts.textContent='Choose a character to see its facts.';
+  inspector.className='lora-inspector';inspector.append(noFacts,$('actions'));root.append(inspector);mountSourceControls();
+  loraEditor=createEditorFoundation({root,navigation,navigationLabel:'Characters',viewport,inspector,header:document.querySelector('.top'),
     getState:loraSourceState,getSelection:sourceSelection,getProperties:characterProperties,applyProperty:applyCharacterProperty,actions:{save:async()=>{if(creationDraft||!SEL)return saveCharacter({preventDefault(){}});if(identityDirty())await saveIdentitySource();if(captionDirty())await saveCaptionSource(false);}}});
   root.addEventListener('input',notifySource);root.addEventListener('change',notifySource);root.addEventListener('editor-foundation:draft',notifySource);
-  $('characterEditor').addEventListener('toggle',()=>{creationDraft=$('characterEditor').open;notifySource();});
+  paintSteps(); // the list may have painted before the shared editor finished mounting the saved-source panel
   const{registerDocumentSession}=await import('/shared/ui/js/document-handoff.js');registerDocumentSession({app:'lora',prepare:prepareLoraSource,refresh:refreshLoraSource});
-  window.addEventListener('pagehide',event=>{if(!event.persisted){loraAssistant?.destroy();loraEditor.destroy();}},{once:true});
+  window.addEventListener('pagehide',event=>{if(!event.persisted)loraEditor.destroy();},{once:true});
 }
 const ARTIFACT_REF = (()=>{
   try{
@@ -462,13 +516,22 @@ function requiredGaps(form){
   return Array.from(form.querySelectorAll('[required]')).filter(f=>!String(f.value||'').trim())
     .map(f=>({field:f,label:String((f.closest('label')&&f.closest('label').firstChild&&f.closest('label').firstChild.textContent)||f.name).trim()}));
 }
+/* Step 1 asks for a Name, not a slug: a blank Subject slug (under Advanced) is made from the Name, or else the trigger word. */
+function deriveSubject(form){
+  const field=form.elements.namedItem('subject');
+  if(!field||String(field.value||'').trim())return;
+  const from=['displayName','triggerWord'].map(name=>String(form.elements.namedItem(name)?.value||'')).find(value=>value.trim())||'';
+  field.value=from.toLowerCase().replace(/[^a-z0-9._-]+/g,'-').replace(/^[^a-z0-9]+/,'').replace(/-+$/,'').slice(0,64);
+}
 async function saveCharacter(event){
   event.preventDefault();
   try{await loraEditor?.flushPending();}catch(error){creationResult('err',error.message);return;}
   if($('characterFields').disabled) return;
+  deriveSubject($('characterForm'));
   const gaps=requiredGaps($('characterForm'));
   if(gaps.length){
     creationResult('err','Fill in '+gaps.map(g=>g.label).join(', ')+' to save the character. Nothing was saved.');
+    const advanced=gaps[0].field.closest('details'); if(advanced) advanced.open=true;
     gaps[0].field.focus(); return;
   }
   const body=Object.fromEntries(new FormData($('characterForm')));
@@ -488,6 +551,7 @@ async function saveCharacter(event){
     if(await loadChars()){
       await select(j.subject);
       creationResult('ok',j.message||'Character saved. No training was started.');
+      showResult('ok',j.message||'Character saved. No training was started.');
     }
     else creationResult('warn','Character saved. No training was started. Refresh to reload the character list.');
   }catch(error){
@@ -499,12 +563,58 @@ function bindStudio(){
   void mountLoraWorkspace().catch(error=>creationResult('err','The shared editor could not open: '+error.message));
   $('characterForm').addEventListener('submit',saveCharacter);
   $('cancelCharacter').addEventListener('click',()=>{
-    loraEditor?.discardPending(); $('characterForm').reset(); creationDraft=false; loraEditor?.refresh(); $('createResult').className='result'; $('createResult').textContent=''; $('characterEditor').open=false;
+    loraEditor?.discardPending(); $('characterForm').reset(); $('characterAdvanced').open=false; creationDraft=false; HOME=true; loraEditor?.refresh(); $('createResult').className='result'; $('createResult').textContent=''; paintSteps();
   });
+  for(const id of ['newCharacterBtn','newCharacterFab']) $(id).addEventListener('click',()=>{ void newCharacter(); });
+  document.querySelectorAll('[data-step]').forEach(b=>b.addEventListener('click',()=>showStep(b.dataset.step)));
+  window.matchMedia('(max-width:800px)').addEventListener('change',paintSteps);
+  void readWorker();
   $('importArtifactBtn').addEventListener('click',importIncomingArtifact);
   $('refreshDatasetBtn').addEventListener('click',()=>{ if(SEL) void loadDataset(SEL); });
   $('deleteCharBtn').addEventListener('click',()=>{ void deleteCharacter(); });
   $('deleteCharCancel').addEventListener('click',resetDeleteCharacter);
+}
+
+/* Steps (UX audit 2026-11-06): 1 Identity and 2 Dataset are the Characters & dataset view, 3 Train and 4 Scorecards the
+   Training & scorecards view, one step's controls at a time. With no character the work area is New character at step 1;
+   on a phone the first screen is the character list with one + New character, and a tap opens the character. */
+const STEPS=['identity','dataset','train','scorecards'];
+function phoneLayout(){ return window.matchMedia('(max-width:800px)').matches; }
+function paintSteps(){
+  if(!SEL) STEP='identity';
+  const home=phoneLayout()&&HOME&&!SEL&&CHARS.length>0;
+  $('phoneHome').hidden=!home; $('loraWork').hidden=home; $('loraSteps').hidden=home;
+  document.querySelectorAll('[data-step]').forEach(b=>{ b.setAttribute('aria-current',b.dataset.step===STEP?'step':'false'); b.disabled=!SEL&&b.dataset.step!=='identity'; });
+  document.querySelectorAll('[data-step-panel]').forEach(panel=>{ panel.hidden=panel.dataset.stepPanel!==STEP; });
+  $('characterEditor').hidden=Boolean(SEL); if($('noFacts')) $('noFacts').hidden=Boolean(SEL); if($('sourceEditPanel')) $('sourceEditPanel').hidden=creationDraft||!SEL;
+  paintWorker();
+}
+function showStep(step){
+  if(!STEPS.includes(step)||(!SEL&&step!=='identity')) return;
+  STEP=step; paintSteps();
+  if(step==='scorecards'&&SEL&&!$('gallery').dataset.version) openLatestScorecard(SEL);
+}
+/* Train, Validate, Improve and Overnight run only on a GPU worker: they are withheld (not disabled) unless the one
+   GET /worker read says a worker is registered. A failed read withholds them too; the capability is untouched. */
+function paintWorker(){ $('trainActions').hidden=GPU_WORKER!==true; }
+async function readWorker(){
+  try{ const {ok,j}=await api('/worker'); GPU_WORKER=ok&&j.gpuWorker===true; }catch(error){ GPU_WORKER=false; }
+  paintWorker(); if(SEL&&!currentModels.length&&$('vers').querySelector('.empty')) $('vers').innerHTML='<div class="empty">'+esc(noVersionsText())+'</div>';
+}
+function noVersionsText(){ return GPU_WORKER?'No trained versions yet. Train the first version from the existing dataset to start the loop.':'No trained versions yet.'; }
+function openLatestScorecard(subject){
+  const scored=currentModels.find(m=>m.overall!=null&&safeInt(m.version)!=null);
+  if(scored) void gallery(subject,safeInt(scored.version)); else empty('gallery','No scorecards yet. A version gets one when it is validated.');
+}
+async function newCharacter(){
+  if(sourceBusy) return;
+  if(sourceDirty()&&!confirm('Discard unsaved source edits and start a new character?')) return;
+  loraEditor?.discardPending(); ++sourceSelectionEpoch;
+  SEL=null; HOME=false; creationDraft=true; identitySource=null; captionObject=null; datasetObjects=[]; currentModels=[];
+  $('actions').style.display='none'; $('verMeta').textContent=''; $('gallery').innerHTML=''; delete $('gallery').dataset.version;
+  $('result').className='result'; $('result').style.display='none'; $('sourceEditStatus').textContent=''; resetDeleteCharacter();
+  await loadChars(); notifySource(); loraEditor?.showPanel(null); loraEditor?.refresh();
+  $('characterForm').elements.namedItem('displayName').focus({preventScroll:true});
 }
 
 // Deleting a character asks twice in place (no browser dialog, which an embedded page may not show):
@@ -535,12 +645,12 @@ async function deleteCharacter(){
   const {ok,j}=await api('/characters/'+encodeURIComponent(c.subject),{method:'DELETE'});
   resetDeleteCharacter();
   if(!ok){ showResult('err',j.message||j.error||'The character could not be deleted.'); return; }
-  SEL=null;
+  SEL=null; HOME=true;
   $('actions').style.display='none';
   $('verMeta').textContent='';
   $('gallery').innerHTML='';
   empty('vers','Select a character to see its trained versions and scorecards.');
-  await loadChars();
+  await loadChars(); paintSteps();
   const removed=safeInt(j.removedVersions)??0;
   const status=$('charsStatus'); status.className='result ok'; status.textContent='Deleted '+c.display_name+' ('+removed+' version'+(removed===1?'':'s')+' removed).';
 }
@@ -600,7 +710,7 @@ async function loadChars(){
   const { ok, j } = await api('/characters');
   if(!ok){ empty('chars',j.error||'Failed to load'); return false; }
   CHARS = Array.isArray(j.characters)?j.characters:[];
-  if(!CHARS.length){ renderNoCharacters(); return true; }
+  if(!CHARS.length){ renderNoCharacters(); $('phoneChars').innerHTML=''; paintSteps(); return true; }
   $('chars').innerHTML = CHARS.map((c,index)=>`
     <div class="card ${SEL===c.subject?'sel':''}" data-char-index="${index}">
       <div class="ch">
@@ -617,12 +727,18 @@ async function loadChars(){
   $('chars').querySelectorAll('[data-char-index]').forEach((node)=>{
     node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.charIndex)]; if(c) void select(c.subject); });
   });
+  $('phoneChars').innerHTML=CHARS.map((c,index)=>'<button type="button" class="lora-row" data-home-index="'+index+'"><span class="avatar" aria-hidden="true">🧿</span><span><span class="nm">'+esc(c.display_name)+'</span><span class="tg">'+(safeInt(c.version_count)??0)+' versions · best score '+esc(fmt(c.latest_score))+'</span></span></button>').join('');
+  $('phoneChars').querySelectorAll('[data-home-index]').forEach((node)=>{
+    node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.homeIndex)]; if(c) void select(c.subject); });
+  });
+  paintSteps();
   return true;
 }
 
 async function select(subject){
   if(sourceBusy||!CHARS.some(row=>row.subject===subject))return;
   if(sourceDirty()&&!confirm('Discard unsaved source edits and select another character?'))return;
+  const fromNew=!SEL;
   const generation=++sourceSelectionEpoch,before=JSON.stringify({subject:SEL,name:$('editIdentityName')?.value,caption:$('editSavedCaption')?.value,pending:loraEditor?.hasPending()});
   const [incomingIdentity,incomingDataset]=await Promise.all([api('/characters/'+encodeURIComponent(subject)+'/editor'),api('/dataset?subject='+encodeURIComponent(subject))]);
   if(generation!==sourceSelectionEpoch)return;
@@ -631,7 +747,7 @@ async function select(subject){
   loraEditor?.discardPending();captionObject=null;identitySource=incomingIdentity.ok?incomingIdentity.j:null;sourceUnavailableReason=incomingIdentity.ok?'':String(incomingIdentity.j.error||'The saved source editor is unavailable.');datasetObjects=incomingDataset.j.images??[];
   if($('editIdentityName')){$('editIdentityName').value=identitySource?.displayName??'';$('editIdentityName').disabled=!identitySource?.canConfigure;}
   if(DELETE_ARMED!==subject) resetDeleteCharacter();
-  creationDraft=false; SEL = subject; const c = CHARS.find(x=>x.subject===subject);
+  creationDraft=false; SEL = subject; HOME=false; if(fromNew&&STEP==='identity') STEP='dataset'; const c = CHARS.find(x=>x.subject===subject);
   if(!c) return;
   await loadChars();
   $('actions').style.display='block';
@@ -642,17 +758,17 @@ async function select(subject){
   $('importArtifactBtn').disabled=!ARTIFACT_REF;
   $('result').className='result'; $('result').style.display='none';
   paintCaptionSource();if(!identitySource)sourceMessage('Read-only saved evidence. '+sourceUnavailableReason);await loadDataset(subject);
-  await loadVersions(subject); loraEditor?.refresh();
+  await loadVersions(subject); paintSteps(); loraEditor?.refresh();
 }
 
 async function loadVersions(subject){
   $('verMeta').textContent = '· '+subject;
-  $('gallery').innerHTML='';
+  $('gallery').innerHTML=''; delete $('gallery').dataset.version;
   const { ok, j } = await api('/models?subject='+encodeURIComponent(subject));
   if(!ok){ empty('vers',j.error||'Failed'); return; }
   const models = Array.isArray(j.models)?j.models:[];currentModels=models;notifySource();
   const c = CHARS.find(x=>x.subject===subject);
-  if(!models.length){ $('vers').innerHTML='<div class="empty">No trained versions yet. Train the first version from the existing dataset to start the loop.</div>'; return; }
+  if(!models.length){ $('vers').innerHTML='<div class="empty">'+esc(noVersionsText())+'</div>'; return; }
   $('vers').innerHTML = models.map((m,index)=>{
     const version=safeInt(m.version);
     const active = c && safeInt(c.active_version)===version;
@@ -680,7 +796,7 @@ async function loadVersions(subject){
     </div>`;
   }).join('');
   $('vers').querySelectorAll('[data-gallery-index]').forEach((node)=>{
-    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=models[Number(node.dataset.galleryIndex)]; const v=safeInt(m&&m.version); if(v!=null) void gallery(subject,v); });
+    node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=models[Number(node.dataset.galleryIndex)]; const v=safeInt(m&&m.version); if(v!=null){ void gallery(subject,v); showStep('scorecards'); } });
   });
   $('vers').querySelectorAll('[data-active-index]').forEach((node)=>{
     node.addEventListener('click',(event)=>{ event.stopPropagation(); const m=models[Number(node.dataset.activeIndex)]; const v=safeInt(m&&m.version); if(v!=null) void keepBest(subject,v); });
@@ -688,6 +804,7 @@ async function loadVersions(subject){
 }
 
 async function gallery(subject, version){
+  $('gallery').dataset.version=String(version);
   $('gallery').innerHTML='<div class="spin">Loading scorecard…</div>';
   const { ok, j } = await api('/scorecard?subject='+encodeURIComponent(subject)+'&version='+version);
   if(!ok){ empty('gallery',j.error||'No scorecard'); return; }

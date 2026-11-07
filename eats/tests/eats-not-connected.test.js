@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | The refusal names the installation's fact and never says a connection can be added.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.0: the search is a POST carrying query, address, limit and refresh; the saved-line helpers are run with it.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | 1.4.0: the restaurants are real (Google Places) and the page's states are the server's: a search without an address shows the address sentence and makes no request; a refused search (503 with the server's sentence: key not configured, Places API not enabled, quota) shows that sentence, never "no restaurants matched"; an empty 200 still reads as no match; a 200 with restaurants renders cards with an Order on Uber Eats button; the concierge turn shows a 503's sentence as the reply. The guard EXECUTES the shipped search() and sendChat() out of the surface against a scripted fetch.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com   | 1.5.1: search() and sendChat() save a typed address through rememberAddress (tests/eats-address-saved.test.js); it is a no-op double here.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -54,7 +55,7 @@ function surface(source, names, respond, extra = {}) {
 const NAMES = ['ADDRESS_NEEDED', 'readBody', 'getJson', 'postJson', 'searchFailed', 'showUnavailable', 'showAddressNeeded', 'escapeHtml', 'restaurantMeta', 'renderRestaurantCard', 'savedAgo', 'showSavedLine', 'search', 'sendChat'];
 const DISABLED = [503, { error: 'disabled', message: 'Places API (New) is not enabled for this installation\'s Google key (project 1085759851735). Enable it at https://console.developers.google.com/apis/api/places.googleapis.com/overview?project=1085759851735, then try again in a minute.', source: 'Google Places' }];
 const stubs = () => ({ API: '/api/eats', state: { restaurants: [], place: null, query: '', heading: '' }, renderChips() {}, publishContext() {}, hydrateCards() {},
-  addMessage: () => ({ textContent: '', classList: { add() {} }, setAttribute() {} }), proposeOrder() {} });
+  addMessage: () => ({ textContent: '', classList: { add() {} }, setAttribute() {} }), proposeOrder() {}, rememberAddress: async () => false });
 const withAddress = (page) => { page.el('#address').value = '1 Synthetic Way, Pensacola'; return page; };
 
 test('a refused restaurant search shows the server\'s sentence, never that nothing matched', async () => {

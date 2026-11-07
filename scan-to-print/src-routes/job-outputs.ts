@@ -6,9 +6,10 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Retire stale geometry before input changes and serialize one job's reads, rebuilds and print preparation in the current single-API process.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.7.0: the admission itself is claimJobOperation and the stale/not-printable answer is currentOutputRefusal, so the print package tool (print-tools.ts), which runs without an HTTP request, takes the same per-job lock and gives the same refusals as the routes: a print never prepares files while a rebuild writes them. withCurrentJob and requireCurrentOutput answer exactly as before.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Require original-person ownership on source mutations while preserving independent print.send authority.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Clear mesh edit snapshots (original and undo STL/report) alongside output artifacts when retiring stale geometry.
  */
-import type {AppContext} from '@/app/composition/app-context';
 import {assertCalibrationOwner,calibrationAccess,CalibrationError} from './calibration-editor';
+import type {AppContext} from '@/app/composition/app-context';
 import type { Request, Response, RequestHandler } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -118,5 +119,8 @@ export async function retireOutput(deps: OutputDeps, sub: string, job: JobRow): 
   if (!updated) throw new Error('Job disappeared before output invalidation');
   const dir = jobDir(deps.dataRoot, sub, job.job_id);
   for (const key of Object.keys(ARTIFACT_FILES) as ArtifactKey[]) fs.rmSync(artifactPath(dir, key), { force: true });
+  for (const snap of ['mesh-original.stl', 'mesh-undo.stl', 'report-original.json', 'report-undo.json']) {
+    fs.rmSync(path.join(dir, 'artifacts', snap), { force: true });
+  }
   return updated;
 }

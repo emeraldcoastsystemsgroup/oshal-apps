@@ -7,13 +7,15 @@
 <!--
   CHANGE LOG
   ---------------------------------------------------------------------------
-  DATE           | AUTHOR                    | DESCRIPTION
+  SEQ | AUTHOR                                    | DESCRIPTION
   ---------------------------------------------------------------------------
-  2026-04-19     | roger.murphy@emeraldcoastsystemsgroup.com    | Initial creation — flashcard study mode
-  2026-04-22     | roger.murphy@agenticfederal.us   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
-  2026-09-26     | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and the dark rgba palette; progress, answer buttons, stats, callouts, empty and done states use the system while the flip card stays page-specific. Role truth: "Generate from your textbook" appears only for the class's teacher/admin, students get an honest empty state; the learner id comes from the frame when localStorage has none so reviews and XP are never skipped; a set opened by id shows its real title; toast replaces alert()
-  2026-10-18     | maintainer@emeraldcoastsystemsgroup.com     | The progress label updates after each answer: a finished deck read 5/6 beside "6 out of 6 correct".
-  2026-10-29     | maintainer@emeraldcoastsystemsgroup.com     | The end-of-deck message speaks through the neural read-aloud (lmSpeak) like every card; it called the browser's speechSynthesis directly and sounded robotic.
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Initial creation — flashcard study mode
+  2   | maintainer@emeraldcoastsystemsgroup.com   | Follow parent cockpit theme via theme-sync.js so the iframe recolors when the operator cycles themes instead of being pinned to midnight
+  3   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: shared theme bootstrap (classroom default), package stylesheet and page frame replace the per-page theme reader, glass and the dark rgba palette; progress, answer buttons, stats, callouts, empty and done states use the system while the flip card stays page-specific; role truth for textbook generation; learner id from frame; toast replaces alert()
+  4   | maintainer@emeraldcoastsystemsgroup.com   | The progress label updates after each answer: a finished deck read 5/6 beside "6 out of 6 correct"
+  5   | maintainer@emeraldcoastsystemsgroup.com   | The end-of-deck message speaks through the neural read-aloud (lmSpeak) like every card
+  6   | maintainer@emeraldcoastsystemsgroup.com   | UX audit (lm-flashcards): the unflipped answer is aria-hidden until the card turns, and the audio buttons move to one toolbar row of 44px targets under the card
+  7   | maintainer@emeraldcoastsystemsgroup.com   | Add per-set Shuffle and Term first / Definition first prompt-side controls remembered per set for the learner while keeping SM-2 reviews and XP bound to cardId (RP-LM-04)
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -38,7 +40,17 @@
   .card-back { background: var(--lm-accent-wash); border-color: var(--lm-accent-line); transform: rotateY(180deg); }
   .card-label { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--lm-muted); }
   .card-text { font-size: 20px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
-  .card-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+  .study-side-switch { display: flex; justify-content: center; gap: 4px; padding: 4px; margin: 0 auto 12px; width: fit-content; max-width: 100%; background: var(--lm-bg-2); border-radius: var(--lm-radius-pill); }
+  .study-side-switch.hide { display: none; }
+  .study-side-switch button { min-height: var(--lm-touch); padding: 6px 16px; border: 0; border-radius: var(--lm-radius-pill); background: transparent; color: var(--lm-ink-2); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .study-side-switch button[aria-pressed="true"] { background: var(--lm-card); color: var(--lm-accent); box-shadow: var(--lm-shadow-soft); }
+  .study-tools { display: flex; flex-wrap: nowrap; justify-content: center; gap: 8px; margin: 0 0 16px; }
+  .study-tools .lm-btn { min-height: var(--lm-touch); min-width: var(--lm-touch); }
+  .study-tools .lm-btn[aria-pressed="true"] { background: var(--lm-accent-soft); color: var(--lm-accent); border-color: var(--lm-accent-line); }
+  @media (max-width: 480px) {
+    .study-tools .lm-btn { padding-inline: 0; flex: 1 1 0; }
+    .study-tools .tool-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  }
   #hintBtn.is-shown { cursor: default; color: var(--lm-ink-2); text-decoration: none; }
 
   .voice-answer-btn.listening { background: var(--lm-danger); color: #fff; border-color: var(--lm-danger); animation: pulse-voice 1.5s infinite; }
@@ -80,25 +92,34 @@
     <span class="lm-small lm-muted progress-text" id="progressText">—</span>
   </div>
 
+  <!-- Prompt side toggle (RP-LM-04) -->
+  <div class="study-side-switch hide" id="promptSideSwitch" role="group" aria-label="Prompt side">
+    <button type="button" id="termFirstBtn" data-side="term" aria-pressed="true" onclick="setPromptSide('term')">Term first</button>
+    <button type="button" id="defFirstBtn" data-side="definition" aria-pressed="false" onclick="setPromptSide('definition')">Definition first</button>
+  </div>
+
   <!-- Flashcard -->
   <div class="card-container" id="cardContainer" onclick="flipCard()" role="button" aria-label="Flashcard - click or press Space to flip" tabindex="0">
     <div class="card-inner" id="cardInner">
       <div class="card-face card-front">
-        <div class="card-label">Question</div>
+        <div class="card-label" id="frontLabel">Term</div>
         <div class="card-text" id="cardFront">Loading…</div>
         <button type="button" class="lm-text-button hide" id="hintBtn" onclick="event.stopPropagation(); showHint()">Show hint</button>
-        <div class="card-tools">
-          <button type="button" class="lm-btn lm-btn-ghost" onclick="event.stopPropagation(); speakCard('front')">&#128264; Read aloud</button>
-          <button type="button" class="lm-btn lm-btn-ghost voice-answer-btn" id="voiceAnswerBtn" onclick="event.stopPropagation(); startVoiceAnswer()">&#127908; Speak answer</button>
-        </div>
       </div>
-      <div class="card-face card-back">
-        <div class="card-label" id="backLabel">Answer</div>
+      <div class="card-face card-back" id="cardBackFace" aria-hidden="true">
+        <div class="card-label" id="backLabel">Definition</div>
         <div class="card-text" id="cardBack"></div>
         <div class="my-answer hide" id="myAnswer"></div>
-        <div class="card-tools"><button type="button" class="lm-btn lm-btn-ghost" onclick="event.stopPropagation(); speakCard('back')">&#128264; Read answer</button></div>
       </div>
     </div>
+  </div>
+
+  <!-- One row of card tools under the card (the faces' own buttons overlapped each other). -->
+  <div class="study-tools" id="studyTools" role="toolbar" aria-label="Card tools">
+    <button type="button" class="lm-btn lm-btn-ghost" id="readFrontBtn" aria-label="Read aloud" onclick="speakCard('front')">&#128264;<span class="tool-word">&nbsp;Read aloud</span></button>
+    <button type="button" class="lm-btn lm-btn-ghost voice-answer-btn" id="voiceAnswerBtn" aria-label="Speak answer" onclick="startVoiceAnswer()">&#127908;<span class="tool-word">&nbsp;Speak answer</span></button>
+    <button type="button" class="lm-btn lm-btn-ghost" id="readBackBtn" aria-label="Read answer" onclick="speakCard('back')" disabled>&#128264;<span class="tool-word">&nbsp;Read answer</span></button>
+    <button type="button" class="lm-btn lm-btn-ghost" id="shuffleBtn" aria-label="Shuffle cards" aria-pressed="false" onclick="toggleShuffle()">&#128256;<span class="tool-word">&nbsp;Shuffle</span></button>
   </div>
 
   <!-- Voice answer display (shown between question and flip) -->
@@ -158,6 +179,7 @@
  *   2 = Got it (move to done)
  */
 
+var originalDeck = [];
 var deck = [];
 var currentIndex = 0;
 var isFlipped = false;
@@ -168,6 +190,8 @@ var me = null;
 var studentId = null;
 var classId = null;
 var setId = null;
+var activeSetId = null;
+var studyPrefs = { shuffle: false, promptSide: 'term' };
 
 // Initialize mascot
 if (typeof LMMascot !== 'undefined') {
@@ -235,7 +259,7 @@ async function titleFor(id) {
 
 /** Show the empty state honestly: only the class's teacher/admin is offered generation; everyone else is pointed to the hub. */
 async function showEmpty() {
-  ['cardContainer', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.add('hide'); });
+  ['cardContainer', 'promptSideSwitch', 'studyTools', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.add('hide'); });
   document.getElementById('deckTitle').textContent = 'No flashcards yet';
   var text = document.getElementById('emptyText'), acts = document.getElementById('emptyActions');
   if (classId && await teachesClass(classId)) {
@@ -252,18 +276,90 @@ async function showEmpty() {
   document.getElementById('emptyState').classList.remove('hide');
 }
 
+function prefsKey(id) { return 'lm-flashcard-prefs:' + String(id || 'default'); }
+function readLocalPrefs(id) {
+  try {
+    var raw = JSON.parse(localStorage.getItem(prefsKey(id)) || 'null');
+    if (raw && typeof raw === 'object') {
+      return { shuffle: Boolean(raw.shuffle), promptSide: raw.promptSide === 'definition' ? 'definition' : 'term' };
+    }
+  } catch (e) {}
+  return { shuffle: false, promptSide: 'term' };
+}
+function saveLocalPrefs(id, p) {
+  try { localStorage.setItem(prefsKey(id), JSON.stringify(p)); } catch (e) {}
+}
+function persistStudyPrefs() {
+  if (!activeSetId) return;
+  saveLocalPrefs(activeSetId, studyPrefs);
+  fetch('/api/education/flashcards/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ setId: activeSetId, preferences: studyPrefs }),
+  }).catch(function () {});
+}
+function syncStudyPrefsUi() {
+  var shuf = document.getElementById('shuffleBtn');
+  if (shuf) shuf.setAttribute('aria-pressed', studyPrefs.shuffle ? 'true' : 'false');
+  var termBtn = document.getElementById('termFirstBtn'), defBtn = document.getElementById('defFirstBtn');
+  if (termBtn) termBtn.setAttribute('aria-pressed', studyPrefs.promptSide === 'term' ? 'true' : 'false');
+  if (defBtn) defBtn.setAttribute('aria-pressed', studyPrefs.promptSide === 'definition' ? 'true' : 'false');
+}
+function shuffleCards(cards) {
+  var copy = cards.slice();
+  if (copy.length < 2) return copy;
+  for (var i = copy.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp;
+  }
+  var unchanged = copy.every(function (c, idx) { return c.id === cards[idx].id; });
+  if (unchanged) { var first = copy[0]; copy[0] = copy[copy.length - 1]; copy[copy.length - 1] = first; }
+  return copy;
+}
+function applyDeckOrder() {
+  deck = studyPrefs.shuffle ? shuffleCards(originalDeck) : originalDeck.slice();
+  currentIndex = 0; correct = 0; reviewing = 0;
+  document.getElementById('correctCount').textContent = '0';
+  document.getElementById('wrongCount').textContent = '0';
+  document.getElementById('remainCount').textContent = deck.length;
+  syncStudyPrefsUi();
+}
+function toggleShuffle() {
+  studyPrefs = { shuffle: !studyPrefs.shuffle, promptSide: studyPrefs.promptSide };
+  persistStudyPrefs();
+  if (!originalDeck.length) return;
+  document.getElementById('doneScreen').classList.add('hide');
+  ['cardContainer', 'promptSideSwitch', 'studyTools'].forEach(function (id) { document.getElementById(id).classList.remove('hide'); });
+  applyDeckOrder();
+  showCard();
+}
+function setPromptSide(side) {
+  var next = side === 'definition' ? 'definition' : 'term';
+  if (studyPrefs.promptSide === next) return;
+  studyPrefs = { shuffle: studyPrefs.shuffle, promptSide: next };
+  persistStudyPrefs();
+  syncStudyPrefsUi();
+  if (currentIndex < deck.length) showCard();
+}
+
 /** Load a flashcard deck from the API. Shows the empty state if no sets exist. */
 async function loadDeck() {
   var params = new URLSearchParams(window.location.search);
   setId = params.get('setId');
   classId = params.get('classId');
-  var title = '';
+  activeSetId = setId || null;
+  var title = '', serverPrefs = null;
+  originalDeck = [];
   deck = [];
 
   try {
     if (setId) {
-      var resp = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(setId) + '/cards');
-      if (resp.ok) deck = mapCards((await resp.json()).cards);
+      var resp = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(setId) + '/cards?includePrefs=1');
+      if (resp.ok) {
+        var body = await resp.json();
+        originalDeck = mapCards(body.cards);
+        if (body.preferences) serverPrefs = body.preferences;
+      }
       title = await titleFor(setId);
     } else {
       // Load the first available set for the class (or across all sets)
@@ -272,9 +368,14 @@ async function loadDeck() {
         var sets = (await setsResp.json()).sets || [];
         if (sets.length > 0) {
           var firstSet = sets[0];
+          activeSetId = firstSet.set_id;
           title = firstSet.title || '';
-          var cardsResp = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(firstSet.set_id) + '/cards');
-          if (cardsResp.ok) deck = mapCards((await cardsResp.json()).cards);
+          var cardsResp = await fetch('/api/education/flashcards/sets/' + encodeURIComponent(firstSet.set_id) + '/cards?includePrefs=1');
+          if (cardsResp.ok) {
+            var cBody = await cardsResp.json();
+            originalDeck = mapCards(cBody.cards);
+            if (cBody.preferences) serverPrefs = cBody.preferences;
+          }
         }
       }
     }
@@ -282,12 +383,18 @@ async function loadDeck() {
     console.warn('[Flashcards] API fetch failed:', e.message);
   }
 
-  if (deck.length === 0) { await showEmpty(); return; }
+  if (originalDeck.length === 0) { await showEmpty(); return; }
+
+  var localPrefs = readLocalPrefs(activeSetId);
+  studyPrefs = serverPrefs
+    ? { shuffle: Boolean(serverPrefs.shuffle), promptSide: serverPrefs.promptSide === 'definition' ? 'definition' : 'term' }
+    : localPrefs;
+  saveLocalPrefs(activeSetId, studyPrefs);
 
   document.getElementById('emptyState').classList.add('hide');
-  ['cardContainer', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.remove('hide'); });
-  document.getElementById('deckTitle').textContent = (title || 'Study deck') + ' — ' + deck.length + (deck.length === 1 ? ' card' : ' cards');
-  document.getElementById('remainCount').textContent = deck.length;
+  ['cardContainer', 'promptSideSwitch', 'studyTools', 'progressRow', 'tapHint', 'statsRow'].forEach(function (id) { document.getElementById(id).classList.remove('hide'); });
+  document.getElementById('deckTitle').textContent = (title || 'Study deck') + ' — ' + originalDeck.length + (originalDeck.length === 1 ? ' card' : ' cards');
+  applyDeckOrder();
   showCard();
 }
 
@@ -299,13 +406,17 @@ function showCard() {
   }
 
   var card = deck[currentIndex];
-  document.getElementById('cardFront').textContent = card.front;
-  document.getElementById('cardBack').textContent = card.back;
+  var defFirst = studyPrefs.promptSide === 'definition';
+  document.getElementById('frontLabel').textContent = defFirst ? 'Definition' : 'Term';
+  document.getElementById('backLabel').textContent = defFirst ? 'Term' : 'Definition';
+  document.getElementById('cardFront').textContent = defFirst ? card.back : card.front;
+  document.getElementById('cardBack').textContent = defFirst ? card.front : card.back;
 
   // Reset flip and voice answer
   isFlipped = false;
   mySpokenAnswer = '';
   document.getElementById('cardInner').classList.remove('flipped');
+  setFaces(false);
   document.getElementById('answerBtns').classList.add('hide');
   document.getElementById('tapHint').classList.remove('hide');
   document.getElementById('voiceResult').classList.add('hide');
@@ -396,12 +507,21 @@ function speakCard(side) {
   }
 }
 
+/** Only the face that shows is read by a screen reader; Read answer waits for the flip, Speak answer stops after it. */
+function setFaces(flipped) {
+  document.querySelector('.card-front').setAttribute('aria-hidden', flipped ? 'true' : 'false');
+  document.getElementById('cardBackFace').setAttribute('aria-hidden', flipped ? 'false' : 'true');
+  document.getElementById('readBackBtn').disabled = !flipped;
+  document.getElementById('voiceAnswerBtn').disabled = flipped;
+}
+
 /** Flip the card to show the answer. */
 function flipCard() {
   if (isFlipped) return;
   isFlipped = true;
   stopVoiceAnswer();
   document.getElementById('cardInner').classList.add('flipped');
+  setFaces(true);
   document.getElementById('answerBtns').classList.remove('hide');
   document.getElementById('tapHint').classList.add('hide');
   document.getElementById('voiceResult').classList.add('hide');
@@ -473,6 +593,8 @@ function updateProgress() {
 /** Show the completion screen. */
 function showDoneScreen() {
   document.getElementById('cardContainer').classList.add('hide');
+  document.getElementById('promptSideSwitch').classList.add('hide');
+  document.getElementById('studyTools').classList.add('hide');
   document.getElementById('answerBtns').classList.add('hide');
   document.getElementById('tapHint').classList.add('hide');
   document.getElementById('voiceResult').classList.add('hide');
@@ -535,6 +657,8 @@ function restartDeck() {
   document.getElementById('correctCount').textContent = '0';
   document.getElementById('wrongCount').textContent = '0';
   document.getElementById('cardContainer').classList.remove('hide');
+  document.getElementById('promptSideSwitch').classList.remove('hide');
+  document.getElementById('studyTools').classList.remove('hide');
   document.getElementById('doneScreen').classList.add('hide');
   loadDeck();
   if (mascot) mascot.setMood('happy');

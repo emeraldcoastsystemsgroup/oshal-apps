@@ -295,6 +295,84 @@
         "content",
         "created_at"
       ]
+    },
+    "lm_guardian_links": {
+      "read": "r.tenant_id=$3->>'tenant_id' AND (r.student_id=$3->>'student_id' OR ($3->>'email' IS NOT NULL AND r.guardian_email=$3->>'email'))",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "update": "r.tenant_id=$3->>'tenant_id' AND (r.student_id=$3->>'student_id' OR ($3->>'email' IS NOT NULL AND r.guardian_email=$3->>'email'))",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "link_id",
+        "student_id",
+        "tenant_id",
+        "guardian_email",
+        "created_at"
+      ],
+      "unique": [
+        [
+          "student_id",
+          "guardian_email"
+        ]
+      ]
+    },
+    "lm_tutor_threads": {
+      "read": "r.tenant_id=$3->>'tenant_id' AND (r.student_id=$3->>'student_id' OR ($3->>'role' IN ('teacher','admin') AND EXISTS(SELECT 1 FROM lm_tenants t WHERE t.tenant_id=r.tenant_id AND t.tutor_history_teacher_visible=true) AND ($3->>'role'='admin' OR EXISTS(SELECT 1 FROM lm_classes c WHERE c.class_id=r.class_id AND c.tenant_id=r.tenant_id AND c.teacher_student_id=$3->>'student_id'))))",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "update": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "thread_id",
+        "student_id",
+        "tenant_id",
+        "class_id",
+        "first_question",
+        "created_at"
+      ]
+    },
+    "lm_tutor_messages": {
+      "read": "r.tenant_id=$3->>'tenant_id' AND (r.student_id=$3->>'student_id' OR ($3->>'role' IN ('teacher','admin') AND EXISTS(SELECT 1 FROM lm_tenants t WHERE t.tenant_id=r.tenant_id AND t.tutor_history_teacher_visible=true) AND ($3->>'role'='admin' OR EXISTS(SELECT 1 FROM lm_tutor_threads th JOIN lm_classes c ON c.class_id=th.class_id WHERE th.thread_id=r.thread_id AND th.tenant_id=r.tenant_id AND c.tenant_id=r.tenant_id AND c.teacher_student_id=$3->>'student_id'))))",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "message_id",
+        "thread_id",
+        "student_id",
+        "tenant_id",
+        "turn_index",
+        "role",
+        "content",
+        "sources",
+        "created_at"
+      ]
+    },
+    "lm_flashcard_study_prefs": {
+      "read": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "update": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "student_id",
+        "tenant_id",
+        "set_id"
+      ],
+      "unique": [
+        [
+          "student_id",
+          "set_id"
+        ]
+      ]
+    },
+    "lm_timelines": {
+      "read": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "insert": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "update": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "delete": "r.student_id=$3->>'student_id' AND r.tenant_id=$3->>'tenant_id'",
+      "immutable": [
+        "timeline_id",
+        "student_id",
+        "tenant_id",
+        "created_at"
+      ]
     }
   }
 }

@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | A refused Walmart call (HTTP 503: no Walmart connection on this installation) is shown as "Not connected" in the shopping page and the dashboard, never as "No products matched" or an empty deals grid, and no comparison price is invented for Amazon or Target, which have no connector. The guard EXECUTES the shipped search(), loadDeals(), checkout() and comparisonRows() out of the surfaces.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The refusal names the installation's fact (no Walmart rail: it runs no Walmart operations) and never says a Walmart connection can be added; connecting one would not help here.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (shop-lists): the dashboard is the List screen; without a retail rail (GET /deals 503) its storefront and Checkout are not rendered and a refused search is an alert in the error colour, never green header text.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -85,20 +86,31 @@ test('no comparison price is invented for a retailer with no connector', () => {
   for (const vendor of ['Amazon', 'Target']) assert.equal(rows.find((r) => r.vendor === vendor).price, null, vendor);
 });
 
-test('the dashboard says not connected when a search or the deals feed is refused', async () => {
+test('List without a retail rail: the storefront and Checkout are not rendered, and a refused search is an alert', async () => {
   const script = /<script>([\s\S]*?)<\/script>/g;
   let main = '';
   for (const match of dashboard.matchAll(script)) if (match[1].includes("const api = (p, opts)")) main = match[1];
-  assert.ok(main, 'the dashboard script defines api()');
-  const api = /const api = [\s\S]*?\);\n/.exec(main)[0];
-  const decls = ['NOT_CONNECTED', 'providerRefused'].map((name) => new RegExp(`const ${name} = .*;`).exec(main)[0]);
-  const loadDeals = /async function loadDeals\(\) \{[\s\S]*?\n    \}/.exec(main)[0];
-  const status = { textContent: '' };
-  const deals = { innerHTML: 'x', appendChild() { throw new Error('a refusal has no deal cards'); } };
-  const sandbox = { fetch: async () => ({ status: 503, ok: false, json: async () => ({ error: 'native_executor_unavailable' }) }), Object,
-    $: (sel) => (sel === '#deals' ? deals : { textContent: '' }), setStatus: (msg) => { status.textContent = msg; }, card() {} };
+  assert.ok(main, 'the List script defines api()');
+  const els = {};
+  const el = (sel) => (els[sel] ||= { sel, hidden: false, disabled: false, textContent: '', innerHTML: '', value: '',
+    classes: new Set(['hidden']), classList: { toggle(c, on) { on ? els[sel].classes.add(c) : els[sel].classes.delete(c); }, add(c) { els[sel].classes.add(c); }, remove(c) { els[sel].classes.delete(c); } },
+    addEventListener() {}, setAttribute() {}, replaceChildren() {}, append() {}, appendChild() {}, focus() {} });
+  const reads = [];
+  const answers = { '/api/purchasing/deals?feed=rollback': [503, { error: 'native_executor_unavailable' }], '/api/purchasing/lists': [200, { lists: [{ list_id: 'l1' }] }],
+    '/api/purchasing/lists/l1/items': [200, { items: [{ item_id: 'i1', title: 'milk', quantity: 1, status: 'pending' }] }] };
+  const sandbox = { Object, Number, String, JSON, encodeURIComponent, URLSearchParams, location: { search: '?view=lists' }, window: {},
+    document: { querySelector: el, createElement: () => el('new-' + Math.random()) },
+    fetch: async (url) => { reads.push(url); const [status, body] = answers[url] || [404, {}]; return { status, json: async () => body }; } };
   vm.createContext(sandbox);
-  new vm.Script(`${api}\n${decls.join('\n')}\n${loadDeals}\nglobalThis.run = loadDeals;`).runInContext(sandbox);
-  await sandbox.run();
-  assert.match(status.textContent, /Unavailable: this installation has no Walmart rail/);
+  new vm.Script(`${main.replace(/\n\s*if \(!window\.AppView \|\| !AppView\.active\(\)\) start\(\);\s*$/, '')}\nglobalThis.start = start; globalThis.rail = () => RAIL;`).runInContext(sandbox);
+  await sandbox.start();
+  assert.equal(reads[0], '/api/purchasing/deals?feed=rollback', 'one readiness read first');
+  assert.equal(sandbox.rail(), false);
+  assert.ok(els['#storefront'].classes.has('hidden'), 'no search, no deals without a rail');
+  assert.ok(els['#checkout'].classes.has('hidden'), 'no Checkout without a rail');
+  assert.ok(!reads.some((u) => /\/search|\/checkout/.test(u)), 'nothing else from the store is asked');
+  assert.match(main, /const NOT_CONNECTED = 'Shopping at a store is not connected on this installation\. Ask your administrator to connect a retailer\.';/);
+  assert.match(main, /if \(providerRefused\(found\)\) \{ showAlert\(NOT_CONNECTED\); return; \}/, 'a refused search is an alert');
+  assert.match(dashboard, /<div id="alert" class="alert hidden" role="alert"><\/div>/);
+  assert.doesNotMatch(dashboard, /class="tabs"|data-view="deals"/, 'no inner Shop | List | Deals bar');
 });

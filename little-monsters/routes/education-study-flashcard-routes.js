@@ -10,6 +10,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * ---------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Add owner/class-scoped flashcard CRUD route adapters.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | Include per-student study preferences when requested on GET /flashcards/sets/:setId/cards?includePrefs=1 (RP-LM-04).
  * ---------------------------------------------------------------------------
  *
  * @module education-study-flashcard-routes
@@ -45,6 +46,11 @@ async function listCards(req, res, ctx) {
     try {
         const actor = await (0, education_access_1.resolveAuthedStudent)(req, ctx.pool);
         const cards = await (0, education_study_store_1.listReadableCards)(ctx.pool, actor, req.params.setId);
+        if (req.query.includePrefs === '1') {
+            const preferences = await (0, education_study_store_1.getStudySetPreferences)(ctx.pool, actor, req.params.setId);
+            res.json({ cards, preferences });
+            return;
+        }
         res.json({ cards });
     }
     catch (error) {

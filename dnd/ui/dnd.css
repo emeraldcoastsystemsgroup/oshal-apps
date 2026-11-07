@@ -33,6 +33,9 @@
  * 24 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: the sticky dock is compact (name and controller badge on one line, race/class and hit points on one line, End Turn and Move side by side, each action's effect and range on one line, the actions wrapping in rows instead of a row that scrolled sideways), 168px -> about 120px in the 392 x 641 cockpit frame, and the board sits at the top of its map row instead of centred in it, so on a player's turn the dock no longer covers the bottom of the 18 x 12 board (it covered 52px). The Dungeon Master's quick questions and the Ask DM bar open at the top of the drawer, right under the board, instead of under the whole story log (the input was ~420px below the board). Guard: tests/browser/dnd-phone-layout.test.cjs.
  * 25 | maintainer@emeraldcoastsystemsgroup.com     | Phone width: the dock's action list is bounded at 156px (two rows of cards and the top of a third) and scrolls inside the dock past that, with overscroll contained, so the sticky dock stays at most about 215px whatever the action count: the wrapping grid of 24 grew with every three actions (10 actions: a 324px dock over 69px of the board; the import cap of 32: 833px, taller than the 641px frame, with 8 actions out of reach; watching another player's four-action hero: 275px). Guard: tests/browser/dnd-phone-layout.test.cjs.
  * 26 | maintainer@emeraldcoastsystemsgroup.com     | My Games: Delete Campaign / Leave Campaign is light ink on an opaque dark red. It was #ffb2a5 over an 18% red tint of the row, and the row is --panel-2 (the theme's --bg-tertiary), so under a light cockpit theme it read pale pink on a pale card (about 1.5:1). Guard: tests/browser/dnd-phone-layout.test.cjs (>= 4.5:1 on light and dark themes).
+ * 27 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table, FIX-BROKEN): the table is a dark game set under every theme. Its palette (--bg, --panel, --panel-2, --ink, --muted, --amber, --line, --good, --blood) is pinned on the page root, as Game Show pins its studio, so the Dungeon Master drawer, the status strip, the HUD and the dock never take a light theme's navy ink onto the dark wood (Current Quest and Table Talk read about 1.2:1 under light-blue). Screens (My Games, My Characters, How to play, Import) are opaque on that set with a hairline, a float shadow and a scrim. The board's HUD is one row of five (Games, Party, Roll, DM & Story, More); Timeline, Help, DM Settings and Full screen live in the More menu. The drawer has one close control, its quick questions are 44px, the status banner sits under the HUD row, End Turn and Move are hidden while no campaign runs, and a disabled turn button reads at 4.5:1 (opacity 1). Guard: tests/browser/dnd-theme-contrast.test.cjs (every theme).
+ * 28 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-help, dnd-party, dnd-tv): How to play is a card with a title bar and ✕, short upright sections and a footer that stays in view; the import form is one column on a phone and keeps Save in a footer at the bottom of its scroll; a hero without art shows its initials; the hero grid is one column below 600px; TV Mode's join code is a 48px-plus badge, its corner bar (Full screen, Sound) fades in on a move or key, and its status strip is one ellipsized line on a phone.
+ * 29 | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-tv): style .tv-code .tv-join-url under the join code badge at high contrast for couch legibility.
  */
 
 /* CHROME follows the cockpit's standard theme (read-only framework tokens from
@@ -53,6 +56,18 @@
   /* Ink for controls painted on the fixed dark wood below: NOT a theme token, because the wood does
      not follow the theme either (a light theme's --ink is navy, unreadable on #241a0f). */
   --on-dark:   #f3e8d1;
+}
+
+/* The table is a dark game set under every theme (design standard data-ds-game), like Game Show's studio: the board,
+   the HUD, the status strip, the Dungeon Master drawer, the dock and the screens over the board all draw on dark wood,
+   so their palette is pinned here and never follows the theme. Following it, a light theme's navy --text-primary
+   landed on the dark drawer (Current Quest and Table Talk at about 1.2:1 under light-blue) and its translucent
+   --bg-card turned every screen into see-through grey. The audience view (html[data-audience]) is a page, not the
+   table, and keeps the theme. Guard: tests/browser/dnd-theme-contrast.test.cjs. */
+html:not([data-audience]) {
+  --bg: #0d0b09; --panel: #171310; --panel-2: #211b16; --ink: #efe6d6; --muted: #b7a98f;
+  --amber: #e0a44c; --amber-dim: #8a6a34; --blood: #ef6a55; --line: #3a2f24; --good: #6fbf73;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -130,19 +145,19 @@ body.tv .init-chip .face { width: 50px; height: 50px; }
 #actions { display: flex; gap: 8px; flex: 1; overflow-x: auto; align-items: stretch; }
 
 /* Campaign identity changes the table's accents without changing rule affordances. */
-body[data-campaign-theme="blackwater"] {
+html:not([data-audience]) body[data-campaign-theme="blackwater"] {
   --amber: #7dd3c7; --amber-dim: #326c68; --line: #294b4b;
   --panel: #101b1b; --panel-2: #132526;
 }
-body[data-campaign-theme="starless"] {
+html:not([data-audience]) body[data-campaign-theme="starless"] {
   --amber: #b7a7ff; --amber-dim: #5d528f; --line: #393557;
   --panel: #151321; --panel-2: #1c1930;
 }
-body[data-campaign-theme="last-lantern"] {
+html:not([data-audience]) body[data-campaign-theme="last-lantern"] {
   --amber: #ffbd59; --amber-dim: #8b5c24; --line: #4f3925;
   --panel: #1b1510; --panel-2: #261c13;
 }
-body[data-campaign-theme="crownfall"] {
+html:not([data-audience]) body[data-campaign-theme="crownfall"] {
   --amber: #f5c96a; --amber-dim: #8c6532; --line: #51354c;
   --panel: #1d1320; --panel-2: #29172d;
 }
@@ -223,6 +238,10 @@ button.big {
 }
 button.big:hover { border-color: var(--amber); }
 button.big:disabled, button.ghost:disabled { opacity: .38; cursor: not-allowed; border-color: var(--line); filter: grayscale(.7); }
+/* A turn button that waits (not your turn yet) still reads: the standard's disabled look, opacity 1 (DS 4.1). */
+#turnctl button:disabled { opacity: 1; filter: none; background: var(--panel-2); color: var(--muted); }
+/* No campaign on this screen: End Turn and Move have nothing to act on, so they are not shown. */
+#turnctl.idle { display: none; }
 button.ghost { background: transparent; border-color: var(--line); color: var(--muted); font-size: 13px; padding: 8px 12px; }
 
 /* DM voiceover caption — the TV-show lower-third over the scene */
@@ -321,7 +340,11 @@ body.tv #choices { display: none !important; }
   display: flex; flex-direction: column;
 }
 #story.open { opacity: 1; visibility: visible; }
-#story h3 { margin: 0; padding: 12px 14px; color: var(--amber); font-size: 15px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+#story h3 { margin: 0; padding: 6px 6px 6px 14px; color: var(--amber); font-size: 15px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+/* The drawer's one close control (the HUD's DM & Story only opens and shows it is open) and its recap, 44px targets. */
+#story h3 button { min-width: 44px; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font: 600 13px/1 system-ui, sans-serif; }
+#story h3 button:hover, #story h3 button:focus-visible { background: #2a1f12; color: var(--ink); outline: none; }
+#closeStory { font-size: 18px !important; color: var(--ink) !important; }
 #voiceStatus { max-width: 150px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font: 600 10px/1.2 system-ui, sans-serif; white-space: nowrap; }
 #railScroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .rail-character { margin: 10px 12px 0; padding: 10px; border: 1px solid rgba(108,145,255,.45); border-radius: 12px; background: linear-gradient(135deg, rgba(40,48,91,.48), rgba(23,19,16,.92)); }
@@ -334,7 +357,7 @@ body.tv #choices { display: none !important; }
 .rail-character-head i { color: #b9c9ff; font-style: normal; white-space: nowrap; }
 .rail-character-note { margin: 8px 2px 0 55px; color: var(--muted); font: italic 11px/1.4 system-ui, sans-serif; }
 .rail-portrait { width: 46px; height: 46px; border: 2px solid var(--amber); border-radius: 50%; background-color: #120e0b; background-position: center top; background-size: cover; box-shadow: 0 3px 12px rgba(0,0,0,.75); }
-.rail-label, .rail-section-title { margin: 10px 0 5px; color: var(--amber-dim); font: 800 9px/1 system-ui, sans-serif; letter-spacing: .8px; text-transform: uppercase; }
+.rail-label, .rail-section-title { margin: 10px 0 5px; color: var(--muted); font: 800 9px/1 system-ui, sans-serif; letter-spacing: .8px; text-transform: uppercase; }
 .rail-pills { display: flex; flex-wrap: wrap; gap: 4px; }
 .rail-action, .rail-item, .rail-empty { border: 1px solid var(--line); border-radius: 999px; background: rgba(10,8,7,.55); color: var(--ink); padding: 4px 7px; font: 10px/1.25 system-ui, sans-serif; }
 .rail-action { border-color: rgba(111,191,115,.45); color: #bfe8c2; }
@@ -348,14 +371,14 @@ body.tv #choices { display: none !important; }
 .quest-thread button { border: 1px solid var(--amber-dim); border-radius: 999px; background: #241a0f; color: var(--on-dark); padding: 6px 10px; font: 600 10px/1 system-ui, sans-serif; cursor: pointer; }
 #log { min-height: 72px; overflow: visible; padding: 10px 14px 12px; }
 .beat { margin-bottom: 12px; font-size: 14px; line-height: 1.5; }
-.beat .k { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--amber-dim); display: block; margin-bottom: 2px; }
+.beat .k { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); display: block; margin-bottom: 2px; }
 .beat.combat { color: var(--muted); }
 .beat.milestone, .beat.level-up { color: var(--amber); }
 .beat .say { color: var(--muted); font-style: italic; }
 #dmPrompts { flex: 0 0 auto; display: flex; gap: 5px; overflow-x: auto; padding: 7px 10px 0; border-top: 1px solid var(--line); background: rgba(18,14,11,.99); scrollbar-width: none; }
 #dmPrompts::-webkit-scrollbar { display: none; }
-#dmPrompts button { flex: 0 0 auto; border: 1px solid rgba(108,145,255,.38); border-radius: 999px; background: rgba(37,45,82,.45); color: #cbd6ff; padding: 6px 9px; cursor: pointer; font: 700 10px/1 system-ui, sans-serif; }
-#dmPrompts button:hover { border-color: #8ca8ff; background: rgba(54,68,124,.55); }
+#dmPrompts button { flex: 0 0 auto; min-height: 44px; border: 1px solid rgba(108,145,255,.38); border-radius: 999px; background: #1c2240; color: #cbd6ff; padding: 6px 14px; cursor: pointer; font: 700 12px/1 system-ui, sans-serif; }
+#dmPrompts button:hover { border-color: #8ca8ff; background: #273061; }
 #talk { flex: 0 0 auto; display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--line); background: rgba(18,14,11,.99); box-shadow: 0 -10px 30px rgba(0,0,0,.3); }
 #talk input { flex: 1; background: #0f0c0a; border: 1px solid var(--line); border-radius: 10px; color: var(--on-dark); padding: 10px; font-family: inherit; font-size: 14px; }
 #talk button { padding: 0 12px; border-radius: 10px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--on-dark); cursor: pointer; }
@@ -363,24 +386,31 @@ body.tv #choices { display: none !important; }
 /* Floating controls over the board */
 .fab {
   position: absolute; z-index: 15; border-radius: 999px; border: 1px solid var(--line);
-  background: rgba(23,19,16,.9); color: var(--on-dark); cursor: pointer; padding: 10px 14px; font-size: 14px; font-family: inherit;
+  background: #171310; color: var(--on-dark); cursor: pointer; padding: 10px 14px; font-size: 14px; font-family: inherit;
+  min-height: 44px;
 }
 .fab.primary-fab { border-color: var(--amber); background: linear-gradient(180deg, rgba(78,54,23,.98), rgba(39,28,16,.98)); box-shadow: 0 0 16px rgba(224,164,76,.2); font-weight: 700; }
 #storyBtn { top: 10px; right: 10px; }
-#voiceBtn { top: 10px; right: 128px; }
-#voiceBtn.voice-speaking { border-color: var(--good); color: #d8ffe4; box-shadow: 0 0 0 2px rgba(94,220,135,.18), 0 0 18px rgba(94,220,135,.22); }
-#helpBtn { top: 10px; right: 232px; }
-#diceBtn { top: 10px; right: 322px; }
+#storyBtn[aria-pressed="true"] { border-color: var(--amber); background: #2a1f12; }
+#moreBtn { top: 10px; right: 128px; }
+#moreBtn[aria-expanded="true"] { border-color: var(--amber); }
+/* More: the table's other controls, an opaque menu under the HUD row that closes on an outside tap or Escape. */
+.hud-menu { position: absolute; top: 58px; right: 128px; z-index: 30; min-width: 220px; display: grid; gap: 2px; padding: 6px;
+  background: #171310; border: 1px solid rgba(243,232,209,.16); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,.6); }
+.hud-menu.hidden { display: none; }
+.hud-item { min-height: 44px; padding: 10px 14px; border: 0; border-radius: 8px; background: transparent; color: var(--on-dark);
+  font: 600 14px/1.2 system-ui, -apple-system, sans-serif; text-align: left; cursor: pointer; white-space: nowrap; }
+.hud-item:hover, .hud-item:focus-visible { background: #2a1f12; outline: none; }
+#voiceBtn.voice-speaking { color: #d8ffe4; box-shadow: inset 3px 0 0 var(--good); }
 #gamesBtn { top: 10px; left: 10px; }
-#savesBtn { top: 10px; left: 104px; }
-#partyBtn { top: 10px; left: 198px; }
-#fullscreenBtn { top: 10px; left: 292px; }
-#playfield.story-open #voiceBtn, #playfield.story-open #helpBtn, #playfield.story-open #diceBtn { display: none; }
-body.tv #gamesBtn, body.tv #savesBtn, body.tv #partyBtn { display: none; }
+#partyBtn { top: 10px; left: 104px; }
+#diceBtn { top: 10px; left: 198px; }
+@media (max-width: 1100px) { #playfield.story-open #diceBtn { display: none; } }
+body.tv #gamesBtn, body.tv #partyBtn, body.tv .hud-menu { display: none; }
 html:fullscreen, html:-webkit-full-screen { background: #080605; }
 body.table-fullscreen #app { width: 100vw; height: 100vh; }
 body.table-fullscreen #playfield.story-open { grid-template-columns: minmax(0, 1fr) min(430px, 34vw); }
-body.table-fullscreen #fullscreenBtn { border-color: var(--amber); background: rgba(224,164,76,.22); }
+body.table-fullscreen #fullscreenBtn { box-shadow: inset 3px 0 0 var(--amber); }
 .campaign-list { display: grid; gap: 9px; max-height: 48vh; overflow-y: auto; margin: 12px 0; padding-right: 4px; text-align: left; }
 .campaign-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; align-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); padding: 12px 14px; }
 .campaign-row h2 { margin: 0; color: var(--ink); font-size: 17px; }
@@ -389,6 +419,13 @@ body.table-fullscreen #fullscreenBtn { border-color: var(--amber); background: r
 .campaign-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .campaign-actions button { padding: 7px 11px; border-radius: 999px; border: 1px solid var(--amber-dim); background: #241a0f; color: var(--on-dark); cursor: pointer; font-family: inherit; }
 .campaign-actions button.leave { border-color: #b5432f; color: #ffe6df; background: #6a1f15; }
+/* The row's ⋯ menu holds its permanent action, shown in the row's own flow so the list's scroll never clips it. */
+.row-more { display: flex; align-items: center; gap: 6px; }
+.row-more > summary { list-style: none; min-width: 44px; min-height: 36px; display: grid; place-items: center; border-radius: 999px;
+  border: 1px solid var(--amber-dim); background: #241a0f; color: var(--on-dark); cursor: pointer; font: 700 16px/1 system-ui, sans-serif; }
+.row-more > summary::-webkit-details-marker { display: none; }
+.row-more[open] > summary { border-color: var(--amber); }
+.row-more-menu { display: flex; }
 .library-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
 .library-empty { border: 1px dashed var(--line); border-radius: 12px; padding: 18px; color: var(--muted); }
 .save-list { display: grid; gap: 7px; max-height: 52vh; overflow-y: auto; margin: 8px 0; padding-right: 4px; }
@@ -470,7 +507,7 @@ body.tv .turn-copy strong { font-size: clamp(24px, 2.5vw, 38px); }
 body.tv .turn-cue { font-size: clamp(15px, 1.25vw, 21px); }
 body.tv .turn-steps { display: none; }
 #banner {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 16;
+  position: absolute; top: 62px; left: 50%; transform: translateX(-50%); z-index: 16;
   background: rgba(23,19,16,.92); border: 1px solid var(--amber-dim); border-radius: 999px;
   padding: 8px 18px; color: var(--amber); font-size: 14px; max-width: 78vw; text-align: center; pointer-events: none;
 }
@@ -508,11 +545,13 @@ body.tv .turn-steps { display: none; }
 /* Overlays */
 .overlay {
   position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(80% 60% at 50% 40%, rgba(20,15,11,.7), rgba(8,6,5,.95));
+  background: rgba(5,4,3,.72);
 }
+/* A screen over the board is opaque: one surface, a 1px hairline, the float shadow (design standard D1). */
 .card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 28px 30px;
+  background: var(--panel); border: 1px solid rgba(243,232,209,.16); border-radius: 18px; padding: 28px 30px;
   max-width: 560px; max-height: calc(100% - 20px); overflow-y: auto; text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,.6);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
 }
 .card.game-library {
   width: min(680px, 94vw); max-width: 680px; height: min(620px, calc(100% - 28px));
@@ -634,6 +673,31 @@ body.tv .turn-steps { display: none; }
 .playback-warning-copy { border: 1px solid var(--blood); border-radius: 10px; padding: 9px 11px; color: #ffb2a2 !important; }
 .hidden { display: none !important; }
 
+/* UX audit 2026-11-06 (dnd-help, dnd-party, dnd-tv). How to play: a title bar with ✕, short upright sections, and a
+   footer that stays in view inside the card's own scroll. */
+.card.help-card { width: min(640px, 94vw); max-width: 640px; padding: 0; text-align: left; display: flex; flex-direction: column; overflow: hidden; }
+.sheet-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 8px 22px; border-bottom: 1px solid var(--line); }
+.sheet-bar h1 { margin: 0; }
+.sheet-x { min-width: 44px; min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font-size: 20px; cursor: pointer; }
+.sheet-x:hover, .sheet-x:focus-visible { background: #2a1f12; outline: none; }
+.help-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 22px 10px; }
+.help-body h2 { margin: 14px 0 6px; color: var(--amber); font-size: 17px; }
+.help-body ul { margin: 0; padding-left: 20px; color: var(--ink); font: 14px/1.5 system-ui, sans-serif; }
+.help-body li { margin: 4px 0; }
+.sheet-foot { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 12px 16px;
+  background: var(--panel); border-top: 1px solid var(--line); }
+/* The import form keeps its Save in view at the bottom of the card's scroll (it was clipped at 1440 x 900). */
+.card[data-screen="character-import"] .sheet-foot { margin: 12px -30px -28px; }
+.herocard .portrait.initials { display: grid; place-items: center; background: #2a1f12; color: var(--amber); font: 700 18px/1 system-ui, sans-serif; }
+/* TV Mode: the join code read from the couch, and the corner bar. */
+.tv-code { display: grid; justify-items: center; gap: 4px; margin: 10px 0 14px; }
+.tv-code span { color: var(--muted); text-transform: uppercase; letter-spacing: 2px; font: 700 14px/1 system-ui, sans-serif; }
+.tv-code strong { color: var(--amber); font: 800 clamp(48px, 7vw, 96px)/1 system-ui, sans-serif; letter-spacing: .12em; }
+.tv-code .tv-join-url { color: var(--ink); font: 600 clamp(14px, 1.4vw, 19px)/1.35 system-ui, sans-serif; margin-top: 2px; }
+.tv-bar { position: absolute; right: 14px; bottom: 14px; z-index: 46; display: flex; gap: 8px; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+.tv-bar.on { opacity: 1; pointer-events: auto; }
+.tv-bar button { min-height: 44px; padding: 10px 16px; border: 1px solid rgba(243,232,209,.2); border-radius: 12px; background: #171310; color: var(--on-dark); font: 600 15px/1 system-ui, sans-serif; cursor: pointer; }
+
 @media (max-width: 760px) {
   /* The voiceover caption spans the table and sits at the bottom of the stage. Centred with left:50% it could only
      shrink to the right half (206px of 412), so a 260-character line stood ~190px tall over half the map and was cut
@@ -646,7 +710,7 @@ body.tv .turn-steps { display: none; }
      "Round 1 · Coast Road / Party: 1 ALIVE" rather than being squeezed to "R P ·". */
   #initiative .round { flex: 0 0 auto; width: 132px; max-width: 132px; white-space: normal; overflow-wrap: break-word; line-height: 1.2; font-size: 11px; }
   /* The "Previously on…" banner sits under the two rows of table buttons instead of over Timeline and Party. */
-  #banner { top: 94px; max-width: calc(100% - 24px); }
+  #banner { top: 56px; max-width: calc(100% - 24px); }
   .init-chip { min-width: 48px; padding: 3px 4px; }
   .init-chip .face { width: 29px; height: 29px; }
   #turnflag { min-height: 94px; align-items: stretch; flex-direction: column; gap: 7px; padding: 8px 10px; }
@@ -674,27 +738,22 @@ body.tv .turn-steps { display: none; }
   /* The board: two toolbar rows in the page flow (6 + 32 + 5 + 32 + 5 = 80px), then the map row. The map row is never
      shorter than the board drawn at full width (an 18 x 12 grid is two thirds as tall as it is wide), so layout() in
      table-runtime.js sizes the cell by the width; the board is centred in the map row below the toolbar. */
-  #stage { flex: none; display: grid; grid-template-columns: 1fr 1.2fr 1fr 1.4fr; grid-template-rows: 32px 32px minmax(0, 1fr);
-    gap: 5px; padding: 6px 6px 0; height: max(calc(84px + 66.67vw), 60vh); }
-  #stage:has(> #overlay:not(.hidden)) { height: max(calc(84px + 66.67vw), 82vh); }
+  #stage { flex: none; display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto; grid-template-rows: 44px minmax(0, 1fr);
+    gap: 5px; padding: 6px 6px 0; height: max(calc(56px + 66.67vw), 60vh); }
+  #stage:has(> #overlay:not(.hidden)) { height: max(calc(56px + 66.67vw), 82vh); }
   /* The board sits at the top of its map row (layout() centres it; the spare row height is left under it, where the sticky
      dock rests), so on a player's turn the dock does not cover the bottom of the map. */
-  #board { grid-row: 3 / 4; top: 0 !important; bottom: 0 !important; margin-top: 0 !important; margin-bottom: auto !important; }
-  .fab { position: relative; inset: auto; width: 100%; min-width: 0; padding: 7px 8px; font: 600 11px/1.2 system-ui, -apple-system, sans-serif;
+  #board { grid-row: 2 / 3; top: 0 !important; bottom: 0 !important; margin-top: 0 !important; margin-bottom: auto !important; }
+  .fab { position: relative; inset: auto; width: 100%; min-width: 0; min-height: 44px; padding: 7px 6px; font: 600 12px/1.2 system-ui, -apple-system, sans-serif;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #gamesBtn, #savesBtn, #partyBtn, #storyBtn, #fullscreenBtn, #voiceBtn, #diceBtn, #helpBtn { inset: auto; }
-  #helpBtn, #diceBtn { display: none; }
+  #gamesBtn, #partyBtn, #storyBtn, #diceBtn, #moreBtn { inset: auto; }
   #gamesBtn { grid-area: 1 / 1; }
-  #savesBtn { grid-area: 1 / 2; }
-  #partyBtn { grid-area: 1 / 3; }
+  #partyBtn { grid-area: 1 / 2; }
+  #diceBtn { grid-area: 1 / 3; }
   #storyBtn { grid-area: 1 / 4; }
-  /* The label stays (it is the button's accessible name) but is invisible; the icon is drawn, not a ⛶ character: phone
-     fonts have no U+26F6, so the button showed an empty box. */
-  #fullscreenBtn { grid-area: 2 / 1 / 3 / 3; color: transparent; text-overflow: clip; }
-  #fullscreenBtn::after { content: 'Full screen'; position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center;
-    padding-left: 20px; color: var(--on-dark);
-    background: left calc(50% - 40px) center / 14px 14px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23f3e8d1' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4'/%3E%3C/svg%3E"); }
-  #voiceBtn { grid-area: 2 / 3 / 3 / 5; }
+  #moreBtn { grid-area: 1 / 5; }
+  #playfield.story-open #diceBtn { display: block; }
+  .hud-menu { top: 56px; right: 6px; }
   #story { flex: none; height: min(72vh, 560px); border-left: 0; border-top: 1px solid var(--line); }
   /* The player's controls stay on the screen: the dock follows the drawer in the column, so it sticks to the bottom
      of the screen while the board and the drawer scroll above it (in the 392 x 641 frame the Attack row was at 620-690
@@ -740,8 +799,11 @@ body.tv .turn-steps { display: none; }
   .ability-grid { grid-template-columns: repeat(3, 1fr); }
   .inventory-grid, .sheet-columns { grid-template-columns: 1fr; gap: 5px; }
   .outcome-grid { grid-template-columns: 1fr; }
-  .quick-character { grid-template-columns: 1fr 1fr; }
-  .quick-character label.wide, .ability-inputs { grid-column: span 2; }
+  .quick-character { grid-template-columns: 1fr; }
+  .quick-character label.wide, .ability-inputs { grid-column: span 1; }
+  .card[data-screen="character-import"] .sheet-foot { margin: 12px -16px -18px; }
+  /* TV Mode's status strip is one line on a phone, ellipsized, so a separator never wraps alone. */
+  body.tv #initiative .round { width: auto; max-width: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ability-inputs { grid-template-columns: repeat(3, 1fr); }
   .card[data-screen="adventure-library"] { width: 98vw; max-width: 98vw; padding: 14px; }
   .adventure-grid { grid-template-columns: 1fr; max-height: 72vh; gap: 10px; }
@@ -798,4 +860,5 @@ body.tv .card p, body.tv .card .read { font-size: clamp(16px, 1.5vw, 24px); }
 }
 /* Someone else's lead that you asked to take: tapping again steps in deliberately. */
 .exploration-lead.nominated { border-style: dashed; border-color: var(--amber); }
+@media (max-width: 600px) { .herogrid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .exploration-lead.working { animation: none; } }

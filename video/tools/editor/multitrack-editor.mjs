@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add direct multitrack controls and measured waveforms to the existing private Video editor without adding another project store.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0: deselect() clears the chosen clip, so Done in the clip tool row returns to the main tools.
  */
 import { migrateMultitrack, applyMultitrack } from './multitrack-model.mjs';
 import { timelineFrames } from './timeline-validation.mjs';
@@ -125,5 +126,5 @@ export function createMultitrackEditor(ctx) {
   $('multiAddText').onclick = () => operate({ type: 'text', track: $('multiTextKind').value, entry: { text: $('multiText').value,
     start: Number($('multiTextStart').value), end: Number($('multiTextEnd').value), position: $('multiTextPosition').value, size: $('multiTextSize').value } });
   $('multiShowWaveform').onclick = safe(waveform);
-  return { render, appendSource, selected: find };
+  return { render, appendSource, selected: find, deselect: () => { selected = null; render(); } };
 }

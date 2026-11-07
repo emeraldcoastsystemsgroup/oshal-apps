@@ -136,7 +136,7 @@ async function browserFixture(){
  app.post('/tickets/:id/approve',(req,res)=>{assert.ok(proofs.delete(req.headers['x-oshal-confirm']));effects.push({op:'approve'});x.current.status='done';x.current.revision++;res.json({ticket:{...x.current}});});
  app.use((req,_res,next)=>{req.oidc={user:{sub:'alice'}};next();});app.use('/api/intelligent-operations',loadExperience().createOperationsExperienceRoutes({...x.ctx,appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}}));
  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const {chromium}=dependency('playwright'),browser=await chromium.launch({headless:true,args:['--disable-gpu']}),page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
- const origin='http://127.0.0.1:'+server.address().port;await page.goto(origin+'/api/intelligent-operations/app#incidents');await page.getByText('Records refreshed',{exact:false}).waitFor();
+ const origin='http://127.0.0.1:'+server.address().port;await page.goto(origin+'/api/intelligent-operations/app#incidents');await page.locator('#status',{hasText:/^Updated /}).waitFor();
  return {page,x,effects,errors,origin,deny(){denied=true;},expire(on){expired=on;},async close(){await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));await f.close();}};
 }
 test('the shipped panel plans from accepted work, approves exact files, dispatches once through confirmed native exec, verifies against a resolved signal and updates the canonical ticket',async()=>{

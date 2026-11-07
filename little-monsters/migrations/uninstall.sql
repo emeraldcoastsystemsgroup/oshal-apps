@@ -16,9 +16,15 @@ DROP TABLE IF EXISTS lm_prep_profiles;
 -- SEQ | AUTHOR                                      | DESCRIPTION
 -- -----------------------------------------------------------------------------
 -- 1   | maintainer@emeraldcoastsystemsgroup.com     | Include migration-037 audit data and trigger functions in the explicit teardown.
+-- 2   | maintainer@emeraldcoastsystemsgroup.com     | Include migration-042 guardian, tutor history, flashcard preference, and timeline tables in the explicit teardown.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- The app's own tables (created by 019/021/024/026/027/028/029).
+-- The app's own tables (created by 019/021/024/026/027/028/029/042).
+DROP TABLE IF EXISTS lm_timelines CASCADE;
+DROP TABLE IF EXISTS lm_flashcard_study_prefs CASCADE;
+DROP TABLE IF EXISTS lm_tutor_messages CASCADE;
+DROP TABLE IF EXISTS lm_tutor_threads CASCADE;
+DROP TABLE IF EXISTS lm_guardian_links CASCADE;
 DROP TABLE IF EXISTS lm_authorization_audit CASCADE;
 DROP TABLE IF EXISTS lm_flashcard_progress CASCADE;
 DROP TABLE IF EXISTS lm_flashcards CASCADE;

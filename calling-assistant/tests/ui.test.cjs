@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The configuration page in headless Chromium over a loopback fixture: no account is silently selected, the chosen connection and sender save with calling still disabled, and the mobile layout fits the viewport.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The company audience view (ADR-164 D6) with the real shared kit from a core checkout: under ?audience=company the kit paints the calls picture from GET /tasks alone, /config is never probed, no listener of the full client is attached and the full UI is hidden; without the audience, with the same kit present, the full page boots as before (configuration read, form populated, listeners attached, no kit root). Fails loudly when no core checkout with the kit can be found, so a missing kit is never a silent pass.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 split: the settings live in the Calling settings view, so the case opens that tab first; Calls opens first.
  * -----------------------------------------------------------------------------
  */
 'use strict';
@@ -26,8 +27,10 @@ test('configuration page saves explicit account selection and starts disabled on
   await page.goto(`http://127.0.0.1:${server.address().port}/api/calling-assistant/app`);
   await page.waitForSelector('#connectionId option[value="'+connections[1].id+'"]',{state:'attached'});
   assert.equal(await page.locator('#enabled').isChecked(),false);assert.equal(await page.locator('#connectionId').inputValue(),'');
+  assert.equal(await page.locator('#view-calls').isVisible(),true,'Calls opens first');
+  await page.click('#tab-settings');
   await page.selectOption('#connectionId',connections[1].id);await page.click('#loadNumbers');await page.selectOption('#from','+12025550101');
-  await page.fill('#transferPhone','+12025550102');await page.fill('#publicOrigin','https://calling.example.test');await page.fill('#allowedNumbers','+12025550103');
+  await page.fill('#transferPhone','+12025550102');await page.click('#view-settings details.advanced summary');await page.fill('#publicOrigin','https://calling.example.test');await page.fill('#allowedNumbers','+12025550103');
   await page.getByRole('button',{name:'Save configuration',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#message').textContent==='Configuration saved.');
   assert.equal(saved.connectionId,connections[1].id);assert.equal(saved.from,'+12025550101');assert.equal(saved.enabled,false);assert.deepEqual(saved.allowedNumbers,['+12025550103']);
   await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);

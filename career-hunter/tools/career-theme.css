@@ -7,7 +7,10 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Give existing Career screens a common identity using the current portal palette, keeping document previews and workflows intact.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Give Job Board and open search a shared responsive workspace with readable results and bounded optional controls.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep the primary title/description keyword search prominent above filters on desktop and mobile.
+ * 41 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the design standard's --ds-* tokens, derived from the active palette the same way the platform derives them (the platform file is not served yet), and one small Career kit (primary, secondary, empty state, alert with Retry, segmented stages, sheet, row menu, in-page confirm, labelled fields) every Career screen shares instead of restating. The kit lives in career-kit.css, imported here, so a screen that keeps its own theme copy (the Job Board) can link the kit alone.
  */
+@import url('/api/career-hunter/static/career-kit.css');
+
 
 /* These are aliases, not another palette or a saved preference. The shared surface
    bridge supplies the active portal or explicitly selected application colors. */
@@ -201,3 +204,4 @@ html[data-career-surface="search-ui"] .chip { max-width: 100%; overflow-wrap: an
   .career-submit-content > .btn { width: 100%; text-align: center; white-space: normal; }
   .career-search-filters > summary span { display: block; margin: 5px 0 0; }
 }
+

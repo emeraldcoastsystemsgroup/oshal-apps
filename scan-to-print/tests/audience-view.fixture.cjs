@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Scan to Print company audience view (ADR-164 D6): the page, its declared URL, the three surface scripts it loads from the package's /assets mount, synthetic read-only answers shaped like GET /api/scan-to-print/jobs (scan_print_job rows as the route selects them, newest first, with reconstruction reports in the engine's shape), GET /api/scan-to-print/printers (label, kind, base URL, never a key; the slicer flag) and GET /api/scan-to-print/home-summary (its four metrics with their ids, the tiles mirror, the items), and what the company view must show. The same jobs answer lets the full page paint its own object list without an audience. Consumed by scripts/audience-views.browser.cjs in headless Chromium; never by the runtime.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family audience (ADR-164 D6) expects the same card as the company one: the harness paints it in the family grammar over the same synthetic reads.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | 0.10.0: declare scan-to-print-tools.js alongside the existing surface scripts loaded from /api/scan-to-print/assets.
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -76,7 +77,7 @@ function summary(iso) {
 /** @param {{ iso: (hours: number) => string }} h Helpers from the harness. @returns {object} The page entry. */
 module.exports = ({ iso }) => ({
   app: 'scan-to-print', file: 'scan-to-print/tools/scan-to-print.html', url: '/api/scan-to-print/app', fullMarker: '#job-list .job-item',
-  assets: ['scan-to-print.js', 'scan-to-print-gl.js', 'scan-to-print-camera.js'].map((name) => ({ url: '/api/scan-to-print/assets/' + name, file: 'scan-to-print/tools/' + name })),
+  assets: ['scan-to-print.js', 'scan-to-print-gl.js', 'scan-to-print-camera.js', 'scan-to-print-tools.js'].map((name) => ({ url: '/api/scan-to-print/assets/' + name, file: 'scan-to-print/tools/' + name })),
   reads: {
     '/api/scan-to-print/jobs': { jobs: jobs(iso) },
     '/api/scan-to-print/printers': { printers: [{ printer_id: 'p1', label: 'Synthetic Prusa', kind: 'prusalink', base_url: 'http://synthetic-printer.local', created_at: iso(-100) }], kinds: ['octoprint', 'moonraker', 'prusalink'], slicerConfigured: false },

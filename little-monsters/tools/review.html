@@ -11,6 +11,7 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Review surface: home-summary metrics and recorded evidence, a next-brief form, and connected-app actions (app-workflows handoff) that continue the work in the app that owns the next step
   2   | maintainer@emeraldcoastsystemsgroup.com   | Little Monsters design system: the shared bootstrap now carries the classroom default and the pinned midnight skin, dark color-scheme and page palette variables are gone; package stylesheet and page frame; hero, stat tiles for metrics, two-column layout (recorded work beside the brief), system fields, buttons, list items and empty states; connected-action buttons take system button classes after they mount; unused receiveHandoff import dropped; "—" for a metric without a value, the summary's as-of time and partial flag shown
+  3   | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 (the dead 'Your next brief' form, @ux-career's fix shape): the brief is shown only when mountConnectedActions renders an action (none since kernel 5174083d turned the shared panel off), so it never takes text and loses it; 'Use this evidence' appears only then. Guard: tests/lm-review-brief.test.cjs.
   ---------------------------------------------------------------------------
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
@@ -33,7 +34,7 @@
     <div>
       <div class="lm-eyebrow">Learning and recreation</div>
       <h1 class="lm-display">Little Monsters Review</h1>
-      <p class="lm-lead">Review recorded work. Shape the next brief. Continue in the app that owns the next step.</p>
+      <p class="lm-lead">Review recorded work and its evidence.</p>
     </div>
     <img class="lm-hero-art" src="/api/education/logo-256.png" alt="" width="168" height="162">
   </header>
@@ -50,7 +51,7 @@
       <p class="lm-help lm-mt-md" id="asOf"></p>
     </section>
 
-    <section class="lm-card" aria-labelledby="briefTitle">
+    <section class="lm-card" aria-labelledby="briefTitle" id="briefPanel" hidden>
       <div class="lm-section-head"><h2 id="briefTitle">Your next brief</h2></div>
       <div class="lm-field"><label for="title">Title</label><input id="title" class="lm-input" maxlength="120" placeholder="What should happen next?" autocomplete="off"></div>
       <div class="lm-field"><label for="notes">Brief</label><textarea id="notes" class="lm-input" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></div>
@@ -68,8 +69,11 @@ import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
 const app = "little-monsters", title = document.querySelector('#title'), notes = document.querySelector('#notes'), sourceUrl = document.querySelector('#sourceUrl'), status = document.querySelector('#status');
 const fill = c => { title.value = String(c.title || '').slice(0, 120); notes.value = String(c.notes || '').slice(0, 2000); sourceUrl.value = c.sourceUrl || ''; };
 const actions = document.querySelector('.connected-app-actions');
-await mountConnectedActions({ app, element: actions, contextForOffer: () => notes.value.trim() ? { title: title.value.trim(), notes: notes.value.trim(), sourceUrl: sourceUrl.value.trim() } : null });
+try { await mountConnectedActions({ app, element: actions, contextForOffer: () => notes.value.trim() ? { title: title.value.trim(), notes: notes.value.trim(), sourceUrl: sourceUrl.value.trim() } : null }); } catch (_) { /* no connected target: the brief stays hidden */ }
 actions.querySelectorAll('button').forEach(b => b.classList.add('lm-btn', 'lm-btn-soft'));
+/* The brief only exists to hand work to a connected app; with no action it would take text and lose it. */
+const hasActions = Boolean(actions.querySelector('button,a'));
+document.querySelector('#briefPanel').hidden = !hasActions;
 
 function stat(value, label) {
   const card = document.createElement('div'); card.className = 'lm-stat';
@@ -91,7 +95,7 @@ function record(item) {
   if (item.detail) { const detail = document.createElement('small'); detail.textContent = localInstants(item.detail); body.append(detail); }
   el.append(body);
   const context = item.actions?.[0]?.context;
-  if (context) {
+  if (context && hasActions) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'lm-btn lm-btn-soft'; b.textContent = 'Use this evidence';
     b.addEventListener('click', () => { fill(context); status.textContent = 'Evidence loaded. Edit the brief before continuing.'; notes.focus(); });
     el.append(b);

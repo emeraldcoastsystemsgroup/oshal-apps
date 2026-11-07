@@ -15,6 +15,7 @@
  * 2026-07-23 09:30:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Persist real table narration switches for action calls, dice math, and NPC turn pace.
  * 2026-07-23 11:21:50 | roger.murphy@emeraldcoastsystemsgroup.com  | Keep DM Settings discoverable while showing an unmistakable active-speaking state.
  * 2026-09-28 23:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Install the audio-unlock gesture listeners and retire the legacy voice keys only when no audience view renders (ADR-164 D6): under the family view of table.html nothing plays, so a tap on the view never creates or resumes Web Audio and never replays held narration. The full table installs both exactly as before.
+ * 2026-11-07 04:05:00 | maintainer@emeraldcoastsystemsgroup.com     | Roger: "the audio doesnt work on the d&d game". On the native kernel the table's /tts has no narrator (it looked up the retired platform's voice registry), so narration fell to captions; the table now asks the kernel's own speech service (/api/voice/synthesize), the one Jarvis and Little Monsters use.
  */
 
 'use strict';
@@ -193,13 +194,36 @@ async function fetchSelectedNeuralVoice(text, deadlineAt) {
         body: JSON.stringify({ text }),
       }, remaining);
       if (result && result.ok && result.audio) return result;
-      if (result && result.unavailable) return null;
+      if (result && result.unavailable) return fetchKernelVoice(text, deadlineAt);
     } catch (_error) { /* one bounded retry for transport failure */ }
     if (!attempt) {
       const pause = Math.min(650, Math.max(0, remainingSpeechMs(deadlineAt) - 900));
       if (pause) await waitMs(pause);
     }
   }
+  return fetchKernelVoice(text, deadlineAt);
+}
+
+/**
+ * @description Ask the kernel's own speech service for narration when this table's natural narrators are not
+ * configured (the native kernel has no legacy voice registry, so /tts answers unavailable).
+ * @param {string} text Caption text already cleaned for speech.
+ * @param {number} deadlineAt Absolute narration deadline in ms.
+ * @returns {Promise<object|null>} The table's audio result shape, or null when the kernel has no voice either.
+ */
+async function fetchKernelVoice(text, deadlineAt) {
+  const remaining = remainingSpeechMs(deadlineAt);
+  if (remaining < 1000) return null;
+  try {
+    const result = await fetchVoiceJson('/api/voice/synthesize', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    }, remaining);
+    const data = result && result.data ? result.data : result;
+    if (data && data.audioData && data.fallback !== 'browser') {
+      return { ok: true, audio: data.audioData, mime: data.format || 'audio/mpeg', provider: 'oshal-voice', voiceId: String(data.voice || 'default') };
+    }
+  } catch (_error) { /* the kernel voice is optional: captions remain */ }
   return null;
 }
 

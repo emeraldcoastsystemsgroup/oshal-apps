@@ -1,8 +1,10 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Browse real editable designs and create an independent draft without replacing saved projects.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Show and start designs in the person's brand kit while the gallery's Show in my brand switch is on.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-new): ?size=<w>x<h> opens a blank canvas of that size, so Home's New sheet can offer Image 1080 x 1080 and 1920 x 1080 as blank starts; anything outside 16-8192 px per side is refused with a message.
  */
 import { $, state, openDocument, notify, subscribe, handle } from './editor-state.mjs';
+import { createProject } from './model.mjs';
 import { mayReplace } from './editor-projects.mjs';
 import { renderProject } from './renderer.mjs';
 import { TEMPLATES, createTemplate, createBrandedTemplate } from './templates.mjs';
@@ -86,6 +88,19 @@ export function bindTemplates() {
   subscribe(availability); availability();
 }
 
+/**
+ * @description Open a blank canvas of an exact size named by the address (?size=1080x1080), the New sheet's sized blank starts.
+ * @param {string} value `<width>x<height>` in whole pixels, 16-8192 per side.
+ * @returns {void}
+ */
+export function openBlankSize(value) {
+  const match = /^(\d{2,4})x(\d{2,4})$/.exec(String(value || ''));
+  const width = match ? Number(match[1]) : 0, height = match ? Number(match[2]) : 0;
+  if (!(width >= 16 && width <= 8192 && height >= 16 && height <= 8192)) throw new Error('Choose a canvas size between 16 and 8192 pixels on each side.');
+  if (!state.permissions.create) throw new Error('Your role does not allow creating an image.');
+  openDocument(createProject({ width, height })); notify();
+}
+
 /** Open an exact catalog design only after current permissions resolve; saved project links take precedence. */
 export function acceptIncomingTemplate() {
   const query = new URLSearchParams(location.search);
@@ -93,6 +108,7 @@ export function acceptIncomingTemplate() {
     throw new Error('Open a template or an image file separately, then add the image to your design.');
   }
   if (query.has('project')) return;
+  if (query.has('size')) { openBlankSize(query.get('size')); return; }
   if (query.has('template')) {
     if (query.getAll('template').length !== 1) throw new Error('Choose one image template.');
     useTemplate(query.get('template')); notify();

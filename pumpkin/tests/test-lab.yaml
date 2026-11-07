@@ -10,6 +10,9 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | room-transport also proves each speaking door saved its line before answering (sweep 8: Saved responses said 'Nothing saved yet' after a save).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register model-unavailable: a refused bot turn answers 503 with the cause (sweep 9: it was 500 internal_error).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register review-saved-times: Pumpkin Review shows a saved line's time in the viewer's zone, not a raw UTC instant (sweep 13).
+# 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register pumpkin-views (Show and Look & setup, one primary per view, the greyed Stop placeholder, colour wells, Reset to preset).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register review-brief-gate (the review brief shows only when a connected action mounts).
+# 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): register pumpkin-review-merge (tile removal, disclaimer/Refresh removal, Saved lines + Play on the projector).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -151,4 +154,67 @@ cases:
     limits:
       timeoutMs: 60000
       maxMemoryMb: 256
+    installation: never
+  - id: pumpkin-views
+    name: Pumpkin is Show and Look & setup
+    purpose: Read tools/pumpkin-app.html and run its rgba helpers in a VM - no browser, server, projector or voice.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-views.test.cjs
+    expected:
+      - Show is the default and holds the look, mode, Speak and Saved responses; Look & setup holds the editor, projector setup and phone remote.
+      - Say it and Save as new look are the only primaries; Launch Projector is a secondary with an SVG icon; the selected mode is inverted.
+      - Stop is a greyed planned control with backlog id RP-PUMP-01 and no handler.
+      - A colour well and opacity slider write the rgba string the Advanced field holds; Reset to preset restores the preset; status lines use the page ink.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: review-brief-gate
+    name: Pumpkin Review offers a brief only when it can hand it on
+    purpose: Run the review page's module script over stub elements with and without a mounted connected action - no browser or server.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/review-brief-gate.test.cjs
+    expected:
+      - With no connected action the brief panel stays hidden and no Use this evidence button is added.
+      - With a connected action the brief shows and each saved row offers its evidence.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: pumpkin-review-merge
+    name: Pumpkin Review merged into Pumpkin Control Saved lines
+    purpose: Verify pumpkin-review left ui.static, routes/review.js stays mounted, the 67-word disclaimer and Refresh evidence are gone, and Saved lines renders Play on the projector.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-review-merge.test.cjs
+    expected:
+      - pumpkin-review is absent from ui.static while pumpkin-control is first and routes/review.js remains mounted.
+      - Neither home-summary nor tools/review.html carries the 67-word disclaimer or Refresh evidence.
+      - Saved lines shows saved and pinned counts, orders pinned lines first, and replays via Play on the projector.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
     installation: never

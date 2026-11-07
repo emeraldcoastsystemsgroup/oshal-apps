@@ -1,3 +1,5 @@
+# 0.4.0 | maintainer@emeraldcoastsystemsgroup.com | Implement RP-PDF-01..10 and RP-ALL-01 end to end: select-text markup (/Highlight, /Underline, /StrikeOut with /QuadPoints), ink pen and stroke eraser, per-caller drawn/image signatures with forced RLS, vector check/cross marks, blank-page insertion, multi-photo PDF creation, PDF stream/image compression, standards-compliant .docx/.xlsx/.pptx export, single/two-page reading layout and night reading mode.
+# 0.3.0 | maintainer@emeraldcoastsystemsgroup.com | The oshal design standard (docs/ux/design-standard.md §5.1; Acrobat and PDFgear, REFP CONVENTIONS §5.2): with no PDFs the editor opens on a blank Letter page where a tap types, with PDFs on their thumbnails and one New; one app row (document menu, Search, Undo, Redo, one primary, More); editing by mode (Annotate, Edit, Sign, Pages, Concierge) with one strip each and Done; Highlight and Note placed by drag or tap; opaque top-layer menus and sheets the phone's Back closes; in-page confirms; the functions both references have that oshal lacks shown greyed as Not available yet (RP-PDF-01..10, RP-ALL-01). No route, permission or binding change.
 # 0.2.4 | maintainer@emeraldcoastsystemsgroup.com | Phones, the trial check (2026-11-06): one app bar row (title, Save, More); the Document menu and Download PDF wait in More.
 # 0.2.3 | maintainer@emeraldcoastsystemsgroup.com | Phones (Roger, trial.oswarm.ai, 2026-11-06, F5): Upload a PDF opens a document in one step and Blank page opens a blank Letter page from the empty state; the Document menu opens as an opaque sheet and lists only what the seat can do now; Export, Undo and Redo move into More.
 # CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.2.2: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
@@ -14,7 +16,7 @@ displayName: PDF Workbench
 description: >-
   Select and edit actual PDF text, images and shapes in a shared document workspace. Owned
   source assets, page organization, forms, annotations, history and native PDF exports.
-version: 0.2.4
+version: 0.4.0
 runtime: process
 lastingStorage: true
 status: active
@@ -96,6 +98,8 @@ migrations:
   - migrations/native/001-pdf-workbench.sql
   - migrations/002-image-assets.sql
   - migrations/native/002-image-assets.sql
+  - migrations/003-signatures-and-preferences.sql
+  - migrations/native/003-signatures-and-preferences.sql
 nativeMigrations:
   - id: migrations/001-pdf-workbench.sql
     native: skip
@@ -105,6 +109,9 @@ nativeMigrations:
   - id: migrations/002-image-assets.sql
     native: skip
     reason: Native image assets use the matching physical-namespace migration; PostgreSQL additionally forces owner policies.
+  - id: migrations/003-signatures-and-preferences.sql
+    native: skip
+    reason: Native signatures and view preferences use the matching physical-namespace migration; PostgreSQL additionally forces two-arm owner policies.
 summary:
   path: /api/pdf-workbench/home-summary
   tilesPointer: /metrics
@@ -118,7 +125,7 @@ ui:
       section: top
 ribbon:
   defaultView: pdf-workbench
-  hideChatPanel: false
+  hideChatPanel: true
 bots:
   - agentId: b28df8cb-1a16-40a4-9b3e-3da4d8f1c129
     name: pdf-editor
@@ -502,221 +509,88 @@ tools:
             properties:
               op:
                 type: string
-                enum:
-                  - reorder
-                  - rotate
-                  - remove
-                  - extract
-                  - merge
-                  - annotate
-                  - remove-annotation
-                  - update-annotation
-                  - update-object
-                  - delete-object
-                  - add-object
-                  - fill
+                enum: [reorder, rotate, remove, extract, merge, insert-blank, annotate, remove-annotation, update-annotation, update-object, delete-object, add-object, fill]
               pageIds:
                 type: array
                 minItems: 1
                 maxItems: 32
                 uniqueItems: true
-                items:
-                  type: string
-                  minLength: 36
-                  maxLength: 36
-              page:
-                type: string
-                minLength: 36
-                maxLength: 36
-              degrees:
-                enum:
-                  - 90
-                  - 180
-                  - 270
-                type: integer
-              source:
-                type: string
-                minLength: 36
-                maxLength: 36
-              position:
-                type: integer
-                minimum: 0
-                maximum: 32
+                items: { type: string, minLength: 36, maxLength: 36 }
+              page: { type: string, minLength: 36, maxLength: 36 }
+              degrees: { type: integer, enum: [90, 180, 270] }
+              source: { type: string, minLength: 36, maxLength: 36 }
+              position: { type: integer, minimum: 0, maximum: 32 }
               indices:
                 type: array
                 minItems: 1
                 maxItems: 32
-                items:
-                  type: integer
-                  minimum: 0
-                  maximum: 31
-              object:
-                type: string
-                minLength: 2
-                maxLength: 36
+                items: { type: integer, minimum: 0, maximum: 31 }
+              object: { type: string, minLength: 2, maxLength: 36 }
               properties:
                 type: object
                 additionalProperties: false
                 properties:
-                  rect:
+                  rect: { type: array, minItems: 4, maxItems: 4, items: { type: number } }
+                  text: { type: string, minLength: 1, maxLength: 4000 }
+                  font: { type: string, maxLength: 64 }
+                  fontSize: { type: number, minimum: 1, maximum: 256 }
+                  fill: { type: string, minLength: 6, maxLength: 6 }
+                  stroke: { type: string, minLength: 6, maxLength: 6 }
+                  strokeWidth: { type: number, minimum: 0, maximum: 40 }
+                  opacity: { type: number, minimum: 0, maximum: 1 }
+                  color: { type: string, minLength: 6, maxLength: 6 }
+                  quadPoints:
                     type: array
-                    minItems: 4
-                    maxItems: 4
-                    items:
-                      type: number
-                  text:
-                    type: string
-                    minLength: 1
-                    maxLength: 4000
-                  font:
-                    type: string
-                    maxLength: 64
-                  fontSize:
-                    type: number
-                    minimum: 1
-                    maximum: 256
-                  fill:
-                    type: string
-                    minLength: 6
-                    maxLength: 6
-                  stroke:
-                    type: string
-                    minLength: 6
-                    maxLength: 6
-                  strokeWidth:
-                    type: number
-                    minimum: 0
-                    maximum: 40
-                  opacity:
-                    type: number
-                    minimum: 0
-                    maximum: 1
-                  color:
-                    type: string
-                    minLength: 6
-                    maxLength: 6
+                    minItems: 1
+                    maxItems: 64
+                    items: { type: array, minItems: 8, maxItems: 8, items: { type: number } }
                   points:
                     type: array
                     minItems: 2
                     maxItems: 256
-                    items:
-                      type: array
-                      minItems: 2
-                      maxItems: 2
-                      items:
-                        type: number
+                    items: { type: array, minItems: 2, maxItems: 2, items: { type: number } }
               item:
                 type: object
                 additionalProperties: false
                 properties:
-                  id:
-                    type: string
-                    minLength: 36
-                    maxLength: 36
-                  kind:
-                    type: string
-                    enum:
-                      - text
-                      - rectangle
-                      - ellipse
-                      - image
-                  rect:
-                    type: array
-                    minItems: 4
-                    maxItems: 4
-                    items:
-                      type: number
-                  asset:
-                    type: string
-                    minLength: 36
-                    maxLength: 36
-                  text:
-                    type: string
-                    minLength: 1
-                    maxLength: 4000
-                  font:
-                    type: string
-                    maxLength: 64
-                  fontSize:
-                    type: number
-                    minimum: 1
-                    maximum: 256
-                  fill:
-                    type: string
-                    minLength: 6
-                    maxLength: 6
-                  stroke:
-                    type: string
-                    minLength: 6
-                    maxLength: 6
-                  strokeWidth:
-                    type: number
-                    minimum: 0
-                    maximum: 40
-                  opacity:
-                    type: number
-                    minimum: 0
-                    maximum: 1
-                required:
-                  - id
-                  - kind
-                  - rect
+                  id: { type: string, minLength: 36, maxLength: 36 }
+                  kind: { type: string, enum: [text, rectangle, ellipse, image, check, cross] }
+                  rect: { type: array, minItems: 4, maxItems: 4, items: { type: number } }
+                  asset: { type: string, minLength: 36, maxLength: 36 }
+                  text: { type: string, minLength: 1, maxLength: 4000 }
+                  font: { type: string, maxLength: 64 }
+                  fontSize: { type: number, minimum: 1, maximum: 256 }
+                  fill: { type: string, minLength: 6, maxLength: 6 }
+                  stroke: { type: string, minLength: 6, maxLength: 6 }
+                  strokeWidth: { type: number, minimum: 0, maximum: 40 }
+                  opacity: { type: number, minimum: 0, maximum: 1 }
+                required: [id, kind, rect]
               annotation:
                 type: object
                 additionalProperties: false
                 properties:
-                  id:
-                    type: string
-                    minLength: 36
-                    maxLength: 36
-                  page:
-                    type: string
-                    minLength: 36
-                    maxLength: 36
-                  kind:
-                    enum:
-                      - text
-                      - highlight
-                      - ink
-                    type: string
-                  rect:
+                  id: { type: string, minLength: 36, maxLength: 36 }
+                  page: { type: string, minLength: 36, maxLength: 36 }
+                  kind: { type: string, enum: [text, highlight, underline, strikethrough, ink] }
+                  rect: { type: array, minItems: 4, maxItems: 4, items: { type: number } }
+                  text: { type: string, maxLength: 2000 }
+                  strokeWidth: { type: number, minimum: 0.5, maximum: 24 }
+                  quadPoints:
                     type: array
-                    minItems: 4
-                    maxItems: 4
-                    items:
-                      type: number
-                  text:
-                    type: string
-                    maxLength: 2000
+                    minItems: 1
+                    maxItems: 64
+                    items: { type: array, minItems: 8, maxItems: 8, items: { type: number } }
                   points:
                     type: array
                     minItems: 2
                     maxItems: 256
-                    items:
-                      type: array
-                      minItems: 2
-                      maxItems: 2
-                      items:
-                        type: number
-                  color:
-                    type: string
-                required:
-                  - id
-                  - page
-                  - kind
-                  - rect
-              id:
-                type: string
-                minLength: 36
-                maxLength: 36
-              name:
-                type: string
-                maxLength: 512
-              value:
-                type: string
-                maxLength: 4096
-            required:
-              - op
+                    items: { type: array, minItems: 2, maxItems: 2, items: { type: number } }
+                  color: { type: string }
+                required: [id, page, kind, rect]
+              id: { type: string, minLength: 36, maxLength: 36 }
+              name: { type: string, maxLength: 512 }
+              value: { type: string, maxLength: 4096 }
+            required: [op]
       required:
         - id
         - baseRevision

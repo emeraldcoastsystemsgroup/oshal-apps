@@ -8,10 +8,11 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Release explicitly authorized installed readiness.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Include every functional member and required dependency in one reviewed application role; no component selections.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | The Business screen's concierge is the required member email-summarizer's communications-bot (imported under dependencies.required.bots), which reads the person's own mail and calendar - the schedule this page leads with - instead of the platform general-bot, which had no Business data and answered "As an AI, I don't have access". Guarded by scripts/check-store-bots.test.mjs.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.0.4: Social's Compose and Workspace are one application (social 1.7.0); the Business screen's social card mounts surface social-workspace, which opens on Compose and carries the company audience view.
 name: business-experience
 displayName: Business
 description: Your schedule, projects, documents and explicitly connected business applications.
-version: 1.0.3
+version: 1.0.4
 status: active
 suite: ai-productivity
 rating:
@@ -114,7 +115,7 @@ experience:
       surface: switchboard-workspaces
       audience: company
     - app: social
-      surface: social-composer
+      surface: social-workspace
       audience: company
     - app: calling-assistant
       surface: calling-settings

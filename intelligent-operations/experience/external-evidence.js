@@ -1,3 +1,4 @@
+/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Each source checkbox shows the source's name with its environment beneath, and long names wrap, so the list never widens a phone screen. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Configure optional per-source Splunk enrichment through the standard personal connection, with its last recorded outcomes and no credential fields. */
 (function(root){
 'use strict';
@@ -19,7 +20,7 @@ function mount({request,sources,onRefused}){
    list.replaceChildren();
    for(const source of sources()){
     const label=node('label',''),box=document.createElement('input');box.type='checkbox';box.value=source.id;box.checked=(config.sourceIds||[]).includes(source.id);
-    label.append(box,document.createTextNode(' '+source.name+' · '+source.environment));list.append(label);
+    label.className='external-source';const name=node('span',source.name);name.className='external-source-name';const env=node('small',source.environment);label.append(box,name,env);list.append(label);
    }
    outcomes.replaceChildren();
    for(const item of history.items||[]){

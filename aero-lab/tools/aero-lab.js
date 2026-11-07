@@ -43,6 +43,7 @@
  *                     |                             | Guarded by aero-lab/tests/aero-screen-record.test.cjs.
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: on a multi-day energy loop the 'min SOC' label still crossed the rising curve: the valleys are too narrow for any spot beside the dot, and the fallback drew it there anyway. Candidates now reach 120 px either side, and when none is clear the label goes in the strip above the plot, right-aligned and keyed by a dot in the mark's colour. Guard: tests/aero-chart-labels.test.cjs.
  * 2026-10-13 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: with no engine the page showed the person the host's install command ('on the kernel host run aero-lab/engine/install-engine.sh and pin the engine in OSHAL_PACKAGE_ENGINES') and a README path. A missing or unreachable engine is now one sentence (ENGINE_DOWN: not answering on this installation); a module mid-upgrade is still the engine's own sentence. Guard: tests/aero-engine-down-words.test.cjs.
+ * 2026-11-06 08:10:00 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the design vector is closed groups with Reset to preset each and the Site & season quick fills inside their group; number fields show the field's decimals (full value on focus); a preset shows its one-line description while its provenance note still goes to the designer chat.
  */
 /* Served by the package route as /api/aero-lab/app.js next to /app (the HTML).
    All data flows from the routes in BUILD_CONTRACT §2a; the only client-side
@@ -190,10 +191,13 @@
   function buildForm() {
     const root = $('designForm');
     root.innerHTML = '';
+    // UX audit 2026-11-06: each group is a closed disclosure with Reset to preset; Site & season holds its quick fills.
     for (const g of D.groups) {
-      const grp = document.createElement('div');
+      const grp = document.createElement('details');
       grp.className = 'grp';
-      grp.innerHTML = '<div class="grp-head"><span>' + esc(g.label) + '</span></div>';
+      grp.innerHTML = '<summary><span>' + esc(g.label) + '</span><button type="button" class="link grp-reset" data-group="' + esc(g.id) + '" disabled>Reset to preset</button></summary>';
+      grp.querySelector('.grp-reset').addEventListener('click', (e) => { e.preventDefault(); resetGroup(g.id); });
+      if (g.id === 'site') { const chips = document.createElement('div'); chips.className = 'site-chips'; chips.id = 'siteChips'; grp.appendChild(chips); }
       for (const f of D.fields.filter((x) => x.g === g.id)) {
         const row = document.createElement('div');
         row.className = 'fld';
@@ -205,7 +209,11 @@
           '<input type="number" id="in-' + f.k + '" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '">';
         grp.appendChild(row);
         row.querySelector('input[type=range]').addEventListener('input', (e) => setField(f.k, e.target.value, 'range'));
-        row.querySelector('input[type=number]').addEventListener('change', (e) => setField(f.k, e.target.value, 'number'));
+        const num = row.querySelector('input[type=number]');
+        num.addEventListener('change', (e) => setField(f.k, e.target.value, 'number'));
+        // The field shows its own decimals (18.56, not 18.559593023255814); focus shows the full value to edit.
+        num.addEventListener('focus', () => { if (state.design[f.k] != null) num.value = String(state.design[f.k]); });
+        num.addEventListener('blur', () => { if (state.design[f.k] != null) num.value = shortValue(f.k, state.design[f.k]); });
       }
       root.appendChild(grp);
     }
@@ -224,10 +232,31 @@
     if (!Number.isFinite(v)) return;
     state.design[k] = v;
     if (from !== 'range') { const el = $('rg-' + k); if (el) el.value = String(v); }
-    if (from !== 'number') { const el = $('in-' + k); if (el) el.value = String(v); }
+    if (from !== 'number') { const el = $('in-' + k); if (el) el.value = document.activeElement === el ? String(v) : shortValue(k, v); }
     flagOutOfBounds(k);
     updateDerived();
     if (from !== 'code') $('runStatus').textContent = 'design changed — plots show the previous run';
+  }
+
+  /**
+   * @description A field's value as the form shows it: rounded to the field's own decimals (dp), trailing zeros dropped.
+   * @param {string} k - Field key. @param {number} v - Value. @returns {string} The display text.
+   */
+  function shortValue(k, v) {
+    const f = D.fields.find((x) => x.k === k);
+    return f && Number.isFinite(f.dp) ? String(Number(Number(v).toFixed(f.dp))) : String(v);
+  }
+
+  /**
+   * @description Put one group's fields back to the last preset applied (Reset to preset).
+   * @param {string} groupId - The group's id. @returns {void}
+   */
+  function resetGroup(groupId) {
+    if (!state.presetDesign) return;
+    for (const f of D.fields.filter((x) => x.g === groupId)) {
+      if (state.presetDesign[f.k] != null) setField(f.k, state.presetDesign[f.k], 'code');
+    }
+    $('runStatus').textContent = 'group reset to the preset — press Run';
   }
 
   /** @description Push every state.design value into the form controls. @returns {void} */
@@ -326,10 +355,13 @@
    */
   function applyPreset(p) {
     state.design = Object.assign({}, p.v);
+    state.presetDesign = Object.assign({}, p.v);
+    document.querySelectorAll('.grp-reset').forEach((b) => { b.disabled = false; });
     state.presetHull = p.hull || '';
     state.presetRecord = { name: p.name, note: p.note };
     syncForm();
-    let note = p.note;
+    // One line saying what the case is; the full provenance note still goes to the designer chat (presetRecord).
+    let note = p.line || p.note;
     if (p.needs && state.caps && state.caps.capabilities && !state.caps.capabilities[p.needs]) {
       note = '⚠ This preset needs the "' + p.needs + '" capability, which the engine reports unavailable — runs will honestly refuse.\n\n' + note;
     }

@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade F): a failed list showed "All 0 · No recruiters in this view" over 18 saved firms. A list that does not answer 200 now shows "Couldn't load your recruiters" with Retry (role=alert, DS-41) and never the empty state. The add form has labels above its fields with the required mark in the label, and on a phone it is an "Add recruiter" sheet with one primary Add. Status selects are 44px, the row's Delete moved into its ⋯ menu with an in-page confirm (no window.confirm), a search field appears past 10 firms, and the status chips are the kit's segmented control (the selected one is ink, not a second accent button). Guard: tests/career-recruiters-screen.test.mjs.
   2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 10: in a fresh conversation the concierge answered "Which recruiter did I just add?" with "not visible in the current view" while the row sat at the end of a long list, beyond what its screen snapshot carries, and nothing on the screen said which row was new (the "Added" toast lasts two seconds). The All view names the latest added recruiter and its bucket above the list (the highest id, so it survives a reload). Guard: tests/recruiters-latest.test.cjs.
 -->
 
@@ -21,38 +22,38 @@
   * { box-sizing:border-box; }
   body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
   .wrap { max-width:1080px; margin:0 auto; padding:20px 22px 60px; }
-  h1 { font-size:20px; margin:0 0 4px; } .sub { color:var(--muted); font-size:12.5px; margin:0 0 14px; }
-  .tabs { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 12px; }
-  .tab { background:var(--panel2); border:1px solid var(--line); border-radius:16px; padding:5px 12px; font-size:12px; cursor:pointer; color:var(--text); }
-  .tab .n { color:var(--muted); margin-left:5px; } .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .add { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 16px; align-items:center; }
-  .add input { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 10px; font-size:12.5px; }
-  .btn { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:6px 12px; font-size:12.5px; cursor:pointer; }
-  .btn:hover { border-color:var(--accent); } .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); } .btn.danger:hover { border-color:var(--danger); color:var(--danger); }
-  .row { display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:8px; }
-  .row .firm { font-weight:600; font-size:13.5px; min-width:0; } .row .firm a { color:var(--accent); text-decoration:none; }
-  .row .bucket { font-size:11px; color:var(--muted); }
-  .row .contact { font-size:12px; color:var(--muted); flex:1; min-width:120px; } .row .contact a { color:var(--accent2); }
-  .row select, .row input.note { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:5px 8px; font-size:12px; }
+  h1 { font-size:20px; margin:0 0 4px; } .sub { color:var(--ds-ink-2); font-size:14px; margin:0 0 14px; }
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 6px; }
+  .toolbar .ck-seg { flex:1 1 320px; margin:0; }
+  #search { min-height:44px; padding:8px 12px; border:1px solid var(--ds-line-control); border-radius:var(--ds-radius-m); background:var(--ds-surface); color:var(--ds-ink); font:inherit; font-size:15px; width:min(280px,100%); }
+  .addform { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)) auto; gap:12px; align-items:end; margin:10px 0 18px;
+    padding:14px; border:1px solid var(--ds-edge); border-radius:var(--ds-radius-l); background:var(--ds-surface); }
+  .req { color:var(--ds-bad); }
+  #openAdd { display:none; }
+  .row { display:flex; align-items:center; gap:12px; background:var(--ds-surface); border:1px solid var(--ds-edge); border-radius:var(--ds-radius-m); padding:10px 14px; margin-bottom:8px; }
+  .row .who { min-width:200px; }
+  .row .firm { font-weight:600; font-size:15px; min-width:0; } .row .firm a { color:var(--ds-accent-ink); text-decoration:none; }
+  .row .bucket { font-size:13px; color:var(--ds-ink-2); }
+  .row .contact { font-size:14px; color:var(--ds-ink-2); flex:1; min-width:120px; } .row .contact a { color:var(--ds-accent-ink); }
+  .row select, .row input.note { min-height:44px; background:var(--ds-surface); color:var(--ds-ink); border:1px solid var(--ds-line-control); border-radius:var(--ds-radius-m); padding:8px 10px; font:inherit; font-size:14px; }
   .row input.note { flex:1; min-width:120px; }
-  .latest { font-size:12.5px; color:var(--muted); margin:0 0 12px; } .latest b { color:var(--text); }
-  .grp { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:16px 0 8px; }
-  .empty { color:var(--muted); font-size:13px; padding:30px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
-  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:9px 15px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; } .toast.err { border-color:var(--danger); color:var(--danger); }
-  ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
-  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
+  .row .ck-confirm { flex-basis:100%; }
+  .latest { font-size:14px; color:var(--ds-ink-2); margin:0 0 12px; } .latest b { color:var(--ds-ink); }
+  .grp { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ds-ink-2); margin:16px 0 8px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--ds-surface); border:1px solid var(--ds-edge); border-radius:9px; padding:9px 15px; font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; } .toast.show { opacity:1; } .toast.err { border-color:var(--ds-bad); color:var(--ds-bad); }
   @media (max-width:640px){
     .wrap { padding:14px 12px 48px; }
-    .add { flex-direction:column; align-items:stretch; }
-    .add input { min-width:0 !important; width:100%; font-size:16px; }
-    .add .btn { width:100%; padding:10px; font-size:14px; }
+    #openAdd { display:inline-flex; width:100%; }
+    .wrap > .addform { display:none; }
+    dialog .addform { display:flex; flex-direction:column; align-items:stretch; border:0; padding:0; margin:0; }
+    dialog .addform .ck-primary { width:100%; }
+    #search { width:100%; }
     .row { flex-direction:column; align-items:stretch; gap:8px; }
-    .row > div[style*="min-width"] { min-width:0 !important; width:100%; }
-    .row .contact { min-width:0; width:100%; }
-    .row select { width:100%; font-size:16px; padding:8px; }
-    .row input.note { min-width:0; width:100%; font-size:16px; padding:8px; }
-    .row .btn { width:100%; padding:9px; font-size:13px; }
+    .row .who, .row .contact { min-width:0; width:100%; }
+    .row select, .row input.note { width:100%; font-size:16px; }
+    .row .rowtail { display:flex; gap:8px; } .row .rowtail select { flex:1; }
   }
+  @media (min-width:641px){ .row .rowtail { display:contents; } }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
@@ -60,55 +61,83 @@
 <body>
 <div class="wrap">
   <h1>Recruiters</h1>
-  <p class="sub">Your recruiter & headhunter tracker — status, contacts, follow-ups.</p>
-  <div class="tabs" id="tabs"></div>
-  <div class="add">
-    <input id="firm" placeholder="Firm / recruiter name *" style="min-width:200px"/>
-    <input id="bucket" placeholder="Bucket (e.g. Cleared / GovTech)"/>
-    <input id="website" placeholder="Website"/>
-    <input id="contact_name" placeholder="Contact name"/>
-    <button class="btn primary" onclick="addRecruiter()">Add</button>
+  <p class="sub">Your recruiter &amp; headhunter tracker — status, contacts, follow-ups.</p>
+  <div class="toolbar">
+    <div class="ck-seg" id="tabs" role="toolbar" aria-label="Filter by status"></div>
+    <input id="search" type="search" placeholder="Search firms" aria-label="Search firms" hidden>
   </div>
+  <button class="ck-primary" id="openAdd" type="button">Add recruiter</button>
+  <form class="addform" id="addForm" autocomplete="off">
+    <label class="ck-field"><span>Firm or recruiter <span class="req" aria-hidden="true">*</span><span class="sr-only"> (required)</span></span><input id="firm" required></label>
+    <label class="ck-field"><span>Bucket</span><input id="bucket" placeholder="e.g. Cleared / GovTech"></label>
+    <label class="ck-field"><span>Website</span><input id="website" inputmode="url"></label>
+    <label class="ck-field"><span>Contact name</span><input id="contact_name"></label>
+    <button class="ck-primary" type="submit">Add</button>
+  </form>
   <p class="latest" id="latest" hidden></p>
   <div id="list"></div>
 </div>
-<div class="toast" id="toast"></div>
+<dialog class="ck-sheet" id="addSheet" aria-labelledby="addSheetTitle">
+  <header><h2 id="addSheetTitle">Add recruiter</h2><button class="ck-icon" type="button" id="closeAdd" aria-label="Close">✕</button></header>
+  <div class="ck-sheet-body" id="addSheetBody"></div>
+</dialog>
+<div class="ck-menu" id="rowMenu" popover role="menu"><button type="button" class="bad" role="menuitem" id="menuDelete">Delete…</button></div>
+<div class="toast" id="toast" role="status"></div>
+<style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style>
 <script>
 const STATUSES=["To contact","Contacted","Replied","Call scheduled","Submitted me","On radar","Dead"];
 const $=id=>document.getElementById(id); const listEl=$('list'), tabsEl=$('tabs'), toastEl=$('toast');
-let activeStatus='';
+let activeStatus='', rows=[], menuFor=null;
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m,err){ toastEl.textContent=m; toastEl.className='toast show'+(err?' err':''); setTimeout(()=>toastEl.className='toast',2200); }
 
 function row(r){
   const opts=STATUSES.map(s=>`<option${r.status===s?' selected':''}>${s}</option>`).join('');
   const site=r.website?`<a href="${esc(r.website)}" target="_blank" rel="noopener">${esc(r.firm)}</a>`:esc(r.firm);
-  const contact=r.contact_name?(r.contact_link?`<a href="${esc(r.contact_link)}" target="_blank">${esc(r.contact_name)}</a>`:esc(r.contact_name)):'';
-  return `<div class="row">
-    <div style="min-width:200px"><div class="firm">${site}</div><div class="bucket">${esc(r.bucket||'')}</div></div>
+  const contact=r.contact_name?(r.contact_link?`<a href="${esc(r.contact_link)}" target="_blank" rel="noopener">${esc(r.contact_name)}</a>`:esc(r.contact_name)):'';
+  return `<div class="row" data-id="${r.id}">
+    <div class="who"><div class="firm">${site}</div><div class="bucket">${esc(r.bucket||'')}</div></div>
     <div class="contact">${contact}${r.contact_role?` · ${esc(r.contact_role)}`:''}</div>
-    <select onchange="upd(${r.id},'status',this.value)">${opts}</select>
-    <input class="note" value="${esc(r.next_action||'')}" placeholder="next action…" onchange="upd(${r.id},'next_action',this.value)"/>
-    <button class="btn danger" onclick="del(${r.id},'${esc(r.firm).replace(/'/g,'&#39;')}')">✕</button>
+    <input class="note" value="${esc(r.next_action||'')}" placeholder="Next action" aria-label="Next action for ${esc(r.firm)}" data-field="next_action">
+    <div class="rowtail"><select aria-label="Status of ${esc(r.firm)}" data-field="status">${opts}</select>
+    <button class="ck-icon" type="button" aria-haspopup="menu" aria-label="More for ${esc(r.firm)}" data-menu="${r.id}">⋯</button></div>
   </div>`;
 }
 
+/** DS-41: a list that does not answer 200 is an error with Retry, never the empty state. */
+function showError(){
+  tabsEl.innerHTML=''; $('latest').hidden=true; $('search').hidden=true;
+  listEl.innerHTML='<div class="ck-alert" role="alert"><h2>Couldn’t load your recruiters</h2><p>Your saved firms are not lost. Try again in a moment.</p><button class="ck-btn" type="button" id="retry">Retry</button></div>';
+  $('retry').onclick=load;
+}
+function showEmpty(){
+  tabsEl.innerHTML=''; $('search').hidden=true; showLatest([]);
+  listEl.innerHTML='<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">👥</div><h2>No recruiters yet</h2><p>Add the firms and headhunters you work with.</p></div>';
+}
+function render(){
+  const q=$('search').value.trim().toLowerCase();
+  const shown=q?rows.filter(r=>[r.firm,r.bucket,r.contact_name].some(v=>String(v||'').toLowerCase().includes(q))):rows;
+  const groups={}; shown.forEach(r=>{ const b=r.bucket||'Other'; (groups[b]=groups[b]||[]).push(r); });
+  listEl.innerHTML=Object.keys(groups).sort().map(b=>`<div class="grp">${esc(b)} (${groups[b].length})</div>`+groups[b].map(row).join('')).join('')
+    || `<div class="ck-empty"><h2>No recruiters in this view</h2><p>${q?'Nothing matches that search.':'Choose another status.'}</p></div>`;
+}
 async function load(){
-  listEl.innerHTML='<div class="empty">Loading…</div>';
+  listEl.innerHTML='<p class="sub" aria-busy="true">Loading…</p>';
+  let data;
   try {
     const u=new URLSearchParams(); if(activeStatus) u.set('status',activeStatus);
-    const { recruiters=[], byStatus=[], empty } = await (await fetch('/api/career-hunter/recruiters?'+u)).json();
-    if(empty){ listEl.innerHTML='<div class="empty">No recruiters tracked yet — add one above.</div>'; tabsEl.innerHTML=''; showLatest([]); return; }
-    const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n])); const total=byStatus.reduce((a,s)=>a+s.n,0);
-    const tabs=[{k:'',label:'All',n:total}].concat(STATUSES.filter(s=>map[s]).map(s=>({k:s,label:s,n:map[s]})));
-    tabsEl.innerHTML=tabs.map(t=>`<button class="tab${t.k===activeStatus?' active':''}" data-k="${t.k}">${t.label}<span class="n">${t.n}</span></button>`).join('');
-    tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; load(); });
-    showLatest(recruiters);
-    // group by bucket
-    const groups={}; recruiters.forEach(r=>{ const b=r.bucket||'Other'; (groups[b]=groups[b]||[]).push(r); });
-    listEl.innerHTML=Object.keys(groups).sort().map(b=>`<div class="grp">${esc(b)} (${groups[b].length})</div>`+groups[b].map(row).join('')).join('')
-      || '<div class="empty">No recruiters in this view.</div>';
-  } catch(e){ listEl.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
+    const res=await fetch('/api/career-hunter/recruiters?'+u);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    data=await res.json();
+  } catch(e){ showError(); return; }
+  const { recruiters=[], byStatus=[], empty } = data||{};
+  if(empty){ showEmpty(); return; }
+  const map=Object.fromEntries(byStatus.map(s=>[s.status,s.n])); const total=byStatus.reduce((a,s)=>a+s.n,0);
+  const tabs=[{k:'',label:'All',n:total}].concat(STATUSES.filter(s=>map[s]).map(s=>({k:s,label:s,n:map[s]})));
+  tabsEl.innerHTML=tabs.map(t=>`<button type="button" class="tab" aria-pressed="${t.k===activeStatus}" data-k="${esc(t.k)}">${esc(t.label)}<span class="n">${t.n}</span></button>`).join('');
+  tabsEl.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeStatus=b.dataset.k; load(); });
+  $('search').hidden=total<=10;
+  rows=recruiters; showLatest(recruiters); render();
 }
 // The latest added recruiter (the highest id), named above the list on the All view, so a person and the concierge
 // can tell which row is new after the two-second toast and after a reload.
@@ -121,20 +150,43 @@ function showLatest(recruiters){
 async function upd(id,field,value){
   try { const r=await fetch('/api/career-hunter/recruiters/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[field]:value})});
     if(!r.ok) throw new Error('HTTP '+r.status); toast('Saved'); if(field==='status') load();
-  } catch(e){ toast('Save failed: '+e.message,true); }
+  } catch(e){ toast('Couldn’t save: '+e.message+'. Try again.',true); }
 }
 async function addRecruiter(){
-  const firm=$('firm').value.trim(); if(!firm){ toast('Enter a firm name',true); return; }
+  const firm=$('firm').value.trim(); if(!firm){ toast('Enter a firm name',true); $('firm').focus(); return; }
   try { const r=await fetch('/api/career-hunter/recruiters',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({firm,bucket:$('bucket').value.trim(),website:$('website').value.trim(),contact_name:$('contact_name').value.trim()})});
-    if(!r.ok) throw new Error('HTTP '+r.status); ['firm','bucket','website','contact_name'].forEach(k=>$(k).value=''); toast('Added '+firm); load();
-  } catch(e){ toast('Add failed: '+e.message,true); }
+    if(!r.ok) throw new Error('HTTP '+r.status); ['firm','bucket','website','contact_name'].forEach(k=>$(k).value=''); closeAdd(); toast('Added '+firm); load();
+  } catch(e){ toast('Couldn’t add: '+e.message+'. Try again.',true); }
 }
-async function del(id,firm){
-  if(!window.confirm('Delete "'+firm+'"?')) return;
+/** DS-44: Delete confirms in the row, never through window.confirm. */
+function askDelete(id){
+  const el=listEl.querySelector(`.row[data-id="${id}"]`); if(!el||el.querySelector('.ck-confirm')) return;
+  const r=rows.find(x=>String(x.id)===String(id))||{};
+  el.insertAdjacentHTML('beforeend',`<div class="ck-confirm" role="alertdialog" aria-label="Delete ${esc(r.firm)}"><span>Delete <b>${esc(r.firm)}</b>? Its notes go too.</span><button type="button" class="ck-danger solid" data-del="${id}">Delete</button><button type="button" class="ck-tertiary" data-cancel>Cancel</button></div>`);
+  el.querySelector('[data-cancel]').focus();
+}
+async function del(id){
   try { const r=await fetch('/api/career-hunter/recruiters/'+id,{method:'DELETE'}); if(!r.ok) throw new Error('HTTP '+r.status); toast('Deleted'); load(); }
-  catch(e){ toast('Delete failed: '+e.message,true); }
+  catch(e){ toast('Couldn’t delete: '+e.message+'. Try again.',true); }
 }
+listEl.addEventListener('change',e=>{ const f=e.target.dataset.field, id=e.target.closest('.row')?.dataset.id; if(f&&id) upd(id,f,e.target.value); });
+listEl.addEventListener('click',e=>{
+  const m=e.target.closest('[data-menu]'); if(m){ menuFor=m.dataset.menu; const menu=$('rowMenu');
+    const rect=m.getBoundingClientRect(); menu.style.top=Math.min(rect.bottom+4,innerHeight-60)+'px'; menu.style.left=Math.max(8,rect.right-200)+'px';
+    if(menu.showPopover) menu.showPopover(); else menu.hidden=false; return; }
+  const d=e.target.closest('[data-del]'); if(d){ del(d.dataset.del); return; }
+  if(e.target.closest('[data-cancel]')) e.target.closest('.ck-confirm').remove();
+});
+$('menuDelete').onclick=()=>{ const menu=$('rowMenu'); if(menu.hidePopover) menu.hidePopover(); else menu.hidden=true; if(menuFor) askDelete(menuFor); };
+$('search').addEventListener('input',render);
+$('addForm').addEventListener('submit',e=>{ e.preventDefault(); addRecruiter(); });
+const form=$('addForm'), formHome=form.parentNode, formNext=form.nextSibling, sheet=$('addSheet');
+function openAdd(){ $('addSheetBody').append(form); sheet.showModal(); $('firm').focus(); }
+function closeAdd(){ if(sheet.open) sheet.close(); }
+sheet.addEventListener('close',()=>formHome.insertBefore(form,formNext));
+sheet.addEventListener('click',e=>{ if(e.target===sheet) closeAdd(); });
+$('openAdd').onclick=openAdd; $('closeAdd').onclick=closeAdd;
 load();
 </script>
 </body></html>

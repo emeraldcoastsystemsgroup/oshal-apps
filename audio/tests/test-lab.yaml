@@ -1,0 +1,48 @@
+# CHANGE LOG
+# 1 | maintainer@emeraldcoastsystemsgroup.com | Register unit/acceptance and host-process bridge dev-shim test cases for Audio Studio (audio).
+version: 1
+cases:
+  - id: audio-acceptance
+    name: Audio Studio multitrack editing, DSP mixdown, TTS personas, concierge surface bridge, and tenant isolation
+    purpose: Verify smoke readiness, home summary, RBAC, editing contract, optimistic revision locking, CAS deduplication, stereo mixdown rendering, TTS personas, live modulation, concierge adjustments, and screen standard compliance.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audio-acceptance.test.cjs
+    expected:
+      - Package smoke probe and home-summary metrics return truthful per-owner project, stem, and mixdown counts.
+      - Role-based access control and personal-scope guards reject viewer mutations and caller-supplied tenant selectors.
+      - Optimistic concurrency control rejects stale baseRevision edits with HTTP 409 revision_conflict.
+      - Studio workbench UI adheres to OSHAL Screen Standard (data-theme="midnight", surface-themes.css, table.js, zero stray hex colors).
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never
+
+  - id: audio-dev-shim
+    name: Native host-process bridge runner (runner.js) JSON-RPC shim verification
+    purpose: Boot audio inside the OSHAL host-process bridge runner over stdio JSON-RPC and verify route mounts, catalog bindings, UI assets, lastingStorage persistence, and fail-closed denials.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/audio-dev-shim.test.cjs
+    expected:
+      - Every HTTP route and UI asset resolves to one unambiguous catalog permission binding in runner.js.
+      - Project state and CAS blobs persist inside OSHAL_PACKAGE_DATA_DIR with zero writes to the package source directory.
+      - Unprivileged calls fail closed with 403 application_resource_denied.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+    installation: never

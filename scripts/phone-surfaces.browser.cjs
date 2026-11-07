@@ -5,6 +5,8 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Phone-width (412 x 915) proof for the second sweep's store surfaces (2026-10-11), in headless Chromium against the real page files with synthetic read answers and no provider call. Readable theme: Travel, Movies and Spotify embedded in a cockpit that names --text-primary but no --bg-primary (the native cockpit) keep their own matched palette instead of near-white text on a light page. Width: the Switchboard variant cards and their Publish button, Embodied (and its watermark clear of the caption), the Kalshi tab strip (Settings on screen), the Circuit Lab header, Camera Ops, the Developer Workspace Index setting line and the D&D initiative strip fit 412px (its labels never print over a neighbour, and the phone full-screen button draws its icon). Hand-offs: Animatronics, Drone Relay and Circuit Lab mount their declared offer and hand on nothing while nothing is open. Honest states: Drone Ops says planning needs a fence and refuses the tap aloud, Kalshi does not promise a snapshot an installation that cannot scan will never make and hides its offers with no alert, Movies and Spotify hide offers while not connected, "Write variants" says why with no network, Portrait Studio's provider banner sits above the composer, Brand Graphics switches Render off with no Vids worker, and Vids Studio says what a worker is.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The same readable-theme proof for Feeds, Payments (a Life tab), Eats, Purchasing and Rides: each copied the native cockpit's --text-primary without a --bg-primary, so Feeds and Payments drew near-white text on a light page in the cockpit.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | dnd-initiative: Full screen is a row of the table's More menu since the UX audit (2026-11-06) and says Full screen in words, so the guard checks for the words and no U+26F6 instead of the phone-only icon it used to draw.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com     | Brand Graphics 1.3.0 (design standard): with no render computer online Render stays enabled and a press says why without sending anything.
  * -----------------------------------------------------------------------------
  *
  * Usage: node scripts/phone-surfaces.browser.cjs              (every screen)
@@ -182,8 +184,13 @@ const SCREENS = [
   { name: 'brand-graphics-render', url: '/api/brand-graphics/review', file: 'brand-graphics/tools/review.html', modules: MODULES,
     reads: { '/api/vids/jobs': { jobs: [], workers: [] }, '/api/brand-graphics/home-summary': { metrics: [], items: [] } },
     check: async (page) => {
-      await page.waitForFunction(() => document.getElementById('render').disabled);
-      assert.match(await page.locator('#renderHint').innerText(), /no Vids worker is registered/);
+      // The design standard: with no render computer online Render stays the one primary (never a disabled accent button)
+      // and a press says why, sending nothing (UX audit decision brand-graphics--brand-graphics).
+      await page.waitForFunction(() => /render computer online/.test(document.getElementById('renderHint').textContent));
+      assert.equal(await page.locator('#render').isDisabled(), false);
+      await page.locator('#notes').fill('An intro for the launch');
+      await page.locator('#render').click();
+      await page.locator('#status').filter({ hasText: 'No render computer is online' }).waitFor();
     } },
   { name: 'vids-worker', url: '/api/vids/app', html: () => literal('vids/routes/vids-routes.js', 'SURFACE_HTML'), reads: { '/api/vids/jobs': { jobs: [], workers: [] } },
     check: async (page) => {
@@ -202,11 +209,12 @@ const SCREENS = [
         const labels = [...bar.querySelectorAll('.nm, .controller')].map((e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: Math.round(b.top) }; });
         let overlaps = 0;
         for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) { const x = labels[i], y = labels[j]; if (x.t === y.t && x.l < y.r - 0.5 && y.l < x.r - 0.5) overlaps += 1; }
-        const icon = getComputedStyle(document.getElementById('fullscreenBtn'), '::after').backgroundImage;
-        return { overlaps, icon };
+        const full = document.getElementById('fullscreenBtn').textContent;
+        return { overlaps, full };
       });
       assert.equal(r.overlaps, 0, `${r.overlaps} initiative labels print over a neighbour`);
-      assert.match(r.icon, /^url\(/, 'the phone full-screen button draws its icon (phone fonts have no U+26F6)');
+      assert.equal(r.full.trim(), 'Full screen', 'the full-screen control says Full screen in words (phone fonts have no U+26F6)');
+      assert.doesNotMatch(r.full, /\u26F6/);
       await fits(page, 'the D&D table');
     } },
   { name: 'dev-workspace-index', url: '/api/dev-workspace-index/app', html: () => literal('dev-workspace-index/routes/dev-workspace.js', 'APP_HTML'),

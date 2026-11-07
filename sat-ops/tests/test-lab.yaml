@@ -107,3 +107,24 @@ cases:
       timeoutMs: 60000
       maxMemoryMb: 256
     installation: never
+  - id: ux-layout
+    name: The brief panel sits in the right pane and controls are 44px
+    purpose: >-
+      UX audit 2026-11-06: the diagnostic brief panel is docked into the right pane in theme colours, four controls are 44px on touch and phone widths, and the title is named once.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ux-layout.test.cjs
+    expected:
+      - The handoff dock is position static and moved into #right.
+      - The controls btnAutoRot, btnFrame, catAdd and Remove are 44px under coarse pointers.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

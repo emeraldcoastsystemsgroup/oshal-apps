@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Travel form's state and hand-off text, which a live sweep found broken: the place fields carried JFK/LHR (Paris, Miami) as real values, a Hotels -> Flights round trip rebuilt the form and lost the typed VPS -> DCA, Plan a ride / Plan a meal then sent JFK -> LHR as raw JSON, the Hotels and Cars tabs replaced the no-Duffel notice with "Search to see options.", and a Rides "Plan a trip" hand-off left the flight form on its defaults. The guard EXECUTES the shipped FORMS, switchTab(), typedTrip(), tripOfferContext() and applyHandoffTrip() against a DOM double whose form rebuild resets every field to the markup's own value, as the browser does.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the cabin options carry their Duffel code as the value and read in words, so the double reads a select's first option value, and the shipped CABINS table runs with FORMS.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -53,8 +54,8 @@ function dom() {
       for (const m of html.matchAll(/<(input|select)\b([^>]*)>/g)) {
         const id = /id="([^"]+)"/.exec(m[2]); if (!id) continue;
         const value = /value="([^"]*)"/.exec(m[2]);
-        const first = m[1] === 'select' ? /<option>([^<]*)</.exec(html.slice(m.index)) : null;
-        els.set(id[1], Object.assign(make(), { value: value ? value[1] : (first ? first[1] : ''), placeholder: (/placeholder="([^"]*)"/.exec(m[2]) || [])[1] || '' }));
+        const first = m[1] === 'select' ? /<option(?: value="([^"]*)")?>([^<]*)</.exec(html.slice(m.index)) : null;
+        els.set(id[1], Object.assign(make(), { value: value ? value[1] : (first ? (first[1] !== undefined ? first[1] : first[2]) : ''), placeholder: (/placeholder="([^"]*)"/.exec(m[2]) || [])[1] || '' }));
       }
     },
   });
@@ -64,7 +65,7 @@ function dom() {
 
 const PKG = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(PKG, 'tools', 'travel-app.html'), 'utf8');
-const NAMES = ['esc', 'NOT_CONNECTED', 'todayPlus', 'FORMS', 'FIELDS', 'FORM_STATE', 'saveForm', 'restoreForm', 'idleResults',
+const NAMES = ['esc', 'NOT_CONNECTED', 'CABINS', 'todayPlus', 'FORMS', 'FIELDS', 'FORM_STATE', 'saveForm', 'restoreForm', 'idleResults',
   'switchTab', 'showTab', 'val', 'typedTrip', 'describeTrip', 'tripOfferContext', 'applyHandoffTrip'];
 
 /** The shipped declarations running in one sandbox over the DOM double. */

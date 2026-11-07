@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createEducationPrepRoutes = createEducationPrepRoutes;
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Authenticated SAT/ACT curriculum, practice, progress and lesson endpoints.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Publish curriculumVideos in GET /prep/catalog for the 168-topic video curriculum.
  */
 const express_1 = require("express");
 const logger_1 = require("@/shared/logger");
@@ -67,7 +68,7 @@ function createEducationPrepRoutes(ctx) {
             }
         });
     }
-    endpoint('get', '/prep/catalog', async () => ({ version: education_prep_model_1.catalog.version, lessons: education_prep_model_1.catalog.lessons, formats: education_prep_model_1.FORMATS, research: education_prep_model_1.research, officialPractice: education_prep_model_1.officialPractice }));
+    endpoint('get', '/prep/catalog', async () => ({ version: education_prep_model_1.catalog.version, lessons: education_prep_model_1.catalog.lessons, curriculumVideos: education_prep_model_1.curriculumVideos, formats: education_prep_model_1.FORMATS, research: education_prep_model_1.research, officialPractice: education_prep_model_1.officialPractice }));
     endpoint('get', '/prep/topics', async (req) => ({ topics: training.topics((0, education_prep_model_1.examOf)(req.query.exam || 'SAT'), typeof req.query.query === 'string' ? req.query.query : ''), studyUrl: '/api/education/test-prep' }));
     endpoint('get', '/prep/progress', async (req, actor) => {
         const exam = (0, education_prep_model_1.examOf)(req.query.exam || 'SAT');

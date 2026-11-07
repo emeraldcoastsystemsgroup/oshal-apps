@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove real PDF jobs finish before handoff, repeat native form/annotation edits, retain concurrent drafts and fence late jobs to their document.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | PDF Workbench 0.3.0 (the oshal design standard): the proofs upload through the Originals sheet, rotate through the Pages sheet, fill forms in the Form fields sheet, where the fields live now, and open another PDF from the document menu's Open sheet, discarding the draft in the page's own confirm.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { fixture } from '../fixtures/fixture.mjs';
+import { uploadAndCreate, rotateFirstPage, openFormFields, documentMenu, closeLayers } from './workbench-ui.mjs';
 import { requireRuntime } from '../fixtures/runtime.mjs';
 const { chromium } = requireRuntime('playwright'), express = requireRuntime('express');
 const platform = resolve(process.env.OSHAL_PLATFORM_ROOT || resolve(import.meta.dirname, '../../../../oshal-kernel/platform'));
@@ -15,11 +17,9 @@ async function open(t) {
  const browser=await chromium.launch({headless:true});t.after(()=>browser.close());const page=await browser.newPage();
  page.on('dialog',dialog=>dialog.accept());
  await page.goto(f.url+'/api/pdf-workbench/app');
- await page.locator('#file').setInputFiles(join(f.directory,'first.pdf'));await page.locator('#source-title').fill('Owned form');await page.locator('#upload button').click();
- await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Original PDF preserved'));
- await page.locator('#title').fill('My PDF');await page.locator('#create').click();await page.waitForFunction(()=>document.querySelectorAll('.page').length===2);
+ await page.locator('[data-pdf-view]').first().waitFor();await uploadAndCreate(page,join(f.directory,'first.pdf'),'Owned form','My PDF');await page.waitForFunction(()=>document.querySelectorAll('.page').length===2);
  await page.waitForFunction(()=>window.__oshalDocumentSession);
- for(const title of ['Selected pages','Form fields'])await page.locator('summary').filter({hasText:new RegExp('^'+title+'$')}).click();
+ await openFormFields(page);
  const api=async(path,body)=>{const response=await fetch(f.url+'/api/pdf-workbench'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const result=await response.json();assert.ok(response.ok,JSON.stringify(result));return result;};
  return{f,page,api,id:new URL(page.url()).searchParams.get('document')};
 }
@@ -30,7 +30,7 @@ async function apply(api,id,baseRevision,operations){
 }
 test('PDF handoffs wait for the actual saved form/page revision and refresh native annotations through repeated manual edits',async t=>{
  const {page,api,id}=await open(t);
- await page.locator('.page input').first().check();await page.locator('#rotate').click();await page.locator('#forms input').first().fill('My handoff value');
+ await rotateFirstPage(page);await openFormFields(page);await page.locator('#forms input').first().fill('My handoff value');
  const first=await begin(page);assert.equal(first.recordId,id);assert.equal(first.fields.revision,2);
  let {document}=await api('/documents/'+id);assert.equal(document.model.pages[0].rotation,90);assert.ok(Object.values(document.model.fields).includes('My handoff value'));
  const annotation={id:randomUUID(),page:document.model.pages[0].id,kind:'text',rect:[20,20,160,60],text:'Concierge note',color:'808080'};
@@ -43,8 +43,8 @@ test('PDF handoffs wait for the actual saved form/page revision and refresh nati
  const pdf=await fetch((new URL(await page.locator('#download').getAttribute('href'),page.url())).href);assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,5).toString(),'%PDF-');
 });
 test('a rejected PDF automatic save blocks the read and preserves the local operation',async t=>{
- const {page,f,api,id}=await open(t);await page.locator('.page input').first().check();await page.locator('#rotate').click();f.states.get('alice').add('document.change');
- await assert.rejects(begin(page));assert.equal((await api('/documents/'+id)).document.revision,1);assert.ok(Math.abs(await page.locator('.pdf-page-surface').first().evaluate(node=>{const[w,h]=node.style.aspectRatio.split('/').map(Number);return w/h;})-200/240)<1e-5);await page.locator('#undo').click();assert.ok(Math.abs(await page.locator('.pdf-page-surface').first().evaluate(node=>{const[w,h]=node.style.aspectRatio.split('/').map(Number);return w/h;})-240/200)<1e-5);
+ const {page,f,api,id}=await open(t);await rotateFirstPage(page);await openFormFields(page);f.states.get('alice').add('document.change');
+ await assert.rejects(begin(page));assert.equal((await api('/documents/'+id)).document.revision,1);assert.ok(Math.abs(await page.locator('.pdf-page-surface').first().evaluate(node=>{const[w,h]=node.style.aspectRatio.split('/').map(Number);return w/h;})-200/240)<1e-5);await closeLayers(page);await page.locator('#undo').click();assert.ok(Math.abs(await page.locator('.pdf-page-surface').first().evaluate(node=>{const[w,h]=node.style.aspectRatio.split('/').map(Number);return w/h;})-240/200)<1e-5);
 });
 test('PDF refresh retains a concurrent focused form field',async t=>{
  const {page,api,id}=await open(t);const first=await begin(page),{document}=await api('/documents/'+id);
@@ -54,11 +54,12 @@ test('PDF refresh retains a concurrent focused form field',async t=>{
 test('a queued PDF save cannot replace a different document opened before it finishes',async t=>{
  const {page,api,id}=await open(t),{document}=await api('/documents/'+id);
  await page.waitForFunction(()=>[...document.querySelectorAll('.page img')].every(image=>image.complete));
- const second=await api('/documents',{source:document.model.pages[0].source,title:'Other PDF',requestKey:randomUUID()});await page.locator('#refresh').click();await page.getByRole('button',{name:'Other PDF',exact:true}).waitFor();
+ const second=await api('/documents',{source:document.model.pages[0].source,title:'Other PDF',requestKey:randomUUID()});
  let arrived,release;const seen=new Promise(resolve=>{arrived=resolve;}),gate=new Promise(resolve=>{release=resolve;});t.after(()=>release());
  await page.route('**/api/pdf-workbench/jobs/*',async route=>{const response=await route.fetch();arrived();await gate;await route.fulfill({response});});
- await page.locator('.page input').first().check();await page.locator('#rotate').click();const handoff=begin(page).then(value=>({value}),error=>({error:error.message}));await seen;
- await page.getByRole('button',{name:'Other PDF',exact:true}).click();await page.waitForFunction(()=>document.getElementById('document-title').textContent==='Other PDF');release();
+ await rotateFirstPage(page);await openFormFields(page);const handoff=begin(page).then(value=>({value}),error=>({error:error.message}));await seen;
+ await documentMenu(page,'Open…');await page.locator('dialog.ds-layer[open]').getByRole('button',{name:'Other PDF',exact:true}).click();
+ await page.locator('dialog.ds-confirm[open]').getByRole('button',{name:'Discard draft'}).click();await page.waitForFunction(()=>document.getElementById('document-title').textContent==='Other PDF');release();
  assert.match((await handoff).error,/open PDF or its draft changed/);assert.equal(await page.locator('#document-title').textContent(),'Other PDF');assert.equal((await begin(page)).recordId,second.document.id);
 });
 

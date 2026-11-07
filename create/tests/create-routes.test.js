@@ -9,6 +9,7 @@
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | Verify exact editable-template modules and their missing-package responses.
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Serve the Brand Kit page and its shared brand modules through the exact allowlist, with the same missing-package 404.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Verify PSD browser modules byte/MIME through the actual compiled Express router rather than a raw-static browser fixture.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Home's heading is now Continue creating (your work first); the byte-for-byte serve check reads that phrase.
  *
  * Node built-ins only; ephemeral loopback listeners.
  */
@@ -74,7 +75,7 @@ test('the home surface and the skin are served byte-for-byte from the installed 
     assert.equal(home.headers.get('cache-control'), 'no-store');
     const html = await home.text();
     assert.match(html, /<html lang="en" data-theme="create">/);
-    assert.match(html, /What will you create today\?/);
+    assert.match(html, /Continue creating/);
     assert.equal(html, fs.readFileSync(path.join(PKG, 'tools', 'create-home.html'), 'utf8'));
 
     const fresh = await fetch(base + '/new');

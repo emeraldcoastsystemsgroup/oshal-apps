@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise the actual brief editor and shared shell with catalog-checked editable handoffs and no generation.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | The design standard: one copy of each field (Title in the brief, Source link in Properties), the connected editors in ⋯ More, and the first pane named Saved.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,24 +33,25 @@ async function fixture(t,width=1280){
  const server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
  const context=await browser.newContext({viewport:{width,height:900}});t.after(async()=>{await context.close();server.closeAllConnections();await new Promise(done=>server.close(done));});
  const page=await context.newPage(),errors=[];page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));await page.goto('http://127.0.0.1:'+server.address().port+'/fixture');
- const frame=page.frameLocator('#studio');await frame.locator('.ef-shell').waitFor();await frame.getByRole('button',{name:'Save source',exact:true}).waitFor();await frame.locator('#records button').waitFor({state:'attached'});
+ const frame=page.frameLocator('#studio');await frame.locator('.ef-shell').waitFor();await frame.locator('.source-project-actions').waitFor();await frame.locator('#records button').waitFor({state:'attached'});
  return{page,frame,requests,errors};
 }
 test('shared brief properties update real source controls and an explicit handoff carries the edited source',async t=>{
  const{page,frame,requests,errors}=await fixture(t);
  await frame.getByRole('button',{name:'Use this evidence',exact:true}).click();
- const title=frame.locator('[data-editor-property="title"]');assert.equal(await title.inputValue(),'Saved title');await title.fill('Edited title');await title.press('Tab');
- assert.equal(await frame.locator('#title').inputValue(),'Edited title');await frame.locator('#notes').fill('Manual source for the receiving editor');
- await frame.getByRole('button',{name:'Edit brief as document',exact:true}).click();
+ assert.equal(await frame.locator('#title').inputValue(),'Saved title');assert.equal(await frame.locator('[data-editor-property="title"]').count(),0,'Title is edited in the brief only');
+ const link=frame.locator('[data-editor-property="sourceUrl"]');assert.equal(await link.inputValue(),'https://example.test/source');await link.fill('https://example.test/edited');await link.press('Tab');
+ assert.equal(await frame.locator('#sourceUrl').inputValue(),'https://example.test/edited');await frame.locator('#title').fill('Edited title');await frame.locator('#notes').fill('Manual source for the receiving editor');
+ await frame.getByRole('button',{name:'More',exact:true}).click();await frame.getByRole('menuitem',{name:'Edit brief as document',exact:true}).click();
  await page.waitForFunction(()=>window.navigations.length===1);
- const handoff=await page.evaluate(()=>window.handoffs[0]);assert.equal(handoff.offer,'prepare-document');assert.deepEqual(handoff.context,{title:'Edited title',notes:'Manual source for the receiving editor',sourceUrl:'https://example.test/source'});
+ const handoff=await page.evaluate(()=>window.handoffs[0]);assert.equal(handoff.offer,'prepare-document');assert.deepEqual(handoff.context,{title:'Edited title',notes:'Manual source for the receiving editor',sourceUrl:'https://example.test/edited'});
  assert.equal(requests.some(item=>item.method==='POST'),false);assert.deepEqual(errors,[]);
 });
 test('phone navigation and properties preserve the editable brief without overflowing the page',async t=>{
  const{frame,requests,errors}=await fixture(t,412);
- await frame.locator('.ef-tools').getByRole('button',{name:'Navigation',exact:true}).click();await frame.getByRole('button',{name:'Use this evidence',exact:true}).click();
+ await frame.locator('.ef-tools').getByRole('button',{name:'Saved',exact:true}).click();await frame.getByRole('button',{name:'Use this evidence',exact:true}).click();
  await frame.getByRole('button',{name:'Close navigation',exact:true}).click();await frame.locator('.ef-tools').getByRole('button',{name:'Properties',exact:true}).click();
- const title=frame.locator('[data-editor-property="title"]');await title.fill('Phone brief');await title.press('Tab');await frame.getByRole('button',{name:'Close inspector',exact:true}).click();
- assert.equal(await frame.locator('#title').inputValue(),'Phone brief');assert.equal(await frame.locator('#notes').inputValue(),'Saved source notes');assert.equal(await frame.locator('html').evaluate(el=>el.scrollWidth>innerWidth),false);
+ const link=frame.locator('[data-editor-property="sourceUrl"]');await link.fill('https://example.test/phone');await link.press('Tab');await frame.getByRole('button',{name:'Close inspector',exact:true}).click();
+ assert.equal(await frame.locator('#sourceUrl').inputValue(),'https://example.test/phone');assert.equal(await frame.locator('#title').inputValue(),'Saved title');assert.equal(await frame.locator('#notes').inputValue(),'Saved source notes');assert.equal(await frame.locator('html').evaluate(el=>el.scrollWidth>innerWidth),false);
  assert.equal(requests.some(item=>item.method==='POST'),false);assert.deepEqual(errors,[]);
 });

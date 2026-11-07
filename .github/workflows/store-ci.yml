@@ -72,6 +72,11 @@
 # 62 | maintainer@emeraldcoastsystemsgroup.com | Job `game-show` also runs its browser guards: tests/solo-night.test.js (one press starts a game against the computer, a reload keeps the seat, every control reads under a light theme) and tests/play-phone-layout.test.js. They ran nowhere before, so a broken stage could stay green here.
 # 63 | maintainer@emeraldcoastsystemsgroup.com | Job `store-ci-local` also runs scripts/revert-guard.test.mjs: the .githooks/commit-msg revert guard refuses a commit or merge that puts a file back to an older committed version of itself, proved with real git commands in a throwaway repository whose core.hooksPath is this .githooks.
 # 64 | maintainer@emeraldcoastsystemsgroup.com | Job `phone-control` (1.1.0, every control real or removed): its routes over real HTTP and SQLite, the honesty guard that goes red if a fake returns, the computer link's commands run by real bash and python3 in a throwaway home, and the bridge itself on a computer with no Bluetooth. The kernel-runner, real-adb and whole-chain proofs need a kernel checkout, a network or the OSHAL Node app and are registered in phone-control/tests/test-lab.yaml.
+# 65 | maintainer@emeraldcoastsystemsgroup.com | Job `media-concierges`: the movies and spotify packages' plain-node suites, which ran in no gate (grep of this file named neither). UX audit 2026-11-06: the Movie Concierge printed its raw JSON envelope and the Spotify connect card's Refresh did nothing visible; their regression guards, and the existing audience-view and kernel-egress suites, now run on every push.
+# 66 | maintainer@emeraldcoastsystemsgroup.com | Job `dnd` also runs tests/browser/dnd-theme-contrast.test.cjs: every text on the table (Dungeon Master drawer, status strip, HUD and More menu, dock, My Games) reads at 4.5:1 under each of the twenty themes. Under light-blue the drawer read 1.2:1 and no job measured it (UX audit 2026-11-06). It also runs tests/browser/dnd-ux-audit.test.cjs (the HUD, My Games, How to play, My Characters and TV Mode changes).
+# 67 | maintainer@emeraldcoastsystemsgroup.com | Job `game-show` also runs tests/ux-audit-surfaces.test.js: the clicker, stage, Host Desk and lobby changes of the 2026-11-06 UX audit (Help and You sheets, the 240px dome and full-width Answer, both teams above the dock on a phone, Join this game, the live answer key, Show setup, Voice off, Recent games).
+# 68 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs codex-packer's 1-click Inject permission-preview + publish_authored browser/unit contract (forge-inject.test.cjs) and person-model's Ambient Recall surface + empty/404 browser contract (person-model-surface.test.cjs).
+# 69 | maintainer@emeraldcoastsystemsgroup.com | Job `audio` runs Audio Studio 1.2.0 acceptance and host-process shim contracts (ADR-208 5-stage channel strip, BS.1770 -14 LUFS mastering, FFmpeg MP3 export, two-arm owner isolation, HTTP 206 byte ranges, and Kokoro TTS fail-closed behavior).
 
 name: store-ci
 
@@ -432,7 +437,7 @@ jobs:
           OSHAL_TEST_SEARCH: http://127.0.0.1:35690
         run: node --test "tests/*.test.cjs"
       - name: Ported platform packages declare something runnable
-        run: node --test intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs
+        run: node --test intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs codex-packer/tests/forge-inject.test.cjs person-model/tests/person-model-surface.test.cjs life/tests/home-summary.test.cjs
 
   store-ci-local:
     name: the local gate's own exit-code contract
@@ -517,6 +522,9 @@ jobs:
       - name: Run the phone layout browser suite
         working-directory: game-show
         run: node --test tests/play-phone-layout.test.js
+      - name: Run the UX audit surfaces browser suite
+        working-directory: game-show
+        run: node --test tests/ux-audit-surfaces.test.js
 
   dnd:
     name: dnd package suites
@@ -532,6 +540,17 @@ jobs:
       - name: Run dnd suites
         working-directory: dnd
         run: node --test "tests/*.test.js"
+      # The table is a dark set under every theme; this reads every text on it in Chromium under all twenty themes.
+      - name: Provide the pinned Store toolchain
+        run: npm ci --prefix scripts/toolchain
+      - name: Provide the dnd browser contract runtime
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Run the table contrast browser suite
+        working-directory: dnd
+        run: node --test tests/browser/dnd-theme-contrast.test.cjs
+      - name: Run the table UX audit browser suite
+        working-directory: dnd
+        run: node --test tests/browser/dnd-ux-audit.test.cjs
 
   eats:
     name: eats package suites
@@ -1368,3 +1387,32 @@ jobs:
       - name: Run the phone-control computer link and bridge suites
         working-directory: phone-control
         run: node --test "tests/phone-control-*.test.mjs"
+
+  media-concierges:
+    name: movies and spotify concierge surfaces and kernel egress
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Run the movies suites
+        working-directory: movies
+        run: node --test "tests/*.test.cjs"
+      - name: Run the spotify suites
+        working-directory: spotify
+        run: node --test "tests/*.test.cjs"
+
+  audio:
+    name: Audio Studio ADR-208 DSP, CAS, Forced-RLS and bridge contracts
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Run the audio suites
+        working-directory: audio
+        run: node --test "tests/*.test.cjs"

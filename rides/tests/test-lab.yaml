@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | The persona-approval case also expects a named trip asked to be prepared to get its card and a done card to point to its link (sweep 13).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register recent-distinct: Recent trips and the destination suggestions list each trip once, newest copy first (sweep 14: one row per Show rides).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register saved-places: home and work come from the rider's profile, a missing one is asked for, and a dropoff farther than a car ride is refused.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6 (UX audit 2026-11-06): register trips-view (?view=history opens Trips, Ride again fills and prices the planner, Swap re-prices, the fare basis line, one assistant entry, the page follows its theme); recent-distinct re-described for the three-place Search list.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -278,7 +279,8 @@ cases:
       files:
         - tests/rides-recent-distinct.test.js
     expected:
-      - Recent trips lists Pensacola International Airport once and Downtown Library once, newest first; the suggestions list the airport once.
+      - Recent trips lists Pensacola International Airport once and Downtown Library once, newest first.
+      - With nothing typed the Search list holds three places and More places and repeats no recent trip; typing finds the airport there once.
     prerequisites:
       - runner:node-test
       - dependency:playwright
@@ -309,4 +311,29 @@ cases:
       mode: disposable
     limits:
       timeoutMs: 30000
+    installation: never
+  - id: trips-view
+    name: The Trips tile opens Trips, and Ride again prices that trip
+    purpose: In Chromium at 412x915 the shipped page over a scripted /history and /estimate opens ?view=history as Trips, rebooks
+      a trip into the planner, and re-prices a swapped trip at once.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/rides-trips-view.test.js
+    expected:
+    - Trips lists one row per trip newest first with when, from → to and the estimate then; the planner is hidden.
+    - Ride again fills pickup and destination and sends one GET /estimate and no /request; the fare basis is one line with the note as tooltip.
+    - Swap sends a new /estimate at once; the manifest sets ribbon.hideAssistant and the page copies no parent tokens.
+    prerequisites:
+    - runner:node-test
+    - dependency:playwright
+    - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 120000
+      maxMemoryMb: 1024
     installation: never

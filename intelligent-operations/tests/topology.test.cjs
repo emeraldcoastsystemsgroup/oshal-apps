@@ -1,3 +1,4 @@
+// CHANGE LOG: ux audit topology | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Topology is the Graph view of Systems (List | Graph), and the scan and capture imports live on Sources.
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Exercise temporal topology through real SQL, native identities, bounded correlation and Kubernetes loader fixtures.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{spawnSync}=require('node:child_process');
@@ -107,7 +108,13 @@ test('the real Estate graph and Data correlation use saved SQL observations and 
   await post('/topology/scans',{sourceId:saved.id,scan:scan(1)});
   for(const item of [a,b]){const event=example();event.id=item.nativeId;event.data.resource={kind:'kubernetes-pod',scope:item.scope,id:item.nativeId};await post('/events',{sourceId:saved.id,event});}
   browser=await chromium.launch({headless:true});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base+'/api/intelligent-operations/app#estate');await page.getByText('Records refreshed',{exact:false}).waitFor();
+  await page.goto(base+'/api/intelligent-operations/app#estate');await page.locator('#status',{hasText:/^Updated /}).waitFor();
+  // UX audit 2026-11-06: Topology is the Graph view of Systems; one List | Graph control, and the imports live on Sources.
+  assert.equal(await page.locator('#estate .systems-views a[aria-selected=true]').textContent(),'Graph');
+  await page.locator('#estate .systems-views').getByRole('tab',{name:'List',exact:true}).click();await page.locator('#systems').waitFor({state:'visible'});
+  assert.equal(await page.locator('#systems .systems-views a[aria-selected=true]').textContent(),'List');assert.equal(await page.getByRole('link',{name:'Topology',exact:true}).count(),0);
+  assert.equal(await page.locator('#sources #scan-json').count(),1);assert.equal(await page.locator('#sources #capture-json').count(),1);assert.equal(await page.locator('#estate #scan-json').count(),0);
+  await page.locator('#systems .systems-views').getByRole('tab',{name:'Graph',exact:true}).click();await page.locator('#estate').waitFor({state:'visible'});
   await page.locator('#graph-at').fill(time(2));await page.getByRole('button',{name:'Load graph',exact:true}).click();
   await page.getByText('3 assets · 2 relationships',{exact:false}).waitFor();assert.equal(await page.locator('svg.topology-diagram').count(),1);
   assert.equal(await page.locator('.inventory-node').count(),3);

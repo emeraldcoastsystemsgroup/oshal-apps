@@ -15,6 +15,7 @@
   9 | maintainer@emeraldcoastsystemsgroup.com | Poll accepted manual scoring through the owner's actual run status and distinguish completion from an unavailable or unconfirmed result.
   10 | maintainer@emeraldcoastsystemsgroup.com | Offer Stop scoring only for the exact acknowledged run when native cancellation is available; keep stopping and final publication separate from completion.
   11 | maintainer@emeraldcoastsystemsgroup.com | Resume the tab's acknowledged score task after reload; current owner-scoped status remains authoritative over cached ids and limits.
+  13 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): a 3,200px column of 14 cards with seven Save buttons, two Remote checkboxes, and the matching preferences last. Settings is one home of sections (Matching first, then Target companies, Imports, Refresh and sources, Email and keys, Résumé and materials), each row opening its own page with a way back (#section addresses, so the browser's Back returns to the list). One "Remote jobs only" toggle replaces the two Remote checkboxes; preferences save on change with a "Saved" caption (imports and keys keep their own buttons, they are events); the administrator source configuration link is withheld from members (the companies route answers 403 for them); the hardcoded school and county directory is gone from the generic screen; controls are 44px with 16px text on touch; each explanation is one line with the rest under Help. Guard: tests/career-settings-home.test.mjs.
   12 | maintainer@emeraldcoastsystemsgroup.com | Show actual per-job preparation and exact-packet submission on managed installations; leave unsupported legacy digest and bulk toggles inactive without changing saved consent.
 -->
 <html lang="en" data-theme="midnight" data-career-surface="settings"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,6 +28,24 @@
 #linkedinJobsList{max-height:420px;overflow:auto}
 #linkedinJobsCsv{box-sizing:border-box;width:100%;min-height:110px;resize:vertical}
 #cancelScore[hidden]{display:none!important}
+/* UX audit 2026-11-06: one Settings home of sections. */
+.settings-home{list-style:none;margin:0 0 16px;padding:0;border:1px solid var(--ds-edge);border-radius:var(--ds-radius-l);background:var(--ds-surface);overflow:hidden}
+.settings-home li+li{border-top:1px solid var(--ds-hairline)}
+.settings-home a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:8px 16px;color:var(--ds-ink);text-decoration:none}
+.settings-home a:hover{background:var(--ds-surface-3)}
+.settings-home small{display:block;color:var(--ds-ink-2);font-size:13px;margin-top:2px}
+.settings-home a::after{content:"›";font-size:22px;color:var(--ds-ink-2)}
+html[data-settings-section] .settings-home, html[data-settings-section] .lede{display:none}
+html:not([data-settings-section]) [data-section], html:not([data-settings-section]) #sectionBack{display:none!important}
+#sectionBack{margin:0 0 12px}
+[data-saved]{margin-left:8px}
+.off-section{display:none!important}
+.card details.help{margin-top:6px;color:var(--ds-ink-2)}
+.card details.help>summary{min-height:44px;display:flex;align-items:center;cursor:pointer}
+input[type=text],input[type=password],input[type=number],select{min-height:44px}
+label:has(>input[type=checkbox]){display:inline-flex;align-items:center;gap:10px;min-height:44px}
+input[type=checkbox]{width:22px;height:22px}
+@media (pointer: coarse){input,select,textarea{font-size:16px!important}}
 .card[hidden],#nativeWorkflow[hidden]{display:none!important}
 @media (max-width: 640px) {
   .row { flex-direction: column; align-items: flex-start; }
@@ -40,21 +59,30 @@
 </head><body>
 <div class="wrap">
   <h1>Career Settings</h1>
-  <p class="lede">Manage job sources, refreshes, private imports and your matching preferences.</p>
+  <p class="lede">Your matching preferences, job sources, imports and connected keys.</p>
+  <ul class="settings-home" aria-label="Settings sections">
+    <li><a href="#matching" data-open="matching">Matching<small>Target titles, area and radius, remote jobs, nightly matches</small></a></li>
+    <li><a href="#companies" data-open="companies">Target companies<small>Employers you add to the nightly pull</small></a></li>
+    <li><a href="#imports" data-open="imports">Imports<small>LinkedIn saved jobs</small></a></li>
+    <li><a href="#refresh" data-open="refresh">Refresh and sources<small>Pull and score now, pull health, preparation</small></a></li>
+    <li><a href="#keys" data-open="keys">Email and keys<small>Application email updates, AI model, Firecrawl</small></a></li>
+    <li><a href="#materials" data-open="materials">Résumé and materials<small>Your résumé, work samples and other materials</small></a></li>
+  </ul>
+  <button type="button" class="ck-tertiary" id="sectionBack">‹ Settings</button>
 
-  <div class="card" id="sourceConfiguration">
+  <div class="card" id="sourceConfiguration" data-section="refresh">
     <h2>Sources &amp; pull health</h2>
     <p class="hint">Review each employer's careers address, supported job board and last pull result. Add your own careers URLs under Target companies below. Source failures stay separate from a successful refresh.</p>
     <div class="row">
       <a class="btn" href="/api/career-hunter/search-ui">Open jobs &amp; map</a>
-      <a class="btn" href="/api/career-hunter/companies-admin">Source configuration &amp; pull health (administrator)</a>
-      <a class="btn" href="#targetUrl">Your target companies</a>
+      <a class="btn" id="adminSources" href="/api/career-hunter/companies-admin" hidden>Source configuration &amp; pull health (administrator)</a>
+      <a class="btn" href="#companies" data-open="companies">Your target companies</a>
     </div>
     <p class="hint" id="refreshHealth" role="status">Checking refresh status…</p>
     <button type="button" class="btn" id="checkRefreshHealth">Check refresh status</button>
   </div>
 
-  <div class="card" id="linkedinJobs">
+  <div class="card" id="linkedinJobs" data-section="imports">
     <h2>LinkedIn saved jobs · private to you</h2>
     <p class="hint">Save matches you like on LinkedIn, then request your <b>Saved Jobs</b> data from
       <a href="https://www.linkedin.com/help/linkedin/answer/a1339364" target="_blank" rel="noopener">LinkedIn's data download</a>.
@@ -71,14 +99,14 @@
     <div id="linkedinJobsList"></div>
   </div>
 
-  <div class="card" id="communitySources">
+  <div class="card" id="communitySources" hidden>
     <h2>Schools, colleges &amp; community employers</h2>
     <p class="hint">Local public employers often use separate hiring systems. Open their official vacancies below or add a supported feed to your targets. A linked careers page alone does not mean its jobs have been imported.</p>
     <div id="communitySourceList" class="hint">Loading source directory…</div>
     <p id="communitySourceStatus" class="hint" role="status"></p>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="keys">
     <h2>AI model</h2>
     <p class="hint">Job scoring and résumé/cover writing use your <b>default OSHAL LLM</b>, the AI model this installation runs — no separate key needed here. Manage the connection in <a href="/utilities" target="_top">Utilities &amp; Connectors</a>.</p>
     <div class="row">
@@ -86,7 +114,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="keys">
     <h2>Firecrawl (optional)</h2>
     <p class="hint">A Firecrawl API key enables richer web search for finding recruiters and careers pages. Only used if you enter one.</p>
     <div class="row">
@@ -97,7 +125,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="refresh">
     <h2>Refresh</h2>
     <p class="hint">The shared pull refreshes job listings and their keyword index. Score fresh now checks openings from the last seven days against your saved target titles and matching area, including teaching and support roles. Review Sources &amp; pull health for individual employer outcomes.</p>
     <div class="row">
@@ -109,7 +137,7 @@
     </div>
   </div>
 
-  <div class="card" id="operationAvailability">
+  <div class="card" id="operationAvailability" data-section="refresh">
     <h2>Job preparation &amp; submission</h2>
     <p class="hint" id="operationModeStatus" role="status">Checking available automation controls…</p>
     <div id="nativeWorkflow" hidden>
@@ -118,7 +146,7 @@
     </div>
   </div>
 
-  <div class="card" id="legacyDigest" hidden>
+  <div class="card" id="legacyDigest" data-section="keys" hidden>
     <h2>Daily digest</h2>
     <p class="hint">Once a day, OSHAL checks for new high-fit matches and sends them to you over <b>your own connected channel</b> — email from your Gmail, or a text from your Twilio. On by default; nothing is sent on days with no new matches, and never more than once a day.</p>
     <div class="row">
@@ -128,13 +156,14 @@
     </div>
     <div class="row">
       <input type="text" id="digestPhone" placeholder="+15551234567 (for the text channel)">
-      <button class="btn primary" id="digestSave">Save digest settings</button>
+      <button class="btn primary" id="digestSave" hidden>Save digest settings</button>
+      <span class="ck-saved" data-saved="digest" role="status"></span>
       <button class="btn" id="digestPreview">Preview today's digest</button>
     </div>
     <div id="digestOut" class="hint" style="white-space:pre-wrap"></div>
   </div>
 
-  <div class="card" id="legacyAutomation" hidden>
+  <div class="card" id="legacyAutomation" data-section="refresh" hidden>
     <h2>Automation</h2>
     <p class="hint"><b>Off unless you turn it on.</b> With automation off, OSHAL never generates
     application drafts or queues submissions on its own — the nightly run leaves your queue
@@ -150,11 +179,17 @@
     </div>
     <div class="row">
       <span id="autoState" class="pill-no">Checking…</span>
-      <button class="btn primary" id="autoSave">Save automation settings</button>
+      <button class="btn primary" id="autoSave" hidden>Save automation settings</button>
+      <span class="ck-saved" data-saved="auto" role="status"></span>
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="materials">
+    <h2>Your résumé</h2>
+    <p class="hint">Upload or edit your résumé in Resume Studio.</p>
+    <a class="btn" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">Open Resume Studio</a>
+  </div>
+  <div class="card" data-section="materials">
     <h2>Add career materials</h2>
     <p class="hint">Upload more than a résumé — work samples, exported job emails, a LinkedIn <b>“Download your data”</b> archive, or a status report. OSHAL reads them and adds what you actually do to your profile. Add-only: nothing already in your profile is overwritten.</p>
     <div class="row">
@@ -172,7 +207,7 @@
     <div id="artOut" class="hint" style="white-space:pre-wrap"></div>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="matching" hidden>
     <h2>Remote only</h2>
     <p class="hint">When this is on, the <b>automated match</b> considers only postings the feed flags as remote: the nightly AI scoring pass skips on-site roles (so no tokens are spent on jobs you would not take), your digest carries remote roles only, and your job board defaults to remote. The Job Search screen keeps its own Any / Remote / On-site pills, and an explicit pill always wins.</p>
     <div class="row">
@@ -180,12 +215,12 @@
     </div>
     <div class="row">
       <label class="hint"><input type="checkbox" id="remoteOnly"> Match remote roles only</label>
-      <button class="btn primary" id="remoteSave">Save</button>
+      <button class="btn primary" id="remoteSave" hidden>Save</button>
     </div>
     <div id="remoteOut" class="hint"></div>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="matching">
     <h2>Target titles</h2>
     <p class="hint">On top of the keyword prefilter, OSHAL runs a daily <b>title pass</b> that AI-scores roles whose titles match <b>your</b> target list — so your best-fit roles surface even when the keyword score misses them. It considers jobs posted in the last 7 days (or first seen this week when the feed has no posted date). Seeded from your uploaded resume; edit any time (comma-separated). Each run is capped, and it runs at most once a day.</p>
     <div class="row">
@@ -193,7 +228,8 @@
     </div>
     <div class="row">
       <input type="text" id="titleTerms" placeholder="e.g. SAP Architect, Basis Administrator, Platform Engineer">
-      <button class="btn primary" id="titleSave">Save titles</button>
+      <button class="btn primary" id="titleSave" hidden>Save titles</button>
+      <span class="ck-saved" data-saved="titles" role="status"></span>
       <label class="hint" for="titleLimit">Jobs this pass</label>
       <input type="number" id="titleLimit" min="1" max="150" step="1" value="25" style="width:80px">
       <button class="btn" id="titleRun">Run title pass now</button>
@@ -206,8 +242,10 @@
       <input type="text" id="scopeNear" placeholder="City, ST or ZIP">
       <label for="scopeRadius">Radius (miles)</label>
       <input type="number" id="scopeRadius" min="1" max="250" value="70" style="width:80px">
-      <label><input type="checkbox" id="scopeRemote" checked> Include remote jobs</label>
-      <button class="btn primary" id="scopeSave">Save matching area</button>
+      <input type="checkbox" id="scopeRemote" checked hidden>
+      <label><input type="checkbox" id="remoteJobsOnly"> Remote jobs only</label>
+      <button class="btn primary" id="scopeSave" hidden>Save matching area</button>
+      <span class="ck-saved" data-saved="scope" role="status"></span>
     </div>
     <div id="scopeOut" class="hint" role="status"></div>
     <h3>Nightly resume matches</h3>
@@ -221,7 +259,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="keys">
     <h2>Application email updates</h2>
     <p class="hint">Check your connected submission mailbox every 15 minutes for acknowledgements, interviews, offers and rejections that match an application on your board. This reads email; it sends no messages or job applications. Enable it again here if an application update pauses the routine for review.</p>
     <div id="mailJobState" class="hint" role="status">Checking email monitor…</div>
@@ -232,7 +270,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" data-section="companies">
     <h2>Target companies (your list)</h2>
     <p class="hint">The shared company list is the portal's — an admin curates it under <b>Companies</b>. This is <b>your</b> extension of it: paste an employer's careers or jobs URL and OSHAL adds that employer to the nightly scrape. A URL is accepted only when it matches a supported job board (Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Workday, iCIMS, Eightfold and the other boards the engine reads); anything else is rejected and not stored.</p>
     <div class="row">
@@ -417,6 +455,7 @@ async function refreshRemoteOnly(){
   const s = await fetch(API+'/title-profile/state').then(r=>r.json()).catch(()=>({}));
   const on = s.remoteOnly === true;
   $('#remoteOnly').checked = on;
+  const one = $('#remoteJobsOnly'); if (one) one.checked = on;
   $('#remoteState').className = on ? 'pill-ok' : 'pill-no';
   $('#remoteState').textContent = on
     ? '● Remote only — on-site roles are not scored, digested, or shown on your board'
@@ -586,6 +625,41 @@ $('#targetAdd').onclick = async()=>{
   else { o.textContent='Failed: '+(r.error||'unknown'); toast('Failed'); }
   refreshTargets(); setTimeout(refreshTargets, 8000); setTimeout(refreshTargets, 30000);
 };
+/* ── UX audit 2026-11-06: one Settings home, save on change, one Remote toggle ─────────────── */
+const SECTIONS=['matching','companies','imports','refresh','keys','materials'];
+function showSection(){
+  const id=location.hash.slice(1), on=SECTIONS.includes(id);
+  if(on) document.documentElement.dataset.settingsSection=id; else delete document.documentElement.dataset.settingsSection;
+  document.querySelectorAll('[data-section]').forEach(card=>card.classList.toggle('off-section',on&&card.dataset.section!==id));
+  if(on) window.scrollTo({top:0});
+}
+window.addEventListener('hashchange',showSection);
+$('#sectionBack').onclick=()=>{ history.replaceState(null,'',location.pathname+location.search); showSection(); };
+/* Save on change with a quiet "Saved" caption (§5.5); imports and keys keep their buttons, they are events. */
+function savedCaption(key,ok){ const el=document.querySelector('[data-saved="'+key+'"]'); if(el){ el.textContent=ok?'Saved':'Not saved'; clearTimeout(el._t); el._t=setTimeout(()=>{el.textContent='';},4000); } }
+function saveOnChange(ids,button,key){
+  ids.forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('change',async()=>{ try{ await $('#'+button).onclick(); savedCaption(key,true); }catch(_){ savedCaption(key,false); } }); });
+}
+saveOnChange(['titleTerms'],'titleSave','titles');
+saveOnChange(['scopeNear','scopeRadius'],'scopeSave','scope');
+saveOnChange(['digestEnabled','digestPhone'],'digestSave','digest');
+saveOnChange(['autoGenerate','autoSubmit'],'autoSave','auto');
+$('#remoteJobsOnly').addEventListener('change',async()=>{
+  $('#remoteOnly').checked=$('#remoteJobsOnly').checked; $('#scopeRemote').checked=true;
+  try{ await saveRemoteOnly(); savedCaption('scope',true); }catch(_){ savedCaption('scope',false); }
+});
+/* Administrator rows: the companies route answers 403 to a member, so the link is shown only to an administrator. */
+fetch(API+'/companies-admin',{headers:{Accept:'application/json'},cache:'no-store'}).then(r=>{ $('#adminSources').hidden=!r.ok; }).catch(()=>{});
+/* Each explanation is one line; the rest is under Help. */
+document.querySelectorAll('.card > p.hint:first-of-type').forEach(p=>{
+  const text=p.textContent.trim(), cut=text.search(/[.!?](\s|$)/);
+  if(text.length<=140||cut<0||cut>=text.length-2) return;
+  const more=document.createElement('details'); more.className='help'; more.innerHTML='<summary>Help</summary>';
+  const rest=document.createElement('p'); rest.className='hint'; rest.innerHTML=p.innerHTML; more.append(rest);
+  p.textContent=text.slice(0,cut+1); p.after(more);
+});
+document.querySelectorAll('a[data-career-tool]').forEach(a=>a.addEventListener('click',e=>{ if(window.parent===window||!window.CareerJobActions) return; e.preventDefault(); CareerJobActions.navigate(a.dataset.careerTool,a.href); }));
+showSection();
 refreshState();
 refreshRemoteOnly();
 refreshTitles();
@@ -594,4 +668,5 @@ refreshMailJob();
 refreshTargets();
 </script>
 <script src="/api/career-hunter/static/career-settings-support.js"></script>
+<script src="/api/career-hunter/static/career-job-actions.js"></script>
 </body></html>

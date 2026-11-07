@@ -43,6 +43,12 @@
   opens the walkthrough from GET /markets/:ticker (price vs calibrated chance, fee, net edge, evidence, book, flags, sizing);
   Look up reads any ticker live; Ask the quant posts the market's question to the host rail as an app-ask message, where this
   application's own concierge (kalshi-quant) answers it. Guard: tests/kalshi-quant-contract.test.js.
+  2026-11-06 — UX audit (kalshi--kalshi-home), layout only: the header names the Kalshi account's own state ("Kalshi
+  account not connected · paper mode" when the portfolio read answers 409) beside the exchange line instead of leaving a
+  green "trading active" alone; an old calibration table or scan is one warning chip with Scan now; on a phone the
+  views are a bottom bar (Markets · Scan · Account · Scorecard · More with Trends, Alerts, Settings); a market's title
+  shows once with its ticker as meta, two lines on a phone with Why in the row; 50 rows then Show more; the Why panel
+  dates a verdict from the scan; the ticker lookup is a 44px field beside the search. No order, scan or request changed.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -343,14 +349,52 @@
 /* Phone: a table keeps its columns and scrolls sideways inside its own box; the page never scrolls sideways. Only here,
    because on a desktop the box would become the sticky header's scroll container. */
 @media(max-width:640px){.tbl-scroll,.viz-table{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
-.set-grid{grid-template-columns:minmax(0,1fr)}.set-grid .locked{text-align:left}}</style>
+.set-grid{grid-template-columns:minmax(0,1fr)}.set-grid .locked{text-align:left}}
+/* UX audit 2026-11-06: the account line, one stale chip, the ticker lookup as a 44px field, Show more, the More menu
+   (phone: a bottom bar Markets · Scan · Account · Scorecard · More) and two-line market rows on a phone. */
+.acct.is-warn { color: var(--amber); font-weight: 600; } .acct.is-ok { color: var(--green); }
+.chip-warn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--amber); border-radius: 999px; padding: 2px 4px 2px 12px; font-size: 12px; color: var(--text); background: var(--panel); }
+.chip-warn[hidden] { display: none; }
+.chip-warn button { min-height: 32px; padding: 0 12px; border-radius: 999px; }
+#mk-ticker, #mk-q { min-height: 44px; padding: 0 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+.mk-lookup button { min-height: 44px; }
+.mk-more { display: flex; justify-content: center; margin: 12px 0; }
+.mk-more button { min-height: 44px; padding: 0 18px; }
+.more-tab { display: none; }
+.more-menu[popover] { margin: 0; inset: auto 12px calc(64px + env(safe-area-inset-bottom, 0px)) auto; min-width: 200px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); }
+.more-menu button { display: block; width: 100%; min-height: 44px; text-align: left; padding: 0 14px; background: none; border: 0; color: var(--text); }
+@media (max-width: 640px) {
+  .tabnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; flex-wrap: nowrap !important; height: calc(56px + env(safe-area-inset-bottom, 0px)); padding: 0 72px env(safe-area-inset-bottom, 0px) 4px !important;
+    background: var(--panel); border-top: 1px solid var(--border); }
+  .tab.overflow { display: none; }
+  .tab, .more-tab { flex: 1; justify-content: center; min-height: 56px; padding: 0 2px !important; font-size: 12px; border-bottom: 0; border-top: 2px solid transparent; }
+  .more-tab { display: inline-flex; align-items: center; background: none; border: 0; border-top: 2px solid transparent; border-radius: 0; color: var(--dim); font-weight: 600; }
+  .tab.active, .more-tab.active { border-top-color: var(--blue); color: var(--text); }
+  .tab-badge { display: none !important; }
+  main { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  #mk-tbl thead { display: none; }
+  #mk-tbl, #mk-tbl tbody { display: block; }
+  #mk-tbl tr[data-ticker] { display: grid; grid-template-columns: repeat(3, auto) 1fr auto; gap: 2px 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  #mk-tbl tr[data-ticker] td { border: 0; padding: 0; }
+  #mk-tbl tr[data-ticker] td.mk-title { grid-column: 1 / -1; }
+  #mk-tbl tr[data-ticker] td:nth-child(2), #mk-tbl tr[data-ticker] td:nth-child(5) { display: none; }
+  #mk-tbl tr[data-ticker] td:last-child button { min-height: 44px; min-width: 56px; }
+  #mk-tbl tr.why-row { display: block; } #mk-tbl tr.why-row td { display: block; }
+  .mk-lookup { flex: 1 1 100%; } .mk-lookup input { flex: 1; } #mk-q { flex: 1 1 100%; }
+}
+  /* UX audit 2026-11-06 follow-up: the theme's card tone is translucent (light-blue --bg-card is 62% white), so every bar,
+     sheet, menu and dialog this page added is that tone laid over the opaque page colour: nothing shows through (R3, R5). */
+.more-menu[popover], .chip-warn { background: linear-gradient(var(--panel), var(--panel)), var(--bg, #0d1117); }
+@media (max-width: 640px) { .tabnav { background: linear-gradient(var(--panel), var(--panel)), var(--bg, #0d1117) !important; } }
+</style>
 </head>
 <body>
 <div class="topbar">
   <header>
     <h1>Kalshi <span class="meta">— predictive edge scan</span></h1>
     <span class="meta"><span class="dot" id="exch-dot" style="background:var(--dim)"></span><span id="exch-label">exchange…</span></span>
-    <span class="meta" id="calib-label"></span>
+    <span class="meta" id="acct-label" role="status"></span>
+    <span class="chip-warn" id="stale-chip" hidden><span id="calib-label"></span><span id="scan-age"></span><button type="button" id="chip-scan-now">Scan now</button></span>
     <span class="spacer"></span>
     <span id="hdr-env"></span>
   </header>
@@ -359,10 +403,16 @@
     <button class="tab" data-tab="scan" role="tab" aria-selected="false">Scan <span class="tab-badge" id="badge-scan"></span></button>
     <button class="tab" data-tab="account" role="tab" aria-selected="false">Account <span class="tab-badge" id="badge-account"></span></button>
     <button class="tab" data-tab="scorecard" role="tab" aria-selected="false">Scorecard <span class="tab-dot" id="dot-scorecard" title="strategy status"></span></button>
-    <button class="tab" data-tab="trends" role="tab" aria-selected="false">Trends</button>
-    <button class="tab" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="tab-badge" id="badge-alerts"></span></button>
-    <button class="tab" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+    <button class="tab overflow" data-tab="trends" role="tab" aria-selected="false">Trends</button>
+    <button class="tab overflow" data-tab="alerts" role="tab" aria-selected="false">Alerts <span class="tab-badge" id="badge-alerts"></span></button>
+    <button class="tab overflow" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+    <button class="more-tab" type="button" id="tab-more" aria-haspopup="menu" popovertarget="more-menu">More</button>
   </nav>
+  <div id="more-menu" class="more-menu" popover role="menu" aria-label="More views">
+    <button type="button" role="menuitem" data-more="trends">Trends</button>
+    <button type="button" role="menuitem" data-more="alerts">Alerts</button>
+    <button type="button" role="menuitem" data-more="settings">Settings</button>
+  </div>
 </div>
 <main>
   <!-- Persistent state warning: shown on every tab when the default connection is the live account,
@@ -379,6 +429,7 @@
   <section class="tab-panel" data-panel="markets" role="tabpanel">
     <div class="toolbar">
       <input type="search" id="mk-q" placeholder="search markets…" aria-label="Search markets">
+      <form id="mk-lookup" class="mk-lookup"><input id="mk-ticker" placeholder="look up any ticker…" aria-label="Kalshi ticker" maxlength="80"><button type="submit">Look up</button></form>
       <select id="mk-cat" aria-label="Category"><option value="">all categories</option></select>
       <select id="mk-verdict" aria-label="Verdict">
         <option value="all">every verdict</option>
@@ -394,8 +445,6 @@
       </select>
       <button id="mk-refresh" type="button">Refresh</button>
       <span class="meta" id="mk-counts"></span>
-      <span class="spacer"></span>
-      <form id="mk-lookup" class="mk-lookup"><input id="mk-ticker" placeholder="look up any ticker…" aria-label="Kalshi ticker" maxlength="80"><button type="submit">Look up</button></form>
     </div>
     <div class="warn" id="mk-empty" style="display:none;font-size:12px;padding:10px 12px;margin-bottom:12px"></div>
     <div class="tbl-scroll"><table id="mk-tbl" style="display:none">
@@ -404,6 +453,7 @@
       </tr></thead>
       <tbody id="mk-rows"></tbody>
     </table></div>
+    <div class="mk-more"><button type="button" id="mk-more" hidden>Show more</button></div>
     <div id="mk-error" style="display:none"></div>
   </section>
 
@@ -643,6 +693,7 @@
       tabs[i].classList.toggle('active', on);
       tabs[i].setAttribute('aria-selected', on ? 'true' : 'false');
     }
+    var more = $('tab-more'); if (more) more.classList.toggle('active', ['trends', 'alerts', 'settings'].indexOf(name) >= 0);
     var panels = document.querySelectorAll('.tab-panel');
     for (var j = 0; j < panels.length; j++) {
       panels[j].hidden = panels[j].getAttribute('data-panel') !== name;
@@ -823,6 +874,7 @@
         $('exch-dot').style.background = exch.color;
         $('exch-label').textContent = exch.label;
         $('calib-label').textContent = calibrationLabel(p.calibrationGeneratedAt, Date.now());
+        renderStaleChip(p, Date.now());
         var cats = {}; state.hands.forEach(function (h) { cats[h.category] = 1; });
         var sel = $('f-cat'), cur = sel.value; sel.innerHTML = '<option value="">all categories</option>';
         Object.keys(cats).sort().forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
@@ -1115,12 +1167,31 @@
       .then(function (s) { state.status = s; })
       .catch(function () { state.status = null; });
   }
+  /** The account in the header (UX audit 2026-11-06): a failing portfolio read is named with its fix, never hidden behind
+   *  a green exchange line. 409 is the route's "no Kalshi connection"; anything else keeps the route's own words. */
+  function accountLine(p, err) {
+    if (p) return { tone: 'ok', text: 'Kalshi account connected' + (p.env ? ' \u00b7 ' + (p.env === 'demo' ? 'demo (paper)' : 'live') : '') };
+    if (!err) return { tone: '', text: '' };
+    if (err.status === 409 || err.status === 401) return { tone: 'warn', text: 'Kalshi account not connected \u00b7 paper mode \u00b7 paste your API key on the Connections page' };
+    return { tone: 'warn', text: 'Kalshi account could not be read: ' + err.message };
+  }
+  function renderAccountLine(p, err) {
+    var a = accountLine(p, err), el = $('acct-label'); if (!el) return;
+    el.textContent = a.text; el.className = 'meta acct' + (a.tone ? ' is-' + a.tone : '');
+  }
+  /** One warning chip when the calibration table is over 30 days old or the last scan over a day old, with Scan now. */
+  function renderStaleChip(p, nowMs) {
+    var cal = Date.parse(p && p.calibrationGeneratedAt), scan = Date.parse(p && p.generatedAt), day = 86400000;
+    var calOld = isFinite(cal) && (nowMs - cal) > 30 * day, scanOld = !isFinite(scan) || (nowMs - scan) > day;
+    $('stale-chip').hidden = !(calOld || scanOld);
+    $('scan-age').textContent = isFinite(scan) ? ' \u00b7 last scan ' + new Date(scan).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ' \u00b7 no scan yet';
+  }
   function loadPortfolio() {
     $('pf-refresh').disabled = true;
     return fetch('/api/kalshi/portfolio', { credentials: 'same-origin' })
-      .then(function (r) { if (!r.ok) return r.json().then(function (b) { throw new Error(b.error || ('HTTP ' + r.status)); }); return r.json(); })
-      .then(function (p) { state.portfolio = p; renderPortfolio(); render(); })
-      .catch(function () { state.portfolio = null; renderPortfolio(); render(); })
+      .then(function (r) { if (!r.ok) return r.json().then(function (b) { var e = new Error(b.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }, function () { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }); return r.json(); })
+      .then(function (p) { state.portfolio = p; renderAccountLine(p, null); renderPortfolio(); render(); })
+      .catch(function (e) { state.portfolio = null; renderAccountLine(null, e); renderPortfolio(); render(); })
       .then(function () { $('pf-refresh').disabled = false; });
   }
   function cancelOrder(orderId, btn) {
@@ -1216,9 +1287,17 @@
       (m.side ? ' <span class="side-' + esc(m.side) + '">' + esc(String(m.side).toUpperCase()) + '</span>' : '') +
       (isFinite(edge) ? ' <span class="' + (edge > 0 ? 'edge-pos' : 'meta') + '">' + (edge >= 0 ? '+' : '') + esc(cents(edge)) + '</span>' : '');
   }
+  /** The title once: the scan joins a market's title and subtitle with " — ", and for most sports markets the subtitle
+   *  repeats the title ("Ferencvarosi wins by more than 2.5 goals? — Ferencvarosi wins by more than 2.5 goals"). */
+  function onceTitle(t) {
+    var norm = function (x) { return String(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }, kept = [];
+    String(t || '').split(' \u2014 ').forEach(function (part) { if (part && !kept.some(function (k) { return norm(k) === norm(part); })) kept.push(part); });
+    return kept.join(' \u2014 ');
+  }
+  var MK_PAGE = 50;
   function mkRow(m) {
     var tr = document.createElement('tr'); tr.setAttribute('data-ticker', m.ticker);
-    tr.innerHTML = '<td><div class="title">' + esc(clipText(m.title || m.ticker, 110)) + '</div><div class="ticker">' + esc(m.ticker) + '</div></td>' +
+    tr.innerHTML = '<td class="mk-title"><div class="title">' + esc(clipText(onceTitle(m.title) || m.ticker, 110)) + '</div><div class="ticker">' + esc(m.ticker) + '</div></td>' +
       '<td class="meta">' + esc(m.category || '—') + '</td>' +
       '<td class="num">' + esc(cents(Number(m.yesAsk) || 0)) + '</td><td class="num">' + esc(cents(Number(m.noAsk) || 0)) + '</td>' +
       '<td class="num">' + esc(String(Math.round(Number(m.volume) || 0))) + '</td>' +
@@ -1232,13 +1311,18 @@
   }
   function renderMarkets() {
     var tb = $('mk-rows'); tb.innerHTML = '';
-    mk.rows.forEach(function (m) { tb.appendChild(mkRow(m)); });
+    mk.rows.slice(0, mk.shown).forEach(function (m) { tb.appendChild(mkRow(m)); });
+    $('mk-more').hidden = mk.rows.length <= mk.shown;
+    $('mk-more').textContent = 'Show more (' + Math.min(MK_PAGE, mk.rows.length - mk.shown) + ' of ' + (mk.rows.length - mk.shown) + ' left)';
     $('mk-tbl').style.display = mk.rows.length ? '' : 'none';
     $('mk-empty').style.display = mk.rows.length ? 'none' : '';
   }
   function whyBox(r) {
     var w = r.why || {}, box = document.createElement('div'); box.className = 'why-box';
-    var h = '<b>' + esc(w.headline || '') + '</b>' + (r.source === 'live' ? ' <span class="meta">(read live from Kalshi; not in the last scan)</span>' : '') + '<ul>';
+    // A verdict from the scan was judged at that scan's time; say when, beside the live book line (UX audit 2026-11-06).
+    var at = r.source !== 'live' && mk.generatedAt ? new Date(mk.generatedAt) : null;
+    var when = at && isFinite(at.getTime()) ? '<span class="meta">At the ' + esc(at.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })) + ' scan:</span> ' : '';
+    var h = when + '<b>' + esc(w.headline || '') + '</b>' + (r.source === 'live' ? ' <span class="meta">(read live from Kalshi; not in the last scan)</span>' : '') + '<ul>';
     (w.reasons || []).forEach(function (line) { h += '<li>' + esc(line) + '</li>'; });
     box.innerHTML = h + '</ul>';
     var actions = document.createElement('div'); actions.className = 'why-actions';
@@ -1273,7 +1357,7 @@
   function loadMarkets() {
     $('mk-error').style.display = 'none';
     return mkJson('/markets?' + mkParams()).then(function (b) {
-      mk.rows = b.markets || [];
+      mk.rows = b.markets || []; mk.shown = MK_PAGE; mk.generatedAt = b.generatedAt || null;
       var sel = $('mk-cat'), cur = sel.value; sel.innerHTML = '<option value="">all categories</option>';
       (b.categories || []).forEach(function (c) { var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
       sel.value = cur;
@@ -1309,6 +1393,11 @@
   $('mk-sort').addEventListener('change', loadMarkets);
   $('mk-refresh').addEventListener('click', function () { mk.why = {}; loadMarkets(); });
   $('mk-lookup').addEventListener('submit', lookupMarket);
+  $('mk-more').addEventListener('click', function () { mk.shown += MK_PAGE; renderMarkets(); });
+  document.querySelectorAll('#more-menu [data-more]').forEach(function (b) {
+    b.addEventListener('click', function () { var menu = $('more-menu'); if (menu.hidePopover) menu.hidePopover(); activateTab(b.getAttribute('data-more')); });
+  });
+  $('chip-scan-now').addEventListener('click', function () { $('scan-now').click(); });
 
   // Tab clicks.
   var tabEls = document.querySelectorAll('.tab');

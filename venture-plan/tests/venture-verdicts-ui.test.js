@@ -17,6 +17,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Sell-through headroom is headroom; the plan's landed cost, factory cost and run are read from the figure registry and the inversion answer; stored "[severity] where: message" warnings count as issues; the posture strip counts the guessed figures and the unregistered inputs the page shows.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The sell-through row's plan side is the share the plan's demand sells, min(demand.units, planned run) / planned run, not a fixed 100%: the package engine's own fixture with conservative demand 400 on a 1,000 run loses $5,469.34, needs 51.1% and sells 40%, and the row printed "+48.9% headroom". A threshold above 100% reads "impossible"; a missing demand or run figure shows no plan value instead of a made-up one.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Step 4 with documents stored and a model that will not publish says the documents are rendered and marked not publishable until the blockers clear; live it said "must clear before a document renders" while all 17 documents opened.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3, UX audit venture-plan--venture-home: renderHeader also records the one status line's parts (posture, guessed figures, quoted assumptions, unsourced inputs, publish state) in S.statusParts, the same counts the posture tiles under the info button show.
  */
 'use strict';
 
@@ -166,6 +167,8 @@ test('the header and the stage strip agree with the issues and the guessed chips
   // bom.final-assembly.cost, landed.freight.container-rate and market.demand.base-units are named by figures and
   // registered by no assumption.
   assert.match(els.posture.innerHTML, /Unsourced inputs<\/div><div class="v nums">3</);
+  // The status line under the venture name says the same counts in one sentence.
+  assert.deepEqual(S.statusParts, { posture: 'ESTIMATE', soft: 3, computed: 4, quoted: 0, ledger: ASSUMPTIONS.length, unsourced: 3, publish: 'bad' });
   fns.renderStages();
   assert.match(els.stages.innerHTML, /1 blocking issue\(s\) must clear before a document renders: model:traceability/);
   // With documents stored they are there to open: Step 4 says so and names what keeps them from publishing.

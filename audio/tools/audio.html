@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<!--
+  CHANGE LOG
+  1 | maintainer@emeraldcoastsystemsgroup.com | OSHAL Audio Studio 3-pane multitrack workbench conforming to surface-themes.css, table.js, and oshal-surface-bridge.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Apply crisp-glass design standard: single primary CTA, zero emoji SVG icons, mobile pane switcher, ADR-208 formula macros, and Cockpit concierge handoff.
+-->
+<html lang="en" data-theme="midnight">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Studio — Multitrack Mixing Console</title>
+  <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+  <link rel="stylesheet" href="/api/audio/audio.css">
+  <script src="/shared/ui/js/surface-theme.js"></script>
+  <script src="/ui/kernel/table.js" defer></script>
+</head>
+<body data-mobile-pane="center">
+  <main class="wb">
+    <header class="wb-bar" id="oshal-studio-navbar">
+      <div class="wb-bar-left">
+        <button id="btn-nav-create-home" class="btn ghost nav-back" type="button" title="Return to Create Studios">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Create Home</span>
+        </button>
+        <div class="wb-brand">
+          <span class="kicker">Audio Studio</span>
+          <h1 id="project-title">Studio Arrangement</h1>
+        </div>
+        <span id="revision-badge" class="rev-pill">Rev 1</span>
+      </div>
+
+      <div class="actions">
+        <select id="select-project-list" class="nav-select" aria-label="Owned Audio Projects">
+          <option value="">Unsaved Session</option>
+        </select>
+        <input type="text" id="input-project-title" class="nav-input" value="Studio Arrangement" data-bridge-field="projectTitle" aria-label="Project Title">
+        <button id="btn-save-project" class="btn secondary" type="button">Save Revision</button>
+        <button id="btn-render-mixdown" class="btn secondary" type="button">Render Master</button>
+        <button id="btn-export-wav" class="btn secondary" type="button">Export WAV</button>
+        <button id="btn-nav-concierge-toggle" class="btn secondary" type="button">Concierge</button>
+      </div>
+    </header>
+
+    <nav class="mobile-pane-tabs" aria-label="Workspace view">
+      <button type="button" class="pane-tab active" data-pane-target="center" id="btn-nav-studio-view">Tracks &amp; Mix</button>
+      <button type="button" class="pane-tab" data-pane-target="right" id="btn-nav-editor-view">Channel Strip</button>
+      <button type="button" class="pane-tab" data-pane-target="left" id="btn-nav-sources-view">Sources &amp; Voice</button>
+    </nav>
+
+    <!-- Left Rail: Owned Projects, Stems, Kokoro Voice TTS -->
+    <aside class="pane wb-left" aria-label="Projects and sound sources">
+      <section class="pane-section">
+        <div class="section-head">
+          <h2>Saved sessions</h2>
+          <button id="btn-refresh-projects" class="btn ghost" type="button">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table data-sortable id="projects-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th class="num">BPM</th>
+                <th class="num">Rev</th>
+              </tr>
+            </thead>
+            <tbody id="projects-tbody"></tbody>
+          </table>
+        </div>
+        <div class="form">
+          <div class="grid-2">
+            <label class="field">
+              <span>Tempo (BPM)</span>
+              <input type="number" id="input-tempo" value="120" min="40" max="240" data-bridge-field="tempo">
+            </label>
+            <label class="field">
+              <span>Sample rate</span>
+              <select id="select-sample-rate" data-bridge-field="sampleRate">
+                <option value="44100">44.1 kHz</option>
+                <option value="48000" selected>48.0 kHz</option>
+              </select>
+            </label>
+          </div>
+          <div class="button-row">
+            <button id="btn-create-project" class="btn secondary" type="button">New Session</button>
+            <button id="btn-load-rock-song" class="btn ghost" type="button">Load 5-Stem Mix</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane-section">
+        <h2>Import &amp; instruments</h2>
+        <div class="form">
+          <label class="field">
+            <span>Import audio file (.wav, .mp3, .ogg, .flac)</span>
+            <input type="file" id="audio-file-input" accept="audio/*">
+          </label>
+          <label class="field">
+            <span>Instrument generator</span>
+            <select id="select-instrument-type">
+              <option value="drums">Drums (Kick, Snare &amp; Hats)</option>
+              <option value="bass">Bass Guitar (Sub &amp; Harmonics)</option>
+              <option value="guitar">Rhythm Guitar (Chord Voicings)</option>
+              <option value="piano">Grand Piano (Staccato Comp)</option>
+              <option value="horns">Brass Section (Stabs)</option>
+              <option value="vocals">Lead Vocal (Formant Phrase)</option>
+            </select>
+          </label>
+          <button id="btn-add-instrument" class="btn secondary" type="button">Add Instrument Stem</button>
+          <label class="field">
+            <span>Riff &amp; transition</span>
+            <select id="select-riff-type">
+              <option value="riff_rock_guitar">Overdriven Rock Guitar Riff</option>
+              <option value="riff_funk_bass">Slap &amp; Pop Funk Bass</option>
+              <option value="riff_trap_beat">808 Sub &amp; Rolling Hats</option>
+              <option value="filler_drum_roll">1-Bar Snare Buildup</option>
+            </select>
+          </label>
+          <div class="button-row">
+            <button id="btn-add-riff-track" class="btn secondary" type="button">Add Riff Track</button>
+            <button id="btn-insert-filler" class="btn ghost" type="button">Insert at Playhead</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane-section">
+        <h2>Voice narrator (TTS)</h2>
+        <div class="form">
+          <label class="field">
+            <span>Narration script</span>
+            <textarea id="tts-input-text" rows="2" data-bridge-field="ttsText">Welcome to Audio Studio, mastered to minus fourteen LUFS broadcast loudness.</textarea>
+          </label>
+          <label class="field">
+            <span>Voice timbre persona</span>
+            <select id="select-voice-persona" data-bridge-field="voicePersona">
+              <option value="morgan_freeman" selected>Cinematic Narrator</option>
+              <option value="david_attenborough">Nature Documentarian</option>
+              <option value="freddie_mercury">Rock Opera Tenor</option>
+              <option value="vintage_radio">1940s Transatlantic Broadcast</option>
+              <option value="hal_9000">Cybernetic Mission Voice</option>
+              <option value="action_hero">Trailer Baritone</option>
+            </select>
+          </label>
+          <div class="button-row">
+            <button id="btn-audition-voice" class="btn ghost" type="button">Audition</button>
+            <button id="btn-inject-voice-track" class="btn secondary" type="button">Synthesize to Track</button>
+          </div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Center Stage: Transport, ADR-208 Macros, Multitrack Waveform Timeline & Track Table -->
+    <section class="pane wb-center" aria-label="Multitrack timeline">
+      <div class="transport-bar">
+        <div class="button-row">
+          <button id="btn-play" class="btn primary" type="button">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5-9-5.5z"/></svg>
+            <span>Play</span>
+          </button>
+          <button id="btn-pause" class="btn secondary" type="button">Pause</button>
+          <button id="btn-stop" class="btn secondary" type="button">Stop</button>
+          <button id="btn-transport-record" class="btn danger" type="button">Record Take</button>
+        </div>
+        <div class="timecode-readout" id="timecode">00:00.000</div>
+        <div class="button-row">
+          <button id="btn-slice-at-playhead" class="btn ghost" type="button">Slice</button>
+          <button id="btn-loop-all" class="btn ghost" type="button">Loop 16s</button>
+        </div>
+        <div class="meter-box">
+          <span class="meter-label">LUFS</span>
+          <div class="meter-bar-bg">
+            <div id="master-lufs-fill" class="meter-bar-fill"></div>
+          </div>
+          <span id="master-lufs-value" class="meter-val">-14.0 LUFS</span>
+        </div>
+      </div>
+
+      <div class="macro-strip" role="group" aria-label="Standard formula DSP macros">
+        <span class="macro-label">Formula Macros</span>
+        <button id="btn-preset-clean-voice" class="btn secondary" type="button">Clean Voice</button>
+        <button id="btn-preset-duck" class="btn secondary" type="button">Auto-Duck Music</button>
+        <button id="btn-preset-punchy" class="btn secondary" type="button">Punchy Rhythm</button>
+        <button id="btn-preset-warm" class="btn secondary" type="button">Warm Vocal</button>
+        <button id="btn-preset-space" class="btn secondary" type="button">Acoustic Space</button>
+        <button id="btn-preset-broadcast" class="btn secondary" type="button">Broadcast -14 LUFS</button>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite">5-stem arrangement ready — press Play or adjust any channel strip.</p>
+
+      <div id="track-list" class="tracks-scroll-area" aria-label="Waveform tracks"></div>
+
+      <section class="pane-section">
+        <div class="section-head">
+          <h2>Active stems &amp; channel matrix</h2>
+          <span id="track-count-badge" class="help">0 stems</span>
+        </div>
+        <div class="table-wrap">
+          <table data-sortable id="stems-table">
+            <thead>
+              <tr>
+                <th>Track</th>
+                <th>Role</th>
+                <th class="num">Gain (dB)</th>
+                <th class="num">Pan</th>
+                <th class="num">EQ (L/M/H)</th>
+              </tr>
+            </thead>
+            <tbody id="stems-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- Right Inspector: 5-Stage Channel Strip, Master Bus, Live Modulator & Concierge -->
+    <aside class="pane wb-right" aria-label="Channel strip and concierge">
+      <section class="pane-section">
+        <div class="section-head">
+          <h2>Master bus</h2>
+          <strong id="val-master-gain" class="mono-val">0.0 dB</strong>
+        </div>
+        <div class="form">
+          <label class="field">
+            <span>Master fader (-24 to +12 dB)</span>
+            <input type="range" id="slider-master-gain" min="-24" max="12" step="0.5" value="0" data-bridge-field="masterGainDb">
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span>Export format</span>
+              <select id="select-export-format">
+                <option value="wav" selected>16-bit PCM WAV</option>
+                <option value="mp3">192 kbps MP3</option>
+              </select>
+            </label>
+            <div class="field field-end">
+              <button id="btn-download-master" class="btn secondary" type="button">Render &amp; Download</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane-section" id="channel-strip-section">
+        <div class="section-head">
+          <h2>Selected channel strip</h2>
+          <span id="selected-track-label" class="help">Track 1</span>
+        </div>
+        <div class="form" id="selected-channel-controls">
+          <div class="grid-2">
+            <label class="field">
+              <span>Gain (dB)</span>
+              <input type="number" id="strip-gain-db" step="0.5" min="-36" max="12" value="0" data-bridge-field="selectedTrackGainDb">
+            </label>
+            <label class="field">
+              <span>Stereo pan (-1..1)</span>
+              <input type="number" id="strip-pan" step="0.05" min="-1" max="1" value="0" data-bridge-field="selectedTrackPan">
+            </label>
+          </div>
+          <div class="grid-3">
+            <label class="field">
+              <span>Low 100Hz</span>
+              <input type="number" id="strip-eq-low" step="0.5" min="-15" max="15" value="0" data-bridge-field="selectedTrackEqLowDb">
+            </label>
+            <label class="field">
+              <span>Mid 1.5kHz</span>
+              <input type="number" id="strip-eq-mid" step="0.5" min="-15" max="15" value="0" data-bridge-field="selectedTrackEqMidDb">
+            </label>
+            <label class="field">
+              <span>High 8kHz</span>
+              <input type="number" id="strip-eq-high" step="0.5" min="-15" max="15" value="0" data-bridge-field="selectedTrackEqHighDb">
+            </label>
+          </div>
+          <div class="grid-2">
+            <label class="field">
+              <span>Comp ratio</span>
+              <input type="number" id="strip-comp-ratio" step="0.5" min="1" max="20" value="2.5" data-bridge-field="selectedTrackCompRatio">
+            </label>
+            <label class="field">
+              <span>Reverb mix</span>
+              <input type="number" id="strip-reverb-mix" step="0.05" min="0" max="1" value="0.08" data-bridge-field="selectedTrackReverbMix">
+            </label>
+          </div>
+          <div class="grid-2">
+            <label class="field">
+              <span>Saturation</span>
+              <select id="strip-distortion-mode">
+                <option value="bypass" selected>Bypass</option>
+                <option value="tube">Tube Warmth</option>
+                <option value="overdrive">Analog Overdrive</option>
+                <option value="bitcrusher">8-Bit Crusher</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Drive (dB)</span>
+              <input type="number" id="strip-drive-db" step="0.5" min="0" max="24" value="0">
+            </label>
+          </div>
+          <div class="button-row">
+            <label class="check-label"><input type="checkbox" id="strip-hpf"> 85Hz HPF</label>
+            <label class="check-label"><input type="checkbox" id="strip-ducking"> Sidechain Duck</label>
+            <label class="check-label"><input type="checkbox" id="strip-mute"> Mute</label>
+            <label class="check-label"><input type="checkbox" id="strip-solo"> Solo</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="pane-section">
+        <h2>Live input modulator</h2>
+        <div class="form">
+          <div class="button-row">
+            <button id="btn-mod-start-mic" class="btn secondary" type="button">Connect Mic</button>
+            <label class="check-label">
+              <input type="checkbox" id="chk-mod-active" checked data-bridge-field="liveModActive"> Live Rack
+            </label>
+          </div>
+          <label class="field">
+            <span>Voice persona</span>
+            <select id="select-mod-persona" data-bridge-field="liveModPersona">
+              <option value="none">Clean Broadcast Voice</option>
+              <option value="morgan_freeman" selected>Cinematic Narrator</option>
+              <option value="david_attenborough">Nature Documentarian</option>
+              <option value="freddie_mercury">Rock Opera Tenor</option>
+              <option value="vintage_radio">1940s Radio Broadcast</option>
+              <option value="hal_9000">Cybernetic Mission Voice</option>
+              <option value="action_hero">Trailer Baritone</option>
+            </select>
+          </label>
+          <div class="grid-3">
+            <label class="field">
+              <span>Pitch (st)</span>
+              <input type="number" id="mod-pitch-shift" min="-12" max="12" step="0.5" value="-2.0">
+            </label>
+            <label class="field">
+              <span>Tube (dB)</span>
+              <input type="number" id="mod-tube-drive" min="0" max="12" step="0.5" value="2.0">
+            </label>
+            <label class="field">
+              <span>Gate (dB)</span>
+              <input type="number" id="mod-gate-thresh" min="-60" max="-15" step="1" value="-42">
+            </label>
+          </div>
+          <button id="btn-live-publish" class="btn secondary" type="button">Publish Selected Stem as Take</button>
+        </div>
+      </section>
+
+      <section class="pane-section" id="concierge-panel" aria-label="Side-by-Side Audio Engineer Concierge">
+        <div class="section-head">
+          <h2>Audio Engineer Concierge</h2>
+          <span class="help">Surface Bridge</span>
+        </div>
+        <div id="concierge-messages" class="concierge-log">
+          <div class="concierge-msg">
+            Apply a mixing recipe directly or hand off the active session to the Cockpit Audio Engineer.
+          </div>
+        </div>
+        <div class="button-row">
+          <button type="button" class="btn ghost concierge-chip" data-prompt="Warm up vocals with +2.5 dB low warmth, +1.8 dB presence, and 4:1 compression">Warm Vocals</button>
+          <button type="button" class="btn ghost concierge-chip" data-prompt="Sidechain duck bass under kick transients">Duck Bass</button>
+          <button type="button" class="btn ghost concierge-chip" data-prompt="Master to -14 LUFS broadcast loudness and set tempo to 128 BPM">-14 LUFS Master</button>
+        </div>
+        <div class="form">
+          <label class="field">
+            <span>Mixing recipe or Cockpit prompt</span>
+            <input type="text" id="concierge-input" placeholder="e.g. Clean voice on vocals and pan guitar right" data-bridge-field="conciergePrompt">
+          </label>
+          <div class="button-row">
+            <button id="btn-concierge-send" class="btn secondary" type="button">Apply Recipe</button>
+            <button id="btn-cockpit-ask" class="btn ghost" type="button">Open Cockpit Chat</button>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script src="/api/audio/dsp_synth.js"></script>
+  <script src="/api/audio/dsp_engine.js"></script>
+  <script src="/api/audio/audio-ui-helpers.js"></script>
+  <script src="/api/audio/audio.js"></script>
+</body>
+</html>

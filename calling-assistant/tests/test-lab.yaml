@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register native callback proof and durable acknowledgement tests without claiming provider or database acceptance.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register calls-view (Calls first, the no-Twilio empty state, the disabled Start call with its reason, answer rows, reports newest first with a filter).
 version: 1
 cases:
   - id: native-continuations
@@ -59,6 +60,20 @@ cases:
     isolation:
       mode: disposable
       fixtures: [tests/ui.test.cjs]
+      cleanup: Headless browser and loopback fixture server are closed after the run.
+    limits: { timeoutMs: 60000 }
+    installation: never
+  - id: calls-view
+    name: Calls opens first; setup is its own view
+    purpose: Drive the shipped page in headless Chromium over a loopback fixture with no Twilio connection, calling off, and saved reports; no call is placed.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/calls-view.test.cjs] }
+    expected: [With no connection Calls is one empty state with one primary and Check again says it is still not connected, Start call is disabled with its reason while calling is off, Answers are rows that write the same JSON and Remove takes one out, Reports are newest first with status badges and a status filter, Nothing overflows at 412px]
+    prerequisites: [runner:node-test, fixture:core-checkout, runtime:browser]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures: [tests/calls-view.test.cjs]
       cleanup: Headless browser and loopback fixture server are closed after the run.
     limits: { timeoutMs: 60000 }
     installation: never

@@ -23,15 +23,23 @@
 <body>
 <main class="ds-page" id="studio" data-screen="" data-ready="0" data-reads="0">
   <header class="ds-head">
-    <div>
-      <p class="kicker" id="kicker">Design Studio</p>
+    <div class="ds-title-col">
+      <div class="ds-kicker-row">
+        <a class="btn ds-back" id="back" href="#/" hidden>&larr; Back</a>
+        <p class="kicker" id="kicker">Design Studio</p>
+      </div>
       <h1 id="title">Products</h1>
-      <p class="lede" id="lede">Brief &rarr; Design &rarr; Mechanical &rarr; Electrical &rarr; Sensors &rarr; Controller &rarr; Simulate &rarr; Fabricate &rarr; Build. A product carries the phases its brief needs; each phase is read from its engine when this page opens and is never stored.</p>
+      <p class="lede" id="lede">Select a product or start a new brief.</p>
     </div>
     <div class="actions" id="head-actions">
-      <a class="btn" id="back" href="#/" hidden>Products</a>
       <button type="button" class="btn" id="reload">Reload</button>
-      <a class="btn" id="settings-link" hidden>Settings</a>
+      <details class="ds-more" id="head-more">
+        <summary class="btn" aria-label="More actions" title="More">&ctdot;</summary>
+        <div class="ds-more-menu" role="menu">
+          <a class="btn" id="settings-link" hidden>Settings</a>
+          <button type="button" class="btn" id="help-btn">How Design Studio works</button>
+        </div>
+      </details>
       <a class="btn btn-primary" id="new-product" href="#/new">New product</a>
     </div>
   </header>
@@ -71,6 +79,7 @@
     </form>
   </section>
 
+  <nav class="phase-stepper" id="phase-stepper" aria-label="Phase progress" hidden></nav>
   <section class="chain" id="screen-product" aria-label="The phase chain, in order" hidden></section>
 
   <section class="walk" id="screen-mechanism" aria-label="Mechanism" hidden>
@@ -86,8 +95,15 @@
     </form>
   </section>
 
-  <p class="footnote" id="footnote">Nothing on this page is a measurement of its own: a stage is what the engine answered when the page was read; a closure records that answer with the revision it was read from, and reads as stale when the artifact moves on.</p>
+  <p class="footnote" id="footnote" hidden>Nothing on this page is a measurement of its own: a stage is what the engine answered when the page was read; a closure records that answer with the revision it was read from, and reads as stale when the artifact moves on.</p>
 </main>
+
+<dialog id="help-dialog" aria-labelledby="help-title">
+  <h2 id="help-title">How Design Studio works</h2>
+  <p>Brief &rarr; Design &rarr; Mechanical &rarr; Electrical &rarr; Sensors &rarr; Controller &rarr; Simulate &rarr; Fabricate &rarr; Build. Each product carries only the phases its brief needs.</p>
+  <p>Nothing on this page is a measurement of its own: each phase stage is read live from its engine when the page opens and is never stored here. Closing a phase records the engine's evidence line with the artifact revision it was read at, and marks the closure stale whenever that artifact moves on.</p>
+  <form method="dialog" class="actions"><button type="submit" class="btn btn-primary">Done</button></form>
+</dialog>
 
 <dialog id="close-dialog" aria-labelledby="close-title">
   <h2 id="close-title">Close the phase</h2>

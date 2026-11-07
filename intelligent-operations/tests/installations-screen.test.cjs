@@ -622,7 +622,7 @@ test('Refresh records pressed during an outage keeps the rows marked as failed, 
  await page.route('**/api/intelligent-operations/records',route=>route.abort());refuse(502);await page.evaluate(()=>document.getElementById('refresh').click());await brief.locator('.installation-warning').first().waitFor();
  assert.match(await brief.textContent(),/Could not refresh just now/);assert.equal(await brief.getByRole('button').count(),1,'the last rows stay up, marked as failed');assert.match(await brief.textContent(),/gsq <b>staging<\/b>/);assert.notEqual(await page.locator('#status').textContent(),'');
  const before=reads(requests);await page.clock.runFor(30000);await until(page,()=>reads(requests)>before);await page.clock.runFor(30000);await until(page,()=>reads(requests)>before+1);
- await page.unroute('**/api/intelligent-operations/records');refuse(200);await page.clock.runFor(30000);await page.waitForFunction(()=>/Records refreshed/.test(document.getElementById('status').textContent));await tileOf(page).waitFor();await page.waitForFunction(()=>!document.querySelector('#overview-installations .installation-warning'));
+ await page.unroute('**/api/intelligent-operations/records');refuse(200);await page.clock.runFor(30000);await page.waitForFunction(()=>/^Updated /.test(document.getElementById('status').textContent));await tileOf(page).waitFor();await page.waitForFunction(()=>!document.querySelector('#overview-installations .installation-warning'));
  assert.equal(await brief.getByRole('button').count(),1);
 },[well()]));
 test('a refresh refused for access still clears the installations with the rest, and nothing keeps reading',async()=>page(async({page,base,requests})=>{

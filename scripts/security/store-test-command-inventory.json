@@ -22,6 +22,7 @@
     ".|node --test scripts/revert-guard.test.mjs",
     ".|node --test scripts/run-trading-specs.test.mjs",
     "animatronics|node --test \"tests/*-*.test.js\"",
+    "audio|node --test \"tests/*.test.cjs\"",
     "bake-off|node --test \"tests/*.test.js\"",
     "cad-studio|node --test \"tests/*-*.test.js\"",
     "calendar|node --test tests/meeting-brief.test.js",
@@ -30,6 +31,8 @@
     "circuit-lab|node --test \"tests/*-*.test.js\"",
     "create|node --test \"tests/*.test.js\"",
     "dnd|node --test \"tests/*.test.js\"",
+    "dnd|node --test tests/browser/dnd-theme-contrast.test.cjs",
+    "dnd|node --test tests/browser/dnd-ux-audit.test.cjs",
     "drone-relay|node --test \"tests/*-*.test.js\"",
     "eats|node --test \"tests/*-*.test.js\"",
     "embodied|node --test \"tests/engine-*.test.js\"",
@@ -68,14 +71,17 @@
     "scene-studio|node --test \"tests/*-*.test.js\"",
     ".|node --test scripts/check-store-bots.test.mjs",
     ".|node --test scripts/check-connector-copy.test.mjs",
-    ".|node --test intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs life/tests/home-summary.test.cjs",
+    ".|node --test intelligent-processing/tests/package-contract.test.cjs capability-ideation/tests/package-contract.test.cjs codex-packer/tests/package-contract.test.cjs codex-packer/tests/persona-template.test.cjs codex-packer/tests/forge-inject.test.cjs person-model/tests/person-model-surface.test.cjs life/tests/home-summary.test.cjs",
     "intelligent-operations|node --test \"tests/*.test.cjs\"",
     "pdf-workbench|node --test \"tests/*tools.test.mjs\"",
     ".|node --test presentations/tests/office-assets.test.mjs presentations/tests/office-assistant.test.mjs presentations/tests/office-workspace-browser.test.mjs presentations/tests/presentations-slide-workspace.test.mjs presentations/tests/presentations-slide-workspace-browser.test.mjs presentations/tests/presentations-sheet-workspace.test.mjs presentations/tests/presentations-sheet-workspace-browser.test.mjs presentations/tests/presentations-guide.test.mjs presentations/tests/presentations-surface-parse.test.js presentations/tests/presentations-record-before-answer.test.cjs",
     "trading|node --test \"tests/*native*.test.js\"",
     "game-show|node --test tests/solo-night.test.js",
     "game-show|node --test tests/play-phone-layout.test.js",
+    "game-show|node --test tests/ux-audit-surfaces.test.js",
     "phone-control|node --test \"tests/phone-control-*.test.cjs\"",
-    "phone-control|node --test \"tests/phone-control-*.test.mjs\""
+    "phone-control|node --test \"tests/phone-control-*.test.mjs\"",
+    "movies|node --test \"tests/*.test.cjs\"",
+    "spotify|node --test \"tests/*.test.cjs\""
   ]
 }

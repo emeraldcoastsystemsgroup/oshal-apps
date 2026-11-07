@@ -16,6 +16,8 @@
  *                     |                             | reached through the kernel's engine.exchange intent and the
  *                     |                             | revision exports live in the kernel's owner-scoped atomic file
  *                     |                             | root (/tmp/cad-store), so a part's rows and files commit together.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | 0.5.0: serve cad-viewport-tools.js, advertise OBJ/MTL/3MF/GLB/USDZ
+ *                     |                             | exports, and mount confirmed printer handoff routes (RP-CAD-01..05).
  */
 
 import fs from 'node:fs';
@@ -28,10 +30,11 @@ import { engineBuildHash } from './engine-build-hash';
 import { DEFAULT_ENGINE_ADDR, EngineClient, parseEngineAddr, type NativeExchange } from './engine-client';
 import { resolveDataRoot } from './data-dir';
 import { createModelRoutes, UPLOAD_LIMITS } from './model-routes';
+import { createCadPrintRoutes } from './print-handoff';
 import { DEFAULT_SETTINGS, EXPORT_VIEWS } from './rebuild-service';
 
 const logger = createChildLogger({ module: 'cad-studio-routes' });
-const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js', 'editor-foundation-adapter.mjs'] as const;
+const SURFACE_SCRIPTS = ['cad-studio.js', 'cad-studio-gl.js', 'cad-viewport-tools.js', 'editor-foundation-adapter.mjs'] as const;
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 /** The native kernel restores the caller's files here for each request and checkpoints them after a write. */
 export const NATIVE_DATA_ROOT = '/tmp/cad-store';
@@ -130,12 +133,13 @@ export function createCadStudioRoutes(ctx: AppContext, opts: CadStudioRouteOpts 
       const readiness = await engine.refreshStatus();
       res.json({
         app: 'cad-studio', kernel: 'OCCT via CadQuery (engine container)', contract: describeContract(), featureInputSchema: FEATURE_INPUT_SCHEMA,
-        exports: { formats: ['step', 'stl', 'svg', 'report'], views: EXPORT_VIEWS }, defaults: DEFAULT_SETTINGS, upload: UPLOAD_LIMITS,
+        exports: { formats: ['step', 'stl', 'obj', 'mtl', '3mf', 'glb', 'usdz', 'svg', 'report'], views: EXPORT_VIEWS }, defaults: DEFAULT_SETTINGS, upload: UPLOAD_LIMITS,
         engine: readiness,
       });
     } catch (_error) { res.status(503).json({ error: 'engine_status_unavailable', message: 'Engine readiness is unavailable. Try again shortly.' }); }
   });
 
+  router.use(createCadPrintRoutes({ pool: ctx.pool, dataRoot, callerSub }));
   // Natively the build a revision records is the one the engine reported, since the sandbox holds no engine sources.
   router.use(createModelRoutes({ pool: ctx.pool, engine, dataRoot, get engineBuild() { return packageBuild ?? engine.status().buildHash; }, callerSub, timeoutMs: opts.rebuildTimeoutMs }));
   return router;

@@ -7,6 +7,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Keep the Career front door on a real member search surface and exclude the generic global ticket workbench.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Read canonical required membership and keep Career configuration and sources conspicuous without changing the group's declarative contract.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Pin the released group version, 1.1.6.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Approvals, Prepare & submit and Application status are stages of the Job Board (career-hunter 1.48.0), so the group delegates five destinations and the board carries the rest; pin 1.1.8.
  */
 'use strict';
 const { test } = require('node:test');
@@ -23,8 +24,11 @@ const yaml = createRequire(resolve(toolchain, 'js-yaml/package.json'))('./index.
 const group = yaml.load(readFileSync(resolve(root, 'oshal-app.yaml'), 'utf8'));
 const members = new Map(group.dependencies.required.apps.map(name => [name, yaml.load(readFileSync(resolve(store, name, 'oshal-app.yaml'), 'utf8'))]));
 
-test('Career group retains all six destinations delegated from the global Career navigation', () => {
-  const delegated = ['career-board', 'career-strengthen', 'career-recruiters', 'career-approvals', 'career-insights', 'career-settings'];
+test('Career group retains the destinations delegated from the global Career navigation', () => {
+  const delegated = ['career-board', 'career-strengthen', 'career-recruiters', 'career-insights', 'career-settings'];
+  for (const merged of ['career-approvals', 'career-submissions', 'career-application-status']) {
+    assert.equal(group.toolbar.some(item => item.surface === merged), false, `${merged} is a Job Board stage`);
+  }
   for (const surface of delegated) assert.ok(group.toolbar.some(item => item.app === 'career-hunter' && item.surface === surface), surface);
 });
 
@@ -41,7 +45,7 @@ test('every shipped toolbar reference resolves once to its declared member rathe
 
 test('Career configuration and sources are a visible borrowed navigation band', () => {
   assert.equal(group.kind, 'group');
-  assert.equal(group.version, '1.1.6');
+  assert.equal(group.version, '1.1.8');
   assert.deepEqual([...members.keys()], ['career-hunter', 'portrait-studio', 'social', 'print-ingest']);
   for (const surface of ['career-settings', 'career-companies']) {
     const item = group.toolbar.find(item => item.app === 'career-hunter' && item.surface === surface);
@@ -56,7 +60,7 @@ test('Career configuration and sources are a visible borrowed navigation band', 
   assert.equal(group.ribbon.defaultView, 'career-hunter--career-search');
   assert.ok(group.ribbon.hideFrameworkItems.includes('tickets'));
   assert.equal(group.toolbar[0].surface, 'career-search');
-  for (const surface of ['career-application-status','career-submission-activity']) assert.ok(group.toolbar.some(item => item.surface===surface));
+  for (const surface of ['career-board','career-submission-activity']) assert.ok(group.toolbar.some(item => item.surface===surface));
   const search = members.get('career-hunter').ui.static.find(item => item.toolName === group.ribbon.defaultView.split('--')[1]);
   assert.equal(search?.iframeUrl, '/api/career-hunter/search-ui');
   assert.ok(group.toolbar.some(item => item.app === 'career-hunter' && item.surface === group.ribbon.defaultView.split('--')[1]));

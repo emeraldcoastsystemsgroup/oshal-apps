@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 9 | maintainer@emeraldcoastsystemsgroup.com | Resume Studio opens the master resume as a Word document in AI Office's editor with AI Office's Concierge beside it: send resume editing there, never patch the master behind that open document, and read the saved text the screen hands over.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Answer native pull questions from actual scheduler observations and distinguish current fetching, previous publication, missing evidence and individual source failures.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Stop only the acknowledged requested engine run and confirm the native stopped receipt; stopping cannot withdraw an employer application.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Use bounded revision-checked master tools and native manual-score receipts; distinguish unknown installation pull status from idle and avoid unsupported search-fit judgments.
@@ -55,6 +56,16 @@ authorizations:
   career_resume_save: "ask"     # approval-gated whitelist write-back (+ packet PDF re-render)
 
 perspective: |
+  Resume Studio is where the master resume is edited: it opens as a Word document in AI Office's
+  editor (the person types in it) with AI Office's Concierge beside it, which proposes each edit
+  as an approval card on that document; Revision history and Undo take one back. When the
+  person asks to edit, tighten or rewrite their resume, send them to Resume Studio
+  (/cockpit/?app=career-hunter&screen=career-resume-studio) and say to ask the Concierge
+  beside the document. When the context says surface resume-studio with fields.officeDocument,
+  that document is open: do not use career_resume_patch or career_resume_save, because that
+  rewrites the profile behind the person's document. The screen saves the document into the
+  master before your turn, so career_resume_read and career_resume_section show what the
+  person currently has; read them before answering about the resume.
   For master resume work, read bounded sections and quote the person's actual text.
   Follow every needed page, keeping its revision. Propose specific edits, then use the
   approved small patch with that revision and exact old text. On conflict, reread and

@@ -8,6 +8,12 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | 'Open Connections' replaced the whole tab (target=_top) while the panel said
     'Then reload this page', so the docked app was gone. Connections (and each Connect link) opens in a new tab and this
     page offers 'I have connected it: check again', which re-reads /providers in place.
+  3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (payments--payments-home): the big Payments title card
+    and its repeated paste-your-key copy are gone (the shell names the app). Before Stripe is connected the page is one
+    card, one sentence and one solid primary, Connect Stripe (new tab, as before), with Check again that shows a spinner
+    and then the form or "Still not connected"; the payment-link form shows disabled with "Connect Stripe first". The
+    primary is a solid accent with on-accent ink and no underline; actions keep 8px apart; Recent payments gets a
+    status filter. No money action, confirmation or request changed.
   Payments surface — take payments through a connected merchant account (Stripe / Square / PayPal).
   Self-contained iframe page served by createPaymentsRoutes at /api/payments/. The merchant
   connects their account on /utilities (Payments category); this page picks a connected rail,
@@ -263,13 +269,24 @@
     border-bottom-color: var(--pay-line);
   }
   #paymentReview[hidden] { display:none; }
+  /* UX audit 2026-11-06: the primary is a solid accent with on-accent ink and no underline (in graphite it was white
+     underlined text on a near-white pill); the two actions keep 8px apart; the disabled form is solid, not faded. */
+  a.btn { display:inline-flex; align-items:center; text-decoration:none; }
+  .btn.primary, a.btn.primary { background:var(--accent-primary, var(--pay-accent)); color:var(--text-on-accent, #fff); text-decoration:none; border-color:transparent; }
+  .actions-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px 0 4px; }
+  .actions-row .sub { flex-basis:100%; margin:0; }
+  .btn.link { background:none; border:0; color:var(--accent-primary, var(--pay-accent)); text-decoration:underline; padding:9px 4px; min-height:44px; }
+  fieldset.preview { border:1px solid var(--pay-line); border-radius:12px; padding:14px; margin:16px 0 0; }
+  fieldset.preview legend { padding:0 6px; }
+  fieldset.preview input, fieldset.preview select, fieldset.preview .btn { opacity:1; background:var(--pay-control); color:var(--text-muted, var(--muted)); cursor:not-allowed; }
+  .field select { width:100%; min-height:40px; border:1px solid var(--pay-line); border-radius:8px; background:var(--pay-control); color:var(--pay-text); padding:0 10px; }
+  .status-filter { max-width:240px; }
+  tr[hidden] { display:none; }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 </head>
 <body>
 <div class="page">
-  <div class="head"><span style="font-size:20px">💳</span><h1>Payments</h1></div>
-  <div class="sub">Take a payment through your own account: Stripe (paste your Stripe key on the Connections page, then create a payment page for an amount), or Square / PayPal where this installation runs those rails.</div>
   <section class="panel" id="paymentReview" hidden><h2>Continue from a payment</h2><p id="paymentSelection" class="sub" role="status">Press Review on a payment under Recent payments to review its evidence in Finance or prepare a document.</p><div class="connected-app-actions" style="display:flex;gap:12px;flex-wrap:wrap" aria-label="Connected application actions"></div></section>
   <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
 </div>
@@ -330,18 +347,33 @@ function render() {
 /** Connecting happens in a new tab and this page stays open, so it offers to check again in place (it said "Then
  *  reload this page" while the link replaced the whole tab, leaving no page to reload). */
 function recheckControl() {
-  return `<button class="btn" id="recheckBtn" type="button">I have connected it: check again</button>
-    <div class="sub" style="margin-top:10px">The connection opens in a new tab; this page stays here.</div>`;
+  return `<button class="btn link" id="recheckBtn" type="button">Check again</button>
+    <span class="sub" id="recheckMsg" role="status">The connection opens in a new tab; this page stays here.</span>`;
 }
+/** Check again: a spinner while /providers is re-read, then the form (now connected) or "Still not connected". */
 async function recheckProviders() {
-  const btn = $('recheckBtn'); if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+  const btn = $('recheckBtn'); if (btn) { btn.disabled = true; btn.innerHTML = '<span class="dot"></span> Checking…'; }
   try {
     providers = (await api('/providers')).providers || [];
     render();
+    const now = providers.find((x) => x.provider === active);
+    const msg = $('recheckMsg');
+    if (msg && now && !now.connected) { msg.className = 'sub err'; msg.textContent = 'Still not connected.'; }
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.textContent = 'I have connected it: check again'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Check again'; }
     main.insertAdjacentHTML('afterbegin', '<div class="panel err">Could not check the connection: ' + esc(e.message) + '</div>');
   }
+}
+
+/** The Stripe payment-link form before Stripe is connected: every field solid-disabled, saying why (it works once connected). */
+function stripePreviewForm() {
+  return `<fieldset class="preview" disabled aria-describedby="previewWhy">
+    <legend class="sub">Create a payment link</legend>
+    <label class="field"><span>Amount</span><input type="number" placeholder="25.00" disabled></label>
+    <label class="field"><span>Currency</span><select disabled><option>USD</option></select></label>
+    <label class="field"><span>What it is for (the customer sees this)</span><input placeholder="Consulting — 1 hour" disabled></label>
+    <button class="btn" type="button" disabled>Create link</button> <span class="sub" id="previewWhy">Connect Stripe first.</span>
+  </fieldset>`;
 }
 
 function connectPrompt(p) {
@@ -352,8 +384,7 @@ function connectPrompt(p) {
   }
   return `<h2>Connect ${PROVIDER_LABEL[p.provider] || p.provider}</h2>
     <div class="sub">To take payments through ${PROVIDER_LABEL[p.provider] || p.provider}, connect your merchant account first.</div>
-    <a class="btn primary" href="/api/connect/${p.provider}/start" target="_blank" rel="noopener">Connect ${PROVIDER_LABEL[p.provider] || p.provider}</a>
-    ${recheckControl()}`;
+    <div class="actions-row"><a class="btn primary" href="/api/connect/${p.provider}/start" target="_blank" rel="noopener">Connect ${PROVIDER_LABEL[p.provider] || p.provider}</a>${recheckControl()}</div>`;
 }
 
 function chargeForm(p) {
@@ -398,10 +429,14 @@ function stripeLive(p) { return p.mode !== 'test'; }
 
 function stripePanel(p) {
   if (!p.connected) {
-    return `<h2>${p.mode === 'key_rejected' ? 'Stripe rejected your saved key' : 'Connect Stripe'}</h2>
-      <div class="sub">${esc(p.detail || 'Stripe is not connected.')}</div>
-      <div class="sub">On the Connections page choose <b>Stripe</b> and paste a Stripe <b>restricted key</b> (starts with <code>rk_test_</code> for test mode). oshal seals it for you alone; this page and the assistant never see it.</div>
-      <a class="btn primary" href="/utilities" target="_blank" rel="noopener">Open Connections</a> ${recheckControl()}`;
+    // UX audit 2026-11-06: one card, one sentence, one primary; the form shows what the app makes, disabled until
+    // Stripe is connected (it was missing, and the paste-your-key instruction appeared three times).
+    const rejected = p.mode === 'key_rejected';
+    return `<h2>${rejected ? 'Stripe rejected your saved key' : 'Connect Stripe to take payments'}</h2>
+      ${rejected ? `<div class="sub">${esc(p.detail || 'Stripe did not accept the saved key.')}</div>` : ''}
+      <div class="sub">On the Connections page choose <b>Stripe</b> and paste a <b>restricted key</b> (<code>rk_test_</code> for test mode); this page and the assistant never see it.</div>
+      <div class="actions-row"><a class="btn primary" href="/utilities" target="_blank" rel="noopener">${rejected ? 'Replace the Stripe key' : 'Connect Stripe'}</a>${recheckControl()}</div>
+      ${stripePreviewForm()}`;
   }
   const chip = (STRIPE_MODE[p.mode] || STRIPE_MODE.unknown).chip;
   return `<h2>Stripe ${chip}</h2>
@@ -499,7 +534,8 @@ async function loadHistory() {
     // The "Continue from a payment" panel offers the recorded payments below it, so it shows only when there is one.
     $('paymentReview').hidden = !charges.length;
     if (!charges.length) { host.innerHTML = '<div class="sub">No payments yet.</div>'; return; }
-    host.innerHTML = `<table><thead><tr><th>Date</th><th>Provider</th><th class="num">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>` +
+    const statuses = [...new Set(charges.map((c) => String(c.status || '')))].filter(Boolean).sort();
+    host.innerHTML = `<label class="field status-filter"><span>Status</span><select id="histStatus"><option value="">All (${charges.length})</option>${statuses.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select></label><table><thead><tr><th>Date</th><th>Provider</th><th class="num">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>` +
       charges.map((c) => `<tr><td>${fmtDate(c.created_at)}</td><td>${esc(PROVIDER_LABEL[c.provider] || c.provider)}${c.test_mode ? ' <span class="sub">(test)</span>' : ' <span class="sub">(LIVE)</span>'}</td><td class="num">${money(c.amount_cents)}</td><td>${esc(c.status)}${/^https:\/\//.test(c.payer_url || '') ? ' · <a href="' + esc(c.payer_url) + '" target="_blank" rel="noopener">' + (c.provider === 'stripe' ? 'payment page' : 'invoice') + '</a>' : ''}</td><td>${esc(c.note || '—')}</td></tr>`).join('') +
       `</tbody></table>`;
     host.querySelectorAll('tbody tr').forEach((row,index)=>{
@@ -510,7 +546,9 @@ async function loadHistory() {
         window.paymentReviewContext={title:'Review a recorded merchant payment',notes};
         $('paymentSelection').textContent=notes;$('paymentReview').scrollIntoView({block:'center'});
       };cell.append(button);row.append(cell);
+      row.dataset.status=String(record.status||'');
     });
+    $('histStatus').onchange=()=>{const want=$('histStatus').value;host.querySelectorAll('tbody tr').forEach((row)=>{row.hidden=!!want&&row.dataset.status!==want;});};
   } catch (e) { host.innerHTML = '<div class="sub err">' + e.message + '</div>'; }
 }
 

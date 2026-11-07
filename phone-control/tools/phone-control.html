@@ -5,8 +5,11 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0, every control real or removed: a device rail (your phones and your computers), the phone's screen in a device frame with its controls under it, and Connect a device (Set up this computer, Pair an Android phone, Pair an iPhone). Every button runs a command on your own computer through the kernel or saves your own record; the mirroring key, the receiver credentials, the drawn screen and the made-up devices are gone.
   3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.1, the design standard as measured on production: the app name is not repeated under the shell's title (the kicker is gone); the two views are a plain switch, not two accent buttons; with nothing set up the screen is one card with one primary, Set up a computer, instead of an empty phone frame; the iPhone pointer's Click is a plain button so the screen keeps one primary.
   4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: the setup table is Part and State, with the time it was read said once under it instead of on every row.
+  5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: device features are the administrator's only, and anyone else reads one card that says so; Use this computer always answers (why a computer cannot be used and what to do on it, under the table); each card has its own status line; Connect a TV (Fire TV / Android TV) by its address; paired Bluetooth devices can be removed.
+  6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: merged Connect sheet opened by Add a device or /config/ui (no in-page tabs), device rows with overflow menu, full-frame phone session with Android bottom bar, TV remote D-pad, real iPhone AirPlay screen mirroring through UxPlay replacing RP-PHC-14, explicit Bluetooth peripheral pairing guidance, 48px Session sheet handle, 13 planned controls (RP-PHC-01..13), desktop top session bar + 320px right pane, OS-ordered oshal Node download, 3-step setup and 5s auto-refresh.
+  7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: ship all 13 Reference-Product session features (RP-PHC-01..13) as live controls with zero planned placeholders, direct iPhone click-to-tap / drag-to-swipe / wheel-to-scroll, specialized Phone Concierge (Organize my apps, screen reading, bounded anti-loop execution), collapsible On screen & History cards, Fire TV Wi-Fi discovery & signed APK push, and Connection Troubleshooting Concierge.
 -->
-<html lang="en" data-theme="light-blue">
+<html lang="en" data-theme="light-blue" data-ds-category="collection" data-ds-first-action="tap">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -19,69 +22,245 @@
 </head>
 <body>
   <main class="ks-page pc-page">
-    <header class="ks-head">
+    <header class="ks-head" id="pageHeader">
       <div>
         <h1 id="pageHeading">Your devices</h1>
         <p id="pageLede" class="ks-lede" role="status" aria-live="polite">Reading your phones and computers…</p>
       </div>
-      <div class="ks-actions" role="tablist" aria-label="Phone &amp; Device Control">
-        <button id="tabDevices" type="button" class="ks-btn pc-tab" role="tab" aria-selected="true">Devices</button>
-        <button id="tabConnect" type="button" class="ks-btn pc-tab" role="tab" aria-selected="false">Connect a device</button>
+      <div class="ks-actions" id="pageActions">
+        <button id="addDeviceBtn" type="button" class="ks-btn ks-btn-primary">Add a device</button>
       </div>
     </header>
 
-    <div id="devicesView" class="pc-workspace">
+    <section id="notAllowed" class="ks-card pc-not-allowed" aria-labelledby="notAllowedHeading" hidden>
+      <h2 id="notAllowedHeading">Not available on your account</h2>
+      <p class="ks-help">Connecting and controlling phones, TVs and computers here is for this installation's administrator only. Nothing of anyone else's is shown to you.</p>
+    </section>
+
+    <div id="devicesView" class="pc-devices-list" data-ds-work>
       <nav class="pc-rail ks-card" aria-label="Your phones and computers">
-        <h2 class="pc-rail-title">Phones</h2>
+        <h2 class="pc-rail-title">Phones &amp; TVs</h2>
         <ul id="phoneRail" class="pc-rail-list"></ul>
         <h2 class="pc-rail-title">Computers</h2>
         <ul id="computerRail" class="pc-rail-list"></ul>
         <div id="railEmpty" class="pc-empty" hidden>
-          <p class="ks-help">No phones or computers yet.</p>
-          <button id="railSetUp" type="button" class="ks-btn ks-btn-primary">Set up a computer</button>
+          <p class="ks-help">No phones, TVs or computers yet. Press Add a device to begin.</p>
         </div>
       </nav>
+    </div>
 
-      <section id="stageCard" class="ks-card pc-stage-card" aria-labelledby="stageTitle">
-        <div class="ks-card-head">
-          <div>
-            <h2 id="stageTitle">Choose a device</h2>
-            <p id="stageSub" class="ks-help">Choose a phone or a computer from your list.</p>
+    <div id="rowMenu" class="pc-menu" role="menu" aria-label="Device options" hidden>
+      <button type="button" id="rowToggleControl" class="pc-menu-item" role="menuitem">Allow control</button>
+      <button type="button" id="rowRemoveDevice" class="pc-menu-item pc-menu-danger" role="menuitem" data-ds-destructive>Remove</button>
+    </div>
+
+    <dialog id="removePhoneDialog" class="pc-dialog" aria-labelledby="removePhoneTitle">
+      <h2 id="removePhoneTitle">Remove this device?</h2>
+      <p id="removePhoneBody" class="ks-help">Removes this device from your list. Its pairing stays on the device.</p>
+      <div class="pc-dialog-actions">
+        <button type="button" class="pc-tertiary-btn" id="cancelRemovePhone">Cancel</button>
+        <button type="button" class="ks-btn ks-btn-danger-solid" id="confirmRemovePhone" data-ds-destructive>Remove</button>
+      </div>
+    </dialog>
+
+    <dialog id="removeBleDialog" class="pc-dialog" aria-labelledby="removeBleTitle">
+      <h2 id="removeBleTitle">Remove Bluetooth pairing?</h2>
+      <p id="removeBleBody" class="ks-help">Forgets this iPhone pairing on that computer until paired again.</p>
+      <div class="pc-dialog-actions">
+        <button type="button" class="pc-tertiary-btn" id="cancelRemoveBle">Cancel</button>
+        <button type="button" class="ks-btn ks-btn-danger-solid" id="confirmRemoveBle" data-ds-destructive>Remove</button>
+      </div>
+    </dialog>
+
+    <section id="sessionView" class="pc-session-view" aria-labelledby="stageTitle" hidden>
+      <div id="sessionToolbar" class="pc-session-toolbar" role="toolbar" aria-label="Session toolbar">
+        <div class="pc-toolbar-head">
+          <h2 id="stageTitle">Device</h2>
+          <p id="stageSub" class="ks-help"></p>
+        </div>
+        <div class="pc-toolbar-actions">
+          <button type="button" class="ks-btn pc-key" data-key="HOME" data-ios="Home" data-phone-only>Home</button>
+          <button type="button" class="ks-btn" id="sessionMirrorBtn" data-ios-only hidden>Start mirroring</button>
+          <span id="desktopAssistSlot" class="pc-assist-slot"></span>
+          <button type="button" class="ks-btn pc-icon-btn" id="sessionControlsBtn" aria-label="More options" title="More options">⋯</button>
+          <button type="button" class="ks-btn pc-icon-btn" id="endSessionTopBtn" aria-label="End session" title="End session">✕</button>
+        </div>
+      </div>
+
+      <div class="pc-session-main">
+        <div id="stageCard" class="pc-stage-card">
+          <div class="pc-stage">
+            <div id="deviceFrame" class="pc-device" data-kind="none" tabindex="0">
+              <img id="screenImage" class="pc-screen" alt="" hidden draggable="false" />
+              <p id="screenNote" class="pc-screen-note">Choose a phone, TV or computer.</p>
+              <canvas id="whiteboardCanvas" class="pc-whiteboard" hidden></canvas>
+              <div id="remoteCursor" class="pc-remote-cursor" aria-hidden="true" hidden></div>
+            </div>
           </div>
-          <div class="ks-actions">
-            <label class="ks-check" id="allowControlLabel" hidden>
-              <input type="checkbox" id="allowControl" />
-              <span>Allow control</span>
-            </label>
+
+          <div id="assistiveTouchBar" class="pc-assistive-bar" role="region" aria-label="AssistiveTouch helper" hidden>
+            <p class="ks-help">Turn on AssistiveTouch on your iPhone so Bluetooth taps and swipes work.</p>
+            <button type="button" class="ks-btn" id="openAssistiveTouchBtn">Open AssistiveTouch on iPhone</button>
+          </div>
+
+          <div id="androidNavBar" class="pc-android-nav" role="toolbar" aria-label="Android navigation" hidden>
+            <button type="button" class="ks-btn pc-key" data-key="BACK" data-android-only>Back</button>
+            <button type="button" class="ks-btn pc-key" data-key="HOME" data-ios="Home" data-android-only>Home</button>
+            <button type="button" class="ks-btn pc-key" data-key="RECENTS" data-android-only data-not-tv>Recent apps</button>
+          </div>
+
+          <p id="stageStatus" class="ks-help pc-stage-status" role="status" aria-live="polite"></p>
+
+          <div id="quickControlDock" class="pc-quick-dock" role="group" aria-label="Quick device controls" hidden>
+            <div class="pc-pair-row" data-ios-only>
+              <button type="button" class="ks-btn pc-key" data-ios="Home" data-ios-only>Home</button>
+              <button type="button" class="ks-btn pc-key" data-ios="Spotlight" data-ios-only>Spotlight</button>
+            </div>
+            <form id="quickTypeForm" class="ks-form pc-row-form">
+              <div class="ks-field">
+                <label class="pc-sr-only" for="quickTypeInput">Quick type</label>
+                <input id="quickTypeInput" type="text" autocomplete="off" maxlength="300" placeholder="Type on device…" />
+              </div>
+              <button type="button" class="ks-btn" id="quickVoiceBtn" aria-label="Voice dictate to device" aria-pressed="false">🎤 Dictate</button>
+              <button type="submit" class="ks-btn" id="quickTypeSend">Send</button>
+            </form>
+            <div class="pc-pair-row">
+              <button type="button" class="ks-btn" id="quickMirrorBtn" data-ios-only>Start mirroring</button>
+              <button type="button" class="ks-btn" id="quickMoreBtn">More ⋯</button>
+            </div>
+          </div>
+
+          <div id="tvRemote" class="pc-pointer pc-tv-remote" role="group" aria-label="TV remote" hidden>
+            <p class="ks-help">Click anywhere on the TV screen to tap that spot, or use the remote arrows and OK.</p>
+            <div class="pc-dpad">
+              <div class="pc-dpad-single"><button type="button" class="ks-btn pc-key" data-key="UP" data-ios="Up">Up</button></div>
+              <div class="pc-pointer-grid">
+                <button type="button" class="ks-btn pc-key" data-key="LEFT" data-ios="Left">Left</button>
+                <button type="button" class="ks-btn pc-key" data-key="OK" data-ios="Select">OK</button>
+                <button type="button" class="ks-btn pc-key" data-key="RIGHT" data-ios="Right">Right</button>
+              </div>
+              <div class="pc-dpad-single"><button type="button" class="ks-btn pc-key" data-key="DOWN" data-ios="Down">Down</button></div>
+            </div>
+            <div class="pc-pair-row pc-top-gap">
+              <button type="button" class="ks-btn pc-key" data-key="BACK" data-ios="Back" data-tv-only>Back</button>
+              <button type="button" class="ks-btn pc-key" data-key="PLAY_PAUSE" data-ios="PlayPause" data-tv-only>Play/Pause</button>
+            </div>
+            <div class="pc-tv-extra">
+              <button type="button" class="ks-btn pc-key" data-key="RECENTS" data-ios="Menu" data-tv-only>Menu</button>
+            </div>
+          </div>
+
+          <div id="iosMirrorBar" class="pc-ios-mirror-bar" hidden>
+            <button type="button" class="ks-btn" id="iosMirrorBtn">Start mirroring</button>
+          </div>
+
+          <div class="pc-phone-overlay-bar">
+            <div id="computerActions" class="pc-computer-actions" hidden>
+              <a class="ks-btn ks-btn-primary" id="workOnIt" target="_top" href="#">Work on it</a>
+            </div>
+            <button type="button" class="ks-btn pc-session-handle" id="sessionHandleBtn" aria-label="Session" aria-haspopup="dialog" aria-expanded="false" aria-controls="sessionSheet">⋯</button>
           </div>
         </div>
 
-        <div class="pc-stage">
-          <div id="deviceFrame" class="pc-device" data-kind="none">
-            <img id="screenImage" class="pc-screen" alt="" hidden draggable="false" />
-            <p id="screenNote" class="pc-screen-note">Choose a phone or a computer.</p>
-          </div>
-        </div>
-        <p id="stageStatus" class="ks-help pc-stage-status" role="status" aria-live="polite"></p>
+        <aside id="sideColumn" class="pc-side" aria-label="Phone concierge, screen text and history">
+          <section class="ks-card pc-concierge-card" id="conciergeCard" aria-labelledby="conciergeHeading" hidden>
+            <div class="ks-card-head">
+              <div>
+                <h2 id="conciergeHeading">Phone Concierge</h2>
+                <p class="ks-help" id="conciergeSub">Specialized for phones and TVs — never touches your computer desktop.</p>
+              </div>
+            </div>
+            <div class="pc-pair-stack">
+              <div class="pc-pair-row">
+                <button type="button" class="ks-btn" id="chipOrganizeApps">Organize my apps</button>
+                <button type="button" class="ks-btn" id="chipReadScreen">What's on my screen?</button>
+              </div>
+              <div class="pc-pair-row">
+                <button type="button" class="ks-btn" id="chipOpenNotes">Open Notes</button>
+                <button type="button" class="ks-btn" id="chipGoHome">Go Home</button>
+              </div>
+              <div class="pc-pair-row">
+                <button type="button" class="ks-btn" id="conciergeSwipeLeftBtn">Swipe left</button>
+                <button type="button" class="ks-btn" id="conciergeSwipeRightBtn">Swipe right</button>
+              </div>
+            </div>
+            <div id="conciergeLog" class="pc-concierge-log" role="log" aria-live="polite"></div>
+            <form id="conciergeForm" class="ks-form pc-row-form">
+              <div class="ks-field">
+                <label class="pc-sr-only" for="conciergeInput">Ask Phone Concierge</label>
+                <input id="conciergeInput" type="text" autocomplete="off" maxlength="600" placeholder="Ask Phone Concierge (e.g. organize my apps)…" />
+              </div>
+              <button type="button" class="ks-btn" id="conciergeVoiceBtn" aria-label="Speak to Concierge" aria-pressed="false">🎤</button>
+              <button type="submit" class="ks-btn ks-btn-primary" id="conciergeSendBtn">Send</button>
+            </form>
+            <button type="button" class="ks-btn" id="conciergeStopBtn" hidden>Stop</button>
+          </section>
 
-        <div id="controlBar" class="pc-controls" role="toolbar" aria-label="Phone controls" hidden>
-          <button type="button" class="ks-btn pc-key" data-key="HOME" data-ios="Home">Home</button>
-          <button type="button" class="ks-btn pc-key" data-key="BACK" data-android-only>Back</button>
-          <button type="button" class="ks-btn pc-key" data-key="RECENTS" data-android-only>Recent apps</button>
-          <button type="button" class="ks-btn pc-key" data-ios="Spotlight" data-ios-only>Spotlight</button>
-          <button type="button" class="ks-btn pc-key" data-key="VOLUME_UP" data-ios="VolumeUp">Volume up</button>
-          <button type="button" class="ks-btn pc-key" data-key="VOLUME_DOWN" data-ios="VolumeDown">Volume down</button>
-          <button type="button" class="ks-btn pc-key" data-key="POWER" data-android-only>Power</button>
-          <button type="button" class="ks-btn" id="refreshScreen" data-android-only>Refresh screen</button>
-          <a class="ks-btn" id="askJarvis" target="_top" href="#">Ask Jarvis to do it</a>
+          <section class="ks-card pc-concierge-card" id="computerConciergeCard" aria-labelledby="computerConciergeHeading" hidden>
+            <div class="ks-card-head">
+              <div>
+                <h2 id="computerConciergeHeading">Computer workspace</h2>
+                <p class="ks-help">Open the dedicated computer workspace to run multi-step desktop tasks with Jarvis.</p>
+              </div>
+            </div>
+            <div class="ks-actions">
+              <a class="ks-btn" id="computerConciergeWorkBtn" target="_top" href="#">Work on this computer</a>
+            </div>
+          </section>
+
+          <details class="ks-card pc-collapsible" id="screenTextCard" hidden>
+            <summary id="screenTextHeading">On screen</summary>
+            <div class="pc-collapsible-body">
+              <div class="pc-collapsible-head">
+                <p class="ks-help" id="screenTextHelp">The words on the phone's screen and where they are.</p>
+                <button type="button" class="ks-btn" id="readScreen">Read the screen</button>
+              </div>
+              <div class="table-scroll">
+                <table id="screenTextTable" class="stack-on-phone" data-sortable>
+                  <thead><tr><th>Words</th><th class="ks-num" data-type="number">X</th><th class="ks-num" data-type="number">Y</th><th>Tap</th></tr></thead>
+                  <tbody id="screenTextBody"><tr class="ks-empty-row"><td colspan="4">Press Read the screen.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+
+          <details class="ks-card pc-collapsible" id="historyCard">
+            <summary id="historyHeading">History</summary>
+            <div class="pc-collapsible-body">
+              <p class="ks-help">What was sent and what the computer answered.</p>
+              <div class="table-scroll">
+                <table id="historyTable" class="stack-on-phone" data-sortable>
+                  <thead><tr><th data-type="date">When</th><th>Action</th><th>What happened</th><th>Result</th></tr></thead>
+                  <tbody id="historyBody"><tr class="ks-empty-row"><td colspan="4">Nothing sent yet.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </details>
+        </aside>
+      </div>
+    </section>
+
+    <div id="sessionSheetScrim" class="pc-sheet-scrim" hidden></div>
+    <section id="sessionSheet" class="pc-sheet pc-half-sheet" data-ds-sheet role="dialog" aria-labelledby="sessionSheetTitle" hidden>
+      <div class="pc-sheet-grabber" aria-hidden="true"></div>
+      <header class="pc-sheet-head">
+        <h2 id="sessionSheetTitle">Session</h2>
+        <button type="button" class="pc-tertiary-btn" id="sessionSheetDoneBtn">Done</button>
+      </header>
+      <div class="pc-sheet-body">
+        <div class="pc-sheet-row" id="allowControlRow" hidden>
+          <label class="ks-check pc-switch-row" id="allowControlLabel">
+            <input type="checkbox" id="allowControl" />
+            <span>Allow control</span>
+          </label>
         </div>
 
         <form id="typeForm" class="ks-form pc-row-form" hidden>
           <div class="ks-field">
             <label for="typeInput">Type</label>
-            <input id="typeInput" type="text" autocomplete="off" maxlength="300" placeholder="Text to type on the phone" />
+            <input id="typeInput" type="text" autocomplete="off" maxlength="300" placeholder="Text to type on the device" />
           </div>
-          <button type="submit" class="ks-btn ks-btn-primary" id="typeSend">Type</button>
+          <button type="submit" class="ks-btn" id="typeSend">Type</button>
         </form>
 
         <form id="openForm" class="ks-form pc-row-form" hidden>
@@ -93,141 +272,457 @@
           <button type="submit" class="ks-btn" id="openSend">Open app</button>
         </form>
 
+        <div id="controlBar" class="pc-pair-stack" role="group" aria-label="Volume, mirroring and power" hidden>
+          <div class="pc-pair-row" data-ios-only>
+            <button type="button" class="ks-btn pc-key" data-ios="Home" data-ios-only>Home</button>
+            <button type="button" class="ks-btn pc-key" data-ios="Spotlight" data-ios-only>Spotlight</button>
+          </div>
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn pc-key" data-key="VOLUME_UP" data-ios="VolumeUp">Volume up</button>
+            <button type="button" class="ks-btn pc-key" data-key="VOLUME_DOWN" data-ios="VolumeDown">Volume down</button>
+          </div>
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="sheetMirrorBtn" data-ios-only>Start mirroring</button>
+            <button type="button" class="ks-btn pc-key" data-key="POWER" data-android-only data-not-tv>Power</button>
+            <button type="button" class="ks-btn" id="refreshScreen">Refresh screen</button>
+          </div>
+          <div class="pc-pair-row" data-android-only>
+            <button type="button" class="ks-btn" id="installSessionApkBtn" data-android-only data-not-tv>Install oshal Companion APK</button>
+          </div>
+        </div>
+
         <div id="pointerPad" class="pc-pointer" role="group" aria-label="iPhone pointer" hidden>
           <p class="ks-help">The pointer moves by steps. Turn on AssistiveTouch on the iPhone.</p>
-          <div class="pc-pointer-grid">
-            <span></span><button type="button" class="ks-btn pc-move" data-dx="0" data-dy="-60">Up</button><span></span>
-            <button type="button" class="ks-btn pc-move" data-dx="-60" data-dy="0">Left</button>
-            <button type="button" class="ks-btn" id="pointerClick">Click</button>
-            <button type="button" class="ks-btn pc-move" data-dx="60" data-dy="0">Right</button>
-            <span></span><button type="button" class="ks-btn pc-move" data-dx="0" data-dy="60">Down</button><span></span>
-          </div>
-        </div>
-
-        <div id="computerActions" class="pc-controls" hidden>
-          <a class="ks-btn ks-btn-primary" id="workOnIt" target="_top" href="#">Work on it</a>
-        </div>
-      </section>
-
-      <div id="sideColumn" class="pc-side">
-        <section class="ks-card" id="screenTextCard" aria-labelledby="screenTextHeading" hidden>
-          <div class="ks-card-head">
-            <div>
-              <h2 id="screenTextHeading">On screen</h2>
-              <p class="ks-help" id="screenTextHelp">The words on the phone's screen and where they are.</p>
+          <div class="pc-dpad">
+            <div class="pc-dpad-single"><button type="button" class="ks-btn pc-move" data-dx="0" data-dy="-60">Up</button></div>
+            <div class="pc-pointer-grid">
+              <button type="button" class="ks-btn pc-move" data-dx="-60" data-dy="0">Left</button>
+              <button type="button" class="ks-btn" id="pointerClick">Click</button>
+              <button type="button" class="ks-btn pc-move" data-dx="60" data-dy="0">Right</button>
             </div>
-            <div class="ks-actions"><button type="button" class="ks-btn" id="readScreen">Read the screen</button></div>
-          </div>
-          <div class="table-scroll">
-            <table id="screenTextTable" class="stack-on-phone" data-sortable>
-              <thead><tr><th>Words</th><th class="ks-num" data-type="number">X</th><th class="ks-num" data-type="number">Y</th><th>Tap</th></tr></thead>
-              <tbody id="screenTextBody"><tr class="ks-empty-row"><td colspan="4">Press Read the screen.</td></tr></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="ks-card" aria-labelledby="historyHeading">
-          <div class="ks-card-head">
-            <div>
-              <h2 id="historyHeading">History</h2>
-              <p class="ks-help">What was sent and what the computer answered.</p>
+            <div class="pc-dpad-single"><button type="button" class="ks-btn pc-move" data-dx="0" data-dy="60">Down</button></div>
+            <div class="pc-pair-row pc-top-gap">
+              <button type="button" class="ks-btn" id="recenterPointerBtn">Re-center pointer</button>
+              <button type="button" class="ks-btn" id="calibratePointerBtn">Calibrate pointer</button>
             </div>
           </div>
-          <div class="table-scroll">
-            <table id="historyTable" class="stack-on-phone" data-sortable>
-              <thead><tr><th data-type="date">When</th><th>Action</th><th>What happened</th><th>Result</th></tr></thead>
-              <tbody id="historyBody"><tr class="ks-empty-row"><td colspan="4">Nothing sent yet.</td></tr></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </div>
+        </div>
 
-    <div id="connectView" hidden>
-      <section class="ks-card" aria-labelledby="computersHeading">
-        <div class="ks-card-head">
-          <div>
-            <h2 id="computersHeading">Your computers</h2>
-            <p class="ks-help">A phone connects through the computer next to it. That computer runs OSHAL Node with control allowed.</p>
+        <div id="computerPointerSection" class="pc-pair-stack" role="group" aria-label="Computer pointer and mouse controls" hidden>
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="inputModeBtn" aria-pressed="false">Input: Touch tap</button>
+            <button type="button" class="ks-btn" id="liveKeysBtn" aria-pressed="false">Live keyboard: Off</button>
           </div>
-          <div class="ks-actions"><a class="ks-btn" id="downloadNode" href="/cockpit/tools/devices.html" target="_top">Download OSHAL Node</a></div>
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="rightClickBtn">Right click</button>
+            <button type="button" class="ks-btn" id="doubleClickBtn">Double click</button>
+          </div>
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="scrollUpBtn">Scroll up</button>
+            <button type="button" class="ks-btn" id="scrollDownBtn">Scroll down</button>
+          </div>
         </div>
-        <div class="table-scroll">
-          <table id="computersTable" class="stack-on-phone" data-sortable>
-            <thead><tr><th>Computer</th><th>Status</th><th>Phone tools</th><th>Choose</th></tr></thead>
-            <tbody id="computersBody"><tr class="ks-empty-row"><td colspan="4">Reading your computers…</td></tr></tbody>
-          </table>
-        </div>
-      </section>
 
-      <section class="ks-card" id="setupCard" aria-labelledby="setupHeading" hidden>
-        <div class="ks-card-head">
-          <div>
-            <h2 id="setupHeading">Set up this computer</h2>
-            <p class="ks-help" id="setupHelp">Installs the phone bridge in your account on this computer, gets Android tools and starts the iPhone keyboard.</p>
+        <div id="sessionFeaturesSection" class="pc-session-tools" role="group" aria-label="Session tools">
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="ctrlAltDelBtn">Ctrl+Alt+Del</button>
+            <button type="button" class="ks-btn" id="superKeyBtn">Super / Win</button>
           </div>
-          <div class="ks-actions">
-            <button type="button" class="ks-btn ks-btn-danger" id="removeBridge">Remove from this computer</button>
-            <button type="button" class="ks-btn ks-btn-primary" id="setUp">Set up this computer</button>
-          </div>
-        </div>
-        <div class="table-scroll">
-          <table id="setupTable" class="stack-on-phone">
-            <thead><tr><th>Part</th><th>State</th></tr></thead>
-            <tbody id="setupBody"><tr class="ks-empty-row"><td colspan="2">Not read yet.</td></tr></tbody>
-          </table>
-        </div>
-        <p id="setupReadAt" class="ks-help"></p>
-        <p id="setupStatus" class="ks-help" role="status" aria-live="polite"></p>
-        <div class="ks-actions" id="replaceRow" hidden>
-          <button type="button" class="ks-btn ks-btn-primary" id="replaceEarlier">Replace the earlier test keyboard</button>
-        </div>
-      </section>
 
-      <div class="pc-connect-grid">
-        <section class="ks-card" id="androidCard" aria-labelledby="androidHeading" hidden>
-          <div class="ks-card-head">
-            <div>
-              <h2 id="androidHeading">Pair an Android phone</h2>
-              <p class="ks-help">On the phone: Developer options, Wireless debugging, Pair device with pairing code.</p>
+          <form id="specialKeyForm" class="ks-form pc-row-form">
+            <div class="ks-field">
+              <label for="specialKeySelect">Special keys</label>
+              <select id="specialKeySelect">
+                <option value="Escape">Escape</option>
+                <option value="Tab">Tab</option>
+                <option value="Return">Enter / Return</option>
+                <option value="Backspace">Backspace</option>
+                <option value="Delete">Delete</option>
+                <option value="alt+Tab">Alt+Tab (switch window)</option>
+                <option value="alt+F4">Alt+F4 (close window)</option>
+                <option value="ctrl+shift+Escape">Ctrl+Shift+Esc (Task Manager)</option>
+                <option value="ctrl+c">Ctrl+C (Copy)</option>
+                <option value="ctrl+v">Ctrl+V (Paste)</option>
+                <option value="ctrl+z">Ctrl+Z (Undo)</option>
+                <option value="ctrl+s">Ctrl+S (Save)</option>
+                <option value="F1">F1</option>
+                <option value="F2">F2</option>
+                <option value="F3">F3</option>
+                <option value="F4">F4</option>
+                <option value="F5">F5</option>
+                <option value="F6">F6</option>
+                <option value="F7">F7</option>
+                <option value="F8">F8</option>
+                <option value="F9">F9</option>
+                <option value="F10">F10</option>
+                <option value="F11">F11</option>
+                <option value="F12">F12</option>
+                <option value="Home">Home</option>
+                <option value="End">End</option>
+                <option value="PageUp">Page Up</option>
+                <option value="PageDown">Page Down</option>
+              </select>
             </div>
-          </div>
-          <form id="pairForm" class="ks-form">
-            <div class="ks-field"><label for="pairAddress">Pairing address</label><input id="pairAddress" type="text" inputmode="url" autocomplete="off" placeholder="192.168.1.42:37123" /></div>
-            <div class="ks-field"><label for="pairCode">Pairing code</label><input id="pairCode" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="6 digits" /></div>
-            <button type="submit" class="ks-btn" id="pairSend">Pair</button>
+            <button type="submit" class="ks-btn" id="sendSpecialKeyBtn">Send key</button>
           </form>
-          <form id="connectForm" class="ks-form">
-            <div class="ks-field"><label for="connectAddress">Connect address</label><input id="connectAddress" type="text" inputmode="url" autocomplete="off" placeholder="From the Wireless debugging screen" /></div>
-            <button type="submit" class="ks-btn" id="connectSend">Connect</button>
-          </form>
-          <p id="androidStatus" class="ks-help" role="status" aria-live="polite"></p>
-          <div class="table-scroll">
-            <table id="adbTable" class="stack-on-phone">
-              <thead><tr><th>Phone adb sees</th><th>State</th><th>Add</th></tr></thead>
-              <tbody id="adbBody"><tr class="ks-empty-row"><td colspan="3">No Android phone on this computer yet.</td></tr></tbody>
+
+          <div class="ks-form pc-row-form" id="monitorRow">
+            <div class="ks-field">
+              <label for="monitorSelect">Monitors</label>
+              <select id="monitorSelect">
+                <option value="primary">Primary display</option>
+              </select>
+            </div>
+            <button type="button" class="ks-btn" id="scanMonitorsBtn">Detect monitors</button>
+          </div>
+
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="screenshotBtn">Screenshot</button>
+            <button type="button" class="ks-btn" id="recordClipBtn" aria-pressed="false">Record clip</button>
+          </div>
+
+          <div class="ks-form pc-row-form" id="qualityRow">
+            <div class="ks-field">
+              <label for="qualitySelect">Quality</label>
+              <select id="qualitySelect">
+                <option value="high">High (720p · fast)</option>
+                <option value="balanced" selected>Balanced (432p · standard)</option>
+                <option value="low">Low (288p · low bandwidth)</option>
+              </select>
+            </div>
+            <button type="button" class="ks-btn" id="switchSidesBtn" aria-pressed="false">Switch sides</button>
+          </div>
+
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="privacyScreenBtn" aria-pressed="false">Privacy screen: Off</button>
+            <button type="button" class="ks-btn" id="lockOnEndBtn" aria-pressed="false">Lock on end: Off</button>
+          </div>
+
+          <div class="pc-pair-row">
+            <button type="button" class="ks-btn" id="lockNowBtn">Lock screen now</button>
+            <button type="button" class="ks-btn" id="whiteboardToggleBtn" aria-pressed="false">Draw on screen: Off</button>
+          </div>
+
+          <div id="sessionDrawers" class="pc-drawer-stack">
+            <div class="pc-drawer-pair">
+              <details id="filesDrawer" class="pc-drawer">
+                <summary>Files</summary>
+                <div class="pc-drawer-body">
+                  <input id="fileUploadInput" type="file" hidden />
+                  <div class="pc-pair-row">
+                    <button type="button" class="ks-btn" id="uploadFileBtn">Send file to device</button>
+                    <button type="button" class="ks-btn" id="listRemoteFilesBtn">List Downloads</button>
+                  </div>
+                  <p id="filesStatus" class="ks-help" role="status" aria-live="polite"></p>
+                  <ul id="remoteFilesList" class="pc-compact-list"></ul>
+                  <ul id="transfersList" class="pc-compact-list"></ul>
+                </div>
+              </details>
+
+              <details id="clipboardDrawer" class="pc-drawer">
+                <summary>Clipboard</summary>
+                <div class="pc-drawer-body">
+                  <div class="ks-field">
+                    <label for="clipboardText">Clipboard text</label>
+                    <textarea id="clipboardText" rows="2" maxlength="4000" placeholder="Read from or send to the connected device"></textarea>
+                  </div>
+                  <div class="pc-pair-row">
+                    <button type="button" class="ks-btn" id="readClipboardBtn">Read clipboard</button>
+                    <button type="button" class="ks-btn" id="writeClipboardBtn">Send clipboard</button>
+                  </div>
+                  <p id="clipboardStatus" class="ks-help" role="status" aria-live="polite"></p>
+                </div>
+              </details>
+            </div>
+
+            <div class="pc-drawer-pair">
+              <details id="chatDrawer" class="pc-drawer">
+                <summary>Chat</summary>
+                <div class="pc-drawer-body">
+                  <div id="chatLog" class="pc-chat-log" aria-live="polite"></div>
+                  <form id="chatForm" class="ks-form pc-row-form">
+                    <div class="ks-field">
+                      <label for="chatInput">Message</label>
+                      <input id="chatInput" type="text" autocomplete="off" maxlength="1000" placeholder="Message for the person at this device" />
+                    </div>
+                    <button type="submit" class="ks-btn" id="chatSendBtn">Send</button>
+                  </form>
+                  <div class="pc-pair-row">
+                    <button type="button" class="ks-btn" id="syncRemoteChatBtn">Check replies</button>
+                    <button type="button" class="ks-btn" id="clearChatBtn">Clear chat</button>
+                  </div>
+                  <p id="chatStatus" class="ks-help" role="status" aria-live="polite"></p>
+                </div>
+              </details>
+
+              <details id="whiteboardDrawer" class="pc-drawer">
+                <summary>Whiteboard &amp; captures</summary>
+                <div class="pc-drawer-body">
+                  <div class="ks-form pc-row-form">
+                    <div class="ks-field">
+                      <label for="whiteboardColorSelect">Ink colour</label>
+                      <select id="whiteboardColorSelect">
+                        <option value="#ef4444">Red ink</option>
+                        <option value="#f59e0b">Amber ink</option>
+                        <option value="#22c55e">Green ink</option>
+                        <option value="#3b82f6">Blue ink</option>
+                      </select>
+                    </div>
+                    <button type="button" class="ks-btn" id="saveWhiteboardBtn">Save overlay</button>
+                  </div>
+                  <div class="pc-pair-row">
+                    <button type="button" class="ks-btn" id="clearWhiteboardBtn">Clear whiteboard</button>
+                  </div>
+                  <p id="whiteboardStatus" class="ks-help" role="status" aria-live="polite"></p>
+                  <ul id="capturesList" class="pc-compact-list"></ul>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+
+        <div id="sessionSheetDetails" class="pc-sheet-details"></div>
+
+        <div class="pc-sheet-end">
+          <button type="button" class="ks-btn ks-btn-danger pc-end-session-btn" id="endSessionBtn" data-ds-destructive><span aria-hidden="true">✕</span> End session</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="connectScrim" class="pc-sheet-scrim" hidden></div>
+    <section id="connectSheet" class="pc-sheet pc-full-sheet" data-ds-sheet role="dialog" aria-modal="true" aria-labelledby="connectHeading" hidden>
+      <div class="pc-sheet-grabber" aria-hidden="true"></div>
+      <header class="pc-sheet-head">
+        <h2 id="connectHeading">Add a device</h2>
+        <button type="button" class="pc-tertiary-btn" id="connectCloseBtn">Done</button>
+      </header>
+      <div id="connectView" class="pc-sheet-body">
+        <div id="connectProblemBanner" class="pc-problem-banner" role="status" aria-live="polite" hidden>
+          <p id="connectProblemText" class="ks-help"></p>
+          <button type="button" class="ks-btn" id="askConnectConciergeBtn">Ask Concierge to fix this</button>
+        </div>
+
+        <section class="ks-card" aria-labelledby="computersHeading">
+          <div class="ks-card-head">
+            <div>
+              <h2 id="computersHeading">Your computers</h2>
+              <p class="ks-help">A phone or TV connects through the Linux computer next to it. That computer runs oshal Node with control allowed.</p>
+            </div>
+            <div class="ks-actions">
+              <a class="ks-btn ks-btn-primary" id="downloadNode" href="/cockpit/tools/devices.html" target="_top">Download oshal Node for Linux, macOS or Windows</a>
+            </div>
+          </div>
+          <div id="computersEmpty" class="pc-computers-empty" hidden>
+            <ol id="installSteps" class="pc-steps">
+              <li>Install</li>
+              <li>Sign in</li>
+              <li>Press Allow</li>
+            </ol>
+            <p id="waitingForComputer" class="ks-help" role="status" aria-live="polite">Waiting for your computer…</p>
+          </div>
+          <p id="computersRefusedMsg" class="ks-help pc-alert" role="alert" hidden></p>
+          <div id="computersTableWrap" class="table-scroll" hidden>
+            <table id="computersTable" class="stack-on-phone" data-sortable>
+              <thead id="computersHead" hidden><tr><th>Computer</th><th>Status</th><th>Phone tools</th><th>Choose</th></tr></thead>
+              <tbody id="computersBody"><tr class="ks-empty-row"><td colspan="4">Reading your computers…</td></tr></tbody>
             </table>
+          </div>
+          <p id="computersStatus" class="ks-help" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="ks-card" id="setupCard" aria-labelledby="setupHeading" hidden>
+          <div class="ks-card-head">
+            <div>
+              <h2 id="setupHeading">Set up this computer</h2>
+              <p class="ks-help" id="setupHelp">Installs the phone bridge in your account on this computer, gets Android tools, AirPlay mirroring (UxPlay) and starts the iPhone keyboard.</p>
+            </div>
+            <div class="ks-actions">
+              <button type="button" class="ks-btn ks-btn-danger" id="removeBridge" data-ds-destructive>Remove from this computer</button>
+              <button type="button" class="ks-btn ks-btn-primary" id="setUp">Set up this computer</button>
+            </div>
+          </div>
+          <div id="removeBridgeConfirm" class="pc-inline-confirm" role="group" aria-label="Confirm removing phone bridge" hidden>
+            <p class="ks-help">Remove the phone bridge, its adb and UxPlay copies and the iPhone keyboard from this computer? Pairings stay on the phones.</p>
+            <div class="ks-actions">
+              <button type="button" class="pc-tertiary-btn" id="cancelRemoveBridge">Cancel</button>
+              <button type="button" class="ks-btn ks-btn-danger-solid" id="confirmRemoveBridge" data-ds-destructive>Remove</button>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table id="setupTable" class="stack-on-phone">
+              <thead><tr><th>Part</th><th>State</th></tr></thead>
+              <tbody id="setupBody"><tr class="ks-empty-row"><td colspan="2">Not read yet.</td></tr></tbody>
+            </table>
+          </div>
+          <p id="setupReadAt" class="ks-help"></p>
+          <p id="setupStatus" class="ks-help" role="status" aria-live="polite"></p>
+          <div class="ks-actions" id="replaceRow" hidden>
+            <button type="button" class="ks-btn ks-btn-primary" id="replaceEarlier">Replace the earlier test keyboard</button>
           </div>
         </section>
 
-        <section class="ks-card" id="iphoneCard" aria-labelledby="iphoneHeading" hidden>
-          <div class="ks-card-head">
-            <div>
-              <h2 id="iphoneHeading">Pair an iPhone</h2>
-              <p class="ks-help">This computer becomes a Bluetooth keyboard called OSHAL-KB. iPhone screens can't be shown here.</p>
+        <div class="pc-connect-grid">
+          <section class="ks-card" id="androidCard" aria-labelledby="androidHeading" hidden>
+            <div class="ks-card-head">
+              <div>
+                <h2 id="androidHeading">Pair an Android phone</h2>
+                <p class="ks-help">On the phone: Developer options, Wireless debugging, Pair device with pairing code.</p>
+              </div>
             </div>
-            <div class="ks-actions"><button type="button" class="ks-btn" id="pairIphone">Pair an iPhone</button></div>
+            <form id="pairForm" class="ks-form">
+              <div class="ks-field"><label for="pairAddress">Pairing address</label><input id="pairAddress" type="text" inputmode="url" autocomplete="off" placeholder="192.168.1.42:37123" /></div>
+              <div class="ks-field"><label for="pairCode">Pairing code</label><input id="pairCode" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="6 digits" /></div>
+              <button type="submit" class="ks-btn" id="pairSend">Pair</button>
+            </form>
+            <form id="connectForm" class="ks-form">
+              <div class="ks-field"><label for="connectAddress">Connect address</label><input id="connectAddress" type="text" inputmode="url" autocomplete="off" placeholder="From the Wireless debugging screen" /></div>
+              <button type="submit" class="ks-btn" id="connectSend">Connect</button>
+            </form>
+            <div class="pc-pair-row pc-top-gap">
+              <button type="button" class="ks-btn" id="pushAndroidApkBtn">Install oshal Companion APK</button>
+            </div>
+            <p id="androidStatus" class="ks-help" role="status" aria-live="polite"></p>
+            <div class="table-scroll">
+              <table id="adbTable" class="stack-on-phone">
+                <thead><tr><th>Phone adb sees</th><th>State</th><th>Add</th></tr></thead>
+                <tbody id="adbBody"><tr class="ks-empty-row"><td colspan="3">No Android phone on this computer yet.</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="ks-card" id="tvCard" aria-labelledby="tvHeading" hidden>
+            <div class="ks-card-head">
+              <div>
+                <h2 id="tvHeading">Connect a TV (Fire TV / Android TV)</h2>
+                <p class="ks-help">Enter your Fire Stick IP (or scan Wi-Fi) and press Load oshal TV — connects, waits for Allow, installs the signed oshal TV app and launches it in one step.</p>
+              </div>
+              <div class="ks-actions">
+                <button type="button" class="ks-btn" id="scanTvBtn">Find TVs on Wi-Fi</button>
+              </div>
+            </div>
+            <ol class="pc-guide-steps">
+              <li>Using your remote <strong>or the Fire TV phone remote app</strong>: <strong>Settings → My Fire TV → About → tap Fire TV Stick 7 times → Back → Developer Options → turn ADB Debugging ON</strong> (and note IP Address under <strong>About → Network</strong>).</li>
+              <li>Press <strong>Find TVs on Wi-Fi</strong> (or enter the Fire Stick IP below) and press <strong>Load oshal TV</strong>.</li>
+              <li>When the TV asks <strong>Allow USB debugging?</strong>, tap <strong>Allow</strong> using your remote or the Fire TV phone remote app — installation continues automatically.</li>
+            </ol>
+            <div id="tvCandidates" class="pc-chip-row" role="group" aria-label="Discovered TVs on Wi-Fi" hidden></div>
+            <form id="tvForm" class="ks-form pc-row-form">
+              <div class="ks-field"><label for="tvAddress">TV address</label><input id="tvAddress" type="text" inputmode="url" autocomplete="off" placeholder="192.168.1.138 (port 5555 is added)" /></div>
+              <button type="submit" class="ks-btn" id="tvSend">Load oshal TV</button>
+            </form>
+            <div class="pc-pair-row pc-top-gap">
+              <button type="button" class="ks-btn" id="tvConnectOnlyBtn">Connect only (already installed)</button>
+              <button type="button" class="ks-btn" id="pushTvApkBtn">Re-push oshal TV app</button>
+            </div>
+            <p id="tvStatus" class="ks-help" role="status" aria-live="polite"></p>
+            <details id="tvPushScriptDrawer" class="pc-drawer pc-top-gap">
+              <summary>Copy push script</summary>
+              <div class="pc-drawer-body">
+                <pre id="tvPushScript" class="pc-code-box"></pre>
+                <button type="button" class="ks-btn" id="copyTvScriptBtn">Copy push script</button>
+              </div>
+            </details>
+            <details id="tvBleDetails" class="pc-drawer pc-top-gap">
+              <summary>Optional: Bluetooth keyboard &amp; mouse</summary>
+              <div class="pc-drawer-body">
+                <p class="ks-help">Requires a physical remote — if you use the Fire TV phone remote app, skip Bluetooth and enter the Fire Stick IP above.</p>
+                <button type="button" class="ks-btn" id="pairTvBleBtn">Open 2-minute OSHAL-KB window</button>
+                <p id="tvBleStatus" class="ks-help" role="status" aria-live="polite"></p>
+                <div class="table-scroll">
+                  <table id="tvBleTable" class="stack-on-phone">
+                    <thead><tr><th>Bluetooth device</th><th>State</th><th>Add</th><th>Remove</th></tr></thead>
+                    <tbody id="tvBleBody"><tr class="ks-empty-row"><td colspan="4">No Bluetooth TV paired yet.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          <section class="ks-card" id="rdpCard" aria-labelledby="rdpHeading">
+            <div class="ks-card-head">
+              <div>
+                <h2 id="rdpHeading">Connect via RDP (Windows · Linux · macOS · Any RDP Host)</h2>
+                <p class="ks-help">Enable Remote Desktop on a computer with the setup script below, open it directly in this console, or verify TCP 3389.</p>
+              </div>
+            </div>
+            <div class="pc-pair-stack">
+              <div class="pc-pair-row">
+                <button type="button" class="ks-btn" id="rdpOsWindowsBtn" aria-pressed="true">Windows</button>
+                <button type="button" class="ks-btn" id="rdpOsLinuxBtn" aria-pressed="false">Linux</button>
+              </div>
+              <div class="pc-pair-row">
+                <button type="button" class="ks-btn" id="rdpOsMacBtn" aria-pressed="false">macOS</button>
+                <button type="button" class="ks-btn" id="rdpOsAnyBtn" aria-pressed="false">Any RDP Host</button>
+              </div>
+            </div>
+            <pre id="rdpSetupScript" class="pc-code-box pc-top-gap"></pre>
+            <div class="pc-pair-row pc-top-gap">
+              <button type="button" class="ks-btn" id="copyRdpScriptBtn">Copy setup script</button>
+            </div>
+            <form id="rdpForm" class="ks-form pc-top-gap">
+              <div class="pc-pair-row">
+                <div class="ks-field"><label for="rdpHost">RDP host</label><input id="rdpHost" type="text" inputmode="url" autocomplete="off" placeholder="192.168.1.50 or desktop.local" /></div>
+                <div class="ks-field"><label for="rdpPort">Port</label><input id="rdpPort" type="number" min="1" max="65535" value="3389" /></div>
+              </div>
+              <div class="pc-pair-row">
+                <div class="ks-field"><label for="rdpUsername">Username</label><input id="rdpUsername" type="text" autocomplete="username" placeholder="administrator or user" /></div>
+                <div class="ks-field"><label for="rdpPassword">Password</label><input id="rdpPassword" type="password" autocomplete="current-password" placeholder="RDP account password" /></div>
+              </div>
+              <div class="ks-field"><label for="rdpDomain">Domain (optional)</label><input id="rdpDomain" type="text" autocomplete="off" placeholder="WORKGROUP or corp.example" /></div>
+              <div class="ks-actions">
+                <button type="button" class="ks-btn" id="rdpConnectBtn">Connect in console</button>
+                <button type="submit" class="ks-btn" id="rdpProbeBtn">Check RDP port</button>
+              </div>
+            </form>
+            <p id="rdpStatus" class="ks-help" role="status" aria-live="polite"></p>
+            <div class="ks-actions">
+              <a class="ks-btn" id="rdpWorkLink" target="_top" href="#" hidden>Work on it over RDP</a>
+            </div>
+          </section>
+
+          <section class="ks-card" id="iphoneCard" aria-labelledby="iphoneHeading" hidden>
+            <div class="ks-card-head">
+              <div>
+                <h2 id="iphoneHeading">Pair an iPhone</h2>
+                <p class="ks-help">This computer acts as a Bluetooth keyboard peripheral called <strong>OSHAL-KB</strong> (pairing always starts on the iPhone in <strong>Settings → Bluetooth → OSHAL-KB</strong>, not from a computer scan) and as an AirPlay receiver for live screen mirroring.</p>
+              </div>
+              <div class="ks-actions">
+                <button type="button" class="ks-btn" id="pairIphone">Pair an iPhone</button>
+                <button type="button" class="ks-btn" id="toggleMirrorSetup">Start mirroring</button>
+              </div>
+            </div>
+            <ol class="pc-guide-steps">
+              <li>Press <strong>Pair an iPhone</strong> (opens a 2-minute window), then on the iPhone open <strong>Settings → Bluetooth</strong> and tap <strong>OSHAL-KB</strong> under Other Devices, then <strong>Pair</strong>.</li>
+              <li>Press <strong>Add</strong> in the table below. For the pointer, turn on <strong>Settings → Accessibility → Touch → AssistiveTouch</strong>.</li>
+              <li>For live screen viewing, press <strong>Start mirroring</strong>, then on the iPhone open <strong>Control Center → Screen Mirroring</strong> and choose <strong>OSHAL Mirror</strong> on the same Wi-Fi.</li>
+            </ol>
+            <p id="iphoneStatus" class="ks-help" role="status" aria-live="polite"></p>
+            <div class="table-scroll">
+              <table id="bleTable" class="stack-on-phone">
+                <thead><tr><th>Paired with this computer</th><th>State</th><th>Add</th><th>Remove</th></tr></thead>
+                <tbody id="bleBody"><tr class="ks-empty-row"><td colspan="4">No iPhone paired with this computer yet.</td></tr></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <details id="connectConciergeDetails" class="ks-card pc-collapsible">
+          <summary id="connectConciergeCard">Connection Concierge — Help me connect</summary>
+          <div class="pc-collapsible-body">
+            <p class="ks-help">Troubleshooting Fire Stick ADB debugging, Wi-Fi discovery, APK installation, Android pairing, Bluetooth OSHAL-KB or AirPlay mirroring.</p>
+            <div id="connectConciergeLog" class="pc-concierge-log" role="log" aria-live="polite"></div>
+            <div id="connectConciergeActions" class="pc-chip-row" role="group" aria-label="Suggested connection fixes"></div>
+            <form id="connectConciergeForm" class="ks-form pc-row-form">
+              <div class="ks-field">
+                <label class="pc-sr-only" for="connectConciergeInput">Describe connection issue</label>
+                <input id="connectConciergeInput" type="text" autocomplete="off" maxlength="600" placeholder="Describe what happened on your TV or phone…" />
+              </div>
+              <button type="submit" class="ks-btn" id="connectConciergeSendBtn">Ask</button>
+            </form>
           </div>
-          <p id="iphoneStatus" class="ks-help" role="status" aria-live="polite"></p>
-          <div class="table-scroll">
-            <table id="bleTable" class="stack-on-phone">
-              <thead><tr><th>iPhone</th><th>State</th><th>Add</th></tr></thead>
-              <tbody id="bleBody"><tr class="ks-empty-row"><td colspan="3">No iPhone paired with this computer yet.</td></tr></tbody>
-            </table>
-          </div>
-        </section>
+        </details>
       </div>
-    </div>
+    </section>
   </main>
 
   <script type="module" src="/api/phone-control/ui/phone-control.js"></script>

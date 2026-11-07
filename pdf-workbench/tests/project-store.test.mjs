@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Genuine disposable PostgreSQL + pure PDF worker ownership/history/cancel/rollback proofs.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Exact retention boundary, foreign reclamation denial, encoded quotas, expiry projection and atomic metadata rollback.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Apply 003-signatures-and-preferences.sql migration in disposable PostgreSQL store tests.
  * Named seam: mutable application-grant adapter; this source test does not claim native kernel admission.
  */
 import test from 'node:test';import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ test('immutable owned revisions, fresh grant/cancel denial and actual transactio
  const suffix=randomUUID().replaceAll('-',''),database='pdf_fixture_'+suffix,role='pdf_role_'+suffix,password=randomUUID(),admin=new Pool({connectionString:url.href});let db,pool;const dir=mkdtempSync(join(tmpdir(),'pdf-store-'));
  try{
   await admin.query('CREATE DATABASE '+database);await admin.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
-  const dbUrl=new URL(url);dbUrl.pathname='/'+database;db=new Pool({connectionString:dbUrl.href});await db.query(readFileSync(join(root,'migrations/001-pdf-workbench.sql'),'utf8'));await db.query(readFileSync(join(root,'migrations/002-image-assets.sql'),'utf8'));await db.query(`GRANT USAGE ON SCHEMA public TO ${role};GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO ${role}`);
+  const dbUrl=new URL(url);dbUrl.pathname='/'+database;db=new Pool({connectionString:dbUrl.href});await db.query(readFileSync(join(root,'migrations/001-pdf-workbench.sql'),'utf8'));await db.query(readFileSync(join(root,'migrations/002-image-assets.sql'),'utf8'));await db.query(readFileSync(join(root,'migrations/003-signatures-and-preferences.sql'),'utf8'));await db.query(`GRANT USAGE ON SCHEMA public TO ${role};GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO ${role}`);
   dbUrl.username=role;dbUrl.password=password;pool=new Pool({connectionString:dbUrl.href,max:8});
   command([join(root,'tests/fixtures/build-fixtures.py'),dir]);const data=readFileSync(join(dir,'first.pdf'));
   function context(sub){const state={sub,denied:new Set(),active:true,hook:null,sqlHook:null};const ctx={pool:{connect:async()=>{const client=await pool.connect();return{query:async(sql,params)=>{if(state.sqlHook)await state.sqlHook(sql,params);return client.query(sql,params);},release:()=>client.release()};}},authorization:{currentActor:()=>({issuer:'pdf-fixture',sub:state.sub,isActive:state.active}),authorize:async({permission})=>({allowed:!state.denied.has(permission)})},intent:async(name,input)=>{assert.equal(name,'engine.exchange');const result=JSON.parse(command([join(root,'engine/worker.py')],JSON.stringify(input.request.args)));if(state.hook)await state.hook(input.request.args,result);return{hello:{bridge:identity},reply:{id:1,buildHash:identity.buildHash,...result}};}};return{state,ctx,store:new PdfStore(bindRequest(ctx))};}

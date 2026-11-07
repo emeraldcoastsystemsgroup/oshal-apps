@@ -10,6 +10,7 @@
  *   (crates/api/src/shell_screen_state.js captureScreenState, the text the concierge receives) carries that line before the
  *   list even when the list is long; Add moves the line to the new row; a status tab, where "latest" would mislead, hides it.
  *   Seams: the synthetic same-origin fixture (no Career store, no network). Needs the kernel checkout (OSHAL_KERNEL_ROOT).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: on a phone the add form lives in the "Add recruiter" sheet, so the Add case opens it first.
  */
 'use strict';
 const test = require('node:test');
@@ -90,9 +91,10 @@ test('the All view names the latest added recruiter and its bucket, and the conc
 test('Add moves the line to the new recruiter; a status tab hides it', async () => {
   const { page, context } = await openRecruiters(browser);
   try {
+    await page.click('#openAdd');
     await page.fill('#firm', 'sweep12 Search Partners');
     await page.fill('#bucket', 'sweep12 bucket');
-    await page.click('button:has-text("Add")');
+    await page.click('#addSheet button[type="submit"]');
     await page.waitForFunction(() => document.getElementById('latest').textContent.includes('sweep12 Search Partners'));
     assert.match(await page.locator('#latest').innerText(), /Latest added: sweep12 Search Partners · bucket sweep12 bucket/);
     await page.click('.tab:has-text("To contact")');

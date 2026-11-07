@@ -1,8 +1,9 @@
 <!doctype html>
 <!-- CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | The Brand Kit page: brand name, logo, five role colors, Office-safe fonts and voice, previewed live on real editor templates and saved as one private kit every Create studio reads.
+2 | maintainer@emeraldcoastsystemsgroup.com | 1.19.2 UX standard: readable dark logo tile in light themes, debounced autosave with secondary solid-disabled Save in a sticky phone action bar, form-first phone layout with a Preview half sheet, 44px extra-color controls, and an in-page Remove brand kit confirmation.
 -->
-<html lang="en" data-theme="create">
+<html lang="en" data-theme="create" data-ds-category="form" data-ds-first-action="type">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,19 +15,18 @@
 </head>
 <body>
   <header class="brand-header">
-    <div class="brand-heading">
-      <p class="eyebrow">Create / Brand Kit</p>
-      <h1>Your brand kit</h1>
-      <p class="intro">Set your colors, fonts and logo once. The image editor, AI Office, Portrait Studio and Video Studio use them.</p>
-    </div>
+    <p class="intro">Set your colors, fonts and logo once. The image editor, AI Office, Portrait Studio and Video Studio use them.</p>
     <div class="header-actions">
-      <span id="saveStatus" role="status" aria-live="polite">Loading your brand kit…</span>
-      <button id="saveKit" class="primary" type="button" disabled>Save brand kit</button>
+      <button id="previewBtn" class="preview-btn" type="button" aria-haspopup="dialog">Preview</button>
+      <div class="brand-save-bar" role="region" aria-label="Brand kit save state">
+        <span id="saveStatus" role="status" aria-live="polite">Loading your brand kit…</span>
+        <button id="saveKit" class="secondary" type="button" disabled>Save brand kit</button>
+      </div>
     </div>
   </header>
   <p id="pageError" class="notice" role="alert" hidden></p>
   <p id="locked" class="notice" hidden>Your role does not include the brand kit. An administrator can grant it in <a href="/access?app=create" target="_top" rel="noopener">Access</a>.</p>
-  <main id="workspace" class="brand-workspace" hidden>
+  <main id="workspace" class="brand-workspace" data-ds-work hidden>
     <div class="brand-editor">
       <section class="panel" aria-labelledby="nameTitle">
         <h2 id="nameTitle">Brand name</h2>
@@ -38,8 +38,8 @@
       <section class="panel" aria-labelledby="logoTitle">
         <div class="panel-head"><h2 id="logoTitle">Logo</h2><span class="hint">PNG, JPEG or WebP up to 8 MB</span></div>
         <div class="logo-stage">
-          <div class="logo-tile on-light"><img id="logoLight" alt="Your logo on your background color" hidden><span class="logo-empty">No logo yet</span></div>
-          <div class="logo-tile on-dark"><img id="logoDark" alt="Your logo on your text color" hidden><span class="logo-empty">No logo yet</span></div>
+          <div class="logo-tile on-light" data-no-glass><img id="logoLight" alt="Your logo on your background color" hidden><span class="logo-empty">No logo yet</span></div>
+          <div class="logo-tile on-dark" data-no-glass><img id="logoDark" alt="Your logo on your text color" hidden><span class="logo-empty">No logo yet</span></div>
         </div>
         <div class="button-row">
           <button id="uploadLogo" type="button" data-edit>Upload logo</button>
@@ -53,7 +53,7 @@
         <div class="panel-head"><h2 id="colorsTitle">Colors</h2><span class="hint">Every role is used by templates and studios</span></div>
         <div id="roleColors" class="role-colors"></div>
         <div class="contrast" id="contrast" aria-live="polite"></div>
-        <div class="panel-head extras-head"><h3>More colors</h3><button id="addExtra" type="button" class="ghost small" data-edit>Add a color</button></div>
+        <div class="panel-head extras-head"><h3>More colors</h3><button id="addExtra" type="button" class="ghost" data-edit>Add a color</button></div>
         <div id="extraColors" class="extra-colors"></div>
       </section>
 
@@ -65,7 +65,7 @@
           <label>Heading<select id="headingFont" data-edit></select></label>
           <label>Body<select id="bodyFont" data-edit></select></label>
         </div>
-        <div class="specimen" id="specimen">
+        <div class="specimen" id="specimen" data-no-glass>
           <p class="specimen-heading">Make something worth sharing</p>
           <p class="specimen-body">Headlines use your heading face. Paragraphs, captions and details use your body face.</p>
         </div>
@@ -89,11 +89,11 @@
         </ul>
       </section>
 
-      <button id="removeKit" type="button" class="danger" data-edit hidden>Remove brand kit</button>
+      <button id="removeKit" type="button" class="danger" data-ds-destructive data-edit hidden>Remove brand kit</button>
     </div>
 
-    <aside class="brand-preview" aria-labelledby="previewTitle">
-      <div class="panel preview-panel">
+    <aside class="brand-preview" id="previewHost" aria-labelledby="previewTitle">
+      <div class="panel preview-panel" id="previewPanel">
         <div class="panel-head"><h2 id="previewTitle">Live preview</h2><span class="hint">Real editor templates in your brand</span></div>
         <div class="preview-grid">
           <figure><canvas id="previewSquare" width="320" height="320" aria-label="A square announcement in your brand"></canvas><figcaption>Social post</figcaption></figure>
@@ -105,6 +105,26 @@
       </div>
     </aside>
   </main>
+
+  <dialog id="previewSheet" class="brand-sheet" data-ds-sheet aria-label="Live preview">
+    <div class="sheet-head">
+      <h2>Live preview</h2>
+      <button id="closePreviewSheet" type="button">Done</button>
+    </div>
+    <div id="previewSheetBody"></div>
+  </dialog>
+
+  <dialog id="removeKitDialog" class="brand-sheet brand-confirm" data-ds-sheet aria-labelledby="removeKitTitle">
+    <div class="sheet-head">
+      <h2 id="removeKitTitle">Remove brand kit?</h2>
+    </div>
+    <p class="confirm-copy">Studios go back to their own looks. Designs you already made keep their colors.</p>
+    <div class="confirm-actions">
+      <button id="cancelRemoveKit" type="button">Cancel</button>
+      <button id="confirmRemoveKit" type="button" class="danger-fill" data-ds-destructive>Remove brand kit</button>
+    </div>
+  </dialog>
+
   <div id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/api/create/editor/brand-page.mjs"></script>
 </body>

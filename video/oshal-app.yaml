@@ -45,6 +45,8 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | 1.12.0: shared direct editor with selectable native content, typed properties, compact commands and verified saved outputs.
 # 25 | maintainer@emeraldcoastsystemsgroup.com | 1.12.2: admit the manual timeline without Vids while retaining explicit generation dependencies.
 # 26 | maintainer@emeraldcoastsystemsgroup.com | 1.12.4: on a phone an empty project shows Add a clip as its one first action and the app bar is one row; the manifest no longer forces the sakura theme, so Video wears the person's portal theme (Roger, trial.oswarm.ai, 2026-11-06, F4).
+# 27 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §2.8, §5.1; CapCut and InShot, REFP CONVENTIONS §5.3): the editor screen declares its contract, keeps the preview, transport, timeline and one bottom tool row (Add, Text, Audio, Concierge, More; a clip's own tools when one is selected), puts Add a clip inside the empty timeline as the one first action and Export as the one primary once there is a clip, opens every tool as an opaque sheet the phone's Back closes, greys the functions both references have that Video lacks (RP-VID-01..10, RP-ALL-01) and declares graphite, the dark category look D2 allows the video editors, worn only when the person saved no theme. No route, permission or binding change.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | 1.13.1: put Video editor first in ui.static, withhold Video Studio's render form behind an Open Video editor card when rendering is unconfigured, step Video Studio 1-2-3-4 with Cancel, draft persistence and 44px controls when configured, and offer Generate a clip inside Video editor's Add sheet only when a Vids worker is online.
 name: video
 suite: ai-creative   # ADR-097: primary catalog shelf (tools keep their own category:)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -74,7 +76,7 @@ rating:
       degrade: disable
 displayName: Video Studio
 description: "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor."
-version: 1.12.4
+version: 1.13.1
 status: active
 chatBot: video-editor
 artifacts:
@@ -84,8 +86,10 @@ artifacts:
       types: [video/mp4]
       mode: open
 
-# No theme of its own: Video follows the person's portal theme, light-blue when none is saved
-# (docs/ux/screen-standard.md §1; Roger, 2026-11-06, F4: "has a theme that I've never seen before").
+# D2 (docs/ux/design-standard.md §2.8, decided 2026-11-06): the video editors may declare one dark category look from
+# black, graphite, midnight or amber, worn only when the person saved no theme; a saved theme always wins. Sakura is not
+# on that list (Roger, 2026-11-06, F4: "has a theme that I've never seen before").
+theme: graphite
 
 source:
   type: git-subdir
@@ -306,16 +310,16 @@ workflow:
 
 ui:
   static:
-    - toolName: video-studio
-      label: Video Studio
-      icon: codicon codicon-device-camera-video
-      iframeUrl: /api/video/ui
-      section: top
     # The manual timeline editor: your own clips, trimmed, split, reordered, titled and scored, then exported.
     - toolName: video-editor
       label: Video editor
       icon: codicon codicon-edit
       iframeUrl: /api/video/editor
+      section: top
+    - toolName: video-studio
+      label: Video Studio
+      icon: codicon codicon-device-camera-video
+      iframeUrl: /api/video/ui
       section: top
 
 # Trim the ribbon to the studio + the essentials. Hide the generic framework items.

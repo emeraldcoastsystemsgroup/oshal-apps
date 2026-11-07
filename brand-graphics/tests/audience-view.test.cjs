@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | The audience view contract of this package's page (ADR-164 D6): the shared kit is loaded right after the theme bootstrap, the page boots the kit with exactly the audiences it provides and its own application name, the full-page start is gated on the kit's decision, the head block parses, and every read in it stays on this package's own routes (plus the framework connect list where the page already reads it). Static, no browser, no network.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The family view asserted as behaviour: the head block runs against a stub kit and a stub fetch, fed the JSON the REAL compiled route (routes/home-summary.js, loaded with a stub Router and pool) builds from database rows; the title follows the account state, partial reads and every refusal are said with no figure in their place, the only read is the home summary, and the page start is gated.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | The design standard: the connected editors are rows of the app row's ⋯ More, so the full page mounts the shared editor and no connected-actions bar; its start steps stay inside the audience gate.
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  */
@@ -168,7 +169,7 @@ test('under an audience view the page\'s module script mounts nothing, binds not
   const start = html.lastIndexOf('<script type="module">'), mod = html.slice(start + 23, html.lastIndexOf('</script>'));
   const gate = mod.indexOf('if (!window.AppView || !AppView.active()) {');
   assert.ok(gate > 0 && gate > mod.lastIndexOf('import '), 'the gate follows the static imports');
-  for (const step of ['receiveHandoff({app', 'await mountConnectedActions(', "document.querySelector('#refresh').addEventListener", "document.querySelector('#render').addEventListener", 'await refresh();']) {
+  for (const step of ['receiveHandoff({app', 'await mountBriefWorkspace()', "document.querySelector('#refresh').addEventListener", "document.querySelector('#render').addEventListener", 'await refresh();']) {
     assert.ok(mod.indexOf(step) > gate, step + ' is inside the gate');
   }
   assert.match(mod, /await refresh\(\);\r?\n\}\r?\n?$/, 'the gate closes after the last start step');

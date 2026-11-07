@@ -6,12 +6,17 @@
     "office_editor_originals",
     "office_editor_original_parts",
     "office_editor_requests",
-    "office_editor_exports"
+    "office_editor_exports",
+    "office_editor_shares",
+    "office_editor_share_audit"
   ],
   "queries": [
     "SET LOCAL statement_timeout='5s'",
     "SET LOCAL lock_timeout='2s'",
     "SELECT set_config('office_editor.owner_key',$1,true)",
+    "SELECT set_config('office_editor.actor_issuer',$1,true)",
+    "SELECT set_config('office_editor.actor_sub',$1,true)",
+    "SELECT set_config('office_editor.tenant_id',$1,true)",
     "SELECT pg_advisory_xact_lock($1::bigint)",
     "COMMIT",
     "ROLLBACK",
@@ -40,7 +45,15 @@
     "INSERT INTO office_editor_exports(owner_key,sha256,model_sha256,document_id,revision,expires_at) VALUES($1,$2,$3,$4,$5,NOW()+INTERVAL '24 hours')",
     "UPDATE office_editor_requests SET tombstone=true WHERE owner_key=$1 AND document_id=$2",
     "DELETE FROM office_editor_documents WHERE owner_key=$1 AND id=$2",
-    "DELETE FROM office_editor_originals WHERE owner_key=$1 AND id=$2"
+    "DELETE FROM office_editor_originals WHERE owner_key=$1 AND id=$2",
+    "SELECT * FROM office_editor_shares WHERE document_id=$1 AND tenant_id=$2 AND grantee_issuer=$3 AND grantee_sub=$4",
+    "SELECT * FROM office_editor_shares WHERE tenant_id=$1 AND grantee_issuer=$2 AND grantee_sub=$3",
+    "SELECT id,grantee_issuer,grantee_sub,role,created_at,updated_at FROM office_editor_shares WHERE owner_key=$1 AND document_id=$2 ORDER BY created_at ASC",
+    "INSERT INTO office_editor_shares(owner_key,id,document_id,tenant_id,owner_issuer,owner_sub,grantee_issuer,grantee_sub,role) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+    "UPDATE office_editor_shares SET role=$3,updated_at=now() WHERE owner_key=$1 AND id=$2",
+    "DELETE FROM office_editor_shares WHERE owner_key=$1 AND id=$2",
+    "INSERT INTO office_editor_share_audit(id,owner_key,document_id,tenant_id,actor_issuer,actor_sub,action,role,detail,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+    "SELECT id,actor_sub,action,role,detail,created_at FROM office_editor_share_audit WHERE owner_key=$1 AND document_id=$2 ORDER BY created_at DESC LIMIT 50"
   ],
   "transactionModes": [
     "BEGIN",

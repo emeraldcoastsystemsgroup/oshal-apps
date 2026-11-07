@@ -57,3 +57,24 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: ux-inbox
+    name: The Print Inbox keeps Approve the one primary and reads in words
+    purpose: >-
+      UX audit 2026-11-06 (P2): the page's own functions in a sandbox and its CSS: Match words, one readers line per group, the selected tab's count in inverted ink, the editable title as the heading with a 3-line excerpt, sticky actions on a phone.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ux-inbox.test.cjs
+    expected:
+      - MEDIUM reads Match medium and a shared readers line appears once.
+      - The selected tab shows its count and is not accent-filled.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never

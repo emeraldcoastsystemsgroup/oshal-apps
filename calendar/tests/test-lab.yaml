@@ -8,6 +8,7 @@
 # CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | own-events also proves removal by the listed uuid: the remove tool declares `format: uuid`, a title is refused unwritten, and the persona reads calendar-my-events first, answers status questions without a card and guesses no zone abbreviation (sweep 10).
 # CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | own-events also proves (sweep 11) that approval-held tool descriptions read as card sentences without model instructions and that a span the person gave is one event with its end.
 # CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | own-events also expects a card named by its event, never by its place (sweep 13); the span expectation is quoted, since its unquoted colon made it a map the kernel loader refuses.
+# CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Register the design-standard layout case; Remove asks in the page now (the local-time expectation follows).
 version: 1
 cases:
   - id: own-events
@@ -186,7 +187,7 @@ cases:
     runner: { kind: node-test, scope: package, files: [tests/local-time.test.cjs] }
     expected:
       - The Added in OSHAL list and the Recorded work list show 'Fri, Nov 6, 2099, 6:00 PM CST', never a raw UTC instant.
-      - Remove asks first; a dismissed dialog removes nothing; OK sends DELETE and the event leaves the list and the summary.
+      - Remove asks first, in the page; Cancel removes nothing; Remove sends DELETE and the event leaves the list and the summary.
       - Nothing is wider than the 412-pixel screen.
     prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
     sideEffects: none
@@ -230,4 +231,22 @@ cases:
     sideEffects: fixture-write
     isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }
     limits: { timeoutMs: 60000 }
+    installation: never
+  - id: personal-calendar-design-standard
+    name: The design standard on the full Calendar page
+    purpose: >-
+      Real Chromium over the real owner-scoped PostgreSQL routes (named OIDC and session fixture seams): the declared contract,
+      one New event primary whose dialog the browser's Back closes, a save that refreshes Added in OSHAL at once, in-page asks
+      for Remove and Sync, Sync as one item of More, and on a phone inside a frame the grid within 120px with day dots.
+    level: integration
+    runner: { kind: external, scope: package, files: [tests/personal-calendar-layout-browser.test.mjs] }
+    expected:
+      - The page declares category collection and first action tap, and the month grid is inside data-ds-work.
+      - New event opens a modal add form that Back closes; a save appears in the grid and in Added in OSHAL in the same step.
+      - Remove and Sync confirm in the page; Cancel changes nothing and sends no sync; no native dialog opens.
+      - Framed at 412x743 the name is not repeated, the work starts within 120px, days show dots and nothing is wider than the screen.
+    prerequisites: [runner:node, runtime:store-pinned-toolchain, runtime:chromium, fixture:postgres-127.0.0.1-35689]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Close only own browser/server and drop unique fixture database and role; preserve shared Postgres. }
+    limits: { timeoutMs: 90000 }
     installation: never

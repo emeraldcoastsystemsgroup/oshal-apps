@@ -20,6 +20,8 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.6.3: mail-store expects the demo mailbox to answer a call naming Google, never another mailbox or a reconnect, and to have today's events.
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 1.6.4: digest-seal replaces session-crypto: the kernel seals the day summary.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.6.6: the mail copy turns itself on for a connected Gmail; nothing to press, and a person's own stop stands.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.6.8 (UX audit 2026-11-06): surface-provider and mailbox-connect expect the one-primary connect empty state and its sheet (no Mail connections link, no /utilities path), My Day's local-time greeting, hidden switch, fallback from a saved mailbox that is not connected and greyed skeleton, and the Inbox search's real scope; mail-store-browser expects the phone list-detail with Back, the centred no-mailbox state, a not-connected search that keeps Connect, the Outlook search reason and the 44px controls; social-desk-browser expects the Engage and Go Live screens of the audit.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.10 (UX audit 2026-11-06, little-monsters--lm-email): mail-store-browser and surface-provider expect #storeLine, #provider, #refresh and #storeSearch to stay hidden with no mailbox connected and show once linked; mailbox-connect and mail-store-browser expect OAuth authorize from Little Monsters Email to carry ?return=/cockpit/?app=little-monsters&screen=lm-email.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -349,6 +351,9 @@ cases:
       - The banner's Turn on activates the social-publish job with class person.
       - Go Live's Plan a stream sends the event with its destinations and three announcements on the chosen channels; Channels offers Connect for an unconnected account and saving the Slack channel writes the settings.
       - At 412 px the page does not scroll sideways and every rail action stays reachable.
+      - Opened on their own (?view=engage, ?view=live) the screens draw no inner strip at 412 px, and a view they open has a back control and a history entry.
+      - Engage states "Slack and X" once; with neither connected it says "Connect Slack or X to see mentions" with one Connect a channel primary; "Nothing waiting for you" only with a channel connected; one 44px Refresh with the checked time.
+      - Go Live reads "Save stream" and "Connect a channel to announce" with no announce channel, toasts what a save queued, names the announcing channels or "Not announced" per card, and keeps Delete in the card's ⋯ menu behind an in-page confirm after a greyed Edit (RP-COM-01) that changes nothing when pressed.
     prerequisites: [runner:node-test, browser:chromium]
     sideEffects: none
     isolation:

@@ -14,6 +14,7 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register play-phone-layout: at 412x915 the BUZZ IN bar stays inside its dock and the round clock leaves the question readable (demo sweep 1).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register repeat-question: a generated round whose question was already played is asked for again, and a second repeat is refused (sweep 14).
 # 12 | maintainer@emeraldcoastsystemsgroup.com | Register solo-night-stage and solo-night-engine: one press starts a game against the computer, nothing freezes it, every control reads, and AI podiums leave a person room to play. host-desk-screen's poster now names Play against the computer.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register ux-audit-surfaces: the clicker, stage, Host Desk and lobby to the 2026-11-06 UX audit (Help and You sheets, the 240px dome and full-width Answer, both teams above the dock on a phone, Join this game, the revealing answer key, Show setup, Voice off, Recent games).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -294,4 +295,37 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: ux-audit-surfaces
+    name: Clicker, stage, Host Desk and lobby to the UX audit
+    purpose: >-
+      Load the shipped stage.html, ui scripts and CSS in Chromium under the light-blue theme's tokens over a stub game API
+      that records every write, at 412x915 touch, 412x743 touch, 1280x800 and 1440x900.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/ux-audit-surfaces.test.js
+    expected:
+      - The clicker has one header row with a 44px ? that opens How to play as a sheet without leaving the page, and no New game.
+      - The clicker's dome is at most 240px, its BUZZ reads at 4.5:1 on its fill, a waiting dome is drawn at opacity 1, and team and Show me as are in the You sheet (Team B moves the seat).
+      - While the answer box is open the dome is hidden and the field ends in the top third with a 52px Answer across the screen; on a desktop the answer row is at most 640px.
+      - The stage draws no second header, is data-ds-game and keeps the zoom lock, carries the host line in the dock with no lower third, has a 44px ⚙, opens Help from its ?, and New game in ⋯ More asks before leaving.
+      - At 412x743 Team A and Team B share one row above the dock and inside the screen.
+      - A host without a podium sees Join this game while the buzzer is open; Play on Team A in the You sheet posts a player seat.
+      - The Host Desk keeps zoom open, has one primary, its answer key rows reveal a slot through forceReveal (a revealed one is disabled), Next round is in the first screen, and Rehearsal and Big Screen are in ⋯ More.
+      - Show setup is a sheet with one row per answer that sends the board as question, answers, points and aliases; + Team A posts a podium with an automatic name and no browser dialog.
+      - A host voice that returns no audio shows "Voice off, captions only".
+      - The lobby shows Recent games from the leaderboard read, each with Play again opening that show; the lobby keeps zoom open.
+      - A refusal while Show setup is open (Play my questions with nobody at a podium) is a toast drawn above the sheet, and the sheet keeps what was typed.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
     installation: never

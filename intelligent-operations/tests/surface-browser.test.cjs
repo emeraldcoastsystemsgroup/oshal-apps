@@ -176,7 +176,7 @@ test('installed experience lists canonical incidents, escapes titles and clears 
  try{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));browser=await chromium.launch({headless:true});const page=await browser.newPage();
   await page.goto(`http://127.0.0.1:${server.address().port}/index.html#incidents`);
-  await page.getByRole('status').filter({hasText:'Records refreshed'}).waitFor();
+  await page.locator('#status',{hasText:/^Updated /}).waitFor();
   await page.getByRole('button',{name:'Read incident tickets'}).click();
   await page.getByText('CPU <script>bad()</script>',{exact:true}).waitFor();
   assert.equal(await page.getByRole('link',{name:'Open ticket',exact:true}).getAttribute('href'),'/cockpit/?app=intelligent-operations&ticket=ticket%2F1');

@@ -7,6 +7,7 @@
  *   Chromium at 412x915 the shipped drone-ops.html opens over a fleet that reports no drone: the bar is empty while the
  *   percentage reads "–%". Seams: /api/drone answers the native kernel's no-drone fleet marker and empty lists; the shell's
  *   shared assets and connected-actions module are empty stand-ins. Needs the store toolchain (express, playwright, chromium).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the one no-drone empty state is on the canvas (the banner no longer repeats it), so the test waits for it.
  */
 'use strict';
 const test = require('node:test');
@@ -37,7 +38,7 @@ test('with no drone the battery bar is empty beside "–%", never full and green
   t.after(async () => { await browser.close(); await new Promise((r) => server.close(r)); });
   const page = await (await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true })).newPage();
   await page.goto(`${base}/api/drone/app`);
-  await page.locator('#noDroneBanner:not([hidden])').waitFor();
+  await page.locator('#canvasEmpty:not([hidden])').waitFor();
   assert.equal(await page.locator('#battPct').textContent(), '–%');
   const fill = await page.locator('#battFill').evaluate((el) => el.getBoundingClientRect().width);
   assert.equal(fill, 0, 'an unknown charge shows an empty bar');

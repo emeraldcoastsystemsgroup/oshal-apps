@@ -16,6 +16,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Register the ADR-149 resource adapter the new authorization catalog names, and give every callback grant its owner's verified issuer, which the kernel's signed-package-callbacks rail needs to refresh and authorize the owner a worker callback runs as. Console dispatches take the issuer from the kernel's actor; enabling autonomous mode records the enabling owner's issuer (migration 106) so the nightly schedule can mint that character's grants, and a character enabled before 1.7.0 is skipped as not ready until its owner re-enables it.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | GET /characters is a pure read. It inserted the caller's starter character first, and the native host admits a GET read-only and refuses any SQL write, so the studio's first read answered 502 'SQL mutation requires original writer admission' for every account and listed nothing. The starter is now provisioned only by POST /characters/starter (lora.configure), which the studio offers when an account has no characters; it stays idempotent and owner-bound, and answers the same list GET /characters does.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | DELETE /characters/:subject (lora.configure): a character could not be deleted at all, so test characters stayed in every list. One owner-predicated delete; versions, scores, thumbnails, dataset rows and callback grants go with it through their cascade keys.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | GET /worker (lora.read): { gpuWorker } from hasEdgeWorker(), the same worker selection every dispatch uses. A pure read with no side effect; the studio reads it once on open and withholds Train, Validate, Improve and Overnight where no GPU worker is registered (UX audit 2026-11-06, lora--lora-studio), instead of offering actions that could only answer box_required.
  */
 
 /**
@@ -38,7 +39,7 @@
  */
 
 import {captionSchemaStatements,CAPTION_REQUIREMENTS,datasetCaptionReadiness,assertEditorCharacterOwner} from './lora-caption-editor';
-import {guardTrainingDataset} from './lora-train-dispatch';
+import {guardTrainingDataset,hasEdgeWorker} from './lora-train-dispatch';
 import { Router, type Request, type Response } from 'express';
 import * as path from 'path';
 import { createChildLogger } from '@/shared/logger';
@@ -443,6 +444,12 @@ export function createBotLoraRoutes(ctx: AppContext): Router {
       logger.error({ err }, 'list characters failed');
       res.status(502).json({ error: (err as Error).message });
     }
+  });
+
+  /** GET /worker — whether a GPU edge worker is online now (no side effect). The studio withholds its training actions otherwise. */
+  router.get('/worker', (req: Request, res: Response) => {
+    if (!callerSub(req)) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    res.json({ gpuWorker: hasEdgeWorker() });
   });
 
   /**

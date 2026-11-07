@@ -17,6 +17,8 @@
 # 13 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 2: an Add Event card carried the delegating model's routing text as the event's Notes ("The user's calendar summary indicates it is 'Not synced' ... report back that the calendar needs to be synced via Identity"), which approving would save on the person's event; the notes field had no description. It now says it is optional, only the note the person asked to keep in their own words, never an explanation, a sync status or failure instructions.
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the review page paints with the portal theme tokens instead of its own fixed dark palette (page, panels, fields, buttons, accent ink), so it follows every portal theme; found when Today's calendar tile stayed dark on a light theme.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: the design standard (docs/ux/design-standard.md; UX audit decision calendar--calendar-review). One calendar row (Previous, Today, Next, the month, ⋯ More) and the grid as the work, with no eyebrow, title or hint above it under the Today bar; "+ New event" at the bottom right is the one primary and opens the add form as a sheet on a phone and a dialog on a desktop; Sync Google events is one item of More and asks in the page first; Remove asks in the page instead of window.confirm; the selected day is inverted and today has an accent ring; on a phone a day shows dots and the selected day's events are rows below the grid; a save or removal refreshes Added in OSHAL in the same step; the "Your next brief" form shows only when a connected application can take it; the browser's Back closes the open dialog or menu.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: the calendar's buttons take the design standard's body text token (docs/ux/design-standard.md §2.5, §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"), so on a desktop with a fine pointer their labels are 15px like the other applications' controls; 16px on touch as before. Heights, corners and fills are unchanged.
 name: calendar
 suite: ai-home
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -31,7 +33,7 @@ rating:
       degrade: disable
 displayName: Calendar Preparation
 description: Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.
-version: 1.1.7
+version: 1.2.1
 status: active
 scope: person
 source:

@@ -6,13 +6,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.keptVideoPath = keptVideoPath;
 exports.createPrepMediaHandler = createPrepMediaHandler;
 /**
- * Study Lab lesson media: the video, poster and captions of each lesson.
+ * Study Lab and curriculum lesson media: the video, poster and captions of each lesson.
  *
  * CHANGE LOG
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | Answer lesson videos by lasting-file reference. A package reply is buffered, capped at 8 MiB and has no byte ranges, and every package file is copied into every person's sandbox and every dependent's, so real lesson videos cannot live in the package. One copy of each video sits in the package's lasting directory, put there by scripts/lesson-studio/install-videos.py, and the kernel streams it with byte ranges.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com | Load optional curriculum-manifest.json for the 168-topic video curriculum and serve manifest-authorized curriculum posters and captions from lasting storage when absent from tools/prep-media.
  * -----------------------------------------------------------------------------
  *
  * @module education-prep-media
@@ -36,7 +37,15 @@ function keptVideoPath(id, sha256) {
 /** The videos this package was delivered with: lesson id to its kept path. */
 function readKeptVideos(mediaRoot) {
     const manifest = JSON.parse(node_fs_1.default.readFileSync(node_path_1.default.join(mediaRoot, 'manifest.json'), 'utf8'));
-    return new Map(Object.entries(manifest.lessons).map(([id, entry]) => [id, keptVideoPath(id, entry.sha256)]));
+    const entries = new Map(Object.entries(manifest.lessons).map(([id, entry]) => [id, keptVideoPath(id, entry.sha256)]));
+    const curriculumPath = node_path_1.default.join(mediaRoot, 'curriculum-manifest.json');
+    if (node_fs_1.default.existsSync(curriculumPath)) {
+        const curriculum = JSON.parse(node_fs_1.default.readFileSync(curriculumPath, 'utf8'));
+        for (const [id, entry] of Object.entries(curriculum.lessons || {})) {
+            entries.set(id, keptVideoPath(id, entry.sha256));
+        }
+    }
+    return entries;
 }
 function notFound(res) {
     res.status(404).type('text/plain; charset=utf-8').send('Not found');
@@ -56,8 +65,7 @@ function sendDirect(res, file, name) {
 }
 /**
  * @description GET /prep-media/:file. A video goes out by reference to its kept copy; a poster or caption
- * file comes from the package. A video that was never installed answers 404 and is logged, and the page
- * then offers the written lesson.
+ * file comes from the package or, for manifest-listed curriculum lessons, from lasting storage.
  * @param mediaRoot Absolute path of the package's tools/prep-media folder.
  * @param env Process environment; OSHAL_PACKAGE_DATA_DIR names the lasting directory.
  * @returns The Express handler.
@@ -69,8 +77,20 @@ function createPrepMediaHandler(mediaRoot, env = process.env) {
         if (!MEDIA_NAME.test(name))
             return notFound(res);
         if (!name.endsWith('.mp4')) {
-            const found = (await node_fs_1.default.promises.stat(node_path_1.default.join(mediaRoot, name)).catch(() => null))?.isFile();
-            return found ? sendDirect(res, node_path_1.default.join(mediaRoot, name), name) : notFound(res);
+            const packaged = node_path_1.default.join(mediaRoot, name);
+            if ((await node_fs_1.default.promises.stat(packaged).catch(() => null))?.isFile()) {
+                return sendDirect(res, packaged, name);
+            }
+            kept = kept || readKeptVideos(mediaRoot);
+            const baseId = node_path_1.default.basename(name, node_path_1.default.extname(name));
+            const dataDir = env.OSHAL_PACKAGE_DATA_DIR;
+            if (kept.has(baseId) && dataDir) {
+                const fallback = node_path_1.default.join(dataDir, 'prep-media', name);
+                if ((await node_fs_1.default.promises.stat(fallback).catch(() => null))?.isFile()) {
+                    return sendDirect(res, fallback, name);
+                }
+            }
+            return notFound(res);
         }
         kept = kept || readKeptVideos(mediaRoot);
         const relative = kept.get(node_path_1.default.basename(name, '.mp4'));

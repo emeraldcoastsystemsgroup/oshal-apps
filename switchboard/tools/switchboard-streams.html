@@ -52,7 +52,9 @@
     --text2:   var(--text-secondary,  var(--sb-text2));
     --muted:   var(--text-muted,      var(--sb-muted));
     --accent:  var(--accent-primary,  var(--sb-accent));
-    --accent-grad: var(--accent-gradient, linear-gradient(135deg, var(--accent), var(--sb-active)));
+    /* Solid accent, no gradient or glow (UX audit 2026-11-06; the themes' --accent-gradient is still a gradient). */
+    --accent-grad: var(--ds-accent, var(--accent));
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #fff));
     --ok:      var(--status-success,  var(--sb-ok));
     --warn:    var(--status-warning,  var(--sb-warn));
     --err:     var(--status-error,    var(--sb-err));
@@ -82,7 +84,7 @@
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
   ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
-  .wrap { max-width:1500px; margin:0 auto; padding:26px 24px 70px; }
+  .wrap { max-width:1500px; margin:0 auto; padding:26px 24px 104px; }
 
   /* ── header ───────────────────────────────────────────────────────────────────────────────── */
   .head { display:flex; align-items:flex-start; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
@@ -100,7 +102,7 @@
   .btn svg { width:15px; height:15px; }
   .btn:hover { border-color:var(--accent); color:var(--accent); }
   .btn:disabled { opacity:.5; cursor:not-allowed; }
-  .btn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .btn.primary { background:var(--accent-grad); border-color:transparent; color:var(--on-accent); }
   .btn.primary:hover { filter:brightness(1.07); color:#fff; }
   .btn.danger { color:var(--err); }
   .btn.danger:hover { border-color:var(--err); color:var(--err); }
@@ -111,8 +113,8 @@
 
   .newbtn {
     appearance:none; border:0; cursor:pointer; font:inherit; font-size:13.5px; font-weight:620;
-    background:var(--accent-grad); color:#fff; padding:0 18px; height:34px; border-radius:var(--pill);
-    display:inline-flex; align-items:center; gap:8px; box-shadow:0 8px 20px rgba(0,0,0,.16);
+    background:var(--accent-grad); color:var(--on-accent); padding:0 18px; height:34px; border-radius:var(--pill);
+    display:inline-flex; align-items:center; gap:8px;
     transition:filter var(--ease) .15s, transform var(--ease) .15s;
   }
   .newbtn:hover { filter:brightness(1.07); transform:translateY(-1px); }
@@ -324,7 +326,7 @@
     transition:all var(--ease) .15s;
   }
   .mbtn:hover { border-color:var(--accent); color:var(--accent); }
-  .mbtn.primary { background:var(--accent-grad); border-color:transparent; color:#fff; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .mbtn.primary { background:var(--accent-grad); border-color:transparent; color:var(--on-accent); }
   .mbtn.primary:hover { filter:brightness(1.07); color:#fff; }
   .mbtn[disabled] { opacity:.5; cursor:not-allowed; }
   .revview { font-size:13px; line-height:1.55; }
@@ -349,13 +351,26 @@
     .layout { grid-template-columns:200px minmax(0,1fr); }
     .layout .editor { grid-column:1 / -1; }
   }
+  .morebtn { display:none; }
+  .moreclose { display:none; }
   @media (max-width:760px) {
-    .wrap { padding:18px 13px 50px; }
+    .wrap { padding:18px 13px 104px; }
     .greet { font-size:22px; }
-    .layout { grid-template-columns:1fr; }
-    .rail { position:static; }
-    .snav { flex-direction:row; flex-wrap:wrap; }
-    .snav button { width:auto; }
+    .layout { grid-template-columns:minmax(0,1fr); }
+    .rail { position:static; display:flex; flex-direction:column; min-width:0; }
+    /* Phone: search first, the eight stages as one row that scrolls sideways, then the list; imports live under More. */
+    .snav { flex-direction:row; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; gap:6px; padding-bottom:4px; }
+    .snav button { width:auto; flex:none; white-space:nowrap; min-height:44px; border:1px solid var(--line); border-radius:var(--pill); }
+    .rail .railrow { display:flex; gap:8px; align-items:center; }
+    .rail .railrow select.wsfilter { margin-bottom:0; flex:1; width:auto; min-width:0; }
+    .rail .railrow { margin-bottom:10px; }
+    .morebtn { display:inline-flex; min-height:44px; }
+    .importwrap { display:none; }
+    .importwrap.open { display:block; position:fixed; left:0; right:0; bottom:0; z-index:60; padding:16px 16px calc(20px + env(safe-area-inset-bottom));
+      background:var(--ds-surface, var(--bg-primary, var(--sb-bg))); border-top:1px solid var(--line); border-radius:18px 18px 0 0; box-shadow:0 -18px 50px rgba(0,0,0,.35); }
+    .importwrap.open .railsec { margin-top:0; }
+    .importwrap.open .moreclose { display:inline-flex; width:100%; justify-content:center; margin-top:10px; }
+    .importwrap .btn { min-height:44px; }
     .vgrid { grid-template-columns:1fr; }
   }
   @media (prefers-reduced-motion:reduce) { * { animation:none !important; transition:none !important; } }
@@ -394,7 +409,7 @@
       <p class="subline">Draft → review → approve → publish. <b>Nothing posts without your confirm.</b></p>
     </div>
     <div class="controls">
-      <button class="btn icon" id="refreshBtn" title="Refresh"><svg><use href="#i-refresh"/></svg></button>
+      <button class="btn icon" id="refreshBtn" title="Refresh" aria-label="Refresh"><svg><use href="#i-refresh"/></svg></button>
       <button class="newbtn" id="newBtn"><svg><use href="#i-plus"/></svg> New post</button>
     </div>
   </header>
@@ -403,12 +418,16 @@
     <!-- LEFT: state rail -->
     <aside class="rail">
       <div class="search"><svg><use href="#i-search"/></svg><input type="search" id="qbox" placeholder="Search posts…" aria-label="Search posts" /></div>
-      <select class="wsfilter" id="wsfilter" title="Filter by workspace"><option value="">All workspaces</option></select>
+      <div class="railrow"><select class="wsfilter" id="wsfilter" title="Filter by workspace" aria-label="Workspace"><option value="">All workspaces</option></select>
+        <button class="btn morebtn" id="moreBtn" aria-expanded="false" aria-controls="importWrap">More</button></div>
       <nav class="snav" id="snav" aria-label="Post states"><!-- state buttons injected --></nav>
-      <div class="railsec">Import drafts</div>
-      <div class="importbar">
-        <button class="btn" id="impLi"><svg><use href="#i-import"/></svg> LinkedIn Assistant drafts</button>
-        <button class="btn" id="impCs"><svg><use href="#i-import"/></svg> Content Studio drafts</button>
+      <div class="importwrap" id="importWrap">
+        <div class="railsec">Import drafts</div>
+        <div class="importbar">
+          <button class="btn" id="impLi"><svg><use href="#i-import"/></svg> LinkedIn Assistant drafts</button>
+          <button class="btn" id="impCs"><svg><use href="#i-import"/></svg> Content Studio drafts</button>
+        </div>
+        <button class="btn moreclose" id="moreClose">Done</button>
       </div>
     </aside>
 
@@ -435,6 +454,10 @@
         <label for="nBody">Master body</label>
         <textarea id="nBody" placeholder="Write the master copy — variants tailor it per platform later"></textarea>
         <div class="cc tnum" id="nCc">0 / 20000</div>
+      </div>
+      <div class="fld">
+        <label for="nWorkspace">Workspace</label>
+        <select id="nWorkspace"><option value="">No workspace</option></select>
       </div>
       <div class="fld">
         <label>Platforms</label>
@@ -645,9 +668,10 @@
       host.appendChild(row);
     });
   }
+  function narrow(){ try{ return window.matchMedia("(max-width:760px)").matches; }catch(e){ return false; } }
   function emptyHint(st){
     var hints={
-      draft:"Start with <b>New post</b>, or pull existing work in with the import buttons on the left.",
+      draft:"Start with <b>New post</b>, or pull existing work in with the import buttons "+(narrow()?"under <b>More</b>, above the list.":"on the left."),
       in_review:"Submit a draft for review and it lands here for approve / request changes / reject.",
       approved:"Approve a post in review and it waits here for scheduling or publishing.",
       scheduled:"Approved posts you schedule appear here until their time comes.",
@@ -1241,6 +1265,10 @@
     $("nTitle").value=""; $("nBody").value=""; $("nCc").textContent="0 / "+MAX_BODY; $("nCc").classList.remove("over");
     $("nErr").classList.remove("show");
     newSel={ x:true, linkedin:true };
+    // The new post lands in the workspace the rail is showing; the person can pick another here.
+    $("nWorkspace").innerHTML='<option value="">No workspace</option>'+state.workspaces.map(function(w){
+      return '<option value="'+escAttr(w.workspaceId)+'">'+esc(w.name)+'</option>'; }).join("");
+    $("nWorkspace").value=state.workspace||"";
     renderNewPlats();
     $("newScrim").classList.add("show");
     setTimeout(function(){ $("nBody").focus(); }, 40);
@@ -1255,7 +1283,7 @@
     $("nErr").classList.remove("show");
     var btn=$("nCreate"); btn.disabled=true; btn.textContent="Creating…";
     var payload={ title:$("nTitle").value.trim(), body:body, platforms:platforms };
-    if(state.workspace) payload.workspaceId=state.workspace;
+    var ws=$("nWorkspace").value; if(ws) payload.workspaceId=ws;
     api("/posts",{ method:"POST", body:JSON.stringify(payload) })
       .then(parse)
       .then(function(res){
@@ -1310,6 +1338,9 @@
   });
   $("revClose").addEventListener("click", function(){ $("revScrim").classList.remove("show"); openRev=null; });
   $("revRestore").addEventListener("click", restoreRevision);
+  function setMore(open){ $("importWrap").classList.toggle("open", open); $("moreBtn").setAttribute("aria-expanded", open?"true":"false"); }
+  $("moreBtn").addEventListener("click", function(){ setMore(!$("importWrap").classList.contains("open")); });
+  $("moreClose").addEventListener("click", function(){ setMore(false); });
   $("impLi").addEventListener("click", function(){ importFrom("linkedin-assistant", $("impLi")); });
   $("impCs").addEventListener("click", function(){ importFrom("content-studio", $("impCs")); });
   [ $("newScrim"), $("revScrim") ].forEach(function(sc){
@@ -1317,7 +1348,7 @@
   });
   document.addEventListener("keydown", function(e){
     if(e.key!=="Escape") return;
-    $("newScrim").classList.remove("show"); $("revScrim").classList.remove("show");
+    $("newScrim").classList.remove("show"); $("revScrim").classList.remove("show"); setMore(false);
   });
 
   // skeleton while the first list loads (same shimmer idiom as the calendar surface)

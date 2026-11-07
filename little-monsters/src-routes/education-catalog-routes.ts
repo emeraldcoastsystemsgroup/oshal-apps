@@ -21,6 +21,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Make enrollment and leave writes derive their target from the actor's current tenant and the class's current publication, status, and ownership state.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Bind native self-enrollment to authoritative relationship snapshots while retaining legacy PostgreSQL CTE enforcement.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | GET /catalog also lists the staged Training Programs textbooks (OSHAL_PACKAGE_DATA_DIR/textbooks/catalog.json); ?textbookId= returns one book with its text, or its PDF with format=pdf.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | GET /catalog?lookup= resolves bibliographic metadata by ISBN, DOI, or public https URL through server-side egress (RP-LM-03).
  * ---------------------------------------------------------------------------
  *
  * @module education-catalog-routes
@@ -32,6 +33,7 @@ import { Router, type Request, type Response } from 'express';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { resolveAuthedStudent, EducationAccessError, type AuthedStudent } from './education-access';
+import { CitationLookupError, lookupCitationSource } from './education-citation-lookup';
 import { isNativeSchoolStore, schoolTransaction } from './education-transactions';
 
 const logger = createChildLogger({ module: 'education-catalog-routes' });
@@ -132,10 +134,28 @@ function assertSelfEnrollmentOpen(row: CatalogClassState, actorId: string): void
   }
 }
 
+async function serveCitationLookup(res: Response, query: string): Promise<void> {
+  try {
+    const source = await lookupCitationSource(query);
+    res.json({ source });
+  } catch (err) {
+    if (err instanceof CitationLookupError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    res.status(502).json({ error: 'Could not look up that source right now.' });
+  }
+}
+
 /** Serve the published class bank scoped to the caller's tenant. */
 async function loadCatalog(ctx: AppContext, req: Request, res: Response): Promise<void> {
   try {
     const actor = await resolveAuthedStudent(req, ctx.pool);
+    const lookupQuery = String(req.query?.lookup || '').trim();
+    if (lookupQuery) {
+      await serveCitationLookup(res, lookupQuery);
+      return;
+    }
     const textbookId = String(req.query?.textbookId || '').trim();
     if (textbookId) {
       serveTextbookDetail(req, res, textbookId);

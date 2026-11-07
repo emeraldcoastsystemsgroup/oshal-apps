@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register every shipped test suite with explicit sealed-runner prerequisites; preserve readiness smoke (2.3.1).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the stable framework general-bot as Payroll's right-rail concierge (2.3.2); all payroll calculations and mutations remain deterministic.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Serialise the lazy schema bootstrap under a package-owned advisory lock so concurrent first requests on a fresh database no longer race on CREATE TABLE (2.3.5).
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 2.3.7: UX audit batch 7 (payroll-home SPLIT): 4-step Add Employee wizard (Name & status / Pay / Federal W-4 & state / Elections & prior YTD), semantic ARIA tablist + phone 4+More bottom bar, 44px W-4 switches, dynamic state picker from /api/payroll/states, and 1-sentence lede with Help sheet. Guard: tests/payroll-ux-batch7.test.mjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — payroll ("Payroll")
@@ -53,7 +54,7 @@ description: >-
   dollar, and every tax constant cites the primary IRS/SSA document it was
   verified against. oshal computes and produces; your bank and the agencies
   execute. It transmits nothing.
-version: 2.3.6
+version: 2.3.7
 status: active
 
 theme: ocean

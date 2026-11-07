@@ -1,6 +1,9 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare ocean-lab-guide (inline, personas/ocean-lab-guide.yaml) as the screen's concierge in place of the borrowed platform general-bot, which had none of the lab's tools and answered "harvest margin" as a generic agriculture term; the rating label names the concierge as the package's one model-touching feature. Guarded by scripts/check-store-bots.test.mjs.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: the Explorer vehicle saves its edited design before Jarvis or the concierge reads it and redraws the saved vehicle when their change returns (shared document handoff), keeping a field still being edited.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: UX audit (ocean-lab harvest console and blade studio): each page is two views (Soil siting / Tidal reference; Blade studio / Blade analysis) with the parameters as a 320px pane or a phone sheet, a number field beside each slider and a reset; one-sentence captions with the derivations in Help; the analysis brief as a themed sheet instead of the fixed dark box; Blade Studio gets a Fit button on the 3-D view and one Export sheet. No model or solver changed.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: UX audit batch 7 (ocean-lab-explorer SPLIT): two views (Design & sea states / Parts & BOM) with a phone bottom bar, plain stage ladder + gate sentences, Delete this explorer moved to the Stage card ⋯ menu behind an in-page confirm dialog, and non-watertight part banner. Guard: tests/explorer-ux-batch7.test.cjs, tests/engine-explorer-ux-batch7.test.js.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — ocean-lab ("Ocean Lab")
 #
@@ -62,7 +65,7 @@ description: >-
   recompute from its design vector, with its eleven parts as CAD Studio programs
   and a displacement budget that gates the stage. Every model runs in-process and
   deterministically; every site parameter is illustrative, not surveyed.
-version: 1.3.2
+version: 1.3.5
 status: active
 scope: person
 # Ocean Lab's own concierge: it reads the deterministic route-backed tools below and explains the lab's terms.

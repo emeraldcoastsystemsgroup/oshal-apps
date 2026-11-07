@@ -11,6 +11,13 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | shopping-list-add says the cart is the list's pending items: asked to "order groceries ... put them in a cart", Jarvis's Shopping handoff answered it could not add to a cart and did nothing. Release 1.3.5.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.6: declare shopping-concierge as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.3.7: shopping-list-add-many puts several free-text items on the list behind one approval card (POST /lists/default/items with items[]). Asked from Jarvis for milk, eggs, bread and bananas, the concierge proposed only milk. Guarded by purchasing/tests/shopping-list-add-many.test.cjs.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (UX audit 2026-11-05: shop-lists, shop-concierge, shop-browse, shop-deals): List is Shopping's one screen and default view. It has an Add an item field (free text, the one primary), rows that tick off, step their quantity (new POST /lists/:id/items/:itemId) and are removed from a row menu, and Checkout only with a retail rail (disabled while nothing is left). The Assistant, Browse and Deals tiles are off (no rail answers search or deals here: GET /deals is 503 'native_executor_unavailable'); the storefront shows inside List only when that readiness read succeeds; errors are alerts in the error colour. hideChatPanel is dropped so the shell's concierge panel is the one assistant entry.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: List, now Shopping's first surface, paints its list card for the company audience too, so the all-inclusive shells (Studio, Orbit, Commons, Jarvis) that framed the chat page's company view keep a card instead of the full screen.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: the merged-away Assistant address leads to List: GET /api/purchasing/chat redirects to /api/purchasing/dashboard?view=lists (keeping ?audience=), so Life's Shopping tile and the framework rail's Shopping item open List.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: the /chat redirect sets its 302 status and Location itself: the native package bridge has no res.redirect, so 1.4.2 answered 500 (application_route_failed) on the trial.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: the Assistant address serves the List page instead of redirecting: the native package bridge drops a response's Location header, so 1.4.3's 302 opened a blank page.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5 (UX audit 2026-11-05, shop-concierge): the retired chat page's preference cards are List's Shopping preferences: household notes and the monthly budget edit in place and save on change (POST /profile), usuals are listed, the store row shows only with a retail rail.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: POST /profile saves a part of the profile (an UPDATE that keeps what the body leaves out, else a first INSERT with the NOT NULL columns filled). The single INSERT ... ON CONFLICT passed NULL into dietary and brands, so every partial save failed with 'SQL NOT NULL constraint failed': that is why 'set monthly budget to $250' left the card at 'Budget open' (UX audit 2026-11-05, shop-concierge verify item).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
@@ -54,7 +61,7 @@ description: >-
   AI shopping concierge — search Walmart/Amazon, build lists, learn your
   preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
   bots can ask it to make a purchase.
-version: 1.3.7
+version: 1.4.6
 status: active  # active | inactive
 
 source:
@@ -328,25 +335,15 @@ tools:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
-    - toolName: shop-concierge
-      label: Assistant
-      icon: codicon codicon-comment-discussion
-      iframeUrl: /api/purchasing/chat
-      section: top
-    - toolName: shop-browse
-      label: Browse
-      icon: codicon codicon-search
-      iframeUrl: /api/purchasing/dashboard
-      section: top
+    # UX audit 2026-11-05: List is Shopping's one screen. The Assistant (shop-concierge), Browse (shop-browse) and Deals
+    # (shop-deals) tiles are off: without a retail rail search and deals can never answer, so the storefront appears
+    # inside List only when the readiness read says a rail exists, and the shell's concierge button is the one
+    # assistant entry. Their pages and routes stay (/api/purchasing/chat, ?view=shop, ?view=deals land on List).
+    # To bring a tile back, restore its block from 1.3.7 (git show <1.3.7 commit>:purchasing/oshal-app.yaml).
     - toolName: shop-lists
-      label: Cart
+      label: List
       icon: codicon codicon-list-unordered
       iframeUrl: /api/purchasing/dashboard?view=lists
-      section: top
-    - toolName: shop-deals
-      label: Deals
-      icon: codicon codicon-tag
-      iframeUrl: /api/purchasing/dashboard?view=deals
       section: top
 
 # THE ASSISTANT RAIL (surface-bridge). Without this block the cockpit relay forwards NOTHING for
@@ -430,17 +427,15 @@ ribbon:
     - dashboard
     - logs
     - operations
-  # The Assistant surface IS the chat, so hide the cockpit's generic right-rail
-  # swarm-bot panel (same as jarvis).
-  hideChatPanel: true
-  defaultView: shop-concierge
+  # List is the home; the shell's concierge panel is the one assistant entry (the Assistant tile is off).
+  defaultView: shop-lists
 
 integrations:
   accepts:
     - id: plan-purchase
       contextType: planning-brief
       version: 1
-      surface: shop-concierge
+      surface: shop-lists   # an accept must name a declared tile, or the kernel's Home plan refuses the whole manifest
       fields:
         - title
         - notes

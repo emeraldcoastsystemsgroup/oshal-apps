@@ -6,7 +6,9 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Hold every store package's prerequisite declaration to what its code actually does. Two arms, because either alone can be defeated: a DETECTOR that fails on any cross-package edge nobody declared, and a LEDGER of the edges already proven by reading the code, each pinned to the file and the exact call that proves it. A catalog `--check` cannot do this job - marketplace.json's dependency block is GENERATED from the manifest, so a declaration that goes missing disappears from both sides at once and the mirror still reports "current". The ledger also records the two shapes that are NOT dependencies: an `integrations.offers` target (the framework resolves an inactive target to state:'unavailable'), and a package named in prose in a .md or .json record.
  *
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Social requires the single owner of its shared communications bot, including scheduled digests.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Career's Resume Studio embeds AI Office's Word editor on the master resume (a real, proven, optional edge). An offerer that also has a PROVEN edge to presentations is exempt from the offers-only arm, which still holds for every other offerer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Little Monsters' required applications include email-summarizer (its Email tab's standard viewer).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Social's inbox link moved from social-composer.html to social-workspace.html when Composer merged into Workspace.
  *
  * @module app-dependency-declarations.test
  */
@@ -31,6 +33,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * `required` means install refuses to orphan it.
  */
 const PROVEN = [
+  ['career-hunter', 'presentations', 'optional', 'tools/career-resume-office.js', "const OFFICE = '/api/presentations/editor'"],
   ['cad-studio', 'scan-to-print', 'optional', 'tools/cad-studio.js', "fetch('/api/scan-to-print/jobs/'"],
   ['scan-to-print', 'cad-studio', 'optional', 'tools/scan-to-print.js', "fetch('/api/cad-studio/models'"],
   ['embodied', 'cad-studio', 'optional', 'tools/embodied.js', "fetch('/api/cad-studio/models'"],
@@ -39,7 +42,7 @@ const PROVEN = [
   ['portrait-studio', 'create', 'optional', 'tools/portrait-studio.html', "fetch('/api/create/brand-kit'"],
   ['presentations', 'create', 'optional', 'tools/presentations.html', "fetch('/api/create/brand-kit'"],
   ['video', 'create', 'optional', 'tools/video.html', "fetch('/api/create/brand-kit'"],
-  ['social', 'email-summarizer', 'required', 'tools/social-composer.html', 'href="/api/email/inbox"'],
+  ['social', 'email-summarizer', 'required', 'tools/social-workspace.html', 'href="/api/email/inbox"'],
   ['finance', 'intelligent-trades', 'optional', 'oshal-app.yaml', 'iframeUrl: /api/trading/'],
   ['finance', 'world', 'optional', 'oshal-app.yaml', 'iframeUrl: /api/world/app'],
   ['finance', 'kalshi', 'optional', 'oshal-app.yaml', 'iframeUrl: /api/kalshi/'],
@@ -107,13 +110,14 @@ test('an integrations.offers target is a hand-off, not a dependency', () => {
     .includes('targetApp: presentations'));
   assert.ok(offerers.length >= 20, `expected many packages to offer to presentations, found ${offerers.length}`);
   const reached = new Set(findEdges(ROOT).filter((e) => e.other === 'presentations').map((e) => e.pkg));
-  assert.deepEqual(offerers.filter((name) => reached.has(name)), [],
+  const proven = new Set(PROVEN.filter(([, other]) => other === 'presentations').map(([pkg]) => pkg));
+  assert.deepEqual(offerers.filter((name) => reached.has(name) && !proven.has(name)), [],
     'an offer alone must never be reported as an edge — these packages offer to presentations and '
     + 'nothing else in them touches it');
   // And the declarations agree: an offerer that declares presentations does so for a real edge.
   const declaringOfferers = offerers.filter((name) => (tiersOf(name)?.optional?.apps ?? [])
     .concat(tiersOf(name)?.required?.apps ?? []).includes('presentations'));
-  assert.deepEqual(declaringOfferers, ['little-monsters'],
+  assert.deepEqual(declaringOfferers.filter((name) => !proven.has(name)), ['little-monsters'],
     'offers alone create no dependency; Little Monsters independently requires Office in its complete product composite');
   assert.deepEqual(tiersOf('little-monsters').required.apps, ['presentations', 'circuit-lab', 'email-summarizer']);
   const learningManifest = fs.readFileSync(path.join(ROOT, dirByName.get('little-monsters'), 'oshal-app.yaml'), 'utf8');

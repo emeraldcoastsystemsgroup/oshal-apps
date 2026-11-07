@@ -18,6 +18,7 @@
  *
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Sweep 6: after Rename the rig list kept the old title until
  *                     |                             | reload; the rename now shows in the list at once.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | UX audit 2026-11-06 split: templates, rigs, calibration and the controller live in Rig setup, the rest in Perform (the default), so each case opens its view first.
  *
  * FRAMEWORK-COUPLED: needs a core checkout for express and playwright. Not part of the store-CI
  * wildcard; run locally: OSHAL_CORE_DIR=C:/Projects/oshal node --test tests/surface.core.spec.mjs
@@ -74,6 +75,8 @@ test.after(async () => { if (browser) await browser.close(); if (app) await app.
 
 test('a rig is created from the skull template and the editor shows its channels, poses and scenarios', async () => {
   assert.equal(await page.locator('#empty').isVisible(), true);
+  assert.equal(await page.evaluate(() => document.body.dataset.view), 'perform', 'the page opens on Perform');
+  await page.click('#tab-setup');
   await page.selectOption('#template-select', 'skull');
   await page.click('#new-rig');
   await page.waitForSelector('#editor:not([hidden])');
@@ -82,6 +85,7 @@ test('a rig is created from the skull template and the editor shows its channels
   const scenarios = await page.locator('#scenario-select option').allTextContents();
   assert.ok(scenarios.includes('BLINK') && scenarios.includes('TALK') && scenarios.includes('SCARE'), scenarios.join(','));
   assert.ok((await page.locator('#poses .chip').count()) >= 10);
+  assert.equal(await page.locator('#poses').isVisible(), false, 'poses belong to Perform');
   assert.equal(await page.locator('#jog input[type=range]').count(), 7);
   assert.match(await page.locator('#axes-label').textContent(), /jaw\.open/);
   assert.equal(await page.locator('#armed-pill').textContent(), 'disarmed');
@@ -96,6 +100,7 @@ test('a rename shows in the rig list at once, not only after a reload', async ()
 });
 
 test('a jog slider moves the pupil in the drawing, and the slider angles capture as a pose', async () => {
+  await page.click('#tab-perform');
   const before = await page.locator('svg#view .pupil').first().getAttribute('cx');
   await page.locator('#jog input[data-axis="eyes.pan"]').evaluate((el) => { el.value = '30'; el.dispatchEvent(new Event('input', { bubbles: true })); });
   const after = await page.locator('svg#view .pupil').first().getAttribute('cx');
@@ -119,6 +124,7 @@ test('BLINK rehearses to an ok verdict with the report filled and the run logged
 });
 
 test('connect, arm: hello, seven clamps and the neutral frame reach the port, and the board answers', async () => {
+  await page.click('#tab-setup');
   await page.click('#connect');
   await page.waitForFunction(() => /controller: connected/.test(document.querySelector('#link-pill').textContent));
   assert.deepEqual(await page.evaluate(() => window.__serial.opened), { baudRate: 115200 });
@@ -132,6 +138,7 @@ test('connect, arm: hello, seven clamps and the neutral frame reach the port, an
   await page.waitForFunction(() => /pca9685\/16/.test(document.querySelector('#link-pill').textContent));
   assert.equal(rig().armed, true);
   assert.equal(await page.locator('#play').isDisabled(), false);
+  await page.click('#tab-perform');
 });
 
 test('TALK plays: every frame line the server compiled reaches the port and the believed pose advances', async () => {

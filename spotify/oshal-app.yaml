@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the existing workflow bot and package-local reasoning persona with its dedicated-node posture.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Declare the Spotify Web API host for the native kernel's egress, with the caller's spotify connection applied as a Bearer token by the kernel.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6 (UX audit 2026-11-06): Connect Spotify signs in at the top level and returns to /cockpit/?app=spotify; 'Already connected? Refresh' is a real button that says Checking… and then what it found; button ink follows the theme; the inner header that repeated the shell's name is gone.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — spotify ("Spotify" Music Concierge)
@@ -46,7 +47,7 @@ description: >-
   AI music concierge — search your Spotify, see what's playing and your playlists,
   get recommendations from your taste, and build playlists on your account. Other
   swarm bots can ask it to find music or assemble a playlist.
-version: 1.1.5
+version: 1.1.6
 testing:
   version: 1
   catalog: tests/test-lab.yaml

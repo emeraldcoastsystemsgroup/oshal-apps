@@ -5,6 +5,7 @@
   SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
+  2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): with no scored jobs the screen was one button over "Try Rescan after scoring more jobs" with no way to get there, and the intro told people to tap a mic in boxes that were not there. An empty list is now one empty state, "No gaps to work on yet", whose one primary is the step that makes gaps: Upload your résumé (Resume Studio) when no résumé is indexed, otherwise Score jobs on the Job Board (gaps come from jobs scored against the résumé). The mic line shows only above real answer boxes; Open · Answered is a segmented control once there are answered stories; Rescan gaps is a 44px secondary. Guard: tests/career-strengthen-screen.test.mjs.
 -->
 
 <!--
@@ -77,16 +78,22 @@
 <body>
 <div class="wrap">
   <h1>Strengthen your resume</h1>
-  <p class="sub">Every gap the AI flagged across your in-lane jobs, clustered into themes. Answer one out loud (tap the mic in any box) with a real example — it's woven into your profile, so every future tailored resume pulls from it.</p>
+  <p class="sub" id="intro">Gaps the AI found across your matched jobs, grouped into themes.</p>
+  <p class="sub" id="micHint" hidden>Answer one with a real example: type it, or tap the mic in its box. It is woven into your profile, so every future tailored résumé pulls from it.</p>
   <div class="bar">
-    <button class="btn" onclick="rescan()">↻ Rescan gaps</button>
+    <button class="ck-btn" id="rescanBtn" onclick="rescan()">↻ Rescan gaps</button>
     <span class="prog" id="prog"></span>
+  </div>
+  <div class="ck-seg" id="gapView" role="tablist" aria-label="Show gaps" hidden>
+    <button type="button" role="tab" aria-selected="true" data-view="open">Open<span class="n" id="nOpen"></span></button>
+    <button type="button" role="tab" aria-selected="false" data-view="answered">Answered<span class="n" id="nAnswered"></span></button>
   </div>
   <div id="stories"></div>
   <div id="added"></div>
   <div id="list"></div>
 </div>
 <div class="toast" id="toast"></div>
+<script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script>
 const $=id=>document.getElementById(id); const listEl=$('list'), toastEl=$('toast'), progEl=$('prog'), addedEl=$('added');
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -177,6 +184,16 @@ function renderAdded(){
 }
 function note(key,text){ const el=$('note-'+key); if(el) el.textContent=text; }
 
+let gapView='open';
+{const gv=$('gapView');if(gv&&typeof gv.addEventListener==='function')gv.addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;gapView=b.dataset.view;gv.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));load();});}
+/* §4.8: the one action that makes gaps. Gaps come from jobs scored against an indexed résumé. */
+async function emptyGaps(){
+  let hasResume=true;
+  try{const r=await fetch('/api/career-hunter/resume/state',{cache:'no-store'});if(r.ok)hasResume=Boolean((await r.json()).hasResume);}catch(_){}
+  const [tool,href,label]=hasResume?['career-board','/api/career-hunter/board-native','Score jobs on the Job Board']:['career-resume-studio','/api/career-hunter/resume-studio','Upload your résumé'];
+  listEl.innerHTML=`<div class="ck-empty"><div class="ck-empty-icon" aria-hidden="true">✨</div><h2>No gaps to work on yet</h2><p>Gaps come from jobs scored against your résumé.</p><a class="ck-primary" id="gapNext" data-career-tool="${tool}" href="${href}">${label}</a></div>`;
+  $('gapNext').onclick=e=>{if(window.parent===window)return;e.preventDefault();CareerJobActions.navigate(tool,href);};
+}
 async function load(){
   loadStories();
   listEl.innerHTML='<div class="empty">Loading gaps…</div>';
@@ -188,11 +205,14 @@ async function load(){
     const answered=addr.filter(t=>t.status==='answered');
     const skipped=addr.filter(t=>t.status==='skipped');
     progEl.textContent=`${answered.length} answered · ${open.length} open`;
-    if(!open.length && !answered.length){ listEl.innerHTML='<div class="empty">No addressable gaps right now. Try ↻ Rescan after scoring more jobs.</div>'; return; }
+    const mic=$('micHint'),gv=$('gapView');if(mic)mic.hidden=!(open.length&&gapView==='open');
+    if(gv){gv.hidden=!answered.length;$('nOpen').textContent=open.length||'';$('nAnswered').textContent=answered.length||'';}
+    if(!open.length && !answered.length){ await emptyGaps(); return; }
     let html='';
-    if(open.length) html+=`<div class="grp">Highest impact — answer one</div>`+openCard(open[0],true)+open.slice(1,8).map(t=>openCard(t,false)).join('');
-    if(answered.length) html+=`<div class="grp">Answered (${answered.length})</div>`+answered.map(answeredCard).join('');
-    if(skipped.length) html+=`<div class="grp">Skipped (${skipped.length})</div>`+skipped.map(t=>`<div class="card"><p class="q" style="color:var(--muted)">${esc(t.title||t.key)}</p><div class="ans"><button class="btn ghost" onclick="setStatus('${esc(t.key)}','open')">Reopen</button></div></div>`).join('');
+    if(gapView==='answered'&&answered.length) html+=answered.map(answeredCard).join('');
+    else if(open.length) html+=`<div class="grp">Highest impact — answer one</div>`+openCard(open[0],true)+open.slice(1,8).map(t=>openCard(t,false)).join('');
+    else html+='<div class="ck-empty"><h2>Every open gap is answered</h2><p>Rescan after more jobs are scored to find new ones.</p></div>';
+    if(skipped.length&&gapView==='open') html+=`<div class="grp">Skipped (${skipped.length})</div>`+skipped.map(t=>`<div class="card"><p class="q" style="color:var(--muted)">${esc(t.title||t.key)}</p><div class="ans"><button class="btn ghost" onclick="setStatus('${esc(t.key)}','open')">Reopen</button></div></div>`).join('');
     listEl.innerHTML=html;
   } catch(e){ listEl.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
 }

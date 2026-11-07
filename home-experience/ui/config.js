@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Extract the approved Home layout while preserving the established shared renderer and member ownership.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Follow the owned attention panel with Schedule, Recent Work and Applications in the default Home column.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Shopping shows its one List screen (UX audit 2026-11-05: purchasing's Assistant, Browse and Deals surfaces are merged into List or withheld).
  */
 window.HOMEBASE_PRESETS = {
   "family": {
@@ -90,10 +91,7 @@ window.HOMEBASE_PRESETS = {
         "app": "purchasing",
         "kicker": "SHOPPING",
         "surfaces": [
-          "shop-concierge",
-          "shop-browse",
-          "shop-lists",
-          "shop-deals"
+          "shop-lists"
         ]
       },
       {

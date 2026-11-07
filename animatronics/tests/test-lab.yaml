@@ -7,6 +7,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | The prop-kind case also covers the DECLARATION behind the read: the manifest offers embodied under dependencies.optional.apps, the store's own dependency reader sees the same offer, and the generated marketplace.json block mirrors it. A run-time edge that only the code knows about is one an installer cannot offer.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register the audience-view case: the page's family view for the Jarvis Home shell (ADR-164 D6), its static kit contract and its behaviour over the package's real rig route and real rehearsal reports, plus the gate that keeps the full page's start from running under the view. Dependency-free node:test, no browser, no network, no framework checkout.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: the company audience view registered beside the family one (ADR-164 D6); the audience-view case covers both and the browser fixture expects the same card under each.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register surface-views (Perform and Rig setup, phone sheets, one primary per view, 44px pose actions, in-page Delete rig confirm).
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -269,6 +270,28 @@ cases:
       - Real template rigs paint as props, shows, poses and armed counts, a title led by an armed prop, tiles that open nothing, the shows in plain words, and the last practice run from the real saved rehearsal (passed with its length, or not passed with its first reason).
       - More than twelve props, more than thirty shows, no props, signed out (the router's own 401, no query), refused, the route's own 500, an unreadable answer and an unreachable server each read as what they are.
       - Under the view the full page's main script makes no read, binds no listener and starts no poll; without the view or without the kit it starts as before, and the helper scripts only define their globals.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: surface-views
+    name: Animatronics is Perform and Rig setup with E-STOP always in the header
+    purpose: tests/surface-views.test.js reads the shipped tools/animatronics.html and animatronics.js - no browser, server or controller.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/surface-views.test.js
+    expected:
+      - Perform is the default view; templates, rigs, calibration, the controller and the supply budget live in Rig setup.
+      - On a phone the rig view stays and jog, poses, scenarios, look-at, talk and one Log open as bottom-bar sheets; the toast sits above the bar.
+      - New rig and Play are the only primaries; E-STOP is in the header.
+      - Pose actions are 44px with delete in a row menu; Delete rig confirms in the page; Save calibration says it disarms the rig; headings carry no inline sentences.
     prerequisites:
       - runner:node-test
     sideEffects: none

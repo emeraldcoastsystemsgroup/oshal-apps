@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The first Show rides tap after typing an address priced the trip and then wiped it: the field's blur started a /geocode lookup on the same tap, /estimate answered first and drew the fares, and the lookup's late answer moved the pin through setPoint, whose invalidateEstimate replaced the list with "Route changed — press Show rides to price it" and disabled the hand-off (live at 412x915, geocode answered 8 ms after estimate). This suite EXECUTES the shipped surface functions (setPoint, invalidateEstimate, geocodeField, lookupAddress, settleGeocodes, estimate, renderOptions, pinParams) in a sandbox whose network the test answers in a chosen order: a lookup in flight at the tap lands its pin before /estimate and /estimate carries it; a lookup that outlasts the bounded wait answers after /estimate and the options stay drawn; a lookup started after the estimate still moves the pin and retracts the old fare. Red on the previous surface (the first two cases end on "Route changed").
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.6: estimate() writes the fare basis through showFareBasis (one line under the fares); it is run with it.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -43,7 +44,7 @@ function extractBlock(source, marker) {
 
 const FUNCTIONS = ['pinFor', 'pinParams', 'providerRefused', 'setPoint', 'invalidateEstimate', 'geocodeField',
   'lookupAddress', 'settleGeocodes', 'renderOptions', 'renderDistance', 'shortRideName', 'escapeHtml',
-  'updateLabels', 'estimate'];
+  'updateLabels', 'showFareBasis', 'estimate'];
 
 function element(value = '') {
   return { value, innerHTML: '', textContent: '', hidden: true, disabled: false };

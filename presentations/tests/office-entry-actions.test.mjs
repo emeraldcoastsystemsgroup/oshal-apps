@@ -1,3 +1,7 @@
+/** CHANGE LOG
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Office entry actions: generation stays in the open document, previous generated files are bounded, and the screen offers all three formats.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0: the three formats come from the New menu (design.mjs), not a Format select; Generate is "Generate a draft" in Insert and the Concierge.
+ */
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -19,10 +23,10 @@ test('historical files remain selectable as original Office files with safe down
  for(const url of ['javascript:alert(1)','data:text/html,hello','https://user:password@example.test/file',''])assert.throws(()=>previousFileUrl({url},'https://example.test/'),/usable download URL/);
 });
 
-test('the Office screen exposes all three formats and Generate has no legacy navigation target',async()=>{
- const html=await readFile(new URL('../tools/office/editor.html',import.meta.url),'utf8');
- assert.match(html,/<button id="generate-document" type="button">Generate<\/button>/);assert.doesNotMatch(html,/legacy=1|office-generation-link/);
- const menu=html.match(/<details id="office-file-menu"[\s\S]*?<\/details>/)[0];assert.doesNotMatch(menu,/id="new-kind"/,'format selection remains visible outside File on mobile');
- for(const kind of ['pptx','docx','xlsx']){assert.ok(formatName(kind));assert.ok(html.includes('value="'+kind+'"'));}
- assert.match(html,/id="document-title" aria-label="Document title"/);assert.match(html,/id="office-previous-files"/);
+test('the Office screen offers all three formats from New, and Generate has no legacy navigation target',async()=>{
+ const html=await readFile(new URL('../tools/office/editor.html',import.meta.url),'utf8'),design=await readFile(new URL('../tools/office/design.mjs',import.meta.url),'utf8');
+ assert.match(html,/<button id="generate-document" type="button">Generate a draft<\/button>/);assert.doesNotMatch(html+design,/legacy=1|office-generation-link/);
+ assert.doesNotMatch(html,/id="new-kind"/,'2.19.0: no Format select; New is a menu (design standard §5.1)');
+ for(const[kind,label]of [['docx','Blank document'],['pptx','Presentation'],['xlsx','Spreadsheet']]){assert.ok(formatName(kind));assert.ok(design.includes("{label:'"+label+"',id:'new-"+kind+"',run:()=>startNew('"+kind+"')}"),label+' is in the New menu');}
+ assert.match(html,/id="document-title" aria-label="Document name"/);assert.match(html,/id="office-previous-files"/);
 });

@@ -252,6 +252,29 @@ cases:
     limits: {timeoutMs: 120000, maxMemoryMb: 1536}
     installation: never
 
+  - id: studio-steps
+    name: Three steps with Generate in reach
+    purpose: Drive the real page in Chromium at 412x915 and 1440x900 over synthetic reads and a recording fake for POST /portraits.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/studio-steps.test.mjs]}
+    expected:
+      - Once a photo and a style are chosen, Generate portrait starts within the first two 915px phone screens.
+      - Generate sends Step 3's notes and settings; the inspector carries no second copy of them, and each setting appears once.
+      - The stepper shows one step's controls at a time; the source commands open from one document menu and undo and redo crop appear once a photo is loaded.
+      - Mode's selected segment is inverted ink; Style is a tile grid with 44px chips and one description on tap; the engine line sits beside Generate only while the model is asleep.
+      - With portraits, Your portraits is the first screen with one New portrait at the bottom right; with none the studio opens on Step 1 with Add a photo in the top third and no embedded concierge column.
+      - Generate is drawn, on screen and uncovered at Step 3 for everyone; without the create permission or without an image model it is disabled with one line beside it saying why and what makes it work (Roger, 2026-11-06, F15).
+      - The stepper is numbered circles with the current step filled; Step 1 names the next two steps; each step bar is marked data-ef-floating; the native kernel's asleep answer shows the line beside Generate.
+      - A press whose first answer only woke the image model waits for it and sends the same portrait once more, removing the empty record the wake left.
+      - Uploading landscape or tall portrait photos keeps Step 1's crop canvas bounded (<=460x340px) with Next: Style on screen, and Step 3 pairs a live cropped/generated preview beside a two-column minor-adjustment grid with Generate on screen.
+    prerequisites: [runner:node, browser:chromium, source:core-dependencies, source:kernel-shared-ui]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Close the exact owned browser contexts and loopback fixture. Only synthetic data is used; no image model is called.
+    limits: {timeoutMs: 120000, maxMemoryMb: 1536}
+    installation: never
+
   - id: durable-source-projects
     name: Durable owned source and assistant handoff
     purpose: Drive real Chromium through the package typed HTTP routes into disposable application-owned FORCE-RLS PostgreSQL.
@@ -260,7 +283,7 @@ cases:
     expected:
       - Focused edits save and reopen with stable source object IDs and immutable revisions.
       - Assistant edits refresh the same document while concurrent browser drafts remain untouched.
-      - The AI panel sends actual saved identity and selection and reports an unavailable provider honestly.
+      - The document session the shell Concierge reads carries the actual saved identity, revision and selection; the page embeds no second concierge.
       - Original grants and owner isolation remain enforced; generation is never invoked by saving source.
     prerequisites: [runner:node, browser:chromium, runtime:canonical-store-toolchain, service:docker-local-postgres16, source:kernel-shared-ui]
     sideEffects: fixture-write

@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Prove brush masks, mask combination and editable adjustment persistence with actual rendered pixels and UI gestures.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | Integrate isolated group layers with bounded nesting, uniform transforms, ancestor locks and source-space region mapping.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Integrate editable cubic vector paths, bounded worker booleans, arrangement and explicit SVG interchange with existing private project flows.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the navigation pane is named Layers and automatic saving saves the duplicate without a Save press.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -87,13 +88,12 @@ test('human group Duplicate works on a narrow screen and saves/reopens as one hi
       {id:'g',type:'group',name:'Composition',x:20,y:20,w:40,h:20,baseWidth:40,baseHeight:20,children:['a','b']}] };
   const record = fixture.seed(document);
   await page.goto(`${fixture.origin}/api/create/editor?project=${record.id}`);
-  await page.locator('.ef-shell').waitFor();await page.locator('.ef-tools').getByRole('button',{name:'Navigation',exact:true}).click();
+  await page.locator('.ef-shell').waitFor();await page.locator('.ef-tools').getByRole('button',{name:'Layers',exact:true}).click();
   await page.locator('[data-layer-id="g"] .layer-select').click();
   await page.locator('#duplicateLayer').click();await page.getByRole('button',{name:'Close navigation',exact:true}).click();
   assert.equal(await page.locator('[data-layer-id]').count(), 6);
   await page.locator('#undo').click(); assert.equal(await page.locator('[data-layer-id]').count(), 3);
   await page.locator('#redo').click(); assert.equal(await page.locator('[data-layer-id]').count(), 6);
-  await page.locator('#saveProject').click();
   await page.locator('#saveStatus').filter({ hasText: 'Saved · revision 2' }).waitFor();
   const saved = fixture.state.projects.get(record.id).document;
   assert.equal(saved.layers.length, 6); assert.equal(saved.layers.filter(layer => layer.type === 'group').length, 2);

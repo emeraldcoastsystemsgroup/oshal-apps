@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Real source-photo cropping, typed settings, history and mobile editor panes over isolated synthetic reads.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05: the inspector no longer carries a second copy of the generation notes and settings (Step 3's #notes and #tune* are the one set, the set Generate reads), so the notes checks assert there is no notes property and that a reader has no editable property.
  */
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,7 +30,7 @@ async function fixture(t,{width=1280,create=true}={}){
  const server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
  const context=await browser.newContext({viewport:{width,height:915}});t.after(async()=>{await context.close();server.closeAllConnections();await new Promise(done=>server.close(done));});
  const page=await context.newPage(),errors=[];page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));
- await page.goto('http://127.0.0.1:'+server.address().port+'/api/portrait-studio/app');await page.locator('.ef-shell').waitFor();
+ await page.goto('http://127.0.0.1:'+server.address().port+'/api/portrait-studio/app');await page.locator('.ef-shell').waitFor({state:'attached'});
  return{page,requests,errors};
 }
 const property=(page,key)=>page.locator('[data-editor-property="'+key+'"]');
@@ -40,7 +41,7 @@ test('source crop geometry remains editable with aspect-preserving properties an
  await change(page,'crop-w',240);assert.equal(Number(await property(page,'crop-h').inputValue()),300);
  await page.getByRole('button',{name:'Undo crop',exact:true}).click();assert.equal(Number(await property(page,'crop-w').inputValue()),width);
  await page.getByRole('button',{name:'Redo crop',exact:true}).click();assert.equal(Number(await property(page,'crop-w').inputValue()),240);
- await change(page,'notes','Keep this manual generation note');assert.equal(await page.locator('#notes').inputValue(),'Keep this manual generation note');
+ assert.equal(await property(page,'notes').count(),0,'generation notes live in Step 3 only');
  assert.equal(requests.some(row=>row.method==='POST'),false);assert.deepEqual(errors,[]);
 });
 test('phone properties retain the source canvas and read-only access disables edits',async t=>{
@@ -48,6 +49,6 @@ test('phone properties retain the source canvas and read-only access disables ed
  await page.locator('.ef-tools').getByRole('button',{name:'Properties',exact:true}).click();await property(page,'crop-w').waitFor();await change(page,'crop-w',240);
  await page.getByRole('button',{name:'Close inspector',exact:true}).click();assert.equal(await page.locator('#cropCanvas').isVisible(),true);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  assert.equal(requests.some(row=>row.method==='POST'),false);assert.deepEqual(errors,[]);
- const reader=await fixture(t,{create:false});assert.equal(await property(reader.page,'notes').isDisabled(),true);assert.equal(await reader.page.locator('#generateBtn').isVisible(),false);
+ const reader=await fixture(t,{create:false});assert.equal(await reader.page.locator('[data-editor-property]:not(:disabled)').count(),0);assert.equal(await reader.page.locator('#generateBtn').isVisible(),false);
  assert.equal(reader.requests.some(row=>row.method==='POST'),false);assert.deepEqual(reader.errors,[]);
 });

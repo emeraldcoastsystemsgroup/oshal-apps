@@ -8,6 +8,7 @@
 # 0.11.0 | maintainer@emeraldcoastsystemsgroup.com | The fantasy half moved to its own package, fantasy-football (ADR-146 D1; operator decisions 2026-09-27), grouped with this one as the application group intelligent-sports. /api/sports-edge/fantasy/* answers 410 Gone with the new app's address, the Fantasy tab says where it went, and the Home summary drops its three fantasy metrics. The fantasy-leagues skill and the espn-fantasy connector are no longer declared: nothing here reads a league any more. The sports_fantasy_* tables are left in place, unread and unwritten.
 # 0.11.3 | maintainer@emeraldcoastsystemsgroup.com | the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 # 0.11.4 | maintainer@emeraldcoastsystemsgroup.com | refresh-pass declares startsItself: it spends no money and answers 200 with no team followed.
+# 0.11.7 | maintainer@emeraldcoastsystemsgroup.com | the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 #
 # An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
 # "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
@@ -98,7 +99,7 @@ description: >-
   travel — then compares that line to the book's moneyline and spread. Every call is registered
   before kickoff and graded on closing-line value, so the model has to beat the market before it is
   allowed to stake anything. Fantasy leagues moved to their own app, Fantasy Football.
-version: 0.11.5
+version: 0.11.7
 status: active
 # Sports Edge packages no agent; the stable framework concierge owns its right rail.
 chatBot: general-bot
@@ -267,11 +268,9 @@ migrations:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
-    - toolName: sports-edge-review
-      label: Sports Edge Review
-      icon: codicon codicon-notebook
-      iframeUrl: /api/sports-edge/review
-      section: top
+    # UX audit 2026-11-06: Sports Edge Review was the first entry, so the app opened on a dead
+    # brief form. It left the menu and the app opens on Sports Edge; /api/sports-edge/review still
+    # answers hand-offs. To bring it back, restore this entry from git history (sports-edge 0.11.5).
     - toolName: sports-edge-home
       label: Sports Edge
       icon: codicon codicon-dashboard

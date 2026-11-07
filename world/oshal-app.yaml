@@ -13,6 +13,8 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: native original-owner collector configuration and explicit Congress/insider pulls with retained partial/failure receipts.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: declare world-analyst as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (UX audit 2026-11-06): one window control (four buttons; the select that repeated them is gone), names only (no world:ticker: or world:outlet: ids), a subject search, and By source shows 15 rows with Show more. Guard: tests/ux-controls.test.js.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.4.8 (UX audit 2026-11-06): add asset filter chips above subjects (All, Stocks, Markets, Topics, Crypto, Commodities), By source / Entity graph tabs under the KPI and lean cards, sortable Lean/Reliability/Sentiment columns on By source, a phone Subject picker in the header so KPI tiles render first, and keep ingestion pull-rate operations on Sources & schedules.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — world ("World Intelligence", ADR-061)
@@ -72,7 +74,7 @@ description: >-
   and reliability against the other sources, with the counts and dates behind it),
   entity co-mention graph, and historical series. Ask the analyst "what's the press
   saying about X" and get a structured, bias-contextualized read, not a misleading average.
-version: 1.4.6
+version: 1.4.8
 
 testing:
   version: 1

@@ -66,6 +66,7 @@
  *                     |                             | fits (artifact-budget.ts). Guard: tests/reconstruct-save-bound.test.js.
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Bind new jobs and source mutations to original-person calibration authority and expose closed durable calibration routes.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | Pass scan.source.change to withCurrentJob on calibration, job patch/delete and photo upload/assign/delete routes so narrow source-editor roles match authorization.yaml.
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Synthesize binary glTF 2.0 (.glb) and Apple USDZ (.usdz) downloads on demand from the job's current STL (RP-SCN-04) without inflating reconstruction commit size.
  */
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -93,6 +94,9 @@ const frame_suggest_1 = require("./engine/grid/frame-suggest");
 const job_outputs_1 = require("./job-outputs");
 const calibration_editor_1 = require("./calibration-editor");
 const contour_export_1 = require("./engine/drawing/contour-export");
+const parse_stl_1 = require("./engine/geometry/parse-stl");
+const export_glb_1 = require("./engine/geometry/export-glb");
+const export_usdz_1 = require("./engine/geometry/export-usdz");
 const artifact_budget_1 = require("./artifact-budget");
 const logger = (0, logger_1.createChildLogger)({ module: 'scan-to-print-job-routes' });
 /** @description Upload and count ceilings the surface pre-validates against. */
@@ -655,9 +659,32 @@ function registerPointCloud(router, deps) {
 function registerArtifacts(router, deps) {
     router.get('/jobs/:jobId/artifacts/:key', (0, job_outputs_1.withCurrentJob)(deps, (req, res) => {
         const job = req.scanJob;
-        const key = req.params.key;
+        const rawKey = req.params.key;
+        const baseName = job.title.replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 60) || 'part';
+        if (rawKey === 'glb' || rawKey === 'usdz') {
+            if (!(0, job_outputs_1.requireCurrentOutput)(job, res, false))
+                return;
+            const stlFile = (0, data_dir_1.artifactPath)((0, data_dir_1.jobDir)(deps.dataRoot, req.scanSub, job.job_id), 'stl');
+            if (!node_fs_1.default.existsSync(stlFile)) {
+                res.status(404).json({ error: 'artifact_not_found' });
+                return;
+            }
+            const mesh = (0, parse_stl_1.fromStl)(new Uint8Array(node_fs_1.default.readFileSync(stlFile)));
+            const payload = rawKey === 'glb' ? Buffer.from((0, export_glb_1.toGlb)(mesh, { name: baseName })) : Buffer.from((0, export_usdz_1.toUsdz)(mesh, baseName));
+            if (payload.byteLength > artifact_budget_1.DOWNLOAD_LIMIT_BYTES) {
+                res.status(422).json({ error: 'artifact_too_large', message: `The ${rawKey.toUpperCase()} export exceeds the single-download limit; crop or reconstruct at a lower resolution.` });
+                return;
+            }
+            res.setHeader('Cache-Control', 'private, no-store');
+            if (req.query.download !== undefined || rawKey === 'usdz') {
+                res.setHeader('Content-Disposition', `${req.query.download !== undefined ? 'attachment' : 'inline'}; filename="${baseName}.${rawKey}"`);
+            }
+            res.type(rawKey === 'glb' ? 'model/gltf-binary' : 'model/vnd.usdz+zip').send(payload);
+            return;
+        }
+        const key = rawKey;
         if (!(key in data_dir_1.ARTIFACT_FILES)) {
-            res.status(400).json({ error: 'unknown_artifact', keys: Object.keys(data_dir_1.ARTIFACT_FILES) });
+            res.status(400).json({ error: 'unknown_artifact', keys: [...Object.keys(data_dir_1.ARTIFACT_FILES), 'glb', 'usdz'] });
             return;
         }
         if (!(0, job_outputs_1.requireCurrentOutput)(job, res, key === 'gcode'))
@@ -670,7 +697,7 @@ function registerArtifacts(router, deps) {
         const types = { stl: 'model/stl', obj: 'text/plain', svg: 'image/svg+xml', report: 'application/json', gcode: 'text/plain', contours: 'application/json' };
         res.setHeader('Cache-Control', 'private, no-store');
         if (req.query.download !== undefined)
-            res.setHeader('Content-Disposition', `attachment; filename="${job.title.replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 60) || 'part'}.${key === 'report' || key === 'contours' ? 'json' : key}"`);
+            res.setHeader('Content-Disposition', `attachment; filename="${baseName}.${key === 'report' || key === 'contours' ? 'json' : key}"`);
         res.type(types[key]).send((0, artifact_budget_1.downloadBytes)(key, node_fs_1.default.readFileSync(file)));
     }, 'read'));
 }

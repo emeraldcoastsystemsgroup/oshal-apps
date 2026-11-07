@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Delete project: declining the confirmation sends nothing; accepting deletes the open project (gone from the list and from the route) and returns to a new project; without editor.delete the button is disabled with its reason and no DELETE is sent.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | A storage refusal on upload names its cause on the screen instead of "Something went wrong", and the media list stays as it was.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Video 1.13.0 (the oshal design standard): the export controls are pressed in the Export sheet the app row's Export opens, Duplicate and Delete project come from the Project menu, Delete project asks in the page (no native confirm), the first status is "Ready.", on a phone a tapped clip adjusts in a sheet from the tool row, and the contrast check reads a colour the design tokens mix (color(srgb …), channels 0 to 1).
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,6 +29,9 @@ async function setRange(page, selector, value, event = 'change') {
     node.dispatchEvent(new Event(next.event, { bubbles: true })); }, { value, event });
 }
 async function status(page, text) { await page.locator('#status').filter({ hasText: text }).waitFor(); }
+/** Video 1.13.0: the export controls live in the Export sheet the app row's Export opens; the project actions in the Project menu. */
+async function openExport(page) { await page.locator('button.video-export').click(); await page.locator('dialog.ds-layer[open] #exportMp4').waitFor(); }
+async function projectAction(page, name) { await page.getByRole('button', { name: 'Project', exact: true }).click(); await page.getByRole('menuitem', { name }).click(); }
 /** Press a key with nothing focused, the way a person uses the timeline shortcuts. */
 async function key(page, combo) { await page.evaluate(() => document.activeElement?.blur?.()); await page.keyboard.press(combo); }
 async function addMedia(page) {
@@ -41,7 +45,7 @@ async function addMedia(page) {
 
 test('import, trim, split, reorder, title, volume, undo, save, reopen and export on the real screen', async t => {
   const { page, api, errors, external, requests } = await openEditor(t, browser, database);
-  await status(page, 'Ready. Add a clip to start.');
+  await status(page, 'Ready.');
   await page.locator('#projectName').fill('Holiday cut'); await page.locator('#projectName').press('Tab');
   await addMedia(page);
   assert.deepEqual(await segments(page), ['Beach.mp4 · 0:03.00', 'Street.mp4 · 0:02.00']);
@@ -76,7 +80,7 @@ test('import, trim, split, reorder, title, volume, undo, save, reopen and export
   await status(page, 'Saved · revision 1');
   assert.deepEqual(await segments(page), ['Street.mp4 · 0:02.00', 'Beach.mp4 · 0:01.00', 'Beach.mp4 · 0:01.00'], 'reopened exactly');
   assert.equal(await page.locator('#projectName').inputValue(), 'Holiday cut');
-  await page.locator('#exportMp4').evaluate(node=>{for(let p=node;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;});await page.locator('#exportMp4').click();
+  await openExport(page); await page.locator('#exportMp4').click();
   await page.locator('#exportStatus').filter({ hasText: 'Export ready.' }).waitFor();
   const href = await page.locator('#downloadExport').getAttribute('href');
   const download = await page.request.get(api.origin + href);
@@ -117,7 +121,7 @@ test('the unsaved draft survives a theme change, a failed save, a reload and a c
   await page.locator('#error').filter({ hasText: 'saved somewhere else' }).waitFor();
   assert.equal(await page.locator('#reloadSaved').isVisible(), true);
   assert.equal(await page.locator('#projectName').inputValue(), 'Draft name', 'a conflict keeps the draft');
-  await page.locator('#saveAsNew').click(); await status(page, 'Saved · revision 1');
+  await projectAction(page, 'Duplicate'); await status(page, 'Saved · revision 1');
   assert.notEqual(new URL(page.url()).searchParams.get('project'), id, 'saved as a new project');
   assert.equal((await api.call(`/editor/projects/${id}`)).body.project.title, 'Other tab', 'the other tab kept its save');
   assert.deepEqual(errors, []);
@@ -138,7 +142,8 @@ test('a storage refusal on upload says why and keeps the edits', async t => {
 test('every portal palette and a phone-width layout keep the editor readable and usable', async t => {
   const wide = await openEditor(t, browser, database);
   const contrast = selector => wide.page.locator(selector).evaluate(node => {
-    const parse = value => (value.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    // A colour the design tokens mix (color-mix) computes as color(srgb r g b) with channels from 0 to 1.
+    const parse = value => (value.match(/[\d.]+/g) || []).slice(0, 3).map(Number).map(channel => value.startsWith('color(') ? channel * 255 : channel);
     const luminance = rgb => { const [r, g, b] = rgb.map(c => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
     let background = 'rgba(0, 0, 0, 0)', from = node;
     while (from && /rgba\(0, 0, 0, 0\)|transparent/.test(background)) { background = getComputedStyle(from).backgroundColor; from = from.parentElement; }
@@ -157,13 +162,14 @@ test('every portal palette and a phone-width layout keep the editor readable and
   assert.ok(overflow <= 1, `no horizontal scrolling at phone width (${overflow}px)`);
   await narrow.page.locator('#addClip').setInputFiles(file('Beach.mp4', 'video', clipProbe({ seconds: 3 })));
   await narrow.page.locator('#status').filter({ hasText: 'Beach.mp4 added.' }).waitFor();
-  for (const selector of ['#saveProject', '#play', '#track .segment', '#playhead', '#addTitle', '#exportMp4']) {
-    if(['#addTitle'].includes(selector))await narrow.page.getByRole('button',{name:'Properties',exact:true}).click();
+  for (const selector of ['#saveProject', '#play', '#track .segment', '#playhead', 'button.video-export', '#addTitle']) {
+    if (selector === '#addTitle') await narrow.page.locator('[data-ds-toolrow]').getByRole('button', { name: 'Text', exact: true }).click();
     const box = await narrow.page.locator(selector).first().boundingBox();
     assert.ok(box && box.x >= 0 && box.x + box.width <= 391, `${selector} fits the phone width`);
   }
-  await narrow.page.getByRole('button',{name:'Close inspector'}).click();await narrow.page.locator('#track .segment').first().click();
-  assert.equal(await narrow.page.locator('#segmentControls').isVisible(), true);
+  await narrow.page.goBack(); await narrow.page.locator('dialog.ds-layer[open]').waitFor({ state: 'detached' });
+  await narrow.page.locator('#track .segment').first().click();await narrow.page.locator('[data-ds-toolrow]').getByRole('button', { name: 'Adjust', exact: true }).click();
+  assert.equal(await narrow.page.locator('dialog.ds-layer[open] [data-editor-property="in"]').isVisible(), true, 'a selected clip adjusts in a sheet');
 });
 
 test('missing permissions disable exactly what they must and send nothing', async t => {
@@ -189,14 +195,16 @@ test('Delete project asks first, deletes the open project, and is disabled witho
   await status(page, 'Beach.mp4 added.');
   await key(page, 'Control+s'); await status(page, 'Saved · revision 1');
   const id = new URL(page.url()).searchParams.get('project');
-  const asked = [];
-  page.once('dialog', dialog => { asked.push(dialog.message()); dialog.dismiss(); });
-  await page.locator('#deleteProject').click();
-  assert.match(asked[0], /Delete the project "Throwaway cut"/);
+  const native = []; page.on('dialog', dialog => { native.push(dialog.type()); void dialog.dismiss(); });
+  await projectAction(page, 'Delete project');
+  const asked = page.locator('dialog.ds-confirm[open]'); await asked.waitFor();
+  assert.match(await asked.textContent(), /Delete "Throwaway cut"/);
+  await asked.getByRole('button', { name: 'Cancel' }).click(); await asked.waitFor({ state: 'detached' });
   assert.equal(requests.some(line => line.startsWith('DELETE')), false, 'declining sends nothing');
   assert.equal((await api.call(`/editor/projects/${id}`)).status, 200);
-  page.once('dialog', dialog => dialog.accept());
-  await page.locator('#deleteProject').click();
+  await projectAction(page, 'Delete project');
+  await page.locator('dialog.ds-confirm[open]').getByRole('button', { name: 'Delete project' }).click();
+  assert.deepEqual(native, [], 'the page asks, never a native dialog');
   await status(page, 'Deleted Throwaway cut.');
   assert.equal((await api.call(`/editor/projects/${id}`)).status, 404, 'the project is gone');
   assert.equal(await page.locator('#projectName').inputValue(), 'Untitled video');
@@ -228,6 +236,6 @@ test('multitrack controls upgrade, edit effects and linked audio, save/reopen an
   assert.equal(row.document.tracks[0].clips[0].audioEnabled, false);
   assert.ok(row.document.tracks[1].clips.some(clip => clip.link));
   await page.reload(); await page.locator('html[data-editor-ready="true"]').waitFor();await status(page, 'Saved · revision 1');await page.locator('#multiTracks').waitFor();
-  await page.locator('#exportMp4').evaluate(node=>{for(let p=node;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;});await page.locator('#exportMp4').click(); await page.locator('#exportStatus').filter({ hasText: 'Export ready' }).waitFor();
+  await openExport(page); await page.locator('#exportMp4').click(); await page.locator('#exportStatus').filter({ hasText: 'Export ready' }).waitFor();
   assert.deepEqual(value.errors, []); assert.deepEqual(value.external, []);
 });

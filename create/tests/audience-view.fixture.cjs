@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Browser fixture for the Create audience views (ADR-164 D6): the purpose-first front door, its declared URL, one synthetic read-only answer in the shape routes/create-project-routes.js builds for GET /home-summary (two layered-image projects with their update time and editor action, the project count), and what the family view and its company alias must show.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06: New merged into Create Home, which is now Create's first surface and serves the view, so the page is tools/create-home.html at /api/create/home and the full page is proved by its finished work grid.
  * -----------------------------------------------------------------------------
  * @module audience-view.fixture
  */
@@ -31,7 +32,7 @@ module.exports = ({ iso }) => {
     statValues: { 'image-projects': '2' },
   };
   return {
-    app: 'create', file: 'create/tools/create-new.html', url: '/api/create/new', fullMarker: '#sections .grid',
+    app: 'create', file: 'create/tools/create-home.html', url: '/api/create/home', fullMarker: '#recentGrid[aria-busy="false"]',
     reads: {
       '/api/create/home-summary': { items: [project('00000000-0000-4000-8000-00000000000a', 'Synthetic autumn poster', iso(-3)), project('00000000-0000-4000-8000-00000000000b', 'Synthetic bake sale flyer', iso(-27))],
         metrics: [{ label: 'Image projects', value: '2' }] },
