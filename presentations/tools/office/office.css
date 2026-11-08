@@ -3,9 +3,12 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Structured Office editing over the shared editor foundation: page, slide and workbook surfaces, menus and the phone layout.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.19.0, the oshal design standard (docs/ux/design-standard.md §2, §3.1, §3.3, §4): every chrome colour, line, radius, size and space comes from the --ds-* tokens; controls are solid with a 3:1 edge (no translucent fill, gradient, lift or fade), one 2px focus ring, radii 6/10/14/20, the type scale with nothing under 12px, 44px targets on touch; one app row; the phone's bottom bar and opaque top-layer sheets and menus; on a desktop a 240px Slides pane, the canvas and one docked 320px Format | Concierge pane; the page stays white paper in every theme (N7). The document's own rendering (slides, Word pages, the grid) keeps its fonts and colours inside [data-ds-work].
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): styles for anchored comment highlights, tracked insertion/deletion marks, Find & Replace hit markers, Mobile reflow view, and Comment/Suggest/Share thread sheets.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 2.20.1: pin the AI Office Concierge composer flush to the bottom of the docked right rail and phone sheet with flex layout so 5-child prompt strips never overflow and only the message log scrolls.
  */
 *{box-sizing:border-box}
-html,body{margin:0;overscroll-behavior:contain;background:var(--ds-page,var(--bg-primary));color:var(--ds-ink,var(--text-primary));font:var(--ds-text-body,400 16px/24px system-ui,sans-serif)}
+html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:contain;background:var(--ds-page,var(--bg-primary));color:var(--ds-ink,var(--text-primary));font:var(--ds-text-body,400 16px/24px system-ui,sans-serif)}
+#office-root{height:100%;min-height:0;overflow:hidden}
+#office-root.ef-editor .ef-shell{height:100%;max-height:100dvh;min-height:0}
 button,input,select,textarea{font:inherit;color:inherit}
 button{min-height:44px;padding:0 16px;border:1px solid var(--ds-line-control,var(--border-color));border-radius:10px;background:var(--ds-surface-2,var(--bg-secondary));color:var(--ds-ink,var(--text-primary));font-weight:600;cursor:pointer;box-shadow:none;transform:none;transition:background-color var(--ds-dur-fast,120ms) var(--ds-ease,ease)}
 button:hover:not(:disabled):not([data-ds-not-yet]){background:var(--ds-surface-3,var(--bg-secondary))}
@@ -49,6 +52,7 @@ h3{margin:0;font:600 16px/24px var(--ds-font,system-ui)}
 :is(#office-root,.ds-layer) .ef-more-tools{margin:0;padding:0;border:0}
 :is(#office-root,.ds-layer) .ef-more-tools>summary{display:none!important}
 #office-root .ef-status-slot{border-top:1px solid var(--ds-hairline,var(--border-color))}
+#office-root .ef-status-slot:not(:has(.ef-error:not([hidden]))){border-top:0}
 #office-root .ef-error{font:var(--ds-text-help,400 14px/20px system-ui);color:var(--ds-bad,var(--status-error))}
 
 /* ── The work: the document on its canvas; the page is paper in every theme (N7). */
@@ -142,12 +146,16 @@ html[data-office-view=home] .office-bottom-bar{display:none!important}
 .office-pane-tab:hover:not(:disabled){background:transparent;color:var(--ds-ink,var(--text-primary))}
 .office-pane-tab[aria-selected=true]{border-bottom-color:var(--ds-accent,var(--accent-primary))}
 
-/* ── The concierge: one entry; the composer keeps its solid look; a faded disabled icon is not allowed (DS-27). */
+/* ── The concierge: one entry; the composer keeps its solid look pinned at the bottom while only the log scrolls (DS-27). */
 #office-root .ef-concierge,#office-root .ef-assistant,.ds-layer .ef-assistant{background:var(--ds-surface,var(--bg-primary));border-color:var(--ds-edge,var(--border-color))}
+#office-root .ef-concierge,#office-ai{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
+:is(#office-root,.ds-layer) .ef-assistant{display:flex;flex-direction:column;flex:1 1 0%;min-height:0;height:100%;overflow:hidden}
+:is(#office-root,.ds-layer) :is(.ef-assistant-header,.ef-assistant-help,.office-prompts,.ef-assistant-composer){flex:0 0 auto}
+:is(#office-root,.ds-layer) .ef-assistant-log{flex:1 1 0%;min-height:0;overflow-y:auto}
 :is(#office-root,.ds-layer) .ef-assistant-header{min-height:56px;padding:8px 16px;border-color:var(--ds-hairline,var(--border-color))}
 :is(#office-root,.ds-layer) .ef-assistant-header h2{font:var(--ds-text-heading,600 18px/24px system-ui)}
 :is(#office-root,.ds-layer) .ef-assistant-help{font:var(--ds-text-help,400 14px/20px system-ui);color:var(--ds-ink-2,var(--text-secondary))}
-:is(#office-root,.ds-layer) .ef-assistant-composer{border-radius:14px;border-color:var(--ds-line-control,var(--border-color));background:var(--ds-surface,var(--bg-primary))}
+:is(#office-root,.ds-layer) .ef-assistant-composer{margin:0 12px calc(12px + env(safe-area-inset-bottom,0px));border-radius:14px;border-color:var(--ds-line-control,var(--border-color));background:var(--ds-surface,var(--bg-primary))}
 :is(#office-root,.ds-layer) .ef-assistant-icon{border-radius:10px;font-size:18px!important}
 :is(#office-root,.ds-layer) .ef-assistant button:disabled{opacity:1;color:var(--ds-ink-disabled,#8a94a6)}
 :is(#office-root,.ds-layer) .ef-assistant-controls>.ef-assistant-send{border-radius:10px;font-size:14px!important}
@@ -242,7 +250,7 @@ dialog#import-review label{flex-direction:row;align-items:flex-start;gap:8px;fon
  #office-root.ef-editor .ef-viewport{grid-column:2;grid-row:1/3}
  .office-pane-tabs{grid-column:3;grid-row:1}
  #office-root.ef-editor .ef-inspector{grid-column:3;grid-row:2;display:block!important;position:static!important;inset:auto;width:auto;max-width:none;box-shadow:none;z-index:auto;background:var(--ds-surface,var(--bg-primary));border-left:1px solid var(--ds-edge,var(--border-color))}
- #office-root.ef-editor .ef-concierge{grid-column:3;grid-row:2;border-left:1px solid var(--ds-edge,var(--border-color))}
+ #office-root.ef-editor .ef-concierge{grid-column:3;grid-row:2;min-height:0;overflow:hidden;border-left:1px solid var(--ds-edge,var(--border-color))}
  #office-root.ef-editor[data-office-pane=concierge] .ef-inspector{display:none!important}
  #office-root.ef-editor[data-office-pane=format] .ef-concierge{display:none!important}
  #office-header{min-height:48px}
@@ -258,6 +266,7 @@ dialog#import-review label{flex-direction:row;align-items:flex-start;gap:8px;fon
  #office-root.ef-editor[data-office-rail=off] .ef-body{grid-template-columns:0 minmax(0,1fr) 280px}
 }
 @media print{
+ html,body,#office-root{height:auto;overflow:visible}
  #office-root .ef-header-slot,#office-root .ef-status-slot,#office-root .ef-navigation,#office-root .ef-inspector,#office-root .ef-concierge,.office-pane-tabs,.office-bottom-bar,.office-selection-bar{display:none!important}
  #office-root .ef-shell{height:auto;padding:0}#office-root .ef-body{display:block!important}#document-canvas{overflow:visible;padding:0;background:#fff}
 }

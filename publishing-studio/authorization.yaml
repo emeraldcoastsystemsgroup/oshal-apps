@@ -1,4 +1,5 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Keep original-owned read/export/asset/job grants distinct.
+# CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: bind starter templates, cutout, resize, brand kit, comments, social scheduling/posting and video render HTTP/tool endpoints (RP-PUB-01..08).
 version: 1
 resources:
   documents:
@@ -299,6 +300,126 @@ bindings:
         - document.view
         - document.read
         - document.delete
+    - id: publishing-route-24
+      method: GET
+      path: /templates
+      allOf:
+        - document.view
+    - id: publishing-route-25
+      method: POST
+      path: /assets/:asset/remove-background
+      allOf:
+        - document.view
+        - asset.read
+        - asset.import
+    - id: publishing-route-26
+      method: POST
+      path: /documents/:document/resize
+      allOf:
+        - document.view
+        - document.read
+        - document.create
+        - asset.read
+    - id: publishing-route-27
+      method: POST
+      path: /documents/:document/apply-brand-kit
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-route-28
+      method: GET
+      path: /documents/:document/comments
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-29
+      method: POST
+      path: /documents/:document/comments
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-route-30
+      method: POST
+      path: /documents/:document/comments/:comment/replies
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-route-31
+      method: PATCH
+      path: /documents/:document/comments/:comment
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-route-32
+      method: DELETE
+      path: /documents/:document/comments/:comment
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-route-33
+      method: GET
+      path: /social/channels
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-34
+      method: POST
+      path: /social/run-due
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: publishing-route-35
+      method: GET
+      path: /documents/:document/social-posts
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-route-36
+      method: POST
+      path: /documents/:document/social-posts
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: publishing-route-37
+      method: DELETE
+      path: /documents/:document/social-posts/:post
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: publishing-route-38
+      method: POST
+      path: /documents/:document/render-video
+      allOf:
+        - document.view
+        - document.read
+        - document.render
+        - asset.read
+    - id: publishing-route-39
+      method: GET
+      path: /video-jobs/:job
+      allOf:
+        - document.view
+        - job.read
+    - id: publishing-route-40
+      method: POST
+      path: /video-jobs/:job/cancel
+      allOf:
+        - document.view
+        - document.read
+        - job.manage
   tools:
     - id: publishing-editing-contract
       allOf:
@@ -365,6 +486,48 @@ bindings:
         - document.view
         - document.read
         - document.delete
+    - id: publishing-remove-background
+      allOf:
+        - document.view
+        - asset.read
+        - asset.import
+    - id: publishing-resize-document
+      allOf:
+        - document.view
+        - document.read
+        - document.create
+        - asset.read
+    - id: publishing-apply-brand-kit
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-list-comments
+      allOf:
+        - document.view
+        - document.read
+    - id: publishing-add-comment
+      allOf:
+        - document.view
+        - document.read
+        - document.change
+        - asset.read
+    - id: publishing-social-post
+      allOf:
+        - document.view
+        - document.read
+        - document.export
+    - id: publishing-render-video
+      allOf:
+        - document.view
+        - document.read
+        - document.render
+        - asset.read
+    - id: publishing-video-job-status
+      allOf:
+        - document.view
+        - job.read
   bots:
     - id: 04b8a632-2b12-43f2-914b-10d7d6a0c891
       allOf:

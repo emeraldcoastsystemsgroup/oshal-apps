@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The design standard (docs/ux/design-standard.md; UX audit decision calendar--calendar-review). One calendar row (Previous, Today, Next, the month, More); the grid is the work and starts right under it. Adding an event is the one primary, "+ New event" at the bottom right (X1, §5.6), and opens the add form as a sheet on a phone and a dialog on a desktop instead of a closed "Add an event to OSHAL" disclosure below the fold. Sync Google is one item of More, and its scope is said in the step that asks before it runs. Remove and Sync confirm in the page, never with window.confirm (DS-30). The selected day is inverted and today carries an accent ring; on a phone a day shows dots and the selected day's events are rows below the grid. A save or a removal tells the page (calendar:changed), so a list elsewhere on the page refreshes in the same step.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | A layer's history entry waits for every pending Back of the page, and an in-page ask resolves only once its own entry is gone, so the Back a closing ask sends cannot take the next layer's entry and leave Calendar.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Few words before the work (DS-31): a calendar that read fine says nothing in its status line (the workspace carries data-state loading, ready or error instead, and a partial read or a failure is still said), and the selected day's heading and empty line are short ("Fri, Nov 6", "No events."; the full date stays its accessible name).
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | UX sweep (D1=glass): mark modal dialogs (.calendar-sheet, .calendar-confirm) and the top-layer More menu (.calendar-menu) with data-no-glass so sheets and menus stay crisp and opaque under glass card mode.
  */
 export const dateKey=d=>`${d.getFullYear().toString().padStart(4,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export function monthWindow(date){const first=new Date(date.getFullYear(),date.getMonth(),1),last=new Date(date.getFullYear(),date.getMonth()+1,0);return {from:dateKey(first),to:dateKey(last)};}
@@ -40,6 +41,7 @@ export function backCloses(layer){
  */
 export function confirmInPage(doc,{title,text,action,destructive=false}){
  const dialog=element('dialog',null,'calendar-confirm'),heading=element('h2',title),body=text?element('p',text):null,row=element('div',null,'calendar-confirm-actions');
+ dialog.setAttribute('data-no-glass','');dialog.setAttribute('data-ds-sheet','');
  const cancel=element('button','Cancel','calendar-tertiary'),go=element('button',action,destructive?'calendar-destructive':'calendar-primary');
  cancel.type=go.type='button';dialog.setAttribute('aria-labelledby',(heading.id='calendar-confirm-'+Math.random().toString(36).slice(2)));
  row.append(cancel,go);dialog.append(heading,...(body?[body]:[]),row);doc.body.append(dialog);
@@ -61,7 +63,7 @@ export function confirmInPage(doc,{title,text,action,destructive=false}){
  */
 function moreMenu(doc,items){
  const button=element('button','⋯','calendar-more');button.type='button';button.setAttribute('aria-label','More');button.setAttribute('aria-haspopup','menu');button.setAttribute('aria-expanded','false');
- const menu=element('div',null,'calendar-menu');menu.id='calendar-more-menu';menu.setAttribute('role','menu');menu.setAttribute('popover','auto');button.setAttribute('aria-controls',menu.id);
+ const menu=element('div',null,'calendar-menu');menu.id='calendar-more-menu';menu.setAttribute('role','menu');menu.setAttribute('popover','auto');menu.setAttribute('data-no-glass','');button.setAttribute('aria-controls',menu.id);
  const metas=[];
  for(const item of items){
   const row=item.href?element('a',null,'calendar-menu-item'):element('button',null,'calendar-menu-item');row.setAttribute('role','menuitem');
@@ -98,6 +100,7 @@ export function createCalendarWorkspace(host,options={}){
  const say=text=>{status.textContent=text;};
  // The add form: the same fields and rules as before, in a sheet (phone) or dialog (desktop) the one primary opens.
  const sheet=element('dialog',null,'calendar-sheet'),sheetHead=element('div',null,'calendar-sheet-head'),sheetTitle=element('h2','New event'),done=element('button','Cancel','calendar-tertiary'),form=element('form');
+ sheet.setAttribute('data-no-glass','');sheet.setAttribute('data-ds-sheet','');
  sheet.setAttribute('aria-labelledby',(sheetTitle.id='calendar-new-title'));done.type='button';sheetHead.append(sheetTitle,done);sheet.append(element('span',null,'calendar-handle'),sheetHead,form);
  const inputs={};for(const [name,label,type,max] of [['title','Title','text',120],['allDay','All day','checkbox'],['start','Start','datetime-local'],['end','End (exclusive for all-day events)','datetime-local'],['location','Location','text',200],['notes','Notes','text',2000]]){const l=element('label',label,'calendar-field'+(type==='checkbox'?' calendar-check':'')),input=element('input');input.name=name;input.type=type;if(max)input.maxLength=max;if(['title','start'].includes(name))input.required=true;l.append(input);form.append(l);inputs[name]=input;}
  const save=element('button','Save event','calendar-primary');save.type='submit';const formStatus=element('p',null,'calendar-form-status');formStatus.setAttribute('role','alert');

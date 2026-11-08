@@ -6,13 +6,14 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Use the shared pinned concierge and native approval presenter with the same saved selection and history.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard (docs/ux/design-standard.md §4.4, §4.8, §5.1; CONVENTIONS §5.5; Roger F6). What you type in a text frame is drawn in that frame on the page at once (the story's own font, size, weight, colour and alignment; master headers and page numbers too), while the renderer still owns exact flow and the PDF: a rendered revision shows its pages, a draft shows the drawn text. Typing in the Text sheet edits the story as you type (one undo step per burst). Render & preflight and Download PDF run on the current draft and save it first by themselves, so neither waits for Save revision; Download PDF renders when the revision has no render yet. With no publication the editor shows one blank Letter page (nothing saved yet); its first Add text frame makes an untitled Letter publication and puts the frame on it, ready to type. Nothing is selected until a frame is tapped, so the tool row shows the page's tools. Choices that would lose a draft confirm in the page, never in a browser dialog; a selection change with unapplied form fields is refused with how to fix it. Previews are still asked for only when the opened revision was rendered (B8 round 3, no 409s).
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7, touch (the round-2 trial check, 2026-11-06: a swipe over the page dragged the story frame and never scrolled): a finger scrolls the page and a tap selects a frame; only the chosen frame's Move handle drags it by touch, as in the reference editors (Canva's selected element, Acrobat's deliberate grab); a mouse still drags outlines directly. Previews are asked for only when the opened revision was rendered (no 409 per page).
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: support multi-select and group selection/drag, nullable metadata cleanup in localApply, Liberation Sans and Liberation Mono font stacks, MP4 export download, and shell hooks for comments and timeline (RP-PUB-01..08).
  */
 import {bindPublishingFoundation,publishingSelection} from './editor-foundation-adapter.mjs';
 let editorFoundation;
 const $=id=>document.getElementById(id),base='/api/publishing-studio',copy=value=>structuredClone(value),uid=prefix=>prefix+'_'+crypto.randomUUID().replaceAll('-','');
-const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,assets:[],previews:new Map(),busy:false,renderStarting:false,job:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null,rendered:false,liveKey:null,newSize:null,documents:[],view:'editor',loaded:false};
-// The page's own layers (publishing-shell.mjs): an in-page confirm and a hook after each paint. Until the shell is ready nothing is discarded.
-const ui={confirm:async()=>false,painted:()=>{}};
+const state={document:null,model:null,ops:[],undo:[],redo:[],page:0,item:null,selectedIds:new Set(),multiSelect:false,comments:[],assets:[],previews:new Map(),busy:false,renderStarting:false,job:null,videoJob:null,saveKey:null,viewGeneration:0,renderGeneration:0,createAttempt:null,restoreAttempt:null,rendered:false,videoRendered:false,liveKey:null,newSize:null,documents:[],view:'editor',loaded:false};
+// The page's own layers (publishing-shell.mjs): an in-page confirm and hooks after each paint/open. Until the shell is ready nothing is discarded.
+const ui={confirm:async()=>false,painted:()=>{},decorateBoard:null,onDocumentLoaded:null};
 /** The blank page shown before anything is saved: US Letter with its margins (design standard §5.1). */
 const BLANK_PAGE={id:'blank',width:612,height:792,bleed:9,margin:54,guides:{x:[54,558],y:[54,738]},masterId:null,objects:[],frames:[]};
 
@@ -55,10 +56,24 @@ function changeSelection(id,work){
  if(!guardFields()){if(previous!==undefined)$(id).value=previous;return;}
  selectionValues.set(id,next);work();controls();
 }
-function selectPage(index,item=null){
- if(state.page===index&&state.item===item)return true;
+function groupMembers(p,itemId){
+ if(!p||!itemId)return[];
+ const found=[...p.frames,...p.objects].find(v=>v.id===itemId);if(!found)return[];
+ return found.groupId?[...p.frames,...p.objects].filter(v=>v.groupId===found.groupId).map(v=>v.id):[itemId];
+}
+function selectPage(index,item=null,additive=false){
+ const p=state.model?.pages[index],members=groupMembers(p,item),useMulti=Boolean(item&&(additive||state.multiSelect));
+ if(!useMulti&&state.page===index&&state.item===item&&state.selectedIds.size===members.length&&members.every(id=>state.selectedIds.has(id)))return true;
  if(!guardFields())return false;
- state.page=index;state.item=item;state.liveKey=null;paint();return true;
+ if(state.page!==index)state.selectedIds.clear();
+ state.page=index;state.liveKey=null;
+ if(!item){state.item=null;state.selectedIds.clear();state.multiSelect=false;}
+ else if(useMulti){
+  const hasAll=members.every(id=>state.selectedIds.has(id));
+  if(hasAll&&state.selectedIds.size>members.length){for(const id of members)state.selectedIds.delete(id);state.item=[...state.selectedIds].at(-1)??null;}
+  else{for(const id of members)state.selectedIds.add(id);state.item=item;}
+ }else{state.selectedIds=new Set(members);state.item=item;}
+ paint();return true;
 }
 function viewSnapshot(){return{id:state.document?.id,revision:state.document?.revision,generation:state.viewGeneration};}
 function sameView(view){return state.document?.id===view.id&&state.document?.revision===view.revision&&state.viewGeneration===view.generation;}
@@ -87,7 +102,8 @@ function option(select,values,current){
 function value(id,v){$(id).value=v??'';rememberField($(id));}
 function number(id){const v=Number($(id).value);if(!Number.isFinite(v))throw new Error('Enter finite numeric geometry.');return v;}
 const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)),hex=color=>'#'+color.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
-function localApply(model,op){if(op.op==='replace-model')return copy(op.model);const m=copy(model),p=m.pages.find(p=>p.id===op.page);switch(op.op){case'set-frame':Object.assign(m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame),op.values);break;case'set-link':m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame).nextFrame=op.nextFrame;break;case'replace-story':m.stories.find(s=>s.id===op.story).paragraphs=copy(op.paragraphs);break;case'set-character-style':m.characterStyles[op.name]=copy(op.values);break;case'set-paragraph-style':m.paragraphStyles[op.name]=copy(op.values);break;case'set-page':Object.assign(p,copy(op.values));break;case'set-object':Object.assign(p.objects.find(o=>o.id===op.object),copy(op.values));break;case'set-master':m.masters.find(x=>x.id===op.master).objects=copy(op.objects);break;case'set-view':m.pageView=op.pageView;break;case'replace-layout':for(const k of ['pages','masters','stories','assets'])m[k]=copy(op[k]);break;default:throw new Error('Unsupported draft operation');}return m;}
+function assignLocal(target,values,nullable=[]){for(const[k,v]of Object.entries(values))if(v===null&&nullable.includes(k))delete target[k];else target[k]=copy(v);}
+function localApply(model,op){if(op.op==='replace-model')return copy(op.model);const m=copy(model),p=m.pages.find(p=>p.id===op.page);switch(op.op){case'set-frame':assignLocal(m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame),op.values,['groupId','animation']);break;case'set-link':m.pages.flatMap(p=>p.frames).find(f=>f.id===op.frame).nextFrame=op.nextFrame;break;case'replace-story':m.stories.find(s=>s.id===op.story).paragraphs=copy(op.paragraphs);break;case'set-character-style':m.characterStyles[op.name]=copy(op.values);break;case'set-paragraph-style':m.paragraphStyles[op.name]=copy(op.values);break;case'set-page':assignLocal(p,op.values,['duration']);break;case'set-object':assignLocal(p.objects.find(o=>o.id===op.object),op.values,['groupId','animation']);break;case'set-master':m.masters.find(x=>x.id===op.master).objects=copy(op.objects);break;case'set-view':m.pageView=op.pageView;break;case'replace-layout':for(const k of ['pages','masters','stories','assets'])m[k]=copy(op[k]);break;default:throw new Error('Unsupported draft operation');}return m;}
 function rememberHistory(stack,model){stack.push({model});if(stack.length>100)stack.shift();}
 const modelJSON=model=>JSON.stringify(model,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);
 function operationsFor(model){return modelJSON(model)===modelJSON(state.document.model)?[]:[{op:'replace-model',model:copy(model)}];}
@@ -120,13 +136,16 @@ async function loadDocument(id,revision,retained={}){
  editorFoundation?.discardPending();
  clearPreviews();retireRender();state.viewGeneration++;clearFieldBuffers();
  if(retained.keepHistory){if(modelJSON(state.model)!==modelJSON(result.document.model)){rememberHistory(state.undo,state.model);state.redo=[];}}else{state.undo=[];state.redo=[];}
- state.document=result.document;state.model=copy(result.document.model);state.ops=[];state.saveKey=null;state.liveKey=null;state.rendered=Boolean(result.rendered);state.view='editor';
+ state.document=result.document;state.model=copy(result.document.model);state.ops=[];state.saveKey=null;state.liveKey=null;state.rendered=Boolean(result.rendered);state.videoRendered=Boolean(result.videoRendered);state.multiSelect=false;state.comments=[];state.view='editor';
  state.page=Math.max(0,state.model.pages.findIndex(page=>page.id===retained.pageId));
  state.item=[...state.model.pages[state.page].frames,...state.model.pages[state.page].objects].some(item=>item.id===retained.item)?retained.item:null;
+ state.selectedIds=new Set(groupMembers(state.model.pages[state.page],state.item));
  $('item').value=state.item??'';
  $('preflight').textContent='';
  option($('history'),result.history.map(v=>[v.revision,`Revision ${v.revision}`]),result.document.revision);
- paint();status('Opened saved revision '+result.document.revision);if(result.rendered)await previews(viewSnapshot());
+ paint();status('Opened saved revision '+result.document.revision);
+ void ui.onDocumentLoaded?.(viewSnapshot());
+ if(result.rendered)await previews(viewSnapshot());
 }
 async function open(id,revision){
  if(state.busy)throw new Error('Wait for the current save or open to finish.');
@@ -144,7 +163,7 @@ async function save({preserveFields=false}={}){
  return locked(async()=>{
   const result=await request(`/documents/${d.id}/revisions`,{method:'POST',body});
   state.document=result.document;state.model=copy(result.document.model);state.ops=[];
-  state.saveKey=null;state.liveKey=null;state.rendered=false;state.viewGeneration++;retireRender();clearPreviews();
+  state.saveKey=null;state.liveKey=null;state.rendered=false;state.videoRendered=false;state.viewGeneration++;retireRender();clearPreviews();
   $('preflight').textContent='';paint();status('Saved revision '+state.document.revision);
   await refresh();const saved=await request('/documents/'+d.id);
   option($('history'),saved.history.map(v=>[v.revision,`Revision ${v.revision}`]),state.document.revision);
@@ -164,7 +183,7 @@ function boards(){
  for(const i of indexes)target.append(board(state.model,state.model.pages[i],i,indexes.length>1));
  ui.painted();
 }
-const FONT_STACK="'Libertinus Serif',Georgia,'Times New Roman',serif";
+const fontStack=font=>font==='Liberation Mono'?"'Liberation Mono',ui-monospace,monospace":font==='Liberation Sans'?"'Liberation Sans',system-ui,sans-serif":"'Libertinus Serif',Georgia,'Times New Roman',serif";
 const rgbCss=color=>`rgb(${color.map(v=>Math.round(v)).join(' ')})`;
 /** One paragraph as the renderer would set it: its paragraph style (alignment, indent, space after) and each run's character style. */
 function paragraphNode(m,paragraph,fallback){
@@ -172,7 +191,7 @@ function paragraphNode(m,paragraph,fallback){
  p.style.cssText=`margin:0 0 ${ps.spaceAfter}px;text-indent:${ps.indent}px;text-align:${ps.align};white-space:pre-wrap;overflow-wrap:anywhere`;
  for(const run of paragraph.runs){
   const cs=m.characterStyles[run.style??fallback??'default']??m.characterStyles.default,span=document.createElement('span');
-  span.textContent=run.text;span.style.cssText=`font-family:${FONT_STACK};font-size:${cs.size}px;font-weight:${cs.weight};font-style:${cs.style};color:${rgbCss(cs.color)}`;
+  span.textContent=run.text;span.style.cssText=`font-family:${fontStack(cs.font)};font-size:${cs.size}px;font-weight:${cs.weight};font-style:${cs.style};color:${rgbCss(cs.color)}`;
   line=Math.max(line,cs.size+ps.leading);p.append(span);
  }
  p.style.lineHeight=line+'px';if(!paragraph.runs.some(run=>run.text))p.append(document.createElement('br'));
@@ -180,20 +199,20 @@ function paragraphNode(m,paragraph,fallback){
 }
 /** WYSIWYG: an item's text drawn inside its own box on the page (clipped to it, never catching a tap). */
 function textBox(m,item,paragraphs,fallback){
- const box=svg('foreignObject',{x:item.x,y:item.y,width:Math.max(1,item.width),height:Math.max(1,item.height),class:'pub-text','data-text-for':item.id});
+ const box=svg('foreignObject',{x:item.x,y:item.y,width:Math.max(1,item.width),height:Math.max(1,item.height),class:'pub-text','data-text-for':item.id,'data-visual-item':item.id});
  const body=document.createElement('div');body.className='pub-text-body';for(const paragraph of paragraphs)body.append(paragraphNode(m,paragraph,fallback));box.append(body);return box;
 }
 function drawText(m,p,i,item){
  if(item.storyId){const story=m.stories.find(s=>s.id===item.storyId);return story&&story.firstFrame===item.id?textBox(m,item,story.paragraphs):null;}
  if(item.kind==='text')return textBox(m,item,[item.paragraph]);
  if(item.kind==='number')return textBox(m,item,[{style:Object.keys(m.paragraphStyles)[0],runs:[{text:String(i+1),style:item.style}]}],item.style);
- if(item.kind==='rect')return svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,fill:rgbCss(item.color),class:'pub-fill'});
- if(item.kind==='image')return svg('image',{x:item.x,y:item.y,width:item.width,height:item.height,href:`${base}/assets/${item.assetId}/content`,preserveAspectRatio:'xMidYMid slice'});
+ if(item.kind==='rect')return svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,fill:rgbCss(item.color),class:'pub-fill','data-visual-item':item.id});
+ if(item.kind==='image')return svg('image',{x:item.x,y:item.y,width:item.width,height:item.height,href:`${base}/assets/${item.assetId}/content`,preserveAspectRatio:'xMidYMid slice','data-visual-item':item.id});
  return null;
 }
 function board(m,p,i,facing){
  const pad=p.bleed+12,section=document.createElement('div'),rendered=Boolean(m)&&!state.ops.length&&state.previews.has(i+1);let chosen=null;
- section.className='page-board'+(facing?' facing':'');
+ section.className='page-board'+(facing?' facing':'');section.dataset.pageIndex=String(i);
  const canvas=svg('svg',{viewBox:`${-pad} ${-pad} ${p.width+2*pad} ${p.height+2*pad}`,role:'img','aria-label':m?`Page ${i+1}`:'A blank Letter page'});
  canvas.append(svg('rect',{x:0,y:0,width:p.width,height:p.height,class:'paper'}));
  if(rendered)canvas.append(svg('image',{href:state.previews.get(i+1),x:-pad,y:-pad,width:p.width+2*pad,height:p.height+2*pad}));
@@ -206,16 +225,18 @@ function board(m,p,i,facing){
   for(const item of [...master,...p.objects,...p.frames]){const drawn=drawText(m,p,i,item);if(drawn)canvas.append(drawn);}
  }
  for(const item of m?[...p.objects,...p.frames]:[]){
-  const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':i===state.page&&item.id===state.item,'data-item':item.id,tabindex:0,'aria-label':item.storyId?'Text frame':item.kind==='rect'?'Shape':item.kind==='image'?'Image':item.kind==='number'?'Page number':'Text'});
-  rect.addEventListener('keydown',action(e=>{if(e.key==='Enter')selectPage(i,item.id);}));
-  rect.addEventListener('click',action(event=>{event.stopPropagation();if(state.page!==i||state.item!==item.id)selectPage(i,item.id);}));
-  const grab=action(event=>drag(event,canvas,rect,item,i));rect.addEventListener('pointerdown',event=>{if(event.pointerType!=='touch')grab(event);});
+  const isSel=i===state.page&&(item.id===state.item||state.selectedIds.has(item.id));
+  const rect=svg('rect',{x:item.x,y:item.y,width:item.width,height:item.height,class:'selection-box','data-selected':isSel,'data-multi-selected':i===state.page&&state.selectedIds.size>1&&state.selectedIds.has(item.id),'data-item':item.id,...(item.groupId?{'data-group-id':item.groupId}:{}),...(item.animation?{'data-anim-preset':item.animation.preset}:{}),tabindex:0,'aria-label':item.storyId?'Text frame':item.kind==='rect'?'Shape':item.kind==='image'?'Image':item.kind==='number'?'Page number':'Text'});
+  rect.addEventListener('keydown',action(e=>{if(e.key==='Enter')selectPage(i,item.id,e.shiftKey);}));
+  rect.addEventListener('click',action(event=>{event.stopPropagation();const add=Boolean(event.shiftKey||state.multiSelect);if(add||state.page!==i||state.item!==item.id)selectPage(i,item.id,add);}));
+  const grab=action(event=>drag(event,canvas,rect,item,i));rect.addEventListener('pointerdown',event=>{if(event.pointerType!=='touch'&&!event.shiftKey&&!state.multiSelect)grab(event);});
   if(i===state.page&&item.id===state.item)chosen={item,rect};canvas.append(rect);
  }
  // A tap on the page itself (not on an item) chooses that page and clears the selection.
  if(m)canvas.addEventListener('click',action(()=>{if(state.page!==i||state.item)selectPage(i);}));
  section.append(canvas);if(m){const label=document.createElement('div');label.className='page-label';label.textContent=`Page ${i+1}`;section.append(label);}
  if(chosen){section.append(moveHandle(canvas,chosen,p,i));const tools=ui.float?.(chosen.item);if(tools)section.append(floatOverlay(tools,p,chosen.item));}
+ ui.decorateBoard?.(section,p,i);
  return section;
 }
 /** The selection bar (design standard N4): a small opaque float at the chosen item's top right, or under it near the page top. */
@@ -239,29 +260,36 @@ function moveHandle(canvas,{item,rect},p,index){
  handle.addEventListener('pointerdown',action(event=>drag(event,canvas,rect,item,index,(x,y)=>placeHandle(handle,p,x,y))));
  overlay.append(handle);return overlay;
 }
+function moveGroupTargets(p,ids,dx,dy){
+ const clamp=(v,lo,hi)=>Math.round(Math.max(lo,Math.min(hi,v))*10)/10;
+ for(const f of p.frames)if(ids.has(f.id)){f.x=clamp(f.x+dx,0,p.width-f.width);f.y=clamp(f.y+dy,0,p.height-f.height);}
+ for(const o of p.objects)if(ids.has(o.id)){o.x=clamp(o.x+dx,-p.bleed,p.width+p.bleed-o.width);o.y=clamp(o.y+dy,-p.bleed,p.height+p.bleed-o.height);}
+}
 function drag(event,canvas,rect,item,index,follow){
  if(event.button!==0||state.busy)return;
  editable();event.stopPropagation();
  if((state.page!==index||state.item!==item.id)&&!guardFields())return;
- state.page=index;state.item=item.id;inspect();controls();
- // Keep the real SVG attached for the whole gesture; repainting would detach
- // its screen matrix and pointer capture when selecting a different page.
- for(const outline of $('spread').querySelectorAll('[data-selected]'))outline.dataset.selected=String(outline===rect);
+ const p=state.model.pages[index],keepMulti=state.page===index&&state.selectedIds.has(item.id)&&state.selectedIds.size>1;
+ const moving=new Set(keepMulti?state.selectedIds:groupMembers(p,item.id));
+ state.page=index;state.item=item.id;state.selectedIds=new Set(moving);inspect();controls();
+ for(const outline of $('spread').querySelectorAll('[data-selected]'))outline.dataset.selected=String(outline.closest('.page-board')===canvas.parentElement&&moving.has(outline.dataset.item));
+ const peers=[...moving].map(id=>{const it=[...p.frames,...p.objects].find(v=>v.id===id);return{it,node:canvas.querySelector(`[data-item="${CSS.escape(id)}"]`)};}).filter(v=>v.it&&v.node);
  const view=viewSnapshot(),model=state.model;
  const current=()=>sameView(view)&&state.model===model&&state.page===index&&state.item===item.id&&!state.busy;
- const point=e=>{const p=canvas.createSVGPoint();p.x=e.clientX;p.y=e.clientY;return p.matrixTransform(canvas.getScreenCTM().inverse());};
- const start=point(event);let x=item.x,y=item.y;
+ const point=e=>{const pt=canvas.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(canvas.getScreenCTM().inverse());};
+ const start=point(event);let x=item.x,y=item.y,dx=0,dy=0;
  function removeListeners(){rect.removeEventListener('pointermove',move);rect.removeEventListener('pointerup',finish);rect.removeEventListener('pointercancel',cancel);}
  function cancel(){removeListeners();boards();}
  function move(e){
   if(!current()||!canvas.isConnected){cancel();return;}
-  const now=point(e);x=Math.round((item.x+now.x-start.x)*10)/10;y=Math.round((item.y+now.y-start.y)*10)/10;
-  rect.setAttribute('x',x);rect.setAttribute('y',y);follow?.(x,y);
+  const now=point(e);dx=Math.round((now.x-start.x)*10)/10;dy=Math.round((now.y-start.y)*10)/10;x=Math.round((item.x+dx)*10)/10;y=Math.round((item.y+dy)*10)/10;
+  for(const peer of peers){peer.node.setAttribute('x',Math.round((peer.it.x+dx)*10)/10);peer.node.setAttribute('y',Math.round((peer.it.y+dy)*10)/10);}
+  follow?.(x,y);
  }
  const finish=action(()=>{
   removeListeners();if(!current()){boards();return;}
   if(x!==item.x||y!==item.y){
-   try{edit(item.storyId?{op:'set-frame',frame:item.id,values:{x,y}}:{op:'set-object',page:page().id,object:item.id,values:{x,y}});}
+   try{if(moving.size>1)layout(m=>moveGroupTargets(m.pages[index],moving,dx,dy));else edit(item.storyId?{op:'set-frame',frame:item.id,values:{x,y}}:{op:'set-object',page:page().id,object:item.id,values:{x,y}});}
    catch(error){boards();throw error;}
   }else boards();
  });
@@ -348,8 +376,8 @@ async function download(kind){
  const d=requireDocument();if(state.ops.length)throw new Error('Save the draft before downloading.');
  const view=viewSnapshot(),blob=await request(`/documents/${d.id}/revisions/${d.revision}/content?format=${kind}`,{blob:true});
  if(!sameView(view)||hasDraft())return;
- const expected=kind==='pdf'?'application/pdf':'application/vnd.oshal.publishing-layout+json';if(!blob.type.startsWith(expected))throw new Error('Unexpected export content');
- const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${d.title.replace(/[^A-Za-z0-9_-]/g,'_')}.${kind==='pdf'?'pdf':'json'}`;
+ const expected=kind==='pdf'?'application/pdf':kind==='mp4'?'video/mp4':'application/vnd.oshal.publishing-layout+json';if(!blob.type.startsWith(expected))throw new Error('Unexpected export content');
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${d.title.replace(/[^A-Za-z0-9_-]/g,'_')}.${kind==='pdf'?'pdf':kind==='mp4'?'mp4':'json'}`;
  a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('Downloaded saved revision '+d.revision);
 }
 /** The finishing primary: save the draft, render it when this revision has no render yet, then download the PDF. */
@@ -522,8 +550,8 @@ void import('/shared/ui/js/document-handoff.js').then(({registerDocumentSession}
  refresh:async expected=>{try{await refreshDocumentHandoff(expected);}catch(error){status(error.message,true);throw error;}}
 })).catch(error=>status('The concierge cannot synchronize this document: '+error.message,true));
 
-void bindPublishingFoundation({state,selected,page,hasDraft,requireAppliedFields,edit,prepare:prepareDocumentHandoff,refreshDocument:refreshDocumentHandoff,
- ui,hasContent,addItem,duplicateItem,duplicateDocument,newPublication,showList,downloadPdf,selectPage,paint,controls,status,action,
+void bindPublishingFoundation({state,selected,page,hasDraft,requireAppliedFields,guardFields,edit,layout,request,locked,loadDocument,open,refresh,save,render,download,viewSnapshot,sameView,uid,copy,editable,requireDocument,untitled,prepare:prepareDocumentHandoff,refreshDocument:refreshDocumentHandoff,
+ ui,hasContent,addItem,duplicateItem,duplicateDocument,newPublication,showList,downloadPdf,selectPage,paint,boards,controls,status,action,
  run:key=>boundActions.get(key)(),fields,
  actions:{
  undo:()=>boundActions.get('undo:click')(),redo:()=>boundActions.get('redo:click')(),

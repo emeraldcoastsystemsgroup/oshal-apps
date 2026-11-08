@@ -1,5 +1,6 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §3.1, §3.2, §3.3, §4.3, §4.4, §4.8, §4.10, §5.1; Alight Motion and Node Video, REFP CONVENTIONS §5.4; Roger, trial.oswarm.ai, 2026-11-06, F7). With nothing saved Motion opens on a blank composition whose one primary is Add layer, and the first layer saves it as 1920×1080, 10 s, 30 fps; + Add holds Text, Shape, Solid, Photo and Camera or light with Video and Audio greyed; the phone's bottom bar is Layers · Add · Properties · Concierge · More and a sheet stays clear of it; the phone's Back closes an open sheet and stays in the app; with no layer chosen the panel shows the composition's size, frame rate, duration, background and work area and a greyed Motion blur; a diamond on a property row adds a key at the current time and opens its editor; Undo and Redo step back and forth; a saved composition makes the list the first screen with one + New; Delete asks in the page, never in a browser dialog. Real routes over disposable PostgreSQL, the real framed compositor and the kernel's shared editor from OSHAL_PLATFORM_ROOT.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, RP-MOT-01 & RP-MOT-02: verify live Video… and Audio… menu items in + Add and live Motion blur shutter controls in Composition settings with zero RP-MOT placeholders.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ async function addText(page,press){
  await page.locator('#revision').filter({hasText:'revision 2'}).waitFor({timeout:90000});
 }
 
-test('a blank composition opens with Add layer as its one primary; + Add holds the layer kinds and greys Video and Audio; the first layer saves it',{timeout:180000},async t=>{
+test('a blank composition opens with Add layer as its one primary; + Add holds live Text, Shape, Solid, Photo, Video, Audio and Camera or light; the first layer saves it',{timeout:180000},async t=>{
  const {page,press}=await open(t);
  const contract=await page.evaluate(()=>({category:document.documentElement.dataset.dsCategory,first:document.documentElement.dataset.dsFirstAction,work:document.querySelector('[data-ds-work]')?.id,text:document.body.innerText}));
  assert.deepEqual([contract.category,contract.first,contract.work],['editor','tap','stage']);
@@ -31,9 +32,9 @@ test('a blank composition opens with Add layer as its one primary; + Add holds t
  assert.equal(await page.locator('.ef-panes').isVisible(),false,'no Navigation / Properties / Concierge band above the work');
  await press(page.getByRole('button',{name:'Add layer',exact:true}));
  const menu=page.locator('dialog[open] [role=menu]');await menu.waitFor();
- assert.deepEqual((await menu.locator('[role=menuitem]').allTextContents()).map(text=>text.trim()),['Text','Shape','Solid','Photo…','Camera or light…']);
- const planned=await menu.locator('[data-ds-not-yet]').evaluateAll(nodes=>nodes.map(node=>[node.querySelector('.ds-not-yet-name').textContent,node.dataset.dsBacklog,node.getAttribute('aria-disabled')]));
- assert.deepEqual(planned,[['Video','RP-MOT-01','true'],['Audio','RP-MOT-01','true']]);
+ assert.deepEqual((await menu.locator('[role=menuitem]').allTextContents()).map(text=>text.trim()),['Text','Shape','Solid','Photo…','Video…','Audio…','Camera or light…']);
+ const planned=await menu.locator('[data-ds-not-yet]').count();
+ assert.equal(planned,0,'RP-MOT-01 placeholders are replaced by live Video… and Audio…');
  const sheet=await page.locator('dialog[open]').boundingBox(),row=await page.locator('.motion-toolrow').boundingBox();assert.equal(overlaps(sheet,row),false,'the menu sheet stays clear of the bottom bar '+JSON.stringify({sheet,row}));
  await press(page.getByRole('menuitem',{name:'Text',exact:true}));await page.locator('#revision').filter({hasText:'revision 2'}).waitFor({timeout:90000});
  const saved=await page.evaluate(async()=>{const id=document.getElementById('projects').value,body=JSON.parse(await (await fetch('/api/motion-studio/projects/'+id)).text()),comp=Object.values(body.project.document.items).find(item=>item.kind.type==='Comp').kind;return{width:comp.width,height:comp.height,layers:comp.layers.map(l=>l.name),title:body.project.title};});
@@ -43,7 +44,7 @@ test('a blank composition opens with Add layer as its one primary; + Add holds t
  assert.equal(await page.locator('#play').isEnabled(),true,'Play is live once there is a layer');
 });
 
-test('on a phone the Back button closes an open sheet and stays in the app; with no layer chosen the panel shows the composition and a greyed Motion blur',{timeout:180000},async t=>{
+test('on a phone the Back button closes an open sheet and stays in the app; with no layer chosen the panel shows the composition and live Motion blur controls',{timeout:180000},async t=>{
  const {page,press}=await open(t);await addText(page,press);
  const before=page.url();await press(page.locator('.motion-tool[data-tool=layers]'));await page.locator('dialog[open]').waitFor();
  await page.goBack();await page.locator('dialog[open]').waitFor({state:'detached'});assert.equal(page.url(),before,'Back closed the sheet, the app stayed');
@@ -52,7 +53,8 @@ test('on a phone the Back button closes an open sheet and stays in the app; with
  assert.equal((await sheet.locator('.ds-layer-title').textContent()).trim(),'Composition');
  assert.deepEqual(await sheet.locator('.motion-facts dd').allTextContents(),['1920 × 1080','30 fps','10 s','#000000']);
  assert.equal(await sheet.locator('#workArea').isVisible(),true,'the work area is with the composition settings');
- assert.deepEqual(await sheet.locator('[data-ds-not-yet]').evaluateAll(nodes=>nodes.map(node=>[node.dataset.dsBacklog,node.getAttribute('aria-disabled')])),[['RP-MOT-02','true']]);
+ assert.equal(await sheet.locator('#compMotionBlur').isVisible(),true,'Motion blur shutter controls are live in Composition settings');
+ assert.equal(await sheet.locator('[data-ds-not-yet]').count(),0,'RP-MOT-02 placeholder is replaced');
  assert.equal(await sheet.evaluate(node=>[...node.querySelectorAll('*')].some(item=>item.children.length===0&&item.textContent.trim()==='No object selected'&&item.getClientRects().length>0)),false,'"No object selected" is never the empty state');
 });
 

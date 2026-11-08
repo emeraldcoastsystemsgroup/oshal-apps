@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (game-show stage, clicker, host): the sheets every surface opens over the game, in their own layer outside #gs-root so the ~1.4 s re-render never shuts them. Help (the rules, the running show first; no page reload), You (your podium's team and how you are shown, or Play at a podium for a host without one), and an in-page confirm (New game leaves the running room). Each sheet is opaque, has a scrim, a title and Done, and closes on Done, the scrim and Escape. Also the 44px ? icon and the ⋯ More menu the stage and clicker headers use.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | F19: Team A / Team B and Play on Team A / B buttons in the You sheet use GS.teamChoice (token surface + hairline border, accent fill + on-accent ink when selected, small theme-aware team dot).
  */
 
 /* global window, document */
@@ -67,8 +68,10 @@
       body.appendChild(GS.el('p', {}, 'You are running this game, not playing it. Take a podium to buzz in and answer like everyone else.'));
       var row = GS.el('div', { class: 'gs-row' });
       (teams ? ['A', 'B'] : [null]).forEach(function (t) {
-        row.appendChild(GS.el('button', { type: 'button', class: 'gs-btn primary', onclick: function () { seatPost({ role: 'player', team: t }).then(close); } },
-          t ? 'Play on Team ' + t : 'Play at a podium'));
+        var joinSeat = function () { seatPost({ role: 'player', team: t }).then(close); };
+        row.appendChild(t
+          ? GS.teamChoice(t, 'Play on Team ' + t, false, joinSeat)
+          : GS.el('button', { type: 'button', class: 'gs-btn primary', onclick: joinSeat }, 'Play at a podium'));
       });
       body.appendChild(row);
       return body;
@@ -76,8 +79,9 @@
     var seat = GS.mySeat() || {};
     if (teams) {
       body.appendChild(GS.el('div', { class: 'gs-sheet-label' }, 'Your team'));
-      body.appendChild(GS.el('div', { class: 'gs-row' }, choice('Team A', seat.team === 'A', function () { seatPost({ team: 'A' }); }),
-        choice('Team B', seat.team === 'B', function () { seatPost({ team: 'B' }); })));
+      body.appendChild(GS.el('div', { class: 'gs-row' },
+        GS.teamChoice('A', 'Team A', seat.team === 'A', function () { seatPost({ team: 'A' }); }),
+        GS.teamChoice('B', 'Team B', seat.team === 'B', function () { seatPost({ team: 'B' }); })));
     }
     body.appendChild(GS.el('div', { class: 'gs-sheet-label' }, 'Show me as'));
     body.appendChild(GS.el('div', { class: 'gs-row' },

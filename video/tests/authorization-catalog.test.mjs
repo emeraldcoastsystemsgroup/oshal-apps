@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the shipped Video catalog the way the native kernel reads it: a bot turn is admitted only when the catalog binds the bot by name or agent id (crates/packages/src/operation_authorization.rs refuses 'operation has no explicit permission binding' otherwise), and a permission is held only when one of the caller's named roles grants it. The dock concierge video-editor was refused on every question because only the studio bots were bound; owners could not delete their own editor projects because editor.delete was admin-only. The roles a workspace member holds come from the real studio-experience role template, not a copy.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard closed Writer-only automatic Motion discovery and approved job import under unchanged own permissions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Match Vids roleTemplate version 2 named admin grant and cover auto-caption, voice TTS and CC0 sound-library bindings.
  *
  * Reads the actual package files; js-yaml from the store's pinned gate toolchain. No network, no database.
  */
@@ -118,7 +119,7 @@ test('manual editor roles need no Vids grant; generation still requires its own 
   }
   for (const id of ['admin', 'creator']) {
     const template = manifest.authorization.roleTemplates.find((item) => item.id === id);
-    assert.ok(template.members.some((item) => item.app === 'vids' && item.role === '@app-admin'),
+    assert.ok(template.members.some((item) => item.app === 'vids' && item.role === 'admin'),
       `${id} generation template retains the explicit existing Vids grant`);
   }
 });

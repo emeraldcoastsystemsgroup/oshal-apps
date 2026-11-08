@@ -2,6 +2,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Pin the permissively licensed compositor core for shared human/agent motion workflows.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Decode bounded in-memory owned raster footage through the pinned core source trait.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Embed the source build identity for the original-context native relay.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01: link pinned pure-Rust effectcraft-media decoding and audio mixing for owned video and audio layers.
 [package]
 name = "oshal-motion-engine"
 version = "0.1.0"
@@ -12,6 +13,7 @@ license = "MIT"
 [dependencies]
 effectcraft-automation = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
 effectcraft-host = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
+effectcraft-media = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
 effectcraft-project = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
 effectcraft-render = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }
 effectcraft-raster = { git = "https://github.com/storytold/effectcraft", rev = "67434e90388b6dca4417555346fa6850b6f96033" }

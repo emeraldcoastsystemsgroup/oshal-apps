@@ -8,10 +8,12 @@ exports.VideoExportStore = void 0;
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owner-scoped persistence for export jobs (CREATE-EDIT-05c): a job row captures one saved revision and the hash of exactly the document text it will render; one active job per owner in this process epoch, older-epoch rows are reported and recorded as interrupted rather than replayed; every state change is a compare-and-set on status, epoch and cancellation, so a cancelled or stale job can never record a success; a project keeps at most three exports (a new job and its two newest finished predecessors).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Persist speed-adjusted frame counts and 720p/1080p/4K 30/60fps export profiles.
  */
 const node_crypto_1 = require("node:crypto");
 const video_editor_types_1 = require("./video-editor-types");
-const COLUMNS = `export_id,project_id,revision,variant,status,cancel_requested,process_epoch,total_frames,error,output_bytes,output_sha256,
+const video_edit_compiler_1 = require("./video-edit-compiler");
+const COLUMNS = `export_id,project_id,revision,variant,profile,status,cancel_requested,process_epoch,total_frames,error,output_bytes,output_sha256,
   output_frames,output_duration_ms,created_at,updated_at,started_at,finished_at`;
 const ACTIVE = "status IN ('queued','running')";
 /** A project keeps at most three exports: a newly queued one and its two newest finished predecessors. */
@@ -20,7 +22,7 @@ const iso = (value) => (value === null ? null : new Date(value).toISOString());
 /** @description Render a row; an unfinished row from another process epoch reads as interrupted, never as still running. */
 function record(row, epoch) {
     const stale = (row.status === 'queued' || row.status === 'running') && row.process_epoch !== epoch;
-    return { id: row.export_id, projectId: row.project_id, revision: row.revision, variant: row.variant,
+    return { id: row.export_id, projectId: row.project_id, revision: row.revision, variant: row.variant, profile: row.profile ?? 'hd720p30',
         status: stale ? 'interrupted' : row.status, cancelRequested: row.cancel_requested, totalFrames: row.total_frames,
         error: stale ? 'video_edit_export_interrupted' : row.error, outputBytes: row.output_bytes === null ? null : Number(row.output_bytes),
         outputSha256: row.output_sha256, outputFrames: row.output_frames, outputDurationMs: row.output_duration_ms,
@@ -45,7 +47,9 @@ class VideoExportStore {
      * for the owner is refused; a project keeps the new job and its two newest finished exports (the rest are returned for file removal).
      * @returns The new record, its snapshot, and the pruned exports whose files the caller removes after commit.
      */
-    async create(owner, projectId, revision, variant, epoch, confirm) {
+    async create(owner, projectId, revision, variant, epoch, confirm, options = {}) {
+        const spec = (0, video_edit_compiler_1.resolveCompileSpec)(variant, options.resolution, options.fps, () => { throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_profile'); });
+        const badDoc = () => { throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_document'); };
         return this.store.transaction(owner, true, async (client) => {
             await this.store.ownerLock(client, owner);
             await client.query(`UPDATE video_edit_exports SET status='interrupted',error='video_edit_export_interrupted',updated_at=now(),finished_at=now()
@@ -54,13 +58,14 @@ class VideoExportStore {
             if (busy.rows.length)
                 throw new video_editor_types_1.EditorError(409, 'video_edit_export_in_progress');
             const snapshot = await this.snapshot(client, owner, projectId, revision);
-            const frames = snapshot.document.version === 2 ? Math.max(0, ...(snapshot.document.tracks ?? []).flatMap(track => track.clips.map(clip => clip.start + clip.out - clip.in)))
-                : snapshot.document.segments.reduce((sum, segment) => sum + segment.out - segment.in, 0);
-            if (frames < 1)
+            const frames30 = snapshot.document.version === 2
+                ? Math.max(0, ...(snapshot.document.tracks ?? []).flatMap(track => track.clips.map(clip => clip.start + (0, video_edit_compiler_1.clipDuration30)(clip.in, clip.out, clip.speed, badDoc).dur30)))
+                : snapshot.document.segments.reduce((sum, segment) => sum + (0, video_edit_compiler_1.clipDuration30)(segment.in, segment.out, segment.speed, badDoc).dur30, 0);
+            if (frames30 < 1)
                 throw new video_editor_types_1.EditorError(400, 'video_edit_export_empty');
-            const id = (0, node_crypto_1.randomUUID)();
+            const id = (0, node_crypto_1.randomUUID)(), totalFrames = frames30 * spec.fpsScale;
             const inserted = await client.query(`INSERT INTO video_edit_exports (export_id,project_id,owner_issuer,owner_sub,revision,variant,profile,
-        snapshot_sha256,process_epoch,total_frames) VALUES ($3,$4,$1,$2,$5,$6,'hd720p30',$7,$8,$9) RETURNING ${COLUMNS}`, [owner.issuer, owner.sub, id, projectId, revision, variant, snapshot.sha256, epoch, frames]);
+        snapshot_sha256,process_epoch,total_frames) VALUES ($3,$4,$1,$2,$5,$6,$7,$8,$9,$10) RETURNING ${COLUMNS}`, [owner.issuer, owner.sub, id, projectId, revision, variant, spec.profileId, snapshot.sha256, epoch, totalFrames]);
             const pruned = await client.query(`DELETE FROM video_edit_exports WHERE owner_issuer=$1 AND owner_sub=$2 AND export_id IN (
         SELECT export_id FROM video_edit_exports WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND NOT ${ACTIVE}
         ORDER BY created_at DESC, export_id OFFSET ${KEEP_PER_PROJECT - 1}) RETURNING export_id`, [owner.issuer, owner.sub, projectId]);

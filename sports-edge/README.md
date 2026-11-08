@@ -306,4 +306,5 @@ Container memory, MiB low / high: **32 / 128 (declared)**.
 | Feature | Unit | Tier | Generation | Degrade | Tokens per unit | Models verified |
 |---|---|---|---|---|---|---|
 | team-news-classification | news item | T1 | none | template | not yet measured | none recorded |
+| sports-quant-concierge | question | T2 | hosted | template | not yet measured | none recorded |
 <!-- oshal-rating:end -->

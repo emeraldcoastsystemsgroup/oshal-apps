@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 Chromium acceptance suite: verifies all 13 Reference-Product session features (RP-PHC-01..13), Phone & TV Concierge task chips + anti-loop stop, ble-calibrate, 1-step Fire TV Load oshal TV with unauthorized auto-poll + APK install, RDP X.224 setup/probe, overflow ⋯ button, zero console/404 errors, shell orb visibility, and 412x743 + 1440x900 layout geometry.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: update mock bridge status version to 1.4.1.
  */
 'use strict';
 
@@ -164,7 +165,7 @@ function handleBridgeVerb(cmd) {
   }
   if (cmd.includes(' status ')) {
     return {
-      ok: true, verb: 'status', version: '1.4.0',
+      ok: true, verb: 'status', version: '1.4.1',
       adb: { ready: true, version: '34.0.4', devices: [] },
       bluetooth: { ready: true, address: 'AA:BB:CC:DD:EE:FF' },
       ble: { registered: true, advertising: true, phones: [{ address: '7C:4B:26:00:00:01', name: "Roger's iPhone", paired: true, connected: true }] },
@@ -475,6 +476,7 @@ test('RDP Connect in console streams /api/rdp/sessions, maps clicks + voice dict
 
   await page.locator('#screenImage').click();
   await page.waitForFunction(() => /Click at \d+, \d+: done\./.test(document.getElementById('stageStatus')?.textContent || ''));
+  await page.locator('#railTabControls').click();
   await page.locator('#quickVoiceBtn').click();
   await page.waitForFunction(() => /Type 17 characters: done\./.test(document.getElementById('stageStatus')?.textContent || ''));
   assert.equal(ambientTranscriptions.length, 1);
@@ -493,6 +495,7 @@ test('RDP Connect in console streams /api/rdp/sessions, maps clicks + voice dict
   });
   await page.locator('#readScreen').click();
   await page.waitForFunction(() => document.getElementById('screenTextBody').textContent.includes('Netflix'));
+  await page.locator('#railTabConcierge').click();
   await page.locator('#conciergeVoiceBtn').click();
   await page.waitForFunction(() => document.getElementById('conciergeLog').textContent.includes('Netflix'));
 

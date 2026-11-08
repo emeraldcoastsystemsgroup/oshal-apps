@@ -1,4 +1,5 @@
 /** CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: opaque sheet attributes (data-ds-sheet, data-no-glass), history Back dismissal on modal sheets, and opaque disabled state on review approve button.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the Connect a computer dialog had unstyled 21px browser buttons, no close and no scrim. It is the kit's sheet (opaque, a scrim behind, a full sheet on a phone) with an X close, a primary "Create and connect worker" and a tertiary Cancel, both 44px.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Recover interrupted approval/bind/start requests with the same frozen packet and ticket, synchronizing first and refusing expired approvals or uncertain outcomes.
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Review exact job documents and applicant facts in place, then publish approval, bind and start one recoverable native submission intent.
@@ -14,9 +15,20 @@
     if(!response.ok){const error=Error(result.error||'Submission request failed.');error.code=result.code;throw error;}return result;
   }
   function text(tag,value,parent){const el=document.createElement(tag);el.textContent=value;parent.append(el);return el;}
+  function wireModalBack(dialog,key,onBack){
+    let pushed=false;
+    const pop=()=>{if(dialog.open){pushed=false;onBack();}};
+    window.addEventListener('popstate',pop);
+    dialog.addEventListener('close',()=>{
+      window.removeEventListener('popstate',pop);
+      if(pushed){pushed=false;if(history.state&&history.state.dsSheet===key){try{history.back();}catch{}}}
+    });
+    return ()=>{dialog.showModal();try{history.pushState({dsSheet:key},'');pushed=true;}catch{}};
+  }
   function reviewDialog(packet,ready){
     return new Promise(resolve=>{
-      const dialog=document.createElement('dialog');dialog.style.cssText='width:min(700px,calc(100vw - 32px));max-height:85vh;box-sizing:border-box;overflow:auto;padding:24px;border:1px solid #ccd1df;border-radius:16px;color:var(--text,#202538);background:var(--surface,#fff)';
+      const dialog=document.createElement('dialog');dialog.className='ck-sheet';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');
+      dialog.style.cssText='width:min(700px,calc(100vw - 32px));max-height:85dvh;box-sizing:border-box;overflow:auto;padding:24px;border:1px solid var(--ds-edge,#ccd1df);border-radius:14px;color:var(--ds-ink,var(--text,#202538));background:var(--ds-surface,var(--surface,#fff))';
       text('h2','Review and submit',dialog);text('p',packet.title+' · '+packet.company,dialog);
       text('p','This authorizes one application using these exact PDFs and the facts below. Missing employer questions will come back to you.',dialog);
       const links=text('p','',dialog);
@@ -28,16 +40,16 @@
       for(const [key,value]of Object.entries(packet.profile)){text('dt',key.replace(/([a-z])([A-Z])/g,'$1 $2'),facts);text('dd',value,facts).style.margin='0';}
       const footer=text('div','',dialog);footer.style.cssText='display:flex;justify-content:flex-end;gap:12px;margin-top:24px;position:sticky;bottom:0;background:inherit;padding-top:12px';
       const cancel=text('button','Cancel',footer),approve=text('button','Approve and submit',footer);
-      for(const b of [cancel,approve])b.style.cssText='padding:10px 16px;border-radius:8px;cursor:pointer;border:1px solid #ccd1df';
-      approve.style.background='#5453c9';approve.style.color='#fff';approve.disabled=!ready;
-      if(!ready){text('p','Connect a browser worker before authorizing submission. You can still review both documents.',dialog);approve.style.opacity='.5';}
-      const done=value=>{dialog.close();dialog.remove();resolve(value);};cancel.onclick=()=>done(false);approve.onclick=()=>done(true);
-      dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});document.body.append(dialog);dialog.showModal();
+      cancel.type='button';approve.type='button';cancel.className='ck-tertiary';approve.className='ck-primary';approve.disabled=!ready;
+      if(!ready){text('p','Connect a browser worker before authorizing submission. You can still review both documents.',dialog);}
+      let settled=false;const done=value=>{if(settled)return;settled=true;if(dialog.open)dialog.close();dialog.remove();resolve(value);};cancel.onclick=()=>done(false);approve.onclick=()=>done(true);
+      const openDialog=wireModalBack(dialog,'submitReview',()=>done(false));
+      dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});document.body.append(dialog);openDialog();
     });
   }
   async function connectWorker(){
     return new Promise(resolve=>{
-      const dialog=document.createElement('dialog');dialog.className='ck-sheet';dialog.setAttribute('aria-labelledby','connectWorkerTitle');
+      const dialog=document.createElement('dialog');dialog.className='ck-sheet';dialog.setAttribute('data-ds-sheet','');dialog.setAttribute('data-no-glass','');dialog.setAttribute('aria-labelledby','connectWorkerTitle');
       const head=text('header','',dialog),body=text('div','',dialog),foot=text('footer','',dialog);body.className='ck-sheet-body';
       const title=text('h2','Connect your Career browser worker',head);title.id='connectWorkerTitle';
       const close=text('button','✕',head);close.type='button';close.className='ck-icon';close.setAttribute('aria-label','Close');
@@ -46,7 +58,7 @@
       text('p','A private configuration file will download for the local worker installer. Keep it private.',body);
       const status=text('p','',body),cancel=text('button','Cancel',foot),connect=text('button','Create and connect worker',foot);
       status.setAttribute('role','status');cancel.type='button';connect.type='button';cancel.className='ck-tertiary';connect.className='ck-primary';
-      const done=value=>{dialog.close();dialog.remove();resolve(value);};cancel.onclick=()=>done(false);close.onclick=()=>done(false);
+      let settled=false;const done=value=>{if(settled)return;settled=true;if(dialog.open)dialog.close();dialog.remove();resolve(value);};cancel.onclick=()=>done(false);close.onclick=()=>done(false);
       dialog.addEventListener('click',event=>{if(event.target===dialog)done(false);});
       connect.onclick=async()=>{
         connect.disabled=true;cancel.disabled=true;status.textContent='Connecting your dedicated worker…';
@@ -64,7 +76,8 @@
           connect.remove();cancel.disabled=false;cancel.textContent='Done';
         }catch(error){status.textContent=error.message;connect.disabled=false;cancel.disabled=false;}
       };
-      dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});document.body.append(dialog);dialog.showModal();
+      const openDialog=wireModalBack(dialog,'connectWorker',()=>done(false));
+      dialog.addEventListener('cancel',event=>{event.preventDefault();done(false);});document.body.append(dialog);openDialog();
     });
   }
   async function reviewAndSubmit(postingId){

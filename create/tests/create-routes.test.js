@@ -10,6 +10,7 @@
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | Serve the Brand Kit page and its shared brand modules through the exact allowlist, with the same missing-package 404.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Verify PSD browser modules byte/MIME through the actual compiled Express router rather than a raw-static browser fixture.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Home's heading is now Continue creating (your work first); the byte-for-byte serve check reads that phrase.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Verify `home-actions.mjs` is served through the exact editor module allowlist.
  *
  * Node built-ins only; ephemeral loopback listeners.
  */
@@ -108,6 +109,7 @@ test('the editor serves exact bundled modules and never arbitrary neighboring fi
       ['/editor/brand-kit.mjs', 'tools/editor/brand-kit.mjs', 'text/javascript'],
       ['/editor/brand-page.mjs', 'tools/editor/brand-page.mjs', 'text/javascript'],
       ['/editor/brand-editor.mjs', 'tools/editor/brand-editor.mjs', 'text/javascript'],
+      ['/editor/home-actions.mjs', 'tools/editor/home-actions.mjs', 'text/javascript'],
       ['/editor/brand.css', 'tools/editor/brand.css', 'text/css'],
     ]) {
       const response = await fetch(base + route);

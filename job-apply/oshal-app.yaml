@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Name the screen's concierge (chatBot: career-hunter, the required bot this app already imports and its workerBot) so the shell offers a live conversation; it declared no bot or chatBot, so its concierge panel was hidden.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: UX design-standard sweep (D1=glass, D2=c, job-apply--job-apply-review): declare DS-00 collection contract on tools/review.html, load surface-glass.css, put radii and font sizes on the standard scale, hide duplicate header title when framed, and withhold all-zero counters when no runs exist.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — job-apply (Job Apply submission workflow)
@@ -49,7 +50,7 @@ displayName: Job Apply
 description: >-
   Submit an approved, packet-ready job application by driving the operator's real browser on a
   desktop worker node. Push a ticket, it queues, the worker submits it, the ticket passes or fails.
-version: 1.1.8
+version: 1.1.9
 testing:
   version: 1
   catalog: tests/test-lab.yaml

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="none">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -28,7 +28,10 @@
        tests/browser/home-empty-state.test.cjs.
      5 | maintainer@emeraldcoastsystemsgroup.com | The split (UX audit 2026-11-05): Schedules are the Automations screen (?view=automations,
        the home-automations tile): the schedule list and New schedule, or with nothing to run one empty state (No automations
-       yet, Connect a hub). The Smart Home screen keeps devices, scenes and the hubs. -->
+       yet, Connect a hub). The Smart Home screen keeps devices, scenes and the hubs.
+     6 | maintainer@emeraldcoastsystemsgroup.com | UX audit sweep (home--home-accounts, D1=glass, D2=c): dashboard contract, Prepare a
+       diagnostic brief moved into More as a theme-token sheet withheld when no connected action mounts, in-page schedule
+       confirmation, scale radii/typography, 44px touch targets, and popstate Back dismissal. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
      (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
      kit in the family grammar. Any other request runs the full Smart Home page below unchanged. -->
@@ -113,87 +116,95 @@
     --scrollbar-thumb: rgba(255,255,255,.14);
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; font-size:16px; line-height:24px; background:var(--bg); color:var(--text); }
   .wrap { max-width:1100px; margin:0 auto; padding:18px 18px 120px; }
   header { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
-  h1 { font-size:20px; margin:0; }
-  .count { color:var(--muted); font-size:12.5px; }
+  h1 { font-size:20px; line-height:26px; margin:0; }
+  .count { color:var(--muted); font-size:12px; line-height:16px; }
   .spacer { flex:1; }
-  .btn { border:1px solid var(--line); background:var(--panel2); color:var(--text); border-radius:9px;
-         padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; }
+  .btn { border:1px solid var(--ds-line-control, var(--line)); background:var(--ds-surface-2, var(--panel2)); color:var(--text); border-radius:10px;
+         min-height:44px; padding:8px 14px; font-size:14px; line-height:20px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
   .btn:hover { border-color:var(--accent); }
-  .btn.solid { background:var(--accent); color:var(--ds-on-accent, #fff); border-color:var(--accent); }
-  .alert { color:var(--status-error, #ff7a7a); background:var(--panel); border:1px solid var(--status-error, #ff7a7a); border-radius:12px; padding:12px 14px; margin:10px 0; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-  .alert[hidden], .home-empty[hidden], section[hidden], .btn[hidden], details[hidden] { display:none; }
+  .btn.solid { background:var(--accent); color:var(--ds-on-accent, var(--text-on-accent, #fff)); border-color:var(--accent); }
+  .btn.danger { background:var(--status-error, #d92d20); color:#fff; border-color:var(--status-error, #d92d20); }
+  .alert { color:var(--status-error, #ff7a7a); background:var(--panel); border:1px solid var(--status-error, #ff7a7a); border-radius:10px; padding:12px 14px; margin:10px 0; display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:14px; line-height:20px; }
+  .alert[hidden], .home-empty[hidden], section[hidden], .btn[hidden], details[hidden], .more-wrap[hidden], .sheet-scrim[hidden] { display:none !important; }
   .home-empty { text-align:center; padding:40px 16px 20px; }
-  .home-empty .icon { font-size:40px; line-height:1; }
-  .home-empty h2 { font-size:20px; margin:12px 0 6px; }
-  .home-empty p { color:var(--muted); margin:0 auto 16px; max-width:420px; font-size:14px; }
+  .home-empty .icon { font-size:32px; line-height:40px; }
+  .home-empty h2 { font-size:20px; line-height:26px; margin:12px 0 6px; }
+  .home-empty p { color:var(--muted); margin:0 auto 16px; max-width:420px; font-size:14px; line-height:20px; }
   .hubs .pill.ok { background:color-mix(in srgb, var(--accent2) 22%, transparent); color:var(--accent2); }
-  .sectitle { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:22px 2px 10px; }
+  .sectitle { font-size:12px; line-height:16px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:22px 2px 10px; }
   /* Scene tiles */
   .scenes { display:flex; flex-wrap:wrap; gap:10px; }
-  .scene { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:11px 14px; cursor:pointer; min-width:120px; }
+  .scene { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 14px; cursor:pointer; min-width:120px; min-height:44px; }
   .scene:hover { border-color:var(--accent); }
-  .scene .nm { font-weight:600; font-size:14px; }
-  .scene .st { color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .scene .nm { font-weight:600; font-size:14px; line-height:20px; }
+  .scene .st { color:var(--muted); font-size:12px; line-height:16px; margin-top:2px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   /* Device grid */
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; }
   .card.on { border-color:color-mix(in srgb, var(--accent2) 55%, var(--line)); }
-  .crow { display:flex; align-items:center; gap:10px; }
-  .nm { font-weight:600; font-size:14px; flex:1; }
-  .pill { font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--panel2); color:var(--muted); }
+  .crow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .nm { font-weight:600; font-size:14px; line-height:20px; flex:1; }
+  .pill { font-size:12px; line-height:16px; font-weight:700; padding:3px 10px; border-radius:999px; background:var(--panel2); color:var(--muted); }
   .pill.on { background:color-mix(in srgb, var(--accent2) 22%, transparent); color:var(--accent2); }
   /* Toggle */
-  .sw { width:46px; height:26px; border-radius:20px; background:var(--panel2); border:1px solid var(--line); position:relative; cursor:pointer; flex:none; transition:background .15s; }
-  .sw.on { background:var(--accent2); border-color:var(--accent2); }
-  .sw .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; transition:left .15s; }
+  .sw { width:48px; height:44px; padding:9px 1px; background:transparent; border:0; position:relative; cursor:pointer; flex:none; display:inline-flex; align-items:center; }
+  .sw-track { width:46px; height:26px; border-radius:999px; background:var(--panel2); border:1px solid var(--line); position:relative; transition:background .15s; display:block; }
+  .sw.on .sw-track { background:var(--accent2); border-color:var(--accent2); }
+  .sw .knob { position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:999px; background:#fff; transition:left .15s; }
   .sw.on .knob { left:22px; }
-  .dim { display:flex; align-items:center; gap:8px; }
-  .dim input { flex:1; accent-color:var(--accent); }
-  .dim .lvl { font-size:11.5px; color:var(--muted); width:34px; text-align:right; }
-  .sel, .tin { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; }
+  .dim { display:flex; align-items:center; gap:8px; font-size:14px; line-height:20px; color:var(--muted); }
+  .dim input[type="range"] { flex:1; min-height:44px; accent-color:var(--accent); }
+  .dim .lvl { font-size:12px; line-height:16px; color:var(--muted); width:36px; text-align:right; }
+  .sel, .tin { background:var(--ds-surface, var(--bg)); color:var(--text); border:1px solid var(--ds-line-control, var(--line)); border-radius:10px; min-height:44px; padding:8px 10px; font-size:14px; line-height:20px; }
   .sel { padding-right:30px; text-overflow:ellipsis; }
-  .schf { display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--muted); min-width:0; }
+  .schf { display:flex; flex-direction:column; gap:4px; font-size:12px; line-height:16px; color:var(--muted); min-width:0; }
   .schf .sel, .schf .tin { max-width:100%; box-sizing:border-box; }
-  .lnk { color:var(--accent); cursor:pointer; }
-  .empty { color:var(--muted); font-size:14px; padding:30px 2px; }
-  /* Chat bar */
-  /* z-index: positioned page content later in the document (the diagnostic-brief panel, position:relative) painted
-     over this fixed bar when it scrolled beneath it, so taps on Send landed on the panel (2026-10-11, phone).
-     Guard: tests/browser/home-phone-layout.test.cjs. */
-  .chat { position:fixed; left:0; right:0; bottom:0; z-index:20; background:var(--panel); border-top:1px solid var(--line); padding:12px 18px; }
-  .chat .inner { max-width:1100px; margin:0 auto; display:flex; gap:9px; align-items:center; }
-  .chat input { flex:1; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:11px 13px; font-size:14px; }
-  .reply { max-width:1100px; margin:0 auto 8px; padding:0 16px; box-sizing:border-box; color:var(--muted); font-size:13px; min-height:0; }
-  .reply .you { color:var(--text); font-weight:600; margin-bottom:4px; }
+  .lnk { background:transparent; border:0; color:var(--accent); cursor:pointer; font:inherit; font-size:12px; min-height:44px; min-width:44px; padding:0 6px; display:inline-flex; align-items:center; text-decoration:underline; }
+  .empty { color:var(--muted); font-size:14px; line-height:20px; padding:30px 2px; }
   .hubs { max-width:600px; margin:14px 0; gap:10px; }
   .hubs .hubrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
   .hubs[hidden] { display:none; }
   body.view-hubs .dash-only { display:none !important; }
   body.view-automations #devicesSection, body.view-automations #scenes, body.view-automations #scenes-title { display:none !important; }
-  .toast { position:fixed; z-index:21; bottom:78px; left:50%; transform:translateX(-50%); background:var(--panel2); border:1px solid var(--line); color:var(--text); padding:9px 15px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast { position:fixed; z-index:21; bottom:78px; left:50%; transform:translateX(-50%); background:var(--ds-surface, var(--panel2)); border:1px solid var(--line); color:var(--text); padding:10px 16px; border-radius:10px; font-size:14px; line-height:20px; opacity:0; transition:opacity .2s; pointer-events:none; }
   .toast.show { opacity:1; }
+  .more-wrap { position:relative; }
+  .more-wrap summary { list-style:none; min-width:44px; min-height:44px; border:1px solid var(--ds-line-control, var(--line)); border-radius:10px; background:var(--ds-surface-2, var(--panel2)); color:var(--text); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; }
+  .more-wrap summary::-webkit-details-marker { display:none; }
+  .more-menu { position:absolute; right:0; top:48px; z-index:25; min-width:220px; padding:6px; border-radius:10px; border:1px solid var(--line); background:var(--ds-surface, var(--bg-card-solid, var(--panel))); box-shadow:0 8px 24px rgba(0,0,0,.18); }
+  .more-menu button { width:100%; min-height:44px; text-align:left; background:transparent; border:0; border-radius:6px; color:var(--text); font:inherit; font-size:14px; padding:0 12px; cursor:pointer; }
+  .more-menu button:hover { background:var(--panel2); }
+  .sheet-scrim { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.38); display:flex; align-items:flex-end; justify-content:center; padding:16px; }
+  .brief-sheet { width:min(560px, 100%); max-height:85dvh; overflow:auto; background:var(--ds-surface, var(--bg-card-solid, var(--panel))); color:var(--text); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .brief-sheet h2 { font-size:18px; line-height:24px; margin:0; }
+  .brief-sheet label { display:flex; flex-direction:column; gap:4px; font-size:14px; line-height:20px; font-weight:600; }
+  .brief-sheet textarea { background:var(--ds-surface, var(--bg)); color:var(--text); border:1px solid var(--ds-line-control, var(--line)); border-radius:10px; padding:10px 12px; font:inherit; font-size:14px; line-height:20px; }
   ::-webkit-scrollbar{width:10px;height:10px}
   ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:6px}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent}
   @media (max-width:640px) {
-    .wrap { padding-left:10px; padding-right:10px; }
-    .chat input { font-size:16px; } /* prevent iOS auto-zoom on focus */
+    .wrap { padding-left:12px; padding-right:12px; }
     .scene { min-width:unset; flex:1 1 calc(50% - 5px); }
-    .btn { padding:10px 12px; }
-    .btn.solid { min-height:44px; }
+    .sel, .tin, .brief-sheet textarea { font-size:16px; }
     .card { border-radius:10px; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" data-ds-work>
   <header>
     <span class="count" id="count"></span>
     <span class="spacer"></span>
     <button class="btn" id="refresh" onclick="refresh()" hidden>↻ Refresh</button>
+    <details class="more-wrap" id="moreWrap" hidden>
+      <summary aria-label="More" title="More">⋯</summary>
+      <div class="more-menu" data-no-glass>
+        <button type="button" id="openDiagnosticBrief">Prepare a diagnostic brief</button>
+      </div>
+    </details>
   </header>
   <div class="alert" id="alert" role="alert" hidden></div>
 
@@ -201,13 +212,13 @@
     <div class="icon" aria-hidden="true">🏠</div>
     <h2 id="empty-title">No devices yet</h2>
     <p>Connect your smart-home hub to see your lights, plugs and scenes here and switch them from this screen.</p>
-    <button class="btn solid" id="connectHub" type="button">Connect a hub</button>
+    <button class="btn solid" id="connectHub" type="button" data-ds-primary>Connect a hub</button>
   </section>
 
   <section class="card hubs" id="hubsPanel" hidden aria-labelledby="hubs-title">
     <div class="nm" id="hubs-title">Hubs</div>
     <p class="dim" id="hubsReporting" role="status">Checking which hubs have reported devices…</p>
-    <div class="hubrow"><span>Samsung SmartThings <span class="pill" id="pill-smartthings">Not connected</span></span><a class="btn solid" href="/api/connect/smartthings/start" target="_top">Connect SmartThings</a></div>
+    <div class="hubrow"><span>Samsung SmartThings <span class="pill" id="pill-smartthings">Not connected</span></span><a class="btn solid" href="/api/connect/smartthings/start" target="_top" data-ds-primary>Connect SmartThings</a></div>
     <div class="hubrow"><span>Google Home <span class="pill" id="pill-google-home">Not connected</span></span><a class="btn" href="/utilities" target="_top">Set up in Connections</a></div>
     <p class="dim">After connecting, press Refresh to read the hub's devices.</p>
   </section>
@@ -238,14 +249,15 @@
       <label class="schf" id="sch-repeat-f" for="sch-repeat"><span>Repeat</span><select id="sch-repeat" class="sel"><option value="daily">Every day</option><option value="weekdays">Weekdays</option></select></label>
       <label class="schf" id="sch-offset-f" for="sch-offset" style="display:none"><span>Minutes before (−) or after (+)</span><input id="sch-offset" type="number" value="0" class="tin" style="width:96px" /></label>
     </div>
-    <div class="crow"><button class="btn solid" onclick="createSchedule()">Add schedule</button></div>
+    <div class="crow"><button class="btn solid" onclick="createSchedule()" data-ds-primary>Add schedule</button></div>
+    <div class="crow" id="schedConfirm" hidden></div>
   </div>
 
   </section>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" data-no-glass></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -269,13 +281,13 @@ function isOn(d) { return d.switch === 'on'; }
 function hasDim(d) { return (d.capabilities || []).includes('switchLevel'); }
 function cardHtml(d) {
   const on = isOn(d);
-  const dim = hasDim(d) ? `<div class="dim"><input type="range" min="1" max="100" value="50"
+  const dim = hasDim(d) ? `<div class="dim"><input type="range" min="1" max="100" value="50" aria-label="Brightness for ${esc(deviceName(d))}"
       onchange="setLevel('${d.key}', this.value)" /><span class="lvl" id="lvl-${d.key}">50%</span></div>` : '';
   return `<div class="card ${on?'on':''}" id="card-${d.key}">
     <div class="crow"><span class="nm">${esc(deviceName(d))}</span>
       <span class="pill ${on?'on':''}">${on?'On':'Off'}</span></div>
     <div class="crow">
-      <div class="sw ${on?'on':''}" onclick="toggle('${d.key}', ${on?0:1})"><div class="knob"></div></div>
+      <button type="button" class="sw ${on?'on':''}" role="switch" aria-checked="${on?'true':'false'}" aria-label="Switch ${esc(deviceName(d))}" onclick="toggle('${d.key}', ${on?0:1})"><span class="sw-track"><span class="knob"></span></span></button>
       <span class="spacer"></span></div>
     ${dim}
   </div>`;
@@ -301,7 +313,7 @@ function layout() {
 }
 let HUBS_SEEN = false, DEVICES_LOADED = false;
 /** Show the hub rows (the empty state's Connect a hub, a refused refresh). */
-function showHubs() { $('hubsPanel').hidden = false; $('hubsPanel').scrollIntoView({ block: 'nearest' }); }
+function showHubs() { $('connectHub').hidden = true; $('hubsPanel').hidden = false; $('hubsPanel').scrollIntoView({ block: 'nearest' }); }
 $('connectHub').onclick = showHubs;
 /** A refused or failed read, said where the work is, with the fix when there is one. */
 function showAlert(text, withConnect) {
@@ -377,7 +389,7 @@ async function loadSchedules() {
         ? (t.event + (t.offsetMin ? (t.offsetMin > 0 ? ` +${t.offsetMin}m` : ` ${t.offsetMin}m`) : ''))
         : ('at ' + cronToLocalTime(s.cron) + (t.repeat === 'weekdays' ? ' · weekdays' : ''));
       return `<div class="scene"><div class="nm">${esc(s.label || 'action')}</div>
-        <div class="st">${esc(when)} · <span class="lnk" onclick="delSchedule('${s.id}')">delete</span></div></div>`;
+        <div class="st">${esc(when)} · <button type="button" class="lnk" onclick="delSchedule('${s.id}')">delete</button></div></div>`;
     }).join('') : '<div class="empty" style="padding:8px 2px">No schedules yet.</div>';
   } catch (e) { /* optional */ }
 }
@@ -404,8 +416,18 @@ function createSchedule() {
       () => toast('Allow location to use sunrise/sunset'));
   }
 }
-async function sendSchedule(action, trigger) {
-  if (!confirm('Create this smart-home schedule?')) return;
+async function sendSchedule(action, trigger, confirmed) {
+  const bar = $('schedConfirm');
+  if (!confirmed) {
+    bar.replaceChildren();
+    const msg = document.createElement('span'); msg.className = 'dim'; msg.textContent = 'Create this smart-home schedule?';
+    const yes = document.createElement('button'); yes.type = 'button'; yes.className = 'btn solid'; yes.textContent = 'Confirm schedule';
+    yes.onclick = () => { bar.hidden = true; sendSchedule(action, trigger, true); };
+    const no = document.createElement('button'); no.type = 'button'; no.className = 'btn'; no.textContent = 'Cancel';
+    no.onclick = () => { bar.hidden = true; };
+    bar.append(msg, yes, no); bar.hidden = false;
+    return;
+  }
   try { await api('/schedule', { action, trigger, confirm: true }); toast('Schedule added'); loadSchedules(); }
   catch (e) { toast('Failed: ' + e.message); }
 }
@@ -496,25 +518,30 @@ if (!window.AppView || !AppView.active()) { loadDevices().catch((e) => showAlert
 })();
 </script>
 
-<!-- In the page flow, not position:fixed: a fixed panel sat on top of the Ask bar (input and Send) at the bottom of the screen on a phone. Guard: scripts/phone-screens.browser.cjs (home). -->
-<details id="evidenceReview" hidden style="position:relative;margin:16px auto 96px;width:min(560px,calc(100% - 32px));background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:12px;box-sizing:border-box">
- <summary style="cursor:pointer;font-weight:600">Prepare a diagnostic brief</summary>
- <p id="evidenceState" role="status">Choose recorded evidence, then review what to share.</p>
- <label>Saved evidence<select id="evidenceChoice" style="width:100%;margin:6px 0"></select></label>
- <label>Brief<textarea id="evidenceNotes" rows="5" style="width:100%;box-sizing:border-box;margin:6px 0"></textarea></label>
- <div id="evidenceActions"></div>
-</details>
+<div id="evidenceScrim" class="sheet-scrim" hidden>
+ <div id="evidenceReview" class="brief-sheet" role="dialog" aria-modal="true" aria-labelledby="evidenceTitle" data-ds-sheet data-no-glass>
+  <div class="crow"><h2 id="evidenceTitle">Prepare a diagnostic brief</h2><span class="spacer"></span><button type="button" class="btn" id="closeDiagnosticBrief">Close</button></div>
+  <p id="evidenceState" class="dim" role="status">Choose recorded evidence, then review what to share.</p>
+  <label><span>Saved evidence</span><select id="evidenceChoice" class="sel"></select></label>
+  <label><span>Brief</span><textarea id="evidenceNotes" rows="5"></textarea></label>
+  <div id="evidenceActions"></div>
+ </div>
+</div>
 <script>
 (async()=>{
 const {mountConnectedActions}=await import('/cockpit/js/app-workflows.js');
-const panel=document.getElementById('evidenceReview'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false;
+const scrim=document.getElementById('evidenceScrim'),moreWrap=document.getElementById('moreWrap'),openBtn=document.getElementById('openDiagnosticBrief'),closeBtn=document.getElementById('closeDiagnosticBrief'),pick=document.getElementById('evidenceChoice'),notes=document.getElementById('evidenceNotes'),state=document.getElementById('evidenceState');let records=[],loaded=false,sheetHistory=false;
 const actions=document.getElementById('evidenceActions');
 await mountConnectedActions({element:actions,app:"home",contextForOffer:()=>({title:records[pick.selectedIndex]?.text||'Diagnostic review',notes:notes.value})});
-// Withheld while the cockpit offers no connected action for this person (none mounts while continuation is off).
-panel.hidden=!(actions&&!actions.hidden&&actions.style.display!=='none'&&actions.children.length);
+const hasOffer=Boolean(actions&&!actions.hidden&&actions.style.display!=='none'&&actions.children.length);
+moreWrap.hidden=!hasOffer;
+function closeSheet(fromPop){scrim.hidden=true;if(sheetHistory&&!fromPop){sheetHistory=false;try{history.back();}catch{}}else sheetHistory=false;}
+async function openSheet(){moreWrap.open=false;scrim.hidden=false;try{history.pushState({homeSheet:1},'');sheetHistory=true;}catch{}if(loaded)return;try{const response=await fetch("/api/home/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}}
+openBtn.addEventListener('click',openSheet);
+closeBtn.addEventListener('click',()=>closeSheet(false));
+scrim.addEventListener('click',(e)=>{if(e.target===scrim)closeSheet(false);});
+window.addEventListener('popstate',()=>{if(!scrim.hidden)closeSheet(true);if(moreWrap.open)moreWrap.open=false;});
 pick.addEventListener('change',()=>{notes.value=records[pick.selectedIndex]?.actions?.find(a=>a.integration==='prepare-document')?.context?.notes||'';});
-panel.addEventListener('toggle',async()=>{if(!panel.open||loaded)return;try{const response=await fetch("/api/home/home-summary",{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error();const body=await response.json();records=(body.items||[]).filter(i=>i.actions?.some(a=>a.integration==='prepare-document'));pick.replaceChildren(...records.map(i=>{const option=document.createElement('option');option.textContent=i.text;return option;}));pick.dispatchEvent(new Event('change'));state.textContent=body.partial?'Some evidence is unavailable. Review the saved details.':records.length?'Edit the brief before opening Office.':'No recorded evidence yet. You can write a review brief.';loaded=true;}catch{state.textContent='Saved evidence is unavailable. You can write a review brief.';}});
-if(panel.open)panel.dispatchEvent(new Event('toggle'));
 })().catch(()=>{document.getElementById('evidenceState').textContent='Connected actions are unavailable.';});
 </script>
 

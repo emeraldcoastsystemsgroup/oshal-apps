@@ -3,7 +3,8 @@
  * -----------------------------------------------------------------------------
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com | Video 1.13.0 against the oshal design standard (docs/ux/design-standard.md §3.1, §4.4, §4.10, §5.1; CapCut and InShot, REFP CONVENTIONS §5.3). At 412x743 with real touch and at 1440x900: the page declares its contract and its work; the empty timeline holds the one primary, Add a clip, which opens the real picker; with a clip on the timeline Export is the one primary and Save is never the primary; one tool row marked data-ds-toolrow, More last, with the planned Stickers and Filters greyed, aria-disabled, linked to their backlog ids and inert when tapped; a tapped clip turns the row into its tools with the planned Speed, Effects, Chroma key, Remove background and Stabilize; a tool opens an opaque modal sheet that the browser's Back closes inside the editor, and the Export sheet (1080p, 4K and 60 fps planned) opens again with its controls after it closes; Delete project asks in the page (no native dialog); the manifest's dark category look is graphite. Real compiled routes, a disposable PostgreSQL and the kernel's shared editor from OSHAL_PLATFORM_ROOT. Red on store main cb09e961 (Video 1.12.4), green on 1.13.0.
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Video 1.13.0 against the oshal design standard (docs/ux/design-standard.md §3.1, §4.4, §4.10, §5.1; CapCut and InShot, REFP CONVENTIONS §5.3). At 412x743 with real touch and at 1440x900: the page declares its contract and its work; the empty timeline holds the one primary, Add a clip, which opens the real picker; with a clip on the timeline Export is the one primary and Save is never the primary; one tool row marked data-ds-toolrow, More last; a tool opens an opaque modal sheet that the browser's Back closes inside the editor; Delete project asks in the page (no native dialog); the manifest's dark category look is graphite.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Video 1.14.0 (RP-VID-01..10): verify zero RP-VID planned placeholders remain and that Stickers, Filters, Speed, Effects, Chroma key, Remove background, Stabilize, Auto captions, Voice, Sound effects and 720p/1080p/4K 30/60fps Export controls operate live inside opaque modal sheets while preserving single-primary (DS-24) and RP-ALL-01 Summarize.
  */
 import { test, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,12 +25,10 @@ const primaries = page => page.evaluate(() => [...document.querySelectorAll('but
   .filter(button => { const box = button.getBoundingClientRect(); return box.width && box.bottom > 0 && box.top < innerHeight && !button.disabled && getComputedStyle(button).visibility !== 'hidden'; })
   .map(button => button.textContent.trim()));
 const press = (page, locator, touch) => touch ? locator.tap() : locator.click();
-/** A person's press where the control is, as the design audit makes it: a planned control is aria-disabled, so Playwright's own tap would wait for it to be enabled. */
-const pressAt = async (page, locator, touch) => { const box = await locator.boundingBox(); const x = box.x + box.width / 2, y = box.y + box.height / 2; if (touch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); };
 
 for (const [size, options] of [['phone 412x743', PHONE], ['desktop 1440x900', DESKTOP]]) {
   const touch = size.startsWith('phone');
-  test(`${size}: the empty timeline offers Add a clip as the one primary, then Export is the one primary`, async t => {
+  test(`${size}: the empty timeline offers Add a clip as the one primary, then Export with live 720p/1080p/4K and 30/60 fps`, async t => {
     const { page, errors } = await openEditor(t, browser, database, { ...options, theme: 'light-blue' });
     assert.equal(await page.locator('html').getAttribute('data-ds-category'), 'editor');
     assert.equal(await page.locator('html').getAttribute('data-ds-first-action'), 'file:video');
@@ -44,10 +43,12 @@ for (const [size, options] of [['phone 412x743', PHONE], ['desktop 1440x900', DE
     assert.deepEqual(await primaries(page), ['Export'], 'with a clip the finishing action is the one primary');
     assert.equal(await page.locator('#saveProject').isVisible(), true, 'Save shows while there is something to save');
     assert.notEqual(await page.locator('#saveProject').evaluate(node => node.classList.contains('primary')), true, 'Save is never the primary');
-    for (let round = 0; round < 2; round += 1) { // the Export sheet opens again with its controls, however it closed
+    for (let round = 0; round < 2; round += 1) {
       await press(page, page.locator('button.video-export'), touch);
       const sheet = page.locator('dialog.ds-layer[open]'); await sheet.locator('#exportMp4').waitFor();
-      assert.equal(await sheet.locator('[data-ds-backlog="RP-VID-09"]').count(), 3, '1080p, 4K and 60 fps are planned rows');
+      assert.equal(await sheet.locator('[data-ds-backlog^="RP-VID-"]').count(), 0, 'no planned export placeholders remain');
+      for (const res of ['720p', '1080p', '4k']) assert.equal(await sheet.locator(`[data-export-res="${res}"]:not([disabled])`).count(), 1, `${res} is live`);
+      for (const fps of ['30', '60']) assert.equal(await sheet.locator(`[data-export-fps="${fps}"]:not([disabled])`).count(), 1, `${fps} fps is live`);
       assert.equal(await sheet.locator('#cancelExport').isVisible(), false, 'Cancel shows only while a job runs');
       await page.goBack(); await sheet.waitFor({ state: 'detached' });
       assert.equal(await page.locator('#exportMp4').count(), 1, 'the export control went back to the page');
@@ -55,35 +56,44 @@ for (const [size, options] of [['phone 412x743', PHONE], ['desktop 1440x900', DE
     assert.deepEqual(errors, []);
   });
 
-  test(`${size}: one tool row with More last, planned controls greyed and inert, clip tools on a tapped clip`, async t => {
-    const { page, errors, requests } = await openEditor(t, browser, database, { ...options, theme: 'light-blue' });
+  test(`${size}: one tool row with More last, live Stickers/Filters/clip tools and zero RP-VID placeholders`, async t => {
+    const { page, errors } = await openEditor(t, browser, database, { ...options, theme: 'light-blue' });
     const row = page.locator('[data-ds-toolrow]');
     assert.equal(await row.count(), 1);
-    const labels = await row.locator('button').evaluateAll(buttons => buttons.map(button => button.querySelector('.video-word,.ds-not-yet-name')?.textContent ?? button.textContent));
+    assert.equal(await page.locator('[data-ds-backlog^="RP-VID-"]').count(), 0, 'zero RP-VID placeholders anywhere');
+    assert.equal(await page.locator('[data-ds-backlog="RP-ALL-01"]').count(), 1, 'kernel-owned RP-ALL-01 Summarize stays untouched');
+    const labels = await row.locator('button').evaluateAll(buttons => buttons.map(button => button.querySelector('.video-word')?.textContent ?? button.textContent));
     assert.equal(labels.at(-1), 'More', 'More is the last item of the row');
-    for (const label of ['Add', 'Text', 'Audio']) assert.ok(labels.includes(label), `${label} is in the row`);
-    const stickers = row.locator('[data-ds-backlog="RP-VID-03"]'), filters = row.locator('[data-ds-backlog="RP-VID-04"]');
-    for (const planned of [stickers, filters]) {
-      assert.equal(await planned.getAttribute('aria-disabled'), 'true');
-      assert.match(await planned.getAttribute('aria-label'), /not available yet$/i);
-      assert.equal(await planned.evaluate(node => getComputedStyle(node).opacity), '1');
-    }
-    const before = requests.length, html = await page.locator('body').innerHTML();
-    await stickers.scrollIntoViewIfNeeded(); await pressAt(page, stickers, touch); await page.waitForTimeout(400);
-    assert.equal(requests.length, before, 'a planned control sends nothing');
-    assert.equal(await page.locator('dialog[open]').count(), 0, 'a planned control opens nothing');
-    assert.equal(await page.locator('body').innerHTML(), html, 'a planned control changes nothing');
+    for (const label of ['Add', 'Text', 'Audio', 'Stickers', 'Filters']) assert.ok(labels.includes(label), `${label} is live in the row`);
+
     await page.locator('#addClip').setInputFiles({ name: 'Beach.mp4', mimeType: 'video/mp4', buffer: mediaBytes('video', clipProbe({ seconds: 3 })) });
     await page.locator('#status').filter({ hasText: 'Beach.mp4 added.' }).waitFor();
+    const stickersBtn = row.getByRole('button', { name: /Stickers/ });
+    await stickersBtn.scrollIntoViewIfNeeded(); await press(page, stickersBtn, touch);
+    const stickerSheet = page.locator('dialog.ds-layer[open][aria-label="Stickers"]'); await stickerSheet.waitFor();
+    assert.equal(await stickerSheet.locator('[data-sticker-pick]').count(), 8, '8 licensed built-in stickers');
+    await press(page, stickerSheet.locator('[data-sticker-pick="star"]'), touch);
+    assert.equal(await page.locator('#stickerLayer .sticker-item').count(), 1, 'sticker renders in live preview');
+    await page.goBack(); await stickerSheet.waitFor({ state: 'detached' });
+
     await press(page, page.locator('#track .segment').first(), touch);
-    for (const backlog of ['RP-VID-01', 'RP-VID-04', 'RP-VID-05', 'RP-VID-06', 'RP-VID-08']) assert.equal(await row.locator(`[data-ds-backlog="${backlog}"]`).count(), 1, `${backlog} is a planned clip tool`);
-    assert.equal(await row.getByRole('button', { name: /Split/ }).count(), 1, 'Split is a clip tool');
-    await press(page, row.getByRole('button', { name: /Done/ }), touch);
-    assert.equal(await row.locator('[data-ds-backlog="RP-VID-03"]').count(), 1, 'Done returns to the main tools');
+    assert.equal(await row.locator('[data-ds-backlog^="RP-VID-"]').count(), 0, 'zero planned clip tools');
+    for (const toolName of ['Split', 'Speed', 'Effects', 'Chroma key', 'Remove background', 'Stabilize']) {
+      assert.equal(await row.getByRole('button', { name: new RegExp(toolName) }).count(), 1, `${toolName} is a live clip tool`);
+    }
+    const speedBtn = row.getByRole('button', { name: /Speed/ });
+    await speedBtn.scrollIntoViewIfNeeded(); await press(page, speedBtn, touch);
+    const speedSheet = page.locator('dialog.ds-layer[open][aria-label="Speed"]'); await speedSheet.waitFor();
+    await press(page, speedSheet.locator('[data-speed-preset="200"]'), touch);
+    await page.goBack(); await speedSheet.waitFor({ state: 'detached' });
+    await assert.doesNotReject(() => page.locator('#clock').filter({ hasText: '0:01.50' }).waitFor(), '2x speed halves 3.00s clip to 1.50s (45 frames)');
+    const doneBtn = row.getByRole('button', { name: /Done/ });
+    await doneBtn.scrollIntoViewIfNeeded(); await press(page, doneBtn, touch);
+    assert.equal(await row.getByRole('button', { name: /Stickers/ }).count(), 1, 'Done returns to the main tools');
     assert.deepEqual(errors, []);
   });
 
-  test(`${size}: a tool opens an opaque modal sheet that Back closes inside the editor`, async t => {
+  test(`${size}: Text and Audio open opaque modal sheets with live Auto captions, Voice and Sound effects that Back closes`, async t => {
     const { page, errors } = await openEditor(t, browser, database, { ...options, theme: 'light-blue' });
     const url = page.url();
     await press(page, page.locator('[data-ds-toolrow]').getByRole('button', { name: /^.?\s*Text$/ }), touch);
@@ -92,11 +102,20 @@ for (const [size, options] of [['phone 412x743', PHONE], ['desktop 1440x900', DE
     assert.equal(await sheet.evaluate(node => node.matches(':modal')), true, 'the sheet is modal, in the top layer');
     assert.equal(await sheet.evaluate(node => { const [, , , a] = getComputedStyle(node).backgroundColor.match(/[\d.]+/g).map(Number).concat(1); return a; }), 1, 'opaque');
     assert.equal(await sheet.locator('#titleForm').isVisible(), true, 'the titles form is in the sheet');
-    assert.equal(await sheet.locator('[data-ds-backlog="RP-VID-02"]').count(), 1, 'Auto captions is planned in the Text sheet');
+    assert.equal(await sheet.locator('[data-auto-captions-run]:not([disabled])').count(), 1, 'Auto captions is live in the Text sheet');
+    assert.equal(await sheet.locator('[data-ds-backlog="RP-VID-02"]').count(), 0, 'RP-VID-02 placeholder replaced');
     await page.goBack();
     await sheet.waitFor({ state: 'detached' });
     assert.equal(page.url(), url, 'Back closed the sheet and stayed in the editor');
     assert.equal(await page.locator('#titleForm').isVisible(), false, 'the form went back where it was');
+
+    await press(page, page.locator('[data-ds-toolrow]').getByRole('button', { name: /^.?\s*Audio$/ }), touch);
+    const audioSheet = page.locator('dialog.ds-layer[open][aria-label="Audio"]');
+    await audioSheet.waitFor();
+    assert.equal(await audioSheet.locator('[data-audio-voice]:not([disabled])').count(), 1, 'Voice is live in Audio');
+    assert.equal(await audioSheet.locator('[data-audio-sfx]:not([disabled])').count(), 1, 'Sound effects is live in Audio');
+    await page.goBack();
+    await audioSheet.waitFor({ state: 'detached' });
     assert.deepEqual(errors, []);
   });
 }
@@ -116,10 +135,10 @@ test('Delete project asks in the page, never in a native dialog', async t => {
   assert.deepEqual(errors, []);
 });
 
-test('the manifest declares graphite, the dark category look D2 allows the video editors', async () => {
+test('the manifest declares graphite and version 1.14.0', async () => {
   const manifest = await readFile(new URL('../oshal-app.yaml', import.meta.url), 'utf8');
   assert.match(manifest, /^theme: graphite$/m);
-  assert.match(manifest, /^version: 1\.13\.1$/m);
+  assert.match(manifest, /^version: 1\.14\.0$/m);
 });
 
 test('Add media withholds Generate a clip when no Vids worker is online and offers it when one is online', async t => {

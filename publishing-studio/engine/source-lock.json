@@ -45,6 +45,78 @@
       "sha256": "47a665259f09f554f5d133d7718cdad43ff462c6a6b2328f38023465e62d57ce",
       "source": "https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/LibertinusSerif-BoldItalic.otf",
       "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationSans-Regular.ttf",
+      "family": "Liberation Sans",
+      "style": "Regular",
+      "bytes": 410820,
+      "sha256": "4659bc0c58c5028dd488ec928d41d9265db43d9b669fc14ca8b0832daca7b144",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationSans-Bold.ttf",
+      "family": "Liberation Sans",
+      "style": "Bold",
+      "bytes": 414568,
+      "sha256": "3973aa5054fb467dd5627245d3dc82e37bf16fe075756156a570455871351582",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationSans-Italic.ttf",
+      "family": "Liberation Sans",
+      "style": "Italic",
+      "bytes": 415920,
+      "sha256": "830c5fa600505fb4c1a271b4271c53c44bae43f492b2a240d0e98a3a7a380121",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationSans-BoldItalic.ttf",
+      "family": "Liberation Sans",
+      "style": "BoldItalic",
+      "bytes": 409108,
+      "sha256": "c80fa7f2ffa0e01d4d8dcd6a6d1e43eda665222d1b4db597dde1174c456006cf",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationMono-Regular.ttf",
+      "family": "Liberation Mono",
+      "style": "Regular",
+      "bytes": 319624,
+      "sha256": "395fa5ab8d40c8eba390ced528744ea75a7f69aabf3e68b6f925ca0e39a27370",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationMono-Bold.ttf",
+      "family": "Liberation Mono",
+      "style": "Bold",
+      "bytes": 308068,
+      "sha256": "626655e94dd82f3f42549daf995c921b0915fa8ab1f4b839559e8892ea41d240",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationMono-Italic.ttf",
+      "family": "Liberation Mono",
+      "style": "Italic",
+      "bytes": 281608,
+      "sha256": "a71b2c25c89da05cf0e7c4dbba8d473fdead0b181ae56165217747d2c1f39215",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
+    },
+    {
+      "file": "LiberationMono-BoldItalic.ttf",
+      "family": "Liberation Mono",
+      "style": "BoldItalic",
+      "bytes": 284184,
+      "sha256": "15eb161953e3ecc7fc05a3fec8a59e0f4e0a54a4e375736adf8e98d65981f813",
+      "source": "debian-bookworm-fonts-liberation2-2.1.5",
+      "license": "SIL-OFL-1.1"
     }
   ]
 }

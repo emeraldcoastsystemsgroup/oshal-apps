@@ -36,7 +36,7 @@
  * @module sports-refresh
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FOLLOWED_GAMES_HORIZON_DAYS = exports.REFRESH_SCHEDULE = void 0;
+exports.REFRESH_SCHEDULE = exports.FOLLOWED_GAMES_HORIZON_DAYS = void 0;
 exports.currentSeason = currentSeason;
 exports.refreshRatings = refreshRatings;
 exports.getRatings = getRatings;

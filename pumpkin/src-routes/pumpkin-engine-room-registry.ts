@@ -6,6 +6,7 @@
  * 2026-07-15 18:46:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Initial: in-memory pumpkin projector "rooms" for the paired-remote topology (mirrors the Jarvis TV-room pattern). A projector registers a room + gets a pairing token; a phone/control remote lists the owner's rooms and pushes speak/preset/mode events, which fan out to the room's live SSE listeners. TTL-swept (pairing-style volatility) and strictly scoped by OIDC sub.
  * 2026-08-01 12:00:00 | roger.murphy@emeraldcoastsystemsgroup.com   | Swarm-driveable + truthful counts. (1) pushTrusted(): a TOKEN-FREE delivery path for the service-secret door — the 18-byte pairing token is minted at register() and only ever returned to the registering BROWSER, so no bot could ever obtain it and nothing in the swarm could make the prop speak. The browser path (push) keeps the constant-time token compare UNCHANGED and forever: the token is what stops a second signed-in tab, a stale device, or an XSS'd page under the same account from seizing a screen. (2) One fanout() delivery implementation that PRUNES listeners that throw or return false — res.write() on a destroyed socket does not throw synchronously in Node, so dead SSE connections were never removed and push() reported an inflated count ("spoken on 2 screens" with one screen dark). (3) ROOM_MAX_IDLE_MS hard ceiling + a background sweep timer: sweep() previously ran ONLY from register()/list(), and a half-open socket pinned a room and its token for the whole process lifetime. (4) list() now reports listeners so a caller can tell "registered" from "actually watching". (5) resolveSpeakTargets(): headless room resolution that never guesses and never silently succeeds. (6) roomSlug is now exported and trims dashes AFTER the length slice so slug(slug(x)) === slug(x) — three surfaces derive this key independently.
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | A POLL transport beside SSE. The native kernel's bridge response buffers the whole body and has no writeHead, so GET /stream answered 500 on every try and a projector there never received a line. A room now keeps a short numbered event log for its pollers: poll() marks a screen as watching, returns the events after its cursor, and a screen that polled within POLL_LIVE_MS counts as a listener in fanout(), list() and the sweep, so "spoken on N screens" and the swarm door's projector_not_listening stay true for a polling projector.
+ * 4                   | maintainer@emeraldcoastsystemsgroup.com     | RP-PUMP-01: add the {type:'stop'} room event and tighten POLL_INTERVAL_MS to 250ms so a projector on either SSE or the native bridge halts mid-sentence inside 0.5s.
  */
 
 import crypto from 'crypto';
@@ -31,8 +32,8 @@ const SWEEP_INTERVAL_MS = 30 * 1000;
 /** A polling screen counts as watching while it polled this recently (the projector polls every POLL_INTERVAL_MS). */
 export const POLL_LIVE_MS = 10 * 1000;
 
-/** How often a projector on the poll transport asks for new events. */
-export const POLL_INTERVAL_MS = 1500;
+/** How often a projector on the poll transport asks for new events (250ms keeps stop latency well under 0.5s). */
+export const POLL_INTERVAL_MS = 250;
 
 /** Events a room keeps for its pollers; a screen further behind than this loses the oldest. */
 const POLL_LOG_MAX = 32;
@@ -49,6 +50,7 @@ export interface PumpkinPollResult {
 /** An event fanned out to a room's live projector listeners. */
 export type PumpkinEvent =
   | { type: 'speak'; say: string; expression: PumpkinExpression; intensity: number; voiceId?: string; rate?: number; mimic?: boolean }
+  | { type: 'stop' }
   | { type: 'preset'; name: string }
   | { type: 'mode'; mode: PumpkinMode }
   | { type: 'ping' }

@@ -1,7 +1,7 @@
 // Trusted JSON only. This file owns all text shaping and paragraph flow.
 #let data = json(sys.inputs.at("data"))
 #set document(title: data.at("title", default: "Publishing Studio"), author: "")
-#set page(width: data.width * 1pt, height: data.height * 1pt, margin: 0pt)
+#set page(width: data.width * 1pt, height: data.height * 1pt, margin: 0pt, fill: if data.at("transparent", default: false) { none } else { auto })
 #set text(font: "Libertinus Serif", fallback: false, lang: "en", hyphenate: false)
 #let colored(c) = rgb(..c)
 #let styled(run, paragraph) = {

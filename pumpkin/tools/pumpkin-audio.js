@@ -8,6 +8,7 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | Honor preset voiceId in browser fallback/demo speech. Match installed voices by name when possible and deterministically spread cloud-only voice names across the device's English voices instead of always using the computer default.
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | Unattended-night hardening — every change here closes a way the prop went silently, permanently dead. (a) onEnd is now GUARANTEED to fire exactly once on every path (a single idempotent end-gate, plus a duration-derived fallback timer because src.onended is not guaranteed and never arrives at all when the context is interrupted); previously a wedged utterance left _playing true forever, which pinned the mouth open AND made the caller's `speaking` check block listening for the rest of the night. (b) A suspended AudioContext no longer swallows the utterance: speak() awaits unlock() and routes to speechSynthesis (a more permissive autoplay policy) when the context is not actually running, and contextState() lets the projector show a tap-to-wake gate. (c) forceStop() gives the caller a way to un-wedge a stuck line. (d) startListening() stops any live recognizer first and no longer swallows a thrown rec.start() — the throw now reports recog_busy AND fires onEnd, because silently swallowing it left the caller's state machine believing the ear was open forever. Recognition error codes pass through raw so the caller can split "quiet porch" (no-speech) from "mic denied", `continuous` keeps one session alive across the silent gaps between trick-or-treaters, and stopListening() detaches the old recognizer's end/error handlers (keeping onresult, so a push-to-talk release still delivers its final transcript) to stop a torn-down recognizer re-arming a fresh one. (e) A small bounded cache of decoded audio makes the saved-line playlist replay instantly instead of paying a full synthesis round trip per tap. The /api/voice/synthesize and /api/voice/transcribe contracts are unchanged.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Ships in the pumpkin package's tools/ and is served at /api/pumpkin/assets/pumpkin-audio.js: the package surfaces loaded it from the framework's /pumpkin/ page directory, which the native kernel does not serve (404, then "window.PumpkinFace is not a constructor"). Content unchanged.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | RP-PUMP-01: guard speak() with a monotonic _speakSeq and Synthesis AbortController, arming the idempotent _endGate at turn entry so forceStop() aborts in-flight /api/voice/synthesize immediately, settles onEnd synchronously, and never falls through to browser speechSynthesis after Stop.
  */
 
 /* global window, document, navigator */
@@ -40,6 +41,8 @@
       this._done = null;         // the current utterance's idempotent end-gate
       this._endTimer = null;
       this._nudge = null;
+      this._speakSeq = 0;
+      this._synthAbort = null;
       this._buffers = new Map(); // decoded audio, keyed by voice+rate+line
     }
 
@@ -107,6 +110,11 @@
      * @returns {void}
      */
     forceStop() {
+      this._speakSeq += 1;
+      if (this._synthAbort) {
+        try { this._synthAbort.abort(); } catch (e) { /* already settled */ }
+        this._synthAbort = null;
+      }
       try { if (this._active && typeof this._active.stop === 'function') this._active.stop(); }
       catch (e) { /* already stopped */ }
       try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
@@ -142,31 +150,54 @@
       cb = cb || {};
       const line = String(text || '').trim();
       if (!line) { if (cb.onEnd) cb.onEnd(); return; }
+      const seq = ++this._speakSeq;
+      if (this._synthAbort) {
+        try { this._synthAbort.abort(); } catch (e) { /* noop */ }
+        this._synthAbort = null;
+      }
+      const done = this._endGate(cb);
+      this._done = done;
+      this._playing = true;
       await this.unlock();
+      if (seq !== this._speakSeq) return;
       // A suspended/absent context plays nothing and never fires onended. speechSynthesis has a more
       // permissive autoplay policy, so it is the honest path rather than a silent wedge.
       if (cb.browserOnly === true || this.contextState() !== 'running') {
-        this._speakBrowser(line, voice, cb);
+        this._speakBrowser(line, voice, cb, done);
         return;
       }
       const key = this._cacheKey(line, voice);
       const cached = this._buffers.get(key);
-      if (cached) { this._playBuffer(cached, voice, cb); return; }
+      if (cached) { this._playBuffer(cached, voice, cb, done); return; }
+      const Ctrl = window.AbortController;
+      const ctrl = typeof Ctrl === 'function' ? new Ctrl() : null;
+      this._synthAbort = ctrl;
       try {
         const r = await fetch(this.apiBase + '/api/voice/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
+          signal: ctrl ? ctrl.signal : undefined,
           body: JSON.stringify({ text: line, voice: (voice && voice.voiceId) || undefined }),
         });
+        if (seq !== this._speakSeq) return;
         const j = await r.json().catch(() => ({}));
+        if (seq !== this._speakSeq) return;
         const data = j && j.data;
         if (data && data.audioData && this.ctx) {
           const decoded = await this._decode(b64ToArrayBuffer(data.audioData));
-          if (decoded) { this._remember(key, decoded); this._playBuffer(decoded, voice, cb); return; }
+          if (seq !== this._speakSeq) return;
+          if (decoded) {
+            if (this._synthAbort === ctrl) this._synthAbort = null;
+            this._remember(key, decoded);
+            this._playBuffer(decoded, voice, cb, done);
+            return;
+          }
         }
-      } catch (e) { /* fall through to browser TTS */ }
-      this._speakBrowser(line, voice, cb);
+      } catch (e) { /* fall through to browser TTS unless stopped */ }
+      if (this._synthAbort === ctrl) this._synthAbort = null;
+      if (seq !== this._speakSeq) return;
+      this._speakBrowser(line, voice, cb, done);
     }
 
     /** Decode synthesized bytes; null (not a throw) when the codec is unusable, so speak() can fall back. */
@@ -176,7 +207,7 @@
     }
 
     /** Play a decoded buffer through an AnalyserNode, emitting RMS as the lip-sync level. */
-    _playBuffer(audioBuf, voice, cb) {
+    _playBuffer(audioBuf, voice, cb, existingDone) {
       const src = this.ctx.createBufferSource();
       src.buffer = audioBuf;
       const rate = voice && voice.rate ? Math.max(0.5, Math.min(2, voice.rate)) : 1;
@@ -188,7 +219,7 @@
       analyser.connect(this.ctx.destination);
       this._playing = true;
       this._active = src;
-      const done = this._endGate(cb);
+      const done = existingDone || this._endGate(cb);
       this._done = done;
       if (cb.onStart) cb.onStart();
       const tick = () => {
@@ -210,14 +241,14 @@
     }
 
     /** Browser speechSynthesis fallback — pulse the mouth on word boundaries. */
-    _speakBrowser(text, voice, cb) {
-      if (!('speechSynthesis' in window) || !text) { if (cb.onEnd) cb.onEnd(); return; }
+    _speakBrowser(text, voice, cb, existingDone) {
+      const done = existingDone || this._endGate(cb);
+      if (!('speechSynthesis' in window) || !text) { done(); return; }
       const u = new window.SpeechSynthesisUtterance(text);
       if (voice && voice.rate) u.rate = Math.max(0.5, Math.min(2, voice.rate));
       this._chooseBrowserVoice(u, voice);
       this._playing = true;
       this._active = u;
-      const done = this._endGate(cb);
       this._done = done;
       if (cb.onStart) cb.onStart();
       let decay = null;

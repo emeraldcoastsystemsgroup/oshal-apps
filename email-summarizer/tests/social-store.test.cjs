@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Social desk's tables on a disposable PostgreSQL with the declared migration and forced owner row security: a post is stored, listed, read by key, edited and deleted; the due read returns only scheduled posts whose time has come; settings default and then save (a duplicate insert is a skip); an event stores and deleting it removes its unsent announcements and keeps the sent ones; and one person never reads another's posts, settings or events. The migration is idempotent and its SQL holds no ON CONFLICT, ORDER BY or DISTINCT.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Cover owner-scoped readEvent and updateEvent on oshal_email_social_events under forced row security.
  */
 'use strict';
 const test = require('node:test');
@@ -100,14 +101,21 @@ test('settings default, then save and update; a duplicate insert is a skip', asy
   assert.equal((await store.readSettings(db.bob, 'bob')).saved, false, 'bob has his own');
 });
 
-test('events: store, list, and deleting one removes its unsent announcements only', async (t) => {
+test('events: store, read, edit, list, and deleting one removes its unsent announcements only', async (t) => {
   const db = await database(t);
   const start = new Date(Date.now() + 7200000).toISOString();
+  const nextStart = new Date(Date.now() + 10800000).toISOString();
   await store.insertEvent(db.alice, 'alice', { id: 'e1', title: 'Build night', startAt: start, destinations: ['youtube', 'twitch'], watchUrl: 'https://yt/x' });
   await store.insertPost(db.alice, 'alice', { id: 'a1', status: 'sent', text: 'announce', channels: ['x'], eventId: 'e1' });
   await store.insertPost(db.alice, 'alice', { id: 'a2', status: 'scheduled', text: 'soon', channels: ['x'], eventId: 'e1', scheduledAt: start });
+  assert.equal((await store.readEvent(db.alice, 'alice', 'e1')).title, 'Build night');
+  assert.equal(await store.readEvent(db.bob, 'bob', 'e1'), null, 'bob cannot read alice event');
+  assert.equal(await store.updateEvent(db.bob, 'bob', 'e1', { title: 'Forged' }), false, 'bob cannot edit alice event');
+  assert.equal(await store.updateEvent(db.alice, 'alice', 'e1', { title: 'Saturday build night', startAt: nextStart, destinations: ['twitch'], watchUrl: 'https://twitch.tv/alice' }), true);
+  const updated = await store.readEvent(db.alice, 'alice', 'e1');
+  assert.deepEqual([updated.title, updated.startAt, updated.destinations, updated.watchUrl], ['Saturday build night', nextStart, ['twitch'], 'https://twitch.tv/alice']);
   const events = await store.listEvents(db.alice, 'alice');
-  assert.deepEqual(events.map((e) => [e.id, e.title, e.destinations]), [['e1', 'Build night', ['youtube', 'twitch']]]);
+  assert.deepEqual(events.map((e) => [e.id, e.title, e.destinations]), [['e1', 'Saturday build night', ['twitch']]]);
   assert.deepEqual(await store.listEvents(db.bob, 'bob'), []);
   assert.equal(await store.deleteEvent(db.bob, 'bob', 'e1'), false);
   assert.equal(await store.deleteEvent(db.alice, 'alice', 'e1'), true);

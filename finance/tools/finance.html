@@ -22,11 +22,20 @@
   money-sending form is withheld: POST /pay takes only a typed payment-method id and no route lists the person's own
   payment methods, so it cannot offer a funding-source select (and no installation has a payment rail today).
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Finance</title>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                  | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 dashboard contract, solid button states, and tabular figures.
+-->
+
+<script>try{if(window.parent!==window)document.documentElement.classList.add('in-shell');}catch(_){document.documentElement.classList.add('in-shell');}</script>
 <!-- Framework theme tokens + the bootstrap that picks the operator's theme (and follows it live).
      Theme files scope to [data-theme="…"] with NO :root fallback, so the default on <html> above
      matters — without it the surface would have no colors at all. -->
@@ -127,49 +136,54 @@
     --danger: var(--status-error, #ff8b8b);
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  .page { max-width:880px; margin:0 auto; padding:30px 24px 70px; }
-  .head { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
-  h1 { font-size:23px; margin:0; }
-  .badge { font-size:20px; }
-  .sub { color:var(--muted); font-size:13px; margin-bottom:22px; line-height:1.5; }
+  html, body { overscroll-behavior:contain; min-height:100dvh; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; font-size:15px; line-height:22px; background:var(--bg); color:var(--text); }
+  .page { max-width:880px; margin:0 auto; padding:16px 24px 70px; }
+  .head { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  html.in-shell .head .badge, html.in-shell .head h1 { display:none; }
+  html.in-shell .head:has(#actions[style*="none"]) { display:none; }
+  .connected-app-actions:empty { display:none !important; }
+  h1 { font-size:24px; line-height:32px; margin:0; }
+  .badge { font-size:18px; line-height:24px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:16px; line-height:20px; }
   .actions { margin-left:auto; display:flex; gap:8px; }
-  .btn { border:none; border-radius:8px; padding:9px 15px; cursor:pointer; font-size:13px; font-weight:600; }
-  .btn.primary { background:var(--accent); color:#04190e; }
-  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
-  .btn:disabled { opacity:.5; cursor:default; }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:16px; }
-  .panel h2 { font-size:16px; margin:0 0 10px; }
+  .btn { border:1px solid transparent; border-radius:10px; padding:0 16px; min-height:44px; cursor:pointer; font-size:15px; line-height:22px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; }
+  .btn.primary { background:var(--ds-accent, var(--accent)); border-color:var(--ds-accent, var(--accent)); color:var(--ds-on-accent, var(--text-on-accent, #ffffff)); }
+  .btn.ghost { background:var(--ds-surface-2, var(--panel2)); border:1px solid var(--ds-line-control, var(--line)); color:var(--text); }
+  .btn.danger { background:var(--danger); border-color:var(--danger); color:var(--ds-on-accent, var(--text-on-accent, #ffffff)); }
+  .btn:disabled { opacity:1; background:var(--ds-surface-2, var(--panel2)); border-color:var(--line); color:var(--ds-ink-disabled, var(--muted)); cursor:default; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px; }
+  .panel h2 { font-size:18px; line-height:24px; margin:0 0 10px; }
   .stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
-  .stat { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:11px 15px; min-width:120px; }
-  .stat .n { font-size:21px; font-weight:700; color:var(--accent); }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 16px; min-width:120px; }
+  .stat .n { font-size:24px; line-height:32px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; }
   .stat .n.neg { color:var(--danger); }
-  .stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th { text-align:left; color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.4px; padding:6px 8px; border-bottom:1px solid var(--line); }
-  td { padding:7px 8px; border-bottom:1px solid var(--line); }
+  .stat .l { font-size:12px; line-height:16px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; line-height:20px; }
+  th { text-align:left; color:var(--muted); font-weight:600; font-size:12px; line-height:16px; text-transform:uppercase; letter-spacing:.4px; padding:6px 8px; border-bottom:1px solid var(--line); }
+  td { padding:8px; border-bottom:1px solid var(--line); }
   td.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .chip { display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line); border-radius:20px; padding:5px 12px; font-size:12px; margin:0 6px 6px 0; }
-  .chip button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; line-height:1; }
-  .brief h2 { color:var(--accent2); font-size:15px; border-bottom:1px solid var(--line); padding-bottom:6px; margin:20px 0 10px; }
-  .brief h3 { font-size:14px; margin:14px 0 6px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; background:var(--panel2); border:1px solid var(--line); border-radius:20px; padding:5px 12px; font-size:12px; line-height:16px; margin:0 6px 6px 0; }
+  .chip button { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; line-height:1; }
+  .brief h2 { color:var(--accent2); font-size:15px; line-height:22px; border-bottom:1px solid var(--line); padding-bottom:6px; margin:20px 0 10px; }
+  .brief h3 { font-size:14px; line-height:20px; margin:14px 0 6px; }
   .brief ul { margin:6px 0; padding-left:20px; }
-  .brief li { font-size:14px; line-height:1.6; margin:3px 0; }
-  .brief p { font-size:14px; line-height:1.65; color:var(--text-secondary, #dcebe1); }
+  .brief li { font-size:14px; line-height:22px; margin:3px 0; }
+  .brief p { font-size:14px; line-height:22px; color:var(--text-secondary, #dcebe1); }
   .brief strong { color:var(--text); }
-  .notice { color:var(--muted); padding:24px 0; text-align:center; font-size:14px; }
+  .notice { color:var(--muted); padding:24px 0; text-align:center; font-size:14px; line-height:20px; }
   .err { color:var(--danger); }
-  .spin { color:var(--muted); font-size:14px; padding:28px 0; text-align:center; }
-  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); animation:p 1s infinite; }
+  .spin { color:var(--muted); font-size:14px; line-height:20px; padding:24px 0; text-align:center; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:6px; background:var(--accent); animation:p 1s infinite; }
   @keyframes p { 0%,100%{opacity:.3} 50%{opacity:1} }
-  .foot { color:var(--muted); font-size:11px; margin-top:8px; }
+  .foot { color:var(--muted); font-size:12px; line-height:16px; margin-top:8px; }
   .acct-inst-line { display:none; }
   .synced { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-  .icon-btn { min-width:36px; min-height:36px; border-radius:8px; border:1px solid var(--line); background:var(--panel2); color:var(--text); cursor:pointer; font-size:16px; line-height:1; }
-  .accounts-group { font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:14px 0 4px; display:flex; justify-content:space-between; }
+  .icon-btn { min-width:44px; min-height:44px; border-radius:10px; border:1px solid var(--ds-line-control, var(--line)); background:var(--ds-surface-2, var(--panel2)); color:var(--text); cursor:pointer; font-size:16px; line-height:1; }
+  .accounts-group { font-size:14px; line-height:20px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin:14px 0 4px; display:flex; justify-content:space-between; }
   .accounts-group:first-of-type { margin-top:4px; }
   td.num.owed { color:var(--danger); }
-  th .ks-sort { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:5px; font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; }
+  th .ks-sort { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:5px; min-height:44px; font:inherit; color:inherit; letter-spacing:inherit; text-transform:inherit; }
   th[aria-sort] .ks-sort { color:var(--accent); }
   .cols { display:block; }
   @media (min-width:1040px) {
@@ -177,10 +191,10 @@
     .cols { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:16px; align-items:start; }
   }
   @media (max-width:640px) {
-    .page { padding:16px 12px 50px; }
+    .page { padding:12px 12px 50px; }
     .head { flex-wrap:wrap; gap:8px; }
     .actions { margin-left:0; width:100%; justify-content:flex-start; }
-    .btn { padding:10px 14px; font-size:14px; min-height:44px; }
+    .btn { padding:0 14px; font-size:15px; min-height:44px; }
     .icon-btn { min-width:44px; min-height:44px; }
     .stat { min-width:calc(50% - 5px); flex:1 1 calc(50% - 5px); }
     /* Tables: allow horizontal scroll so they never overflow the viewport */
@@ -189,11 +203,11 @@
     /* Accounts: the Institution column folds under the account name so Balance fits a 412 px screen. */
     table.accounts { min-width:0; }
     table.accounts .acct-inst { display:none; }
-    table.accounts .acct-inst-line { display:block; color:var(--muted); font-size:11px; }
+    table.accounts .acct-inst-line { display:block; color:var(--muted); font-size:12px; line-height:16px; }
     table.accounts td.num { white-space:nowrap; }
     /* Inputs: keep font-size >= 16px to prevent iOS zoom */
     input { font-size:16px !important; }
-    .sub { font-size:13px; }
+    .sub { font-size:14px; }
   }
 </style>
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
@@ -218,7 +232,7 @@
     <p id="reviewStatus" role="status"></p><div class="brief" id="reviewResult"></div>
   </section>
   <section class="panel connected-app-actions" aria-label="Connected application actions" style="display:flex;gap:12px;flex-wrap:wrap"></section>
-  <div id="main"><div class="spin"><span class="dot"></span> Loading…</div></div>
+  <div id="main" data-ds-work><div class="spin"><span class="dot"></span> Loading…</div></div>
 </div>
 
 <!-- Plaid Link (loaded lazily only when the user clicks Connect a bank). -->
@@ -274,11 +288,11 @@ function renderConnect(status) {
   main.innerHTML = `
     <div class="panel">
       <h2>Connect a bank or brokerage</h2>
-      <div class="sub" style="margin-bottom:16px">Linking is handled by Plaid — OSHAL never sees your bank password. We read balances, holdings, and transactions only. ${status.configured ? '' : '<span class="err">Bank linking is not set up on this installation yet, so no bank can be connected here.</span>'}</div>
-      <button class="btn primary" id="connectBtn" ${status.configured ? '' : 'disabled'}>Connect a bank / brokerage</button>
-      ${demo ? '<button class="btn ghost" id="demoBtn" ' + (status.configured ? '' : 'disabled') + '>Demo-connect (Sandbox)</button>' : ''}
-      <div id="cmsg" style="margin-top:14px;font-size:13px;"></div>
-      <div class="foot">Environment: ${escapeHtml(status.env)}. ${demo && status.configured ? 'This installation uses Plaid Sandbox: Demo-connect links a test bank with no real account, and in Connect a bank you pick any bank and sign in with user_good / pass_good. Real banks need Plaid production keys.' : ''}</div>
+      <div class="sub" style="margin-bottom:16px">Plaid links read-only balances, holdings, and transactions. ${status.configured ? '' : '<span class="err">Bank linking is not set up on this installation yet.</span>'}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="connectBtn" ${status.configured ? '' : 'disabled'}>Connect a bank / brokerage</button>
+      ${demo ? '<button class="btn ghost" id="demoBtn" ' + (status.configured ? '' : 'disabled') + '>Demo-connect (Sandbox)</button>' : ''}</div>
+      <div id="cmsg" style="margin-top:14px;font-size:14px;"></div>
+      <div class="foot">Environment: ${escapeHtml(status.env)}. ${demo && status.configured ? 'This installation uses Plaid Sandbox (test credentials: user_good / pass_good).' : ''}</div>
     </div>`;
   $('connectBtn').onclick = startLink;
   if (demo) $('demoBtn').onclick = demoConnect;
@@ -338,16 +352,20 @@ async function loadLinks() {
   host.querySelectorAll('button[data-item]').forEach((b) => { b.onclick = () => disconnect(b.dataset.item, b.dataset.name); });
 }
 
-/** Disconnect one institution at Plaid, then re-sync what remains (or return to the connect screen). */
-async function disconnect(itemId, name) {
-  if (!confirm(`Disconnect ${name}? Plaid stops sharing its data with Finance and its figures leave your overview.`)) return;
+/** Disconnect one institution at Plaid, asking in the page first (DS-30: never window.confirm), then re-sync what remains. */
+function disconnect(itemId, name) {
   const msg = linkMsg();
-  msg.className = ''; msg.style.color = 'var(--muted)'; msg.innerHTML = '<span class="dot"></span> Disconnecting…';
-  try {
-    const r = await api('/items/' + encodeURIComponent(itemId), { method: 'DELETE' });
-    if (r.remaining > 0) await doSync();
-    else renderConnect(await api('/status'));
-  } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+  msg.className = ''; msg.style.color = 'var(--text)';
+  msg.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>Disconnect ${escapeHtml(name)}? Plaid stops sharing its data with Finance.</span><button class="btn danger" id="discYes" type="button">Disconnect</button><button class="btn ghost" id="discNo" type="button">Cancel</button></div>`;
+  $('discNo').onclick = () => { msg.innerHTML = ''; };
+  $('discYes').onclick = async () => {
+    msg.style.color = 'var(--muted)'; msg.innerHTML = '<span class="dot"></span> Disconnecting…';
+    try {
+      const r = await api('/items/' + encodeURIComponent(itemId), { method: 'DELETE' });
+      if (r.remaining > 0) await doSync();
+      else renderConnect(await api('/status'));
+    } catch (e) { msg.className = 'err'; msg.textContent = e.message; }
+  };
 }
 
 /** Sandbox demo connect — no widget, no real bank. */
@@ -404,6 +422,7 @@ async function renderDashboard(freshBrief) {
       <div>${a.holdings.length ? renderHoldings(a, cur) : ''}${a.topSpending.length ? renderSpending(a, cur) : ''}</div>
     </div>`;
   $('syncIcon').onclick = doSync;
+  window.KernelTable?.enhance(main);
   loadBrief(freshBrief);
 }
 
@@ -427,6 +446,7 @@ async function loadPayHistory() {
   try { hist = await api('/payments'); } catch (e) { /* history optional */ }
   const rows = renderPayHistory(hist.payments || []);
   host.innerHTML = rows ? `<div class="panel">${rows}</div>` : '';
+  window.KernelTable?.enhance(host);
 }
 
 function renderPayHistory(payments) {

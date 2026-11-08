@@ -136,6 +136,70 @@ bindings:
     path: /_smoke
     allOf:
     - app.open
+  - id: studio-rp-module
+    method: GET
+    path: /creative-studio-rp.mjs
+    allOf:
+    - app.open
+  - id: source-comments-list
+    method: GET
+    path: /source-projects/:id/comments
+    allOf:
+    - app.open
+    - source.read
+  - id: source-comments-create
+    method: POST
+    path: /source-projects/:id/comments
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: source-comments-resolve
+    method: POST
+    path: /source-projects/:id/comments/:commentId/resolve
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: source-builds-list
+    method: GET
+    path: /source-projects/:id/builds
+    allOf:
+    - app.open
+    - source.read
+  - id: source-builds-create
+    method: POST
+    path: /source-projects/:id/builds
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: source-builds-download
+    method: GET
+    path: /source-projects/:id/builds/:buildId/video.mp4
+    allOf:
+    - app.open
+    - source.read
+  - id: studio-schedules-list
+    method: GET
+    path: /schedules
+    allOf:
+    - app.open
+    - source.read
+  - id: studio-schedules-create
+    method: POST
+    path: /schedules
+    allOf:
+    - app.open
+    - source.read
+    - source.change
+  - id: studio-schedules-cancel
+    method: POST
+    path: /schedules/:scheduleId/cancel
+    allOf:
+    - app.open
+    - source.read
+    - source.change
   tools:
   - id: creative-studio-source-list
     allOf:

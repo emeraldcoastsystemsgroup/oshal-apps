@@ -1,4 +1,11 @@
-/** Source-role boundary checks. Actual package guards use an explicit named-decision port; no native grant, SQL, engine or provider proof. */
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Source-role boundary checks. Actual package guards use an explicit named-decision port; no native grant, SQL, engine or provider proof.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: verify dataset-upload remains bound to lora.configure and denied to source-editor.
+ */
 import test from 'node:test';import assert from 'node:assert/strict';
 import{readFileSync}from'node:fs';import{createRequire}from'node:module';
 const require=createRequire(new URL('../../scripts/toolchain/package.json',import.meta.url)),yaml=require('js-yaml');
@@ -21,5 +28,5 @@ test('training, callback release and autonomous opt-in retain execute; editor me
 test('actual LoRA access guard accepts current source configuration and freshly denies execution/revocation',async()=>{const Module=(await import('node:module')).default,old=Module._load,express=require('express');let editor;Module._load=function(name,parent,...rest){if(name==='express')return express;if(name==='@/shared/logger')return{createChildLogger:()=>({info(){},warn(){},error(){},debug(){}})};if(name==='@/shared/services/database/request-identity')return{runWithRequestIdentity:()=>{throw Error('No SQL/worker port in this authorization test');}};if(name==='@/app/routes/remote-client-routes')return{remoteClientRegistry:{listClients(){throw Error('No worker dispatch permitted');},enqueueTask(){throw Error('No worker dispatch permitted');}}};return old.call(this,name,parent,...rest);};try{editor=createRequire(import.meta.url)('../routes/lora-caption-editor.js');}finally{Module._load=old;}const p=port();await editor.editorAccess(p.ctx,'lora.source.change');await assert.rejects(editor.editorAccess(p.ctx,'lora.execute'),{status:403});p.revoke();await assert.rejects(editor.editorAccess(p.ctx,'lora.source.change'),{status:403});});
 
 test('source role cannot borrow the broad lora.configure authority',()=>{assert.equal(grants.has('lora.configure'),false);assert.equal(grants.has('lora.source.change'),true);
- for(const id of ["dataset-import", "active-version", "model-delete", "autonomous", "train"]){assert.equal(allowed(catalog.bindings.http.find(b=>b.id===id)),false,id);}
+ for(const id of ["dataset-import", "dataset-upload", "active-version", "model-delete", "autonomous", "train"]){assert.equal(allowed(catalog.bindings.http.find(b=>b.id===id)),false,id);}
 });

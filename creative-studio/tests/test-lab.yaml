@@ -165,7 +165,7 @@ cases:
       - With no render computer online a Render press says why and sends no render request.
       - The More menu, a scene's row menu and a phone pane close on the browser's Back and stay in the app.
       - Replacing an unsaved brief asks in the page; no native alert, confirm or prompt opens.
-      - Each planned control is aria-disabled, says Not available yet, carries its backlog id and sends nothing when pressed.
+      - Zero RP-CRS planned placeholders remain; Templates, Brand kit, Comment, Build, Resize, Schedule and Trim & split are live.
       - At 412x915 with touch every button keeps its label on one line and hugs it at 44px, 16px, weight 600 and radius 10, the one primary included; Undo, Redo and More have no fill or edge.
       - At 1440x900 the app row is a 36px toolbar at 15px, content buttons are 44px at 15px with Refresh evidence on one line, and a saved source project is a list row.
       - At 1080x800, where the Saved pane is 180px, every page button keeps one line and stays inside its pane.
@@ -189,4 +189,24 @@ cases:
     sideEffects: none
     isolation: {mode: none}
     limits: {timeoutMs: 15000}
+    installation: never
+
+  - id: creative-studio-rp-enhancements
+    name: Creative Studio 1.5.0 storyboard templates, MP4 builds, comments and schedules
+    purpose: >-
+      Exercise RP-CRS-01..07 end to end against disposable PostgreSQL 16 with forced owner RLS, real FFmpeg/ffprobe
+      H.264 MP4 rendering in OSHAL_PACKAGE_DATA_DIR, and real Chromium over the shipped Creative Studio review page.
+    level: browser
+    runner: {kind: node-test, scope: package, files: [tests/creative-studio-rp-enhancements.test.mjs]}
+    expected:
+      - Starter templates load editable briefs and scenes; resize, brand kit, trim and split persist across revisions.
+      - Storyboard builds render real H.264 MP4s verified by SHA-256 and ffprobe and are purged when a project is deleted.
+      - Comments enforce one reply level and owner RLS; publication schedules require explicit approval and cancel cleanly.
+    prerequisites: [runner:node, browser:chromium, runtime:canonical-store-toolchain, service:docker-local-postgres16, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/fixtures/editor-source-postgres.fixture.mjs]
+      cleanup: Close Chromium, servers, pools, disposable container and temporary package data directory.
+    limits: {timeoutMs: 180000, maxMemoryMb: 2048}
     installation: never

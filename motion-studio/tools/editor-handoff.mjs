@@ -1,8 +1,9 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Retain native inspector drafts by document/selection, collect their existing submit actions for automatic saves, and track original asynchronous work without adding another edit model.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Keep repeated color/vector control names distinct within one native inspector.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-02: retain composition motion-blur drafts alongside work-area and layer inspector drafts.
  */
-const forms = ['layerSettings','layerTiming','workArea','transform','sceneProperties','textEdit','effectParams','editKey','maskSettings','maskVertex','editFeather'];
+const forms = ['layerSettings','layerTiming','workArea','compMotionBlur','transform','sceneProperties','textEdit','effectParams','editKey','maskSettings','maskVertex','editFeather'];
 const fieldValue = field => field.type === 'checkbox' || field.type === 'radio' ? field.checked : field.value;
 const usable = field => ['INPUT','SELECT','TEXTAREA'].includes(field.tagName) && !['file','submit','button','reset','hidden'].includes(field.type) && !field.dataset.inspection;
 const fields = form => [...(form?.elements ?? [])].filter(usable);

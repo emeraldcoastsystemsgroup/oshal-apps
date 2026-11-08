@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Regression guard for phone-control--phone-control-config (MERGE), phone-control--phone-control-execution (FIX-LAYOUT), real UxPlay AirPlay mirroring (replacing RP-PHC-14), and explicit Bluetooth peripheral pairing direction.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: verify zero data-ds-not-yet / data-ds-backlog placeholders remain and all 13 Reference-Product session controls (RP-PHC-01..13) are wired inside #sessionSheet ahead of #endSessionBtn.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: verify AI Office-aligned 340px Controls | Concierge right rail and SVG-icon studio #sessionMirrorBtn label contract.
  */
 'use strict';
 
@@ -99,7 +100,7 @@ test('Connect sheet orders Set up this computer before Pair an Android phone, hi
   assert.equal(sandbox.fn('Linux x86_64'), 'Download oshal Node for Linux, macOS or Windows');
 });
 
-test('session view separates Android bottom bar, 48px Session sheet handle, ships all 13 session controls with zero planned placeholders, End session last, and desktop 320px pane', () => {
+test('session view separates Android bottom bar, 48px Session sheet handle, ships all 13 session controls with zero planned placeholders, End session last, and desktop 340px pane', () => {
   const html = stripComments(read('tools/phone-control.html'));
   const css = read('tools/phone-control.css');
   const controller = read('tools/phone-control.js');
@@ -115,7 +116,7 @@ test('session view separates Android bottom bar, 48px Session sheet handle, ship
   assert.match(html, /id="sessionHandleBtn"[^>]*aria-controls="sessionSheet"/);
   assert.match(css, /\.pc-session-handle\s*\{[^}]*width:\s*48px;\s*height:\s*48px/);
   assert.match(css, /\.pc-stage\s*\{[^}]*min-height:\s*90%/);
-  assert.match(css, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s*380px/);
+  assert.match(css, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s*340px/);
   assert.doesNotMatch(css, /border-style:\s*dashed/);
 
   assert.doesNotMatch(html, /data-ds-not-yet|data-ds-backlog|RP-PHC-/, 'zero planned placeholders remain');
@@ -139,7 +140,7 @@ test('iPhone card ships real Start mirroring replacing RP-PHC-14, explicit Bluet
   const html = stripComments(read('tools/phone-control.html'));
   assert.doesNotMatch(html, /RP-PHC-14/, 'RP-PHC-14 is shipped as real AirPlay mirroring');
   assert.match(html, /id="toggleMirrorSetup"[^>]*>Start mirroring<\/button>/);
-  assert.match(html, /id="sessionMirrorBtn"[^>]*>Start mirroring<\/button>/);
+  assert.match(html, /id="sessionMirrorBtn"[^>]*>(?:<svg[\s\S]*?<\/svg>)?<span id="sessionMirrorLabel">Start mirroring<\/span><\/button>/);
   assert.match(html, /Bluetooth keyboard peripheral[\s\S]*Settings → Bluetooth → OSHAL-KB/);
   for (const file of [
     'oshal-app.yaml', 'README.md', 'personas/device-concierge.yaml',

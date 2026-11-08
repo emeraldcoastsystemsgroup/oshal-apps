@@ -4,7 +4,7 @@
 
 Postgres database `oshal`, schema `public` - shared with the platform and every other installed package. 4 tables in the reference database.
 
-**Migrations:** `migrations/001-email-mail-store.sql`, `migrations/002-email-social-desk.sql` (declared in `oshal-app.yaml`).
+**Migrations:** `migrations/001-email-mail-store.sql`, `migrations/002-email-social-desk.sql`, `migrations/003-email-digests.sql`, `migrations/004-email-sync-gap.sql`, `migrations/005-email-watches.sql` (declared in `oshal-app.yaml`).
 
 **Created at runtime by package code** (`CREATE TABLE IF NOT EXISTS`): `routes/email-app-routes.js`, `src-routes/email-app-routes.ts`
 
@@ -29,6 +29,14 @@ erDiagram
   }
   oshal_email_social_events {
     text event_id PK
+    text user_sub "owner"
+  }
+  oshal_email_watches {
+    text watch_key PK
+    text user_sub "owner"
+  }
+  oshal_email_watch_hits {
+    text hit_key PK
     text user_sub "owner"
   }
 ```
@@ -94,3 +102,42 @@ Defined in `migrations/002-email-social-desk.sql` · RLS **forced** - owner `use
 | `watch_url` | text | no | '' |  |
 | `status` | text | no | 'planned' |  |
 | `created_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_email_watches`
+
+Defined in `migrations/005-email-watches.sql` · RLS **forced** - owner `user_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `watch_key` | text | no |  | PK · `user_sub\|watch_id` |
+| `user_sub` | text | no |  | owner |
+| `watch_id` | text | no |  | slug (`totalconnect`, etc.) |
+| `label` | text | no | '' | human watch name |
+| `account_hint` | text | no | '' | monitored mailbox address hint |
+| `provider` | text | no | 'google' | mailbox provider |
+| `query` | text | no | '' | Gmail / stored-copy filter query |
+| `enabled` | boolean | no | true |  |
+| `last_checked_at` | timestamp with time zone | yes |  |  |
+| `last_hit_at` | timestamp with time zone | yes |  |  |
+| `last_hit_summary` | text | no | '' |  |
+| `hit_count` | integer | no | 0 |  |
+| `created_at` | timestamp with time zone | no | now() |  |
+| `updated_at` | timestamp with time zone | no | now() |  |
+
+### `oshal_email_watch_hits`
+
+Defined in `migrations/005-email-watches.sql` · RLS **forced** - owner `user_sub`
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `hit_key` | text | no |  | PK · `user_sub\|watch_id\|message_id` |
+| `user_sub` | text | no |  | owner |
+| `watch_id` | text | no |  |  |
+| `message_id` | text | no |  | Gmail message id |
+| `category` | text | no | 'activity' | alarm, trouble, disarmed, armed, sensor, activity |
+| `sender` | text | no | '' |  |
+| `subject` | text | no | '' |  |
+| `snippet` | text | no | '' |  |
+| `received_at` | timestamp with time zone | no |  |  |
+| `detected_at` | timestamp with time zone | no | now() |  |
+

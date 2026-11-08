@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.2.0 browser regression test: pressing Use this computer on not-connected, control-off and Windows rows answers in #computersStatus; pressing Connect while a step runs answers in #androidStatus; a 403 on /devices shows #notAllowed and hides the device views; a saved TV shows the TV remote and refuses touch taps with remote guidance.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: adapt for merged Connect sheet and full-frame session view, verify TV session remote and tap guidance, and verify iPhone Start mirroring / mirror-frame / Stop mirroring in Chromium.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: report 1.4.0 bridge status in mock runner.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: report 1.4.1 bridge status and verify compact TV remote visibility on Fire TV sessions.
  */
 'use strict';
 
@@ -88,7 +89,7 @@ function buildBridgeLine(cmd) {
   }
   if (cmd.includes(' adb-apps ')) return JSON.stringify({ ok: true, verb: 'adb-apps', apps: ['com.amazon.tv.launcher'] });
   return JSON.stringify({
-    ok: true, verb: 'status', version: '1.4.0', adb: { ready: true, version: '34.0.4', devices: [] },
+    ok: true, verb: 'status', version: '1.4.1', adb: { ready: true, version: '34.0.4', devices: [] },
     bluetooth: { ready: false, message: 'No Bluetooth adapter on this computer.' }, ble: null,
     mirror: { ready: true, version: '1.68.2', running: mode.mirrorRunning, receiverName: 'OSHAL Mirror (Spark)', hasFrame: false, message: 'AirPlay receiver ready' },
     ffmpeg: true, readAt: Date.now()
@@ -192,7 +193,7 @@ test('Use this computer explains disconnected, control-off and Windows rows, and
   await page.close();
 });
 
-test('non-admin 403 shows the not-available card, and an Android Fire TV session sits in the unified image stage without a remote overlay', async () => {
+test('non-admin 403 shows the not-available card, and an Android Fire TV session sits in the unified image stage with its compact TV remote', async () => {
   mode = { denyDevices: true, holdRun: null, mirrorRunning: false };
   const viewer = await browser.newPage({ viewport: { width: 412, height: 915 } });
   await viewer.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
@@ -212,8 +213,8 @@ test('non-admin 403 shows the not-available card, and an Android Fire TV session
     return img && !img.hidden && img.complete && img.getBoundingClientRect().height > 20;
   });
   assert.match(await admin.locator('#stageSub').textContent(), /TV over Wi-Fi · 1920×1080 · through Spark/);
-  assert.equal(await admin.locator('#tvRemote').isHidden(), true);
-  assert.equal(await admin.locator('#androidNavBar').isHidden(), false);
+  assert.equal(await admin.locator('#tvRemote').isHidden(), false);
+  assert.equal(await admin.locator('#androidNavBar').isHidden(), true);
   assert.equal(await admin.locator('#androidNavBar [data-key="RECENTS"]').isHidden(), true);
 
   await admin.locator('#sessionControlsBtn').click();

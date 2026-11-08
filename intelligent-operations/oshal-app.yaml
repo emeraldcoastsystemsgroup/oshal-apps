@@ -1,3 +1,4 @@
+# CHANGE LOG: 40 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Replay a sample adds isolated recorded-window replay (RP-OPS-01) and bounded CloudEvents/OTLP batch replay (RP-OPS-02) with sandbox run clean-up, and Git explorer adds verified HTTPS GitHub repository URL linking (RP-OPS-03); all ride existing route and asset bindings.
 # CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4, UX audit 2026-11-06 P1 (operations-commands): add a row ⋯ menu (Copy, Run again) on each recorded command history row.
 # CHANGE LOG: 38 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3, UX audit 2026-11-06 P1: Runbooks is its own screen (split from RCA library).
 # CHANGE LOG: 37 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2, UX audit 2026-11-06 P1: Topology is the Graph view of Systems (its tile leaves the rail), the imports move to Sources.
@@ -72,7 +73,7 @@ description: >-
   generated response (remediate.sh, verify.sh, rollback.md, verify.md) can be approved as exact
   artifacts for one exec on one observed pod through that same personal connection, then verified
   against a resolved signal before the canonical ticket is updated.
-version: 1.3.4
+version: 1.4.0
 status: active
 scope: public
 theme: light-blue

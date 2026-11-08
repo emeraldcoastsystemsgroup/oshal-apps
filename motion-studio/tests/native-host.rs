@@ -1,6 +1,7 @@
 //! CHANGE LOG
 //! 1 | maintainer@emeraldcoastsystemsgroup.com | Run Motion's exact native migration and SQL through genuine admitted kernel hosts on shared disposable PostgreSQL; identity/grant fixtures are explicit.
 //! 2 | maintainer@emeraldcoastsystemsgroup.com | Validate the extraction manifest, persona, native permission bindings and tool schemas through genuine kernel parsers before any database fixture starts.
+//! 3 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01: apply migrations/native/002-motion-media.sql alongside 001-motion.sql in the native SQL fixture host.
 use async_trait::async_trait;
 use control::{
     BudgetSource, ConfirmationToken, Confirmations, Credential, Entry, EntryKind, GrantSource,
@@ -178,16 +179,26 @@ async fn serve(dsn: &str) -> Result<(), Box<dyn std::error::Error>> {
         None,
     );
     let root = std::env::var("MOTION_PACKAGE_DIR")?;
-    let sql = std::fs::read_to_string(Path::new(&root).join("migrations/native/001-motion.sql"))?;
-    let digest = format!("{:x}", Sha256::digest(sql.as_bytes()));
-    let scripts = vec![MigrationScript {
-        id: "migrations/native/001-motion.sql".into(),
-        digest: digest.clone(),
-        sql,
-    }];
+    let sql_001 = std::fs::read_to_string(Path::new(&root).join("migrations/native/001-motion.sql"))?;
+    let digest_001 = format!("{:x}", Sha256::digest(sql_001.as_bytes()));
+    let sql_002 = std::fs::read_to_string(Path::new(&root).join("migrations/native/002-motion-media.sql"))?;
+    let digest_002 = format!("{:x}", Sha256::digest(sql_002.as_bytes()));
+    let combined_digest = format!("{:x}", Sha256::digest(format!("{digest_001}:{digest_002}").as_bytes()));
+    let scripts = vec![
+        MigrationScript {
+            id: "migrations/native/001-motion.sql".into(),
+            digest: digest_001,
+            sql: sql_001,
+        },
+        MigrationScript {
+            id: "migrations/native/002-motion-media.sql".into(),
+            digest: digest_002,
+            sql: sql_002,
+        },
+    ];
     let source = ExecutionSource {
         package,
-        contract_revision: digest,
+        contract_revision: combined_digest,
     };
     emit(json!({"ready":true,"principals":principals}));
     for line in io::stdin().lock().lines() {

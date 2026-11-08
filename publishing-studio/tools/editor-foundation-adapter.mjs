@@ -4,6 +4,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard (docs/ux/design-standard.md §3, §4, §5.1; CONVENTIONS §5.5): the shared editor carries Publishing's own screen (publishing-shell.mjs) instead of the start card and the Navigation / Properties / Concierge band: one app row, one tool row, sheets on a phone and the Pages | canvas | Properties·Concierge panes on a desktop. The typed inspector moves into the Arrange section, and for a text frame it shows geometry only (its story is edited in the Text sheet), so there is one inspector.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.6, phones (Roger, trial.oswarm.ai, 2026-11-06, F6, and the trial check: no visible first action, a two-row toolbar, two empty-looking boxes): with no publication open the empty state's one primary action is New publication (the rail's own Create publication form, its defaults), with Your publications as a text link; the dead document buttons, the history and the empty-page text wait until a publication is open; the first pane is named Publications.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: the planned-control helper is optional: a platform without it opens the studio without its placeholders.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: forward board decoration and document-open hooks from the publishing shell (RP-PUB-06, RP-PUB-08).
  */
 const geometry = ['x', 'y', 'width', 'height'];
 const textOf = paragraph => paragraph?.runs?.map(run => run.text).join('') ?? '';
@@ -110,11 +111,12 @@ export async function bindPublishingFoundation(adapter) {
   // The typed inspector is the Arrange section's (one inspector, not a second geometry form).
   document.getElementById('pub-arrange-host').append(root.querySelector('.ef-common-properties'));
   const shell = createPublishingShell(adapter, {foundation, assistant, plannedControl});
-  Object.assign(adapter.ui, {confirm: shell.confirm, float: shell.float, painted: shell.painted, placed: shell.placed});
+  Object.assign(adapter.ui, {confirm: shell.confirm, float: shell.float, painted: shell.painted, placed: shell.placed, decorateBoard: shell.decorateBoard, onDocumentLoaded: shell.onDocumentLoaded});
   root.dataset.editorFoundation = 'ready';
   const refresh = foundation.refresh, destroy = foundation.destroy;
   foundation.refresh = () => {assistant.refresh();refresh();};
   foundation.destroy = () => {assistant.destroy();destroy();};
   adapter.paint();
+  if (state.document) void shell.onDocumentLoaded(adapter.viewSnapshot());
   return foundation;
 }

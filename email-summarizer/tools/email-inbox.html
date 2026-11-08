@@ -6,6 +6,7 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | The list pages (Roger, 2026-10-30: "i still only see 30 emails in my inbox"; the page asked for one page of 30 and never asked for more). Fifty at a time, the next page loads as the list is scrolled to its end (or with "Load more"), following the answer's next cursor (the copy's before/skip or the mailbox's own page), the heading counts what is loaded, and the end of the list says how far back it reaches: everything in the copy (still filling or not) or the mailbox's last 7 days.
   3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (email-summarizer--email-inbox, FIX-LAYOUT). On a phone the list fills the screen and a message opens as its own view with a back chevron; the phone's Back returns to the list (a history entry per open message), so there is no half-empty "Select a message" pane. With no mailbox the frame holds one centred empty state with ONE primary "Connect a mailbox" (a sheet with the Google (Gmail) and Outlook / Microsoft 365 rows) instead of a 360px list beside a blank reader. The search box states the real scope of the selected mailbox ("Search Gmail · last 30 days", or 180 with a complete copy); Outlook, Yahoo and no mailbox cannot be searched, so the field is disabled with that reason as its help line. A search with no mailbox keeps the Connect button and never prints a path (email-store.js). Refresh is 44x44 and the mailbox switch 44px tall. Guarded by tests/surface-provider.test.mjs, tests/mailbox-connect.test.cjs and tests/mail-store-browser.test.cjs.
   4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (little-monsters--lm-email, FIX-LAYOUT). With no mailbox connected, withhold the Any mailbox switch, Refresh button, disabled search row and stored-copy caption until a mailbox is linked; pass the active screen (including /cockpit/?app=little-monsters&screen=lm-email when framed in Little Monsters Email) as ?return= on /connectors/<id>/authorize so OAuth sign-in returns to Little Monsters Email instead of Intelligent Communication or Connections.
+  5 | maintainer@emeraldcoastsystemsgroup.com | Keep #refresh fixed at 44x44 without flex shrinkage inside .list-head.
 -->
 <head>
 <meta charset="UTF-8" />
@@ -62,7 +63,8 @@
   .list-head h2 { font-size:15px; margin:0; font-weight:600; }
   .list-head .count { color:var(--muted); font-size:12px; }
   .refresh { margin-left:auto; background:var(--panel2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:0 14px; min-height:44px; cursor:pointer; font-size:14px; }
-  #refresh { width:44px; padding:0; font-size:18px; }
+  #refresh { width:44px; min-width:44px; flex:0 0 44px; padding:0; font-size:18px; }
+  .list-head .mailbox { min-width:0; }
   .refresh:hover { color:var(--text); }
   .list-head .mailbox { margin-left:auto; }
   .list-head .mailbox + .refresh { margin-left:6px; }

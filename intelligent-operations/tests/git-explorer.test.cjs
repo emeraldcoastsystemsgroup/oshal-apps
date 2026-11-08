@@ -1,4 +1,5 @@
-// CHANGE LOG: ux audit | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): the not-connected Git explorer is one empty state with Open Connections & access, the cluster links come first and open, and Link by URL is a planned control.
+/* CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Prove Link by URL (RP-OPS-03): HTTPS GitHub URL parsing and SSRF/credential rejection, readable repository check via confirmed GitHub connection, honest 403/404/disconnected refusals, and promotion hand-off. */
+/* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): the not-connected Git explorer is one empty state with Open Connections & access, and the cluster links come first and open. */
 /* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | Hold the provider switch's last read while the person pastes a GitHub token for GitLab: the refusal must survive the load finishing late. */
 /* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | A GitHub token pasted for GitLab is refused before saving and the field is cleared. */
 /* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | A GitLab connection browses projects through GitLab reads only: merge requests, pipelines and files. */
@@ -11,8 +12,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const {fixture,loadExperience,dependency,root}=require('./fixtures/intake.cjs'),L=require('../routes/repo-links.js'),{blobText}=require('../experience/git-explorer.js'),P=require('../routes/provisioning.js'),{DEFAULTS}=require('../experience/provisioning.js');
 const link={clusterScope:'cluster-uid-a',clusterName:'prod-east',owner:'acme',repo:'gitops-prod-east',baseBranch:'main',folder:'clusters/prod-east',workflow:'apply.yml'};
-test('repository links are closed, one per cluster per person and owner-scoped',async()=>{
- for(const bad of [{...link,owner:'a b'},{...link,folder:'../x'},{...link,workflow:'run.sh'},{...link,extra:1},{...link,clusterScope:''}])assert.throws(()=>L.repoLink(bad),{status:400});
+test('repository links are closed, one per cluster per person, owner-scoped, and validate pasted HTTPS URLs (RP-OPS-03)',async()=>{
+ for(const bad of [{...link,owner:'a b'},{...link,folder:'../x'},{...link,workflow:'run.sh'},{...link,extra:1},{...link,clusterScope:''},{...link,repoUrl:'https://github.com/other/repo'}])assert.throws(()=>L.repoLink(bad),{status:400});
+ for(const badUrl of ['','http://github.com/acme/repo','https://user:tok@github.com/acme/repo','https://github.com:8443/acme/repo','https://github.com/acme/repo?x=1','https://github.com/acme/repo#main','https://169.254.169.254/acme/repo','https://[::1]/acme/repo','https://localhost/acme/repo','https://git.internal/acme/repo','https://gitlab.com/acme/repo','https://github.com/acme','https://github.com/acme/repo/tree/main','https://github.com/acme/.hidden'])assert.throws(()=>L.parseRepoUrl(badUrl),{status:400});
+ assert.deepEqual(L.parseRepoUrl('https://github.com/acme/gitops-prod-east.git/'),{provider:'github',owner:'acme',repo:'gitops-prod-east',full_name:'acme/gitops-prod-east',url:'https://github.com/acme/gitops-prod-east'});
+ const fromUrl=L.repoLink({clusterScope:'cluster-uid-a',clusterName:'prod-east',repoUrl:'https://github.com/acme/gitops-prod-east.git',baseBranch:'main',folder:'clusters/prod-east',workflow:null});
+ assert.equal(fromUrl.owner,'acme');assert.equal(fromUrl.repo,'gitops-prod-east');
  const f=await fixture();try{const pool=f.caller('alice');const a=await L.saveRepoLink(pool,'alice',link);assert.equal(a.replaced,false);const b=await L.saveRepoLink(pool,'alice',{...link,repo:'gitops-east-v2'});assert.equal(b.replaced,true);
   const mine=await L.repoLinks(pool,'alice');assert.equal(mine.items.length,1);assert.equal(mine.items[0].repo,'gitops-east-v2');assert.equal((await L.repoLinks(f.caller('bob'),'bob')).items.length,0);
   await assert.rejects(L.removeRepoLink(f.caller('bob'),'bob',{id:a.id}),{status:404});assert.deepEqual(await L.removeRepoLink(pool,'alice',{id:a.id}),{removed:a.id});
@@ -72,7 +77,10 @@ test('with no GitHub connection the explorer saves the person\'s own token and t
   for(const id of ['#git-filter','#git-account-field','#git-load'])assert.equal(await page.locator(id).isVisible(),false,id+' waits for a connection');
   assert.equal(await page.locator('#git-provider-label').textContent(),'GitHub','a provider list of one is a label');assert.equal(await page.locator('#git-provider-field').isVisible(),false);
   assert.equal(await page.locator('#git-explorer > details.git-links-box').evaluate(d=>d.open&&d.parentElement.firstElementChild===d),true);
-  assert.equal(await page.getByRole('button',{name:'Link by URL, not available yet',exact:true}).getAttribute('aria-disabled'),'true');
+  assert.equal(await page.locator('#git-explorer [data-ds-not-yet], #git-explorer [data-ds-backlog]').count(),0,'Link by URL is live');
+  await page.getByRole('button',{name:'Link by URL',exact:true}).click();await page.locator('#git-link-url').fill('https://github.com/acme/gitops');
+  await page.getByRole('button',{name:'Check & link repository',exact:true}).click();await page.getByText('Connect your GitHub account first',{exact:false}).waitFor();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
   const token='github_pat_'+'y'.repeat(40);await page.locator('#git-token').fill(token);await page.getByRole('button',{name:'Save as my GitHub connection',exact:true}).click();await page.getByText('Connected to GitHub as alice-gh',{exact:false}).waitFor();
   assert.deepEqual(connects,[{token}]);assert.equal(await page.locator('#git-token').inputValue(),'');assert.equal(await page.locator('#git-connect').isHidden(),false,'the token field stays available');assert.equal(await page.getByRole('button',{name:'Replace my GitHub token',exact:true}).isVisible(),true);assert.equal(await page.getByRole('button',{name:'Load my repositories',exact:true}).isDisabled(),false);assert.equal(await page.locator('#git-empty').isVisible(),false,'the empty state leaves once connected');assert.equal(await page.locator('#git-filter').isVisible(),true);assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
@@ -125,5 +133,52 @@ test('a GitLab connection browses projects the same way: merge requests, pipelin
   await detail.getByRole('tab',{name:'Merge requests · 1',exact:true}).click();await detail.getByText('Raise checkout memory',{exact:false}).waitFor();
   await detail.getByRole('tab',{name:'Cluster link',exact:true}).click();await detail.getByText('Cluster links name a GitHub repository today',{exact:false}).waitFor();
   assert.ok(reads.every(op=>/^gitlab-(list|get)-/.test(op)),'only GitLab reads: '+reads.join(','));assert.deepEqual(errors,[]);
+ }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
+});
+
+test('Link by URL (RP-OPS-03) validates HTTPS URLs, refuses unreadable repositories honestly, and saves verified cluster links',async()=>{
+ const f=await fixture(),express=dependency('express'),{chromium}=dependency('playwright');let browser,server;
+ try{
+  const pool=f.caller('alice'),app=express(),proofs=new Set(),branchReads=[];app.use(express.json({limit:'1mb'}));
+  app.get('/connectors',(_req,res)=>res.json({connections:[{connector:'github',account:'primary',shared:false,status:'connected'}],httpServices:[{connector:'github',configured:true}]}));
+  app.post('/confirmations',(_req,res)=>{const id=randomUUID();proofs.add(id);res.json({confirmation:id});});
+  app.post('/connectors/github/actions/github-list-branches',(req,res)=>{
+   assert.ok(proofs.delete(req.headers['x-oshal-confirm']),'fresh confirmation per URL readability check');
+   branchReads.push(req.body.owner+'/'+req.body.repo);
+   if(req.body.repo==='missing-repo')return res.status(503).json({detail:'upstream: Connector returned HTTP 404'});
+   if(req.body.repo==='forbidden-repo')return res.status(503).json({detail:'upstream: Connector returned HTTP 403'});
+   return res.json({status:200,data:[{name:'release',commit:{sha:'a'.repeat(40)},protected:true}],transport:'native_connector_http'});
+  });
+  app.use((req,_res,next)=>{req.oidc={user:{sub:'alice'}};next();});
+  const routes=loadExperience().createOperationsExperienceRoutes({pool,appPackageDir:root,authorization:{registerResource(){}},store:{query:async()=>[],put:async()=>{}}});
+  app.use('/api/intelligent-operations',(req,res,next)=>{if(req.path==='/topology')return res.json({assets:[{id:'c1',provider:'kubernetes',scope:'cluster-uid-a',kind:'cluster',nativeId:'cluster-uid-a',name:'prod-east',health:'healthy',observedAt:'2026-10-23T00:00:00.000Z',collections:[],revision:'r',scanIds:[],limits:{scans:200,assets:2000,relationships:5000}}],relationships:[],asOf:'2026-10-23T00:00:00.000Z',collections:[],revision:'r',scanIds:[],limits:{scans:200,assets:2000,relationships:5000}});next();},routes);
+  await P.saveProvisioning(pool,'alice',{template:'team-namespace',reason:'ops',params:{...DEFAULTS['team-namespace']}});
+  server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
+  browser=await chromium.launch({headless:true,args:['--disable-gpu']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const base='http://127.0.0.1:'+server.address().port+'/api/intelligent-operations/app';
+  await page.goto(base+'#git');await page.getByText('Load your repositories to browse them',{exact:false}).waitFor();await page.waitForLoadState('networkidle');
+  await page.getByRole('button',{name:'Link by URL',exact:true}).click();
+  await page.locator('#git-link-url').fill('http://169.254.169.254/acme/gitops');
+  await page.getByRole('button',{name:'Check & link repository',exact:true}).click();
+  await page.getByText('Use an https:// repository URL.',{exact:false}).waitFor();assert.deepEqual(branchReads,[],'unsafe URL rejected before connector call');
+
+  await page.locator('#git-link-url').fill('https://github.com/acme/missing-repo');
+  await page.getByRole('button',{name:'Check & link repository',exact:true}).click();
+  await page.getByText('GitHub could not find acme/missing-repo',{exact:false}).waitFor();
+
+  await page.locator('#git-link-url').fill('https://github.com/acme/forbidden-repo');
+  await page.getByRole('button',{name:'Check & link repository',exact:true}).click();
+  await page.getByText('GitHub refused access to acme/forbidden-repo',{exact:false}).waitFor();
+
+  await page.locator('#git-link-url').fill('https://github.com/acme/url-linked-gitops.git');
+  await page.locator('#git-link-workflow').fill('deploy.yml');
+  await page.getByRole('button',{name:'Check & link repository',exact:true}).click();
+  await page.getByText('Linked prod-east to acme/url-linked-gitops (release)',{exact:false}).waitFor();
+  assert.equal(await page.locator('#git-link-url-panel').isHidden(),true,'form closes after saving');
+  assert.match(await page.locator('#git-links').innerText(),/prod-east → acme\/url-linked-gitops · release · clusters\/prod-east · deploy\.yml/);
+  await page.goto(base+'#provision');const panel=page.locator('#provision-list .git-promotion').first();await panel.waitFor();await panel.locator('summary').click();
+  await panel.getByLabel('Linked repository').selectOption({label:'prod-east → acme/url-linked-gitops'});
+  assert.equal(await panel.getByLabel('Repository',{exact:true}).inputValue(),'url-linked-gitops');
+  assert.deepEqual(errors,[]);
  }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await f.close();}
 });

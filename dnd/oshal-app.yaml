@@ -42,6 +42,7 @@
 # 2026-11-06 15:45:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.22.1: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 # 2026-11-07 01:12:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.22.2: My Characters card ⋯ menu adds View sheet for read-only character inspection before play, and the TV lobby shows the direct join address below the join code badge.
 # 2026-11-07 04:05:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.22.3: narration plays again on the native kernel (Roger: "the audio doesnt work on the d&d game"). /tts found no narrator because it looked up the retired platform voice registry, so the table fell to captions; ui/table-voice.js now asks the kernel speech service (/api/voice/synthesize) when /tts is unavailable. Guard: tests/dnd-voice-ui.test.js (two cases).
+# 2026-11-07 07:05:00 | maintainer@emeraldcoastsystemsgroup.com    | 0.22.4 (F20): move table chrome, drawer, HUD, dock, and overlay screens from pinned dark wood colors to shared design tokens (--ds-* / --bg-*) so the table follows light and dark themes while keeping serif story typography and >= 13.86:1 story-panel contrast across all 20 themes.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL App Package — Dungeon Master (AI D&D at the table)
@@ -92,7 +93,7 @@ description: >-
   inventory, abilities, and spells. You control only your claimed hero; clearly
   labeled AI companions run empty seats. Choose a bundled SRD hero or import
   your own PDF/JSON character sheet. Rules run on the open CC-BY D&D SRD 5.1.
-version: 0.22.3
+version: 0.22.4
 
 # ADR-139 wave 2 — "Send to…" destination (open mode): a D&D Beyond PDF or JSON export from
 # anywhere in the swarm imports through the table's existing lane and lands in My Characters.

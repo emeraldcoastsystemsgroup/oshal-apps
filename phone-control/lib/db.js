@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0, every control real or removed: the person's phones (each tied to the computer that bridges it), the history of what the page sent and what the computer answered, and the last bridge report per computer. The 1.0.0 device rows (the three starter devices seeded per person and any its pairing buttons wrote, every one carrying the invented key and PIN) are deleted once with their drawn frames. Nothing here reaches a phone or a network: the person's own computer does that.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: phone_control_phones.form ('phone' or 'tv', default 'phone') distinguishes an Android phone from a Fire TV or Android TV connected over network adb.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: add owner-scoped session preferences (including monitorId and privacyScreen), chat messages, whiteboard strokes, saved captures, file transfer records, and Bluetooth HID TV device support for RP-PHC-01..13.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: update Android Wireless Debugging phone records in place when Android rotates the TLS connect port on the same IP.
  */
 
 'use strict';
@@ -257,6 +258,11 @@ function getPhone(db, owner, id) {
   return row ? phone(row) : null;
 }
 
+function rotatableAndroidIp(address) {
+  const m = /^(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})$/.exec(String(address || ''));
+  return m && Number(m[2]) !== 5555 ? m[1] : '';
+}
+
 /** @description Record a phone or TV the person connected through one of their computers. The same device on the same computer is the same record. @param {DatabaseSync} db Store. @param {object} owner Who. @param {object} input name, platform, form?, computerNodeId, address. @returns {{phone:object,created:boolean}} The record. */
 function savePhone(db, owner, input = {}) {
   const platform = String(input.platform || '');
@@ -268,12 +274,18 @@ function savePhone(db, owner, input = {}) {
   const address = String(input.address || '');
   if (!ADDRESS.test(address)) throw refusal(400, 'address_invalid', 'The phone address is not one adb or Bluetooth gave.');
   const name = text(input.name, LIMITS.name, 'name');
-  const existing = db.prepare(`SELECT * FROM phone_control_phones WHERE owner_issuer = ? AND owner_sub = ?
+  let existing = db.prepare(`SELECT * FROM phone_control_phones WHERE owner_issuer = ? AND owner_sub = ?
     AND computer_node_id = ? AND platform = ? AND address = ?`).get(owner.issuer, owner.sub, node, platform, address);
+  const rotatedIp = !existing && platform === 'android' && form === 'phone' ? rotatableAndroidIp(address) : '';
+  if (rotatedIp) {
+    existing = db.prepare(`SELECT * FROM phone_control_phones WHERE owner_issuer = ? AND owner_sub = ?
+      AND computer_node_id = ? AND platform = 'android' AND form = 'phone' AND address LIKE ? AND address != ?`)
+      .get(owner.issuer, owner.sub, node, `${rotatedIp}:%`, `${rotatedIp}:5555`);
+  }
   const now = new Date().toISOString();
   if (existing) {
-    db.prepare('UPDATE phone_control_phones SET name = ?, form = ?, updated_at = ? WHERE phone_id = ?')
-      .run(name, form, now, existing.phone_id);
+    db.prepare('UPDATE phone_control_phones SET name = ?, form = ?, address = ?, updated_at = ? WHERE phone_id = ?')
+      .run(name, form, address, now, existing.phone_id);
     return { phone: getPhone(db, owner, existing.phone_id), created: false };
   }
   const id = `ph_${crypto.randomUUID()}`;
@@ -283,7 +295,7 @@ function savePhone(db, owner, input = {}) {
   return { phone: getPhone(db, owner, id), created: true };
 }
 
-/** @description Rename a phone or turn its control on or off. @param {DatabaseSync} db Store. @param {object} owner Who. @param {string} id Phone. @param {object} changes name, controlEnabled. @returns {object|null} The phone. */
+/** @description Rename a phone, update its rotated address, or turn its control on or off. @param {DatabaseSync} db Store. @param {object} owner Who. @param {string} id Phone. @param {object} changes name, address, controlEnabled. @returns {object|null} The phone. */
 function updatePhone(db, owner, id, changes = {}) {
   const current = getPhone(db, owner, id);
   if (!current) return null;
@@ -291,9 +303,17 @@ function updatePhone(db, owner, id, changes = {}) {
   if (changes.controlEnabled !== undefined && typeof changes.controlEnabled !== 'boolean') {
     throw refusal(400, 'control_invalid', 'controlEnabled is true or false.');
   }
+  const address = changes.address === undefined ? current.address : String(changes.address || '');
+  if (!ADDRESS.test(address)) throw refusal(400, 'address_invalid', 'The phone address is not one adb or Bluetooth gave.');
   const control = changes.controlEnabled === undefined ? current.controlEnabled : changes.controlEnabled;
-  db.prepare('UPDATE phone_control_phones SET name = ?, control_enabled = ?, updated_at = ? WHERE phone_id = ?')
-    .run(name, control ? 1 : 0, new Date().toISOString(), current.id);
+  const clash = address !== current.address
+    ? db.prepare(`SELECT phone_id FROM phone_control_phones WHERE owner_issuer = ? AND owner_sub = ?
+        AND computer_node_id = ? AND platform = ? AND address = ? AND phone_id != ?`)
+      .get(owner.issuer, owner.sub, current.computerNodeId, current.platform, address, current.id)
+    : null;
+  const nextAddress = clash ? current.address : address;
+  db.prepare('UPDATE phone_control_phones SET name = ?, address = ?, control_enabled = ?, updated_at = ? WHERE phone_id = ?')
+    .run(name, nextAddress, control ? 1 : 0, new Date().toISOString(), current.id);
   return getPhone(db, owner, current.id);
 }
 

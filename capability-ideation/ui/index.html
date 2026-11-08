@@ -1,0 +1,469 @@
+<!doctype html>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                    | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com   | Capability Ideation's own Brief + Capability directory screen (UX audit 2026-11-06, capability-ideation--capability-ideation-review, D1=glass, D2=c): removes the shared duplicate mount of /api/capability-ideator/review, opens on Brief with one primary 'Develop this idea' sending an app-ask turn to capability-ideation's concierge plus 'Save draft' on this device, and splits the searchable, suite-filtered, de-duplicated Capability directory with 44px sortable headers and phone row menus.
+-->
+<html lang="en" data-theme="midnight" data-ds-category="form" data-ds-first-action="type">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capability Ideation</title>
+<link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
+<script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css">
+<link rel="stylesheet" href="/shared/ui/css/app-view.css">
+<script src="/shared/ui/js/app-view.js"></script>
+<script>
+(function () {
+  var A = window.AppView; if (!A) return;
+  var API = '/api/capability-ideator';
+  var KICKER = 'Productivity · Capability Ideation';
+  var LEDE = 'Capability discovery runs recorded for the signed-in account by the Capability Ideation workflow. This view reads saved evidence only.';
+  function read(p) {
+    return fetch(API + p, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; });
+    }, function () { return { ok: false, status: 0, body: {} }; });
+  }
+  function isRun(item) { return Array.isArray(item.actions) && item.actions.length > 0; }
+  function company() {
+    return read('/home-summary').then(function (res) {
+      if (res.status === 401 || res.status === 403) {
+        return { kicker: KICKER, title: res.status === 401 ? 'Sign in to see discovery runs' : 'This account cannot open Capability Ideation',
+          lede: 'Saved capability discovery runs belong to the signed-in account.' };
+      }
+      if (!res.ok) throw new Error('Saved evidence cannot be checked right now.');
+      var items = Array.isArray(res.body.items) ? res.body.items : [], runs = items.filter(isRun);
+      var metrics = Array.isArray(res.body.metrics) ? res.body.metrics : [];
+      return {
+        kicker: KICKER,
+        title: runs.length ? runs.length + ' recent discovery run' + (runs.length === 1 ? '' : 's') : 'No discovery runs recorded yet',
+        lede: LEDE,
+        actions: [{ label: 'Open Capability Ideation', primary: true, onClick: function () { window.location.assign(window.location.pathname); } }],
+        stats: metrics.map(function (m) { return { id: m.id, label: m.label, value: m.value }; }),
+        sections: [{ kind: 'table', id: 'runs', title: 'Recent discovery runs', empty: 'No discovery runs recorded yet.',
+          columns: ['Workflow', 'Detail'], rows: runs.map(function (i) { return [i.text || 'Discovery', i.detail || '—']; }) }]
+      };
+    });
+  }
+  A.boot({ app: 'capability-ideation', escapeLabel: 'Open Capability Ideation in the cockpit', audiences: { company: company, family: company } });
+})();
+</script>
+<script src="/ui/kernel/table.js" defer></script>
+<style>
+  :root {
+    --ink: var(--ds-ink, var(--text-primary, #142034));
+    --muted: var(--ds-ink-2, var(--text-muted, #52627a));
+    --line: var(--ds-line, var(--border-color, #d4deec));
+    --line-ctrl: var(--ds-line-control, var(--border-color, #b8c7dc));
+    --accent: var(--ds-accent, var(--accent-primary, #2563eb));
+    --on-accent: var(--ds-on-accent, var(--text-on-accent, #ffffff));
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; overscroll-behavior: contain; }
+  body { background: var(--bg-primary, #f6f8fc); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1180px; min-height: 100dvh; margin: 0 auto; padding: 16px; }
+  html.in-shell header { display: none; }
+  header { margin-bottom: 16px; }
+  h1 { font-size: 24px; line-height: 1.25; margin: 0 0 4px; }
+  h2 { font-size: 18px; line-height: 1.3; margin: 0 0 12px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+  [hidden] { display: none !important; }
+  .view-bar { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin: 0 0 16px; }
+  .view-tab {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px;
+    border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+    background: transparent; color: var(--muted); font: 600 15px/1 system-ui, sans-serif; cursor: pointer;
+  }
+  .view-tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
+  .panel { border: 1px solid var(--line); border-radius: 14px; background: var(--bg-card, #ffffff); padding: 18px; min-width: 0; }
+  label { display: block; color: var(--muted); font-size: 12px; margin: 12px 0 6px; }
+  label:first-of-type { margin-top: 0; }
+  input, textarea, select {
+    width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line-ctrl); background: var(--ds-surface-1, var(--bg-secondary, #ffffff));
+    color: var(--ink); font: 16px/1.4 system-ui, sans-serif;
+    backdrop-filter: none; background-image: none; box-shadow: none;
+  }
+  textarea { min-height: 140px; resize: vertical; }
+  button {
+    display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px;
+    border-radius: 10px; border: 1px solid var(--line-ctrl);
+    background: var(--ds-surface-2, var(--bg-tertiary, #eef3fa)); color: var(--ink);
+    font: 600 15px/1 system-ui, sans-serif; cursor: pointer; white-space: nowrap;
+    backdrop-filter: none; background-image: none; box-shadow: none;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  button:disabled { opacity: 1; color: var(--ds-ink-disabled, var(--muted)); cursor: not-allowed; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .brief-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+  #status { font-size: 14px; color: var(--accent); margin: 10px 0 0; min-height: 20px; }
+  #metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .metric { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .metric strong { display: block; font-size: 24px; font-weight: 650; }
+  .metric span { color: var(--muted); font-size: 12px; }
+  .table-scroll { overflow-x: auto; }
+  .records { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .records th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 0 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .records td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .records th .ks-sort { all: unset; display: inline-flex; align-items: center; gap: 5px; min-height: 44px; cursor: pointer; font: inherit; color: inherit; }
+  .dir-tools { display: grid; grid-template-columns: 1fr 220px; gap: 10px; margin-bottom: 12px; }
+  .dir-row { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  .dir-head { display: flex; align-items: center; gap: 8px; }
+  .dir-toggle { flex: 1; justify-content: space-between; text-align: left; background: transparent; border: 0; padding: 0 4px; min-width: 0; white-space: normal; }
+  .dir-suite { color: var(--muted); font-size: 12px; margin-left: 8px; flex-shrink: 0; }
+  .dir-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 4px 10px; }
+  .chip { border: 1px solid var(--line-ctrl); border-radius: 6px; padding: 4px 8px; font-size: 12px; background: var(--ds-surface-1, #ffffff); }
+  .row-menu { position: relative; }
+  .row-menu summary {
+    list-style: none; display: inline-flex; align-items: center; justify-content: center;
+    min-width: 44px; min-height: 44px; border: 1px solid var(--line-ctrl); border-radius: 10px;
+    background: var(--ds-surface-2, #eef3fa); cursor: pointer; font-weight: 700;
+  }
+  .row-menu summary::-webkit-details-marker { display: none; }
+  .row-menu-pop {
+    position: absolute; right: 0; top: 48px; z-index: 15; padding: 6px; border-radius: 10px;
+    border: 1px solid var(--line-ctrl); background: var(--ds-surface-1, var(--bg-card, #ffffff));
+  }
+  .phone-only { display: none; }
+  @media (max-width: 720px) {
+    main { padding: 12px 12px calc(80px + env(safe-area-inset-bottom, 0px)); }
+    .layout { grid-template-columns: 1fr; }
+    .dir-tools { grid-template-columns: 1fr; }
+    .desktop-only { display: none !important; }
+    .phone-only { display: block; }
+    .view-bar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; margin: 0;
+      padding: 0 72px env(safe-area-inset-bottom, 0px) 8px; border-top: 1px solid var(--line); border-bottom: 0;
+      background: var(--ds-surface-1, var(--bg-primary, #f6f8fc));
+    }
+    .view-tab { flex: 1; justify-content: center; min-height: 56px; border-bottom: 0; border-top: 2px solid transparent; font-size: 12px; }
+    .view-tab[aria-selected="true"] { border-top-color: var(--accent); }
+    .records thead { display: none; }
+    .records, .records tbody, .records tr, .records td { display: block; width: 100%; }
+    .records tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .records td { border: 0; padding: 4px 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Capability Ideation</h1>
+    <p class="hint">Draft a process brief for the concierge or pick actions from the directory.</p>
+  </header>
+  <nav class="view-bar" role="tablist" aria-label="Capability Ideation views">
+    <button type="button" class="view-tab" role="tab" id="tab-brief" aria-controls="view-brief" aria-selected="true">Brief</button>
+    <button type="button" class="view-tab" role="tab" id="tab-directory" aria-controls="view-directory" aria-selected="false">Directory</button>
+  </nav>
+  <section id="view-brief" role="tabpanel" aria-labelledby="tab-brief" data-ds-work>
+    <div class="layout">
+      <section class="panel" id="composer" data-no-glass>
+        <label>Title<input id="title" maxlength="120" placeholder="Process name"></label>
+        <label>Brief<textarea id="notes" maxlength="2000" placeholder="Trigger, expected outcome, and what is missing."></textarea></label>
+        <label>Source link<input id="sourceUrl" type="url" maxlength="2000" placeholder="https://…"></label>
+        <div class="brief-actions">
+          <button type="button" class="primary" id="develop">Develop this idea</button>
+          <button type="button" id="saveDraft">Save draft</button>
+        </div>
+        <div class="connected-app-actions"></div>
+        <p id="status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="panel" id="recordedPanel" data-no-glass>
+        <h2>Recorded work</h2>
+        <div id="metrics" aria-label="Saved work metrics" hidden></div>
+        <div id="records">No discovery runs yet.</div>
+        <button type="button" id="refresh" hidden>Refresh</button>
+      </section>
+    </div>
+  </section>
+  <section id="view-directory" role="tabpanel" aria-labelledby="tab-directory" hidden>
+    <section class="panel" data-no-glass>
+      <h2>Capability directory</h2>
+      <div class="dir-tools">
+        <input id="dirSearch" type="search" placeholder="Search applications and actions" aria-label="Search the directory" autocomplete="off">
+        <select id="dirSuite" aria-label="Suite"><option value="">All suites</option></select>
+      </div>
+      <div id="loadedApps">Loading directory…</div>
+    </section>
+  </section>
+</main>
+<script type="module">
+import { receiveHandoff } from '/cockpit/js/app-handoff.js';
+import { mountConnectedActions } from '/cockpit/js/app-workflows.js';
+
+if (!window.AppView || !window.AppView.active()) {
+  const framed = (() => { try { return window.self !== window.top; } catch (_) { return true; } })();
+  if (framed) document.documentElement.classList.add('in-shell');
+  const app = 'capability-ideation';
+  const title = document.querySelector('#title');
+  const notes = document.querySelector('#notes');
+  const sourceUrl = document.querySelector('#sourceUrl');
+  const status = document.querySelector('#status');
+  const DRAFT = 'capability-ideation-brief-draft';
+  const SUITES = {
+    'ai-productivity': 'Productivity', 'ai-knowledge': 'Knowledge', 'ai-finance': 'Finance',
+    'ai-creative': 'Creative', 'ai-home': 'Home', 'ai-engineering': 'Engineering', platform: 'Platform'
+  };
+
+  function fill(c) {
+    title.value = String(c.title || '').slice(0, 120);
+    notes.value = String(c.notes || '').slice(0, 2000);
+    sourceUrl.value = String(c.sourceUrl || '');
+  }
+
+  function applyView(v, push) {
+    const view = v === 'directory' ? 'directory' : 'brief';
+    for (const id of ['brief', 'directory']) {
+      document.querySelector('#view-' + id).hidden = id !== view;
+      document.querySelector('#tab-' + id).setAttribute('aria-selected', String(id === view));
+    }
+    const nextUrl = location.pathname + location.search + (view === 'directory' ? '#view=directory' : '');
+    if (push) history.pushState({ dsView: view }, '', nextUrl);
+    else history.replaceState({ dsView: view }, '', nextUrl);
+  }
+
+  document.querySelector('#tab-brief').addEventListener('click', () => applyView('brief', false));
+  document.querySelector('#tab-directory').addEventListener('click', () => applyView('directory', true));
+  window.addEventListener('popstate', () => {
+    applyView(/(^|[#&])view=directory\b/.test(location.hash) ? 'directory' : 'brief', false);
+  });
+  applyView(/(^|[#&])view=directory\b/.test(location.hash) ? 'directory' : 'brief', false);
+
+  function briefText() {
+    return [
+      'Develop this business process idea into a capability proposal: trigger, expected outcome, tools or integrations, required connections, and success metric.',
+      title.value.trim() ? 'Title: ' + title.value.trim() : '',
+      'Brief: ' + notes.value.trim(),
+      sourceUrl.value.trim() ? 'Source: ' + sourceUrl.value.trim() : ''
+    ].filter(Boolean).join('\n');
+  }
+
+  document.querySelector('#develop').addEventListener('click', () => {
+    if (!notes.value.trim()) {
+      status.textContent = 'Write the brief first.';
+      notes.focus();
+      return;
+    }
+    if (framed) window.parent.postMessage({ type: 'app-ask', app, text: briefText() }, window.location.origin);
+    status.textContent = 'Sent to the concierge.';
+  });
+
+  function saveDraft() {
+    try {
+      localStorage.setItem(DRAFT, JSON.stringify({ title: title.value, notes: notes.value, sourceUrl: sourceUrl.value }));
+      status.textContent = 'Saved';
+    } catch (_) {
+      status.textContent = 'Could not save draft on this device.';
+    }
+  }
+  document.querySelector('#saveDraft').addEventListener('click', saveDraft);
+  for (const el of [title, notes, sourceUrl]) el.addEventListener('change', saveDraft);
+  try {
+    const saved = JSON.parse(localStorage.getItem(DRAFT) || 'null');
+    if (saved && !title.value && !notes.value) fill(saved);
+  } catch (_) {}
+
+  receiveHandoff((c) => fill(c));
+  await mountConnectedActions({
+    app: 'capability-ideator',
+    element: document.querySelector('.connected-app-actions'),
+    contextForOffer: () => notes.value.trim() ? { title: title.value.trim(), notes: notes.value.trim(), sourceUrl: sourceUrl.value.trim() } : null
+  });
+
+  const appName = (id) => { const s = String(id || '').replace(/-/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); };
+
+  function useEntryInBrief(entry, offers) {
+    const facts = offers.map((o) => o.label + ' -> ' + o.targetApp + ' (' + o.state + ')').join('; ');
+    fill({
+      title: 'Business process using ' + entry.displayName,
+      notes: ('Current loaded actions: ' + (facts || 'none') + '. Identify trigger, expected outcome, missing tools, required connections, and success metric.').slice(0, 2000)
+    });
+    applyView('brief', false);
+    title.focus();
+    status.textContent = 'Loaded into brief.';
+  }
+
+  function directoryRow(entry) {
+    const row = document.createElement('div');
+    const head = document.createElement('div');
+    const toggle = document.createElement('button');
+    const heading = document.createElement('strong');
+    const suite = document.createElement('span');
+    const useBtn = document.createElement('button');
+    const menu = document.createElement('details');
+    const chips = document.createElement('div');
+    const offers = (entry.integrationSources || []).flatMap((s) => s.offers || [])
+      .filter((o, i, all) => all.findIndex((x) => x.label === o.label && x.targetApp === o.targetApp) === i);
+    const available = offers.filter((o) => o.state === 'available').length;
+    row.className = 'dir-row';
+    head.className = 'dir-head';
+    toggle.type = 'button';
+    toggle.className = 'dir-toggle';
+    toggle.setAttribute('aria-expanded', 'false');
+    heading.textContent = entry.displayName + ' · ' + available + ' action' + (available === 1 ? '' : 's');
+    suite.className = 'dir-suite';
+    suite.textContent = SUITES[entry.suite] || '';
+    toggle.append(heading, suite);
+    chips.className = 'dir-chips';
+    chips.hidden = true;
+    for (const o of offers) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = o.label + ' → ' + appName(o.targetApp) + (o.state === 'available' ? '' : ' (setup)');
+      chips.append(chip);
+    }
+    if (!offers.length) {
+      const none = document.createElement('span');
+      none.className = 'hint';
+      none.textContent = 'No context action declared.';
+      chips.append(none);
+    }
+    toggle.addEventListener('click', () => {
+      chips.hidden = !chips.hidden;
+      toggle.setAttribute('aria-expanded', String(!chips.hidden));
+    });
+    useBtn.type = 'button';
+    useBtn.className = 'desktop-only';
+    useBtn.textContent = 'Use in a brief';
+    useBtn.addEventListener('click', () => useEntryInBrief(entry, offers));
+
+    menu.className = 'row-menu phone-only';
+    const sum = document.createElement('summary');
+    sum.setAttribute('aria-label', 'Actions for ' + entry.displayName);
+    sum.textContent = '⋯';
+    const pop = document.createElement('div');
+    pop.className = 'row-menu-pop';
+    const mUse = document.createElement('button');
+    mUse.type = 'button';
+    mUse.textContent = 'Use in a brief';
+    mUse.addEventListener('click', () => { menu.open = false; useEntryInBrief(entry, offers); });
+    pop.append(mUse);
+    menu.append(sum, pop);
+
+    head.append(toggle, useBtn, menu);
+    row.append(head, chips);
+    row.dataset.search = [entry.displayName, entry.description || '', ...offers.map((o) => o.label + ' ' + o.targetApp)].join(' ').toLowerCase();
+    row.dataset.suite = entry.suite || '';
+    return row;
+  }
+
+  function filterDirectory() {
+    const q = document.querySelector('#dirSearch').value.trim().toLowerCase();
+    const suite = document.querySelector('#dirSuite').value;
+    let shown = 0;
+    for (const row of document.querySelectorAll('#loadedApps .dir-row')) {
+      const ok = (!q || row.dataset.search.includes(q)) && (!suite || row.dataset.suite === suite);
+      row.hidden = !ok;
+      if (ok) shown++;
+    }
+    const empty = document.querySelector('#dirEmpty');
+    if (empty) empty.hidden = shown > 0;
+  }
+  document.querySelector('#dirSearch').addEventListener('input', filterDirectory);
+  document.querySelector('#dirSuite').addEventListener('change', filterDirectory);
+
+  async function refresh() {
+    const list = document.querySelector('#records');
+    const metrics = document.querySelector('#metrics');
+    const refreshBtn = document.querySelector('#refresh');
+    try {
+      const r = await fetch('/api/capability-ideator/home-summary', { cache: 'no-store' });
+      if (!r.ok) { list.textContent = 'No discovery runs yet.'; metrics.hidden = true; return; }
+      const data = await r.json();
+      list.replaceChildren();
+      metrics.replaceChildren();
+      const mList = (data.metrics || []).filter((m) => m.value !== '0');
+      for (const m of mList) {
+        const card = document.createElement('div');
+        card.className = 'metric';
+        const v = document.createElement('strong');
+        const l = document.createElement('span');
+        v.textContent = m.value;
+        l.textContent = m.label;
+        card.append(v, l);
+        metrics.append(card);
+      }
+      metrics.hidden = !mList.length;
+      const rows = (data.items || []).filter((item) => item.detail || item.actions?.[0]?.context);
+      refreshBtn.hidden = !rows.length;
+      if (!rows.length) {
+        list.textContent = 'No discovery runs yet.';
+        return;
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'table-scroll';
+      const table = document.createElement('table');
+      table.className = 'records';
+      table.setAttribute('data-sortable', '');
+      const hr = table.createTHead().insertRow();
+      for (const h of ['Run', 'State', '']) {
+        const th = document.createElement('th');
+        th.textContent = h;
+        if (!h) th.setAttribute('data-sortable', 'false');
+        hr.append(th);
+      }
+      const tbody = table.createTBody();
+      for (const item of rows) {
+        const tr = tbody.insertRow();
+        tr.insertCell().textContent = item.text || 'Discovery';
+        tr.insertCell().textContent = item.detail || '';
+        const act = tr.insertCell();
+        const ctx = item.actions?.[0]?.context;
+        if (ctx) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = 'Use in brief';
+          b.addEventListener('click', () => { fill(ctx); status.textContent = 'Loaded into brief.'; });
+          act.append(b);
+        }
+      }
+      wrap.append(table);
+      list.append(wrap);
+      if (window.KernelTable) window.KernelTable.enhance(list);
+    } catch (_) {
+      list.textContent = 'No discovery runs yet.';
+      metrics.hidden = true;
+    }
+  }
+
+  document.querySelector('#refresh').addEventListener('click', refresh);
+
+  try {
+    const response = await fetch('/api/swarm/apps/home-plan', { cache: 'no-store' });
+    const list = document.querySelector('#loadedApps');
+    if (response.ok) {
+      const plan = await response.json();
+      list.replaceChildren();
+      const apps = (plan.apps || []).slice().sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+      const select = document.querySelector('#dirSuite');
+      for (const id of [...new Set(apps.map((a) => a.suite).filter(Boolean))].sort()) {
+        const o = document.createElement('option');
+        o.value = id;
+        o.textContent = SUITES[id] || appName(id);
+        select.append(o);
+      }
+      for (const entry of apps) list.append(directoryRow(entry));
+      const empty = document.createElement('p');
+      empty.id = 'dirEmpty';
+      empty.className = 'hint';
+      empty.textContent = apps.length ? 'No matching applications.' : 'No loaded applications.';
+      empty.hidden = apps.length > 0;
+      list.append(empty);
+    } else {
+      list.textContent = 'Directory unavailable.';
+    }
+  } catch (_) {
+    document.querySelector('#loadedApps').textContent = 'Directory unavailable.';
+  }
+
+  await refresh();
+}
+</script>
+</body>
+</html>

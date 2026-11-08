@@ -15,7 +15,9 @@
    "--accent-primary-hover": "#9d9dff",
    "--status-success": "#34d399",
    "--status-warning": "#fbbf24",
-   "--status-error": "#f87171"
+   "--status-error": "#f87171",
+   "--text-on-accent": "#111827",
+   "--status-active": "#60a5fa"
   },
   "daylight": {
    "--bg-primary": "#f0f2f8",
@@ -31,7 +33,9 @@
    "--accent-primary-hover": "#7c6ef0",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#ffffff",
+   "--status-active": "#1d4ed8"
   },
   "ocean": {
    "--bg-primary": "#080e1a",
@@ -47,7 +51,9 @@
    "--accent-primary-hover": "#38bdf8",
    "--status-success": "#2dd4bf",
    "--status-warning": "#fbbf24",
-   "--status-error": "#f87171"
+   "--status-error": "#f87171",
+   "--text-on-accent": "#111827",
+   "--status-active": "#0ea5e9"
   },
   "sakura": {
    "--bg-primary": "#1a0a14",
@@ -63,7 +69,9 @@
    "--accent-primary-hover": "#f472b6",
    "--status-success": "#34d399",
    "--status-warning": "#fbbf24",
-   "--status-error": "#f87171"
+   "--status-error": "#f87171",
+   "--text-on-accent": "#111827",
+   "--status-active": "#f472b6"
   },
   "forest": {
    "--bg-primary": "#0a1208",
@@ -79,7 +87,9 @@
    "--accent-primary-hover": "#4ade80",
    "--status-success": "#4ade80",
    "--status-warning": "#fbbf24",
-   "--status-error": "#f87171"
+   "--status-error": "#f87171",
+   "--text-on-accent": "#111827",
+   "--status-active": "#22c55e"
   },
   "gray": {
    "--bg-primary": "#121417",
@@ -95,7 +105,9 @@
    "--accent-primary-hover": "#cbd5e1",
    "--status-success": "#34d399",
    "--status-warning": "#fbbf24",
-   "--status-error": "#f87171"
+   "--status-error": "#f87171",
+   "--text-on-accent": "#111827",
+   "--status-active": "#93c5fd"
   },
   "black": {
    "--bg-primary": "#050505",
@@ -111,7 +123,9 @@
    "--accent-primary-hover": "#ffffff",
    "--status-success": "#4ade80",
    "--status-warning": "#fbbf24",
-   "--status-error": "#f87171"
+   "--status-error": "#f87171",
+   "--text-on-accent": "#111827",
+   "--status-active": "#93c5fd"
   },
   "light-blue": {
    "--bg-primary": "#eaf4ff",
@@ -127,7 +141,9 @@
    "--accent-primary-hover": "#60a5fa",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#111827",
+   "--status-active": "#1d4ed8"
   },
   "aurora": {
    "--bg-primary": "#061018",
@@ -143,7 +159,9 @@
    "--accent-primary-hover": "#67e8f9",
    "--status-success": "#34d399",
    "--status-warning": "#fbbf24",
-   "--status-error": "#fb7185"
+   "--status-error": "#fb7185",
+   "--text-on-accent": "#111827",
+   "--status-active": "#38bdf8"
   },
   "graphite": {
    "--bg-primary": "#0c0d10",
@@ -159,7 +177,9 @@
    "--accent-primary-hover": "#f8fafc",
    "--status-success": "#4ade80",
    "--status-warning": "#fbbf24",
-   "--status-error": "#fb7185"
+   "--status-error": "#fb7185",
+   "--text-on-accent": "#111827",
+   "--status-active": "#93c5fd"
   },
   "amber": {
    "--bg-primary": "#120b06",
@@ -175,7 +195,9 @@
    "--accent-primary-hover": "#fbbf24",
    "--status-success": "#4ade80",
    "--status-warning": "#fde047",
-   "--status-error": "#fb7185"
+   "--status-error": "#fb7185",
+   "--text-on-accent": "#111827",
+   "--status-active": "#fbbf24"
   },
   "workspace": {
    "--bg-primary": "#f5f6f9",
@@ -191,7 +213,9 @@
    "--accent-primary-hover": "#444cae",
    "--status-success": "#18764f",
    "--status-warning": "#916522",
-   "--status-error": "#bb3947"
+   "--status-error": "#bb3947",
+   "--text-on-accent": "#ffffff",
+   "--status-active": "#396da4"
   },
   "studio": {
    "--bg-primary": "#181b1b",
@@ -207,7 +231,9 @@
    "--accent-primary-hover": "#cef2c7",
    "--status-success": "#4ade80",
    "--status-warning": "#fbbf24",
-   "--status-error": "#fb7185"
+   "--status-error": "#fb7185",
+   "--text-on-accent": "#20311f",
+   "--status-active": "#93c5fd"
   },
   "jarvis": {
    "--bg-primary": "#f8f5ee",
@@ -223,7 +249,9 @@
    "--accent-primary-hover": "#d35f3b",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#fffaf5",
+   "--status-active": "#2563eb"
   },
   "orbit": {
    "--bg-primary": "#f1f5fb",
@@ -239,7 +267,9 @@
    "--accent-primary-hover": "#4e80eb",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#ffffff",
+   "--status-active": "#3568d4"
   },
   "commons": {
    "--bg-primary": "#f6f4f9",
@@ -255,7 +285,9 @@
    "--accent-primary-hover": "#8c66b0",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#ffffff",
+   "--status-active": "#725191"
   },
   "nexus": {
    "--bg-primary": "#080f14",
@@ -271,7 +303,9 @@
    "--accent-primary-hover": "#b4efe3",
    "--status-success": "#4ade80",
    "--status-warning": "#fbbf24",
-   "--status-error": "#fb7185"
+   "--status-error": "#fb7185",
+   "--text-on-accent": "#10242b",
+   "--status-active": "#38bdf8"
   },
   "family": {
    "--bg-primary": "#f6f5f0",
@@ -287,7 +321,9 @@
    "--accent-primary-hover": "#508069",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#ffffff",
+   "--status-active": "#3e6854"
   },
   "classroom": {
    "--bg-primary": "#fbf8f5",
@@ -303,7 +339,9 @@
    "--accent-primary-hover": "#8664b8",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#ffffff",
+   "--status-active": "#6c4f97"
   },
   "company": {
    "--bg-primary": "#f4f6f8",
@@ -319,7 +357,9 @@
    "--accent-primary-hover": "#2b8c99",
    "--status-success": "#15803d",
    "--status-warning": "#b45309",
-   "--status-error": "#b91c1c"
+   "--status-error": "#b91c1c",
+   "--text-on-accent": "#ffffff",
+   "--status-active": "#1f6b75"
   }
  }
 }

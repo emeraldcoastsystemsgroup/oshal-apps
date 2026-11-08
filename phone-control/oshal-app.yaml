@@ -11,6 +11,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: device features require the administrator tier (personal owner isolation unchanged); every Connect / Use this computer press answers in its own card; Fire TV / Android TV connection over network adb with a TV remote; explicit iPhone Bluetooth steps and Remove pairing.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: real iPhone screen mirroring over AirPlay through UxPlay on the person's Linux computer, explicit Bluetooth peripheral pairing steps, merged Connect sheet (phone-control-config removed from ui.static; /api/phone-control/config/ui opens the Connect sheet), and full-frame remote-control session layout. Authorization contract unchanged.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: deliver all 13 Reference-Product session features (RP-PHC-01..13) — direct computer pointer/keyboard control in touch or mouse mode, special keys & chords (Ctrl+Alt+Del, Super, F1-F12), file transfer, clipboard sync, multi-monitor switching, screenshot & session clip recording, picture quality presets, capability-gated privacy screen, lock-on-end, session chat, whiteboard annotations, switch sides, and concierge session tool parity.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: screen-first studio session workspace with Sync, single Mirror toggle, Full screen stage (.is-fullscreen + parent event fallback + corner HUD), collapsible Concierge rail, compact TV remote + keyboard navigation, BlueZ bonded LE HID reconnect + non-flooding AssistiveTouch swipes + pre-mirror stage touchpad, Fire TV DRM protected-surface notice + fast post-action frame wakeups, gated RDP session polling, and guided Android pairing steps with Samsung Auto Blocker tip.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -33,7 +34,7 @@ description: >-
   Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring
   (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV/RDP
   Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.
-version: 1.4.0
+version: 1.4.1
 status: active
 scope: person
 chatBot: device-concierge

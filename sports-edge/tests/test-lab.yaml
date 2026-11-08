@@ -8,6 +8,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Register sports-preview-readonly: GET /preview only reads (the native kernel admits a GET as a reader and refused its build), POST /preview/:eventId/build builds.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Register games-next: an empty Games list names its 8-day window and the next game within 35 days (a bye week read as a broken schedule); the audience-view case also expects the followed teams named instead of 'No saved work yet'.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register ux-home-and-review: the app opens on Games once a team is followed, the review left the menu and hides its brief without a connected action.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 0.12.0 (F22): register sports-quant (outlier-trimmed robustness and read-only quant routes) and sports-quant-browser (collapsible Sports Quant Concierge rail across 1440x900 and 412x915).
 version: 1
 cases:
   - id: package-readiness
@@ -336,4 +337,52 @@ cases:
     limits:
       timeoutMs: 30000
       maxMemoryMb: 128
+    installation: never
+  - id: sports-quant
+    name: Sports Quant outlier-trimmed robustness and read-only quant routes
+    purpose: >-
+      Verify outlier-trimmed ROI and CLV robustness (WINNERS_REMOVED = 0.2), numeric read-only GET /quant/tonight,
+      /quant/roi, and /quant/game endpoints under reader admission, and approval gating on sports_edge_record_pick.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-quant.test.js
+    expected:
+      - Removing the top 20% winners separates a lucky longshot from durable positive-CLV, lower-Brier edge.
+      - GET /quant/tonight, /quant/roi, and /quant/game return numeric vig, edge, quarter-Kelly, and movement with zero SQL writes.
+      - Manifest and persona bind sports-quant and require approval before recording forward-test picks.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: sports-quant-browser
+    name: Chromium proof for collapsible Sports Quant Concierge rail
+    purpose: >-
+      Verify in headless Chromium at 1440x900 and 412x915 across light-blue and midnight themes that the Sports Quant
+      Concierge rail collapses cleanly, pins its composer flush to the bottom, answers numeric edges, and gates pick writes.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/sports-quant-browser.test.cjs
+    expected:
+      - Right rail opens on desktop, collapses via close and toggle buttons, and starts closed on 412x915 with zero horizontal overflow.
+      - Composer stays bottom-pinned with zero outer rail scrollbar, >= 4.5:1 button contrast, numeric edge replies, and approval card gating.
+    prerequisites:
+      - runner:node-test
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
     installation: never

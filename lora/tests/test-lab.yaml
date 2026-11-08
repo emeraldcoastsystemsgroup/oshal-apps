@@ -18,6 +18,7 @@
 # 17 | maintainer@emeraldcoastsystemsgroup.com | Register lora-read-tools: the director's character and model reads bound to lora.read.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing director tool case to saved-source context and held edits without provider calls.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the character-required-fields case expects "Hero image" (under a closed Advanced that a gap opens) and a Subject slug made from the Name; the workspace-foundation case covers the studio opening ready on New character step 1, Properties without a creation form, no inline Concierge, the phone's character list with one + New character, the stepper, and the training actions withheld without a GPU worker.
+# 20 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: register photo-upload unit/HTTP bounds and extend workspace-foundation with multi-photo crop and caption upload in Step 2 Dataset.
 version: 1
 cases:
   - id: character-required-fields
@@ -396,6 +397,22 @@ cases:
       - Source edits require the original active owner and current named permissions.
       - Provider generation, training, printer control and sending are not conferred by the source editor role.
       - Existing privileged roles retain their reviewed operations.
+    prerequisites: [runner:node, runtime:canonical-store-toolchain]
+    sideEffects: none
+    isolation: {mode: none}
+    limits: {timeoutMs: 15000, maxMemoryMb: 512}
+    installation: never
+
+  - id: photo-upload
+    name: Multi-photo device upload, crop geometry, and owner preview bounds
+    purpose: Verify crop-box math, basename deduplication, PNG/JPEG/WebP magic-byte and size bounds, owner-scoped staging/previews, and cross-owner refusal over loopback HTTP.
+    level: unit
+    runner: {kind: node-test, scope: package, files: [tests/photo-upload.test.mjs]}
+    expected:
+      - Crop boxes preserve 1:1, 3:4, and 4:3 aspect ratios, zoom scaling, and normalized pan bounds.
+      - Uploaded basenames are sanitized and case-insensitive duplicates receive sequential suffixes.
+      - Non-image payloads answer 415 and payloads above 10 MiB answer 413 before storage.
+      - Owner-scoped uploads stage bytes, list previews, serve nosniff thumbnails, and refuse foreign owners with 404.
     prerequisites: [runner:node, runtime:canonical-store-toolchain]
     sideEffects: none
     isolation: {mode: none}

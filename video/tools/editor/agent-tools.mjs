@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bounded agent timeline operations retain linked timing, lock checks and immutable revisions.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Describe automatic document saves and refreshes in the shared editing contract.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Expose clip speed/effects and sticker operations in the agent timeline editing contract.
  */
 import { createTimeline, addSource, removeSource, renameTimeline, replaceMotionSource } from './timeline-model.mjs';
 import { validateTimeline } from './timeline-validation.mjs';
@@ -8,7 +9,8 @@ import { migrateMultitrack, applyMultitrack } from './multitrack-model.mjs';
 const forms = { migrate: [], rename: ['name'], addSource: ['source'], removeSource: ['key'], replaceMotionSource: ['key','source'],
   addTrack: ['name','kind'], track: ['id','patch'], addClip: ['track','source','start','in','out'], clip: ['id','patch'],
   moveClip: ['id','track','start'], removeClip: ['id','ripple'], split: ['id','frame'], extractAudio: ['id','track'], unlink: ['id'],
-  text: ['track','entry'], updateText: ['track','id','patch'], removeText: ['track','id'] };
+  text: ['track','entry'], updateText: ['track','id','patch'], removeText: ['track','id'],
+  addSticker: ['entry'], updateSticker: ['id','patch'], removeSticker: ['id'], setProfile: ['name'] };
 export const operationSchema = { type: 'object', additionalProperties: false, required: ['type'], properties: {
   type: { type: 'string', enum: Object.keys(forms) }, id: { type: 'string', maxLength: 100 },
   name: { type: 'string', minLength: 1, maxLength: 120 }, key: { type: 'string', maxLength: 32 },
@@ -34,6 +36,7 @@ export function applyAgentOperations(value, operations) {
     if (!allowed || Object.keys(operation).some(key => key !== 'type' && !allowed.includes(key))) throw new TypeError('Unsupported editing fields');
     if (operation.type === 'migrate') next = migrateMultitrack(next);
     else if (operation.type === 'rename') next = renameTimeline(next, operation.name);
+    else if (operation.type === 'setProfile') next = validateTimeline({ ...next, profile: operation.name });
     else if (operation.type === 'addSource') next = addSource(next, operation.source).document;
     else if (operation.type === 'replaceMotionSource') next = replaceMotionSource(next, operation.key, operation.source);
     else if (operation.type === 'removeSource') next = removeSource(next, operation.key);

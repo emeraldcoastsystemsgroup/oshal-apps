@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Store home for the Workflow Studio flow Capability Ideation, which existed only as a migrated declaration in the installation's state directory and opened with no screen and no concierge. Its one-stage graph is written as the equivalent phases (ideate on the imported capability-ideator, then complete), it opens Capability Ideator's review screen, and capability-ideator is its concierge.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Ship the store's canonical service-authenticated package-readiness route (routes/package-smoke.js, byte-identical to the reviewed module) and its smoke expectation, which the store security contract requires of every package except Pumpkin and the four front-door groups. It reads only this manifest; no screen, user data or model call.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.0.1: UX design-standard sweep (D1=glass, D2=c, capability-ideation--capability-ideation-review): ship Capability Ideation's own Brief + Capability directory surface at /apps/capability-ideation/ui/index.html so it no longer mounts a duplicate /api/capability-ideator/review tile, sends app-ask turns to capability-ideation's own concierge, stacks directory rows on phone with a row menu, and keeps sort headers and controls at 44px on the design-standard scale.
 name: capability-ideation
 suite: ai-productivity
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -22,7 +23,7 @@ description: >-
   integrations for it, each with the inputs, steps, what it needs to verify and how to measure it.
   Opens Capability Ideator's review screen, where recorded work continues in Presentations or
   Venture Plan.
-version: 1.0.0
+version: 1.0.1
 status: active
 scope: person
 source:
@@ -76,5 +77,5 @@ ui:
     - toolName: capability-ideation-review
       label: Capability Ideation
       icon: codicon codicon-lightbulb
-      iframeUrl: /api/capability-ideator/review
+      iframeUrl: /apps/capability-ideation/ui/index.html
       section: top

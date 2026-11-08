@@ -14,6 +14,7 @@
   22 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade D): with no career profile the page showed only the word "Resume" and an enabled "Save master resume" answered 422 "no career profile yet — upload a resume first" while the screen offered no upload. Now, with no résumé indexed (GET /resume/state), the page is an empty state whose one primary uploads the résumé through the same route the Job Board onboarding uses (POST /resume/upload, field "resume"), then follows the indexing until the master opens. Save is a secondary button, hidden until a résumé exists and enabled only with an unsaved change; a failed load or save is told beside the action (role=alert) with its fix. The résumé paper carries data-no-glass, so the platform's automatic glass can no longer paint it charcoal in Graphite (it stays white paper with dark ink in every theme). The two raw cross-links moved into a More menu; the empty picker option reads "No tailored résumés yet"; on a phone the Resume Editor opens as a sheet from one "Edit with AI" bar. Guard: tests/career-resume-studio-screen.test.mjs.
   23 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-06: the master resume opens as an editable Word document in AI Office's own editor (tools/career-resume-office.js), with AI Office's standard Concierge beside it in place of Career's resume editor panel. Save to master resume is the one main button; it saves the document's text back through the same whitelisted master save. Tailored job packets keep the classic preview and editor. Without AI Office the master opens in the classic view and says why.
   24 | maintainer@emeraldcoastsystemsgroup.com | The design standard audit on production (412x743, 1440x900): the page declares its contract (editor, first action type, the preview as its work surface; DS-00), contains overscroll (DS-37), and the document frame's radius is on the scale (10px, DS-17).
+  25 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: move Add career materials (work samples, LinkedIn exports, job emails) into Resume Studio (#materialsSheet + #materials deep-link) with drop-zone upload and Back dismissal; use 100dvh geometry and scale radii/typography.
 -->
 
 <html lang="en" data-theme="midnight" data-career-surface="resume-studio" data-ds-category="editor" data-ds-first-action="type">
@@ -39,11 +40,11 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
     font: 14px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  .wrap { display: grid; grid-template-columns: 1fr 380px; height: 100vh; }
+  .wrap { display: grid; grid-template-columns: 1fr 380px; height: 100dvh; }
   /* minmax(0, …) and the select's max-width keep a long resume name from widening the page past a phone's edge
      (the select ran to 487 px in a 412 px viewport); the composer grows to show its two-line placeholder whole. */
   @media (max-width: 880px) {
-    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 45vh; }
+    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 45dvh; }
   }
   .preview { min-width: 0; }
   #pick { flex: 1 1 200px; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
@@ -51,7 +52,7 @@
   .preview { overflow: auto; padding: 24px; }
   .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
   select, button { font: inherit; color: var(--text); background: var(--card);
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+    border: 1px solid var(--line); border-radius: 10px; min-height: 44px; padding: 8px 12px; cursor: pointer; }
   button.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
   button:disabled { cursor: default; }
   /* The .sheet block below is a simulated sheet of PAPER — the printed resume preview. It stays
@@ -86,13 +87,14 @@
   .msg.sys { align-self: center; color: var(--muted); font-size: 12px; }
   .composer { padding: 12px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
   .composer textarea { flex: 1; resize: none; height: 66px; background: var(--card); color: var(--text);
-    border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; }
   .cover-preview { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
   .empty { color: var(--muted); padding: 40px; text-align: center; }
   #err { flex-basis: 100%; margin: 0; padding: 10px 12px; border: 1px solid var(--ds-bad); border-radius: var(--ds-radius-m); color: var(--ds-ink); background: var(--ds-surface); }
   #err[hidden] { display: none; }
-  .ck-menu a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: var(--ds-radius-m); color: var(--ds-ink); text-decoration: none; }
-  .ck-menu a:hover { background: var(--ds-surface-3); }
+  .ck-menu :is(a, button) { display: flex; width: 100%; align-items: center; min-height: 44px; padding: 0 12px; border: 0; background: transparent; border-radius: var(--ds-radius-m); color: var(--ds-ink); text-decoration: none; text-align: left; }
+  .ck-menu :is(a, button):hover { background: var(--ds-surface-3); }
+  .ck-menu button[hidden] { display: none; }
   #pick { min-height: 44px; }
   #aiBar { display: none; }
   #aiBar[hidden] { display: none !important; }
@@ -101,7 +103,7 @@
      own Concierge (docked on a desktop, a sheet on a phone) replaces Career's resume editor panel. */
   html, body { overscroll-behavior: contain; }
   .office-host[hidden] { display: none; }
-  body[data-view=office] .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100vh; }
+  body[data-view=office] .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100dvh; }
   body[data-view=office] .chat, body[data-view=office] #aiBar { display: none !important; }
   body[data-view=office] .preview { display: flex; flex-direction: column; overflow: hidden; padding: 8px 12px 0; }
   body[data-view=office] .toolbar { margin-bottom: 8px; flex-wrap: nowrap; }
@@ -109,8 +111,8 @@
   .office-host { flex: 1; min-height: 0; background: var(--ds-surface, #fff); border: 1px solid var(--ds-hairline, var(--line)); border-radius: 10px 10px 0 0; overflow: hidden; }
   #officeFrame { display: block; width: 100%; height: 100%; border: 0; }
   @media (max-width: 880px) {
-    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100vh - 64px); }
-    .chat { position: fixed; left: 0; right: 0; bottom: 64px; top: 12vh; z-index: 20; border: 1px solid var(--ds-edge);
+    .wrap { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100dvh - 64px); }
+    .chat { position: fixed; left: 0; right: 0; bottom: 64px; top: 12dvh; z-index: 20; border: 1px solid var(--ds-edge);
       border-radius: var(--ds-radius-xl) var(--ds-radius-xl) 0 0; background: var(--ds-surface); box-shadow: var(--ds-elev-float); }
     .chat:not(.open) { display: none; }
     #aiBar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; height: 64px; padding: 10px 12px; gap: 8px; z-index: 21;
@@ -138,6 +140,7 @@
     <div class="ck-menu" id="moreMenu" popover role="menu">
       <a role="menuitem" data-career-tool="career-experience-library" href="/api/career-hunter/experience-library">Additional experience library</a>
       <a role="menuitem" data-career-tool="career-board" href="/api/career-hunter/board-native?view=queue">Prepare &amp; submit</a>
+      <button type="button" role="menuitem" id="openMaterials">Add career materials…</button>
       <button type="button" role="menuitem" id="replaceMaster" hidden>Replace with the saved master resume</button>
     </div>
     <section id="noProfile" class="ck-empty" hidden>
@@ -164,6 +167,28 @@
   </div>
 </div>
 <div id="aiBar"><button type="button" class="ck-btn" id="aiOpen" aria-expanded="false">Edit with AI</button></div>
+<dialog class="ck-sheet" id="materialsSheet" data-ds-sheet data-no-glass aria-labelledby="materialsSheetTitle">
+  <header><h2 id="materialsSheetTitle">Add career materials</h2><button type="button" class="ck-icon" id="closeMaterials" aria-label="Close">✕</button></header>
+  <div class="ck-sheet-body" style="display:grid;gap:12px">
+    <p style="margin:0;color:var(--muted);font-size:14px">Add work samples, status reports, LinkedIn data exports or job emails to enrich your profile without overwriting existing facts.</p>
+    <label style="display:grid;gap:6px;font-size:14px">Material type
+      <select id="matKind">
+        <option value="work-sample">Work sample</option>
+        <option value="status-report">Status report</option>
+        <option value="linkedin-export">LinkedIn export</option>
+        <option value="email">Job email(s)</option>
+        <option value="resume-extra">Another résumé</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label class="ck-dropzone" id="matDropzone" for="matFiles">
+      <span id="matDropLabel">Drop files here, or tap to choose (.pdf, .docx, .txt, .md, .csv, .zip)</span>
+      <input type="file" id="matFiles" multiple accept=".pdf,.docx,.txt,.md,.csv,.tsv,.html,.htm,.eml,.json,.zip">
+    </label>
+    <p id="matOut" role="status" aria-live="polite" style="margin:0;white-space:pre-wrap;font-size:14px;color:var(--muted)"></p>
+  </div>
+  <footer><button type="button" class="ck-tertiary" id="cancelMaterials">Done</button><button type="button" class="ck-primary" id="matUpload">Add to my profile</button></footer>
+</dialog>
 <!-- Surface bridge: publish WHAT IS OPEN so the floating Jarvis can talk about this resume, and
      accept the edits he sends back. Jarvis drives edits as custom{name:'resume_action'} carrying
      the same whitelisted action shape the concierge emits, so both assistants land through the one
@@ -687,6 +712,60 @@ $('aiOpen').addEventListener('click', () => {
   const open = document.querySelector('.chat').classList.toggle('open');
   $('aiOpen').setAttribute('aria-expanded', String(open)); $('aiOpen').textContent = open ? 'Close the editor' : 'Edit with AI';
 });
+(function wireMaterialsSheet(){
+  const sheet = $('materialsSheet'), openBtn = $('openMaterials'), fileIn = $('matFiles'), dropLabel = $('matDropLabel'), out = $('matOut');
+  if (!sheet || !openBtn || typeof sheet.showModal !== 'function') return;
+  let pushed = false, selectedFiles = [];
+  function showFiles(list){
+    selectedFiles = Array.from(list || []);
+    dropLabel.textContent = selectedFiles.length ? selectedFiles.map((f) => f.name).join(', ') : 'Drop files here, or tap to choose (.pdf, .docx, .txt, .md, .csv, .zip)';
+  }
+  function openMaterials(){
+    try { $('moreMenu')?.hidePopover?.(); } catch (_) {}
+    if (!sheet.open) {
+      sheet.showModal();
+      try { history.pushState({ dsSheet: 'materials' }, ''); pushed = true; } catch (_) {}
+    }
+  }
+  function closeMaterials(){ if (sheet.open) sheet.close(); }
+  openBtn.addEventListener('click', openMaterials);
+  $('closeMaterials').addEventListener('click', closeMaterials);
+  $('cancelMaterials').addEventListener('click', closeMaterials);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) closeMaterials(); });
+  sheet.addEventListener('close', () => {
+    if (pushed) { pushed = false; if (history.state && history.state.dsSheet === 'materials') { try { history.back(); } catch (_) {} } }
+    if (location.hash === '#materials') { try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {} }
+  });
+  window.addEventListener('popstate', () => { if (sheet.open) { pushed = false; sheet.close(); } });
+  fileIn.addEventListener('change', () => showFiles(fileIn.files));
+  const dz = $('matDropzone');
+  dz.addEventListener('dragover', (e) => { e.preventDefault(); });
+  dz.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer?.files?.length) showFiles(e.dataTransfer.files); });
+  $('matUpload').addEventListener('click', async () => {
+    const files = selectedFiles.length ? selectedFiles : Array.from(fileIn.files || []);
+    if (!files.length) { out.textContent = 'Choose one or more files first.'; return; }
+    $('matUpload').disabled = true; out.textContent = 'Reading your materials…';
+    const fd = new FormData(); fd.append('kind', $('matKind').value); for (const f of files) fd.append('files', f);
+    try {
+      const r = await fetch(`${API}/artifacts/upload`, { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.started) { out.textContent = 'Upload failed' + (j.error ? ': ' + j.error : '.'); return; }
+      fileIn.value = ''; showFiles([]);
+      out.textContent = 'Added ' + (j.accepted?.length || 0) + ' file(s). Absorbing into your profile…';
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries += 1;
+        const s = await fetch(`${API}/artifacts`).then((x) => x.json()).catch(() => ({ learned: [] }));
+        const recent = (s.learned || []).flatMap((e) => e.changelog || []).slice(-6);
+        if (recent.length) out.textContent = 'Learned:\n• ' + recent.join('\n• ');
+        if (tries >= 8) { clearInterval(poll); if (!recent.length) out.textContent = 'Materials saved and queued for profile enrichment.'; }
+      }, 3500);
+    } catch (e) { out.textContent = 'Upload failed: ' + e.message; }
+    finally { $('matUpload').disabled = false; }
+  });
+  if (location.hash === '#materials') setTimeout(openMaterials, 0);
+  window.addEventListener('hashchange', () => { if (location.hash === '#materials') openMaterials(); });
+})();
 openDoc(initial);
 // The bridge is a module script, so it can resolve AFTER loadDoc's publish attempt. Publish again
 // once it is ready (no-op when the document hasn't loaded yet — loadDoc publishes on its own).

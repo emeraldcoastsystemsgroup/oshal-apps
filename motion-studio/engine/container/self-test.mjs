@@ -1,13 +1,64 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove real bridge identity, animated pixels, owned mask/source reopen and embedded-font text before an installer reports success.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Require the four implemented exact keyframe adapters in the source registry.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: verify owned audio clip probing/mixing and real multi-sample motion blur rendering during container self-test.
  */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { sourceIdentity } from '../package-identity.mjs';
 import { exchange } from './wire.mjs';
 import { decodePng, sourcePng } from './png.mjs';
-const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+
+function sourceToneWav(frames = 4800, rate = 48000) {
+  const pcmBytes = frames * 4, buf = Buffer.alloc(44 + pcmBytes);
+  buf.write('RIFF', 0); buf.writeUInt32LE(36 + pcmBytes, 4); buf.write('WAVEfmt ', 8);
+  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(2, 22);
+  buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 4, 28); buf.writeUInt16LE(4, 32); buf.writeUInt16LE(16, 34);
+  buf.write('data', 36); buf.writeUInt32LE(pcmBytes, 40);
+  for (let i = 0; i < frames; i++) {
+    const s = Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 16000);
+    buf.writeInt16LE(s, 44 + i * 4); buf.writeInt16LE(s, 46 + i * 4);
+  }
+  return buf;
+}
+
+async function selfTestMediaAndMotionBlur(call, blank) {
+  const comp = document => Object.values(document.items).find(item => item.kind.type === 'Comp');
+  const wavBytes = sourceToneWav(), wavAsset = { id: randomUUID(), sha256: hash(wavBytes), data: wavBytes.toString('base64') };
+  const probed = await call({ op: 'probe', assets: [wavAsset] });
+  assert.equal(probed.kind, 'audio'); assert.equal(probed.hasAudio, true); assert.equal(probed.mediaType, 'audio/wav');
+  const audioDoc = await call({
+    op: 'edit', document: blank.document, assets: [wavAsset],
+    commands: [{ command: 'comp.new', params: { name: 'Tone', width: 160, height: 90, frameRate: 30, duration: 1 } }, { command: 'asset.import', params: { assetId: wavAsset.id } }]
+  });
+  const mix = await call({ op: 'audio', document: audioDoc.document, comp: comp(audioDoc.document).id, assets: [wavAsset], start_ticks: '0', end_ticks: '25401600000', sample_rate: 48000, peak_bins: 8 });
+  assert.equal(mix.hasAudio, true); assert.equal(mix.peaks.length, 8); assert.ok(Math.max(...mix.peaks) > 0.3);
+  assert.equal(Buffer.from(mix.wav, 'base64').subarray(0, 4).toString('ascii'), 'RIFF');
+  let blurDoc = await call({
+    op: 'edit', document: blank.document,
+    commands: [
+      { command: 'comp.new', params: { name: 'Blur', width: 160, height: 90, frameRate: 30, duration: 1 } },
+      { command: 'layer.newSolid', params: { name: 'Runner', color: '#00ff88', width: 24, height: 24 } },
+      { command: 'prop.addKey', params: { layer: 'Runner', path: 'transform/position', time: 0, value: [16, 45] } },
+      { command: 'prop.addKey', params: { layer: 'Runner', path: 'transform/position', time: 1, value: [144, 45] } }
+    ]
+  });
+  const blurComp = comp(blurDoc.document).id;
+  const sharpPng = Buffer.from((await call({ op: 'preview', document: blurDoc.document, comp: blurComp, time: 0.5, transparent: true })).png, 'base64');
+  blurDoc = await call({
+    op: 'edit', document: blurDoc.document, comp: blurComp,
+    commands: [
+      { command: 'comp.settings', params: { shutterAngle: 360, motionBlurSamples: 16 } },
+      { command: 'comp.setSwitch', params: { switch: 'motionBlur', value: true } },
+      { command: 'layer.setSwitch', params: { layers: ['Runner'], switch: 'motionBlur', value: true } }
+    ]
+  });
+  const blurredPng = Buffer.from((await call({ op: 'preview', document: blurDoc.document, comp: blurComp, time: 0.5, transparent: true })).png, 'base64');
+  assert.notEqual(hash(sharpPng), hash(blurredPng), 'motion blur must alter fast-moving solid pixels');
+}
+
 async function expectedIdentity(){
   const expected=sourceIdentity();
   if(process.argv.includes('--expected-stdin')){
@@ -52,7 +103,8 @@ export async function selfTest(expected, address={}){
   stringScene=await call({op:'edit',document:stringScene.document,comp:sceneComp.id,commands:[{command:'properties.patchAt',params:{layer:String(sceneLayer.id),effect:String(lutGroup.uid),compTimeTicks:'1',changes:[{prop:String(lut.uid),value:'#😀\nLUT_1D_SIZE 2\n0 0 0\n0 0 0\n'}]}}]});
   stringScene=await call({op:'edit',document:stringScene.document,comp:sceneComp.id,commands:[{command:'properties.patchAt',params:{layer:String(sceneLayer.id),effect:String(lutGroup.uid),compTimeTicks:'1',changes:[{prop:String(lut.uid),textPatch:{start:1,end:3,text:'😁'}}]}}]});
   assert.ok(comp(stringScene.document).kind.layers[0].props.children.find(g=>g.match==='effects').children[0].children.find(p=>p.match==='lut').value.v.startsWith('#😁\n'));
-  return {ok:true,identity:expected,commandCount:catalog.commands.length,midpointAlpha:128,maskedPixels:64,midpointSha256:hash(midpoint),maskedSha256:hash(masked),textRendered:true};
+  await selfTestMediaAndMotionBlur(call, blank);
+  return {ok:true,identity:expected,commandCount:catalog.commands.length,midpointAlpha:128,maskedPixels:64,midpointSha256:hash(midpoint),maskedSha256:hash(masked),textRendered:true,audioMixed:true,motionBlurRendered:true};
 }
 if(process.argv[1]?.endsWith('/self-test.mjs')){
   try{console.log(JSON.stringify(await selfTest(await expectedIdentity())));}

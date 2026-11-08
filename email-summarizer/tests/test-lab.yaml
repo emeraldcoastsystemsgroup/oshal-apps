@@ -22,6 +22,8 @@
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 1.6.6: the mail copy turns itself on for a connected Gmail; nothing to press, and a person's own stop stands.
 # 19 | maintainer@emeraldcoastsystemsgroup.com | 1.6.8 (UX audit 2026-11-06): surface-provider and mailbox-connect expect the one-primary connect empty state and its sheet (no Mail connections link, no /utilities path), My Day's local-time greeting, hidden switch, fallback from a saved mailbox that is not connected and greyed skeleton, and the Inbox search's real scope; mail-store-browser expects the phone list-detail with Back, the centred no-mailbox state, a not-connected search that keeps Connect, the Outlook search reason and the 44px controls; social-desk-browser expects the Engage and Go Live screens of the audit.
 # 20 | maintainer@emeraldcoastsystemsgroup.com | 1.6.10 (UX audit 2026-11-06, little-monsters--lm-email): mail-store-browser and surface-provider expect #storeLine, #provider, #refresh and #storeSearch to stay hidden with no mailbox connected and show once linked; mailbox-connect and mail-store-browser expect OAuth authorize from Little Monsters Email to carry ?return=/cockpit/?app=little-monsters&screen=lm-email.
+# 21 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Go Live planned stream editing: social-store, social-rules and social-desk-browser verify PUT /api/email-social/events/:id, prefilled Edit in Go Live, preserved sent announcements, shifted unsent announcements and the started-stream time refusal.
+# 22 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: register mail-watches: deterministic Gmail mailbox watches (including the TotalConnect security monitor preset), category classification, forced-RLS cross-user isolation on disposable PostgreSQL, hit_key deduplication (quiet second check emits empty report), live Gmail warming + offline fallback, and Home summary active-watch tiles.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -309,6 +311,7 @@ cases:
       - Posting now to two channels where one refuses ends partial with the refusal recorded, and a retry sends only the channel that failed.
       - The due pass sends what is due, leaves what is not, and stops at its budget for the next pass.
       - Engage lists Slack DMs and mentions and X mentions newest first; a reply goes to the Slack thread or as an X reply.
+      - PUT /events/:id updates a planned stream, shifts or replaces unsent announcements while preserving sent ones, enforces owner isolation, and refuses start-time changes once started.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation:
@@ -328,7 +331,7 @@ cases:
       - The migration and the store hold no ON CONFLICT, ORDER BY or DISTINCT; the migration applies twice.
       - A post is stored, listed in send order, read by key, edited, found by the due read only when scheduled and due, and deleted; one person never reads, edits or deletes another's.
       - Settings default, save, keep the fields not given, and a row stored between the read and the insert is updated rather than an error.
-      - Deleting an event removes its unsent announcements and keeps the sent ones.
+      - Deleting an event removes its unsent announcements and keeps the sent ones; readEvent and updateEvent enforce owner row security.
     prerequisites: [runner:node-test, env:OSHAL_TEST_POSTGRES]
     sideEffects: none
     isolation:
@@ -353,11 +356,34 @@ cases:
       - At 412 px the page does not scroll sideways and every rail action stays reachable.
       - Opened on their own (?view=engage, ?view=live) the screens draw no inner strip at 412 px, and a view they open has a back control and a history entry.
       - Engage states "Slack and X" once; with neither connected it says "Connect Slack or X to see mentions" with one Connect a channel primary; "Nothing waiting for you" only with a channel connected; one 44px Refresh with the checked time.
-      - Go Live reads "Save stream" and "Connect a channel to announce" with no announce channel, toasts what a save queued, names the announcing channels or "Not announced" per card, and keeps Delete in the card's ⋯ menu behind an in-page confirm after a greyed Edit (RP-COM-01) that changes nothing when pressed.
+      - Go Live reads "Save stream" and "Connect a channel to announce" with no announce channel, toasts what a save queued, names the announcing channels or "Not announced" per card, opens the prefilled stream form from Edit on each card's ⋯ menu to update the stream and unsent announcements while preserving sent ones and refusing time changes once started, and keeps Delete behind an in-page confirm.
     prerequisites: [runner:node-test, browser:chromium]
     sideEffects: none
     isolation:
       mode: disposable
       cleanup: Close the loopback fixture server and the browser.
     limits: { timeoutMs: 90000, maxMemoryMb: 512 }
+    installation: never
+  - id: mail-watches
+    name: Deterministic Gmail mailbox watches and TotalConnect security alerts
+    purpose: Verify migration 005 forced RLS, /api/email-watches CRUD and TotalConnect preset matching, security category classification, hit_key deduplication, live Gmail warming + offline fallback, and Home summary watch tiles on a disposable PostgreSQL server.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/mail-watches.test.cjs
+    expected:
+      - Migration 005 and the watch route modules contain no ON CONFLICT, ORDER BY, DISTINCT or OFFSET statements, and migration 005 applies idempotently.
+      - The totalconnect preset matches AlarmNet, TotalConnect2, MyTotalConnectComfort, Resideo and Total Connect alerts while rejecting spoofed sender domains, and classifies alarm, trouble, disarmed, armed, sensor and activity categories deterministically.
+      - Creating, listing, updating and deleting watches enforce forced owner row security so one person never reads, updates or deletes another person's watches or alert hits.
+      - POST /api/email-watches/check warms live Gmail metadata into oshal_email_messages, deduplicates matched messages via hit_key so an immediate second check emits newHits 0 and an empty report array, and falls back cleanly to oshal_email_messages when live Gmail is unreachable.
+      - GET /api/email-summarizer/home-summary surfaces active mailbox watches with monitored account, last check age and latest alert summary.
+      - GET /api/email-watches is strictly read-only (SELECT only, even with EMAIL_DEFAULT_WATCHES set, and returns an empty 200 response before migration 005 is provisioned), while POST /api/email-watches/check seeds EMAIL_DEFAULT_WATCHES once and preserves user-disabled watches.
+    prerequisites: [runner:node-test, env:OSHAL_TEST_POSTGRES]
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: Drop only the suite's uniquely named database and role; preserve the shared PostgreSQL server.
+    limits: { timeoutMs: 60000, maxMemoryMb: 256 }
     installation: never

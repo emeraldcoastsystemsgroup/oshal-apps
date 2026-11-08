@@ -7,6 +7,8 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The worker download needs the import's own callback grant instead of the fleet service secret: the grant's owner, character and dataset-download kind must match the staged image. Each import dispatch mints that grant with the staging lifetime, and the dataset callback reports whether it settled a receipt so the ingest route can revoke the grant afterwards.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the staged image at POST /dataset-download/:imageId (an empty signed POST) instead of GET /dataset/:imageId. The kernel's signed-package-callbacks rail admits POST only, and the ADR-149 catalog cannot bind a path that overlaps the studio's POST /dataset/import. The live GET was refused authorization_identity_required before the grant check ever ran.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | GET /dataset only reads. It used to expire stale staged bytes first (a DELETE and an UPDATE), and the native kernel admits a GET as a reader and refuses any SQL mutation under it, so selecting a character answered 502 "dataset receipts unavailable". The listing now reports a queued receipt whose staged bytes are gone or past their expiry as failed, which is what the expiry would have written, and the writer paths (the import and the worker callbacks) still expire and delete.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: add multi-photo device upload (POST /dataset/upload) and owner-scoped staged preview reads (GET /dataset/:imageId/preview), plus real receipt ids on authorized GET /dataset reads. Uploaded cropped PNG/JPEG/WebP photos are magic-byte sniffed, size-bounded, auto-deduplicated by basename, staged under forced owner RLS, and dispatched when a GPU worker is online or held staged until one connects.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Stage dataset bytes via decode($5, 'hex') and decode PostgreSQL Buffer or native \x-prefixed hex bytea values on preview and worker reads, paired with the portable length(encode(image, 'hex')) = byte_size * 2 CHECK evolution.
  */
 
 /**
@@ -29,13 +31,14 @@
 
 import {bindDatasetImport,checkDatasetImport} from './lora-dataset-import-state';
 import {createCaptionEditorRoutes,decorateCaptionImages,assertEditorCharacterOwner,editorAccess} from './lora-caption-editor';
-import { Router, type Request, type RequestHandler, type Response } from 'express';
+import { json, Router, type Request, type RequestHandler, type Response } from 'express';
 import { createHash } from 'node:crypto';
 import { createChildLogger } from '@/shared/logger';
 import type { AppContext } from '@/app/composition/app-context';
 import { callbackGrantOf, dispatchWithCallbackGrant, grantRefusal, type VerifiedGrant } from './lora-callback-grants';
 import {
   buildDatasetImportCommand,
+  hasEdgeWorker,
   isSafeDatasetFilename,
   MAX_DATASET_IMAGE_BYTES,
   type LoraCharacterConfig,
@@ -108,6 +111,48 @@ export function datasetFilename(name: string, type: DatasetImageType): string | 
   return isSafeDatasetFilename(candidate) ? candidate : null;
 }
 
+/** Maximum number of cropped reference photos accepted in one upload call. */
+export const MAX_UPLOAD_PHOTOS = 24;
+const DATA_URL_RE = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const BASE64_RE = /^[A-Za-z0-9+/=\s]+$/;
+
+/** Derive a safe, collision-free basename for a device photo upload and reserve its stem. */
+export function datasetUploadFilename(name: string, type: DatasetImageType, reservedStems?: Set<string>): string | null {
+  const base = String(name || '').trim().replace(/\\/g, '/').split('/').pop() || '';
+  const rawStem = base.replace(/\.[a-z0-9]{1,8}$/i, '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[.-]+|[.-]+$/g, '');
+  const rootStem = (rawStem || 'photo').slice(0, 48).replace(/[.-]+$/g, '') || 'photo';
+  let chosen = rootStem;
+  if (reservedStems) {
+    let suffix = 2;
+    while (reservedStems.has(chosen.toLowerCase())) {
+      chosen = `${rootStem}-${suffix}`;
+      suffix += 1;
+    }
+    reservedStems.add(chosen.toLowerCase());
+  }
+  const candidate = `${chosen}.${EXTENSIONS[type]}`;
+  return isSafeDatasetFilename(candidate) ? candidate : null;
+}
+
+/** Decode and magic-byte validate one base64-encoded photo from a device upload. */
+export function decodeUploadedPhoto(input: unknown): RedeemOutcome {
+  const raw = (input && typeof input === 'object' ? input : {}) as { name?: unknown; dataBase64?: unknown };
+  if (typeof raw.dataBase64 !== 'string' || !raw.dataBase64.trim()) {
+    return { ok: false, status: 400, error: 'photo image bytes are required' };
+  }
+  const clean = raw.dataBase64.trim().replace(DATA_URL_RE, '').replace(/\s+/g, '');
+  if (!clean || !BASE64_RE.test(clean)) return { ok: false, status: 400, error: 'photo dataBase64 is not valid base64' };
+  if (Math.floor((clean.length * 3) / 4) > MAX_DATASET_IMAGE_BYTES + 4) {
+    return { ok: false, status: 413, error: 'image exceeds the 10 MiB dataset limit' };
+  }
+  const bytes = Buffer.from(clean, 'base64');
+  if (bytes.length < 1) return { ok: false, status: 400, error: 'photo image bytes are empty' };
+  if (bytes.length > MAX_DATASET_IMAGE_BYTES) return { ok: false, status: 413, error: 'image exceeds the 10 MiB dataset limit' };
+  const type = sniffDatasetImageType(bytes);
+  if (!type) return { ok: false, status: 415, error: 'photo bytes must be a PNG, JPEG, or WebP image' };
+  return { ok: true, name: String(raw.name || 'photo'), type, bytes };
+}
+
 /**
  * @description Bound the caption written beside the image.
  * @param value - Caller-supplied caption.
@@ -158,6 +203,8 @@ export function datasetSchemaStatements(): string[] {
     'DROP POLICY IF EXISTS oshal_lora_dataset_staging_owner_policy ON oshal_lora_dataset_staging',
     ownerPolicy('oshal_lora_dataset_staging', `SELECT 1 FROM oshal_lora_dataset_images d
       JOIN oshal_lora_characters c ON c.id = d.character_id WHERE d.id = oshal_lora_dataset_staging.image_id`),
+    'ALTER TABLE oshal_lora_dataset_staging DROP CONSTRAINT IF EXISTS oshal_lora_dataset_staging_check',
+    `ALTER TABLE oshal_lora_dataset_staging ADD CONSTRAINT oshal_lora_dataset_staging_check CHECK (length(encode(image, 'hex')) = byte_size * 2)`,
   ];
 }
 
@@ -291,10 +338,10 @@ async function stageDatasetImage(
     const imageId = String(receipt.rows[0].id);
     await client.query(
       `INSERT INTO oshal_lora_dataset_staging (image_id, content_type, byte_size, sha256, image, expires_at)
-       VALUES ($1, $2, $3, $4, $5, NOW() + ($6 || ' hours')::INTERVAL)
+       VALUES ($1, $2, $3, $4, decode($5, 'hex'), NOW() + ($6 || ' hours')::INTERVAL)
        ON CONFLICT (image_id) DO UPDATE SET content_type = EXCLUDED.content_type, byte_size = EXCLUDED.byte_size,
          sha256 = EXCLUDED.sha256, image = EXCLUDED.image, expires_at = EXCLUDED.expires_at, created_at = NOW()`,
-      [imageId, image.type, image.bytes.length, createHash('sha256').update(image.bytes).digest('hex'), image.bytes, String(DATASET_STAGING_TTL_HOURS)]);
+      [imageId, image.type, image.bytes.length, createHash('sha256').update(image.bytes).digest('hex'), image.bytes.toString('hex'), String(DATASET_STAGING_TTL_HOURS)]);
     await editorAccess(ctx,'lora.configure',stageActor);
     await client.query('COMMIT');
     return imageId;
@@ -374,6 +421,123 @@ async function importDatasetImage(ctx: AppContext, deps: DatasetRouteDeps, req: 
     clientId: queued.clientId, taskId: queued.taskId, message: `Dataset image ${filename} queued for ${input.subject}.` });
 }
 
+interface PreparedUploadItem {
+  filename: string;
+  caption: string;
+  image: Extract<RedeemOutcome, { ok: true }>;
+}
+
+/** Validate and prepare every photo in an upload batch before staging any SQL rows. */
+function prepareUploadBatch(
+  rawPhotos: unknown[], fallbackCaption: string, reservedStems: Set<string>,
+): { ok: true; items: PreparedUploadItem[] } | { ok: false; status: number; error: string } {
+  const items: PreparedUploadItem[] = [];
+  for (const raw of rawPhotos) {
+    const decoded = decodeUploadedPhoto(raw);
+    if (!decoded.ok) return decoded;
+    const rawCaption = raw && typeof raw === 'object' ? (raw as { caption?: unknown }).caption : undefined;
+    const caption = datasetCaption(rawCaption, fallbackCaption);
+    if (!caption) return { ok: false, status: 400, error: 'caption must be non-empty and at most 2048 UTF-8 bytes' };
+    const filename = datasetUploadFilename(decoded.name, decoded.type, reservedStems);
+    if (!filename) return { ok: false, status: 400, error: 'photo filename is not a safe dataset basename' };
+    items.push({ filename, caption, image: decoded });
+  }
+  return { ok: true, items };
+}
+
+async function stageUploadedBatch(
+  ctx: AppContext,
+  deps: LoraDatasetDeps,
+  character: LoadedCharacter,
+  items: PreparedUploadItem[],
+  sub: string,
+  workerOnline: boolean,
+): Promise<Array<Record<string, unknown>>> {
+  const uploaded: Array<Record<string, unknown>> = [];
+  for (const item of items) {
+    const imageId = await stageDatasetImage(ctx, character.id, item.filename, item.caption, item.image);
+    if (workerOnline) {
+      const queued = await queueWorkerWrite(ctx, deps, character, { imageId, filename: item.filename, caption: item.caption }, sub);
+      uploaded.push({ id: imageId, filename: item.filename, caption: item.caption, byteSize: item.image.bytes.length,
+        status: queued.ok ? 'queued' : 'failed', workerSync: queued.ok ? 'dispatched' : 'failed', ticketId: queued.ticketId });
+    } else {
+      uploaded.push({ id: imageId, filename: item.filename, caption: item.caption, byteSize: item.image.bytes.length,
+        status: 'queued', workerSync: 'staged' });
+    }
+  }
+  return uploaded;
+}
+
+/** POST /dataset/upload — stage one or more cropped device photos with captions into the character's curated dataset. */
+async function uploadDatasetPhotos(ctx: AppContext, deps: DatasetRouteDeps, req: Request, res: Response): Promise<void> {
+  const sub = deps.callerSub(req);
+  if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+  const body = (req.body && typeof req.body === 'object' ? req.body : {}) as { subject?: unknown; photos?: unknown; dataBase64?: unknown };
+  const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
+  if (!subject) { res.status(400).json({ error: 'character subject required' }); return; }
+  const rawPhotos = Array.isArray(body.photos) ? body.photos : body.dataBase64 !== undefined ? [body] : [];
+  if (rawPhotos.length < 1 || rawPhotos.length > MAX_UPLOAD_PHOTOS) {
+    res.status(400).json({ error: `provide between 1 and ${MAX_UPLOAD_PHOTOS} photos` });
+    return;
+  }
+  const character = await deps.loadCharacter(ctx, subject, sub);
+  if (!character) { res.status(404).json({ error: 'character not found' }); return; }
+  const actor = await editorAccess(ctx, 'lora.configure');
+  await assertEditorCharacterOwner(ctx, character.id, actor);
+  const existing = (await ctx.pool.query('SELECT filename, status FROM oshal_lora_dataset_images WHERE character_id = $1', [character.id])).rows;
+  const reserved = new Set<string>(existing.filter((r: { status?: unknown }) => r.status !== 'failed')
+    .map((r: { filename?: unknown }) => String(r.filename || '').replace(/\.[^.]+$/, '').toLowerCase()));
+  const prepared = prepareUploadBatch(rawPhotos, character.config.triggerWord || subject, reserved);
+  if (!prepared.ok) { res.status(prepared.status).json({ error: prepared.error }); return; }
+  await expireDatasetStaging(ctx.pool, character.id);
+  const workerOnline = hasEdgeWorker();
+  const uploaded = await stageUploadedBatch(ctx, deps, character, prepared.items, sub, workerOnline);
+  logger.info({ subject, count: uploaded.length, workerOnline }, 'lora dataset photos uploaded');
+  res.status(workerOnline ? 202 : 201).json({
+    ok: true, subject, count: uploaded.length, uploaded,
+    message: `${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} saved to ${subject}'s dataset.`,
+  });
+}
+
+/** Decode a staged BYTEA column returned either as a PostgreSQL Buffer or native `\x<hex>` text. */
+export function decodeStagedImageBytes(raw: unknown): Buffer {
+  if (Buffer.isBuffer(raw)) return raw;
+  if (raw instanceof Uint8Array) return Buffer.from(raw);
+  if (typeof raw === 'string') {
+    return raw.startsWith('\\x') ? Buffer.from(raw.slice(2), 'hex') : Buffer.from(raw, 'hex');
+  }
+  if (raw && typeof raw === 'object' && (raw as { type?: unknown }).type === 'Buffer' && Array.isArray((raw as { data?: unknown }).data)) {
+    return Buffer.from((raw as { data: number[] }).data);
+  }
+  throw new Error('staged dataset image bytes are unreadable');
+}
+
+/** GET /dataset/:imageId/preview?subject= — serve an owner's unexpired staged dataset photo for studio thumbnails. */
+async function readDatasetPreview(ctx: AppContext, deps: DatasetRouteDeps, req: Request, res: Response): Promise<void> {
+  const sub = deps.callerSub(req);
+  if (!sub) { res.status(401).json({ error: 'not_authenticated' }); return; }
+  const imageId = String(req.params.imageId || '');
+  const subject = String(req.query.subject || '').trim();
+  if (!UUID_RE.test(imageId) || !subject) { res.status(400).json({ error: 'subject and dataset image id required' }); return; }
+  const character = await deps.loadCharacter(ctx, subject, sub);
+  if (!character) { res.status(404).json({ error: 'character not found' }); return; }
+  const row = (await ctx.pool.query(
+    `SELECT s.content_type, s.image FROM oshal_lora_dataset_staging s
+       JOIN oshal_lora_dataset_images d ON d.id = s.image_id
+      WHERE s.image_id = $1 AND d.character_id = $2 AND s.expires_at > NOW()`,
+    [imageId, character.id],
+  )).rows[0] as { content_type: string; image: unknown } | undefined;
+  if (!row) { res.status(404).json({ error: 'dataset preview not available' }); return; }
+  const bytes = decodeStagedImageBytes(row.image);
+  res.setHeader('Content-Type', row.content_type);
+  res.setHeader('Content-Length', String(bytes.length));
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.end(bytes);
+}
+
 /**
  * @description Report a queued receipt as failed once its staged bytes are gone or expired: no worker
  * can fetch them any more, which is exactly what expireDatasetStaging records on the next write. A
@@ -402,18 +566,31 @@ async function listDatasetImages(ctx: AppContext, deps: DatasetRouteDeps, req: R
     `SELECT s.image_id FROM oshal_lora_dataset_staging s JOIN oshal_lora_dataset_images d ON d.id = s.image_id
       WHERE d.character_id = $1 AND s.expires_at > NOW()`, [character.id],
   )).rows.map((row: { image_id: unknown }) => String(row.image_id));
-  res.set('Cache-Control', 'private, no-store').json({ subject, storageKey: `lora-${character.id.replace(/-/g, '')}`,
-    images: await decorateCaptionImages(ctx,character.id,effectiveDatasetReceipts(rows, new Set(live))) });
+  const liveSet = new Set(live);
+  const images = ctx.authorization
+    ? await decorateCaptionImages(ctx, character.id, rows.map((row: Record<string, unknown>) => ({
+        ...row,
+        status: row.status === 'queued' && !liveSet.has(String(row.id)) ? 'failed' : row.status,
+        has_preview: liveSet.has(String(row.id)),
+      })))
+    : effectiveDatasetReceipts(rows, liveSet);
+  res.set('Cache-Control', 'private, no-store').json({ subject, storageKey: `lora-${character.id.replace(/-/g, '')}`, images });
 }
 
 /**
  * @description The studio's dataset routes (mounted inside the `auth: oidc` /api/lora router).
  * @param ctx - Package app context.
  * @param deps - Owner resolution and character loading from the studio router.
- * @returns Router with GET /dataset and POST /dataset/import.
+ * @returns Router with GET /dataset, GET /dataset/:imageId/preview, POST /dataset/import and POST /dataset/upload.
  */
 export function createLoraDatasetRoutes(ctx: AppContext, deps: DatasetRouteDeps): Router {
   const router = Router();router.use(createCaptionEditorRoutes(ctx,deps));
+  router.get('/dataset/:imageId/preview', async (req: Request, res: Response) => {
+    try { await readDatasetPreview(ctx, deps, req, res); } catch (err) {
+      logger.error({ err }, 'dataset preview read failed');
+      res.status(502).json({ error: 'dataset preview unavailable' });
+    }
+  });
   router.get('/dataset', async (req: Request, res: Response) => {
     try { await listDatasetImages(ctx, deps, req, res); } catch (err) {
       logger.error({ err }, 'dataset listing failed');
@@ -424,6 +601,14 @@ export function createLoraDatasetRoutes(ctx: AppContext, deps: DatasetRouteDeps)
     try { await importDatasetImage(ctx, deps, req, res); } catch (err) {
       logger.error({ err }, 'dataset import failed');
       res.status((err as {status?:number}).status===409?409:502).json({ error: (err as {status?:number}).status===409?(err as Error).message:'dataset import failed' });
+    }
+  });
+  router.post('/dataset/upload', json({ limit: '16mb' }), async (req: Request, res: Response) => {
+    try { await uploadDatasetPhotos(ctx, deps, req, res); } catch (err) {
+      const code = (err as { status?: number }).status;
+      if (code && code >= 400 && code < 500) { res.status(code).json({ error: (err as Error).message }); return; }
+      logger.error({ err }, 'dataset upload failed');
+      res.status(502).json({ error: 'dataset upload failed' });
     }
   });
   return router;
@@ -440,8 +625,8 @@ async function readStagedImage(
        JOIN oshal_lora_dataset_imports i ON i.image_id=d.id
       WHERE i.ticket_id=$3 AND s.image_id = $1 AND c.owner_sub = $2 AND d.status = 'queued' AND s.expires_at > NOW()`,
     [imageId, ownerSub,ticketId],
-  )).rows[0] as { character_id: string; content_type: string; image: Buffer } | undefined;
-  return row ? { characterId: String(row.character_id), contentType: row.content_type, bytes: Buffer.from(row.image) } : null;
+  )).rows[0] as { character_id: string; content_type: string; image: unknown } | undefined;
+  return row ? { characterId: String(row.character_id), contentType: row.content_type, bytes: decodeStagedImageBytes(row.image) } : null;
 }
 
 /**

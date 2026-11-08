@@ -6,6 +6,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0: resident BlueZ BLE HID keyboard, consumer control and mouse peripheral (OSHAL-KB) over a private 0600 unix socket.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: forget removes one paired device from this computer's adapter (BlueZ RemoveDevice).
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: mark paired devices Trusted=True for automatic BLE HID reconnection, keep advertisement alive, detect AssistiveTouch-off state, and add calibrated tap, swipe, drag and scroll HID mouse operations with unchanged REPORT_MAP.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: add Generic Attribute Service 0x1801 (Service Changed 0x2A05) with BlueZ registration fallback, actively reconnect bonded devices via BlueZ Device1.Connect() on startup/demand/ble-sync, center pointer on sync, and eliminate BLE HID mouse report flooding for smooth iOS AssistiveTouch swipes.
 """Resident BLE HID peripheral for phone-control (`python3 -I oshal_phone_ble.py serve <runtime folder>`)."""
 
 import fcntl, hashlib, json, os, re, signal, socket, sys, threading, time
@@ -79,7 +80,8 @@ def span_for(landscape=False, span_x=None, span_y=None, address=None, phones=Non
             profiles = json.load(handle)
     except (OSError, ValueError):
         profiles = {}
-    keys = [str(address or '').strip().upper()] + [str(p.get('address') or '').upper() for p in (phones or [])] + ['DEFAULT']
+    addrs = [str(p.get('address') if isinstance(p, dict) else '').upper() for p in (phones or [])]
+    keys = [str(address or '').strip().upper()] + addrs + ['DEFAULT']
     for key in keys:
         prof = profiles.get(key) if key and isinstance(profiles, dict) else None
         if isinstance(prof, dict) and prof.get('span_x') and prof.get('span_y'):
@@ -224,6 +226,8 @@ class Characteristic(dbus.service.Object):
     def StartNotify(self):
         self.notifying, self.subscribed_at = True, time.time()
         print(f'subscribed {self.path}', flush=True)
+        if self.uuid == uuid16('2a05'):
+            self.send([0x01, 0x00, 0xFF, 0xFF])
 
     @dbus.service.method(CHRC_IFACE)
     def StopNotify(self):
@@ -263,7 +267,7 @@ class Service(dbus.service.Object):
 class Application(dbus.service.Object):
     PATH = '/org/bluez/oshal/app_v2'
 
-    def __init__(self, bus, report_flag):
+    def __init__(self, bus, report_flag, include_gatt=True):
         dbus.service.Object.__init__(self, bus, self.PATH)
         hid = Service(bus, 0, uuid16('1812'))
         hid.add(bus, uuid16('2a4a'), ['encrypt-read'], [0x11, 0x01, 0x00, 0x03])
@@ -279,7 +283,13 @@ class Application(dbus.service.Object):
         battery.add(bus, uuid16('2a19'), ['read', 'notify'], [100])
         info = Service(bus, 2, uuid16('180a'))
         info.add(bus, uuid16('2a50'), ['read'], [0x02, 0x15, 0x19, 0xEE, 0xEE, 0x00, 0x01])
-        self.services = [hid, battery, info]
+        self.service_changed = None
+        if include_gatt:
+            gatt = Service(bus, 3, uuid16('1801'))
+            self.service_changed = gatt.add(bus, uuid16('2a05'), ['indicate'], [0x01, 0x00, 0xFF, 0xFF])
+            self.services = [gatt, hid, battery, info]
+        else:
+            self.services = [hid, battery, info]
 
     def objects(self):
         for svc in self.services:
@@ -304,7 +314,7 @@ class Peripheral:
         self.props = dbus.Interface(self.adapter, PROP_IFACE)
         self.agent = Agent(bus, AGENT_PATH)
         self.advertisement = Advertisement(bus, self)
-        self.app, self.report_flag = None, 'encrypt-notify'
+        self.app, self.report_flag, self.include_gatt = None, 'encrypt-notify', True
         self.registered = self.advertising = self.ad_pending = False
         self.problem, self.window_until = None, 0
 
@@ -344,16 +354,59 @@ class Peripheral:
                 except dbus.exceptions.DBusException:
                     pass
 
+    def connect_bonded(self, address=None):
+        want = str(address or '').strip().upper()
+        if want and not ADDRESS_RE.match(want):
+            return {'ok': False, 'error': 'bad_address', 'message': 'Name the device by its Bluetooth address.'}
+        try:
+            objects = dbus.Interface(self.bus.get_object(BLUEZ, '/'), OM_IFACE).GetManagedObjects()
+        except dbus.exceptions.DBusException as err:
+            return {'ok': False, 'error': 'ble_failed', 'message': f'BlueZ did not list devices: {err}'}
+        matched, attempted = [], []
+        for path, ifaces in objects.items():
+            dev = ifaces.get(DEVICE_IFACE)
+            if not dev or str(dev.get('Adapter', '')) != self.adapter_path:
+                continue
+            addr = str(dev.get('Address', '')).upper()
+            if not (dev.get('Paired') or dev.get('Bonded')) or (want and addr != want):
+                continue
+            matched.append(addr)
+            obj = self.bus.get_object(BLUEZ, path)
+            if not dev.get('Trusted'):
+                try:
+                    dbus.Interface(obj, PROP_IFACE).Set(DEVICE_IFACE, 'Trusted', dbus.Boolean(True))
+                except dbus.exceptions.DBusException:
+                    pass
+            if not dev.get('Connected'):
+                attempted.append(addr)
+                try:
+                    dbus.Interface(obj, DEVICE_IFACE).Connect(
+                        reply_handler=lambda p=path: print(f'connected {p}', flush=True),
+                        error_handler=lambda e, p=path: print(f'connect {p}: {e}', flush=True))
+                except dbus.exceptions.DBusException as err:
+                    print(f'connect {path}: {err}', flush=True)
+        return {'ok': True, 'matched': matched, 'attempted': attempted}
+
+    def _startup_connect(self):
+        self.connect_bonded()
+        return False
+
     def register(self, flag):
-        self.app, self.report_flag = Application(self.bus, flag), flag
+        self.app, self.report_flag = Application(self.bus, flag, include_gatt=self.include_gatt), flag
         dbus.Interface(self.adapter, GATT_MANAGER_IFACE).RegisterApplication(
             dbus.ObjectPath(Application.PATH), {}, reply_handler=self.registered_ok, error_handler=self.register_failed)
 
     def registered_ok(self):
         self.registered = True
-        print(f'registered with reports {self.report_flag}', flush=True)
+        print(f'registered with reports {self.report_flag} (gatt={self.include_gatt})', flush=True)
+        GLib.timeout_add(1000, self._startup_connect)
 
     def register_failed(self, error):
+        if self.include_gatt:
+            self.app.remove()
+            self.include_gatt = False
+            self.register(self.report_flag)
+            return
         if self.report_flag == 'encrypt-notify':
             self.app.remove()
             self.register('notify')
@@ -486,19 +539,35 @@ class Keyboard:
         self.report('consumer', [usage & 0xFF, (usage >> 8) & 0xFF], 0.05)
         self.report('consumer', [0, 0], 0.05)
 
-    def need(self, report):
-        phones, kb_on = MainThread.call(lambda: (self.peripheral.listening(report), bool(self.peripheral.listening('keyboard'))))
+    def ensure_listening(self, report, address=None, wait_s=None):
+        wait = float(os.environ.get('OSHAL_BLE_CONNECT_WAIT_S', '3.2')) if wait_s is None else max(0.0, float(wait_s))
+        phones, kb_on, paired = MainThread.call(lambda: (
+            self.peripheral.listening(report), bool(self.peripheral.listening('keyboard')), bool(self.peripheral.phones())))
+        if phones or not paired or wait <= 0:
+            return phones, kb_on
+        MainThread.call(lambda: self.peripheral.connect_bonded(address))
+        deadline = time.time() + wait
+        while time.time() < deadline:
+            time.sleep(0.15)
+            phones, kb_on = MainThread.call(lambda: (
+                self.peripheral.listening(report), bool(self.peripheral.listening('keyboard'))))
+            if phones:
+                break
+        return phones, kb_on
+
+    def need(self, report, address=None):
+        phones, kb_on = self.ensure_listening(report, address=address)
         if not phones:
             if report == 'mouse' and kb_on:
                 return None, {'ok': False, 'error': 'assistive_touch_off', 'sent': False,
                               'message': 'Turn on AssistiveTouch on your iPhone (Settings → Accessibility → Touch → AssistiveTouch) so Bluetooth taps and swipes work.'}
             return None, {'ok': False, 'error': 'no_phone_listening', 'sent': False,
-                          'message': 'No phone is listening: pair an iPhone with OSHAL-KB and keep it near this computer.'}
+                          'message': 'No phone is listening: unlock your iPhone with Bluetooth on (or tap OSHAL-KB in Settings → Bluetooth) and press Sync.'}
         return phones, None
 
     def home_pointer(self):
-        for _ in range(36):
-            self.report('mouse', [0, (-40) & 0xFF, (-40) & 0xFF, 0], 0.010)
+        for _ in range(12):
+            self.report('mouse', [0, (-110) & 0xFF, (-110) & 0xFF, 0], 0.016)
         self.ptr_x, self.ptr_y, self.homed_at = 0.0, 0.0, time.time()
 
     def ensure_homed(self, force=False):
@@ -508,8 +577,8 @@ class Keyboard:
     def move_to(self, tx, ty):
         cx, cy, tx, ty = int(round(self.ptr_x)), int(round(self.ptr_y)), int(round(tx)), int(round(ty))
         while cx != tx or cy != ty:
-            sx, sy = max(-12, min(12, tx - cx)), max(-12, min(12, ty - cy))
-            self.report('mouse', [0, sx & 0xFF, sy & 0xFF, 0], 0.010)
+            sx, sy = max(-75, min(75, tx - cx)), max(-75, min(75, ty - cy))
+            self.report('mouse', [0, sx & 0xFF, sy & 0xFF, 0], 0.016)
             cx, cy = cx + sx, cy + sy
         self.ptr_x, self.ptr_y = float(tx), float(ty)
 
@@ -525,18 +594,58 @@ class Keyboard:
             cx, cy = cx + sx, cy + sy
         if hold_end > 0:
             self.report('mouse', [1, 0, 0, 0], hold_end)
-        self.report('mouse', [0, 0, 0, 0], 0.040)
+        self.report('mouse', [0, 0, 0, 0], 0.035)
         self.ptr_x, self.ptr_y = float(cx), float(cy)
         return cx, cy
 
-    def type_text(self, text, enter):
+    def sync(self, address=None, wait_s=None):
+        want = str(address or '').strip().upper()
+        if want and not ADDRESS_RE.match(want):
+            return {'ok': False, 'error': 'bad_address', 'message': 'Name the device by its Bluetooth address.'}
+        conn_info = MainThread.call(lambda: self.peripheral.connect_bonded(want or None))
+        if not conn_info.get('ok'):
+            return conn_info
+        wait = float(os.environ.get('OSHAL_BLE_SYNC_WAIT_S', '4.0')) if wait_s is None else max(0.0, min(10.0, float(wait_s)))
+        deadline = time.time() + wait
+        st = MainThread.call(self.peripheral.status)
+        while time.time() < deadline:
+            sub = st.get('subscribed', {})
+            targets = [p for p in st.get('phones', []) if not want or p['address'].upper() == want]
+            if any(p.get('connected') for p in targets) and sub.get('mouse'):
+                break
+            if not targets:
+                break
+            time.sleep(0.15)
+            st = MainThread.call(self.peripheral.status)
+        phones, sub = st.get('phones', []), st.get('subscribed', {})
+        targets = [p for p in phones if not want or p['address'].upper() == want]
+        if not targets:
+            return {'ok': False, 'error': 'not_paired', 'connected': False, 'subscribed': sub, 'phones': phones,
+                    'message': 'No paired iPhone was found on this computer. Open Add a device → Pair an iPhone.'}
+        connected = any(p.get('connected') for p in targets)
+        if connected and sub.get('mouse'):
+            sx, sy = span_for(False, None, None, want or targets[0]['address'], targets)
+            with self.lock:
+                self.home_pointer()
+                self.move_to(sx // 2, sy // 2)
+            return {'ok': True, 'connected': True, 'subscribed': sub, 'phones': phones, 'pointerCentered': True,
+                    'assistiveTouchOff': False, 'message': 'Bluetooth synced and pointer centered on your iPhone.'}
+        if connected and sub.get('keyboard'):
+            return {'ok': True, 'connected': True, 'subscribed': sub, 'phones': phones, 'pointerCentered': False,
+                    'assistiveTouchOff': True,
+                    'message': 'Bluetooth keyboard is connected, but AssistiveTouch is off — enable Settings → Accessibility → Touch → AssistiveTouch on your iPhone.'}
+        return {'ok': True, 'connected': connected, 'subscribed': sub, 'phones': phones, 'pointerCentered': False,
+                'assistiveTouchOff': False,
+                'message': 'Reconnecting OSHAL-KB… Keep your iPhone unlocked with Bluetooth on (or tap OSHAL-KB once in Settings → Bluetooth) and press Sync again.'}
+
+    def type_text(self, text, enter, address=None):
         if not isinstance(text, str) or not text or len(text) > MAX_TEXT:
             return {'ok': False, 'error': 'bad_text', 'message': f'Send between 1 and {MAX_TEXT} characters.'}
         bad = sorted({ch for ch in text if ch not in KEYMAP})
         if bad:
             return {'ok': False, 'error': 'cannot_type', 'sent': False,
                     'message': 'The keyboard types plain keyboard characters only; it cannot type ' + ' '.join(bad[:10]) + '. Nothing was sent.'}
-        phones, refusal = self.need('keyboard')
+        phones, refusal = self.need('keyboard', address=address)
         if refusal:
             return refusal
         with self.lock:
@@ -546,12 +655,12 @@ class Keyboard:
                 self.press(0, 0x28)
         return {'ok': True, 'sent': True, 'typed': len(text), 'phones': phones}
 
-    def key(self, name):
+    def key(self, name, address=None):
         steps = NAMED_KEYS.get(name)
         if not steps:
             return {'ok': False, 'error': 'unknown_key', 'sent': False,
                     'message': f'There is no {name or "empty"} key. Keys: ' + ', '.join(sorted(NAMED_KEYS))}
-        phones, refusal = self.need('consumer' if steps[0][0] == 'consumer' else 'keyboard')
+        phones, refusal = self.need('consumer' if steps[0][0] == 'consumer' else 'keyboard', address=address)
         if refusal:
             return refusal
         with self.lock:
@@ -559,27 +668,28 @@ class Keyboard:
                 self.consumer(step[1]) if step[0] == 'consumer' else self.press(step[1], step[2])
         return {'ok': True, 'sent': True, 'key': name, 'phones': phones}
 
-    def mouse(self, dx, dy, click, rehome=False):
+    def mouse(self, dx, dy, click, rehome=False, address=None):
         dx, dy = max(-2000, min(2000, int(dx))), max(-2000, min(2000, int(dy)))
-        phones, refusal = self.need('mouse')
+        phones, refusal = self.need('mouse', address=address)
         if refusal:
             return refusal
+        sx, sy = span_for(False, None, None, address, phones)
         with self.lock:
             if bool_arg(rehome):
                 self.home_pointer()
-                self.move_to(215, 466)
+                self.move_to(sx // 2, sy // 2)
             while dx or dy:
-                sx, sy = max(-100, min(100, dx)), max(-100, min(100, dy))
-                self.report('mouse', [0, sx & 0xFF, sy & 0xFF, 0], 0.025)
-                dx, dy = dx - sx, dy - sy
-                self.ptr_x, self.ptr_y = max(0.0, self.ptr_x + sx), max(0.0, self.ptr_y + sy)
+                step_x, step_y = max(-75, min(75, dx)), max(-75, min(75, dy))
+                self.report('mouse', [0, step_x & 0xFF, step_y & 0xFF, 0], 0.016)
+                dx, dy = dx - step_x, dy - step_y
+                self.ptr_x, self.ptr_y = max(0.0, self.ptr_x + step_x), max(0.0, self.ptr_y + step_y)
             if click:
                 self.report('mouse', [1, 0, 0, 0], 0.05)
                 self.report('mouse', [0, 0, 0, 0], 0.05)
         return {'ok': True, 'sent': True, 'phones': phones}
 
-    def home(self):
-        phones, refusal = self.need('mouse')
+    def home(self, address=None):
+        phones, refusal = self.need('mouse', address=address)
         if refusal:
             return refusal
         with self.lock:
@@ -588,7 +698,7 @@ class Keyboard:
 
     def move(self, nx, ny, landscape=False, rehome=False, span_x=None, span_y=None, address=None):
         nx, ny = max(0.0, min(1.0, float(nx))), max(0.0, min(1.0, float(ny)))
-        phones, refusal = self.need('mouse')
+        phones, refusal = self.need('mouse', address=address)
         if refusal:
             return refusal
         sx, sy = span_for(landscape, span_x, span_y, address, phones)
@@ -600,7 +710,7 @@ class Keyboard:
 
     def tap(self, nx, ny, landscape=False, rehome=False, span_x=None, span_y=None, address=None):
         nx, ny = max(0.0, min(1.0, float(nx))), max(0.0, min(1.0, float(ny)))
-        phones, refusal = self.need('mouse')
+        phones, refusal = self.need('mouse', address=address)
         if refusal:
             return refusal
         sx, sy = span_for(landscape, span_x, span_y, address, phones)
@@ -614,46 +724,47 @@ class Keyboard:
 
     def swipe(self, nx1, ny1, nx2, ny2, ms=260, landscape=False, span_x=None, span_y=None, address=None):
         c = [max(0.0, min(1.0, float(v))) for v in (nx1, ny1, nx2, ny2)]
-        phones, refusal = self.need('mouse')
+        phones, refusal = self.need('mouse', address=address)
         if refusal:
             return refusal
         sx, sy = span_for(landscape, span_x, span_y, address, phones)
         x1, y1, x2, y2 = round(c[0] * sx), round(c[1] * sy), round(c[2] * sx), round(c[3] * sy)
-        steps = max(8, min(32, int(max(abs(x2 - x1), abs(y2 - y1)) / 14) or 8))
-        pause = max(0.008, min(0.030, max(80, min(1500, int(ms or 260))) / 1000.0 / steps))
+        steps = max(12, min(18, int(round(max(abs(x2 - x1), abs(y2 - y1)) / 28)) or 12))
+        dur_ms = max(80, min(1500, int(ms or 260)))
+        pause = 0.018 if dur_ms <= 360 else min(0.030, dur_ms / 1000.0 / steps)
         with self.lock:
-            cx, cy = self._hold_path(x1, y1, x2, y2, steps, pause, 0.040, 0.0)
+            cx, cy = self._hold_path(x1, y1, x2, y2, steps, pause, 0.065, 0.030)
         return {'ok': True, 'sent': True, 'swiped': [x1, y1, cx, cy], 'span': [sx, sy], 'phones': phones}
 
     def drag(self, nx1, ny1, nx2, ny2, hold_ms=700, landscape=False, span_x=None, span_y=None, address=None):
         c = [max(0.0, min(1.0, float(v))) for v in (nx1, ny1, nx2, ny2)]
-        phones, refusal = self.need('mouse')
+        phones, refusal = self.need('mouse', address=address)
         if refusal:
             return refusal
         sx, sy = span_for(landscape, span_x, span_y, address, phones)
         x1, y1, x2, y2 = round(c[0] * sx), round(c[1] * sy), round(c[2] * sx), round(c[3] * sy)
         hold_s = max(300, min(1500, int(hold_ms or 700))) / 1000.0
         with self.lock:
-            cx, cy = self._hold_path(x1, y1, x2, y2, 24, 0.018, hold_s, 0.12)
+            cx, cy = self._hold_path(x1, y1, x2, y2, 16, 0.018, hold_s, 0.12)
         return {'ok': True, 'sent': True, 'dragged': [x1, y1, cx, cy], 'span': [sx, sy], 'phones': phones}
 
-    def scroll(self, dy):
+    def scroll(self, dy, address=None):
         dy = max(-40, min(40, int(dy)))
-        phones, refusal = self.need('mouse')
+        phones, refusal = self.need('mouse', address=address)
         if refusal:
             return refusal
         with self.lock:
             self.report('mouse', [0, 0, 0, dy & 0xFF], 0.025)
         return {'ok': True, 'sent': True, 'scrolled': dy, 'phones': phones}
 
-    def open_app(self, name):
+    def open_app(self, name, address=None):
         if not isinstance(name, str) or not name.strip() or len(name) > 60:
             return {'ok': False, 'error': 'bad_name', 'message': 'Name the app, for example Notes.'}
-        opened = self.key('Spotlight')
+        opened = self.key('Spotlight', address=address)
         if not opened.get('ok'):
             return opened
         time.sleep(0.8)
-        typed = self.type_text(name.strip(), True)
+        typed = self.type_text(name.strip(), True, address=address)
         return dict(typed, opened=name.strip()) if typed.get('ok') else typed
 
 
@@ -661,19 +772,20 @@ def answer(peripheral, kb, req):
     op = req.get('op')
     handlers = {
         'status': lambda: MainThread.call(peripheral.status),
+        'sync': lambda: kb.sync(req.get('address'), req.get('waitS')),
         'devices': lambda: {'ok': True, 'phones': MainThread.call(peripheral.phones)},
         'forget': lambda: MainThread.call(lambda: peripheral.forget(req.get('address'))),
         'pair-window': lambda: MainThread.call(lambda: peripheral.open_window(max(30, min(300, int(req.get('seconds', 120)))))),
-        'home': kb.home,
-        'type': lambda: kb.type_text(req.get('text'), bool_arg(req.get('enter'))),
-        'key': lambda: kb.key(str(req.get('key', ''))),
-        'mouse': lambda: kb.mouse(req.get('dx', 0), req.get('dy', 0), bool_arg(req.get('click')), req.get('rehome', False)),
+        'home': lambda: kb.home(req.get('address')),
+        'type': lambda: kb.type_text(req.get('text'), bool_arg(req.get('enter')), req.get('address')),
+        'key': lambda: kb.key(str(req.get('key', '')), req.get('address')),
+        'mouse': lambda: kb.mouse(req.get('dx', 0), req.get('dy', 0), bool_arg(req.get('click')), req.get('rehome', False), req.get('address')),
         'move': lambda: kb.move(req.get('nx', 0.5), req.get('ny', 0.5), req.get('landscape', False), req.get('rehome', False), req.get('spanX'), req.get('spanY'), req.get('address')),
         'tap': lambda: kb.tap(req.get('nx', 0.5), req.get('ny', 0.5), req.get('landscape', False), req.get('rehome', False), req.get('spanX'), req.get('spanY'), req.get('address')),
         'swipe': lambda: kb.swipe(req.get('nx1', 0.5), req.get('ny1', 0.7), req.get('nx2', 0.5), req.get('ny2', 0.3), req.get('ms', 260), req.get('landscape', False), req.get('spanX'), req.get('spanY'), req.get('address')),
         'drag': lambda: kb.drag(req.get('nx1', 0.5), req.get('ny1', 0.5), req.get('nx2', 0.5), req.get('ny2', 0.5), req.get('holdMs', 700), req.get('landscape', False), req.get('spanX'), req.get('spanY'), req.get('address')),
-        'scroll': lambda: kb.scroll(req.get('dy', -6)),
-        'open': lambda: kb.open_app(req.get('name')),
+        'scroll': lambda: kb.scroll(req.get('dy', -6), req.get('address')),
+        'open': lambda: kb.open_app(req.get('name'), req.get('address')),
     }
     if op not in handlers:
         return {'ok': False, 'error': 'unknown_op', 'message': f'There is no {op!r} here.'}

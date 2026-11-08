@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Social desk in Chromium over a loopback fixture of its routes, the schedules API and the connector list - no network, accounts or credentials: the rail shows the connected X and Slack accounts by name and LinkedIn as not connected; New post opens the composer with both connected channels on, the counter names the tightest channel, a channel tab customizes its text, and Add to queue sends one POST /posts with the shared text, the variant and when=queue; the queue then lists the post under its day with the Turn on banner, and Turn on activates the social-publish job as a person; Go Live's Plan a stream sends the event with three announcements on the chosen channels; the Channels view offers Connect LinkedIn and the Slack channel picker saves the choice; at 412 px nothing scrolls sideways.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Engage and Go Live): opened on their own (?view=engage / ?view=live) the desk draws no inner strip at 412 px and the view's one primary is its own; Engage states "Slack and X" once, says "Connect Slack or X to see mentions" with one Connect a channel primary when neither is connected (its Channels view has a back control and Back returns), says "Nothing waiting for you" only with a channel connected, and has a 44px Refresh with the checked time; Go Live reads "Save stream" with no announce channel, says "Connect a channel to announce", toasts what a save queued, names the announcing channels or "Not announced" on each card, and keeps Delete in the card's ⋯ menu behind an in-page confirm after a greyed Edit placeholder (RP-COM-01) that does nothing when pressed.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Go Live planned stream editing: test live Edit from a stream card's ⋯ menu prefilling title, time, watch link, destinations and announcement channels, saving via PUT /api/email-social/events/:id while keeping already-sent announcements untouched, and showing the plain-English refusal when changing the time of a started stream.
  */
 'use strict';
 const test = require('node:test');
@@ -41,6 +42,22 @@ function fixture(opts = {}) {
     if (p.startsWith('/shared/ui/')) { res.writeHead(200, { 'content-type': p.endsWith('.css') ? 'text/css' : 'text/javascript' }); return res.end(''); }
     if (p === '/api/email-social/channels') return send(res, 200, { native: true, channels, destinations: DESTINATIONS });
     if (p === '/api/email-social/engage') return send(res, 200, state.engage);
+    if (p.startsWith('/api/email-social/events/') && req.method === 'PUT') {
+      const id = p.split('/').pop();
+      const ev = state.events.find((e) => e.id === id);
+      if (!ev) return send(res, 404, { error: 'not_found', message: 'Stream not found.' });
+      const existingStart = Date.parse(ev.startAt);
+      const nextStart = Date.parse(body.startAt || ev.startAt);
+      if (existingStart <= Date.now() && Math.abs(nextStart - existingStart) >= 1000) {
+        return send(res, 409, { error: 'already_started', message: 'This stream has already started, so its start time cannot be changed.' });
+      }
+      const sent = (ev.posts || []).filter((x) => x.status === 'sent' || x.status === 'partial');
+      const updatedPosts = (body.announcements || []).filter((a) => a.channels && a.channels.length).map((a, i) => ({
+        id: 'ann_edit_' + i, eventId: id, text: a.text, channels: a.channels, status: a.key === 'announce' ? 'sent' : 'scheduled', scheduledAt: a.at, sentAt: a.key === 'announce' ? new Date().toISOString() : null,
+      }));
+      Object.assign(ev, { title: body.title, startAt: body.startAt, watchUrl: body.watchUrl || '', destinations: body.destinations || [], posts: [...sent, ...updatedPosts] });
+      return send(res, 200, { event: ev, posts: ev.posts, updatedPosts });
+    }
     if (p.startsWith('/api/email-social/events/') && req.method === 'DELETE') { state.events = state.events.filter((e) => e.id !== p.split('/').pop()); return send(res, 200, { ok: true }); }
     if (p === '/api/email-social/settings') { if (req.method === 'PUT') Object.assign(state.settings, body); return send(res, 200, state.settings); }
     if (p === '/api/email-social/slack/channels') return send(res, 200, { ok: true, channels: [{ id: 'C1', name: 'general', isPrivate: false }, { id: 'C2', name: 'launch', isPrivate: true }] });
@@ -52,7 +69,7 @@ function fixture(opts = {}) {
     if (p === '/api/email-social/events' && req.method === 'GET') return send(res, 200, { events: state.events, destinations: DESTINATIONS });
     if (p === '/api/email-social/events' && req.method === 'POST') {
       // As the route does: an announcement with no channel is not a post; "Announce it now" goes out at once.
-      const posts = (body.announcements || []).filter((a) => a.channels && a.channels.length).map((a, i) => ({ id: 'ann_' + i, eventId: 'live_1', channels: a.channels, status: a.key === 'announce' ? 'sent' : 'scheduled', scheduledAt: a.at, sentAt: a.key === 'announce' ? new Date().toISOString() : null }));
+      const posts = (body.announcements || []).filter((a) => a.channels && a.channels.length).map((a, i) => ({ id: 'ann_' + i, eventId: 'live_1', text: a.text, channels: a.channels, status: a.key === 'announce' ? 'sent' : 'scheduled', scheduledAt: a.at, sentAt: a.key === 'announce' ? new Date().toISOString() : null }));
       const ev = { id: 'live_1', ...body, status: 'planned', posts }; state.events.push(ev); return send(res, 201, { event: ev, posts });
     }
     if (p === '/api/connect/list') return send(res, 200, { providers: [{ id: 'twitter', configured: true }, { id: 'linkedin', configured: true }, { id: 'facebook', configured: true }, { id: 'slack', configured: true }, { id: 'mastodon', configured: false }] });
@@ -159,34 +176,60 @@ test('Go Live with no announce channel: Save stream, "Connect a channel to annou
   assert.deepEqual(errors, []);
 });
 
-test("Go Live's card menu: Edit is a greyed planned control that does nothing; Delete asks in the page first", async (t) => {
+test("Go Live's card menu: Edit prefills and updates a planned stream while keeping sent announcements and refusing time changes once started; Delete asks in the page first", async (t) => {
   const { p, fx, errors } = await page(t, { width: 1280, height: 860 }, '?view=live');
   assert.ok(await p.locator('#newPost.quiet').count(), 'on desktop New post is not a second primary on Go Live');
   await p.getByRole('button', { name: 'Plan a stream' }).click();
   await p.fill('#lvTitle', 'Friday build night');
+  await p.fill('#lvUrl', 'https://youtube.com/live/friday');
+  await p.click('#lvDest button:has-text("YouTube")');
   await p.click('#lvSave');
   await p.locator('.post').getByText('Friday build night').waitFor();
+  assert.equal(await p.locator('[data-ds-not-yet]').count(), 0, 'no planned placeholder remains');
   assert.equal(await p.locator('.post').getByRole('button', { name: 'Delete', exact: true }).count(), 0, 'Delete is not beside the card');
+
   await p.getByRole('button', { name: 'More for Friday build night' }).click();
-  const edit = p.locator('#rowMenu [data-ds-not-yet]');
-  await edit.waitFor();
-  assert.equal(await edit.getAttribute('aria-disabled'), 'true');
-  assert.equal(await edit.getAttribute('data-ds-backlog'), 'RP-COM-01');
-  assert.match(await edit.getAttribute('title'), /Not available yet/);
-  const before = { html: await p.locator('body').innerHTML(), requests: fx.state.requests.length, url: p.url() };
-  const at = await edit.boundingBox();
-  await p.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
-  await p.waitForTimeout(1000);
-  assert.equal(await p.locator('body').innerHTML(), before.html, 'a press changes nothing on the page');
-  assert.equal(fx.state.requests.length, before.requests, 'no request');
-  assert.equal(p.url(), before.url);
+  await p.locator('#rowMenu').getByRole('menuitem', { name: 'Edit' }).click();
+  await p.locator('#lvHeading').getByText('Edit stream').waitFor();
+  assert.equal(await p.inputValue('#lvTitle'), 'Friday build night');
+  assert.equal(await p.inputValue('#lvUrl'), 'https://youtube.com/live/friday');
+  assert.equal(await p.locator('#lvDest [data-dest="youtube"].on').count(), 1);
+  assert.equal(await p.locator('#lvCh [data-ch].on').count(), 2);
+  assert.match(await p.locator('#lvSentNote').innerText(), /1 announcement already sent — kept untouched/);
+
+  await p.fill('#lvTitle', 'Saturday build night');
+  await p.fill('#lvUrl', 'https://twitch.tv/alice');
+  await p.click('#lvDest [data-dest="twitch"]');
+  await p.click('#lvCh [data-ch="slack"]');
+  await p.click('#lvSave');
+  await p.locator('.post').getByText('Saturday build night').waitFor();
+  await p.locator('#toast').getByText('Updated · 2 announcements queued').waitFor();
+  const putReq = fx.state.requests.find((r) => r.method === 'PUT' && r.path === '/api/email-social/events/live_1');
+  assert.ok(putReq);
+  assert.equal(putReq.body.title, 'Saturday build night');
+  assert.equal(putReq.body.watchUrl, 'https://twitch.tv/alice');
+  assert.deepEqual(putReq.body.destinations, ['youtube', 'twitch']);
+  assert.deepEqual(putReq.body.announcements.map((a) => [a.key, a.channels]), [['soon', ['x']], ['live', ['x']]]);
+  assert.equal(fx.state.events[0].posts.filter((x) => x.status === 'sent').length, 1, 'already-sent announcement kept');
+
+  fx.state.events[0].startAt = new Date(Date.now() - 120000).toISOString();
+  await p.getByRole('button', { name: 'More for Saturday build night' }).click();
+  await p.locator('#rowMenu').getByRole('menuitem', { name: 'Edit' }).click();
+  const futureLocal = new Date(Date.now() + 7200000);
+  const pad = (n) => String(n).padStart(2, '0');
+  await p.fill('#lvAt', `${futureLocal.getFullYear()}-${pad(futureLocal.getMonth() + 1)}-${pad(futureLocal.getDate())}T${pad(futureLocal.getHours())}:${pad(futureLocal.getMinutes())}`);
+  await p.click('#lvSave');
+  await p.locator('#lvStatus.bad').getByText(/already started/i).waitFor();
+  await p.click('#lvCancel');
+
+  await p.getByRole('button', { name: 'More for Saturday build night' }).click();
   await p.locator('#rowMenu').getByRole('menuitem', { name: 'Delete…' }).click();
   const ask = p.locator('.confirm');
   await ask.getByText('Delete this stream and its unsent announcements?').waitFor();
   await ask.getByRole('button', { name: 'Cancel' }).click();
   assert.equal(await p.locator('.confirm').count(), 0);
   assert.ok(!fx.state.requests.some((r) => r.method === 'DELETE'), 'Cancel keeps the stream');
-  await p.getByRole('button', { name: 'More for Friday build night' }).click();
+  await p.getByRole('button', { name: 'More for Saturday build night' }).click();
   await p.locator('#rowMenu').getByRole('menuitem', { name: 'Delete…' }).click();
   await p.locator('.confirm').getByRole('button', { name: 'Delete', exact: true }).click();
   await p.locator('#body').getByText('No streams planned').waitFor();

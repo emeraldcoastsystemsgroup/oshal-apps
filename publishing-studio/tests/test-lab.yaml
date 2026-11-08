@@ -4,6 +4,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 0.3.6: register phone-start (one app bar row, New publication as the one first action, More choices close the sheet).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: register workbench-older-platform (the studio opens on a platform without the planned-control helper).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register design-standard (the oshal design standard's screen, real Chromium over real routes and SQL) and bring phone-start's first-screen expectations to the blank Letter page.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: update design-standard expectations for live RP-PUB-01..07 controls and register rp-pub-features covering RP-PUB-01..08 behaviour and refusals.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 0.3.7: phone-start also proves touch scrolling over the open page, tap-to-select and the Move handle, no preview request for an unrendered revision, and the mouse-only desktop guard.
 version: 1
 cases:
@@ -73,12 +74,12 @@ cases:
       scope: package
       files: [tests/browser/design-standard.test.mjs]
     expected:
-      - A blank Letter page opens ready, declaring its contract, with one primary (Add text frame) and one tool row along the bottom with More last and the planned Brand.
+      - A blank Letter page opens ready, declaring its contract, with one primary (Add text frame) and one tool row along the bottom with More last and Brand withheld when Create has no kit.
       - Typed text is drawn in its frame before any save; Download PDF saves, renders and downloads by itself; no page preview is asked for before a render; nothing is refused.
       - The chosen frame raises an opaque selection float within 48 px and the row switches to Done, Text, Font, Size, Colour, Align, Arrange, More; Duplicate and Delete undo.
-      - Menus and sheets are opaque modal dialogs that Back closes inside the studio; Delete confirms in the page; no browser dialog; planned controls (RP-PUB-01, 02, 04, 06) are greyed and inert.
-      - With publications the first screen lists them newest first with one New at the bottom right; New makes a blank A4 page.
-      - 'Desktop: Pages 240 | page | Properties·Concierge 320 with the concierge as a tab, not a fourth column; one app row; one X field (no second geometry form); a one-page publication folds Pages to 48 px.'
+      - Menus and sheets are opaque modal dialogs that Back closes inside the studio; Delete confirms in the page; no browser dialog; zero planned placeholders remain.
+      - With publications the first screen lists them newest first with one New at the bottom right; New offers Blank Letter, Blank A4 and From template, and makes a blank A4 page.
+      - 'Desktop: Pages 240 | page | Properties·Concierge 320 with the concierge as a tab, not a fourth column; one app row with live Comment; one X field; a one-page publication folds Pages to 48 px.'
     prerequisites: [runner:node, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, browser:chromium, source:kernel-shared-ui]
     sideEffects: fixture-write
     isolation:
@@ -326,4 +327,28 @@ cases:
       mode: disposable
       cleanup: Remove only unique own fixture databases, roles, children and temporary directories; preserve shared PostgreSQL.
     limits: { timeoutMs: 180000, maxMemoryMb: 1536 }
+    installation: never
+  - id: rp-pub-features
+    name: Reference-product publishing enhancements and refusals (RP-PUB-01..08)
+    purpose: Real Chromium, disposable forced-RLS PostgreSQL and native Typst/FFmpeg engine prove starter templates, multi-select grouping, foreground subject cutout, proportional format resize, Create brand kit application, pinned comments, confirmed social scheduling/posting and animated H.264 MP4 timeline export alongside explicit refusals.
+    level: browser
+    runner:
+      kind: external
+      scope: package
+      files: [tests/rp-pub-features.test.mjs]
+    expected:
+      - Starter templates (event-flyer, newsletter, booklet) open populated editable layouts and render PDFs; unknown templateId refuses with 400 publishing_template_unsupported.
+      - Multi-select groups items under a shared groupId that moves together and ungroups cleanly; single-item group refuses without mutating the layout.
+      - Remove background extracts foreground RGBA PNG keeping original bytes intact and refuses uniform images with 422 publishing_subject_not_detected.
+      - Format resize scales pages, frames and linked stories into a new owned copy and refuses unknown formats with 400 publishing_page_size_unsupported.
+      - Brand is withheld when Create has no kit, applies colours, fonts and logo in one tap when present, and refuses malformed hex colours.
+      - Pinned comments support replies, resolve and forced-RLS cross-user isolation while refusing missing targets with 404 publishing_comment_target_missing.
+      - Social scheduling and immediate posting enforce confirmation (428), ready render (409), connected channel (409) and forced-RLS dispatch.
+      - Item animations, timeline scrubbing and H.264 MP4 video export coexist with print PDF while refusing unknown presets (400) and unrendered video exports (409).
+    prerequisites: [runner:node, browser:chromium, runtime:publishing-pinned-python, runtime:publishing-pinned-typst, service:disposable-postgres-35689, source:kernel-shared-ui]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      cleanup: Remove only unique own fixture databases, roles, children and temporary directories; preserve shared PostgreSQL.
+    limits: { timeoutMs: 240000, maxMemoryMb: 1536 }
     installation: never

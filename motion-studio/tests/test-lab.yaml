@@ -17,6 +17,7 @@
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 0.2.3: register phone-start (one app bar row, New composition as the one first action, no dead playback, sheets clear of the pane bar).
 # 17 | maintainer@emeraldcoastsystemsgroup.com | 0.2.4: phone-start also proves the Concierge composer: Send and Read latest reply aloud on screen and under the finger on a phone and at 1440x900.
 # 18 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0: register design-standard (the blank composition, + Add, the bottom bar, Back, composition settings, keyframe diamonds, Undo and Redo, the list and the in-page confirm); phone-start follows the new layout (Add layer is the first action, the panes come from the bottom bar).
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0: register media-and-motion-blur (RP-MOT-01 video/audio layers and RP-MOT-02 composition and layer motion blur) and update design-standard for live Video, Audio and Motion blur controls.
 version: 1
 cases:
   - id: storage-busy-retry
@@ -1414,13 +1415,13 @@ cases:
 
   - id: design-standard
     name: Motion Studio follows the design standard
-    purpose: 0.3.0 (docs/ux/design-standard.md §3, §4, §5.1; REFP CONVENTIONS §5.4; Roger F7). The blank composition, + Add and its greyed Video and Audio, the phone's bottom bar and Back, the composition's own settings with a greyed Motion blur, a keyframe diamond on a property row, Undo and Redo, the list of saved compositions with one + New, and Delete asking in the page.
+    purpose: 0.4.0 (docs/ux/design-standard.md §3, §4, §5.1; REFP CONVENTIONS §5.4; Roger F7). The blank composition, + Add with live Video… and Audio…, the phone's bottom bar and Back, the composition's own settings with live Motion blur and shutter controls, a keyframe diamond on a property row, Undo and Redo, the list of saved compositions with one + New, and Delete asking in the page.
     level: browser
     runner: {kind: external, scope: package, files: [tests/browser/design-standard.test.mjs]}
     expected:
       - With nothing saved the page declares editor / tap with the stage as its work, draws no "create or open" box, and its one primary is Add layer; the bottom bar is Layers, Add, Properties, Concierge, More in one row at the bottom, and no pane band sits above the work.
-      - Add layer opens + Add with Text, Shape, Solid, Photo… and Camera or light…, then Video and Audio greyed with RP-MOT-01; the sheet stays clear of the bottom bar; Text saves an untitled 1920×1080 composition whose layer is a timeline row, with Render the one primary and Play live.
-      - The phone's Back closes an open sheet and the app stays; with the Composition row chosen the panel shows 1920 × 1080, 30 fps, 10 s, the work area and Motion blur greyed with RP-MOT-02, never "No object selected".
+      - Add layer opens + Add with Text, Shape, Solid, Photo…, Video…, Audio… and Camera or light… all live without RP-MOT-01 placeholders; the sheet stays clear of the bottom bar; Text saves an untitled 1920×1080 composition whose layer is a timeline row, with Render the one primary and Play live.
+      - The phone's Back closes an open sheet and the app stays; with the Composition row chosen the panel shows 1920 × 1080, 30 fps, 10 s, the work area and live Motion blur without RP-MOT-02 placeholders, never "No object selected".
       - A diamond on the Position row adds a key at the current time and opens its editor; Undo removes it, Redo brings it back and is then disabled; Delete composition asks in a page sheet and Cancel keeps it; no browser alert, confirm or prompt opens.
       - After a reload the first screen lists the saved composition with one + New, which opens a blank composition; Open… in the document menu reopens the saved one.
     prerequisites: [runner:node, runtime:motion-engine-reviewed, runtime:sharp-playwright, service:postgres-disposable-35689, runtime:kernel-shared-ui]
@@ -1448,5 +1449,26 @@ cases:
       mode: disposable
       fixtures: [tests/application-fixture.mjs]
       cleanup: Close only owned compositor children/listeners and remove only the unique fixture schema and role.
+    limits: {timeoutMs: 300000, maxMemoryMb: 1536}
+    installation: never
+
+  - id: media-and-motion-blur
+    name: Video and audio layers and composition/layer motion blur
+    purpose: Verify RP-MOT-01 (video/audio upload, trim, audio/levels keyframes, waveform/audio window preview, and H.264 + AAC MP4 export) and RP-MOT-02 (composition and layer motion blur rendering parity and shutter bounds refusals).
+    level: integration
+    runner:
+      kind: external
+      scope: package
+      files: [tests/media-and-motion-blur.test.mjs]
+    expected:
+      - Video and audio assets upload, trim, keyframe audio/levels, preview stage frames and mixed PCM WAV windows, and export H.264 + AAC MP4.
+      - Corrupt media, oversized media, cross-actor reads and deleting referenced media assets fail closed with explicit status codes.
+      - Composition and layer motion blur render directional streak pixels identically in preview and export, and invalid shutter settings fail closed without advancing revision.
+    prerequisites: [runner:node, service:postgres-disposable-35689, engine:motion-worker]
+    sideEffects: fixture-write
+    isolation:
+      mode: disposable
+      fixtures: [tests/application-fixture.mjs]
+      cleanup: Close only owned compositor children/listeners, temporary media directory and unique fixture schema and role.
     limits: {timeoutMs: 300000, maxMemoryMb: 1536}
     installation: never

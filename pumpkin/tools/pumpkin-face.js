@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial: procedural jack-o'-lantern canvas renderer. Draws a glowing carved face (eyes/brows/mouth+teeth) from a PumpkinPreset, animates idle bob/sway/blink/gaze/candle-flicker, eases toward an expression, and opens the mouth to an externally-supplied speech level (the lip-sync signal). No image assets — every look is code-drawn so presets are infinitely configurable.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | Ships in the pumpkin package's tools/ and is served at /api/pumpkin/assets/pumpkin-face.js: the package surfaces loaded it from the framework's /pumpkin/ page directory, which the native kernel does not serve (404, then "window.PumpkinFace is not a constructor"). Content unchanged.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com   | RP-PUMP-01: add stop() so halting speech mid-sentence snaps the jaw shut immediately and resets expression to neutral without waiting for approach() decay.
  */
 
 /* global window */
@@ -72,6 +73,17 @@
     setSpeaking(on) {
       this.speaking = !!on;
       if (!on) { this.mouthTarget = 0; this.level = 0; }
+    }
+
+    /** Snap the mouth shut immediately when speech is interrupted mid-sentence. */
+    stop() {
+      this.speaking = false;
+      this.level = 0;
+      this.mouthTarget = 0;
+      this.mouth = 0;
+      this.expr = 'neutral';
+      this.exprAmt = 0;
+      this.exprCur = Object.assign({}, EXPRESSIONS.neutral);
     }
 
     /** Feed the current speech amplitude (0..1); the mouth opens to it while speaking. */

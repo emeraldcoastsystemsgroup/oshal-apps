@@ -9,6 +9,8 @@
  *   setup), one primary per view, the greyed Stop placeholder (design standard 4.10, RP-PUMP-01), the colour well and
  *   opacity slider that write the same rgba string, Reset to preset restoring the preset's own values, the SVG icon,
  *   and status lines in the page ink.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | RP-PUMP-01: Stop is now a live secondary control (#btnStop) beside
+ *   Ask the pumpkin with no remaining data-ds-not-yet or data-ds-backlog attributes, bound to stopAll().
  *
  * Dependency-free `node --test` suite over the shipped page (the store-CI contract: plain node, no install).
  */
@@ -50,12 +52,13 @@ test('one primary per view: Say it on Show, Save as new look on Look & setup; La
   assert.match(html, /button\.seg\.on \{ background:var\(--ink\); color:var\(--bg\);/, 'the selected mode is inverted, not an orange fill');
 });
 
-test('Stop is a greyed planned control: aria-disabled, its backlog id, no handler', () => {
-  const stop = body.match(/<button type="button" class="not-yet"[^>]*>/);
-  assert.ok(stop, 'the Stop placeholder is beside Say it');
-  for (const attr of ['aria-disabled="true"', 'data-ds-not-yet', 'data-ds-backlog="RP-PUMP-01"', 'aria-label="Stop, not available yet"', 'title="Not available yet"']) assert.ok(stop[0].includes(attr), attr);
-  assert.ok(view('show').indexOf('id="btnAsk"') < view('show').indexOf('class="not-yet"'));
-  assert.doesNotMatch(html, /not-yet'\)|\.not-yet[^{]*\.on(click|\w*Listener)/, 'nothing binds it');
+test('Stop is a live secondary control beside Ask the pumpkin with no backlog placeholder', () => {
+  const show = view('show');
+  assert.match(show, /<button type="button" id="btnStop">/);
+  assert.ok(show.indexOf('id="btnAsk"') < show.indexOf('id="btnStop"'), 'Stop sits right after Ask the pumpkin');
+  assert.doesNotMatch(html, /data-ds-backlog|data-ds-not-yet/, 'RP-PUMP-01 placeholder attributes are removed');
+  assert.match(html, /\$\('#btnStop'\)\.onclick=stopAll;/, 'Stop binds stopAll()');
+  assert.match(extract('stopAll'), /\/api\/pumpkin\/rooms\/stop/, 'stopAll calls POST /api/pumpkin/rooms/stop');
 });
 
 test('a colour well and an opacity slider write the rgba string the Advanced field holds', () => {

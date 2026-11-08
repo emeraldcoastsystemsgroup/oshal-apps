@@ -1,3 +1,4 @@
+/* CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.4.0: isolated window/batch replay (RP-OPS-01..02) and Link by URL (RP-OPS-03). */
 /* CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.4: recorded command history row More menu (Copy, Run again). */
 /* CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.3: Runbooks is its own screen. */
 /* CHANGE LOG: 10 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.2: Topology is the Graph view of Systems; its tile leaves the rail. */
@@ -93,7 +94,7 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.3.4');
+  assert.equal(manifest.version, '1.4.0');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);

@@ -18,6 +18,7 @@
 # 14 | maintainer@emeraldcoastsystemsgroup.com | 1.4.4: the Assistant address serves the List page instead of redirecting: the native package bridge drops a response's Location header, so 1.4.3's 302 opened a blank page.
 # 15 | maintainer@emeraldcoastsystemsgroup.com | 1.4.5 (UX audit 2026-11-05, shop-concierge): the retired chat page's preference cards are List's Shopping preferences: household notes and the monthly budget edit in place and save on change (POST /profile), usuals are listed, the store row shows only with a retail rail.
 # 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.6: POST /profile saves a part of the profile (an UPDATE that keeps what the body leaves out, else a first INSERT with the NOT NULL columns filled). The single INSERT ... ON CONFLICT passed NULL into dietary and brands, so every partial save failed with 'SQL NOT NULL constraint failed': that is why 'set monthly budget to $250' left the card at 'Budget open' (UX audit 2026-11-05, shop-concierge verify item).
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.4.7 (UX audit sweep, purchasing--shop-concierge, D1=glass, D2=c): collection contract, opaque row menus with popstate Back dismissal, scale radii/typography, on-accent primary ink across themes, and 100dvh natural scroll + theme-derived tokens on shopping-chat.html.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — purchasing ("Shopping" Concierge)
@@ -61,7 +62,7 @@ description: >-
   AI shopping concierge — search Walmart/Amazon, build lists, learn your
   preferences, find deals, and hand off a ready-to-checkout cart. Other swarm
   bots can ask it to make a purchase.
-version: 1.4.6
+version: 1.4.7
 status: active  # active | inactive
 
 source:

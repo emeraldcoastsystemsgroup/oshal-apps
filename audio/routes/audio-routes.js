@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | Studio surface, CAS media streaming, famous voice TTS synthesis, and live stream modulation routes for Audio Studio.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Enforce two-arm owner verification and HTTP 206 byte-range streaming on /blobs/:hash, wire real Kokoro TTS + voice persona DSP, and support container/PCM live modulation.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | Register studio and editor authorization resource adapters during createAudioRoutes activation.
  */
 'use strict';
 
@@ -27,7 +28,7 @@ const { createAudioRepository } = require('../lib/db.js');
 const { BlobStore } = require('../lib/blob_store.js');
 const DSPEngine = require('../lib/dsp_engine.js');
 const { decodeLivePayload, synthesizeSpeechViaService } = require('../lib/audio_io.js');
-const { authorizeRequest } = require('../lib/security.js');
+const { authorizeRequest, registerAudioResources } = require('../lib/security.js');
 const { createHomeSummaryRoutes } = require('./home-summary.js');
 const { createAudioEditorRoutes, renderProjectMixdownToCas, ingestStemPayload, compactPeaks } = require('./audio-editor-routes.js');
 
@@ -233,6 +234,7 @@ function registerLiveStreamRoutes(router, ctx, repo, blobStore) {
 }
 
 function createAudioRoutes(ctx) {
+  registerAudioResources(ctx);
   const router = createRouter();
   const pkgDir = ctx?.appPackageDir || path.resolve(__dirname, '..');
   const toolsDir = path.join(pkgDir, 'tools');

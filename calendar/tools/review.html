@@ -1,8 +1,17 @@
 <!doctype html><html lang="en" data-ds-category="collection" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your calendar</title>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                  | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 collection contract and responsive workspace layout.
+-->
+
 <link rel="stylesheet" href="/api/calendar/review/calendar-workspace.css">
-<script>if(new URLSearchParams(location.search).get("compact")==="1")document.documentElement.classList.add("calendar-compact");</script>
+<script>if(new URLSearchParams(location.search).get("compact")==="1")document.documentElement.classList.add("calendar-compact");if(new URLSearchParams(location.search).get("view")==="briefs")document.documentElement.classList.add("calendar-briefs-view");</script>
 <script>try{if(window.parent!==window)document.documentElement.setAttribute('data-framed','');}catch(_){document.documentElement.setAttribute('data-framed','');}</script>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <!-- Audience views (ADR-164 D6). The Business shells open this page with ?audience=company and the Jarvis shell with
      ?audience=family: the signed-in person's OWN saved calendar (the saved-event counts, the next saved events, the
@@ -180,7 +189,13 @@ a{color:var(--accent);text-decoration:underline}#status,#ownStatus{min-height:0;
 main button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ds-focus,var(--accent-primary));outline-offset:2px}
 @media(max-width:720px){.layout{grid-template-columns:1fr}}
 .calendar-compact main{padding:12px}.calendar-compact main>.calendar-own-tab,.calendar-compact .calendar-preparation{display:none}
-</style></head><body><main><header class="calendar-own-tab"><a href="/cockpit/" target="_top">All apps</a><h1>Calendar</h1></header><section id="personalCalendar" aria-label="Your personal calendar"></section><section class="calendar-preparation" id="preparation" aria-labelledby="preparationHeading"><h2 id="preparationHeading" tabindex="-1">Meeting briefs and preparation</h2><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel"><h2>Before the meeting</h2><p class="hint">Briefs are assembled in the background and delivered to you, stored as they were sent. Turn &ldquo;Brief me before the meeting&rdquo; on in Jarvis briefing settings to receive them; nothing of yours is read until it is on. A brief cites your recorded conversation by reference and never copies its words.</p><div id="briefs">Loading delivered briefs&hellip;</div></section><section class="panel" aria-labelledby="ownHeading"><h2 id="ownHeading">Added in OSHAL</h2><p class="hint">Events you or the concierge added here, in the time zone they were entered in. They are never written to Google Calendar.</p><div id="ownEvents">Loading added events&hellip;</div><p id="ownStatus" role="status" aria-live="polite"></p></section><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh" type="button">Refresh</button></section><section class="panel" id="briefPanel" hidden><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></section></main><script type="module">
+html:not(.calendar-briefs-view) #briefsCard{display:none}
+.calendar-briefs-view #personalCalendar,.calendar-briefs-view #ownCard{display:none}
+.calendar-briefs-view .calendar-preparation{border-top:0;margin-top:0}
+html[data-framed].calendar-briefs-view #preparationHeading{display:none}
+.calendar-briefs-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}
+main button.calendar-primary-btn{background:var(--ds-accent,var(--accent-primary));border-color:var(--ds-accent,var(--accent-primary));color:var(--ds-on-accent,var(--text-on-accent,#fff))}
+</style></head><body><main><header class="calendar-own-tab"><a href="/cockpit/" target="_top">All apps</a><h1 id="ownTabTitle">Calendar</h1></header><section id="personalCalendar" aria-label="Your personal calendar"></section><section class="calendar-preparation" id="preparation" aria-labelledby="preparationHeading"><div class="calendar-briefs-bar" id="briefsBar" hidden><p class="hint" style="margin:0">Delivered pre-meeting briefs from material you recorded.</p><button id="refreshBriefsTop" class="calendar-primary-btn" type="button" data-ds-primary>Refresh</button></div><h2 id="preparationHeading" tabindex="-1">Added events and saved work</h2><div id="metrics" aria-label="Saved work metrics"></div><div class="layout"><section class="panel" id="briefsCard"><h2>Before the meeting</h2><p class="hint">Turn &ldquo;Brief me before the meeting&rdquo; on in Jarvis briefing settings to receive cited briefs.</p><div id="briefs">Loading delivered briefs&hellip;</div></section><section class="panel" id="ownCard" aria-labelledby="ownHeading"><h2 id="ownHeading">Added in OSHAL</h2><p class="hint">Events you or the concierge added here, in the time zone they were entered in. They are never written to Google Calendar.</p><div id="ownEvents">Loading added events&hellip;</div><p id="ownStatus" role="status" aria-live="polite"></p></section><section class="panel"><h2>Recorded work</h2><div id="records">Loading saved evidence…</div><button id="refresh" type="button">Refresh</button></section><section class="panel" id="briefPanel" hidden><h2>Your next brief</h2><label>Title<input id="title" maxlength="120" placeholder="What should happen next?"></label><label>Brief<textarea id="notes" maxlength="2000" placeholder="Select recorded work or write a new brief."></textarea></label><label>Source link<input id="sourceUrl" type="url" maxlength="2000"></label><div class="connected-app-actions"></div><p id="status" role="status" aria-live="polite"></p><p class="hint">Connected actions open editable drafts. Review and approve any publishing or generation in the destination app.</p></section></div></section></main><script type="module">
 import {receiveHandoff} from '/cockpit/js/app-handoff.js';
 import {mountConnectedActions} from '/cockpit/js/app-workflows.js';
 // The full page only: under an audience view the shared kit paints instead (see the head script), so no connected-actions
@@ -203,6 +218,8 @@ async function refreshOwn(){const list=document.querySelector('#ownEvents');try{
 function ownRow(ev){const el=document.createElement('div'),heading=document.createElement('strong'),detail=document.createElement('p'),remove=document.createElement('button');el.className='record';heading.textContent=ev.title;detail.textContent=[ev.local||ev.start,ev.location].filter(Boolean).join(' · ');remove.type='button';remove.className='calendar-destructive';remove.textContent='Remove';remove.setAttribute('aria-label','Remove '+ev.title+' from your OSHAL calendar');remove.addEventListener('click',()=>removeOwn(ev,remove));el.append(heading,detail,remove);return el;}
 async function removeOwn(ev,button){const say=document.querySelector('#ownStatus');const {confirmInPage}=await import('/api/calendar/review/calendar-workspace.mjs');if(!await confirmInPage(document,{title:'Remove "'+ev.title+'"?',text:'Remove "'+ev.title+'" ('+(ev.local||ev.start)+') from your OSHAL calendar? This cannot be undone.',action:'Remove',destructive:true}))return;button.disabled=true;try{const r=await fetch('/api/calendar/events/'+encodeURIComponent(ev.id),{method:'DELETE',headers:{Accept:'application/json'}});const data=await r.json().catch(()=>({}));if(!r.ok)throw Error(data.error||('The event was not removed (HTTP '+r.status+').'));say.textContent='Removed "'+ev.title+'".';await refreshOwn();await refresh();window.__calendar?.refresh();}catch(e){say.textContent=e.message;button.disabled=false;}}
 document.querySelector('#refresh').addEventListener('click',()=>{refresh();refreshBriefs();refreshOwn();});
+document.querySelector('#refreshBriefsTop')?.addEventListener('click',()=>{refresh();refreshBriefs();});
+if(document.documentElement?.classList?.contains('calendar-briefs-view')){document.querySelector('#ownTabTitle').textContent='Meeting briefs';document.querySelector('#preparationHeading').textContent='Meeting briefs';document.querySelector('#briefsBar').hidden=false;document.querySelector('#preparation').setAttribute('data-ds-work','');document.querySelector('#refresh').hidden=true;}
 // A save or removal in the calendar, or a sync, changes these lists in the same step (the decision's FIX-BROKEN item:
 // "Added in OSHAL" still said "Nothing added here yet" after a save).
 document.querySelector('#personalCalendar').addEventListener('calendar:changed',()=>{refresh();refreshOwn();});
@@ -213,7 +230,7 @@ await refreshOwn();
 }
 </script><script type="module">
 import {createCalendarWorkspace} from "/api/calendar/review/calendar-workspace.mjs";
-const full=new URLSearchParams(location.search).get("compact")!=="1";
-const openPreparation=()=>{const d=document.querySelector('#preparation');if(!d)return;window.scrollTo(0,d.getBoundingClientRect().top+window.scrollY);d.querySelector('h2')?.focus({preventScroll:true});};
-if (!window.AppView || !AppView.active()) window.__calendar=createCalendarWorkspace(document.querySelector("#personalCalendar"),{menu:full?[{label:'Meeting briefs and preparation',run:openPreparation}]:[]});
+const params=new URLSearchParams(location.search),full=params.get("compact")!=="1",briefsOnly=params.get("view")==="briefs";
+const openBriefs=()=>{window.location.assign('/api/calendar/review?view=briefs');};
+if (!briefsOnly && (!window.AppView || !AppView.active())) window.__calendar=createCalendarWorkspace(document.querySelector("#personalCalendar"),{menu:full?[{label:'Meeting briefs',run:openBriefs}]:[]});
 </script></body></html>

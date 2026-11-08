@@ -43,6 +43,7 @@
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | The projector's room link works on the native kernel. Its bridge response buffers the whole body and has no writeHead, so GET /stream answered 500 "res.writeHead is not a function" on every try and the projector looped "Reconnecting to the room" without ever receiving a line. POST /rooms/register now names the transport this runtime can serve (sse where the response can stream, poll on the bridge) with the poll interval; GET /rooms/poll answers a screen's events after its cursor (409 unknown_room tells it to re-register); GET /stream on a non-streaming response answers 501 stream_unavailable instead of a 500.
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com     | A spoken line is saved before the reply. remember() was fire-and-forget, so /chat, /rooms/say, /rooms/ask and /speak answered before the INSERT and the page's Saved responses re-read showed 'Nothing saved yet' (sweep 8). The save is now awaited (a failed save still only logs). Guard: tests/pumpkin-swarm-push.test.cjs ("each speaking door has saved the line before it answers").
  * 2026-10-12 21:00:00 | maintainer@emeraldcoastsystemsgroup.com     | A reply the model could not give answers 503 model_unavailable with the cause in words. Sweep 9: while the model was unavailable, POST /rooms/ask answered 500 {"error":"internal_error"} although the kernel had refused the turn with its reason (every configured model failed). runPumpkin raises PumpkinModelError for a failed bot turn; withSub maps it to 503 with "message" (what the page shows) and "detail" (the kernel's reason, bounded); the swarm door keeps its 502 bot_failed contract with the reason as its detail. Guard: tests/pumpkin-model-unavailable.test.cjs.
+ * 10                  | maintainer@emeraldcoastsystemsgroup.com     | RP-PUMP-01: add POST /rooms/stop (paired browser/remote stop with room pairing token) and POST /stop (concierge/swarm stop across owner's live projector rooms, failing loud when no projector is listening).
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -482,6 +483,41 @@ async function pushPresetFirst(presetSvc, sub, targets, name, res) {
     return true;
 }
 /**
+ * @description Concierge / swarm stop door: silences the owner's live projector room(s) immediately.
+ * Accepts either a valid service secret or an authenticated OIDC principal (used by oshald's api tool
+ * executor), while refusing forged service secrets and unauthenticated MOCK_OIDC fallbacks.
+ */
+function handleSwarmStop(req, res, sub) {
+    const providedSecret = String(req.headers?.['x-service-secret'] || '').trim();
+    const serviceTrusted = (0, authz_1.hasValidServiceSecret)(req);
+    if (providedSecret && !serviceTrusted) {
+        res.status(403).json({ error: 'service_secret_required' });
+        return;
+    }
+    const authedOidc = Boolean(req.oidc?.isAuthenticated?.());
+    if (!serviceTrusted && !authedOidc) {
+        res.status(403).json({ error: 'service_secret_required' });
+        return;
+    }
+    if (serviceTrusted ? !gateSwarmSpeak(req, res, sub) : !gateInput(req, res, sub))
+        return;
+    const resolved = (0, pumpkin_engine_1.resolveSpeakTargets)(sub, req.body?.room === undefined ? undefined : String(req.body.room));
+    if (!resolved.ok) {
+        res.status(resolved.status).json(resolved.body);
+        return;
+    }
+    const fan = speakToTargets(sub, resolved.targets, { type: 'stop' });
+    if (fan.listeners === 0) {
+        res.status(409).json({ error: 'projector_not_listening', rooms: fan.rooms });
+        return;
+    }
+    res.json({
+        ok: true,
+        listeners: fan.listeners,
+        rooms: fan.rooms.map((r) => ({ room: r.room, label: r.label, listeners: r.listeners })),
+    });
+}
+/**
  * @description Attach one projector SSE transport to a room. Extracted from the route so the
  * handler can choose its STATUS CODE before a single header is written — an unknown room used to
  * get 200-then-end, which EventSource is spec-bound to read as a dropped connection and retry
@@ -791,6 +827,16 @@ function createPumpkinRoutes(ctx) {
         void responseSvc.markPlayed(sub, saved.id);
         res.json({ ok: true, reply: { say: saved.say, expression: saved.expression, intensity: saved.intensity }, listeners: n });
     }));
+    router.post('/rooms/stop', withSub((req, res, sub) => {
+        if (!gateInput(req, res, sub))
+            return;
+        const n = pumpkin_engine_1.pumpkinRooms.push(sub, String(req.body?.room || ''), String(req.body?.token || ''), { type: 'stop' });
+        if (n < 0) {
+            res.status(403).json({ error: 'invalid_room_or_token' });
+            return;
+        }
+        res.json({ ok: true, listeners: n });
+    }));
     // ── The SWARM DOOR — service secret ONLY, never a browser ─────────────────
     // A bot/CLI/Jarvis delegation can drive the prop here WITHOUT the pairing token, because the
     // token never leaves the registering browser. The gate is hasValidServiceSecret and nothing else:
@@ -849,6 +895,7 @@ function createPumpkinRoutes(ctx) {
             rooms: fan.rooms.map((r) => ({ room: r.room, label: r.label, listeners: r.listeners })),
         });
     }));
+    router.post('/stop', withSub(handleSwarmStop));
     router.post('/rooms/preset', withSub((req, res, sub) => {
         const n = pumpkin_engine_1.pumpkinRooms.push(sub, String(req.body?.room || ''), String(req.body?.token || ''), { type: 'preset', name: String(req.body?.name || '').trim() });
         if (n < 0) {

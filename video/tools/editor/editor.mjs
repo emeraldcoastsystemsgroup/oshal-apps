@@ -10,12 +10,15 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | A held Motion import keeps a newly opened draft intact instead of attaching its old source to another project.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Automatically save and refresh the concierge's current editable timeline; fence delayed saves to their original project.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §4.4, §5.1): Delete project asks in the page (the Project menu's confirm sheet) instead of a native confirm (DS-30); selecting a clip on a phone turns the bottom tool row into the clip's tools instead of opening a drawer over the work, and Done in that row clears the selection; the first screen's status line is short (DS-31).
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): pass composite preview overlays to player, export profile state to exporter, and support titles on both v1 and v2 timelines.
  */
 import {readVideoArtifact} from './artifact-import.mjs';
 import {bindVideoFoundation} from './editor-foundation-adapter.mjs';
 import { motionSourceUrl } from './motion-source.mjs';
 import { createMultitrackEditor } from './multitrack-editor.mjs';
+import { applyMultitrack } from './multitrack-model.mjs';
 import * as model from './timeline-model.mjs';
+import { timelineFrames } from './timeline-validation.mjs';
 import { createTimelineHistory } from './timeline-history.mjs';
 import { call, describe, upload, configureMediaTransport } from './editor-api.mjs';
 import { remainingFrames, renderBed, renderInspector, renderSources, renderTitles, renderTrack } from './timeline-view.mjs';
@@ -82,7 +85,7 @@ function render() {
   $('saveAsNew').disabled = state.busy || !state.permissions.create;
   $('deleteProject').disabled = state.busy || !state.projectId || !state.permissions.delete;
   $('deleteProject').title = state.permissions.delete ? '' : 'Your access does not include deleting projects.';
-  $('addTitle').disabled = !canEdit || !current.segments.length;
+  $('addTitle').disabled = !canEdit || !(current.version === 2 ? current.tracks.some(t => t.clips.length) : current.segments.length);
   $('dirtyFlag').hidden = !dirty();
   renderMotion(current,canEdit); multitrack?.render(); player.refresh(); exporter.refresh(); foundation?.refresh();
 }
@@ -228,9 +231,10 @@ function redo() { if (state.history.canRedo()) { state.history.redo(); persistDr
 
 function addTitle(event) {
   event.preventDefault();
-  const start = player.frame(), total = doc().segments.reduce((sum, segment) => sum + segment.out - segment.in, 0);
+  const start = player.frame(), total = timelineFrames(doc());
   const end = Math.min(total, start + Math.max(1, Math.round(Number($('titleSeconds').value) * 30)));
-  if (apply(current => model.addTitle(current, { text: $('titleText').value, start, end, position: $('titlePosition').value, size: $('titleSize').value }).document)) {
+  const entry = { text: $('titleText').value, start, end, position: $('titlePosition').value, size: $('titleSize').value };
+  if (apply(current => current.version === 2 ? applyMultitrack(current, { type: 'text', track: 'titles', entry }) : model.addTitle(current, entry).document)) {
     $('titleText').value = '';
   }
 }
@@ -340,13 +344,14 @@ async function init() {
   state.history = createTimelineHistory(model.createTimeline('Untitled video'));
   state.savedText = JSON.stringify(doc());
   multitrack = createMultitrackEditor({ doc, apply, editable, frame: () => player?.frame() ?? 0, error: showError, onSelect:()=>{textSelection=null;foundation?.refresh();if(wideScreen())foundation?.showPanel('properties');},selectText });
-  player = createPlayer({ viewer: $('viewer'), bed: $('bedAudio'), overlay: $('titleOverlay'), noPicture: $('noPicture'), playhead: $('playhead'),
-    clock: $('clock'), play: $('play') }, doc, () => undefined);
+  player = createPlayer({ viewer: $('viewer'), underlay: $('underlayViewer'), canvas: $('compositeCanvas'), stickers: $('stickerLayer'),
+    captions: $('captionOverlay'), screen: $('previewScreen'), bed: $('bedAudio'), overlay: $('titleOverlay'), noPicture: $('noPicture'),
+    playhead: $('playhead'), clock: $('clock'), play: $('play') }, doc, () => undefined);
   exporter = createExporter({ exportButton: $('exportMp4'), previewButton: $('renderPreview'), cancel: $('cancelExport'), progress: $('exportProgress'),
     status: $('exportStatus'), hint: $('exportHint'), download: $('downloadExport'), watch: $('watchExport') },
-  () => ({ projectId: state.projectId, revision: state.revision, dirty: dirty(), canExport: !!state.permissions.export }));
+  () => ({ projectId: state.projectId, revision: state.revision, dirty: dirty(), canExport: !!state.permissions.export, profile: doc().profile }));
   wireTimeline(); wireInspector(); wireProject();
-  try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo,
+  try { foundation=await bindVideoFoundation({state,doc,dirty,editable,selection,selectText,frame:()=>player.frame(),apply,save,undo,redo,exporter,setStatus,
     permissions:()=>state.permissions,clearSelection:()=>{textSelection=null;state.selected=null;multitrack?.deselect();render();},confirmNext:()=>{state.deleteConfirmed=true;}});foundation.refresh(); } catch(failure){showError('The common editor could not start: '+failure.message);}
   try { const current = await call('/permissions'); state.permissions = current.permissions; configureMediaTransport(current.nativeMedia); }
   catch (error) {

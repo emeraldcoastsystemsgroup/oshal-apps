@@ -5,6 +5,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: browser regression case for Use this computer, busy Connect, non-admin 403 and TV remote (tests/phone-control-connect-ui.test.cjs), plus two-admin disposable-kernel isolation proof (tests/live/isolation-proof.sh).
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register Batch-7 UX + UxPlay AirPlay mirroring regression guard (tests/phone-control-ux-batch7.test.cjs), update readiness to 1.3.0, and cover mirrored iPhone isolation in phone-control-isolation.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: ship RP-PHC-01..13 session features, Phone & TV Concierge, learnable BLE pointer calibration, 1-step Fire TV Load oshal TV, and RDP setup/probe; register phone-control-rp-features and phone-control-rp-browser.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: update readiness to 1.4.1 and register phone-control-141 covering studio toolbar/fullscreen/concierge toggle, BLE bonded reconnect & non-flooding swipes, pre-mirror touchpad gestures, Fire TV DRM protectedSurface notice + fast frame wakeups, gated RDP polling, and guided Android pairing auto-connect.
 version: 1
 cases:
   - id: package-readiness
@@ -15,7 +16,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.4.0 with its store open.
+      - The installed phone-control package answers its identity and version 1.4.1 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -141,6 +142,32 @@ cases:
     installation: never
     regressionTests:
       - { level: browser, file: tests/phone-control-rp-browser.test.cjs }
+
+  - id: phone-control-141
+    name: Studio workspace, BLE sync & swipe, Fire TV DRM notice, gated RDP, and guided Android pairing
+    purpose: Prove in Python, unit, and Chromium tests that 1.4.1 ships the compact screen-first studio toolbar, fullscreen stage + Escape exit, collapsible Concierge drawer, BLE 0x1801/connect_bonded/ble-sync and non-flooding swipes, pre-mirror iOS touchpad gestures, Fire TV protectedSurface notice + fast post-key frame wakeups, zero default /api/rdp/sessions calls, and guided Android pairing with IP prefill.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-141.test.cjs
+    expected:
+      - Default load issues zero /api/rdp/sessions requests; studio toolbar toggles fullscreen, Concierge drawer, and BLE sync; pre-mirror iPhone touchpad swipes work.
+      - Uniform black awake TV frames report protectedSurface with activePackage and show #protectedSurfaceNotice; guided Android pairing prefills host IP when mDNS is absent.
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/phone-control-141.test.cjs }
 
   - id: phone-control-link
     name: Computer link commands run by real bash and python3

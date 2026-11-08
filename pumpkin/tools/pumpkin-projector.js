@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com   | (a) THE THINK CAN NO LONGER WEDGE THE PROP. Every other long-lived operation here had a watchdog; the ONE call that spawns a claude-code CLI subprocess had none. S.inFlight and turn==='thinking' were cleared only inside the chat .then/.catch, api() had no AbortController, and the inline-bot route has no server-side timeout — so a single request that never settled left the prop permanently deaf, and startListen()'s early return refused the human holding the talk button too. Now: a 45s AbortController deadline, ONE endThink() that owns S.inFlight/the controller/the stale-reply token, an unconditional recovery timer that returns to the ear with a visible status, and startListen() aborting a wedged think instead of refusing (armEar still never schedules one automatically). (b) THE SHORT PROJECTOR URL IS REAL. The runbook's step 3 ({origin}/pumpkin/ with nothing after the slash — the only form worth typing on a projector device) promised the page reads roomLabel/mode/activePreset back from saved settings; it never fetched them, so following the runbook literally landed the projector in room 'main' while the cockpit pushed to 'front-porch'. loadStoredSettings() now fills ONLY the params the URL omitted, and gates the room/look/ear bring-up; rendering still starts immediately so a slow api never shows a black screen.
  * 5 | maintainer@emeraldcoastsystemsgroup.com   | Ported into the pumpkin package (tools/pumpkin-projector.js, served at /api/pumpkin/assets/pumpkin-projector.js) with its page at GET /api/pumpkin/projector: the native kernel never served the framework's /pumpkin/ page, so the projector link and Launch both opened a 404. Content unchanged; the short URL is now {origin}/api/pumpkin/projector.
  * 6 | maintainer@emeraldcoastsystemsgroup.com   | The room link follows the transport register() names. On the native kernel the response cannot hold an SSE stream open (GET /stream answered 500 and the projector looped "Reconnecting to the room" forever), so register answers transport:'poll' and the projector polls GET /api/pumpkin/rooms/poll with its cursor every pollMs instead of opening an EventSource. Each successful poll counts as a frame for the silence watchdog; 409 (room gone) and 401 re-register exactly as a closed stream does.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com   | RP-PUMP-01: add stopSpeaking() for room/demo stop events — clears queued lines, aborts any in-flight autonomous think, halts audio playback, snaps the jaw shut via face.stop(), and settles in cooldown so the next line speaks immediately; lower default pollMs to 250ms (floor 150ms) for sub-0.5s stop response on polling runtimes.
  */
 
 /* global window, document, navigator, PumpkinFace, PumpkinAudio, EventSource */
@@ -76,7 +77,7 @@
     retryTimer: null, silenceTimer: null, graceTimer: null, hbTimer: null,
     // Poll transport (a runtime whose responses cannot stream): cursor, timer, and a generation so a
     // poll answered after the link was torn down is discarded.
-    transport: 'sse', pollMs: 1500, pollCursor: null, pollTimer: null, pollGen: 0,
+    transport: 'sse', pollMs: 250, pollCursor: null, pollTimer: null, pollGen: 0,
     clientId: Math.random().toString(36).slice(2, 12),
     wakeLock: null,
   };
@@ -282,6 +283,24 @@
       onLevel: function (v) { face.setLevel(v); },
       onEnd: finish,
     });
+  }
+
+  /**
+   * Halt speech and any in-flight reply immediately, clear queued lines, and snap the jaw shut.
+   * Leaves turn in cooldown so room reverb stays deafened while the next speakLine() speaks right away.
+   */
+  function stopSpeaking() {
+    S.speakQueue.length = 0;
+    if (S.speakTimer) { clearTimeout(S.speakTimer); S.speakTimer = null; }
+    if (S.turn === 'thinking' || S.inFlight) endThink(true);
+    audio.forceStop();
+    if (face && typeof face.stop === 'function') face.stop();
+    else if (face) { face.setSpeaking(false); face.setLevel(0); face.setExpression('neutral', 0); }
+    S.deafUntil = Date.now() + DEAF_AFTER_SPEECH_MS;
+    S.turn = 'cooldown';
+    setStatus(idleStatus());
+    refreshAudioGate();
+    armEar(DEAF_AFTER_SPEECH_MS + EAR_RESTART_MS);
   }
 
   // ── Listening (local mic) ───────────────────────────────────────────────────
@@ -549,7 +568,7 @@
       S.roomName = j.label || j.room;
       S.missedBeats = 0; S.backoff = 0;
       S.transport = j.transport === 'poll' ? 'poll' : 'sse';
-      S.pollMs = Math.min(Math.max(Number(j.pollMs) || 1500, 500), 5000);
+      S.pollMs = Math.min(Math.max(Number(j.pollMs) || 250, 150), 5000);
       setLink('live');
       if (S.transport === 'poll') linkPoll(); else linkSubscribe();
     }).catch(function (err) {
@@ -702,6 +721,7 @@
     if (evt.type === 'ping') return;                                  // liveness only; consumed here
     if (evt.type === 'evicted') { reregister('evicted'); return; }    // terminal: the room is gone
     if (evt.type === 'error') { reregister(String(evt.error || 'server_error')); return; }
+    if (evt.type === 'stop') { stopSpeaking(); return; }
     if (evt.type === 'speak') speakLine(evt.say, evt.expression, evt.intensity);
     else if (evt.type === 'preset') {
       if (evt.preset) applyPreset(evt.preset);

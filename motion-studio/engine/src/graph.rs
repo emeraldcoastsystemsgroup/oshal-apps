@@ -1,5 +1,6 @@
 //! CHANGE LOG
 //! 1 | maintainer@emeraldcoastsystemsgroup.com | Reject dangling, aliased and cyclic native composition/parent/matte graphs before render.
+//! 2 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01, RP-MOT-02: admit owned Video and Audio footage sources and validate composition motion-blur shutter and sample bounds.
 use effectcraft_project::{FootageKind, ItemKind, LayerSource, Project};
 use std::collections::{BTreeMap, BTreeSet};
 type Edges = BTreeMap<u64, Vec<u64>>;
@@ -97,6 +98,15 @@ pub fn validate(project: &Project) -> Result<(), String> {
         if !comp.pixel_aspect.is_finite() || comp.pixel_aspect <= 0.0 || comp.pixel_aspect > 10.0 {
             return Err("motion_graph_invalid_pixel_aspect".into());
         }
+        if !comp.shutter_angle.is_finite()
+            || !(0.0..=720.0).contains(&comp.shutter_angle)
+            || !comp.shutter_phase.is_finite()
+            || !(-360.0..=360.0).contains(&comp.shutter_phase)
+            || !(2..=64).contains(&comp.motion_blur_samples)
+            || !(16..=256).contains(&comp.motion_blur_adaptive_limit)
+        {
+            return Err("motion_graph_invalid_motion_blur".into());
+        }
         let mut parents = Edges::new();
         let mut mattes = Edges::new();
         let own = comp
@@ -124,9 +134,10 @@ pub fn validate(project: &Project) -> Result<(), String> {
                 let item = project.item(source).ok_or("motion_graph_missing_source")?;
                 let matches = match (&layer.source, &item.kind) {
                     (LayerSource::Comp { .. }, ItemKind::Comp(_)) => true,
-                    (LayerSource::Footage { .. }, ItemKind::Footage(footage)) => {
-                        footage.kind == FootageKind::Still
-                    }
+                    (LayerSource::Footage { .. }, ItemKind::Footage(footage)) => matches!(
+                        footage.kind,
+                        FootageKind::Still | FootageKind::Video | FootageKind::Audio
+                    ),
                     (LayerSource::Model { .. }, ItemKind::Footage(footage)) => {
                         footage.kind == FootageKind::Model
                     }

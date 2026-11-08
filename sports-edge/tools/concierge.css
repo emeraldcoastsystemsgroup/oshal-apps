@@ -1,0 +1,409 @@
+/* CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Collapsible right-rail Sports Quant Concierge styles (F22/F24): zero outer rail scrollbar, independent message log scroll, quick prompt chips, bottom-pinned rounded Jarvis composer (<= 20px bottom gap), >= 4.5:1 button contrast across light-blue and midnight themes, and 412px phone sheet layout.
+ */
+
+.se-workspace {
+  min-width: 0;
+}
+
+header .concierge-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+header .concierge-toggle:hover,
+header .concierge-toggle[aria-expanded="true"] {
+  border-color: var(--blue);
+}
+
+header .concierge-toggle svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.concierge-rail,
+.concierge-rail * {
+  box-sizing: border-box;
+}
+
+.concierge-rail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  border-left: 1px solid var(--border);
+}
+
+body[data-concierge="closed"] .concierge-rail {
+  display: none !important;
+}
+
+@media (min-width: 960px) {
+  body.has-concierge {
+    display: flex;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  body.has-concierge .se-workspace {
+    flex: 1 1 0%;
+    min-width: 0;
+    min-height: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  body.has-concierge .concierge-rail {
+    flex: 0 0 356px;
+    width: 356px;
+    max-width: 38vw;
+    height: 100dvh;
+  }
+}
+
+@media (max-width: 959px) {
+  header .concierge-toggle {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+  .concierge-rail {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    z-index: 40;
+    border-left: 0;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.24);
+  }
+}
+
+.concierge-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  padding: 6px 12px 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.concierge-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.concierge-help {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 10px 16px 4px;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.concierge-log {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 16px;
+}
+
+.concierge-msg {
+  flex: none;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.concierge-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.concierge-speaker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.concierge-user {
+  align-self: flex-end;
+  max-width: 90%;
+  padding: 9px 13px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px 16px 4px 16px;
+}
+
+.concierge-user .concierge-speaker {
+  display: none;
+}
+
+.concierge-chips {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px 8px;
+}
+
+.concierge-chip {
+  min-height: 32px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+
+.concierge-chip:hover {
+  border-color: var(--blue);
+}
+
+@media (max-width: 959px) {
+  .concierge-chip {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+}
+
+.concierge-composer {
+  flex: 0 0 auto;
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+  min-width: 0;
+}
+
+.concierge-context-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.concierge-context-row:empty {
+  display: none;
+}
+
+.concierge-context-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.concierge-context-pill button {
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 13px;
+}
+
+.concierge-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.concierge-form textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 48px;
+  max-height: 120px;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  resize: none;
+  font: 13.5px/1.45 inherit;
+}
+
+@media (max-width: 959px) {
+  .concierge-form textarea {
+    font-size: 16px;
+  }
+}
+
+.concierge-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.concierge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.concierge-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.concierge-icon:hover,
+.concierge-icon[aria-pressed="true"] {
+  background: rgba(127, 127, 127, 0.14);
+}
+
+.concierge-send {
+  margin-left: auto;
+  min-height: 40px;
+  padding: 8px 15px;
+  border: 1px solid #1d4ed8;
+  border-radius: 10px;
+  background: #1d4ed8;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 959px) {
+  .concierge-send {
+    min-height: 44px;
+  }
+}
+
+.concierge-rail button:disabled {
+  opacity: 1;
+  color: var(--dim);
+  cursor: default;
+}
+
+.concierge-rail .concierge-send:disabled {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--dim);
+}
+
+.concierge-rail :is(button, textarea):focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.concierge-notice {
+  margin: 4px 6px 0;
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.concierge-notice:empty {
+  display: none;
+}
+
+.concierge-approval-card {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.concierge-approval-title {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.concierge-approval-desc {
+  margin: 0 0 8px;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.concierge-approval-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.concierge-approve-btn {
+  min-height: 40px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #1d4ed8;
+  background: #1d4ed8;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.concierge-cancel-btn {
+  min-height: 40px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}

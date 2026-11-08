@@ -26,6 +26,14 @@
   --gs-shadow: 0 10px 40px rgba(0, 0, 0, .5);
 }
 
+/* Light portal themes use a deeper team pair so both team dots clear >= 3:1 (5.0:1+) on light surfaces. */
+html[data-theme="daylight"], html[data-theme="light-blue"], html[data-theme="workspace"],
+html[data-theme="jarvis"], html[data-theme="orbit"], html[data-theme="commons"],
+html[data-theme="family"], html[data-theme="classroom"], html[data-theme="company"] {
+  --gs-teamA: #0369a1;
+  --gs-teamB: #be185d;
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 body {
@@ -34,7 +42,7 @@ body {
   background:
     radial-gradient(1200px 700px at 50% -10%, rgba(56, 189, 248, .18), transparent 60%),
     radial-gradient(900px 600px at 50% 120%, rgba(251, 191, 36, .12), transparent 60%),
-    linear-gradient(160deg, var(--gs-navy), var(--gs-surface) 70%);
+    linear-gradient(160deg, var(--gs-navy), var(--gs-surface) 70%) var(--gs-navy);
   overflow-x: hidden; overflow-y: auto;
 }
 #gs-root { min-height: 100vh; display: flex; flex-direction: column; }
@@ -343,8 +351,22 @@ body[data-gs-view="audience"] #gs-root { padding-bottom: 76px; }   /* reactions 
 .gs-sheet-body { overflow-y: auto; padding: 16px 20px 20px; }
 .gs-sheet-body p { line-height: 1.5; }
 .gs-sheet-label { margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--gs-dim); }
-.gs-btn.gs-choice { min-height: 44px; }
-.gs-btn.gs-choice.on { background: var(--gs-ink); color: var(--gs-navy); border-color: var(--gs-ink); }
+.gs-btn.gs-choice {
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(var(--ds-surface, var(--gs-surface)), var(--ds-surface, var(--gs-surface))) var(--gs-navy);
+  color: var(--ds-ink, var(--gs-ink));
+  border: 1px solid var(--ds-border, var(--gs-line));
+}
+.gs-btn.gs-choice.on {
+  background: var(--ds-accent, var(--accent-primary, #3b82f6));
+  color: var(--ds-on-accent, var(--text-on-accent, #111827));
+  border-color: transparent;
+}
+.gs-team-dot {
+  width: 10px; height: 10px; flex: 0 0 10px; border-radius: 999px; display: inline-block;
+  background: var(--gs-teamA); box-shadow: 0 0 0 2px var(--gs-navy);
+}
+.gs-team-dot.teamB { background: var(--gs-teamB); }
 .gs-help h3 { margin: 14px 0 4px; font-size: 17px; }
 .gs-help p, .gs-help li { line-height: 1.5; }
 .gs-help-show.current { padding: 10px 12px; border-radius: 12px; background: var(--gs-surface-2); }

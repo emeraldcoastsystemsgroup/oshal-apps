@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Pin the NVIDIA INR 1,200k-1,600k vs annual USD regression on sort=salary across both open feed and keyword search.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | State the fixture's annual USD units explicitly so pay-filter assertions do not depend on the retired missing-unit defaults.
  * -----------------------------------------------------------------------------
  * SEQ                 | AUTHOR                      | DESCRIPTION
@@ -499,4 +500,32 @@ test('indexed browsing continues past 2000 postings with stable date ties',()=>{
     const all=[];for(let page=1;page<=15;page++){const result=browse.fetchBrowsePage(db,{q:'continuation',per:'200',page:String(page)});assert.equal(result.capped,false);assert.equal(result.jobs.length,200);all.push(...result.jobs.map(r=>r.id));}
     assert.equal(new Set(all).size,3000);assert.equal(browse.fetchBrowsePage(db,{q:'continuation',per:'200',page:'16'}).exhausted,true);
   }finally{db.exec('ROLLBACK');}
+});
+
+test('sort=salary ranks annual USD roles ahead of raw non-USD figures such as NVIDIA INR 1,200k-1,600k', () => {
+  db.exec('BEGIN');
+  try {
+    db.prepare('INSERT OR IGNORE INTO corpus.companies (id, name, industry) VALUES (99, ?, ?)').run('NVIDIA', 'Semiconductors');
+    db.prepare(
+      `INSERT INTO corpus.postings_corpus
+         (id, company_id, ats_job_id, title, description, location, url, posted_date, first_seen_at,
+          state, remote, job_type, target_role, salary_min, salary_max, salary_currency, salary_period, active)
+       VALUES (990, 99, 'nv-inr-990', 'Senior GPU Systems Engineer', 'CUDA platform role in Bengaluru',
+               'Bengaluru, India', 'https://example.test/nv-990', '2026-08-10', '2026-08-10T00:00:00Z',
+               NULL, 0, 'fte', 1, 1200000, 1600000, 'INR', 'year', 1)`,
+    ).run();
+    const feedTitles = titles(browse.fetchBrowsePage(db, { sort: 'salary' }));
+    const usdIdx = feedTitles.indexOf('Staff Platform Engineer');
+    const sreIdx = feedTitles.indexOf('Senior SRE');
+    const inrIdx = feedTitles.indexOf('Senior GPU Systems Engineer');
+    assert.ok(usdIdx >= 0 && sreIdx > usdIdx && inrIdx > sreIdx,
+      `INR 1.6M ranked above $200k+ USD roles in sort=salary feed: ${feedTitles.join(' -> ')}`);
+
+    const kwTitles = titles(browse.fetchBrowsePage(db, { q: 'platform', sort: 'salary' }));
+    assert.equal(kwTitles[0], 'Staff Platform Engineer',
+      `INR posting outranked $240k USD role in keyword sort=salary: ${kwTitles.join(' -> ')}`);
+    assert.ok(kwTitles.indexOf('Senior GPU Systems Engineer') > kwTitles.indexOf('Staff Platform Engineer'));
+  } finally {
+    db.exec('ROLLBACK');
+  }
 });

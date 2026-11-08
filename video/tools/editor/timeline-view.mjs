@@ -5,9 +5,11 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Paint the manual video editor from one timeline document (CREATE-EDIT-05d): media list, the segment track sized by duration, the title track, the selected segment's controls, the music bed and the clock. Every string from a document or a file name goes in as text, never as markup; nothing here edits the document.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Size timeline segment chips by effective playback duration and show non-1x speed badges.
  */
 import { LIMITS, PROFILE, timelineFrames } from './timeline-validation.mjs';
 import { timelineLayout } from './timeline-model.mjs';
+import { formatSpeed } from './editor-effects.mjs';
 
 /** @description Seconds for a frame count, as the person reads them (0:04.50). @param {number} frames Frames. @returns {string} Clock text. */
 export function clock(frames) {
@@ -50,10 +52,11 @@ export function renderSources(list, doc, editable) {
 export function renderTrack(track, doc, selected) {
   const rows = timelineLayout(doc);
   track.replaceChildren(...rows.map(row => {
-    const source = doc.sources[row.source];
+    const source = doc.sources[row.source], dur = row.end - row.start;
+    const speedTag = row.speed && row.speed !== 100 ? ` · ${formatSpeed(row.speed)}` : '';
     const option = element('button', { type: 'button', className: 'segment', role: 'option', 'aria-selected': String(row.id === selected),
-      dataset: { segment: row.id }, text: `${source.name} · ${clock(row.out - row.in)}` });
-    option.style.flexGrow = String(row.out - row.in);
+      dataset: { segment: row.id }, text: `${source.name} · ${clock(dur)}${speedTag}` });
+    option.style.flexGrow = String(dur);
     option.title = `${source.name}: ${clock(row.in)} to ${clock(row.out)} of the clip, at ${clock(row.start)} in the video`;
     return option;
   }));

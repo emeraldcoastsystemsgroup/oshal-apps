@@ -101,6 +101,7 @@
 # 97 | maintainer@emeraldcoastsystemsgroup.com | 1.47.9: A person's store mounted read-only opens for a read whatever its journal mode and whatever shape its owner's last write left: leaving WAL made every engine read there fail, and an older store answered the board with a 500.
 # 98 | maintainer@emeraldcoastsystemsgroup.com | 1.47.10: A jobs pull a restart stops continues from the last employer it finished, with the kernel keeping its copy. Resolve is honest on the native kernel, where a request cannot write the corpus: the page no longer offers it and the route refuses.
 # 99 | maintainer@emeraldcoastsystemsgroup.com | 1.47.11: Resolve and Accept work on the native kernel. A change is saved, the kernel hands it to the next pull only for an administrator, the pull applies it on its private copy, and the Companies page shows what happened, with one-press Undo. Needs the kernel carrying career_source_requests.
+# 103 | maintainer@emeraldcoastsystemsgroup.com | 1.50.0: Complete the UX audit sweep across Insights, Profile Studio, Job Board phone Filters sheet and New matches swipe deck, Search Jobs annual-USD salary sort, Resume Studio career materials upload, Settings drop zones, and Submission activity guest gating; remove the forced daylight theme override so surfaces follow the person's active theme (D1=glass, D2=c).
 # 102 | maintainer@emeraldcoastsystemsgroup.com | 1.49.1: Resume Studio declares its design contract (editor, type first, its work surface), contains overscroll and keeps the document frame on the radius scale (the design standard audit on production).
 # 101 | maintainer@emeraldcoastsystemsgroup.com | 1.49.0 (Roger, 2026-11-06): Resume Studio opens the master resume as an editable Word document in AI Office's own editor (tools/career-resume-office.js), with AI Office's standard Concierge beside it in place of Career's resume editor panel; Save to master resume writes it back through the existing whitelisted base-save. The Career persona sends resume editing there and never patches the master behind the open document; routing words hand a resume request to Career. Contract: docs/career-and-office.md. Tailored packets keep the classic editor; without AI Office the master opens in the classic view.
 # 100 | maintainer@emeraldcoastsystemsgroup.com | 1.48.2: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
@@ -204,7 +205,7 @@ description: >-
   Prepare for interviews after submitting.
   Track recorded applications and matching email updates in your private workspace.
   Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it.
-version: 1.49.1
+version: 1.50.0
 
 # ── ADR-139 artifact exchange — this app as a "Send to…" DESTINATION ─────────
 # Any document anywhere in the swarm (files browser, another app) can be sent
@@ -225,7 +226,6 @@ artifacts:
       mode: post
       endpoint: /api/career-hunter/artifacts/import
 status: active
-theme: daylight
 
 # Kernel skills this package IMPORTS (ADR-085 §2). Declared because an undeclared import is
 # invisible to the prune guard: the first carve that drops the skill would break this app at

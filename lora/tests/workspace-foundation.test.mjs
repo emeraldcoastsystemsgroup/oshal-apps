@@ -3,22 +3,27 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the studio opens on New character step 1 with Create character as its one primary and the other fields under a closed Advanced, Properties never repeats the creation form, the inline Concierge column is gone, the phone opens on the character list with one + New character, the stepper shows one step at a time, and Train/Validate/Improve/Overnight are withheld unless GET /worker reports a GPU worker. The creation case fills the form itself (Properties no longer carries it) and its Subject slug is made from the Name.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The opens-ready case also proves no saved-source controls (Reload saved source) show before a character is chosen; red on the first stepper commit, where the list painted before the shared editor mounted that panel.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | + New character carries data-ef-floating, so the shell orb rests above it on a phone.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: serve photo-upload.mjs + upload/preview fixture routes and exercise multi-photo upload with crop aspect/zoom and per-photo captions in Step 2 Dataset.
  */
 import {test,before,after} from 'node:test';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import {resolve} from 'node:path';
 const root=fileURLToPath(new URL('../',import.meta.url)),core=process.env.OSHAL_CORE_ROOT,platform=process.env.OSHAL_PLATFORM_ROOT;assert.ok(core&&platform,'Matching core and platform roots required.');
 const requireCore=createRequire(resolve(core,'package.json')),express=requireCore('express'),{chromium}=requireCore('playwright');let browser;
+const PNG_2X2=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mNk+M9QzwAEjDAGACCKAoFF72hGAAAAAElFTkSuQmCC','base64');
 before(async()=>{browser=await chromium.launch({headless:true});});after(async()=>{await browser?.close();});
 async function fixture(t,width=1280,metadata=true,worker=null){
- const app=express(),writes=[],character={subject:'test-character',display_name:'Test character',trigger_word:'testcharacter',hero_image:'hero.png',ident_prompt:'A blue test character',storage_key:'owned-test'};
- app.use(express.json());app.get('/api/lora/ui',(_req,res)=>res.sendFile(resolve(root,'tools/lora.html')));
+ const app=express(),writes=[],uploads=[],dataset=[],character={subject:'test-character',display_name:'Test character',trigger_word:'testcharacter',hero_image:'hero.png',ident_prompt:'A blue test character',storage_key:'owned-test'};
+ app.use(express.json({limit:'8mb'}));app.get('/api/lora/ui',(_req,res)=>res.sendFile(resolve(root,'tools/lora.html')));
+ app.get('/api/lora/ui/photo-upload.mjs',(_req,res)=>res.type('application/javascript').sendFile(resolve(root,'tools/lora-photo-upload.mjs')));
  app.use('/shared/ui',express.static(resolve(platform,'src/shared/ui')));app.use('/cockpit',express.static(resolve(platform,'src/pages/cockpit')));
  app.get('/api/lora/characters/:subject/editor',(req,res)=>metadata?res.json({subject:req.params.subject,characterId:'11111111-1111-4111-8111-111111111111',displayName:character.display_name,revision:0,canConfigure:true,canExecute:false}):res.status(403).json({error:'Fixture source editor unavailable; saved evidence remains readable.'}));
- app.get('/api/lora/characters',(_req,res)=>res.json({characters:[character]}));app.get('/api/lora/models',(_req,res)=>res.json({models:[]}));app.get('/api/lora/dataset',(_req,res)=>res.json({images:[]}));
+ app.get('/api/lora/characters',(_req,res)=>res.json({characters:[character]}));app.get('/api/lora/models',(_req,res)=>res.json({models:[]}));app.get('/api/lora/dataset',(_req,res)=>res.json({images:dataset}));
+ app.post('/api/lora/dataset/upload',(req,res)=>{uploads.push(req.body);const created=(req.body.photos||[]).map((p,idx)=>{const id=`00000000-0000-4000-8000-00000000000${dataset.length+idx+1}`;const bytes=Buffer.from(String(p.dataBase64||'').replace(/^data:[^,]+,/,''),'base64');const row={id,filename:`${p.name||'photo'}.png`,media_type:'image/png',byte_size:bytes.length,caption:p.caption,status:'queued',has_preview:true,caption_revision:0,applied_revision:0,caption_status:'applied',_bytes:bytes};dataset.unshift(row);return{id,filename:row.filename,caption:row.caption,status:'queued'};});res.status(201).json({status:'staged',count:created.length,photos:created,message:`${created.length} photos staged.`});});
+ app.get('/api/lora/dataset/:imageId/preview',(req,res)=>{const hit=dataset.find(r=>r.id===req.params.imageId);if(!hit)return res.status(404).end();res.type('image/png').send(hit._bytes);});
  if(worker!==null)app.get('/api/lora/worker',(_req,res)=>res.json({gpuWorker:worker}));
  app.post('/api/lora/characters',(req,res)=>{writes.push(req.body);res.json({subject:character.subject,message:'Fixture character saved; no training.'});});
  app.use((_req,res)=>res.status(404).json({error:'outside_fixture'}));const server=app.listen(0,'127.0.0.1');await new Promise(done=>server.once('listening',done));
  const context=await browser.newContext(width<800?{viewport:{width,height:915},isMobile:true,hasTouch:true}:{viewport:{width,height:900}});t.after(async()=>{await context.close();server.closeAllConnections();await new Promise(done=>server.close(done));});
- const page=await context.newPage(),errors=[];page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));await page.goto('http://127.0.0.1:'+server.address().port+'/api/lora/ui');await page.locator('.ef-shell').waitFor();return{page,writes,errors};
+ const page=await context.newPage(),errors=[];page.setDefaultTimeout(6000);page.on('pageerror',error=>errors.push(error.message));await page.goto('http://127.0.0.1:'+server.address().port+'/api/lora/ui');await page.locator('.ef-shell').waitFor();return{page,writes,uploads,errors};
 }
 const property=(page,key)=>page.locator('[data-editor-property="'+key+'"]');
 async function change(page,key,value){await property(page,key).fill(value);await property(page,key).press('Tab');}
@@ -64,4 +69,28 @@ test('Train, Validate, Improve and Overnight are withheld without a GPU worker a
 
 test('an unavailable source editor leaves the existing saved evidence readable and source fields disabled',async t=>{
  const{page,writes,errors}=await fixture(t,1280,false);await page.locator('[data-char-index]').filter({hasText:'Test character'}).click();await page.locator('#sourceEditStatus').filter({hasText:'Read-only saved evidence'}).waitFor();assert.equal(await property(page,'display_name').isDisabled(),true);assert.equal(await property(page,'datasetCaption').isDisabled(),true);await page.locator('[data-step="train"]').click();assert.equal(await page.locator('#vers').getByText(/No trained versions yet/).isVisible(),true);assert.equal(writes.length,0);assert.deepEqual(errors,[]);
+});
+
+test('Step 2 Upload photos crops, captions, and saves multiple device photos into the character dataset',async t=>{
+ const{page,uploads,errors}=await fixture(t,1440,true,false);
+ await page.locator('[data-char-index]').filter({hasText:'Test character'}).click();
+ await page.locator('#uploadPhotosBtn').waitFor();
+ await page.locator('#uploadPhotosInput').setInputFiles([
+  {name:'pose-front.png',mimeType:'image/png',buffer:PNG_2X2},
+  {name:'pose-side.png',mimeType:'image/png',buffer:PNG_2X2},
+ ]);
+ await page.locator('dialog#photoUploadSheet[open]').waitFor();
+ await page.locator('[data-crop-aspect="3:4"]').click();
+ await page.locator('#photoCaptionInput').fill('testcharacter, studio front pose');
+ await page.locator('[data-thumb-index="1"]').click();
+ await page.locator('#photoCaptionInput').fill('testcharacter, profile pose');
+ await page.locator('#photoUploadSaveBtn').click();
+ await page.locator('#datasetRows .lora-ds-thumb').first().waitFor();
+ assert.equal(uploads.length,1);
+ assert.equal(uploads[0].subject,'test-character');
+ assert.equal(uploads[0].photos.length,2);
+ assert.equal(await page.locator('#datasetRows .lora-ds-thumb').count(),2);
+ assert.match(await page.locator('#datasetRows').textContent(),/studio front pose/);
+ assert.match(await page.locator('#datasetRows').textContent(),/profile pose/);
+ assert.deepEqual(errors,[]);
 });

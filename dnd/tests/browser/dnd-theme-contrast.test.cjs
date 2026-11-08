@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (dnd-table, FIX-BROKEN). Under the default light-blue theme the Dungeon Master drawer's Current Quest and Table Talk were the theme's navy ink on the dark drawer (about 1.2:1) and My Games was a see-through grey card with blue text. The table is a dark game set, so its palette is pinned in dnd.css. This guard loads the shipped table.html, dnd.css and scripts in Chromium under each of the twenty themes surface-theme.js supports (their tokens as served on 2026-11-06, theme-tokens.json), fills the drawer, the status strip, the HUD and its More menu, the dock, the banner and the My Games screen, and measures every text against the background it is painted on (each layer composited, a gradient at its worst stop): 4.5:1, or 3:1 for large text. A My Games card must be opaque.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | F20 (2026-11-07): verify the table chrome genuinely follows all 20 light and dark themes via shared tokens, checks both light-blue and midnight at 1440x900 and 412x915, and preserves >= 13.86:1 story-panel contrast across all 20 themes.
  */
 'use strict';
 const test = require('node:test');
@@ -89,17 +90,36 @@ let browser;
 test.before(async () => { browser = await playwright().chromium.launch({ headless: true }); });
 test.after(async () => { await browser?.close(); });
 
+const LIGHT_THEMES = new Set(['daylight', 'light-blue', 'workspace', 'jarvis', 'orbit', 'commons', 'family', 'classroom', 'company']);
+
 for (const [theme, tokens] of Object.entries(THEMES)) {
-  for (const viewport of theme === 'light-blue' ? [{ width: 1440, height: 900 }, { width: 412, height: 915 }] : [{ width: 1440, height: 900 }]) {
-    test(`the table and My Games read on the dark set under ${theme} (${viewport.width} px)`, async () => {
+  const viewports = (theme === 'light-blue' || theme === 'midnight')
+    ? [{ width: 1440, height: 900 }, { width: 412, height: 915 }]
+    : [{ width: 1440, height: 900 }];
+  for (const viewport of viewports) {
+    test(`the table and My Games follow ${theme} with >= 13.86:1 story contrast (${viewport.width} px)`, async () => {
       const reads = { '/api/dnd/campaigns': CAMPAIGNS, '/api/dnd/characters': { characters: [] } };
       const { page, context, writes } = await openPage(browser, viewport, { url: '/api/dnd/table', files: FILES, reads });
       try {
         await page.waitForFunction(() => typeof setStoryOpen === 'function' && typeof setMoreMenu === 'function' && typeof showGameMenu === 'function');
-        await page.evaluate((t) => { for (const [k, v] of Object.entries(t)) document.documentElement.style.setProperty(k, v); }, tokens);
+        await page.evaluate(({ id, t }) => {
+          document.documentElement.dataset.theme = id;
+          for (const [k, v] of Object.entries(t)) document.documentElement.style.setProperty(k, v);
+        }, { id: theme, t: tokens });
         await page.evaluate(fillTable);
         await page.waitForTimeout(400); // the drawer fades in over 0.2 s
         const table = await page.evaluate(measure, TABLE_TEXT);
+        const bodyLum = await page.evaluate(() => {
+          const m = /rgba?\(([^)]+)\)/.exec(getComputedStyle(document.body).backgroundColor);
+          const [r, g, b] = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+          const f = (x) => { const v = x / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+        });
+        assert.ok(LIGHT_THEMES.has(theme) ? bodyLum > 0.7 : bodyLum < 0.05, `${theme}: table chrome follows theme luminance (${bodyLum.toFixed(3)})`);
+        for (const storySel of ['#questTitle', '.beat.table-talk']) {
+          const row = table.find((r) => r.selector === storySel);
+          assert.ok(row && row.ratio >= 13.86, `${theme}: ${storySel} story-panel contrast ${row?.ratio}:1 < 13.86:1`);
+        }
         await page.evaluate(async () => { setMoreMenu(false); setStoryOpen(false); await showGameMenu(); document.querySelector('.row-more').open = true; });
         await page.waitForSelector('.campaign-actions button.leave', { state: 'visible' });
         const screen = await page.evaluate(measure, SCREEN_TEXT);

@@ -10,6 +10,7 @@
  * 2026-10-11 00:00:00 | maintainer@emeraldcoastsystemsgroup.com    | The sync poll is a POST: it is the tick that resolves a lapsed round clock and plays the AI podiums, which writes, and the native kernel admits a GET only as a reader (every poll after a show started answered 500).
  * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Three things that made a game unplayable: a re-render wiped what a person was typing and jumped the page (GS.mount now keeps the focused field, its caret and the scroll), toasts were dark on dark under a light theme so every refusal was invisible (GS.toast names its ink), and two overlapping polls delivered the same event twice. GS.canPlay says whether this surface acts at a podium; GS.wantSolo (?solo=1) lets a poster start a game against the computer in one press; every poll refreshes the standings and GS.gameOver.
  * 2026-11-06 08:55:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06 (Host Desk): when POST /tts returns no audio (or fails), GS.voiceOff is set once and the Host Desk shows a quiet "Voice off, captions only" chip; the fallback to captions was silent (DS-41). A toast now draws above the sheets (z-index 1500 over 1401): a refusal while Show setup was open, "Nobody is at a podium yet", was drawn under the sheet and so never seen.
+ * 2026-11-07 06:52:00 | maintainer@emeraldcoastsystemsgroup.com    | F19: add GS.teamDot and GS.teamChoice so team buttons across the lobby, You sheet, and Host Desk share design-token surfaces with a theme-aware team dot instead of button-wide team or gold fills.
  */
 
 /* global window, document, navigator */
@@ -71,6 +72,18 @@
     return node;
   };
   GS.root = function () { return document.getElementById('gs-root'); };
+  GS.teamDot = function (team) {
+    return GS.el('span', { class: 'gs-team-dot team' + (team === 'B' ? 'B' : 'A'), 'aria-hidden': 'true' });
+  };
+  GS.teamChoice = function (team, label, on, act) {
+    return GS.el('button', {
+      type: 'button',
+      class: 'gs-btn gs-choice' + (on ? ' on' : ''),
+      'aria-pressed': on ? 'true' : 'false',
+      'data-team': team,
+      onclick: act,
+    }, GS.teamDot(team), label);
+  };
 
   /** @description Note the field a person is typing in, so a re-render can give it back. */
   function focusedField(root) {

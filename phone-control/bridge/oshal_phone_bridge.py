@@ -10,6 +10,7 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: Fire TV / Android TV network adb (adb-connect-tv, OK, PLAY_PAUSE, Leanback launcher).
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: iPhone AirPlay mirroring through UxPlay (setup-mirror, mirror-start, mirror-stop, mirror-frame).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: delegate mirror/TV/transfer helpers to oshal_phone_mirror.py and calibration/RDP/unified input primitives to oshal_phone_ops.py (ble-calibrate, rdp-probe, screen-info, pointer-move, pointer-click, pointer-drag, keyboard-type, keyboard-key).
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: add ble-sync verb, MENU Android keycode, optional BLE address routing, avahi-browse Android TLS connect discovery (host-filtered & Fire TV excluded), rotated Wireless Debugging TLS port auto-reconnect, and bump bridge version to 1.4.1.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -22,7 +23,7 @@ if HERE not in sys.path:
 import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
 
-VERSION = '1.4.0'
+VERSION = '1.4.1'
 MAX_OUT = 19000
 CHUNK = 16000
 FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py')
@@ -30,7 +31,7 @@ WRAPPER = 'oshal-phone-bridge'
 ADB_PACKAGES = ['adb', 'android-libbase', 'android-libboringssl', 'android-libcutils', 'android-liblog', 'android-libziparchive']
 EARLIER_PORT_HEX = '0100007F:BADB'
 EARLIER_SCRIPT = 'oshal_ble_hid.py'
-ANDROID_KEYS = {'HOME': 3, 'BACK': 4, 'RECENTS': 187, 'VOLUME_UP': 24, 'VOLUME_DOWN': 25, 'POWER': 26,
+ANDROID_KEYS = {'HOME': 3, 'BACK': 4, 'RECENTS': 187, 'MENU': 82, 'VOLUME_UP': 24, 'VOLUME_DOWN': 25, 'POWER': 26,
                 'ENTER': 66, 'BACKSPACE': 67, 'TAB': 61, 'UP': 19, 'DOWN': 20, 'LEFT': 21, 'RIGHT': 22,
                 'OK': 23, 'PLAY_PAUSE': 85}
 TV_PORT = 5555
@@ -192,15 +193,54 @@ def need_address(val):
     return val
 
 
+LAST_ROTATED_SERIAL = {}
+
+
 def need_serial(args):
     val = str(args.get('serial') or '').strip()
     if not SERIAL.match(val):
         raise Refusal('bad_serial', 'Name the phone by the address adb lists for it.')
-    return val
+    return LAST_ROTATED_SERIAL.get(val, val)
+
+
+def rotatable_host(serial):
+    match = re.fullmatch(r'(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})', str(serial or ''))
+    if not match or int(match.group(2)) == TV_PORT:
+        return ''
+    return match.group(1)
+
+
+def reconnect_rotated_serial(serial):
+    host = rotatable_host(serial)
+    if not host:
+        return ''
+    try:
+        fresh = discover_connect_address(host)
+    except Refusal:
+        return ''
+    _, out, err = adb_call(['connect', fresh], 15)
+    if not re.search(r'^(already )?connected to ', (out + '\n' + err).strip(), re.M):
+        return ''
+    if fresh != serial:
+        adb_call(['disconnect', serial], 5)
+    LAST_ROTATED_SERIAL[serial] = fresh
+    return fresh
+
+
+def adb_device_call(serial, subargs, timeout=30, binary=False):
+    cur = LAST_ROTATED_SERIAL.get(serial, serial)
+    code, out, err = adb_call(['-s', cur] + subargs, timeout, binary=binary)
+    if code and any(w in err.lower() for w in ('not found', 'offline', 'closed', 'cannot connect')):
+        fresh = reconnect_rotated_serial(cur)
+        if fresh:
+            LAST_ROTATED_SERIAL[serial] = fresh
+            cur = fresh
+            code, out, err = adb_call(['-s', cur] + subargs, timeout, binary=binary)
+    return cur, code, out, err
 
 
 def adb_shell(serial, command, timeout=30):
-    code, out, err = adb_call(['-s', serial, 'shell', command], timeout)
+    _, code, out, err = adb_device_call(serial, ['shell', command], timeout)
     if code and ('device' in err and 'not found' in err or 'offline' in err or 'unauthorized' in err):
         raise adb_refusal(err)
     return code, out, err
@@ -311,22 +351,78 @@ def verb_adb_pair(args):
     raise adb_refusal(text, address)
 
 
-def discover_connect_address():
-    _, out, _ = adb_call(['mdns', 'services'], 20)
-    found = sorted({line.split()[-1] for line in out.splitlines() if '_adb-tls-connect._tcp' in line and line.split()})
-    if len(found) == 1:
+def avahi_tls_candidates():
+    avahi = os.environ.get('OSHAL_AVAHI_BIN', '').strip() or ('' if os.environ.get('OSHAL_ADB_BIN') else 'avahi-browse')
+    if not avahi:
+        return []
+    try:
+        done = subprocess.run([avahi, '-rpt', '--terminate', '_adb-tls-connect._tcp'],
+                              capture_output=True, text=True, timeout=4)
+        text = done.stdout or ''
+    except subprocess.TimeoutExpired as exc:
+        raw = exc.stdout or ''
+        text = raw if isinstance(raw, str) else raw.decode('utf-8', 'replace')
+    except (FileNotFoundError, OSError):
+        return []
+    rows = []
+    for line in text.splitlines():
+        parts = line.split(';')
+        if len(parts) >= 9 and parts[0] == '=' and parts[4] == '_adb-tls-connect._tcp':
+            ip, port, txt = parts[7].strip(), parts[8].strip(), ';'.join(parts[9:])
+            if re.fullmatch(r'\d{1,3}(?:\.\d{1,3}){3}', ip) and port.isdigit() and 1 <= int(port) <= 65535:
+                rows.append((ip, port, txt))
+    return rows
+
+
+def discover_connect_address(host=None):
+    target = str(host or '').strip()
+    if target and not TV_HOST.match(target):
+        raise Refusal('bad_address', 'Type the phone IP address, for example 192.168.1.42.')
+    _, out, _ = adb_call(['mdns', 'services'], 12)
+    entries = []
+    for line in out.splitlines():
+        if '_adb-tls-connect._tcp' in line and line.split():
+            addr = line.split()[-1]
+            if ADDRESS.match(addr):
+                h, p = addr.rsplit(':', 1)
+                entries.append((h, p, line))
+    entries.extend(avahi_tls_candidates())
+    tv_ips = set()
+    if not target:
+        try:
+            tv_ips = {d['serial'].rsplit(':', 1)[0] for d in list_devices()[0]
+                      if d['serial'].endswith(f':{TV_PORT}') or re.match(r'^AFT', d.get('model') or '', re.I)}
+        except Refusal:
+            tv_ips = set()
+    found = []
+    for h, p, meta in entries:
+        if target and h != target:
+            continue
+        if not target and (int(p) == TV_PORT or h in tv_ips or re.search(r'name=["\']?AFT', meta, re.I)):
+            continue
+        cand = f'{h}:{p}'
+        if cand not in found:
+            found.append(cand)
+    if len(found) == 1 or (target and found):
         return found[0]
     if not found:
-        raise Refusal('not_found', "No phone on this network is offering Wireless debugging. Type the IP address and port from the phone's Wireless debugging screen into Connect address.")
+        msg = (f'Could not auto-detect the Wireless debugging port for {target}. Type {target}:<port> from the top of the Wireless debugging screen into Connect address.'
+               if target else "No phone on this network is offering Wireless debugging. Type the IP address and port from the phone's Wireless debugging screen into Connect address.")
+        raise Refusal('not_found', msg)
     raise Refusal('choose', 'More than one phone offers Wireless debugging; type the address of yours.', candidates=found)
 
 
 def verb_adb_connect(args):
-    address = need_address(args.get('address') or discover_connect_address())
+    raw_addr = str(args.get('address') or '').strip()
+    raw_host = str(args.get('host') or '').strip()
+    address = need_address(raw_addr or discover_connect_address(raw_host or None))
     _, out, err = adb_call(['connect', address], 25)
     text = (out + '\n' + err).strip()
     if re.search(r'^(already )?connected to ', text, re.M):
         return {'ok': True, 'serial': address, 'adb': text.splitlines()[0][:200]}
+    fresh = reconnect_rotated_serial(address) if raw_addr else ''
+    if fresh:
+        return {'ok': True, 'serial': fresh, 'adb': f'connected to {fresh}'}
     raise adb_refusal(text, address)
 
 
@@ -373,7 +469,7 @@ def verb_adb_info(args):
     lines = out.splitlines()
     size = re.findall(r'(\d+)x(\d+)', out)
     width, height = (int(size[-1][0]), int(size[-1][1])) if size else (0, 0)
-    return {'ok': True, 'serial': serial, 'manufacturer': (lines[0:1] or [''])[0].strip(),
+    return {'ok': True, 'serial': LAST_ROTATED_SERIAL.get(serial, serial), 'manufacturer': (lines[0:1] or [''])[0].strip(),
             'model': (lines[1:2] or [''])[0].strip(), 'android': (lines[2:3] or [''])[0].strip(),
             'width': width, 'height': height}
 
@@ -636,7 +732,8 @@ MIRROR_CTX = SimpleNamespace(
     Refusal=Refusal, CHUNK=CHUNK, MAX_OUT=MAX_OUT, run=run, install_dir=install_dir, runtime_dir=runtime_dir,
     installed=installed, missing_dependencies=missing_dependencies, download_and_unpack=download_and_unpack,
     process_argv=process_argv, stop_process=stop_process, log_tail=log_tail, number=number,
-    need_serial=need_serial, adb_call=adb_call, adb_shell=adb_shell, adb_refusal=adb_refusal,
+    need_serial=need_serial, adb_call=adb_call, adb_device_call=adb_device_call,
+    reconnect_rotated_serial=reconnect_rotated_serial, adb_shell=adb_shell, adb_refusal=adb_refusal,
     device_quote=device_quote, list_devices=list_devices, ble_op=ble_op,
     verb_adb_info=verb_adb_info, verb_adb_tap=verb_adb_tap, verb_adb_swipe=verb_adb_swipe,
     verb_adb_text=verb_adb_text, verb_adb_key=verb_adb_key,
@@ -704,15 +801,18 @@ VERBS = {
     'setup-mirror': verb_mirror('verb_setup_mirror'), 'mirror-start': verb_mirror('verb_mirror_start'),
     'mirror-stop': verb_mirror('verb_mirror_stop'), 'mirror-frame': verb_mirror('verb_mirror_frame'),
     'mirror-ui': verb_mirror('verb_mirror_ui'), 'ensure': verb_ensure, 'stop': verb_stop,
-    'ble-status': ble_passthrough('status', ()), 'ble-pair-window': ble_passthrough('pair-window', ('seconds',)),
+    'ble-status': ble_passthrough('status', ()), 'ble-sync': ble_passthrough('sync', ('address', 'waitS')),
+    'ble-pair-window': ble_passthrough('pair-window', ('seconds',)),
     'ble-devices': ble_passthrough('devices', ()), 'ble-remove': ble_passthrough('forget', ('address',)),
-    'ble-type': ble_passthrough('type', ('text', 'enter')), 'ble-key': ble_passthrough('key', ('key',)),
-    'ble-mouse': ble_passthrough('mouse', ('dx', 'dy', 'click', 'rehome')),
+    'ble-type': ble_passthrough('type', ('text', 'enter', 'address')),
+    'ble-key': ble_passthrough('key', ('key', 'address')),
+    'ble-mouse': ble_passthrough('mouse', ('dx', 'dy', 'click', 'rehome', 'address')),
     'ble-move': ble_passthrough('move', ('nx', 'ny', 'landscape', 'rehome', 'spanX', 'spanY', 'address')),
     'ble-tap': ble_passthrough('tap', ('nx', 'ny', 'landscape', 'rehome', 'spanX', 'spanY', 'address')),
     'ble-swipe': ble_passthrough('swipe', ('nx1', 'ny1', 'nx2', 'ny2', 'ms', 'landscape', 'spanX', 'spanY', 'address')),
     'ble-drag': ble_passthrough('drag', ('nx1', 'ny1', 'nx2', 'ny2', 'holdMs', 'landscape', 'spanX', 'spanY', 'address')),
-    'ble-scroll': ble_passthrough('scroll', ('dy',)), 'ble-open': ble_passthrough('open', ('name',)),
+    'ble-scroll': ble_passthrough('scroll', ('dy', 'address')),
+    'ble-open': ble_passthrough('open', ('name', 'address')),
     'ble-calibrate': verb_ops('verb_ble_calibrate'), 'rdp-probe': verb_ops('verb_rdp_probe'),
     'screen-info': verb_ops('verb_screen_info'), 'pointer-move': verb_ops('verb_pointer_move'),
     'pointer-click': verb_ops('verb_pointer_click'), 'pointer-drag': verb_ops('verb_pointer_drag'),
@@ -734,6 +834,7 @@ HELP = {
     'setup-mirror': 'unpack UxPlay + GStreamer', 'mirror-start': 'start AirPlay receiver',
     'mirror-stop': 'stop AirPlay receiver', 'mirror-frame': '[width=432] mirrored iPhone JPEG',
     'mirror-ui': 'mirrored iPhone screen text and coordinates',
+    'ble-sync': 'reconnect Bluetooth and center pointer [address=MAC]',
     'ble-pair-window': 'open pairing window [seconds=120]', 'ble-devices': 'paired iPhones',
     'ble-remove': 'forget paired device: address=...', 'ble-type': 'type on iPhone: text=... [enter=true]',
     'ble-key': 'key=Home|Spotlight|VolumeUp|VolumeDown|Enter|Escape|Backspace|Tab|Up|Down|Left|Right',

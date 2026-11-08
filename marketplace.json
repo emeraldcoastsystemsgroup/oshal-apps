@@ -159,7 +159,7 @@
       "suite": "ai-creative",
       "displayName": "LoRA Studio",
       "description": "Owned character identity and dataset captions with in-place editing, worker-confirmed synchronization and guarded training.",
-      "version": "1.9.1",
+      "version": "1.10.1",
       "theme": "indigo",
       "dependencies": {
         "apps": [],
@@ -193,7 +193,7 @@
       "suite": "ai-home",
       "displayName": "Kid Lens",
       "description": "Upload your YouTube Takeout watch history and get a parent-friendly brief on what your kid is into — top interests, decoded channels, gift ideas, conversation openers. Read-only.",
-      "version": "1.3.3",
+      "version": "1.4.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -268,7 +268,7 @@
       "suite": "ai-finance",
       "displayName": "Finance",
       "description": "Link your banks and brokerages via Plaid and see everything in one place — net worth, accounts, holdings, spending — with a plain-English brief. Read-only aggregation; money movement is explicit-confirm gated.",
-      "version": "1.4.1",
+      "version": "1.4.2",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -450,7 +450,7 @@
       "suite": "ai-productivity",
       "displayName": "Shopping",
       "description": "AI shopping concierge — search Walmart, build lists, learn your preferences, find deals, and hand off a ready-to-checkout cart you complete on the retailer's site. Other swarm bots can ask it to prepare a purchase.",
-      "version": "1.4.6",
+      "version": "1.4.7",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -487,7 +487,7 @@
       "suite": "ai-knowledge",
       "displayName": "Intelligent Career",
       "description": "Search employers' public job feeds, score selected recent openings against your private career profile, and save jobs to your board. Move a selected job to your submission queue, choose optional additional experience, generate and review its resume and cover letter, then approve submission. Prepare for interviews after submitting. Track recorded applications and matching email updates in your private workspace. Edit your master resume as a Word document in Resume Studio, with AI Office's Concierge beside it.",
-      "version": "1.49.1",
+      "version": "1.50.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -533,7 +533,7 @@
       "suite": "ai-productivity",
       "displayName": "AI Office",
       "description": "Edit PowerPoint slides, Word documents and Excel workbooks in place, with selectable content, typed properties, revision history, real Office exports and a pinned Concierge.",
-      "version": "2.20.0",
+      "version": "2.20.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -667,7 +667,7 @@
       "suite": "ai-home",
       "displayName": "Smart Home",
       "description": "Your smart home, one surface — read device state and scenes across SmartThings and Google Home, ask the home bot to run a routine, and let scheduled 'morning routine' tickets drive the house. The home-bot node, home-data store, and the scheduler's home-control branch stay framework-resident; this package is the surface over them.",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "theme": "forest",
       "dependencies": {
         "apps": [],
@@ -775,7 +775,7 @@
       "suite": "ai-knowledge",
       "displayName": "Job Apply",
       "description": "Submit an approved, packet-ready job application by driving your real browser on a desktop worker node — push a ticket, it queues, the career-hunter worker submits it, and the ticket passes or fails. Workflow-only: the career-hunter worker bot and the apply-operator/apply-ingest submission engine stay framework-resident; this package is the ticket queue over them.",
-      "version": "1.1.8",
+      "version": "1.1.9",
       "dependencies": {
         "apps": [
           "career-hunter"
@@ -824,7 +824,7 @@
       "suite": "ai-productivity",
       "displayName": "Feeds",
       "description": "Your connected message feeds in one place - live stream, activity trends, hot channels, and trending topics over your own Slack messages, with a curator bot that answers 'what did I miss'. The feeds-indexing engine + cron, the feeds-curator inline node, the slack connector, and the /feeds framework page stay framework-resident; this package is the surface over them.",
-      "version": "1.2.5",
+      "version": "1.2.6",
       "theme": "ocean",
       "dependencies": {
         "apps": [],
@@ -862,7 +862,7 @@
       "suite": "ai-engineering",
       "displayName": "Cloud",
       "description": "Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the cloud-ops-bot reads your projects/services/instances via your connector token and acts on your behalf (read-only by default) - the API-based replacement for gcloud. The cloud-ops-bot node, the GCP CLIs/toolkit, and the gcp connector + token broker stay framework-resident; this package is the manifest + queue over them.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1102,7 +1102,7 @@
       "suite": "ai-creative",
       "displayName": "Pumpkin",
       "description": "Animated talking jack-o'-lantern Halloween prop - project a glowing procedural pumpkin face into an inflatable, with a lip-syncing mouth. The public browser demo has locally interactive control, projector, voice, saved looks, and same-device remote tabs without server writes or AI spend; signed-in mode adds owner-scoped cross-device pairing and autonomous pumpkin-bot replies.",
-      "version": "1.3.9",
+      "version": "1.4.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1135,7 +1135,7 @@
       "suite": "ai-creative",
       "displayName": "Creative Studio",
       "description": "Edit and save story briefs and selectable storyboard scenes, with revision history, an AI partner and real editing handoffs.",
-      "version": "1.4.3",
+      "version": "1.5.0",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
@@ -1153,7 +1153,8 @@
             "video",
             "portrait-studio",
             "lora",
-            "vids"
+            "vids",
+            "create"
           ],
           "bots": [
             {
@@ -1182,7 +1183,7 @@
       "suite": "ai-creative",
       "displayName": "Create",
       "description": "Edit layered image and vector documents with selectable shapes, rich appearance controls, real exports and a shared AI editor workspace.",
-      "version": "1.19.2",
+      "version": "1.20.0",
       "theme": "create",
       "dependencies": {
         "apps": [],
@@ -1279,7 +1280,7 @@
       "suite": "ai-creative",
       "displayName": "Video Studio",
       "description": "Edit video clips, captions, audio and transforms on a saved timeline; export real video and bring generated clips into the editor.",
-      "version": "1.13.1",
+      "version": "1.14.0",
       "theme": "graphite",
       "dependencies": {
         "apps": [],
@@ -1359,7 +1360,7 @@
       "suite": "ai-productivity",
       "displayName": "Intelligent Communication",
       "description": "Your inbox, calendar, social channels and day in one surface. Reads the signed-in user's own connected Gmail + Google Calendar or Outlook / Microsoft 365 mail + calendar, builds a prioritized \"My Day\" digest, drafts replies with the communications bot, and publishes to the person's own X, LinkedIn, Facebook Page, Slack and Mastodon accounts from a Buffer-style desk: write once, customize per channel, add to the queue, schedule or post now, answer Slack and X mentions in place, and announce a live stream on every channel. Sending mail is a single explicit-confirm gated action; every social publish goes out on the person's own connection through the kernel. The bot does the reasoning on its own harness/model with cost captured per user.",
-      "version": "1.6.10",
+      "version": "1.8.1",
       "theme": "gray",
       "dependencies": {
         "apps": [],
@@ -1562,7 +1563,7 @@
       "suite": "ai-creative",
       "displayName": "Dungeon Master",
       "description": "Play D&D with an AI Dungeon Master on a cinematic shared board: claimed heroes and visible AI companions follow an explicit move, action, target, dice, result, and advance loop with natural narration, saved characters, multiplayer join codes, playback, and rewind. Open SRD 5.1 (CC-BY).",
-      "version": "0.22.3",
+      "version": "0.22.4",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1595,7 +1596,7 @@
       "suite": "ai-creative",
       "displayName": "Game Show",
       "description": "TV-style AI game night: Family Feud, Jeopardy, Wheel of Fortune and Whammy, each with its own television set — podium characters, sound cues and opening titles. Press a show to play against skill-tiered computer players in one tap, or hand everyone a phone as a buzzer.",
-      "version": "0.13.1",
+      "version": "0.13.2",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -1671,7 +1672,7 @@
       "suite": "ai-engineering",
       "displayName": "AI Bake-Off",
       "description": "Race one job across every AI lane you already have, grade every output on the shared quality judge, and get the cheapest lane that still clears your quality bar.",
-      "version": "1.1.8",
+      "version": "1.1.9",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -2309,8 +2310,7 @@
       "suite": "ai-finance",
       "displayName": "Sports Edge",
       "description": "Follow a team and really know its next game. The odds maker builds a line from the ground up - Elo and schedule-adjusted power ratings from the season tape, a two-sided offence-versus-defence unit matchup, both injury reports weighted by each player's real share of team production, plus rest and travel - and measures it against the book's moneyline and spread. Every call is registered before kickoff and graded on closing-line value, so the model has to beat the market before it is allowed to stake anything. No order path. Fantasy leagues moved to their own app, Fantasy Football, grouped with this one as Intelligent Sports.",
-      "version": "0.11.7",
-      "theme": "light-blue",
+      "version": "0.12.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2345,7 +2345,7 @@
       "suite": "ai-home",
       "displayName": "Calendar Preparation",
       "description": "Sync your upcoming primary-calendar events explicitly, prepare reviewed gift, meal, travel and meeting plans, and receive an opt-in cited brief before a meeting.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -2561,7 +2561,7 @@
       "suite": "ai-creative",
       "displayName": "Scene Studio",
       "description": "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2733,8 +2733,7 @@
       "suite": "ai-productivity",
       "displayName": "Fantasy Football",
       "description": "Manage the fantasy football team you actually have. It reads your own ESPN league with your own connection, scores ESPN's raw projections with your league's own scoring rules (ESPN publishes stats, not points, and this package holds no stat table), and sets the lineup with the best chance of beating the team you play this week - which starts the volatile player when you are an underdog and the steady one when you are favoured, always beside what the safest lineup would have won. It prices every roster move over the rest of the season: a waiver board with a bid and a drop on every row, trades both managers gain from, and a one-week streaming lane. A league typed in by hand works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no other user, operator included, can see them. Every lineup is recorded before kickoff and graded against what was actually started. It advises; you act.",
-      "version": "0.3.2",
-      "theme": "light-blue",
+      "version": "0.4.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -2771,7 +2770,7 @@
       "suite": "ai-productivity",
       "displayName": "Intelligent Sports",
       "description": "One front door for sport: manage your own fantasy football team, and follow a team's next game with an odds maker that is graded on closing-line value before it may stake anything. Each destination remains owned by its member app.",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "theme": "light-blue",
       "dependencies": {
         "apps": [
@@ -3511,7 +3510,7 @@
       "suite": "ai-engineering",
       "displayName": "Intelligent Operations",
       "description": "Watch monitored installations and recorded server health, inspect incident tickets, and review alert evidence in the Operations workspace. Configured producers supply telemetry; the app reports saved summaries. Current Kubernetes reads and reviewed execution use the person's separate confirmed connection.",
-      "version": "1.3.4",
+      "version": "1.4.0",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3603,7 +3602,7 @@
       "suite": "ai-productivity",
       "displayName": "Capability Ideation",
       "description": "A ticket queue for Capability Ideator: describe a business process and get up to three sourced tool or integration proposals; opens Capability Ideator's review screen.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [
@@ -3687,7 +3686,7 @@
       "suite": "ai-creative",
       "displayName": "Motion Studio",
       "description": "Edit saved motion compositions with selectable layers, native properties, inline captions, keyframes, masks and photos.",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "apps": [],
         "tools": [],
@@ -3754,21 +3753,29 @@
       "suite": "ai-creative",
       "displayName": "Publishing Studio",
       "description": "Editable page layouts, text stories and objects with native Typst/PDF output and complete manual/AI undo history.",
-      "version": "0.4.2",
+      "version": "0.5.1",
       "theme": "midnight",
       "dependencies": {
         "apps": [],
         "tools": [],
-        "connectors": [],
+        "connectors": [
+          "twitter",
+          "linkedin"
+        ],
         "required": {
           "apps": [],
           "tools": [],
           "connectors": []
         },
         "optional": {
-          "apps": [],
+          "apps": [
+            "create"
+          ],
           "tools": [],
-          "connectors": []
+          "connectors": [
+            "twitter",
+            "linkedin"
+          ]
         }
       },
       "source": {
@@ -3788,7 +3795,7 @@
       "suite": "ai-productivity",
       "displayName": "Phone & Device Control",
       "description": "Unified live-image console for computers (pointer in touch or mouse mode, keyboard, special keys, monitors, file transfer, clipboard, lock on end), live RDP desktops, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV/RDP Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "theme": "light-blue",
       "dependencies": {
         "apps": [],
@@ -3856,7 +3863,7 @@
       "suite": "ai-creative",
       "displayName": "Audio Studio",
       "description": "Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and mastering with Jarvis and concierge voice assistant.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "theme": "deep-space",
       "dependencies": {
         "apps": [],

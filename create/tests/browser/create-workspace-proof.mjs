@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Include the single added Brand intro clip starter and card in the existing clear-filter and catalog totals.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (create--create-home, create--create-new): Home opens on picture cards newest first with meta in words, a real render of a saved image, skeletons while a studio answers, a tap that opens and a ⋯ with greyed planned rows; one 52px New at the bottom right opens the merged New sheet (Blank row first with real blank starts, greyed Custom size and Import, templates with 44px format chips and "No templates match" + Clear); search sits in the app row (an icon on a phone); /api/create/new forwards to Home with New open; Back closes the sheet. Light-blue screenshots at 412x915 and 1440x900 when CREATE_WORKSPACE_SCREENSHOT_DIR is set.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | The Blank row's image start is two sized blanks, Image 1080 × 1080 and 1920 × 1080.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Prove live Rename, Duplicate and in-page confirmed Delete on Home work cards (RP-CRE-01), Custom size 16..8192 px in the Blank row (RP-CRE-02), and file-to-design import for SVG, PDF and Office (RP-CRE-03).
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -110,44 +111,204 @@ test('skeleton pictures hold the grid while a studio is still answering', async 
   assert.equal(await surface.locator('#recentGrid .skel').count(), 0);
 });
 
-test('a tap on a card opens it; its ⋯ holds Open and greyed Rename, Duplicate and Delete that do nothing', async t => {
-  const { page, surface } = await open(t);
+test('a tap on a card opens it; its ⋯ executes owner-scoped Rename, Duplicate and confirmed Delete (RP-CRE-01)', async t => {
+  const COPY_ID = '00000000-0000-4000-8000-0000000000c2';
+  const CAD_ID = '00000000-0000-4000-8000-0000000000d1';
+  const store = new Map([
+    [PROJECT, { id: PROJECT, title: 'Synthetic rocket', revision: 1, updatedAt: ago(2), document: structuredClone(imageDocument) }],
+  ]);
+  const cadModels = new Map([[CAD_ID, { modelId: CAD_ID, title: 'lift-1 · Carriage', revision: 1, updatedAt: ago(6), base: { kind: 'box', sizeX: 40, sizeY: 40, sizeZ: 20 }, features: [], source: {}, settings: {} }]]);
+  const local = await startFixture({
+    respond(path, query) {
+      if (path === '/api/create/home-summary') {
+        const items = [...store.values()].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+          .map(p => ({ text: p.title, detail: `Layered image · updated ${p.updatedAt}`, actions: [{ tool: 'create-editor', query: `project=${p.id}` }] }));
+        return { items, metrics: [{ label: 'Image projects', value: String(items.length) }] };
+      }
+      if (path === '/api/cad-studio/home-summary') {
+        const items = [...cadModels.values()].map(m => ({ text: m.title, detail: `built / revision ${m.revision} / ${m.updatedAt}`, actions: [{ integration: 'prepare-document' }] }));
+        return { items, metrics: [] };
+      }
+      if (path === '/api/cad-studio/models') return { models: [...cadModels.values()] };
+      if (path.startsWith('/api/cad-studio/models/')) {
+        const m = cadModels.get(path.split('/').pop());
+        return m ? { model: m } : { status: 404, body: { error: 'model_not_found' } };
+      }
+      if (path.startsWith('/api/create/projects/')) {
+        const p = store.get(path.split('/').pop());
+        return p ? { project: p } : { status: 404, body: { error: 'project_not_found' } };
+      }
+      return respond(path, query);
+    },
+    mutate(req, res) {
+      if (req.method === 'POST' && req.path === `/api/create/projects/${PROJECT}/revisions`) {
+        const p = store.get(PROJECT);
+        p.title = req.body.title; p.revision += 1; p.document = req.body.document; p.updatedAt = ago(0);
+        return res.json({ project: p });
+      }
+      if (req.method === 'POST' && req.path === '/api/create/projects') {
+        const copy = { id: COPY_ID, title: req.body.title, revision: 1, updatedAt: ago(0), document: req.body.document };
+        store.set(COPY_ID, copy);
+        return res.status(201).json({ project: copy });
+      }
+      if (req.method === 'DELETE' && req.path.startsWith('/api/create/projects/')) {
+        const id = req.path.split('/').pop();
+        store.delete(id);
+        return res.json({ deleted: id });
+      }
+      if (req.method === 'PATCH' && req.path === `/api/cad-studio/models/${CAD_ID}`) {
+        const m = cadModels.get(CAD_ID); m.title = req.body.title;
+        return res.json({ model: m });
+      }
+      return res.status(404).json({ error: 'unexpected_mutation' });
+    },
+  });
+  const context = await browser.newContext({ ...DESKTOP, reducedMotion: 'reduce' });
+  t.after(async () => { await context.close(); await local.close(); });
+  const page = await context.newPage(); page.setDefaultTimeout(6000);
+  await page.goto(`${local.origin}/fixture/home`);
+  const surface = page.frameLocator('iframe');
+  await surface.locator('#newBtn').waitFor();
   await settled(surface);
+
   await surface.locator('#recentGrid .wcard').first().locator('.wopen').click();
   assert.deepEqual(await sent(page, 1), [{ type: 'app-navigate', tool: 'create-editor', query: `project=${PROJECT}` }]);
-  await surface.locator('#recentGrid .wcard').nth(2).locator('.more').click();
+
+  await surface.locator('#recentGrid .wcard').first().locator('.more').click();
   const menu = surface.locator('#cardMenu');
   await menu.locator('button').first().waitFor();
-  assert.equal(await menu.locator('button').first().textContent(), 'Open in CAD Studio');
-  const rows = menu.locator('[data-ds-not-yet]');
-  assert.deepEqual(await rows.evaluateAll(nodes => nodes.map(n => [n.getAttribute('aria-label'), n.getAttribute('aria-disabled'), n.dataset.dsBacklog, n.title])),
-    ['Rename', 'Duplicate', 'Delete'].map(label => [`${label}, not available yet`, 'true', 'RP-CRE-01', 'Not available yet']));
+  assert.equal(await menu.locator('[data-ds-not-yet]').count(), 0, 'no planned placeholders remain');
+  assert.deepEqual(await menu.locator('button').allTextContents(), ['Open in Image editor', 'Rename', 'Duplicate', 'Delete']);
   await capture(page, 'create-home-card-menu-light-blue-desktop');
-  const before = fixture.requests.length, html = await menu.innerHTML();
-  await rows.nth(2).click({ force: true }); await page.waitForTimeout(150);
-  assert.equal(await menu.innerHTML(), html, 'a planned row changes nothing'); assert.equal(fixture.requests.length, before, 'and asks nothing');
-  assert.equal((await messages(page)).length, 1, 'and navigates nowhere');
-  await menu.locator('button').first().click();
-  assert.deepEqual((await sent(page, 2))[1], { type: 'app-navigate', tool: 'create-cad-studio' });
+
+  // Rename (RP-CRE-01)
+  await menu.locator('button', { hasText: 'Rename' }).click();
+  await surface.locator('#renameDialog[open]').waitFor();
+  await surface.locator('#renameInput').fill('Renamed rocket');
+  await surface.locator('#renameSave').click();
+  await surface.locator('#renameDialog:not([open])').waitFor({ state: 'attached' });
+  await surface.locator('#recentGrid .wcard .title').filter({ hasText: 'Renamed rocket' }).waitFor();
+  assert.equal(store.get(PROJECT).title, 'Renamed rocket', 'studio record updated');
+
+  // Duplicate (RP-CRE-01)
+  await surface.locator('#recentGrid .wcard').first().locator('.more').click();
+  await menu.locator('button', { hasText: 'Duplicate' }).click();
+  await surface.locator('#recentGrid .wcard .title').filter({ hasText: 'Renamed rocket (copy)' }).waitFor();
+  assert.equal(store.has(COPY_ID), true, 'duplicate project stored');
+
+  // Delete with in-page confirmation (RP-CRE-01)
+  const copyCard = surface.locator('#recentGrid .wcard').filter({ hasText: 'Renamed rocket (copy)' });
+  await copyCard.locator('.more').click();
+  await menu.locator('button', { hasText: 'Delete' }).click();
+  await surface.locator('#deleteDialog[open]').waitFor();
+  await surface.locator('#deleteCancel').click();
+  assert.equal(await copyCard.count(), 1, 'cancelling keeps the card');
+  await copyCard.locator('.more').click();
+  await menu.locator('button', { hasText: 'Delete' }).click();
+  await surface.locator('#deleteDialog[open]').waitFor();
+  await surface.locator('#deleteConfirm').click();
+  await surface.locator('#deleteDialog:not([open])').waitFor({ state: 'attached' });
+  await page.waitForFunction(() => !Array.from(document.querySelector('iframe').contentDocument.querySelectorAll('#recentGrid .wcard .title')).some(n => n.textContent === 'Renamed rocket (copy)'));
+  assert.equal(store.has(COPY_ID), false, 'deleted from owning studio');
+
+  // Member studio Rename (CAD Studio)
+  const cadCard = surface.locator('#recentGrid .wcard').filter({ hasText: 'lift-1 · Carriage' });
+  await cadCard.locator('.more').click();
+  await menu.locator('button', { hasText: 'Rename' }).click();
+  await surface.locator('#renameDialog[open]').waitFor();
+  await surface.locator('#renameInput').fill('lift-2 · Bracket');
+  await surface.locator('#renameSave').click();
+  await surface.locator('#recentGrid .wcard .title').filter({ hasText: 'lift-2 · Bracket' }).waitFor();
+  assert.equal(cadModels.get(CAD_ID).title, 'lift-2 · Bracket');
 });
 
-test('New opens one sheet: the Blank row first with real blank starts, then greyed Custom size and Import', async t => {
-  const { page, surface } = await open(t);
+test('New opens one sheet: Blank row with live Custom size (RP-CRE-02) and file-to-design Import (RP-CRE-03)', async t => {
+  const IMPORTED_SVG = '00000000-0000-4000-8000-0000000000e1';
+  const IMPORTED_PDF = '00000000-0000-4000-8000-0000000000e2';
+  const IMPORTED_PPTX = '00000000-0000-4000-8000-0000000000e3';
+  const local = await startFixture({
+    respond,
+    mutate(req, res) {
+      if (req.method === 'POST' && req.path === '/api/create/projects') {
+        return res.status(201).json({ project: { id: IMPORTED_SVG, title: req.body.title, revision: 1, document: req.body.document } });
+      }
+      if (req.method === 'POST' && req.path === '/api/pdf-workbench/sources/upload') {
+        return res.status(201).json({ source: { id: '00000000-0000-4000-8000-0000000000f1' } });
+      }
+      if (req.method === 'POST' && req.path === '/api/pdf-workbench/documents') {
+        return res.status(201).json({ document: { id: IMPORTED_PDF, title: req.body.title, revision: 1 } });
+      }
+      if (req.method === 'POST' && req.path === '/api/presentations/editor/import/inspect') {
+        return res.json({ sha256: 'a'.repeat(64), requiresConversion: true, findings: [{ message: 'Animations are simplified into static slides.' }] });
+      }
+      if (req.method === 'POST' && req.path === '/api/presentations/editor/import') {
+        assert.equal(req.body.acceptConversion, true);
+        return res.status(201).json({ document: { id: IMPORTED_PPTX, title: 'Launch deck', kind: 'pptx', currentRevision: 1 } });
+      }
+      return res.status(404).json({ error: 'unexpected_mutation' });
+    },
+  });
+  const context = await browser.newContext({ ...DESKTOP, reducedMotion: 'reduce' });
+  t.after(async () => { await context.close(); await local.close(); });
+  const page = await context.newPage(); page.setDefaultTimeout(6000);
+  await page.goto(`${local.origin}/fixture/home`);
+  const surface = page.frameLocator('iframe');
+  await surface.locator('#newBtn').waitFor();
+
   await surface.locator('#newBtn').click();
   const sheet = surface.locator('#newSheet[open]'); await sheet.waitFor();
   assert.deepEqual(await sheet.locator('h3').allTextContents(), ['Start blank', 'Templates']);
   assert.deepEqual(await sheet.locator('#blankRow .blank b').allTextContents(), ['Image', 'Image', 'Presentation', 'Document', 'Spreadsheet', 'Video', 'Portrait', 'Story', '3D scan', 'Custom size']);
   assert.deepEqual(await sheet.locator('#blankRow .blank .hint').evaluateAll(n => n.slice(0, 2).map(x => x.textContent)), ['1080 × 1080', '1920 × 1080']);
-  for (const id of ['#blankRow [data-ds-not-yet]', '#importFile']) {
-    const node = sheet.locator(id);
-    assert.equal(await node.getAttribute('aria-disabled'), 'true'); assert.match(await node.getAttribute('aria-label'), /not available yet$/);
-    await node.click({ force: true }); assert.deepEqual(await messages(page), [], `${id} does nothing`);
-  }
-  assert.deepEqual(await sheet.locator('#blankRow [data-ds-not-yet], #importFile').evaluateAll(n => n.map(x => x.dataset.dsBacklog)), ['RP-CRE-02', 'RP-CRE-03']);
+  assert.equal(await sheet.locator('[data-ds-not-yet]').count(), 0, 'Custom size and Import are live');
   await capture(page, 'create-new-sheet-light-blue-desktop');
-  await sheet.locator('#blankRow .blank').filter({ hasText: 'Document' }).click();
-  assert.deepEqual(await sent(page, 1), [{ type: 'app-navigate', tool: 'create-office', query: 'kind=docx' }]);
+
+  // Custom size validation + navigation (RP-CRE-02)
+  await sheet.locator('#blankRow [data-blank="custom"]').click();
+  await sheet.locator('#customSizeForm:not([hidden])').waitFor();
+  await sheet.locator('#customWidth').fill('12');
+  await sheet.locator('#customHeight').fill('9000');
+  await sheet.locator('#customSizeGo').click();
+  assert.match(await sheet.locator('#customSizeError:not([hidden])').textContent(), /16 and 8192/);
+  assert.deepEqual(await messages(page), [], 'invalid custom size does not navigate');
+  await sheet.locator('#customWidth').fill('1200');
+  await sheet.locator('#customHeight').fill('628');
+  await sheet.locator('#customSizeGo').click();
+  assert.deepEqual(await sent(page, 1), [{ type: 'app-navigate', tool: 'create-editor', query: 'size=1200x628' }]);
   assert.equal(await surface.locator('#newSheet[open]').count(), 0, 'the sheet closes as the studio opens');
+
+  // Import SVG -> Image editor (RP-CRE-03)
+  await surface.locator('#newBtn').click();
+  await sheet.waitFor();
+  await sheet.locator('#importInput').setInputFiles({
+    name: 'badge.svg',
+    mimeType: 'image/svg+xml',
+    buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><rect x="10" y="10" width="180" height="80" fill="#7c3aed"/></svg>'),
+  });
+  assert.deepEqual((await sent(page, 2))[1], { type: 'app-navigate', tool: 'create-editor', query: `project=${IMPORTED_SVG}` });
+
+  // Import PDF -> PDF Workbench (RP-CRE-03)
+  await surface.locator('#newBtn').click();
+  await sheet.waitFor();
+  await sheet.locator('#importInput').setInputFiles({
+    name: 'handbook.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'),
+  });
+  assert.deepEqual((await sent(page, 3))[2], { type: 'app-navigate', tool: 'create-pdf-workbench', query: `document=${IMPORTED_PDF}` });
+
+  // Import PPTX with conversion review -> AI Office (RP-CRE-03)
+  await surface.locator('#newBtn').click();
+  await sheet.waitFor();
+  await sheet.locator('#importInput').setInputFiles({
+    name: 'launch.pptx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    buffer: Buffer.from('PK\x03\x04synthetic-pptx-bytes'),
+  });
+  await sheet.locator('#importReviewActions:not([hidden])').waitFor();
+  assert.match(await sheet.locator('#importFindings').textContent(), /Animations are simplified/);
+  await sheet.locator('#importAccept').click();
+  assert.deepEqual((await sent(page, 4))[3], { type: 'app-navigate', tool: 'create-office', query: `document=${IMPORTED_PPTX}` });
 });
 
 test('templates: image designs first, one row of 44px format chips, search, and "No templates match" with Clear', async t => {

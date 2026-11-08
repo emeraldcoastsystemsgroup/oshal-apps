@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: manifest 1.2.0, form ('phone' | 'tv') round-trips and validates, and bob sees none of alice's TV records, history or computer reports.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: manifest 1.3.0 includes oshal_phone_mirror.py, and home-summary points empty-state setup to phone-control-execution.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: manifest 1.4.0 and /ui serves session-computer.js, session-media.js, and session-collab.js.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: verify manifest 1.4.1 sha256 integrity.
  */
 'use strict';
 
@@ -161,7 +162,7 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.4.0');
+  assert.equal(manifest.version, '1.4.1');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
     'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
   ]);

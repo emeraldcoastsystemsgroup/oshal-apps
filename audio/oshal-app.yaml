@@ -1,6 +1,7 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Audio Studio oshal application manifest with process runtime, lastingStorage, native migrations, surface bridge, and 12 route-backed Jarvis tools.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Bump Audio Studio to 1.2.0 for ADR-208 real DSP channel strip, K-weighted LUFS mastering, Kokoro voice synthesis, and emoji-free design standard compliance.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | Bump Audio Studio to 1.2.1: register studio and editor personal-scope authorization adapters and route native host-process persistence to lasting-storage SQLite.
 # ─────────────────────────────────────────────────────────────────────────────
 # oshal app package — audio ("Audio Studio")
 # Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing,
@@ -29,7 +30,7 @@ displayName: Audio Studio
 description: >-
   Multitrack audio workstation, stem isolation, DSP effects, dynamic mixing, and
   mastering with Jarvis and concierge voice assistant.
-version: 1.2.0
+version: 1.2.1
 status: active
 scope: person
 chatBot: audio-engineer

@@ -1,24 +1,41 @@
-/* CHANGE LOG: 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): one empty state until a connection exists (Connect GitHub with Open Connections & access, or Ask your administrator when the service is off); the Connection picker and the repository browser show only once there is a connection; a provider list of one is a label. */
-/* CHANGE LOG: 8 | maintainer@emeraldcoastsystemsgroup.com | A provider switch's load no longer writes "Load your repositories" over a newer action's message when it finishes late (it erased the refusal of a GitHub token pasted for GitLab; the store gate failed on it under load, 2026-11-03). */
-/* CHANGE LOG: token provider | maintainer@emeraldcoastsystemsgroup.com | A token whose prefix belongs to the other service (a GitHub token pasted for GitLab, or the reverse) is refused before saving, and a rejected token's message says how to create the right one. Seen live: a GitHub token saved as the GitLab connection. */
-/* CHANGE LOG: text blobs | maintainer@emeraldcoastsystemsgroup.com | Read a blob the kernel already decoded to text (encoding utf-8; credentials in it arrive masked) as well as a base64 one. */
-/* CHANGE LOG: gitlab | maintainer@emeraldcoastsystemsgroup.com | Browse GitLab projects as well as GitHub repositories: a provider picker, one adapter per provider (repositories, branches, merge or pull requests, pipelines, file tree, blobs) and provider-named token and status text. Cluster links stay GitHub. */
-/* CHANGE LOG: status race | maintainer@emeraldcoastsystemsgroup.com | A late page load no longer overwrites the status a person's own action set (for example "Connected to GitHub as …"). */
-/* CHANGE LOG: compact explorer | maintainer@emeraldcoastsystemsgroup.com | Compact three-pane explorer: a dense repository list, then a repository header (visibility, default branch, latest pipeline result) with tabs for Files, Pull requests, Pipelines, Branches and Cluster link. Files is a collapsible folder tree beside a viewer that renders markdown and shows code with line numbers and YAML key tinting; the README opens first. Reads are unchanged. */
-/* CHANGE LOG: token always reachable | maintainer@emeraldcoastsystemsgroup.com | The token field is always shown when GitHub is set up (Save or Replace), and a saved token is checked with GitHub at once: the page says who it connects as or why GitHub refused it. */
-/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Say plainly when GitHub rejects the saved token (401) or a permission (403), and offer to replace the token in place. */
-/* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Save the person's own GitHub token from the explorer itself when they have no connection; the field is cleared at once. */
-/* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The cluster picker refills from the graph when focused or saved, so a page opened before the graph arrived still lists recorded clusters. */
-/* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Git explorer for DevOps: under the person's own GitHub connection, list every repository they can reach (including organisation repositories), and for one repository its branches, open pull requests, recent workflow runs and file tree, opening a file read-only; link a recorded Kubernetes cluster to its GitOps repository so promotion targets it. Every GitHub read is a confirmed connector action; nothing is written to GitHub from this page. */
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Git explorer for DevOps: list reachable GitHub repositories, inspect branches, pull requests, workflow runs and files read-only through confirmed reads, and link a recorded cluster to its GitOps repository.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Refill the cluster picker from the graph when focused or saved.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Save the person's own GitHub token from the explorer when they have no connection; clear the field at once.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Name rejected tokens (401) and missing permissions (403) plainly and offer in-place replacement.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Keep token field reachable, verify saved tokens immediately, render compact three-pane file viewer, and support GitLab project browsing.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | Refuse cross-provider token prefixes before saving and prevent late provider-switch loads from overwriting newer action messages.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (P1): single empty state until connected, cluster links open at top.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Add Link by URL (RP-OPS-03): validate pasted HTTPS GitHub repository URLs, verify readability through the caller's confirmed GitHub connection, and save the cluster GitOps link with plain-English refusals.
+ */
 (function(root){'use strict';
 const text=(tag,value,cls)=>{const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;};
 const when=v=>{const d=new Date(v||'');return Number.isNaN(d.getTime())?'—':d.toLocaleString();};
+const safe=(v,re,max)=>typeof v==='string'&&v.length<=max&&re.test(v);
 /** @description Decode a GitHub blob (base64) to text, or null when it is not readable text. */
 function blobText(blob){if(blob&&blob.encoding==='utf-8'&&typeof blob.content==='string')return (blob.size||blob.content.length)>262144||/\u0000/.test(blob.content)?null:blob.content;if(!blob||blob.encoding!=='base64'||typeof blob.content!=='string'||(blob.size||0)>262144)return null;try{const bytes=Uint8Array.from(atob(blob.content.replace(/\n/g,'')),c=>c.charCodeAt(0));const t=new TextDecoder('utf-8',{fatal:true}).decode(bytes);return /\u0000/.test(t)?null:t;}catch{return null;}}
 const list=v=>Array.isArray(v)?v:v?.items||[];
-/** @description Each provider's reads, mapped to one shape: repositories, branches, change requests, pipeline runs, file tree and blobs. */
 /** @description The service a pasted token's well-known prefix belongs to, or null. Only the prefix is read; nothing is kept. */
 const tokenProvider=t=>/^(github_pat_|ghp_|gho_|ghu_|ghs_)/.test(t)?'github':/^(glpat-|gloas-|gldt-)/.test(t)?'gitlab':null;
+/** @description Parse and validate a pasted HTTPS GitHub repository URL without credentials, ports, query or internal hosts. */
+function parseRepoUrl(raw){
+ if(typeof raw!=='string'||!raw.trim()||raw.trim().length>512||/[\x00-\x20\x7f]/.test(raw.trim()))throw Error('Enter an https://github.com/owner/repo URL.');
+ let url;try{url=new URL(raw.trim());}catch{throw Error('Enter a valid https://github.com/owner/repo URL.');}
+ if(url.protocol!=='https:')throw Error('Use an https:// repository URL.');
+ if(url.username||url.password||url.port||url.search||url.hash)throw Error('Repository URL must not contain credentials, ports, query strings or fragments.');
+ const host=url.hostname.toLowerCase();
+ if(host.startsWith('[')||/^\d+(\.\d+){3}$/.test(host)||host==='localhost'||host.endsWith('.localhost')||host.endsWith('.local')||host.endsWith('.internal'))throw Error('Repository URL must name github.com, never a literal IP or local address.');
+ if(host!=='github.com')throw Error('Cluster links support https://github.com/<owner>/<repo> repositories.');
+ const parts=url.pathname.replace(/\/+$/,'').split('/').filter(Boolean);
+ if(parts.length!==2)throw Error('Repository URL path must be /<owner>/<repo>.');
+ const owner=parts[0],repo=parts[1].replace(/\.git$/i,'');
+ if(!safe(owner,/^[A-Za-z0-9-]{1,39}$/,39)||!safe(repo,/^[A-Za-z0-9._-]{1,100}$/,100)||repo.startsWith('.'))throw Error('Use valid GitHub owner and repository names.');
+ return {provider:'github',owner,repo,full_name:owner+'/'+repo,url:'https://github.com/'+owner+'/'+repo};
+}
 const ADAPT={
  github:{key:'github',label:'GitHub',howTo:'Create one on github.com under Settings → Developer settings → Fine-grained tokens (it starts with github_pat_) and paste it below.',requests:'Pull requests',list:'github-list-repos',me:'github-me',token:'github_pat_… (Contents, Pull requests, Actions)',
   repos:v=>list(v).map(r=>({provider:'github',full_name:r.full_name,private:r.private,default_branch:r.default_branch,html_url:r.html_url,updated_at:r.updated_at})),
@@ -36,21 +53,54 @@ const ADAPT={
   blob:(gh,r,f)=>gh('gitlab-get-blob',{projectId:r.id,sha:f.sha})}};
 function mount({request,onRefused,clusters}){
  const $=id=>document.getElementById(id),panel=$('git-explorer');if(!panel)return {load(){},clear(){}};
- let generation=0,repos=[],current=null,tree=[],acts=0;
+ let generation=0,repos=[],current=null,tree=[],acts=0,githubAccount='';
  const P=()=>ADAPT[$('git-provider')?.value]||ADAPT.github;
- function clear(){generation++;repos=[];current=null;tree=[];for(const id of ['git-repos','git-repo-detail','git-links'])$(id).replaceChildren();$('git-status').textContent='Reconnect to browse your repositories.';}
+ function toggleUrlPanel(show){const p=$('git-link-url-panel'),b=$('git-link-url-open');if(!p||!b)return;p.hidden=!show;b.setAttribute('aria-expanded',String(Boolean(show)));if(show){fillUrlClusters();$('git-link-url')?.focus();}}
+ function fillUrlClusters(){const sel=$('git-link-cluster');if(!sel)return;const chosen=sel.value;sel.replaceChildren();for(const c of clusters()){const o=text('option',c.name);o.value=c.scope;o.dataset.name=c.name;sel.append(o);}if([...sel.options].some(o=>o.value===chosen))sel.value=chosen;}
+ function clear(){generation++;repos=[];current=null;tree=[];githubAccount='';toggleUrlPanel(false);for(const id of ['git-repos','git-repo-detail','git-links'])$(id).replaceChildren();$('git-status').textContent='Reconnect to browse your repositories.';}
  async function native(path,body,confirm){const r=await fetch(path,{method:body===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(body===undefined?{}:{'Content-Type':'application/json'}),...(confirm?{'x-oshal-confirm':confirm}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});const v=await r.json().catch(()=>({}));if(!r.ok){if([401,403].includes(r.status)){clear();onRefused();}throw Error(v.detail||'GitHub read refused (HTTP '+r.status+').');}return v;}
  async function gh(op,input){const p=P(),L=p.label;const proof=await native('/confirmations',{});try{const v=await native('/connectors/'+p.key+'/actions/'+op+'?account='+encodeURIComponent($('git-account').value),input,proof.confirmation);return v.data;}
   catch(e){if(/HTTP 401/.test(e.message)){$('git-connect').hidden=false;$('git-token-save').textContent='Replace my '+L+' token';throw Error(L+' rejected your saved token (expired, revoked, mistyped, or a token from another service). '+p.howTo);}if(/HTTP 403/.test(e.message)){throw Error(L+' refused this read for your token (missing permission or repository access). Give the token read access to the repository and its metadata.');}throw e;}}
- function renderRepos(){const list=$('git-repos'),q=$('git-filter').value.trim().toLowerCase();list.replaceChildren();for(const r of repos.filter(r=>!q||r.full_name.toLowerCase().includes(q)).slice(0,200)){const owner=r.full_name.split('/').slice(0,-1).join('/'),name=r.full_name.split('/').pop(),b=text('button','','git-repo');b.type='button';b.setAttribute('aria-label',r.full_name+(r.private?' · private':''));b.append(text('span',r.private?'●':'○','git-vis'+(r.private?' private':'')),text('span',name,'git-repo-name'),text('span',owner,'git-repo-owner'));b.title=r.full_name+' · '+(r.default_branch||'main')+(r.private?' · private':' · public');if(current?.full_name===r.full_name)b.setAttribute('aria-current','true');b.addEventListener('click',()=>open(r));list.append(b);}if(!list.childElementCount)list.append(text('p','No repositories match.','muted'));}
+ async function probeGithubBranches(acct,parsed){
+  const proof=await native('/confirmations',{});
+  try{const v=await native('/connectors/github/actions/github-list-branches?account='+encodeURIComponent(acct),{owner:parsed.owner,repo:parsed.repo},proof.confirmation);return list(v.data);}
+  catch(e){
+   if(/HTTP 401/.test(e.message)){$('git-connect').hidden=false;$('git-token-save').textContent='Replace my GitHub token';throw Error('GitHub rejected your saved token (expired or revoked). '+ADAPT.github.howTo);}
+   if(/HTTP 403/.test(e.message))throw Error('GitHub refused access to '+parsed.full_name+' for your token. Grant Contents read access to that repository.');
+   if(/HTTP 404|not found/i.test(e.message))throw Error('GitHub could not find '+parsed.full_name+', or your GitHub connection cannot read it.');
+   throw e;
+  }
+ }
+ async function saveUrlLink(){
+  acts++;const btn=$('git-link-url-save');btn.disabled=true;
+  try{
+   const parsed=parseRepoUrl($('git-link-url').value);
+   const acct=($('git-provider')?.value==='github'&&$('git-account')?.value)||githubAccount;
+   if(!acct)throw Error('Connect your GitHub account first so Operations can verify repository access before linking.');
+   if(!$('git-link-cluster').options.length)fillUrlClusters();
+   const opt=$('git-link-cluster').selectedOptions[0];if(!opt)throw Error('Record a cluster in Systems first.');
+   $('git-status').textContent='Checking '+parsed.full_name+' on GitHub…';
+   const branches=await probeGithubBranches(acct,parsed);
+   if(!branches.length)throw Error(parsed.full_name+' is readable, but has no branches yet. Push an initial branch before linking.');
+   const wanted=$('git-link-branch').value.trim();
+   if(wanted&&!branches.some(b=>b.name===wanted))throw Error('Branch '+wanted+' was not found on '+parsed.full_name+'.');
+   const baseBranch=wanted||(branches.find(b=>b.name==='main')||branches.find(b=>b.name==='master')||branches[0]).name;
+   const folder=$('git-link-folder').value.trim()||'clusters/'+(opt.dataset.name||parsed.repo);
+   const saved=await request('/repo-links',{repoUrl:parsed.url,clusterScope:opt.value,clusterName:opt.dataset.name,owner:parsed.owner,repo:parsed.repo,baseBranch,folder,workflow:$('git-link-workflow').value.trim()||null});
+   for(const id of ['git-link-url','git-link-branch','git-link-folder','git-link-workflow'])$(id).value='';
+   toggleUrlPanel(false);await loadLinks();
+   $('git-status').textContent=(saved.replaced?'Updated':'Linked')+' '+saved.clusterName+' to '+parsed.full_name+' ('+saved.baseBranch+'). Promotions for that cluster now target it.';
+  }catch(e){$('git-status').textContent=e.message;}finally{btn.disabled=false;}
+ }
+ function renderRepos(){const listEl=$('git-repos'),q=$('git-filter').value.trim().toLowerCase();listEl.replaceChildren();for(const r of repos.filter(r=>!q||r.full_name.toLowerCase().includes(q)).slice(0,200)){const owner=r.full_name.split('/').slice(0,-1).join('/'),name=r.full_name.split('/').pop(),b=text('button','','git-repo');b.type='button';b.setAttribute('aria-label',r.full_name+(r.private?' · private':''));b.append(text('span',r.private?'●':'○','git-vis'+(r.private?' private':'')),text('span',name,'git-repo-name'),text('span',owner,'git-repo-owner'));b.title=r.full_name+' · '+(r.default_branch||'main')+(r.private?' · private':' · public');if(current?.full_name===r.full_name)b.setAttribute('aria-current','true');b.addEventListener('click',()=>open(r));listEl.append(b);}if(!listEl.childElementCount)listEl.append(text('p','No repositories match.','muted'));}
  function table(headers,rows){const t=text('table','','live-table'),h=text('tr');for(const c of headers)h.append(text('th',c));t.append(h);for(const r of rows){const tr=text('tr');for(const v of r){const td=text('td','');if(v instanceof Node)td.append(v);else td.textContent=v==null?'—':String(v);tr.append(td);}t.append(tr);}return t;}
  const link=(href,label)=>{const a=text('a',label);a.href=href;a.target='_blank';a.rel='noopener';return a;};
- /** @description Nest a flat list of blob paths into folders. */
  function nest(entries){const top={dirs:new Map(),files:[]};for(const f of entries){const parts=f.path.split('/');let n=top;for(const d of parts.slice(0,-1)){if(!n.dirs.has(d))n.dirs.set(d,{dirs:new Map(),files:[]});n=n.dirs.get(d);}n.files.push(f);}return top;}
- /** @description Text as numbered lines; YAML keys and comments are tinted. Text only, never markup. */
  function code(body,path){const pre=text('pre','','git-code'),yaml=/\.ya?ml$/i.test(path);body.replace(/\n$/,'').split('\n').forEach((l,i)=>{const row=text('span','','git-ln');row.append(text('span',String(i+1),'git-n'));const c=text('span','','git-c');const m=yaml&&l.match(/^(\s*-?\s*)([\w.\/-]+)(:)(.*)$/);if(/^\s*#/.test(l)&&yaml)c.append(text('span',l,'git-cm'));else if(m){c.append(document.createTextNode(m[1]),text('span',m[2],'git-k'),document.createTextNode(m[3]),text('span',m[4],'git-v'));}else c.textContent=l||' ';row.append(c);pre.append(row);});return pre;}
- async function open(repo){const run=generation;current=repo;renderRepos();const box=$('git-repo-detail'),A=ADAPT[repo.provider]||ADAPT.github,owner=repo.full_name.split('/').slice(0,-1).join('/'),name=repo.full_name.split('/').pop();box.replaceChildren(text('p','Reading '+repo.full_name+'…','muted'));
-  try{const [branches,pulls,runs]=[await A.branches(gh,repo),await A.pulls(gh,repo),await A.runs(gh,repo)];if(run!==generation)return;
+ async function open(repo){
+  const run=generation;current=repo;renderRepos();const box=$('git-repo-detail'),A=ADAPT[repo.provider]||ADAPT.github,owner=repo.full_name.split('/').slice(0,-1).join('/'),name=repo.full_name.split('/').pop();box.replaceChildren(text('p','Reading '+repo.full_name+'…','muted'));
+  try{
+   const [branches,pulls,runs]=[await A.branches(gh,repo),await A.pulls(gh,repo),await A.runs(gh,repo)];if(run!==generation)return;
    const base=(branches||[]).find(b=>b.name===repo.default_branch)||(branches||[])[0],wr=runs||[],last=wr[0];
    const head=text('div','','git-head'),title=text('div','','git-title');title.append(text('span',owner+' / ','git-owner'),text('strong',name),text('span',repo.private?'private':'public','pill'),text('span','⎇ '+(base?.name||repo.default_branch||'main'),'pill'));
    if(last)title.append(text('span',(last.conclusion||last.status||'run')+' · '+(last.name||'pipeline'),'pill tone-'+(last.conclusion==='success'?'good':last.conclusion==='failure'?'bad':'warn')));
@@ -63,36 +113,53 @@ function mount({request,onRefused,clusters}){
    runPane.append(wr.length?table(['Workflow','Branch','Status','Result','Started'],wr.slice(0,20).map(w=>[link(w.html_url,w.name||'run'),w.head_branch,w.status,text('span',w.conclusion||'—','pill tone-'+(w.conclusion==='success'?'good':w.conclusion==='failure'?'bad':'warn')),when(w.created_at)])):text('p','No pipeline runs.','muted'));
    brPane.append(table(['Branch','Commit','Protected'],(branches||[]).slice(0,50).map(b=>[b.name,(b.commit?.sha||'').slice(0,10),b.protected?'yes':'no'])));
    box.replaceChildren(head,tabs,...Object.values(panes));show('files');
-   if(base){filesPane.append(text('p','Reading files on '+base.name+'…','muted'));const t=await A.tree(gh,repo,base);if(run!==generation)return;tree=t.entries.slice(0,2000);
-    const browser=text('div','','git-browser'),side=text('div','','git-tree-pane'),view=text('div','','git-file-view'),filter=document.createElement('input'),list=text('div','','git-file-list');filter.type='search';filter.placeholder='Find a file';filter.setAttribute('aria-label','Find a file');
-    const openFile=async(f,btn)=>{for(const b of list.querySelectorAll('.git-file[aria-current]'))b.removeAttribute('aria-current');btn?.setAttribute('aria-current','true');view.replaceChildren(text('p','Reading '+f.path+'…','muted'));try{const blob=await A.blob(gh,repo,f);if(run!==generation)return;const body=blobText(blob);const crumb=text('div','','git-crumb');crumb.append(text('span',f.path.split('/').join(' / ')),text('span',base.name+(blob?.size!=null?' · '+blob.size+' B':''),'muted'));
-      view.replaceChildren(crumb,body==null?text('p','Binary or larger than 256 KiB; open it on '+A.label+'.','muted'):/\.(md|markdown)$/i.test(f.path)&&root.OperationsConsole?.prose?Object.assign(root.OperationsConsole.prose(body),{className:'git-markdown console-prose'}):code(body,f.path));}catch(e){view.replaceChildren(text('p',e.message));}};
+   if(base){
+    filesPane.append(text('p','Reading files on '+base.name+'…','muted'));const t=await A.tree(gh,repo,base);if(run!==generation)return;tree=t.entries.slice(0,2000);
+    const browser=text('div','','git-browser'),side=text('div','','git-tree-pane'),view=text('div','','git-file-view'),filter=document.createElement('input'),listEl=text('div','','git-file-list');filter.type='search';filter.placeholder='Find a file';filter.setAttribute('aria-label','Find a file');
+    const openFile=async(f,btn)=>{for(const b of listEl.querySelectorAll('.git-file[aria-current]'))b.removeAttribute('aria-current');btn?.setAttribute('aria-current','true');view.replaceChildren(text('p','Reading '+f.path+'…','muted'));try{const blob=await A.blob(gh,repo,f);if(run!==generation)return;const body=blobText(blob),crumb=text('div','','git-crumb');crumb.append(text('span',f.path.split('/').join(' / ')),text('span',base.name+(blob?.size!=null?' · '+blob.size+' B':''),'muted'));view.replaceChildren(crumb,body==null?text('p','Binary or larger than 256 KiB; open it on '+A.label+'.','muted'):/\.(md|markdown)$/i.test(f.path)&&root.OperationsConsole?.prose?Object.assign(root.OperationsConsole.prose(body),{className:'git-markdown console-prose'}):code(body,f.path));}catch(e){view.replaceChildren(text('p',e.message));}};
     const fileButton=(f,label,depth)=>{const b=text('button','','git-file');b.type='button';b.setAttribute('aria-label',f.path);b.title=f.path;b.style.paddingLeft=(8+depth*12)+'px';b.append(text('span',/\.(ya?ml|json)$/i.test(f.path)?'{}':/\.(md|markdown)$/i.test(f.path)?'¶':'·','git-ficon'),text('span',label));b.addEventListener('click',()=>openFile(f,b));return b;};
     const drawNode=(n,depth,into,openAll)=>{for(const [d,child] of [...n.dirs].sort((a,b)=>a[0].localeCompare(b[0]))){const det=text('details','','git-dir');det.open=openAll||depth===0;const s=text('summary');s.style.paddingLeft=(8+depth*12)+'px';s.append(text('span',d));det.append(s);drawNode(child,depth+1,det,openAll);into.append(det);}for(const f of n.files.sort((a,b)=>a.path.localeCompare(b.path)))into.append(fileButton(f,f.path.split('/').pop(),depth));};
-    const draw=()=>{list.replaceChildren();const q=filter.value.trim().toLowerCase();if(q){for(const f of tree.filter(f=>f.path.toLowerCase().includes(q)).slice(0,300))list.append(fileButton(f,f.path,0));if(!list.childElementCount)list.append(text('p','No file matches.','muted'));}else drawNode(nest(tree),0,list,tree.length<=60);if(t.truncated)list.append(text('p',A.label+' truncated this tree; only the first entries are listed.','warning'));};
-    filter.addEventListener('input',draw);side.append(text('h4','Files on '+base.name+' · '+tree.length,'git-files-title'),filter,list);browser.append(side,view);filesPane.replaceChildren(browser);draw();
-    const readme=tree.find(f=>/^readme\.md$/i.test(f.path));if(readme)void openFile(readme,null);else view.append(text('p','Choose a file to read it here. Reading never changes anything on '+A.label+'.','muted'));}
-   else filesPane.append(text('p','This repository has no branches yet.','muted'));
+    const draw=()=>{listEl.replaceChildren();const q=filter.value.trim().toLowerCase();if(q){for(const f of tree.filter(f=>f.path.toLowerCase().includes(q)).slice(0,300))listEl.append(fileButton(f,f.path,0));if(!listEl.childElementCount)listEl.append(text('p','No file matches.','muted'));}else drawNode(nest(tree),0,listEl,tree.length<=60);if(t.truncated)listEl.append(text('p',A.label+' truncated this tree; only the first entries are listed.','warning'));};
+    filter.addEventListener('input',draw);side.append(text('h4','Files on '+base.name+' · '+tree.length,'git-files-title'),filter,listEl);browser.append(side,view);filesPane.replaceChildren(browser);draw();
+    const readme=tree.find(f=>/^readme\.md$/i.test(f.path));if(readme)void openFile(readme,null);else view.append(text('p','Choose a file to read it here. Reading never changes anything on '+A.label+'.','muted'));
+   }else filesPane.append(text('p','This repository has no branches yet.','muted'));
    const linkForm=text('section','','git-link'),cluster=document.createElement('select'),folder=document.createElement('input'),workflow=document.createElement('input'),save=text('button','Link this repository to the cluster');save.type='button';folder.value='clusters/'+name;folder.setAttribute('aria-label','Folder for the cluster');workflow.placeholder='deploy.yml (optional)';workflow.setAttribute('aria-label','Workflow');
    const fillClusters=()=>{const chosen=cluster.value;cluster.replaceChildren();for(const c of clusters()){const o=text('option',c.name);o.value=c.scope;o.dataset.name=c.name;cluster.append(o);}if([...cluster.options].some(o=>o.value===chosen))cluster.value=chosen;};fillClusters();cluster.addEventListener('focus',fillClusters);cluster.setAttribute('aria-label','Recorded cluster');
    save.addEventListener('click',async()=>{save.disabled=true;try{if(!cluster.options.length)fillClusters();const opt=cluster.selectedOptions[0];if(!opt)throw Error('Record a cluster in Systems first.');const saved=await request('/repo-links',{clusterScope:opt.value,clusterName:opt.dataset.name,owner,repo:name,baseBranch:base?.name||repo.default_branch||'main',folder:folder.value.trim(),workflow:workflow.value.trim()||null});$('git-status').textContent=(saved.replaced?'Updated':'Linked')+' '+saved.clusterName+' to '+owner+'/'+name+'. Promotions for that cluster now target it.';await loadLinks();}catch(e){$('git-status').textContent=e.message;}finally{save.disabled=false;}});
-   linkForm.append(text('p','The folder in this repository that holds the cluster\'s manifests; promotions for the cluster then target it.','muted'),cluster,folder,workflow,save);if(A.key==='github')linkPane.append(linkForm);else linkPane.append(text('p','Cluster links name a GitHub repository today; promote to GitLab from a response plan\'s Promote through Git panel.','muted'));}
-  catch(e){if(run===generation){box.replaceChildren(text('h3',repo.full_name),text('p',e.message));}}}
- async function loadLinks(){const run=generation;const v=await request('/repo-links');if(run!==generation)return;const list=$('git-links');list.replaceChildren();if(!v.items.length){list.append(text('p','No cluster is linked to a repository yet.','muted'));return;}
-  for(const l of v.items){const row=text('p',l.clusterName+' → '+l.owner+'/'+l.repo+' · '+l.baseBranch+' · '+l.folder+(l.workflow?' · '+l.workflow:''));const rm=text('button','Unlink');rm.type='button';rm.addEventListener('click',async()=>{rm.disabled=true;try{await request('/repo-links/remove',{id:l.id});await loadLinks();}catch(e){$('git-status').textContent=e.message;rm.disabled=false;}});row.append(' ',rm);list.append(row);}}
- async function load(){const run=++generation,seen=acts;try{const standing=await native('/connectors');if(run!==generation)return;const pick=$('git-provider'),chosen=pick.value;pick.replaceChildren();for(const a of Object.values(ADAPT)){if(!(standing.httpServices||[]).some(s=>s.connector===a.key&&s.configured)&&!(standing.connections||[]).some(c=>c.connector===a.key))continue;const o=text('option',a.label);o.value=a.key;pick.append(o);}if(!pick.options.length){const o=text('option','GitHub');o.value='github';pick.append(o);}if([...pick.options].some(o=>o.value===chosen))pick.value=chosen;const p=P(),L=p.label;$('git-token').placeholder=p.token;const acct=$('git-account');acct.replaceChildren();for(const c of (standing.connections||[]).filter(c=>c.connector===p.key&&!c.shared&&['connected','expiring'].includes(c.status))){const o=text('option',c.account);o.value=c.account;acct.append(o);}
-   const service=(standing.httpServices||[]).some(s=>s.connector===p.key&&s.configured);$('git-load').disabled=!acct.options.length;
-   $('git-connect').hidden=!service;
-   // One empty state until a connection exists (UX audit 2026-11-06): no blank search, no empty Connection select.
-   const connected=acct.options.length>0,single=pick.options.length<2;
+   linkForm.append(text('p','The folder in this repository that holds the cluster\'s manifests; promotions for the cluster then target it.','muted'),cluster,folder,workflow,save);if(A.key==='github')linkPane.append(linkForm);else linkPane.append(text('p','Cluster links name a GitHub repository today; promote to GitLab from a response plan\'s Promote through Git panel.','muted'));
+  }catch(e){if(run===generation){box.replaceChildren(text('h3',repo.full_name),text('p',e.message));}}
+ }
+ async function loadLinks(){
+  const run=generation,v=await request('/repo-links');if(run!==generation)return;const listEl=$('git-links');listEl.replaceChildren();if(!v.items.length){listEl.append(text('p','No cluster is linked to a repository yet.','muted'));return;}
+  for(const l of v.items){const row=text('p',l.clusterName+' → '+l.owner+'/'+l.repo+' · '+l.baseBranch+' · '+l.folder+(l.workflow?' · '+l.workflow:'')),rm=text('button','Unlink');rm.type='button';rm.addEventListener('click',async()=>{rm.disabled=true;try{await request('/repo-links/remove',{id:l.id});await loadLinks();}catch(e){$('git-status').textContent=e.message;rm.disabled=false;}});row.append(' ',rm);listEl.append(row);}
+ }
+ async function load(){
+  const run=++generation,seen=acts;
+  try{
+   const standing=await native('/connectors');if(run!==generation)return;
+   githubAccount=(standing.connections||[]).find(c=>c.connector==='github'&&!c.shared&&['connected','expiring'].includes(c.status))?.account||'';
+   fillUrlClusters();
+   const pick=$('git-provider'),chosen=pick.value;pick.replaceChildren();for(const a of Object.values(ADAPT)){if(!(standing.httpServices||[]).some(s=>s.connector===a.key&&s.configured)&&!(standing.connections||[]).some(c=>c.connector===a.key))continue;const o=text('option',a.label);o.value=a.key;pick.append(o);}
+   if(!pick.options.length){const o=text('option','GitHub');o.value='github';pick.append(o);}if([...pick.options].some(o=>o.value===chosen))pick.value=chosen;
+   const p=P(),L=p.label;$('git-token').placeholder=p.token;const acct=$('git-account');acct.replaceChildren();for(const c of (standing.connections||[]).filter(c=>c.connector===p.key&&!c.shared&&['connected','expiring'].includes(c.status))){const o=text('option',c.account);o.value=c.account;acct.append(o);}
+   const service=(standing.httpServices||[]).some(s=>s.connector===p.key&&s.configured),connected=acct.options.length>0,single=pick.options.length<2;
+   $('git-load').disabled=!connected;$('git-connect').hidden=!service;
    $('git-empty').hidden=connected;$('git-empty-title').textContent=service?'Connect '+L+' to browse your repositories':'Ask your administrator to enable '+L;$('git-empty-text').hidden=!service;$('git-empty-open').hidden=!service;
    $('git-account-field').hidden=!connected;$('git-load').hidden=!connected;document.querySelector('#git-explorer .git-layout').hidden=!connected;
    $('git-provider-field').hidden=single;$('git-provider-label').hidden=!single;$('git-provider-label').textContent=L;
-   if(connected&&!acct.querySelector('option[value=""]')&&acct.options.length>1){const o=text('option','Choose a connection');o.value='';acct.prepend(o);}$('git-token-save').textContent=acct.options.length?'Replace my '+L+' token':'Save as my '+L+' connection';$('git-token-label').textContent=L+' access token (save or replace)';if(acts===seen)$('git-status').textContent=!service?'Your administrator has not selected the '+L+' service.':acct.options.length?'Load your repositories to browse them.':'Save your own '+L+' token below to browse the repositories you can reach.';await loadLinks();}
-  catch(e){if(run===generation)$('git-status').textContent=e.message;}}
+   if(connected&&!acct.querySelector('option[value=""]')&&acct.options.length>1){const o=text('option','Choose a connection');o.value='';acct.prepend(o);}
+   $('git-token-save').textContent=connected?'Replace my '+L+' token':'Save as my '+L+' connection';$('git-token-label').textContent=L+' access token (save or replace)';
+   if(acts===seen)$('git-status').textContent=!service?'Your administrator has not selected the '+L+' service.':connected?'Load your repositories to browse them.':'Save your own '+L+' token below to browse the repositories you can reach.';
+   await loadLinks();
+  }catch(e){if(run===generation)$('git-status').textContent=e.message;}
+ }
+ $('git-link-url-open')?.addEventListener('click',()=>toggleUrlPanel($('git-link-url-panel')?.hidden!==false));
+ $('git-link-url-cancel')?.addEventListener('click',()=>toggleUrlPanel(false));
+ $('git-link-cluster')?.addEventListener('focus',fillUrlClusters);
+ $('git-link-url-save')?.addEventListener('click',saveUrlLink);
  $('git-load').addEventListener('click',async()=>{acts++;const run=generation;$('git-load').disabled=true;$('git-status').textContent='Reading your repositories…';try{const p=P(),v=await gh(p.list,{});if(run!==generation)return;repos=p.repos(v);renderRepos();$('git-status').textContent=repos.length+' repositories you can reach.';}catch(e){if(run===generation)$('git-status').textContent=e.message;}finally{$('git-load').disabled=false;}});
  $('git-token-save').addEventListener('click',async()=>{acts++;const token=$('git-token').value.trim();if(!token){$('git-status').textContent='Paste a token you created in your own '+P().label+' settings.';return;}const other=tokenProvider(token);if(other&&other!==P().key){$('git-token').value='';$('git-status').textContent='That looks like a '+ADAPT[other].label+' token, so '+P().label+' would refuse it. '+P().howTo;return;}$('git-token-save').disabled=true;try{const p=P(),L=p.label;const r=await fetch('/connectors/'+p.key+'/connect',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({token})});$('git-token').value='';const v=await r.json().catch(()=>({}));if([401,403].includes(r.status)){clear();onRefused();return;}if(!r.ok)throw Error(v.detail||'The connection was refused (HTTP '+r.status+').');await load();$('git-status').textContent='Saved. Checking it with '+L+'…';try{const me=await gh(p.me,{});const login=(me&&(me.login||me.username||me.data?.login))||'your account';$('git-status').textContent='Connected to '+L+' as '+login+'. The token stays in the kernel vault, not in this page. Load your repositories to browse them.';}catch(check){$('git-status').textContent='Saved, but '+check.message;}}catch(e){$('git-status').textContent=e.message;}finally{$('git-token-save').disabled=false;}});
  $('git-filter').addEventListener('input',renderRepos);$('git-provider')?.addEventListener('change',()=>{const seen=++acts;repos=[];current=null;tree=[];$('git-repos').replaceChildren();$('git-repo-detail').replaceChildren();void load().then(()=>{if(seen===acts)$('git-status').textContent='Load your repositories to browse them.';});});clear();return {load,clear};
 }
-const api={tokenProvider,ADAPT,mount,blobText};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsGitExplorer=api;
+const api={tokenProvider,ADAPT,mount,blobText,parseRepoUrl};if(typeof module==='object'&&module.exports)module.exports=api;else root.OperationsGitExplorer=api;
 })(typeof window==='object'?window:globalThis);

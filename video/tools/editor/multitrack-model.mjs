@@ -1,7 +1,9 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Keep v2 clips, linked A/V, trims, splits, ripple edits and effect/keyframe changes immutable under the existing history/store contract.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Support speed-aware migration/splits/ripple edits, clip visual effects and keyframed stickers in v2 multitrack editing.
  */
 import { validateTimeline, timelineFrames, demand } from './timeline-validation.mjs';
+import { clipDurationFrames } from './editor-effects.mjs';
 const uid = prefix => prefix + crypto.randomUUID().replaceAll('-', '').slice(0, 32 - prefix.length);
 const track = (document, id) => { const value = document.tracks.find(track => track.id === id); demand(value, 'Track does not exist'); return value; };
 const editable = value => demand(!value.locked, 'Unlock the track before editing it');
@@ -17,12 +19,17 @@ function partner(document, clip) { return clip.link ? document.tracks.flatMap(tr
 export function migrateMultitrack(value) {
   const document = validateTimeline(value); if (document.version === 2) return document;
   let start = 0;
-  const clips = document.segments.map(segment => { const clip = { ...segment, start }; start += segment.out - segment.in; return clip; });
+  const clips = document.segments.map(segment => {
+    const clip = { ...segment, start };
+    start += clipDurationFrames(segment.in, segment.out, segment.speed ?? 100);
+    return clip;
+  });
   const music = document.audioBed && start ? [{ id: 'bed1', source: document.audioBed.source, in: 0,
     out: Math.min(start, document.sources[document.audioBed.source].frames), start: 0, volume: document.audioBed.volume }] : [];
-  return validateTimeline({ ...document, version: 2, segments: [], audioBed: null, captions: [], tracks: [
-    { id: 'video1', name: 'Video 1', kind: 'video', muted: false, locked: false, clips },
-    { id: 'audio1', name: 'Audio 1', kind: 'audio', muted: false, locked: false, clips: music } ] });
+  return validateTimeline({ ...document, version: 2, segments: [], audioBed: null, captions: document.captions ?? [],
+    ...(document.stickers?.length ? { stickers: document.stickers } : {}), tracks: [
+      { id: 'video1', name: 'Video 1', kind: 'video', muted: false, locked: false, clips },
+      { id: 'audio1', name: 'Audio 1', kind: 'audio', muted: false, locked: false, clips: music } ] });
 }
 
 /** @description Evaluate a clip-local linear/hold keyframe at an integer frame.
@@ -38,8 +45,8 @@ export function valueAt(clip, property, frame) {
   return !after || before.interpolation === 'hold' ? before.value : before.value + (after.value - before.value) * (frame - before.frame) / (after.frame - before.frame);
 }
 
-function splitPart(clip, offset, right, id) {
-  const result = { ...clip, id, in: right ? clip.in + offset : clip.in, out: right ? clip.out : clip.in + offset,
+function splitPart(clip, offset, srcOffset, right, id) {
+  const result = { ...clip, id, in: right ? clip.in + srcOffset : clip.in, out: right ? clip.out : clip.in + srcOffset,
     start: right ? clip.start + offset : clip.start, fadeIn: right ? 0 : clip.fadeIn, fadeOut: right ? clip.fadeOut : 0,
     keys: clip.keys.filter(key => right ? key.frame >= offset : key.frame < offset).map(key => ({ ...key, frame: right ? key.frame - offset : key.frame })) };
   for (const property of new Set(clip.keys.map(key => key.property))) {
@@ -55,21 +62,23 @@ function splitPart(clip, offset, right, id) {
 
 function editClip(document, operation) {
   const own = found(document, operation.id); editable(own.track);
-  const allowed = ['in', 'out', 'start', 'volume', 'x', 'y', 'scale', 'opacity', 'keys', 'transition', 'fadeIn', 'fadeOut', 'brightness', 'contrast', 'saturation', 'audioEnabled'];
+  const allowed = ['in', 'out', 'start', 'volume', 'x', 'y', 'scale', 'opacity', 'keys', 'transition', 'fadeIn', 'fadeOut', 'brightness', 'contrast', 'saturation', 'audioEnabled', 'speed', 'look', 'stabilize', 'chromaKey', 'removeBg'];
   demand(operation.patch && Object.keys(operation.patch).every(key => allowed.includes(key)), 'Unsupported clip change');
   const linked = partner(document, own.clip);
-  if (linked && ['in', 'out', 'start'].some(key => Object.hasOwn(operation.patch, key))) {
-    editable(linked.track); for (const key of ['in', 'out', 'start']) if (Object.hasOwn(operation.patch, key)) linked.clip[key] = operation.patch[key];
+  if (linked && ['in', 'out', 'start', 'speed'].some(key => Object.hasOwn(operation.patch, key))) {
+    editable(linked.track); for (const key of ['in', 'out', 'start', 'speed']) if (Object.hasOwn(operation.patch, key)) linked.clip[key] = operation.patch[key];
   }
   Object.assign(own.clip, operation.patch);
 }
 
 function removeClip(document, operation) {
   const own = found(document, operation.id); editable(own.track); const linked = partner(document, own.clip); if (linked) editable(linked.track);
-  const ids = new Set([own.clip.id, ...(linked ? [linked.clip.id] : [])]), end = own.clip.start + own.clip.out - own.clip.in, duration = own.clip.out - own.clip.in;
+  const ids = new Set([own.clip.id, ...(linked ? [linked.clip.id] : [])]);
+  const duration = clipDurationFrames(own.clip.in, own.clip.out, own.clip.speed ?? 100), end = own.clip.start + duration;
   if (operation.ripple) for (const track of document.tracks) for (const clip of track.clips) {
     if (ids.has(clip.id)) continue;
-    if (clip.start < end && clip.start + clip.out - clip.in > own.clip.start) throw new TypeError('Split other clips crossing the ripple range first.');
+    const clipDur = clipDurationFrames(clip.in, clip.out, clip.speed ?? 100);
+    if (clip.start < end && clip.start + clipDur > own.clip.start) throw new TypeError('Split other clips crossing the ripple range first.');
     if (clip.start >= end) { editable(track); clip.start -= duration; }
   }
   for (const track of document.tracks) track.clips = track.clips.filter(clip => !ids.has(clip.id));
@@ -79,16 +88,24 @@ function removeClip(document, operation) {
   }
   const total = timelineFrames(document);
   for (const key of ['titles', 'captions']) document[key] = document[key].map(title => ({ ...title, end: Math.min(title.end, total) })).filter(title => title.start < title.end);
+  if (document.stickers?.length) {
+    const stickers = document.stickers.filter(st => st.start < total).map(st => ({ ...st, end: Math.min(st.end, total) }));
+    if (stickers.length) document.stickers = stickers; else delete document.stickers;
+  }
 }
 
 function splitClip(document, operation) {
   const own = found(document, operation.id), linked = partner(document, own.clip); editable(own.track); if (linked) editable(linked.track);
+  const speed = own.clip.speed ?? 100, dur = clipDurationFrames(own.clip.in, own.clip.out, speed);
   const offset = operation.frame - own.clip.start;
-  demand(Number.isSafeInteger(offset) && offset > 0 && offset < own.clip.out - own.clip.in, 'Split inside the clip');
-  for (const item of [own, ...(linked ? [linked] : [])]) demand(offset >= item.clip.fadeIn && offset <= item.clip.out - item.clip.in - item.clip.fadeOut, 'Split outside fade ranges or remove the fades first');
+  demand(Number.isSafeInteger(offset) && offset > 0 && offset < dur, 'Split inside the clip');
+  const srcOffset = speed === 100 ? offset : Math.min(own.clip.out - own.clip.in - 1, Math.max(1, Math.round((offset * speed) / 100)));
+  demand(srcOffset > 0 && srcOffset < own.clip.out - own.clip.in, 'Clip is too short at this speed to split here');
+  for (const item of [own, ...(linked ? [linked] : [])]) demand(offset >= item.clip.fadeIn && offset <= dur - item.clip.fadeOut, 'Split outside fade ranges or remove the fades first');
   const nextLink = linked ? uid('link') : undefined;
   for (const item of [own, ...(linked ? [linked] : [])]) {
-    const index = item.track.clips.indexOf(item.clip), left = splitPart(item.clip, offset, false, item.clip.id), right = splitPart(item.clip, offset, true, uid('clip'));
+    const index = item.track.clips.indexOf(item.clip);
+    const left = splitPart(item.clip, offset, srcOffset, false, item.clip.id), right = splitPart(item.clip, offset, srcOffset, true, uid('clip'));
     if (nextLink) right.link = nextLink; item.track.clips.splice(index, 1, left, right);
   }
 }
@@ -97,8 +114,10 @@ function extractAudio(document, operation) {
   const own = found(document, operation.id), target = track(document, operation.track); editable(own.track); editable(target);
   demand(own.track.kind === 'video' && target.kind === 'audio' && document.sources[own.clip.source].audio && !own.clip.link, 'Choose unlinked video with sound and an audio track');
   const link = uid('link'); own.clip.link = link; own.clip.audioEnabled = false;
-  target.clips.push({ ...own.clip, id: uid('clip'), audioEnabled: true, opacity: 100, scale: 100, x: 0, y: 0,
-    keys: own.clip.keys.filter(key => key.property === 'volume'), link });
+  const audioClip = { ...own.clip, id: uid('clip'), audioEnabled: true, opacity: 100, scale: 100, x: 0, y: 0,
+    keys: own.clip.keys.filter(key => key.property === 'volume'), link };
+  delete audioClip.look; delete audioClip.stabilize; delete audioClip.chromaKey; delete audioClip.removeBg;
+  target.clips.push(audioClip);
 }
 
 /** @description Apply one immutable v2 edit and validate the whole result before returning it.
@@ -128,6 +147,10 @@ export function applyMultitrack(value, operation) {
   else if (operation.type === 'text') { demand(['titles', 'captions'].includes(operation.track), 'Choose titles or captions'); document[operation.track].push({ ...operation.entry, id: uid('text') }); }
   else if (operation.type === 'updateText') { demand(['titles', 'captions'].includes(operation.track), 'Choose titles or captions'); const entry=document[operation.track].find(entry=>entry.id===operation.id); demand(entry, 'Select an existing title or caption'); demand(operation.patch && Object.keys(operation.patch).every(key=>['text','start','end','position','size'].includes(key)), 'Unsupported text change'); Object.assign(entry,operation.patch); }
   else if (operation.type === 'removeText') { demand(['titles', 'captions'].includes(operation.track), 'Choose titles or captions'); document[operation.track] = document[operation.track].filter(entry => entry.id !== operation.id); }
+  else if (operation.type === 'setCaptions') { document.captions = (operation.cues ?? []).map(cue => ({ ...cue, id: cue.id && /^[a-z][a-z0-9-]{0,31}$/.test(cue.id) ? cue.id : uid('cap'), position: cue.position ?? 'bottom', size: cue.size ?? 'small' })); }
+  else if (operation.type === 'addSticker') { document.stickers = [...(document.stickers ?? []), { ...operation.entry, id: uid('st') }]; }
+  else if (operation.type === 'updateSticker') { const list = [...(document.stickers ?? [])], idx = list.findIndex(s => s.id === operation.id); demand(idx >= 0, 'Sticker does not exist'); list[idx] = { ...list[idx], ...operation.patch, id: operation.id }; document.stickers = list; }
+  else if (operation.type === 'removeSticker') { const list = (document.stickers ?? []).filter(s => s.id !== operation.id); if (list.length) document.stickers = list; else delete document.stickers; }
   else throw new TypeError('Unsupported multitrack edit');
   return validateTimeline(document);
 }

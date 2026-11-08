@@ -9,6 +9,7 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0, every press answers: Use this computer is never a silent disabled button; on a computer that is not connected, has control off, takes no commands or runs Windows or macOS it says why under the table and what to do on that computer. A press while another step runs says which step, in the card that was pressed; Connect a TV (Fire TV / Android TV) over network adb; Remove forgets a Bluetooth pairing on that computer.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: Connect sheet flow with OS-ordered oshal Node download label, 3 upright steps (Install · Sign in · Press Allow), 5s auto-refresh for 2 minutes under Waiting for your computer…, hidden empty computer headers, setup-mirror / Start mirroring / Stop mirroring for UxPlay AirPlay iPhone screen mirroring, primary progression from Set up this computer to Pair, and in-page Remove confirmations without native confirm dialogs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Fire TV / Android TV Wi-Fi subnet scanner (adb-scan-tv), end-to-end SHA-256 verified oshal TV APK staging & installation (stage-chunk + adb-install-apk), copyable push script, #connect-tv deep-link focus, and integrated Connection Troubleshooting Concierge with 1-click fixes.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: surface #deviceKindGuide (iPhone vs Android clarity), pairAndroid host-scoped adb-connect ignoring already-connected Fire TVs, and prefill the phone IP into #connectAddress with main Wireless debugging port prompt when mDNS discovery is unavailable on the subnet.
  */
 
 import { bridgeMatches, bridgeSupport, computerStanding } from '/api/phone-control/ui/computer-link.js';
@@ -197,7 +198,7 @@ function emptyRow(columns, text) {
 }
 
 function showCards(ctx, visible) {
-  for (const card of ['setupCard', 'androidCard', 'tvCard', 'iphoneCard']) ctx.$(card).hidden = !visible;
+  for (const card of ['setupCard', 'deviceKindGuide', 'androidCard', 'tvCard', 'iphoneCard']) ctx.$(card).hidden = !visible;
 }
 
 function chooseComputer(ctx, id, scrollToSetup = true) {
@@ -374,31 +375,64 @@ async function addAndroid(ctx, serial) {
   ctx.say('androidStatus', `${device.name} added.`);
 }
 
+function parseHostFromIpPort(address) {
+  const idx = address.lastIndexOf(':');
+  return idx > 0 ? address.slice(0, idx).trim() : '';
+}
+
+function matchingPairedAndroid(devices, hostIp) {
+  if (!hostIp) return null;
+  return (devices || []).find((device) =>
+    device.state === 'device'
+    && device.serial.startsWith(`${hostIp}:`)
+    && !device.serial.endsWith(':5555')
+    && !/^AFT/i.test(device.model || '')) || null;
+}
+
+function resolveAndroidConnectArgs(rawInput, pairAddress = '', hostIp = '') {
+  const raw = String(rawInput || '').trim();
+  if (raw && raw !== pairAddress) {
+    if (raw.endsWith(':')) return { host: raw.slice(0, -1).trim() };
+    return raw.includes(':') ? { address: raw } : { host: raw };
+  }
+  return hostIp ? { host: hostIp } : {};
+}
+
 async function pairAndroid(ctx) {
   const address = ctx.$('pairAddress').value.trim();
   const code = ctx.$('pairCode').value.trim();
+  const hostIp = parseHostFromIpPort(address);
   if (!(await ctx.install('androidStatus'))) return;
   ctx.say('androidStatus', 'Pairing…');
   const paired = await ctx.bridge('adb-pair', { address, code }, 60000);
   await ctx.remember('pair', `Pair Android at ${address}`, paired);
   if (!paired.ok) { ctx.fail('androidStatus', 'android-pair', paired); return; }
   ctx.say('androidStatus', 'Paired. Connecting…');
-  await new Promise((resolve) => setTimeout(resolve, 2500));
+  const settleMs = Math.max(25, Number(globalThis.__PC_PAIR_SETTLE_MS) || 1200);
+  await new Promise((resolve) => setTimeout(resolve, settleMs));
   const seen = await ctx.readStatus();
-  const wireless = (seen.adb?.devices || []).find((device) => device.state === 'device' && device.wireless);
-  if (wireless) { await addAndroid(ctx, wireless.serial); return; }
-  const connected = await ctx.bridge('adb-connect', {}, 40000);
-  await ctx.remember('connect', 'Connect Android (found on this network)', connected);
-  if (connected.ok) { await addAndroid(ctx, connected.serial); return; }
-  ctx.fail('androidStatus', 'android-connect', `${connected.message} Then press Connect.`, connected.error);
+  const wireless = matchingPairedAndroid(seen.adb?.devices, hostIp);
+  if (wireless) { ctx.concierge.clearProblem(); await addAndroid(ctx, wireless.serial); return; }
+  const typedConnect = ctx.$('connectAddress').value.trim();
+  const connected = await ctx.bridge('adb-connect', resolveAndroidConnectArgs(typedConnect, address, hostIp), 40000);
+  await ctx.remember('connect', `Connect Android${hostIp ? ` at ${hostIp}` : ' (found on this network)'}`, connected);
+  if (connected.ok) { ctx.concierge.clearProblem(); await addAndroid(ctx, connected.serial); return; }
+  if (hostIp && (!typedConnect || typedConnect === address)) {
+    ctx.$('connectAddress').value = `${hostIp}:`;
+    ctx.$('connectAddress').focus?.();
+  }
+  const prompt = hostIp
+    ? `Paired! Now enter the main IP & Port shown at the top of the Wireless debugging screen (${hostIp}:_____) into Connect address and press Connect.`
+    : `${connected.message} Enter the main IP & Port shown at the top of the Wireless debugging screen and press Connect.`;
+  ctx.fail('androidStatus', 'android-connect', prompt, connected.error);
 }
 
 async function connectAndroid(ctx) {
-  const address = ctx.$('connectAddress').value.trim();
+  const raw = ctx.$('connectAddress').value.trim();
   if (!(await ctx.install('androidStatus'))) return;
   ctx.say('androidStatus', 'Connecting…');
-  const connected = await ctx.bridge('adb-connect', address ? { address } : {}, 40000);
-  await ctx.remember('connect', `Connect Android${address ? ` at ${address}` : ''}`, connected);
+  const connected = await ctx.bridge('adb-connect', resolveAndroidConnectArgs(raw), 40000);
+  await ctx.remember('connect', `Connect Android${raw ? ` at ${raw}` : ''}`, connected);
   if (!connected.ok) { ctx.fail('androidStatus', 'android-connect', connected); return; }
   ctx.concierge.clearProblem();
   await addAndroid(ctx, connected.serial);

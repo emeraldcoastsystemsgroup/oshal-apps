@@ -5,7 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-21 22:20:00 | roger.murphy@emeraldcoastsystemsgroup.com  | The surfaces: one synced state rendered as five layouts (tv/stage/clicker/host/audience) plus lobby + help. The big screen is directed by state.shot (board, buzzer race, huddle, audience pan, celebration dance, interview); phones are the buzzer + answer; the host desk drives the show and can run hotseat podiums.
  * 2026-07-24 14:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Backlog burn-down: per-show renderers/tables moved to the GS.showUi registry (ADR-112 collapse — this file knows no show's rules now); NEW ?view=rehearsal — every surface in ONE browser window against one room, so a full playthrough needs no TV and no phones; speak-your-answer mic on the answer box (#5); audience reactions broadcast (#16); host-desk cost chip (#15) and a play-your-own-questions panel; clickers honor ?as= hotseat pinning.
- * 2026-07-25 02:20:00 | codex                                      | Trigger reusable TV cutaways from semantic shot serials and expose host-desk previews.
+ * 2026-07-25 02:20:00 | maintainer@emeraldcoastsystemsgroup.com    | Trigger reusable TV cutaways from semantic shot serials and expose host-desk previews.
  * 2026-07-25 23:00:00 | roger.murphy@emeraldcoastsystemsgroup.com  | The lobby is reachable again (☰ New game header button + your-open-games list with Resume/End — auto-resume had made the show picker unreachable once a room existed), and one-person play is real: 🤖 Solo night fills the stage with AI players (skill-tiered NPC podiums, addable per-team from the host desk too).
  * 2026-07-26 19:10:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Broadcast shell (operator: "no set, no characters, just the inner workings"): stage and tv now render inside GS.play.frame — marquee, beams, podium characters, lower-third caption — with the stage's player controls + owner quick actions in the bottom glass dock (team/presence switching folded into a 🙂 You popover) and the tv shot branches preserved verbatim; the lobby's show <select> became clickable poster cards that host straight onto the stage; every render stamps the chrome via GS.play.sync(). Host desk, clicker, audience, and rehearsal are untouched.
  * 2026-07-26 21:45:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Integration pass: restore the five hooks the committed browser playthrough asserts that the rebuild dropped — the TV lobby's join QR (GS.qrNode), the host desk's 🔧 Show tools drawer (module-level open state; holds the recovery panel, hotseat, interview, cutaways), the 'AI spend $' cost text, the clicker's #gs-dock action container + 'buzzed first' status for the losing phone, and the stage dock's .gs-dockbuzz pinned buzzer bar.
@@ -14,6 +14,7 @@
  * 2026-10-30 22:30:00 | maintainer@emeraldcoastsystemsgroup.com    | Roger never got a game started against the computer, so the front door is rebuilt around that. A poster is one press: it opens the room, seats you, fills the podiums with computer players and starts (GS.startSolo). You play at your own seat instead of a second podium held in the page's memory, which removes both freezes: pressing Start before Solo night, and any Reload or Resume. The dock always says what just happened, whose move it is and what to do, shows progress while the host writes the board, offers only buttons that do something, and ends the game with the winner and Play again. The broadcast set stays a dark studio under every theme, because its text followed a light theme onto a dark set.
  * 2026-10-30 23:10:00 | maintainer@emeraldcoastsystemsgroup.com    | From the live test of the first build: the keyboard is in the answer box when it appears (not on a touch screen, where the on-screen keyboard would cover the board), and a phone clicker waits while the host judges, because a second answer sent meanwhile was silently dropped.
  * 2026-11-06 08:40:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06 (stage, clicker, review). Stage: the duplicate chip header is gone (show, round and code are on the set's marquee once), the marquee carries a 44px ? (How to play, a sheet) and ⋯ More with New game (it asks in the page first), the dock's ⚙ is 44px, the host's line is the dock's first line rather than a lower third under the dock, 🙂 You opens the You sheet, and a viewer without a podium gets one Join this game while a buzzer is open. Clicker: one header row (show, round, clock, ?), no New game, Team and Show me as are in the You sheet, the dome steps aside while the answer box (field plus a full-width 52px Answer) sits at the top. Lobby: a Recent games row (last three ended games: when, winner, top score, Play again) above the Hall of fame, from the same /leaderboard read. The game views keep the zoom lock and are marked data-ds-game; the lobby, Host Desk, Help and Rehearsal unlock it (DS-42). The Host Desk moved to gs-host-desk.js.
+ * 2026-11-07 06:52:00 | maintainer@emeraldcoastsystemsgroup.com    | F19: lobby join panel Team A / Team B picker uses GS.teamChoice (token surface + hairline border, accent fill + on-accent ink when selected, small theme-aware team dot) and Join game uses primary token styling.
  */
 
 /* global window, document, location, navigator */
@@ -510,9 +511,14 @@
     var code = GS.el('input', { class: 'gs-input', placeholder: 'Enter join code', maxlength: '6', value: GS.joinCode || '' });
     var teamSel = GS.el('div', { class: 'gs-row', style: 'justify-content:center' });
     ['A', 'B'].forEach(function (t) {
-      teamSel.appendChild(GS.el('button', { class: 'gs-btn ' + (chosen.t === t ? 'gold' : 'ghost'), onclick: function () {
-        chosen.t = t; Array.prototype.forEach.call(teamSel.children, function (c, i) { c.className = 'gs-btn ' + (['A', 'B'][i] === t ? 'gold' : 'ghost'); });
-      } }, 'Team ' + t));
+      teamSel.appendChild(GS.teamChoice(t, 'Team ' + t, chosen.t === t, function () {
+        chosen.t = t;
+        Array.prototype.forEach.call(teamSel.children, function (c, i) {
+          var active = ['A', 'B'][i] === t;
+          c.classList.toggle('on', active);
+          c.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+      }));
     });
     function join() {
       if (!code.value.trim()) { GS.toast('Enter a code'); return; }
@@ -523,7 +529,7 @@
     return GS.el('div', { class: 'gs-col' },
       GS.el('div', { class: 'gs-center gs-muted' }, 'A friend is hosting? Enter their code.'), code,
       GS.el('div', { class: 'gs-center gs-muted' }, 'Pick your team (team games only)'), teamSel,
-      GS.el('button', { class: 'gs-btn blue', onclick: join }, 'Join game'));
+      GS.el('button', { type: 'button', class: 'gs-btn primary', onclick: join }, 'Join game'));
   }
 
   function openGames() {

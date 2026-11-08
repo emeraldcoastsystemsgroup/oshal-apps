@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Allow bounded synthetic catalog/access responses and capture real iframe navigation messages for workspace layout proof.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Serve the catalog-compatible theme namespace while retaining read-only fixture behavior.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Serve the image editor's own browser modules (GET /api/create/editor/<module>), so Home's picture cards draw a saved image with the real renderer; the parent declares a device-width viewport like the cockpit, so a phone context lays the frame out at phone width.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | Allow an explicit synthetic `mutate` handler for isolated Home work-card and import browser proofs while keeping the default fixture read-only (405).
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -47,12 +48,19 @@ function readBody(path) {
   return {};
 }
 
-/** Serve unchanged application HTML plus current shared assets; reject every business mutation. */
+/** Serve unchanged application HTML plus current shared assets; reject every business mutation unless `options.mutate` is supplied. */
 export async function startFixture(options = {}) {
   const app = express(), requests = [];
+  if (typeof options.mutate === 'function') {
+    app.use(express.json({ limit: '5mb' }));
+    app.use(express.raw({ type: ['application/octet-stream', 'multipart/*'], limit: '20mb' }));
+  }
   app.use((req, res, next) => {
-    requests.push({ method: req.method, path: req.path, query: req.query });
-    if (!['GET', 'HEAD'].includes(req.method)) return res.status(405).json({ error: 'synthetic_read_only_fixture' });
+    requests.push({ method: req.method, path: req.path, query: req.query, body: req.body });
+    if (!['GET', 'HEAD'].includes(req.method)) {
+      if (typeof options.mutate === 'function') return options.mutate(req, res, next);
+      return res.status(405).json({ error: 'synthetic_read_only_fixture' });
+    }
     next();
   });
   for (const screen of ['home', 'new']) app.get(`/api/create/${screen}`, (_req, res) => res.sendFile(resolve(packageRoot, `tools/create-${screen}.html`)));

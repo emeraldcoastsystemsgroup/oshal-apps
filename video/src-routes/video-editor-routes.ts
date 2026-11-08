@@ -11,6 +11,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve editor effect/sticker/sheet modules, advertise 720p/1080p/4K 30/60fps export profiles, and mount auto-caption, voice TTS and CC0 sound-library routes.
  */
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import multer from 'multer';
@@ -31,6 +32,7 @@ import { registerExportRoutes } from './video-editor-export-routes';
 import { VideoExportStore } from './video-editor-export-store';
 import { motionRoutes } from './video-editor-motion';
 import { nativeMediaRoutes, nativeMedia, nativeDeletedExports } from './video-editor-native';
+import { registerSpeechRoutes } from './video-editor-speech';
 
 const logger = createChildLogger({ module: 'video-editor-routes' });
 
@@ -41,6 +43,8 @@ export interface VideoEditorOptions { dataRoot?: string; prober?: MediaProber; e
 const EDITOR_ASSETS: Readonly<Record<string, string>> = Object.freeze({
   'artifact-import.mjs': 'text/javascript; charset=utf-8', 'editor-foundation-adapter.mjs': 'text/javascript; charset=utf-8', 'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
   'editor-player.mjs': 'text/javascript; charset=utf-8', 'editor-export.mjs': 'text/javascript; charset=utf-8',
+  'editor-effects.mjs': 'text/javascript; charset=utf-8', 'editor-stickers.mjs': 'text/javascript; charset=utf-8',
+  'editor-rp-sheets.mjs': 'text/javascript; charset=utf-8',
   'timeline-view.mjs': 'text/javascript; charset=utf-8', 'timeline-model.mjs': 'text/javascript; charset=utf-8',
   'timeline-validation.mjs': 'text/javascript; charset=utf-8', 'multitrack-model.mjs': 'text/javascript; charset=utf-8', 'multitrack-editor.mjs': 'text/javascript; charset=utf-8',
   'multitrack-validation.mjs': 'text/javascript; charset=utf-8',
@@ -168,6 +172,7 @@ function projectWrites(router: Router, env: RouteEnvironment): void {
 /** What this installation actually accepts; the browser reads it instead of assuming. */
 function capabilities() {
   return { profile: { id: 'hd720p30', width: 1280, height: 720, fps: 30, video: 'h264', audio: 'aac', sampleRate: 48000 },
+    exportProfiles: ['hd720p30', 'hd720p60', 'hd1080p30', 'hd1080p60', 'uhd4k30', 'uhd4k60'],
     uploads: { video: { container: 'mp4', videoCodecs: ['h264'], audioCodecs: ['aac'], maxBytes: EDITOR_LIMITS.clipBytes, maxSeconds: EDITOR_LIMITS.clipSeconds,
       maxDimension: EDITOR_LIMITS.maxDimension, maxPixels: EDITOR_LIMITS.maxPixels, maxFps: EDITOR_LIMITS.maxFps },
     audio: { container: 'wav', audioCodecs: ['pcm_s16le', 'pcm_s24le', 'pcm_s32le', 'pcm_f32le'], maxBytes: EDITOR_LIMITS.bedBytes, maxSeconds: EDITOR_LIMITS.bedSeconds } },
@@ -203,7 +208,7 @@ export function createVideoEditorRoutes(ctx: EditorContext, options: VideoEditor
   router.use('/editor', requestLog);
   router.get('/editor/capabilities', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json(capabilities()); }));
   router.get('/editor/permissions', admit(env, 'view'), handler(env, 'view', async (_req, res) => { res.json({ permissions: await editorPermissions(ctx), nativeMedia: await nativeMedia(env) }); }));
-  motionRoutes(router, env); pageRoutes(router, env); mediaRoutes(router, env); projectReads(router, env); projectWrites(router, env); registerExportRoutes(router, env);
+  motionRoutes(router, env); registerSpeechRoutes(router, env); pageRoutes(router, env); mediaRoutes(router, env); projectReads(router, env); projectWrites(router, env); registerExportRoutes(router, env);
   router.use('/editor', (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof multer.MulterError) return sendError(res, new EditorError(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400, error.code === 'LIMIT_FILE_SIZE' ? 'video_edit_media_too_large' : 'invalid_video_edit_upload'));
     if (error && typeof error === 'object' && 'status' in error && (error.status === 400 || error.status === 413)) return sendError(res, new EditorError(error.status, 'invalid_video_edit_body'));

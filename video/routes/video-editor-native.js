@@ -1,8 +1,12 @@
 /**
  * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Use original native owner ports for bounded media and durable real exports; keep legacy FFmpeg lifecycle unchanged.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Overlay one complete validated native success receipt instead of mixing fresh success with a stale SQL row.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Support 720p/1080p/4K 30/60fps export profiles in native export receipts and admission.
  */
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -113,16 +117,16 @@ async function nativeDeletedExports(env, ids) {
     await prune(env, ids);
     return true;
 }
-/** @description Keep native measurements within the shipped 256 MiB, 1800-frame, 30 fps output profile. */
-function successOutput(value) {
+/** @description Keep native measurements within the shipped 512 MiB, 3600-frame, 30/60 fps output profile. */
+function successOutput(value, fps = 30) {
     if (!(0, video_editor_validation_1.isRecord)(value))
         throw new video_editor_types_1.EditorError(503, 'video_edit_export_output_invalid');
     const { outputBytes, outputSha256, outputFrames, outputDurationMs } = value;
-    if (typeof outputBytes !== 'number' || !Number.isSafeInteger(outputBytes) || outputBytes < 1 || outputBytes > 268435456
+    if (typeof outputBytes !== 'number' || !Number.isSafeInteger(outputBytes) || outputBytes < 1 || outputBytes > 536870912
         || typeof outputSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(outputSha256)
-        || typeof outputFrames !== 'number' || !Number.isSafeInteger(outputFrames) || outputFrames < 1 || outputFrames > 1800
+        || typeof outputFrames !== 'number' || !Number.isSafeInteger(outputFrames) || outputFrames < 1 || outputFrames > 3600
         || typeof outputDurationMs !== 'number' || !Number.isSafeInteger(outputDurationMs) || outputDurationMs < 1
-        || Math.abs(outputDurationMs - outputFrames * 1000 / 30) > 2000 / 30) {
+        || Math.abs(outputDurationMs - outputFrames * 1000 / fps) > Math.max(67, 2000 / fps)) {
         throw new video_editor_types_1.EditorError(503, 'video_edit_export_output_invalid');
     }
     return { outputBytes, outputSha256, outputFrames, outputDurationMs };
@@ -131,21 +135,27 @@ function successOutput(value) {
 async function status(env, row) {
     const current = await call(env, { op: 'export_status', id: row.id });
     const state = current.state === 'verified' ? 'running' : typeof current.state === 'string' ? current.state : row.status;
-    const output = state === 'succeeded' ? successOutput(current.output) : undefined;
+    const fps = row.profile?.endsWith('60') ? 60 : 30;
+    const output = state === 'succeeded' ? successOutput(current.output, fps) : undefined;
     return { ...row, ...output, status: state,
         error: state === 'succeeded' ? null : typeof current.error === 'string' ? current.error : row.error,
         progressFrames: output?.outputFrames ?? null };
 }
 /** @description Canonical native export request records actual SQL revision then captures original durable work before202. */
 async function start(env, req, res, owner) {
-    (0, video_editor_validation_1.exactFields)(req.body ?? {}, ['id', 'revision', 'variant']);
+    (0, video_editor_validation_1.exactFields)(req.body ?? {}, ['id', 'revision', 'variant', 'resolution', 'fps']);
     if (req.body.id !== undefined && (0, video_editor_validation_1.editorId)(req.body.id) !== (0, video_editor_validation_1.editorId)(req.params.id))
         throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_id');
     const kind = req.body.variant ?? 'export';
     if (!['export', 'preview'].includes(kind))
         throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_variant');
+    const resolution = req.body.resolution, fps = req.body.fps;
+    if (resolution !== undefined && resolution !== '720p' && resolution !== '1080p' && resolution !== '4k')
+        throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_profile');
+    if (fps !== undefined && fps !== 30 && fps !== 60)
+        throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_profile');
     const { epoch } = await call(env, { op: 'epoch' });
-    const created = await env.exportStore.create(owner, (0, video_editor_validation_1.editorId)(req.params.id), (0, video_editor_validation_1.baseRevision)(req.body.revision), kind, String(epoch), (0, video_editor_http_1.confirm)(env, 'export', owner));
+    const created = await env.exportStore.create(owner, (0, video_editor_validation_1.editorId)(req.params.id), (0, video_editor_validation_1.baseRevision)(req.body.revision), kind, String(epoch), (0, video_editor_http_1.confirm)(env, 'export', owner), { resolution, fps });
     if (created.pruned.length)
         await prune(env, created.pruned.map(row => row.id));
     await call(env, { op: 'export_start', id: created.record.id });

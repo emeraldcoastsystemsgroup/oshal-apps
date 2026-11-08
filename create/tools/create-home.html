@@ -1,52 +1,31 @@
 <!doctype html>
 <!--
-  Create — the home page of the Create studio: your work first, one New at the bottom right.
-  Served by create-routes at /api/create/home. Self-contained: no CDN scripts,
-  no inline event handlers, cockpit-iframe friendly.
-
-  Everything it shows is real: "Continue creating" and "This week" come from each member
-  studio's Home summary probe (GET /api/<app>/home-summary), asked here in the signed-in
-  user's own session — never impersonated, never cached server-side. A probe that fails or
-  times out renders "can't check", not a zero. A saved Create image is drawn by the image
-  editor's own renderer from the person's own project (GET /api/create/projects/<id>); every
-  other studio's card is a tinted cover with the studio glyph and the title, because no
-  member summary carries a picture.
-
-  The New sheet (phone) or dialog (desktop) is the former New screen (/api/create/new now
-  forwards here with ?new=1): a Blank row first, each opening a blank ready document in the
-  studio that owns it, then templates with search and one row of format chips. The Office
-  templates come from AI Office's OWN starter catalog (GET /api/presentations/sections/starters).
-
-  Navigation speaks the ribbon's `app-navigate` dialect (postMessage to the
-  cockpit shell); opened standalone, a card falls back to the studio's own URL.
-
-  Framed with ?audience=family|company (the shells, ADR-164 D6) the page paints the shared
-  kit's read-only card of the person's own image projects instead and starts nothing else.
-
+  Create — Home workspace (/api/create/home): your work first, one New at the bottom right.
   CHANGE LOG
   -----------------------------------------------------------------------------
-  SEQ | AUTHOR                                      | DESCRIPTION
+  SEQ | AUTHOR | DESCRIPTION
   -----------------------------------------------------------------------------
-  1   | maintainer@emeraldcoastsystemsgroup.com     | Initial home surface — hero, search, starters, continue creating, studios, this week
-  2   | maintainer@emeraldcoastsystemsgroup.com     | Unwrap the profile envelope ({ profile: {...} }) — the studios row rendered its empty state against the live api
-  3   | maintainer@emeraldcoastsystemsgroup.com     | Starters open their studio on a purpose (app-navigate + query: kind=pptx|docx|xlsx); See every template → the New screen
-  4   | maintainer@emeraldcoastsystemsgroup.com     | Authorization-aware: access asked first (GET /api/authorization/me?app=); a locked studio never opens and its probes are never asked
-  5   | maintainer@emeraldcoastsystemsgroup.com     | Follow the portal palette and live parent changes while retaining the bundled Create skin when application colors are enabled.
-  6   | maintainer@emeraldcoastsystemsgroup.com     | Compact recent-first workspace, responsive starter grid, keyboard section focus and search handoff parity.
-  7   | maintainer@emeraldcoastsystemsgroup.com     | Add 3D Scan-to-Print to studios, quick starts and owner-scoped summary discovery through existing access checks.
-  8   | maintainer@emeraldcoastsystemsgroup.com     | Open owned editable images with saved-project context and omit launcher aliases from studio cards.
-  9   | maintainer@emeraldcoastsystemsgroup.com     | Forward admitted image artifact handoffs to the editor while keeping ordinary Home visits unchanged.
-  10  | maintainer@emeraldcoastsystemsgroup.com     | Your brand band: the saved brand kit's swatches, fonts and logo (or a setup prompt), read only after Create access is open.
-  11  | maintainer@emeraldcoastsystemsgroup.com     | Add Video Studio's manual timeline editor as its own studio card and an Edit video quick start (CREATE-EDIT-05d). It shares Video Studio's access answer and summary, so its catalog entry is marked summary: false and is never probed twice.
-  12  | maintainer@emeraldcoastsystemsgroup.com     | Add Brand Graphics as a studio card and a Brand intro clip quick start; both open the brand-graphics package's own review page, behind the same access check as every studio.
-  13  | maintainer@emeraldcoastsystemsgroup.com     | Add the existing CAD editor, parametric-model quick start and owner summary behind the studio access checks.
-  14  | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (create--create-home FIX-LAYOUT, create--create-new MERGE): the first screen is your work as picture cards, newest first (a real render for saved images, a tinted cover with the studio glyph elsewhere), with skeletons while the studios answer, meta in words ("Image editor · 2 days ago", "Built · revision 1") and a tap that opens; ⋯ holds Open plus greyed Rename/Duplicate/Delete placeholders. One New at the bottom right opens the merged New sheet/dialog: a Blank row first (each a real blank start in its studio), greyed Custom size and Import a file, then templates with search, one row of 44px format chips and "No templates match" + Clear. Search sits in the app row (behind an icon on a phone) over work and templates; "Set up your brand" is one 44px row only while no kit exists; the hero, the section pills, the quick-start grid and the studios grid are gone (the rail lists the studios). Home is now Create's first surface, so the family/company audience view moves here from the New page unchanged (its studio list renamed AUDIENCE_STUDIOS) and the full start is gated on the kit's decision.
-  15  | maintainer@emeraldcoastsystemsgroup.com     | A start access refuses keeps the New sheet open (go() says whether it opened); a locked template is a card, not a button, so its Access link stays pressable; the 3D template preview keeps its stroke cube on the light gradient for contrast; a saved image's picture is contained in its card, never cropped.
-  16  | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-06 (create--create-new): the Blank row's image start is two sized blanks, Image 1080 × 1080 and Image 1920 × 1080, each opening the editor's blank canvas at that size (?size=).
-  17  | maintainer@emeraldcoastsystemsgroup.com     | The trial check (visitor seat, 412x915): the shell's orb sat on New's right half. Home now reports New's top edge to the shell as --oshal-app-bottom-inset (the contract the shared editor already uses for its pane bar), so the orb rests above New on a phone; the property is removed when Home goes away.
-  19  | maintainer@emeraldcoastsystemsgroup.com     | The trial re-check: the orb still sat on New, because New is position:fixed and a fixed element's offsetParent is always null, so clearOrb removed the inset every time. It now reads New's box (a zero height means hidden) and runs again on load.
-  20  | maintainer@emeraldcoastsystemsgroup.com     | The trial sweep (@design-apply, 11:27Z): the Video clip template said "rendered on your own desktop worker", set-up wording a visitor cannot act on. It now says what the clip is.
-  18  | maintainer@emeraldcoastsystemsgroup.com     | The trial check (visitor seat): every template in the New sheet wore "Access: can't check" because the sixteen access probes share one 3 s limit while the kernel answers them in turn (~0.3 s each). The access probe waits 10 s (ACCESS_TIMEOUT_MS); a real failure still shows the badge.
+  1 | maintainer@emeraldcoastsystemsgroup.com | Initial home surface — hero, search, starters, continue creating, studios, this week
+  2 | maintainer@emeraldcoastsystemsgroup.com | Unwrap the profile envelope ({ profile: {...} })
+  3 | maintainer@emeraldcoastsystemsgroup.com | Starters open their studio on a purpose (app-navigate + query)
+  4 | maintainer@emeraldcoastsystemsgroup.com | Authorization-aware studio access checks before probing
+  5 | maintainer@emeraldcoastsystemsgroup.com | Follow portal palette and bundled Create skin
+  6 | maintainer@emeraldcoastsystemsgroup.com | Compact recent-first workspace and responsive starter grid
+  7 | maintainer@emeraldcoastsystemsgroup.com | Add 3D Scan-to-Print to studios, quick starts and summary discovery
+  8 | maintainer@emeraldcoastsystemsgroup.com | Open owned editable images with saved-project context
+  9 | maintainer@emeraldcoastsystemsgroup.com | Forward admitted image artifact handoffs to the editor
+  10 | maintainer@emeraldcoastsystemsgroup.com | Saved brand kit row read after Create access is open
+  11 | maintainer@emeraldcoastsystemsgroup.com | Add Video Studio manual timeline editor card and quick start
+  12 | maintainer@emeraldcoastsystemsgroup.com | Add Brand Graphics studio card and quick start
+  13 | maintainer@emeraldcoastsystemsgroup.com | Add CAD Studio card, quick start and owner summary
+  14 | maintainer@emeraldcoastsystemsgroup.com | Picture cards newest first, skeletons, meta in words, merged New sheet
+  15 | maintainer@emeraldcoastsystemsgroup.com | Keep New open on refused starts and keep saved image previews uncropped
+  16 | maintainer@emeraldcoastsystemsgroup.com | Sized image blanks (1080 × 1080 and 1920 × 1080)
+  17 | maintainer@emeraldcoastsystemsgroup.com | Report New top edge as --oshal-app-bottom-inset
+  18 | maintainer@emeraldcoastsystemsgroup.com | Raise ACCESS_TIMEOUT_MS to 10 s for sequential studio probes
+  19 | maintainer@emeraldcoastsystemsgroup.com | Read New bounding box directly in clearOrb
+  20 | maintainer@emeraldcoastsystemsgroup.com | Plain-language Video clip template copy
+  21 | maintainer@emeraldcoastsystemsgroup.com | Live owner-scoped Rename, Duplicate and confirmed Delete on Home work cards (RP-CRE-01), Custom size 16–8192 px (RP-CRE-02) and Import a file for PDF, Office, SVG and raster images (RP-CRE-03)
 -->
 <html lang="en" data-theme="create">
 <head>
@@ -55,11 +34,7 @@
 <title>Create</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
-<!-- Audience view (ADR-164 D6). Home is Create's first surface, so Jarvis (the Home shell) frames this page with
-     ?audience=family and Studio, Orbit and Commons with ?audience=company (the old /api/create/new forwards its ?audience= here): the signed-in account's OWN image projects from GET /api/create/home-summary (the package's
-     bound summary read: project.view + project.read, owner-scoped), painted by the shared kit in each shell's grammar, and
-     what Create can open. The view asks no studio for its access, reads no AI Office starter catalog and writes nothing.
-     Any other request runs the full Create page below unchanged. -->
+<!-- Audience view (ADR-164 D6): owner-scoped image projects via GET /api/create/home-summary. -->
 <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
 <script src="/shared/ui/js/app-view.js"></script>
 <script>
@@ -68,9 +43,7 @@
   var KICKER = 'Creative · Create';
   var LEDE = 'Say what you are making (a resume, a budget, a launch deck, a headshot, a short video) and Create opens the studio that owns it, already set up. Your own image projects are listed here; looking starts nothing.';
   var AUDIENCE_STUDIOS = [
-    ['AI Office', 'Presentations, documents and spreadsheets'], ['Portrait Studio', 'Headshots and character portraits'],
-    ['Video Studio', 'Short videos and the manual timeline editor'], ['Vids Studio', 'Clips rendered on your own worker'],
-    ['Stories', 'Kid-safe animated episodes'], ['3D Scan-to-Print', 'Printable objects from photos'], ['CAD Studio', 'Parametric parts and editable dimensions'], ['LoRA Studio', 'Characters, training images and captions'], ['Image editor', 'Layered image designs']
+    ['AI Office', 'Presentations, documents and spreadsheets'], ['Portrait Studio', 'Headshots and character portraits'], ['Video Studio', 'Short videos and the manual timeline editor'], ['Vids Studio', 'Clips rendered on your own worker'], ['Stories', 'Kid-safe animated episodes'], ['3D Scan-to-Print', 'Printable objects from photos'], ['CAD Studio', 'Parametric parts and editable dimensions'], ['LoRA Studio', 'Characters, training images and captions'], ['Image editor', 'Layered image designs']
   ];
   var REFUSALS = { 401: 'Sign in to see your projects.', 403: 'Create is not available to this account.' };
   function read() {
@@ -80,270 +53,169 @@
   }
   function openFull() { window.location.assign(window.location.pathname); }
   function count(v) { return typeof v === 'string' && /^\d+$/.test(v.trim()) ? Number(v) : null; }
-  // A project item is '<title>' with the detail 'Layered image · updated <ISO instant>' and one image-editor action.
   function project(item) {
-    var d = String(item.detail || ''), at = d.indexOf(' · updated '), when = at < 0 ? '' : d.slice(at + 11);
-    var a = Array.isArray(item.actions) ? item.actions[0] : null;
+    var d = String(item.detail || ''), at = d.indexOf(' · updated '), when = at < 0 ? '' : d.slice(at + 11), a = Array.isArray(item.actions) ? item.actions[0] : null;
     var q = a && typeof a.query === 'string' && /^project=[A-Za-z0-9-]+$/.test(a.query) ? a.query : '';
-    return { title: String(item.text || 'Untitled project'), text: at < 0 ? d : d.slice(0, at),
-      meta: /^\d{4}-\d{2}-\d{2}T/.test(when) ? 'Updated ' + A.when(when) : '', href: q ? '/api/create/editor?' + q : undefined };
+    return { title: String(item.text || 'Untitled project'), text: at < 0 ? d : d.slice(0, at), meta: /^\d{4}-\d{2}-\d{2}T/.test(when) ? 'Updated ' + A.when(when) : '', href: q ? '/api/create/editor?' + q : undefined };
   }
   function refusal(res) {
     var why = REFUSALS[res.status] || (res.status ? 'Your projects cannot be checked right now (HTTP ' + res.status + ').' : 'Create could not be reached.');
-    return { kicker: KICKER, title: 'Your projects are not available right now', lede: why + ' No figure is shown in its place.',
-      actions: [{ label: 'Open Create', primary: true, onClick: openFull }] };
+    return { kicker: KICKER, title: 'Your projects are not available right now', lede: why + ' No figure is shown in its place.', actions: [{ label: 'Open Create', primary: true, onClick: openFull }] };
   }
   function family() {
     return read().then(function (res) {
       if (!res.ok) return refusal(res);
-      var items = Array.isArray(res.body.items) ? res.body.items : [], metrics = Array.isArray(res.body.metrics) ? res.body.metrics : [];
-      var m = metrics[0] || null, n = m ? count(m.value) : null;
+      var items = Array.isArray(res.body.items) ? res.body.items : [], metrics = Array.isArray(res.body.metrics) ? res.body.metrics : [], m = metrics[0] || null, n = m ? count(m.value) : null;
       return { kicker: KICKER, title: n === null ? 'Your image projects' : n === 0 ? 'No image projects yet' : n + ' image project' + (n === 1 ? '' : 's'), lede: LEDE,
         actions: [{ label: 'Open Create', primary: true, onClick: openFull }],
         stats: m ? [{ id: 'image-projects', label: String(m.label || 'Image projects'), value: m.value, tone: n > 0 ? 'ok' : null, hint: n === null ? 'Could not be checked' : null }] : [],
-        sections: [
-          { kind: 'list', id: 'projects', title: 'Your image projects', wide: true, note: items.length ? 'Newest first. Each opens in the image editor.' : 'Nothing saved yet. Open Create to start one.', items: items.map(project) },
-          { kind: 'list', id: 'studios', title: 'What Create can open', wide: true, items: AUDIENCE_STUDIOS.map(function (s) { return { title: s[0], text: s[1] }; }) }
-        ] };
+        sections: [{ kind: 'list', id: 'projects', title: 'Your image projects', wide: true, note: items.length ? 'Newest first. Each opens in the image editor.' : 'Nothing saved yet. Open Create to start one.', items: items.map(project) }, { kind: 'list', id: 'studios', title: 'What Create can open', wide: true, items: AUDIENCE_STUDIOS.map(function (s) { return { title: s[0], text: s[1] }; }) }] };
     });
   }
-  // ADR-164 D6: the Business shells' audience (company) paints this same account-scoped card in its own grammar.
   A.boot({ app: 'create', escapeLabel: 'Open Create in the cockpit', audiences: { family: family, company: family } });
 })();
 </script>
 <!-- The package skin: the SAME tokens the cockpit wears while this app is focused. -->
 <link rel="stylesheet" href="/api/create/theme/create.css" />
 <style>
-  /* Short alias names, each DERIVED from the framework tokens the skin defines. The hex after the
-     comma is a last-resort fallback for a standalone open before the skin route answers. */
+  /* Derived from the framework tokens the skin defines, with standalone fallbacks. */
   :root {
-    --bg: var(--bg-primary, #f8f7fd);
-    --paper: var(--bg-card-hover, #ffffff);
-    --solid: var(--ds-surface, var(--bg-primary, #ffffff));
-    --panel: var(--bg-tertiary, #f3f0fb);
-    --skel: var(--ds-surface-2, var(--bg-tertiary, #ece8f5));
-    --line: var(--border-color, rgba(23,18,54,.08));
-    --line-hover: var(--border-color-hover, rgba(23,18,54,.16));
-    --text: var(--text-primary, #171236);
-    --muted: var(--text-secondary, #4b4670);
-    --faint: var(--text-muted, #8b86a8);
+    --bg: var(--bg-primary, #f8f7fd); --paper: var(--bg-card-hover, #ffffff); --solid: var(--ds-surface, var(--bg-primary, #ffffff));
+    --panel: var(--bg-tertiary, #f3f0fb); --skel: var(--ds-surface-2, var(--bg-tertiary, #ece8f5));
+    --line: var(--border-color, rgba(23,18,54,.08)); --line-hover: var(--border-color-hover, rgba(23,18,54,.16));
+    --text: var(--text-primary, #171236); --muted: var(--text-secondary, #4b4670); --faint: var(--text-muted, #8b86a8);
     --disabled: var(--ds-ink-disabled, color-mix(in srgb, var(--text) 45%, var(--bg)));
-    --accent: var(--accent-primary, #7d2ae8);
-    --accent-hover: var(--accent-primary-hover, #6a1fcf);
-    --on-accent: var(--text-on-accent, #ffffff);
+    --accent: var(--accent-primary, #7d2ae8); --accent-hover: var(--accent-primary-hover, #6a1fcf); --on-accent: var(--text-on-accent, #ffffff);
     --gradient: var(--accent-gradient, linear-gradient(135deg,#7d2ae8 0%,#a259ff 48%,#00c4cc 100%));
-    --ok: var(--status-success, #0f9d58);
-    --warn: var(--status-warning, #d97706);
-    --peach: var(--create-tint-peach, #ffe6d9);
-    --lilac: var(--create-tint-lilac, #ebe2ff);
-    --sky: var(--create-tint-sky, #dcefff);
-    --mint: var(--create-tint-mint, #d9f7ec);
-    --lemon: var(--create-tint-lemon, #fff3c9);
-    --rose: var(--create-tint-rose, #ffe0ee);
-    --sheet-paper: var(--create-paper, #ffffff);
-    --ink-on-tint: var(--create-ink-on-tint, #2a2350);
-    --scrim: var(--ds-scrim, rgba(10, 8, 30, .45));
-    --shadow: var(--card-shadow, 0 2px 10px rgba(23,18,54,.06));
-    --shadow-deep: var(--depth-shadow, 0 24px 60px rgba(23,18,54,.12));
+    --ok: var(--status-success, #0f9d58); --warn: var(--status-warning, #d97706);
+    --peach: var(--create-tint-peach, #ffe6d9); --lilac: var(--create-tint-lilac, #ebe2ff); --sky: var(--create-tint-sky, #dcefff);
+    --mint: var(--create-tint-mint, #d9f7ec); --lemon: var(--create-tint-lemon, #fff3c9); --rose: var(--create-tint-rose, #ffe0ee);
+    --sheet-paper: var(--create-paper, #ffffff); --ink-on-tint: var(--create-ink-on-tint, #2a2350); --scrim: var(--ds-scrim, rgba(10, 8, 30, .45));
+    --shadow: var(--card-shadow, 0 2px 10px rgba(23,18,54,.06)); --shadow-deep: var(--depth-shadow, 0 24px 60px rgba(23,18,54,.12));
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); overscroll-behavior: contain; }
+  * { box-sizing: border-box; } html, body { margin: 0; background: var(--bg); color: var(--text); overscroll-behavior: contain; }
   body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
-  button { font: inherit; color: inherit; }
-  a { color: var(--accent); }
+  button { font: inherit; color: inherit; } a { color: var(--accent); } .hidden { display: none !important; }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  .hidden { display: none !important; }
-
-  /* The work owns the scroll; the bottom keeps room for New (52px) above the shell's assistant button. */
-  main { max-width: 1240px; margin: 0 auto; padding: 0 24px 168px; }
-  @media (max-width: 600px) { main { padding: 0 16px 160px; } }
-
-  /* ── App row: the page title and search (an icon on a phone) ─────────────── */
+  main { max-width: 1240px; margin: 0 auto; padding: 0 24px 168px; } @media (max-width: 600px) { main { padding: 0 16px 160px; } }
   .approw { display: flex; align-items: center; gap: 16px; min-height: 64px; padding: 10px 0 6px; }
   .approw h1 { flex: 0 0 auto; margin: 0; font-size: 20px; letter-spacing: -0.02em; font-weight: 750; }
   .search { flex: 1 1 auto; max-width: 560px; margin-left: auto; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px; height: 44px; border-radius: 12px; background: var(--solid); border: 1px solid var(--line-hover); }
-  .search:focus-within { border-color: var(--accent); }
-  .search svg { flex: 0 0 auto; color: var(--faint); }
-  .search input { flex: 1; border: 0; background: transparent; font-size: 16px; color: var(--text); min-width: 0; }
-  .search input::placeholder { color: var(--faint); }
+  .search:focus-within { border-color: var(--accent); } .search svg { flex: 0 0 auto; color: var(--faint); }
+  .search input { flex: 1; border: 0; background: transparent; font-size: 16px; color: var(--text); min-width: 0; } .search input::placeholder { color: var(--faint); }
   .search .clear { border: 0; background: transparent; border-radius: 999px; width: 36px; height: 36px; cursor: pointer; color: var(--muted); display: none; font-size: 20px; line-height: 1; }
   .search.has-q .clear { display: inline-flex; align-items: center; justify-content: center; }
   .icon-btn { display: none; flex: 0 0 auto; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text); cursor: pointer; align-items: center; justify-content: center; margin-left: auto; }
   .icon-btn:hover { background: var(--panel); }
-  @media (max-width: 600px) {
-    .icon-btn { display: inline-flex; }
-    .approw .search { display: none; }
-    .approw.searching h1 { display: none; }
-    .approw.searching .search { display: flex; max-width: none; margin-left: 0; }
-    .approw.searching .icon-btn { margin-left: 0; }
-  }
-  #filterStatus { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 0 0 12px; }
-  #filterStatus[hidden] { display: none; }
-  .link { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 0 4px; min-height: 44px; }
-  .link:hover { text-decoration: underline; }
-
-  /* ── Set up your brand: one 44px row, only while there is no kit ─────────── */
-  .brand-row[hidden] { display: none; }
+  @media (max-width: 600px) { .icon-btn { display: inline-flex; } .approw .search, .approw.searching h1 { display: none; } .approw.searching .search { display: flex; max-width: none; margin-left: 0; } .approw.searching .icon-btn { margin-left: 0; } }
+  #filterStatus { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; margin: 0 0 12px; } #filterStatus[hidden], .brand-row[hidden] { display: none; }
+  .link { border: 0; background: none; color: var(--accent); font-weight: 700; cursor: pointer; padding: 0 4px; min-height: 44px; } .link:hover { text-decoration: underline; }
   .brand-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin: 0 0 14px; padding: 6px 14px 6px 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--solid); text-align: left; cursor: pointer; }
-  .brand-row:hover { border-color: var(--line-hover); }
+  .brand-row:hover { border-color: var(--line-hover); } .brand-row b { font-weight: 700; } .brand-row .chev { color: var(--muted); font-size: 18px; }
   .brand-row .logo { flex: 0 0 auto; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--gradient); color: var(--on-accent); font-weight: 800; font-size: 14px; }
-  .brand-row b { font-weight: 700; }
   .brand-row .why { color: var(--muted); font-size: 13px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .brand-row .chev { color: var(--muted); font-size: 18px; }
   @media (max-width: 600px) { .brand-row .why { display: none; } .brand-row b { flex: 1; } }
-
-  /* ── Sections ─────────────────────────────────────────────────────────── */
-  section { margin: 0 0 30px; }
+  section { margin: 0 0 30px; } h2 { margin: 0; font-size: 18px; letter-spacing: -0.02em; font-weight: 750; }
   .sec-head { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-bottom: 12px; }
-  h2 { margin: 0; font-size: 18px; letter-spacing: -0.02em; font-weight: 750; }
-  .note { color: var(--muted); font-size: 12.5px; margin: 0; }
-  #recentNote { margin: -2px 0 12px; }
+  .note { color: var(--muted); font-size: 12.5px; margin: 0; } #recentNote { margin: -2px 0 12px; }
   .empty { color: var(--muted); padding: 26px; border: 1px dashed var(--line-hover); border-radius: 16px; text-align: center; }
-
-  /* ── Work: picture cards, 2 columns on a phone, auto-fill 160px on desktop (§4.5) ── */
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
-  @media (max-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
-  .wcard { position: relative; min-width: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; } @media (max-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+  .wcard { position: relative; min-width: 0; } .wopen:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 10px; }
   .wopen { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: var(--text); }
-  .wopen:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 10px; }
   .thumb { position: relative; display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 8px; }
   .wopen:hover .thumb { border-color: var(--line-hover); box-shadow: var(--shadow); }
   .thumb canvas.render { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--sheet-paper); }
   .sheetp { position: relative; display: flex; flex-direction: column; gap: 4px; background: var(--sheet-paper); color: var(--ink-on-tint); border-radius: 4px; box-shadow: 0 6px 16px rgba(23,18,54,.14); padding: 8% 9%; overflow: hidden; }
-  .sheetp[data-shape="slide"] { width: 84%; aspect-ratio: 16 / 9; }
-  .sheetp[data-shape="page"] { height: 86%; aspect-ratio: 1 / 1.294; }
-  .sheetp[data-shape="land"] { width: 80%; aspect-ratio: 4 / 3; }
-  .sheetp[data-shape="square"] { height: 80%; aspect-ratio: 1 / 1; }
+  .sheetp[data-shape="slide"] { width: 84%; aspect-ratio: 16 / 9; } .sheetp[data-shape="page"] { height: 86%; aspect-ratio: 1 / 1.294; }
+  .sheetp[data-shape="land"] { width: 80%; aspect-ratio: 4 / 3; } .sheetp[data-shape="square"] { height: 80%; aspect-ratio: 1 / 1; }
   .sheetp svg { width: 30px; height: 22px; flex: 0 0 auto; }
   .sheetp .ctitle { font-size: 11px; line-height: 1.25; font-weight: 800; letter-spacing: -0.01em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .wcard .title { font-weight: 650; font-size: 14px; line-height: 1.35; padding-right: 40px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .wcard .meta, .wcard .state { color: var(--muted); font-size: 12px; line-height: 1.4; padding-right: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wcard .state.warn { color: var(--warn); }
-  /* ⋯ sits at the card's bottom right, beside the caption, never on the picture. */
   .wcard .more { position: absolute; right: -8px; bottom: -6px; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--text); cursor: pointer; font-size: 20px; line-height: 1; }
-  .wcard .more:hover { background: var(--panel); }
-  .wcard.locked .wopen { cursor: not-allowed; }
+  .wcard .more:hover { background: var(--panel); } .wcard.locked .wopen { cursor: not-allowed; }
   .skel .thumb, .skel .bar { background: var(--skel); border-color: transparent; }
-  .skel .bar { display: block; height: 12px; border-radius: 6px; margin: 6px 0; width: 80%; }
-  .skel .bar.short { width: 50%; }
+  .skel .bar { display: block; height: 12px; border-radius: 6px; margin: 6px 0; width: 80%; } .skel .bar.short { width: 50%; }
   @media (prefers-reduced-motion: no-preference) { .skel .thumb, .skel .bar { animation: pulse 1.4s ease-in-out infinite; } }
   @keyframes pulse { 50% { opacity: .55; } }
   .t-peach { background: var(--peach); } .t-lilac { background: var(--lilac); } .t-sky { background: var(--sky); }
   .t-mint { background: var(--mint); } .t-lemon { background: var(--lemon); } .t-rose { background: var(--rose); }
-
-  /* This week: metric pills. */
   .metrics { display: flex; flex-wrap: wrap; gap: 10px; }
   .metric { display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; align-items: center; gap: 10px; background: var(--solid); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
-  .metric .sw { width: 10px; height: 10px; border-radius: 3px; }
-  .metric strong { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
-  .metric span { color: var(--muted); font-size: 12.5px; }
+  .metric .sw { width: 10px; height: 10px; border-radius: 3px; } .metric strong { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; } .metric span { color: var(--muted); font-size: 12.5px; }
   footer { color: var(--muted); font-size: 12px; text-align: center; padding-top: 12px; border-top: 1px solid var(--line); }
-
-  /* ── One New, bottom right (52px), lifted above the shell's 48px assistant button ── */
   .fab { position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 5; display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px; border: 0; border-radius: 16px; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: var(--shadow-deep); }
-  .fab:hover { background: var(--accent-hover); }
-  .fab, .blank, .card, .wopen { -webkit-tap-highlight-color: transparent; }
-  .fab svg { width: 22px; height: 22px; }
+  .fab:hover { background: var(--accent-hover); } .fab, .blank, .card, .wopen { -webkit-tap-highlight-color: transparent; } .fab svg { width: 22px; height: 22px; }
 
-  /* ── Row menu (⋯): top layer, opaque, 44px rows (§4.3) ───────────────────── */
+  /* ── Row menu (⋯) & New sheet / dialog ────────────────────────────────────── */
   .menu { margin: 0; padding: 6px; min-width: 220px; border: 1px solid var(--line-hover); border-radius: 14px; background: var(--solid); color: var(--text); box-shadow: var(--shadow-deep); }
   .menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; }
-  .menu button:hover:not([data-ds-not-yet]) { background: var(--panel); }
-  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
-  [data-ds-not-yet] { color: var(--disabled) !important; cursor: default !important; background: transparent; }
-  [data-ds-not-yet] small, [data-ds-not-yet] .nyet { margin-left: auto; font-size: 12px; color: inherit; }
-
-  /* ── The New sheet (phone) / dialog (desktop) ────────────────────────────── */
+  .menu button:hover { background: var(--panel); } .menu button.danger { color: var(--status-error, #dc2626); } .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
   dialog.sheet { padding: 0; border: 1px solid var(--line-hover); border-radius: 20px; background: var(--solid); color: var(--text); width: min(760px, calc(100vw - 48px)); max-width: none; max-height: min(88vh, 920px); box-shadow: var(--shadow-deep); overflow: hidden; }
-  dialog.sheet[open] { display: flex; flex-direction: column; }
-  dialog.sheet::backdrop { background: var(--scrim); }
+  dialog.sheet[open] { display: flex; flex-direction: column; } dialog.sheet::backdrop { background: var(--scrim); }
   .sheet .handle { display: none; width: 36px; height: 5px; border-radius: 3px; background: var(--disabled); margin: 8px auto 0; }
   .sheet-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 56px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--line); }
-  .sheet-head h2 { font-size: 18px; }
-  .tertiary { border: 0; background: none; color: var(--accent); font-weight: 700; min-height: 44px; padding: 0 12px; border-radius: 10px; cursor: pointer; }
+  .sheet-head h2 { font-size: 18px; } .tertiary { border: 0; background: none; color: var(--accent); font-weight: 700; min-height: 44px; padding: 0 12px; border-radius: 10px; cursor: pointer; }
   .sheet-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px 28px; }
-  .sheet-body h3 { margin: 0 0 10px; font-size: 15px; font-weight: 750; }
-  .sheet-body section { margin-bottom: 22px; }
+  .sheet-body h3 { margin: 0 0 10px; font-size: 15px; font-weight: 750; } .sheet-body section { margin-bottom: 22px; }
   @media (max-width: 600px) {
     dialog.sheet { width: 100vw; max-width: 100vw; height: calc(100dvh - 8px); max-height: none; margin: auto 0 0; border-radius: 20px 20px 0 0; border-bottom: 0; }
-    .sheet .handle { display: block; }
-    .sheet-body { padding: 14px 16px 28px; }
+    .sheet .handle { display: block; } .sheet-body { padding: 14px 16px 28px; }
   }
-  /* Blank row: one row, sideways on a phone. */
   .blankrow { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
   .blank { flex: 0 0 96px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; text-align: center; scroll-snap-align: start; color: var(--text); }
-  .blank .bthumb { position: relative; display: grid; place-items: center; width: 96px; height: 72px; border-radius: 10px; border: 1px solid var(--line); }
-  .blank:hover:not([data-ds-not-yet]) .bthumb { border-color: var(--accent); }
-  .blank .bthumb > svg { width: 64px; height: 48px; filter: drop-shadow(0 6px 10px rgba(23,18,54,.14)); }
-  .blank[data-ds-not-yet] .bthumb > svg { width: 26px; height: 26px; filter: none; }
-  .blank b { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
-  .blank span.hint { font-size: 11px; color: var(--muted); line-height: 1.2; }
-  .blank[data-ds-not-yet] .bthumb { background: var(--skel); border-style: dashed; }
-  .blank[data-ds-not-yet] span.hint { color: inherit; }
-  .blank.locked { cursor: not-allowed; }
-  .blank.locked .bthumb { filter: saturate(.35); }
+  .blank .bthumb { position: relative; display: grid; place-items: center; width: 96px; height: 72px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+  .blank:hover:not(.locked) .bthumb { border-color: var(--accent); }
+  .blank .bthumb > svg { width: 64px; height: 48px; filter: drop-shadow(0 6px 10px rgba(23,18,54,.14)); } .blank[data-blank="custom"] .bthumb > svg { width: 26px; height: 26px; filter: none; }
+  .blank b { font-size: 12.5px; font-weight: 700; line-height: 1.25; } .blank span.hint { font-size: 11px; color: var(--muted); line-height: 1.2; }
+  .blank.locked { cursor: not-allowed; } .blank.locked .bthumb { filter: saturate(.35); }
   .lockdot { position: absolute; left: 4px; bottom: 4px; font-size: 10px; font-weight: 800; color: var(--on-accent); background: rgba(23,18,54,.72); border-radius: 999px; padding: 1px 6px; }
-  .import { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin-top: 8px; padding: 0 12px; border: 1px dashed var(--line-hover); border-radius: 12px; text-align: left; }
-  .import svg { width: 20px; height: 20px; }
-  /* Templates: search, then one sideways row of 44px format chips. */
+  .import { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin-top: 8px; padding: 0 12px; border: 1px dashed var(--line-hover); border-radius: 12px; background: var(--solid); text-align: left; cursor: pointer; font-weight: 600; }
+  .import:hover { border-color: var(--accent); background: var(--panel); } .import svg { width: 20px; height: 20px; flex: 0 0 auto; } .import small { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .csize, .impbox { margin-top: 10px; padding: 12px; border: 1px solid var(--line-hover); border-radius: 12px; background: var(--panel); }
+  .csize[hidden], .impbox[hidden], .ferr[hidden], #importFindings[hidden], #importReviewActions[hidden] { display: none; }
+  .csize-fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .csize-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 650; color: var(--muted); flex: 1 1 120px; }
+  .csize-fields input, .cform input { height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-hover); background: var(--solid); color: var(--text); font: inherit; width: 100%; }
+  .csize-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+  .btn-pri { min-height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 700; cursor: pointer; } .btn-pri:hover { background: var(--accent-hover); }
+  .btn-del { min-height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--status-error, #dc2626); color: #fff; font-weight: 700; cursor: pointer; }
+  .ferr { margin: 8px 0 0; font-size: 13px; color: var(--status-error, #dc2626); } .impbox p { margin: 0; font-size: 13.5px; } .impbox ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+  dialog.confirm-sheet { width: min(420px, calc(100vw - 32px)); height: auto; max-height: calc(100dvh - 32px); margin: auto; border-radius: 18px; }
+  .cform { padding: 20px; display: flex; flex-direction: column; gap: 8px; } .cform h2 { font-size: 18px; margin: 0 0 4px; } .cform p { margin: 0; color: var(--muted); font-size: 14px; } .flabel { font-size: 13px; font-weight: 650; color: var(--muted); }
   .sheet .search { max-width: none; margin: 0 0 10px; }
-  .fchips, .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin-bottom: 8px; scrollbar-width: thin; }
-  .chips:empty { display: none; }
+  .fchips, .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin-bottom: 8px; scrollbar-width: thin; } .chips:empty { display: none; }
   .fchips button, .chips button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1px solid var(--line-hover); border-radius: 999px; background: var(--solid); color: var(--text); font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-  .fchips button .c { color: var(--muted); font-size: 12px; }
-  .fchips button[aria-pressed="true"], .chips button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
-  .fchips button[aria-pressed="true"] .c { color: inherit; }
-  .chips .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
-  .sec { margin-bottom: 20px; }
-  .sec h4 { margin: 0 0 4px; font-size: 14px; font-weight: 750; }
-  .sec .sub { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+  .fchips button .c { color: var(--muted); font-size: 12px; } .fchips button[aria-pressed="true"], .chips button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .fchips button[aria-pressed="true"] .c { color: inherit; } .chips .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .sec { margin-bottom: 20px; } .sec h4 { margin: 0 0 4px; font-size: 14px; font-weight: 750; } .sec .sub { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
   .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
   @media (max-width: 600px) { .tgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
-  .nomatch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 18px; border: 1px dashed var(--line-hover); border-radius: 14px; color: var(--muted); }
-  .nomatch b { color: var(--text); }
+  .nomatch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 18px; border: 1px dashed var(--line-hover); border-radius: 14px; color: var(--muted); } .nomatch b { color: var(--text); }
   .btn2 { min-height: 44px; padding: 0 16px; border: 1px solid var(--line-hover); border-radius: 12px; background: var(--solid); color: var(--text); font-weight: 600; cursor: pointer; }
-
-  /* Template card: a drawn preview from the template's own section titles, one caption line. */
   .card { display: flex; flex-direction: column; min-width: 0; border: 0; padding: 0; background: none; text-align: left; cursor: pointer; color: var(--text); }
   .card .pv { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; border: 1px solid var(--line); padding: 30px 10px 0; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
   .card:hover .pv { border-color: var(--line-hover); box-shadow: var(--shadow); }
   .card .pv .badge { position: absolute; left: 8px; top: 7px; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; color: var(--ink-on-tint); background: var(--sheet-paper); border-radius: 999px; padding: 2px 8px; max-width: calc(100% - 44px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card .pv .icon { position: absolute; right: 8px; top: 5px; font-size: 15px; }
   .card .name { font-weight: 650; font-size: 14px; margin: 8px 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .card.locked { cursor: not-allowed; }
-  .card.locked .pv { filter: saturate(.35); }
+  .card.locked { cursor: not-allowed; } .card.locked .pv { filter: saturate(.35); }
   .card .pv .lock { position: absolute; left: 6px; bottom: 6px; font-size: 10.5px; font-weight: 800; color: var(--on-accent); background: rgba(23,18,54,.72); border-radius: 999px; padding: 3px 8px; }
   .card .pv .lock.unknown { background: rgba(217,119,6,.85); }
   .card .access { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; color: var(--accent); font-weight: 700; font-size: 13px; text-decoration: none; }
-  /* Drawn previews: a page, a slide, a sheet — with the starter's real section titles as strips. */
   .mock { background: var(--sheet-paper); border-radius: 6px 6px 0 0; box-shadow: 0 8px 20px rgba(23,18,54,.14); overflow: hidden; }
-  .mock.page { width: 58%; height: 100%; padding: 10px 9px; }
-  .mock.slide { width: 92%; height: 92%; padding: 9px 10px; }
-  .mock.sheet { width: 92%; height: 96%; padding: 0; }
-  .mock .t { height: 7px; border-radius: 3px; background: var(--accent); margin-bottom: 6px; }
-  .mock.slide .t { width: 60%; }
-  .mock .l { height: 3px; border-radius: 2px; background: #d9d3ee; margin-bottom: 4px; }
+  .mock.page { width: 58%; height: 100%; padding: 10px 9px; } .mock.slide { width: 92%; height: 92%; padding: 9px 10px; } .mock.sheet { width: 92%; height: 96%; padding: 0; }
+  .mock .t { height: 7px; border-radius: 3px; background: var(--accent); margin-bottom: 6px; } .mock.slide .t { width: 60%; } .mock .l { height: 3px; border-radius: 2px; background: #d9d3ee; margin-bottom: 4px; }
   .mock .h { font-size: 7px; font-weight: 800; color: var(--ink-on-tint); margin: 4px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mock.slide .cols { display: flex; gap: 6px; }
-  .mock.slide .col { flex: 1; min-width: 0; }
-  .mock.slide .bar { border-radius: 2px 2px 0 0; background: var(--accent); opacity: .85; }
-  .mock.sheet .hd { display: flex; background: var(--accent); }
-  .mock.sheet .hd span, .mock.sheet .r span { flex: 1; font-size: 6px; padding: 2px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mock.sheet .hd span { color: var(--on-accent); font-weight: 800; }
-  .mock.sheet .r { display: flex; border-bottom: 1px solid #ece8f5; }
-  .mock.sheet .r span { color: #4b4670; }
-  .mock.sheet .r.tot span { font-weight: 800; color: var(--accent); }
-  .mock.photo { width: 62%; height: 100%; display: grid; place-items: center; background: linear-gradient(180deg, var(--sheet-paper), #f3f0fb); }
-  .mock.photo.cube { color: #225e65; }
-  .mock.photo svg { width: 70%; height: 70%; }
-  .mock.phone { width: 36%; height: 100%; border-radius: 10px 10px 0 0; padding: 7px 6px; }
-  .mock.phone .screen { height: 100%; border-radius: 5px; background: var(--accent); display: grid; place-items: center; }
-  .mock.phone .screen svg { width: 22px; height: 22px; }
-  .mock.design { width: 92%; height: 92%; background: #231f42; }
-
+  .mock.slide .cols { display: flex; gap: 6px; } .mock.slide .col { flex: 1; min-width: 0; } .mock.slide .bar { border-radius: 2px 2px 0 0; background: var(--accent); opacity: .85; }
+  .mock.sheet .hd { display: flex; background: var(--accent); } .mock.sheet .hd span, .mock.sheet .r span { flex: 1; font-size: 6px; padding: 2px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mock.sheet .hd span { color: var(--on-accent); font-weight: 800; } .mock.sheet .r { display: flex; border-bottom: 1px solid #ece8f5; } .mock.sheet .r span { color: #4b4670; } .mock.sheet .r.tot span { font-weight: 800; color: var(--accent); }
+  .mock.photo { width: 62%; height: 100%; display: grid; place-items: center; background: linear-gradient(180deg, var(--sheet-paper), #f3f0fb); } .mock.photo.cube { color: #225e65; } .mock.photo svg { width: 70%; height: 70%; }
+  .mock.phone { width: 36%; height: 100%; border-radius: 10px 10px 0 0; padding: 7px 6px; } .mock.phone .screen { height: 100%; border-radius: 5px; background: var(--accent); display: grid; place-items: center; }
+  .mock.phone .screen svg { width: 22px; height: 22px; } .mock.design { width: 92%; height: 92%; background: #231f42; }
   #status { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 12px; font-size: 13px; box-shadow: var(--shadow-deep); opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 6; }
-  #status.show { opacity: 1; }
-  @media (prefers-reduced-motion: reduce) { #status { transition: none; } }
+  #status.show { opacity: 1; } @media (prefers-reduced-motion: reduce) { #status { transition: none; } }
 </style>
 </head>
 <body>
@@ -391,7 +263,19 @@
     <section aria-labelledby="blankTitle">
       <h3 id="blankTitle">Start blank</h3>
       <div class="blankrow" id="blankRow" role="group" aria-labelledby="blankTitle"></div>
-      <button type="button" class="import" id="importFile" aria-disabled="true" data-ds-not-yet data-ds-backlog="RP-CRE-03" aria-label="Import a file, not available yet" title="Not available yet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>Import a file<small>Not available yet</small></button>
+      <form class="csize" id="customSizeForm" autocomplete="off" novalidate hidden>
+        <div class="csize-fields">
+          <label for="customWidth">Width (px)<input id="customWidth" type="number" min="16" max="8192" step="1" value="1080" inputmode="numeric" /></label>
+          <label for="customHeight">Height (px)<input id="customHeight" type="number" min="16" max="8192" step="1" value="1080" inputmode="numeric" /></label>
+        </div>
+        <p class="ferr" id="customSizeError" role="alert" hidden></p>
+        <div class="csize-actions"><button type="button" class="btn2" id="customSizeCancel">Cancel</button><button type="submit" class="btn-pri" id="customSizeGo">Create canvas</button></div>
+      </form>
+      <button type="button" class="import" id="importFile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>Import a file<small>PDF, Office, SVG or image</small></button>
+      <input id="importInput" type="file" accept=".pdf,.pptx,.docx,.png,.jpg,.jpeg,.webp,.svg" hidden />
+      <div class="impbox" id="importBox" hidden><p id="importStatus" role="status"></p><ul id="importFindings" hidden></ul>
+        <div class="csize-actions" id="importReviewActions" hidden><button type="button" class="btn2" id="importCancel">Cancel</button><button type="button" class="btn-pri" id="importAccept">Import editable copy</button></div>
+      </div>
     </section>
     <section aria-labelledby="tplTitle">
       <h3 id="tplTitle">Templates</h3>
@@ -406,6 +290,15 @@
     </section>
   </div>
 </dialog>
+<dialog class="sheet confirm-sheet" id="renameDialog" aria-labelledby="renameTitle"><form class="cform" id="renameForm" autocomplete="off">
+  <h2 id="renameTitle">Rename work</h2><label class="flabel" for="renameInput">Name</label><input id="renameInput" type="text" maxlength="120" required />
+  <p class="ferr" id="renameError" role="alert" hidden></p>
+  <div class="csize-actions"><button type="button" class="btn2" id="renameCancel">Cancel</button><button type="submit" class="btn-pri" id="renameSave">Save</button></div>
+</form></dialog>
+<dialog class="sheet confirm-sheet" id="deleteDialog" aria-labelledby="deleteTitle"><div class="cform">
+  <h2 id="deleteTitle">Delete work?</h2><p id="deleteMessage"></p><p class="ferr" id="deleteError" role="alert" hidden></p>
+  <div class="csize-actions"><button type="button" class="btn2" id="deleteCancel">Cancel</button><button type="button" class="btn-del" id="deleteConfirm">Delete</button></div>
+</div></dialog>
 <div class="menu" id="cardMenu" popover role="menu" aria-label="Work actions"></div>
 <div id="status" role="status" aria-live="polite"></div>
 
@@ -413,11 +306,7 @@
 (function () {
   'use strict';
 
-  /* ── The studio catalog: which member app backs which rail tile ───────────────
-     `tool` is the rail toolName (manifest ui.static); `app` is the member package whose
-     Home summary is read; `url` is only the standalone fallback (the profile's own
-     iframeUrl wins whenever it answers). The routes test pins every entry against the
-     manifest so this list can never drift from the rail. */
+  /* ── Studio catalog (`tool` = rail toolName, `app` = member package, `url` = standalone fallback) ── */
   var STUDIOS = [
     { tool: 'create-editor', app: 'create', name: 'Image editor', swatch: '#7c3aed', tint: 'lilac', art: 'portrait', url: '/api/create/editor', blurb: 'Layer images, text and shapes. Save, reopen and export your design.' },
     { tool: 'create-office',   app: 'presentations',   name: 'AI Office',       swatch: '#ff8a5b', tint: 'peach', art: 'deck',      url: '/api/presentations/editor/app', blurb: 'Decks, documents and live workbooks from one outline.' },
@@ -438,10 +327,7 @@
   var byTool = {}; STUDIOS.forEach(function (s) { byTool[s.tool] = s; });
   byTool['create-brand'] = { tool: 'create-brand', name: 'Brand Kit', url: '/api/create/brand' };
 
-  /* ── New sheet, Blank row: each opens a blank ready document in the studio that owns it ──
-     Image: the editor's own blank canvas; Office: a blank document of that kind (?kind=);
-     Video: the editor's empty timeline; Portrait, Story and 3D scan: the studio's first step.
-     Custom size is a planned control (§4.10): greyed, no handler. */
+  /* ── New sheet, Blank row: sized blanks + Custom size (16..8192 px) + Import a file ── */
   var BLANKS = [
     { id: 'image-square', label: 'Image', hint: '1080 × 1080', tool: 'create-editor', query: 'size=1080x1080', tint: 'lilac', art: 'portrait' },
     { id: 'image-wide', label: 'Image', hint: '1920 × 1080', tool: 'create-editor', query: 'size=1920x1080', tint: 'sky', art: 'portrait' },
@@ -490,12 +376,15 @@
     { id: 'lora-character', cat: 'training', group: 'characters', groupLabel: 'Characters', tool: 'create-lora', name: 'LoRA character', desc: 'Organize training images, captions and character settings in your own workspace.', preview: 'photo' }
   ];
 
-  /* ── Planned controls (§4.10): greyed, labelled, no handler. Each names its backlog entry. ── */
-  var PLANNED = [
-    { id: 'rename', label: 'Rename', backlog: 'RP-CRE-01' },
-    { id: 'duplicate', label: 'Duplicate', backlog: 'RP-CRE-01' },
-    { id: 'delete', label: 'Delete', backlog: 'RP-CRE-01' }
-  ];
+  /* ── Custom canvas size validation (RP-CRE-02: 16..8192 whole pixels) ── */
+  function parseCustomSize(wRaw, hRaw) {
+    var sW = String(wRaw == null ? '' : wRaw).trim(), sH = String(hRaw == null ? '' : hRaw).trim();
+    var w = /^\d+$/.test(sW) ? Number(sW) : NaN, h = /^\d+$/.test(sH) ? Number(sH) : NaN;
+    if (!Number.isInteger(w) || !Number.isInteger(h) || w < 16 || w > 8192 || h < 16 || h > 8192) {
+      return { ok: false, message: 'Enter whole-pixel width and height between 16 and 8192.' };
+    }
+    return { ok: true, width: w, height: h, query: 'size=' + w + 'x' + h };
+  }
 
   /* ── Tiny illustrations (static markup, no user data) ────────────────────── */
   function art(kind) {
@@ -517,14 +406,7 @@
   /* The paper a format sits on: slides 16:9, pages Letter, models square. */
   var SHAPE = { deck: 'slide', doc: 'page', sheet: 'land', portrait: 'page', character: 'page', video: 'page', clip: 'slide', film: 'slide', nodes: 'square', cube: 'square' };
 
-  /* ── Access: what the signed-in person may open, from the authorization service (ADR-149) ──
-     GET /api/authorization/me?app=<name> answers { status, tier, denied }: `legacy` = the package
-     runs in the reviewed compatibility mode (open); `admin-required` / `catalog` = enforced, open
-     only when the tier is not deny. A studio that is not provisioned is shown LOCKED — never
-     opened, its probes never asked — with the Access link an administrator uses. A probe that
-     cannot answer (401/404/timeout) is 'unknown': the card stays, marked "can't check". */
-  /* Home asks all sixteen studios at once and the kernel answers them one after another (~0.3 s each on the trial,
-     2026-11-06), so a 3 s limit timed the last ones out and every template wore "Access: can't check". */
+  /* ── Access (ADR-149): GET /api/authorization/me?app=<name> (10 s budget across sequential studio checks) ── */
   var ACCESS_TIMEOUT_MS = 10000;
   function accessFor(app) {
     return fetchJson('/api/authorization/me?app=' + encodeURIComponent(app), ACCESS_TIMEOUT_MS).then(function (a) {
@@ -544,12 +426,19 @@
   function svgNode(markup) { var w = document.createElement('div'); w.innerHTML = markup; return w.firstChild; }
   var statusEl = document.getElementById('status'), statusTimer = 0;
   function toast(msg) { statusEl.textContent = msg; statusEl.classList.add('show'); clearTimeout(statusTimer); statusTimer = setTimeout(function () { statusEl.classList.remove('show'); }, 4000); }
-  /** Planned control (§4.10): aria-disabled, "Not available yet" in its name and title, its backlog id, and no handler. */
-  function planned(cls, label, backlog, role) {
-    var b = el('button', cls); b.type = 'button'; if (role) b.setAttribute('role', role);
-    b.setAttribute('aria-disabled', 'true'); b.setAttribute('data-ds-not-yet', ''); b.setAttribute('data-ds-backlog', backlog);
-    b.setAttribute('aria-label', label + ', not available yet'); b.title = 'Not available yet';
-    return b;
+  var actionsPromise = null;
+  function loadController() {
+    if (!actionsPromise) {
+      actionsPromise = import('/api/create/editor/home-actions.mjs').then(function (M) {
+        return M.createHomeController({
+          go: go, closeNew: closeNew, toast: toast, renderRecent: renderRecent, loadSummaries: loadSummaries,
+          getAccess: function () { return ACCESS; },
+          removeRecentItem: function (it) { recentCards = recentCards.filter(function (c) { return c.item !== it; }); },
+          prependRecent: function (studio, it) { recentCards.unshift({ studio: studio, item: it, t: Date.now() }); }
+        });
+      });
+    }
+    return actionsPromise;
   }
 
   /* ── Navigation: the ribbon's app-navigate dialect, or the studio URL standalone ── */
@@ -664,8 +553,12 @@
     var action = item.actions.find(function (a) { return a && a.tool === 'create-editor' && /^project=[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(a.query || ''); });
     return action ? action.query : '';
   }
+  function itemQuery(studio, item) {
+    var action = (Array.isArray(item.actions) ? item.actions : []).find(function (a) { return a && a.tool === studio.tool && typeof a.query === 'string' && a.query; });
+    return action ? action.query : projectQuery(studio, item);
+  }
   function workCard(studio, item) {
-    var c = el('article', 'wcard'), query = projectQuery(studio, item), state = stateWords(studio, item.detail), meta = metaWords(studio, item.detail);
+    var c = el('article', 'wcard'), pQuery = projectQuery(studio, item), query = itemQuery(studio, item), state = stateWords(studio, item.detail), meta = metaWords(studio, item.detail);
     c.dataset.q = (studio.name + ' ' + item.text + ' ' + state).toLowerCase();
     var open = el('button', 'wopen'); open.type = 'button'; open.setAttribute('aria-label', item.text + ' — ' + meta + (state ? ', ' + state : ''));
     var thumb = cover(studio, item); open.appendChild(thumb);
@@ -673,22 +566,24 @@
     if (state) open.appendChild(el('span', 'state' + (item.tone === 'warn' ? ' warn' : ''), state));
     open.addEventListener('click', function () { go(studio.tool, query); });
     var more = el('button', 'more', '⋯'); more.type = 'button'; more.setAttribute('aria-haspopup', 'menu'); more.setAttribute('aria-label', 'More for ' + item.text);
-    more.addEventListener('click', function (e) { e.stopPropagation(); openCardMenu(more, studio, item, query); });
+    more.addEventListener('click', function (e) { e.stopPropagation(); openCardMenu(more, c, studio, item, query); });
     c.appendChild(open); c.appendChild(more);
-    if (query && ACCESS.create === 'open') void paintProject(thumb, query.slice('project='.length));
+    if (pQuery && ACCESS.create === 'open') void paintProject(thumb, pQuery.slice('project='.length));
     return c;
   }
-  /** The ⋯ menu: the working file action first, then the planned Rename / Duplicate / Delete rows. */
   var menuEl = document.getElementById('cardMenu');
-  function openCardMenu(trigger, studio, item, query) {
+  function menuAction(label, cls, fn) {
+    var row = el('button', cls || null, label); row.type = 'button'; row.setAttribute('role', 'menuitem');
+    row.addEventListener('click', function () { hideMenu(); fn(); });
+    return row;
+  }
+  function openCardMenu(trigger, _cardEl, studio, item, query) {
     menuEl.replaceChildren();
-    var open = el('button', null, 'Open in ' + studio.name); open.type = 'button'; open.setAttribute('role', 'menuitem');
-    open.addEventListener('click', function () { hideMenu(); go(studio.tool, query); });
+    var open = menuAction('Open in ' + studio.name, null, function () { go(studio.tool, query); });
     menuEl.appendChild(open); menuEl.appendChild(el('hr'));
-    PLANNED.forEach(function (p) {
-      var row = planned(null, p.label, p.backlog, 'menuitem'); row.appendChild(document.createTextNode(p.label)); row.appendChild(el('small', null, 'Not available yet'));
-      menuEl.appendChild(row);
-    });
+    menuEl.appendChild(menuAction('Rename', null, function () { loadController().then(function (C) { C.openRename(studio, item, query); }); }));
+    menuEl.appendChild(menuAction('Duplicate', null, function () { loadController().then(function (C) { C.duplicate(studio, item, query); }); }));
+    menuEl.appendChild(menuAction('Delete', 'danger', function () { loadController().then(function (C) { C.openDelete(studio, item, query); }); }));
     if (typeof menuEl.showPopover !== 'function') { toast('Open the card to work on it.'); return; }
     menuEl.showPopover();
     var r = trigger.getBoundingClientRect(), w = menuEl.offsetWidth, h = menuEl.offsetHeight;
@@ -707,9 +602,17 @@
   var recentGrid = document.getElementById('recentGrid'), recentNote = document.getElementById('recentNote');
   var metricsEl = document.getElementById('metrics'), weekNote = document.getElementById('weekNote');
   var recentCards = [], pills = [], cantCheck = [], pending = 0;
+  function normalizeItem(studio, it) {
+    if (!it || typeof it !== 'object') return null;
+    if (Array.isArray(it.actions) && it.actions.length) return it;
+    if (typeof it.title === 'string' && typeof it.url === 'string') {
+      return { text: it.title, detail: it.detail || '', actions: [{ tool: studio.tool, query: it.url.split('?')[1] || '' }] };
+    }
+    return null;
+  }
   function collectSummary(studio, data) {
-    (Array.isArray(data.items) ? data.items : []).forEach(function (it) {
-      if (!it || typeof it !== 'object' || !Array.isArray(it.actions) || !it.actions.length) return;   // footnotes carry no actions
+    (Array.isArray(data.items) ? data.items : []).forEach(function (raw) {
+      var it = normalizeItem(studio, raw); if (!it) return;
       recentCards.push({ studio: studio, item: it, t: (function () { var m = ISO.exec(String(it.detail || '')); return m ? Date.parse(m[0]) : 0; })() });
     });
     (Array.isArray(data.metrics) ? data.metrics : []).slice(0, 3).forEach(function (m) { if (m && typeof m.label === 'string' && (typeof m.value === 'string' || typeof m.value === 'number')) pills.push({ studio: studio, m: { label: m.label, value: String(m.value) } }); });
@@ -748,7 +651,14 @@
     });
     pending = asks.length; renderRecent();
     return Promise.all(asks.map(function (studio) {
-      return fetchJson('/api/' + studio.app + '/home-summary').then(function (data) { collectSummary(studio, data); })
+      var extra = studio.app === 'presentations' ? fetchJson('/api/presentations/editor/documents').then(function (ed) {
+        (Array.isArray(ed && ed.documents) ? ed.documents : []).forEach(function (d) {
+          if (!d || !d.id || recentCards.some(function (c) { return c.studio.app === 'presentations' && (c.item.text === d.title || itemQuery(c.studio, c.item) === 'document=' + d.id); })) return;
+          var iso = d.updatedAt || '';
+          recentCards.push({ studio: studio, item: { text: d.title || 'Untitled', detail: 'Saved ' + (d.kind || 'docx') + ' document' + (iso ? ' · ' + iso : ''), actions: [{ tool: 'create-office', query: 'document=' + d.id }] }, t: iso ? Date.parse(iso) || 0 : 0 });
+        });
+      }).catch(function () { /* structured editor documents optional */ }) : Promise.resolve();
+      return fetchJson('/api/' + studio.app + '/home-summary').then(function (data) { collectSummary(studio, data); return extra; })
         .catch(function () { cantCheck.push(studio.name); })
         .finally(function () { pending -= 1; renderRecent(); });
     })).then(finishSummaries);
@@ -892,15 +802,43 @@
     b.addEventListener('click', function () { if (go(blank.tool, blank.query || '')) closeNew(true); });
     return b;
   }
-  var blankRow = document.getElementById('blankRow');
+  var blankRow = document.getElementById('blankRow'), customForm = document.getElementById('customSizeForm');
+  var customW = document.getElementById('customWidth'), customH = document.getElementById('customHeight'), customErr = document.getElementById('customSizeError');
   function renderBlanks() {
     blankRow.replaceChildren();
     BLANKS.forEach(function (blank) { blankRow.appendChild(blankNode(blank)); });
-    var custom = planned('blank', 'Custom size', 'RP-CRE-02');
-    var thumb = el('span', 'bthumb'); thumb.appendChild(svgNode('<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M4 4l7 7M20 20l-7-7"/></svg>'));
-    custom.appendChild(thumb); custom.appendChild(el('b', null, 'Custom size')); custom.appendChild(el('span', 'hint', 'Not available yet'));
+    var locked = ACCESS.create === 'locked';
+    var custom = el('button', 'blank' + (locked ? ' locked' : '')); custom.type = 'button'; custom.dataset.blank = 'custom';
+    var thumb = el('span', 'bthumb t-lilac'); thumb.appendChild(svgNode('<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 15v5h-5M4 4l7 7M20 20l-7-7"/></svg>'));
+    if (locked) thumb.appendChild(el('span', 'lockdot', '🔒'));
+    custom.appendChild(thumb); custom.appendChild(el('b', null, 'Custom size')); custom.appendChild(el('span', 'hint', '16 – 8192 px'));
+    custom.setAttribute('aria-label', 'Custom size — opens Image editor' + (locked ? ', not assigned to you' : ''));
+    custom.setAttribute('aria-expanded', customForm.hidden ? 'false' : 'true');
+    if (locked) custom.setAttribute('aria-disabled', 'true');
+    custom.addEventListener('click', function () {
+      if (locked) { toast('Image editor is not assigned to you — an administrator grants it in Access.'); return; }
+      customForm.hidden = !customForm.hidden; customErr.hidden = true;
+      custom.setAttribute('aria-expanded', customForm.hidden ? 'false' : 'true');
+      if (!customForm.hidden) { customW.focus(); customW.select(); }
+    });
     blankRow.appendChild(custom);
   }
+  document.getElementById('customSizeCancel').addEventListener('click', function () { customForm.hidden = true; customErr.hidden = true; renderBlanks(); });
+  customForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var parsed = parseCustomSize(customW.value, customH.value);
+    if (!parsed.ok) { customErr.textContent = parsed.message; customErr.hidden = false; return; }
+    customErr.hidden = true;
+    if (go('create-editor', parsed.query)) closeNew(true);
+  });
+
+  var importIn = document.getElementById('importInput'), importBox = document.getElementById('importBox');
+  function resetImportUi() { importBox.hidden = true; importIn.value = ''; if (actionsPromise) void actionsPromise.then(function (C) { C.resetImport(); }); }
+  document.getElementById('importFile').addEventListener('click', function () { void loadController(); importIn.click(); });
+  importIn.addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    loadController().then(function (C) { C.runImport(f, {}); });
+  });
 
   /* ── Render the template half ── */
   var catsEl = document.getElementById('cats'), chipsEl = document.getElementById('chips'), secEl = document.getElementById('sections');
@@ -970,12 +908,13 @@
   var sheet = document.getElementById('newSheet'), sheetPushed = false;
   function openNew(opts) {
     opts = opts || {};
+    customForm.hidden = true; customErr.hidden = true; resetImportUi();
     if (opts.cat && CATEGORIES.some(function (c) { return c.id === opts.cat; })) { activeCat = opts.cat; activeGroup = 'all'; }
     if (typeof opts.query === 'string') { tquery = opts.query; tqEl.value = opts.query; }
     renderSheet();
     if (!sheet.open) sheet.showModal();
     if (!sheetPushed) { try { history.pushState({ createNew: true }, ''); sheetPushed = true; } catch (_) { /* no history in this frame */ } }
-    var first = blankRow.querySelector('.blank:not([data-ds-not-yet])'); if (first && !opts.query) first.focus({ preventScroll: true }); else tqEl.focus();
+    var first = blankRow.querySelector('.blank:not(.locked)'); if (first && !opts.query) first.focus({ preventScroll: true }); else tqEl.focus();
   }
   /** @param {boolean} leaving A studio opens next: keep the history entry, the navigation replaces it. */
   function closeNew(leaving) {

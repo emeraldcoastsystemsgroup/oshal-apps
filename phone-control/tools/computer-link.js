@@ -7,12 +7,14 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: the verbs adb-connect-tv (a Fire TV or Android TV at its address, port 5555 by default) and ble-remove (forget one Bluetooth pairing); bridgeSupport says plainly that the phone bridge runs on a Linux computer only (it gets adb with apt and the iPhone keyboard is BlueZ), and computerStanding says what to do on the computer when it cannot take commands.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: AirPlay screen mirroring verbs (setup-mirror, mirror-start, mirror-stop, mirror-frame), oshal_phone_mirror.py in the verified bridge installer, readFrame support for mirror-frame, and lowercase oshal Node copy.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: add desktop.control and app.open computer client helpers, iOS direct tap/swipe/drag/scroll & screen reading verbs (ble-tap, ble-swipe, ble-drag, ble-scroll, mirror-ui), Fire TV Wi-Fi scan & chunked APK push verbs (adb-scan-tv, stage-chunk, adb-install-apk), Android file/clipboard bridge verbs, session & concierge package client routes, quality presets, and normalized iOS gesture geometry.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: add ble-sync verb, live iPhone stage touchpad gesture mapping before AirPlay frames arrive, protectedSurface/screenAsleep/activePackage metadata in readFrame, and localStorage-gated RDP session listing (oshal.pc.hasRdp).
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
+export const RDP_STORAGE_KEY = 'oshal.pc.hasRdp';
 export const VERBS = Object.freeze([
   'version', 'status', 'setup-adb', 'setup-mirror', 'mirror-start', 'mirror-stop', 'mirror-frame', 'mirror-ui', 'uninstall',
-  'ensure', 'stop', 'ble-status', 'ble-pair-window', 'ble-devices', 'ble-remove', 'ble-type', 'ble-key', 'ble-mouse',
+  'ensure', 'stop', 'ble-status', 'ble-sync', 'ble-pair-window', 'ble-devices', 'ble-remove', 'ble-type', 'ble-key', 'ble-mouse',
   'ble-move', 'ble-tap', 'ble-swipe', 'ble-drag', 'ble-scroll', 'ble-open', 'ble-calibrate', 'rdp-probe',
   'screen-info', 'pointer-move', 'pointer-click', 'pointer-drag', 'keyboard-type', 'keyboard-key',
   'adb-pair', 'adb-connect', 'adb-connect-tv', 'adb-scan-tv',
@@ -211,39 +213,44 @@ export function swipeFromDrag(start, end, box, frame, ms) {
  * @returns {{verb:string,args:object,summary:string}} Normalized iOS BLE gesture.
  */
 export function iosGestureFromDrag(start, end, box, frame, ms) {
-  if (!(box?.width > 0 && box?.height > 0 && frame?.deviceWidth > 0 && frame?.deviceHeight > 0)) {
-    throw new Error('Start mirroring first so there is an iPhone screen picture to tap or swipe.');
+  if (!(box?.width > 0 && box?.height > 0)) {
+    throw new Error('There is no iPhone stage to tap or swipe yet.');
   }
-  const scale = Math.min(box.width / frame.deviceWidth, box.height / frame.deviceHeight);
-  const drawW = frame.deviceWidth * scale;
-  const drawH = frame.deviceHeight * scale;
-  const offX = (box.width - drawW) / 2;
-  const offY = (box.height - drawH) / 2;
+  const hasLiveFrame = Boolean(frame?.deviceWidth > 0 && frame?.deviceHeight > 0);
+  const landscape = hasLiveFrame ? frame.deviceWidth > frame.deviceHeight : box.width > box.height * 1.15;
+  const targetW = hasLiveFrame ? frame.deviceWidth : (landscape ? 932 : 430);
+  const targetH = hasLiveFrame ? frame.deviceHeight : (landscape ? 430 : 932);
+  const scale = hasLiveFrame ? Math.min(box.width / targetW, box.height / targetH) : 1;
+  const drawW = hasLiveFrame ? targetW * scale : box.width;
+  const drawH = hasLiveFrame ? targetH * scale : box.height;
+  const offX = hasLiveFrame ? (box.width - drawW) / 2 : 0;
+  const offY = hasLiveFrame ? (box.height - drawH) / 2 : 0;
   const norm = (pt) => ({
     nx: Math.max(0, Math.min(1, Math.round((((pt.x - offX) / drawW)) * 1000) / 1000)),
     ny: Math.max(0, Math.min(1, Math.round((((pt.y - offY) / drawH)) * 1000) / 1000))
   });
-  const landscape = frame.deviceWidth > frame.deviceHeight;
   const a = norm(start);
   const b = norm(end);
   const px = (n, dim) => Math.max(0, Math.min(dim - 1, Math.round(n * dim)));
-  const x = px(b.nx, frame.deviceWidth);
-  const y = px(b.ny, frame.deviceHeight);
+  const x = px(b.nx, targetW);
+  const y = px(b.ny, targetH);
   if (Math.hypot(end.x - start.x, end.y - start.y) >= 12) {
     const duration = Math.max(120, Math.min(1200, Math.round(ms || 260)));
-    const x1 = px(a.nx, frame.deviceWidth);
-    const y1 = px(a.ny, frame.deviceHeight);
+    const x1 = px(a.nx, targetW);
+    const y1 = px(a.ny, targetH);
     return {
       verb: 'ble-swipe',
       args: { nx1: a.nx, ny1: a.ny, nx2: b.nx, ny2: b.ny, ms: duration, landscape },
-      pixel: { x1, y1, x2: x, y2: y, width: frame.deviceWidth, height: frame.deviceHeight },
+      pixel: { x1, y1, x2: x, y2: y, width: targetW, height: targetH },
+      touchpad: !hasLiveFrame,
       summary: `Swipe (${x1}, ${y1}) → (${x}, ${y})`
     };
   }
   return {
     verb: 'ble-tap',
     args: { nx: b.nx, ny: b.ny, landscape },
-    pixel: { x, y, width: frame.deviceWidth, height: frame.deviceHeight },
+    pixel: { x, y, width: targetW, height: targetH },
+    touchpad: !hasLiveFrame,
     summary: `Tap at ${x}, ${y}`
   };
 }
@@ -273,7 +280,13 @@ export async function readFrame(send, serial, width = 432, verb = 'adb-frame') {
   }
   const bytes = fromBase64(parts.join(''));
   if (bytes.length !== first.bytes || await sha256Hex(bytes) !== first.sha256) throw new Error('The picture arrived damaged; the next one is on its way.');
-  return { bytes, mime: first.mime, deviceWidth: first.deviceWidth, deviceHeight: first.deviceHeight, slow: Boolean(first.slow), parts: parts.length };
+  return {
+    bytes, mime: first.mime, deviceWidth: first.deviceWidth, deviceHeight: first.deviceHeight,
+    serial: String(first.serial || serial || ''),
+    slow: Boolean(first.slow), parts: parts.length,
+    protectedSurface: Boolean(first.protectedSurface), screenAsleep: Boolean(first.screenAsleep),
+    activePackage: String(first.activePackage || ''), activeActivity: String(first.activeActivity || '')
+  };
 }
 
 /**
@@ -415,11 +428,41 @@ export function createPackageClient({ fetchImpl = globalThis.fetch.bind(globalTh
   };
 }
 
+/** @description Whether this browser has an active RDP session marker in localStorage. @returns {boolean} True when active. */
+export function hasStoredRdp() {
+  try { return globalThis.localStorage?.getItem(RDP_STORAGE_KEY) === '1'; } catch { return false; }
+}
+
+/** @description Persist or clear the localStorage marker indicating an active RDP session. @param {boolean} active Flag. @returns {void} */
+export function setStoredRdp(active) {
+  try {
+    if (active) globalThis.localStorage?.setItem(RDP_STORAGE_KEY, '1');
+    else globalThis.localStorage?.removeItem(RDP_STORAGE_KEY);
+  } catch { /* storage unavailable */ }
+}
+
 /**
  * @description Live kernel RDP sessions (/api/rdp/sessions): list, connect, PNG frame stream, unified input, and disconnect.
  * @param {{fetchImpl?:Function}} [options] fetch to use.
  * @returns {object} The RDP client.
  */
+async function listRdpSessions(fetchImpl, force) {
+  if (!force && !hasStoredRdp()) return [];
+  const response = await fetchImpl('/api/rdp/sessions', {
+    credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' }
+  });
+  if (!response.ok && [404, 501, 502, 503].includes(response.status)) {
+    setStoredRdp(false);
+    return [];
+  }
+  if (!response.ok) throw Object.assign(new Error(await refusalWords(response)), { status: response.status });
+  const body = await response.json();
+  const raw = Array.isArray(body?.sessions) ? body.sessions : Array.isArray(body) ? body : [];
+  const sessions = raw.map((s) => ({ ...s, sessionId: s.sessionId || s.id }));
+  setStoredRdp(sessions.length > 0);
+  return sessions;
+}
+
 export function createRdpClient({ fetchImpl = globalThis.fetch.bind(globalThis) } = {}) {
   const call = async (path, init = {}) => {
     const response = await fetchImpl(`/api/rdp/sessions${path}`, { credentials: 'same-origin', cache: 'no-store', ...init });
@@ -427,20 +470,12 @@ export function createRdpClient({ fetchImpl = globalThis.fetch.bind(globalThis) 
     return response;
   };
   return {
-    async list() {
-      const response = await fetchImpl('/api/rdp/sessions', {
-        credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' }
-      });
-      if (!response.ok && [404, 501, 502, 503].includes(response.status)) return [];
-      if (!response.ok) throw Object.assign(new Error(await refusalWords(response)), { status: response.status });
-      const body = await response.json();
-      const raw = Array.isArray(body?.sessions) ? body.sessions : Array.isArray(body) ? body : [];
-      return raw.map((s) => ({ ...s, sessionId: s.sessionId || s.id }));
-    },
+    list: ({ force = false } = {}) => listRdpSessions(fetchImpl, force),
     async create(input) {
       const body = await (await call('', {
         method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(input)
       })).json();
+      setStoredRdp(true);
       const s = body?.session && typeof body.session === 'object' ? body.session : body;
       return { ...s, sessionId: s.sessionId || s.id };
     },

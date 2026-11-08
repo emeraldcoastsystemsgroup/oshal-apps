@@ -11,6 +11,9 @@
   2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): carry the Home/Business
     audience view now that pumpkin-control is the first tile in ui.static, gate full-page boot on !AppView.active(), and
     render the Saved lines card with saved/pinned counts and explicit "Play on the projector" actions per line.
+  3 | maintainer@emeraldcoastsystemsgroup.com | RP-PUMP-01: replace the planned Stop placeholder on Show with a live Stop
+    button (#btnStop) that silences both local preview audio and paired/demo projectors immediately while cancelling any
+    in-flight line send and keeping the next Say it ready immediately.
 -->
 <html lang="en">
 <head>
@@ -184,7 +187,7 @@
       .row > button{ flex:1 1 140px; }
     }
     /* UX audit 2026-11-06: the two views, one primary per view, the selected mode inverted (not a second orange fill),
-       status lines in the page ink, the placeholder Stop greyed, the colour wells and the Help disclosure. */
+       status lines in the page ink, the live Stop button, the colour wells and the Help disclosure. */
     .view-bar { display:flex; gap:4px; padding:0 16px; border-bottom:1px solid var(--line); background:var(--panel); }
     .view-tab { min-height:44px; border:0; border-bottom:2px solid transparent; border-radius:0; background:none; color:var(--muted); font-weight:600; padding:0 16px; }
     .view-tab:hover { background:none; color:var(--ink); }
@@ -192,7 +195,7 @@
     button.seg.on { background:var(--ink); color:var(--bg); border-color:var(--ink); font-weight:600; }
     .status { color:var(--text-primary, var(--ink)); }
     button.tertiary { background:none; border-color:transparent; color:var(--amber); text-decoration:underline; }
-    button.not-yet, button.not-yet:hover { background:var(--bg-secondary,#12100c); color:var(--text-muted, rgba(255,220,170,.45)); border-color:var(--line); cursor:not-allowed; opacity:1; }
+    button svg.stop-icon { vertical-align:-2px; margin-right:3px; }
     button svg.ext { vertical-align:-2px; margin-left:4px; }
     .well input[type=range] { min-height:32px; }
     .right .preview-card { position:sticky; top:12px; }
@@ -244,7 +247,7 @@
           <div class="fieldset row">
             <button id="btnSay" class="primary">Say it</button>
             <button id="btnAsk">Ask the pumpkin</button>
-            <button type="button" class="not-yet" aria-disabled="true" data-ds-not-yet data-ds-backlog="RP-PUMP-01" aria-label="Stop, not available yet" title="Not available yet"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor"/></svg> Stop</button>
+            <button type="button" id="btnStop"><svg class="stop-icon" width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor"/></svg>Stop</button>
           </div>
           <div class="status" id="sayStatus"></div>
         </div>
@@ -373,7 +376,7 @@
     };
     var channelSeed = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2);
     var S = { mode:'mimic', preset:null, room:null, token:null, guest:null, demoChannel:'pumpkin-demo-'+channelSeed, demoBus:null, sessionReady:null, links:null, linkTimer:null };
-    var face, audio, previewSpeaking=false;
+    var face, audio, previewSpeaking=false, sendGen=0;
     var LINK_DEBOUNCE_MS = 300;
 
     function $(s){ return document.querySelector(s); }
@@ -576,27 +579,50 @@
     }
     function sendLine(kind){
       var text=$('#sayText').value.trim(); if(!text){ $('#sayStatus').textContent='Type a line first.'; return; }
+      var myGen=++sendGen;
       return afterSession(function(){
+        if(myGen!==sendGen) return;
         $('#sayStatus').textContent = kind==='ask' ? 'Asking the pumpkin…' : 'Sending…';
         if(S.guest){
           var reply=kind==='ask'?guestReply(text):{say:text,expression:'neutral',intensity:.6};
           S.demoBus.post({type:'speak',say:reply.say,expression:reply.expression,intensity:reply.intensity});
+          stopPreviewSpeech();
           speakPreview(reply.say);
           localRemember(reply,kind==='ask'?'autonomous':'mimic');
           $('#sayStatus').textContent=(kind==='ask'?'🎃 “'+reply.say+'”':'Spoken in the live preview.')+' The browser-demo projector received it too.';
           return;
         }
         return ensureRoom().then(function(){
+          if(myGen!==sendGen) return null;
           var ep = kind==='ask' ? '/api/pumpkin/rooms/ask' : '/api/pumpkin/rooms/say';
           return api(ep,{method:'POST',body:JSON.stringify({room:S.room,token:S.token,text:text})});
         }).then(function(j){
+          if(!j || myGen!==sendGen) return;
           var spoken=(j&&j.reply&&j.reply.say)||text;
+          stopPreviewSpeech();
           speakPreview(spoken);
           var tail=(j&&j.reply&&j.reply.say)?' 🎃 “'+j.reply.say+'”':'';
           if(j && j.listeners>0) $('#sayStatus').textContent='Spoken on '+j.listeners+' screen(s).'+tail;
           else withLiveRooms('Spoken in preview — no projector is listening on “'+currentLabel()+'” yet.'+tail,'#sayStatus');
           loadSaved();
-        }).catch(function(err){ $('#sayStatus').textContent=message(err,'Failed to send.'); });
+        }).catch(function(err){ if(myGen===sendGen) $('#sayStatus').textContent=message(err,'Failed to send.'); });
+      });
+    }
+    function stopAll(){
+      sendGen+=1;
+      stopPreviewSpeech();
+      return afterSession(function(){
+        if(S.guest){
+          if(S.demoBus) S.demoBus.post({type:'stop'});
+          $('#sayStatus').textContent='Stopped.';
+          return;
+        }
+        return ensureRoom().then(function(){
+          return api('/api/pumpkin/rooms/stop',{method:'POST',body:JSON.stringify({room:S.room,token:S.token})});
+        }).then(function(j){
+          if(j && j.listeners>0) $('#sayStatus').textContent='Stopped on '+j.listeners+' screen(s).';
+          else $('#sayStatus').textContent='Stopped.';
+        }).catch(function(err){ $('#sayStatus').textContent=message(err,'Failed to stop.'); });
       });
     }
 
@@ -668,22 +694,28 @@
       });
     }
     function replaySaved(r){
+      var myGen=++sendGen;
       return afterSession(function(){
+        if(myGen!==sendGen) return;
         if(S.guest){
           S.demoBus.post({type:'speak',say:r.say,expression:r.expression||'neutral',intensity:(r.intensity==null?0.6:r.intensity)});
+          stopPreviewSpeech();
           speakPreview(r.say);
           $('#sayStatus').textContent='🎃 replayed “'+truncSaved(r.say)+'” (browser demo).';
           return;
         }
         $('#sayStatus').textContent='Replaying…';
         return ensureRoom().then(function(){
+          if(myGen!==sendGen) return null;
           return api('/api/pumpkin/rooms/replay',{method:'POST',body:JSON.stringify({room:S.room,token:S.token,id:r.id})});
         }).then(function(j){
+          if(!j || myGen!==sendGen) return;
+          stopPreviewSpeech();
           speakPreview(r.say);
           if(j && j.listeners>0) $('#sayStatus').textContent='🎃 Replayed on '+j.listeners+' screen(s).';
           else withLiveRooms('Replayed in preview — no projector is listening on “'+currentLabel()+'” yet.','#sayStatus');
           loadSaved();
-        }).catch(function(err){ $('#sayStatus').textContent=message(err,'Replay failed.'); });
+        }).catch(function(err){ if(myGen===sendGen) $('#sayStatus').textContent=message(err,'Replay failed.'); });
       });
     }
     function togglePinSaved(r){
@@ -697,6 +729,13 @@
         .then(loadSaved).catch(function(err){ $('#sayStatus').textContent=message(err,'Delete failed.'); });
     }
 
+    function stopPreviewSpeech(){
+      previewSpeaking=false;
+      if(audio) audio.forceStop();
+      if(face && typeof face.stop==='function') face.stop();
+      else if(face){ face.setSpeaking(false); face.setLevel(0); }
+      if(/voice preview/i.test($('#editStatus').textContent)) $('#editStatus').textContent='';
+    }
     function speakPreview(line){
       if(previewSpeaking) return false; previewSpeaking=true;
       face.setSpeaking(true);
@@ -831,7 +870,7 @@
 
       $('#mMimic').onclick=function(){setMode('mimic');}; $('#mAuto').onclick=function(){setMode('autonomous');}; setMode('mimic');
       $('#launch').onclick=launch; $('#apply').onclick=pushLookMode;
-      $('#btnSay').onclick=function(){sendLine('say');}; $('#btnAsk').onclick=function(){sendLine('ask');};
+      $('#btnSay').onclick=function(){sendLine('say');}; $('#btnAsk').onclick=function(){sendLine('ask');}; $('#btnStop').onclick=stopAll;
       $('#testVoice').onclick=testVoice; $('#saveLook').onclick=saveLook; $('#resetLook').onclick=resetLook;
       $('#presetSel').onchange=function(e){ var o=e.target.selectedOptions[0]; if(o&&o.__p) applyPreset(o.__p); scheduleRefreshLinks(); };
       $('#copyRemote').onclick=function(){ copyInput('remoteUrl',S.guest?'Demo remote link copied. Open it in another tab on this device.':'Phone remote link copied.'); };

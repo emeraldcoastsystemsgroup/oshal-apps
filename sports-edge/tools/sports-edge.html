@@ -19,6 +19,7 @@
 
   CHANGE LOG
   1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Sports Edge, grade C): every visit opened on a 32-button team picker with Following at the bottom, and a banner sent people to the platform Jobs screen to turn on refresh. Sports Edge now opens on Games once a team is followed (My Teams only on first run); on a phone the five sections are a bottom bar; the team picker is league chips that load at once (no Load teams) with a search field, and Following comes first; the Jobs-screen banner is gone: Games carries the app's own "Keep refreshing previews in the background" toggle (it turns on this person's refresh job through the same schedule endpoint the Jobs screen uses), an "Updated <time>" line and one Refresh now (POST /refresh/run); Unfollow is a 44px action. Guard: tests/home-page.test.js.
+  2 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant Concierge (F22/F24): collapsible right-rail Concierge with header toggle, × close, independent log scroll, quick prompt chips, and bottom-pinned Jarvis composer.
 -->
 <html lang="en" data-theme="midnight">
 <head>
@@ -28,6 +29,9 @@
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/api/sports-edge/concierge.css" />
+<script src="/api/jarvis/assets/jarvis-package-tools.js"></script>
+<script src="/api/sports-edge/concierge.js" defer></script>
 <style>
   /* Short aliases DERIVED from the framework theme, never literal hex — so all themes work. */
   :root {
@@ -141,9 +145,14 @@
 </style>
 </head>
 <body>
+<div class="se-workspace">
 <header>
   <h1>Sports Edge</h1>
   <span class="sub" id="statusline">loading…</span>
+  <button type="button" class="concierge-toggle" id="conciergeToggle" aria-expanded="true" aria-controls="conciergeRail">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Concierge</span>
+  </button>
 </header>
 <div class="banner" id="bgRefresh" style="display:none" hidden></div>
 <nav role="tablist">
@@ -209,6 +218,38 @@
     </div>
   </section>
 </main>
+</div>
+
+<aside id="conciergeRail" class="concierge-rail" aria-label="Concierge">
+  <div class="concierge-header">
+    <h2>Concierge</h2>
+    <button type="button" id="conciergeClose" class="concierge-icon" aria-label="Hide concierge" title="Hide concierge">×</button>
+  </div>
+  <p class="concierge-help">Ask Sports Quant about tonight's lines, model vs book edge, closing-line value, or outlier-trimmed ROI. Pick actions require your approval.</p>
+  <div id="conciergeLog" class="concierge-log" role="log" aria-label="Sports Quant conversation" aria-live="polite"></div>
+  <div class="concierge-chips" aria-label="Quick prompts">
+    <button type="button" class="concierge-chip" data-concierge-prompt="Which games have edge tonight?">Which games have edge tonight?</button>
+    <button type="button" class="concierge-chip" data-concierge-prompt="Does the model hold up without top winners?">Does the model hold up without top winners?</button>
+    <button type="button" class="concierge-chip" data-concierge-prompt="Summarize recent pick ROI">Summarize recent pick ROI</button>
+  </div>
+  <div id="conciergeComposer" class="concierge-composer">
+    <div id="conciergeContextRow" class="concierge-context-row"></div>
+    <form id="conciergeForm" class="concierge-form">
+      <textarea id="conciergeInput" rows="2" maxlength="12000" placeholder="Ask Sports Quant about lines, edge, or ROI…" aria-label="Message to Sports Quant"></textarea>
+      <div class="concierge-controls">
+        <button type="button" id="conciergeAttach" class="concierge-icon" aria-label="Attach active board context" title="Attach active board context">+</button>
+        <button type="button" id="conciergeSpeaker" class="concierge-icon" aria-label="Read latest reply aloud" aria-pressed="false" title="Read latest reply aloud">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4 6 8H3v8h3l5 4V4Zm4 4c2 2 2 6 0 8m3-11c4 4 4 10 0 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" id="conciergeMic" class="concierge-icon" aria-label="Voice input" aria-pressed="false" title="Voice input">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm7 9a7 7 0 0 1-14 0m7 7v3m-4 0h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="submit" id="conciergeSend" class="concierge-send">Send</button>
+      </div>
+    </form>
+    <p id="conciergeNotice" class="concierge-notice" role="status"></p>
+  </div>
+</aside>
 
 <script>
 // Classic script, no modules — the surface convention across this codebase.

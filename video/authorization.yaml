@@ -5,6 +5,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.9.2: bind the package's bots (video-director, screenplay-writer, vids-operator) to studio.generate. The catalog bound only HTTP routes, so every protected chat turn to those bots was refused authorization_operation_unbound (seen live 2026-10-06 when the operator's turn to screenplay-writer reached core's concierge node). studio.generate is the provider-spending execute permission the producer, showrunner and admin roles already hold; no new permission or role.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Bind the dock concierge video-editor (c504b2de) and its route tools. Change 4 bound the studio bots but not the manual editor's concierge, so every turn to it was refused 'operation has no explicit permission binding' (live 2026-10-12, POST /api/swarm/bots/c504b2de-.../ask 403). It edits by hand and spends no provider money, so it binds editor.view and editor.read, not studio.generate; each video-* tool carries exactly the permissions of the HTTP route it calls. Owners can now delete their own editor projects and uploads: editor.delete (own scope only, rows stay issuer-and-subject scoped) joins the creator and editor roles instead of being admin-only.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Bind protected Writer-only Motion discovery and approved job import to existing own editor permissions; no role or scope widening.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | Bind auto-captions (editor.view + editor.read), TTS voice synthesis (editor.view + upload admission), and CC0 sound-library browse/preview/import to existing own editor permissions.
 version: 1
 resources:
   studio:
@@ -134,6 +135,11 @@ bindings:
     - { id: editor-export, method: GET, path: '/editor/exports/:id', allOf: [editor.view, editor.read] }
     - { id: editor-export-cancel, method: POST, path: '/editor/exports/:id/cancel', allOf: [editor.view, editor.export] }
     - { id: editor-export-download, method: GET, path: '/editor/exports/:id/download', allOf: [editor.view, editor.read, editor.export] }
+    - { id: editor-auto-captions, method: POST, path: /editor/auto-captions, allOf: [editor.view, editor.read] }
+    - { id: editor-voice, method: POST, path: /editor/voice, allOf: [editor.view] }
+    - { id: editor-sound-library, method: GET, path: /editor/sound-library, allOf: [editor.view] }
+    - { id: editor-sound-preview, method: GET, path: '/editor/sound-library/:itemId/preview', allOf: [editor.view] }
+    - { id: editor-sound-import, method: POST, path: '/editor/sound-library/:itemId/import', allOf: [editor.view] }
   bots:
     - { id: a0000000-0000-0000-0000-000000000048, allOf: [studio.generate] }
     - { id: a0000000-0000-0000-0000-000000000052, allOf: [studio.generate] }

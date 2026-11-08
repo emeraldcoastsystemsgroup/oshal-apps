@@ -6,6 +6,7 @@
  * 1   | maintainer@emeraldcoastsystemsgroup.com | SQLite DatabaseSync persistence under OSHAL_PACKAGE_DATA_DIR for Audio Studio.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Add strict two-arm owner_issuer + owner_sub repository methods and PostgreSQL Forced-RLS transaction helper.
  * 3   | maintainer@emeraldcoastsystemsgroup.com | Complete dual PostgreSQL/SQLite project, stem, revision, mixdown, and orphan-blob repository operations.
+ * 4   | maintainer@emeraldcoastsystemsgroup.com | Use lasting-storage SQLite repository under native host-process (storageModel kernel-scoped-documents) while preserving real PostgreSQL pool Forced-RLS when backed by PostgreSQL.
  */
 'use strict';
 
@@ -213,7 +214,7 @@ function buildStemConfig(input = {}, existing = {}) {
 }
 
 function createAudioRepository(ctx) {
-  const pool = ctx?.pool || null;
+  const pool = (ctx?.pool && ctx.pool.storageModel !== 'kernel-scoped-documents') ? ctx.pool : null;
   const sqlite = pool ? null : (ctx?.db || getDatabase());
 
   async function upsertBlob(actor, blobMeta) {

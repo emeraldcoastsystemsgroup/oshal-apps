@@ -6,6 +6,8 @@
 # 0.3.0 | maintainer@emeraldcoastsystemsgroup.com | UX audit P0 SPLIT (2026-11-06): the page has two views. This week is the home: the league menu and a Lineup · Season · Waivers · Trades control with the chosen board directly under it, opening on the first saved league's Lineup. League setup holds connecting, linking and the hand-typed league, now a walkthrough of one group per step (League, Scoring, Roster slots, Schedule, Teams) with Back and Continue in a sticky bottom bar, opened by itself when no league exists. Edit and delete sit in a row menu and delete asks in the page; roster slots read as positions (QB x 1, FLEX x 1) and are stored as ESPN slot ids; the cookie steps are withheld where the installation cannot send them; the in-page title and tagline are gone.
 # 0.3.1 | maintainer@emeraldcoastsystemsgroup.com | Trial walk of 0.3.0: Save league left This week empty (the saved league already matched the board on record, so no board was built); saving now opens that league's Lineup. The first-run walkthrough shows no Cancel, since there is nothing to go back to.
 # 0.3.2 | maintainer@emeraldcoastsystemsgroup.com | Trial walk of 0.3.1 at 412x915: the Lineup board opened on load took longer than a tap on Waivers, then painted over it. Only the newest board request paints now.
+# 0.3.3 | maintainer@emeraldcoastsystemsgroup.com | UX audit sweep (fantasy-football--fantasy-football, D1=glass, D2=c): add ESPN stat-id and 32-team NFL pro-team tables so Scoring rules read and accept stat names with a stat picker (Passing TD = 4) and Bye weeks read and accept NFL team abbreviations with a team picker (KC = 6) while storing ESPN numeric ids; drop manifest hardcoded theme: light-blue; replace window.alert in Link with an in-page status line (DS-30); declare DS-00 dashboard contract and align radii/type/touch targets to the token scale.
+# 0.4.0 | maintainer@emeraldcoastsystemsgroup.com | Fantasy Quant concierge (F22): collapsible right-rail Concierge with bottom-pinned Jarvis composer, surface context bridge, inline fantasy-quant specialist persona, read-only start/sit, waiver, and matchup win-probability tools, and approval-card-gated lineup and waiver mutation tools.
 #
 # MANAGE THE TEAM YOU HAVE. The operator's draft went badly — "we picked up running backs first
 # round 2 times that were specifically left over by the other team owners" — so the first thing
@@ -38,7 +40,12 @@ suite: ai-productivity   # ADR-097: primary catalog shelf (operator decision Q4,
 # After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
 rating:
   memoryMb: { low: 32, high: 128, basis: declared }
-  features: []   # no model in the loop (T0)
+  features:
+    - id: fantasy-quant-concierge
+      unit: question
+      tier: T2
+      generation: hosted
+      degrade: template
 displayName: Fantasy Football
 description: >-
   Manage the fantasy football team you actually have. It reads your own ESPN league with your own
@@ -51,10 +58,30 @@ description: >-
   works with no ESPN connection at all. Your team, your leagues and your ledger are yours alone: no
   other user, operator included, can see them. Every lineup is recorded before kickoff and graded
   against what was actually started. It advises; you act.
-version: 0.3.2
+version: 0.4.0
 status: active
-# Fantasy Football packages no agent; the stable framework concierge owns its right rail.
-chatBot: general-bot
+chatBot: fantasy-quant
+
+bots:
+  - agentId: fa47a590-3e82-4b64-9c15-8d702a5f14e3
+    name: fantasy-quant
+    persona: personas/fantasy-quant.yaml
+    posture: inline
+    role: fantasy-football/quant
+    capabilities:
+      - start-sit-evaluation
+      - waiver-pricing
+      - matchup-winprob
+    selectorDescriptor: >-
+      Select for Fantasy Football start/sit flex decisions, projected points and floor/ceiling ranges,
+      matchup win-probability swings, rest-of-season waiver FAAB bids, and hand-typed league lineup moves.
+    routingKeywords:
+      - fantasy football
+      - start at flex
+      - start or sit
+      - waiver wire
+      - faab bid
+      - fantasy lineup
 uses: [test-catalog, app-dependencies, fantasy-leagues]
 testing:
   version: 1
@@ -171,7 +198,130 @@ dependencies:
 egress:
   - host: lm-api-reads.fantasy.espn.com
 
-theme: light-blue
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed specialist tools for fantasy-quant and main Jarvis.
+# Read tools execute strictly read-only GET queries; mutations require approval.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: fantasy_quant_start_sit
+    displayName: Fantasy start/sit and flex evaluation
+    type: api
+    category: productivity
+    description: >-
+      Evaluate who to start at FLEX or any roster slot in the caller's ESPN or hand-typed league.
+      Returns candidate players with projected points, 10th/90th-percentile floor/ceiling range,
+      NFL team, bye week, injury status, matchup posture, and expected win-probability swing. Read-only.
+    executor:
+      executorType: api
+      apiEndpoint: "GET /api/fantasy-football/quant/start-sit?slot={input.slot}&leagueId={input.leagueId}&manualId={input.manualId}&season={input.season}"
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        slot: { type: string, description: "Target slot such as FLEX, QB, RB, WR, TE, D/ST, or K (defaults to FLEX)." }
+        leagueId: { type: string, description: "Optional ESPN league id." }
+        manualId: { type: string, description: "Optional hand-typed league id." }
+        season: { type: integer, description: "Optional season year." }
+    usageInstructions: Call for "who should I start at flex?" or any start/sit roster question.
+    routingTags: [fantasy-football, flex, start-sit, lineup, projections]
+    skills: [fantasy-football]
+    tags: [fantasy-football, route-backed]
+
+  - name: fantasy_quant_waivers
+    displayName: Fantasy waiver wire and FAAB upgrades
+    type: api
+    category: productivity
+    description: >-
+      Evaluate rest-of-season waiver wire upgrades, recommended FAAB bids, drop candidates, and
+      one-week streaming options for the caller's fantasy league. Read-only.
+    executor:
+      executorType: api
+      apiEndpoint: "GET /api/fantasy-football/quant/waivers?leagueId={input.leagueId}&manualId={input.manualId}&season={input.season}"
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        leagueId: { type: string, description: "Optional ESPN league id." }
+        manualId: { type: string, description: "Optional hand-typed league id." }
+        season: { type: integer, description: "Optional season year." }
+    usageInstructions: Call for "best waiver wire upgrades", FAAB bids, or one-week streaming questions.
+    routingTags: [fantasy-football, waivers, faab, streaming, trades]
+    skills: [fantasy-football]
+    tags: [fantasy-football, route-backed]
+
+  - name: fantasy_quant_matchup
+    displayName: Fantasy weekly matchup win probability
+    type: api
+    category: productivity
+    description: >-
+      Break down this week's head-to-head fantasy matchup: win probability vs mean-maximising lineup
+      win probability, projected score and 10th/90th range vs opponent, posture (favoured/underdog),
+      variance swaps, and graded start/sit call ledger. Read-only.
+    executor:
+      executorType: api
+      apiEndpoint: "GET /api/fantasy-football/quant/matchup?leagueId={input.leagueId}&manualId={input.manualId}&season={input.season}"
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        leagueId: { type: string, description: "Optional ESPN league id." }
+        manualId: { type: string, description: "Optional hand-typed league id." }
+        season: { type: integer, description: "Optional season year." }
+    usageInstructions: Call for "matchup win probability breakdown" or weekly opponent comparisons.
+    routingTags: [fantasy-football, matchup, win-probability, ledger]
+    skills: [fantasy-football]
+    tags: [fantasy-football, route-backed]
+
+  - name: fantasy_quant_set_lineup
+    displayName: Set or record Fantasy Football lineup
+    cardText: Update your hand-typed league starters and record pre-kickoff start/sit calls for this week.
+    type: api
+    category: productivity
+    description: >-
+      Confirm-gated action to update starting players in a hand-typed league and record pre-kickoff
+      start/sit calls in the weekly ledger (never modifies live ESPN directly). Requires user approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/fantasy-football/quant/set-lineup" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        manualId: { type: string, description: "Optional hand-typed league id." }
+        leagueId: { type: string, description: "Optional ESPN league id (records ledger calls only)." }
+        season: { type: integer, description: "Optional season year." }
+        startPlayerId: { type: integer, description: "Optional ESPN player id to move into starting lineup." }
+        sitPlayerId: { type: integer, description: "Optional ESPN player id to move to bench." }
+    usageInstructions: Propose only when the user explicitly asks to set/update their lineup or record weekly calls.
+    routingTags: [fantasy-football, set-lineup, record-calls]
+    skills: [fantasy-football]
+    tags: [fantasy-football, route-backed]
+
+  - name: fantasy_quant_apply_waiver
+    displayName: Apply Fantasy Football waiver swap
+    cardText: Add and drop players on your hand-typed league roster with the specified FAAB bid.
+    type: api
+    category: productivity
+    description: >-
+      Confirm-gated action to add an unrostered player and drop a rostered player (recording any FAAB
+      spend) in the caller's hand-typed league. Requires explicit user approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/fantasy-football/quant/apply-waiver" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        manualId: { type: string, description: "Optional hand-typed league id." }
+        addPlayerId: { type: integer, description: "Positive ESPN player id to add." }
+        dropPlayerId: { type: integer, description: "Positive ESPN player id on your roster to drop." }
+        faabBid: { type: number, description: "Optional FAAB bid spent." }
+      required: [addPlayerId, dropPlayerId]
+    usageInstructions: Propose only when the user explicitly asks to apply a waiver add/drop to their hand-typed league.
+    routingTags: [fantasy-football, apply-waiver, add-drop]
+    skills: [fantasy-football]
+    tags: [fantasy-football, route-backed]
 
 # ROUTES — every data route is oidc: a person's team is never reachable by a service identity.
 # Handlers ALSO self-gate via callerSub.
@@ -233,6 +383,9 @@ ribbon:
     - logs
     - operations
   defaultView: fantasy-football
+
+surface:
+  ops: [context, custom, notify]
 
 summary:
   path: /api/fantasy-football/home-summary

@@ -31,6 +31,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | GET /record?leagueKey also splits the graded record and the call list by league, not only the week ledger: the record under a league counted and listed every league's start/sit calls. Guard: tests/fantasy-week-record-league.test.js and the real-PostgreSQL tests/fantasy-isolation.spec.ts.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | A league whose scoring gives every stat 0 points answers scoring {ok:false, reason} and no lineup numbers, and records nothing, instead of advising on all-0.0 projections (sweep 9: "Your lineup is already the best legal one"). Guard: tests/fantasy-zero-scoring.test.js.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | The lineup body carries openSlots: recommended starters for slots the lineup as set leaves empty (fantasy-scoring openSlotStarts), so the page can name them instead of calling the lineup the best legal one beside a positive gain (sweep 13). Not recorded as calls: a call is graded against the benched player. Guard: tests/fantasy-open-slot.test.js.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com  | Mount Fantasy Quant read-only and approval-gated routes (/quant/*) and serve the collapsible right-rail Concierge assets (/concierge.css, /concierge.js).
  *
  * @module fantasy-routes
  */
@@ -86,6 +87,7 @@ const fantasy_feed_1 = require("./fantasy-feed");
 const fantasy_grading_1 = require("./fantasy-grading");
 const fantasy_manual_1 = require("./fantasy-manual");
 const fantasy_manage_routes_1 = require("./fantasy-manage-routes");
+const fantasy_quant_1 = require("./fantasy-quant");
 const log = (0, logger_1.createChildLogger)({ module: 'fantasy-football-routes' });
 /** Package dir captured at load, as a fallback when ctx does not carry one. */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -109,13 +111,25 @@ function surfaceDir(appPackageDir) {
  */
 function createFantasyFootballRoutes(ctx) {
     const pool = ctx.pool;
+    const toolsDir = surfaceDir(ctx.appPackageDir);
     const router = (0, express_1.Router)();
     (0, fantasy_store_1.ensureFantasySchema)(pool).catch((err) => log.error({ err }, 'fantasy-football schema ensure failed'));
-    router.get('/', (0, trading_routes_helpers_1.servePage)(surfaceDir(ctx.appPackageDir), 'fantasy-football.html'));
+    router.get('/', (0, trading_routes_helpers_1.servePage)(toolsDir, 'fantasy-football.html'));
+    router.get('/concierge.css', (_req, res) => {
+        res.setHeader('content-type', 'text/css; charset=utf-8');
+        res.setHeader('cache-control', 'no-store');
+        res.sendFile(path.join(toolsDir, 'concierge.css'));
+    });
+    router.get('/concierge.js', (_req, res) => {
+        res.setHeader('content-type', 'application/javascript; charset=utf-8');
+        res.setHeader('cache-control', 'no-store');
+        res.sendFile(path.join(toolsDir, 'concierge.js'));
+    });
     registerAccountRoutes(router, pool);
     registerLineupRoute(router, pool);
     registerRecordRoutes(router, pool);
     (0, fantasy_manage_routes_1.registerManageRoutes)(router, pool);
+    (0, fantasy_quant_1.registerFantasyQuantRoutes)(router, pool);
     return router;
 }
 /**

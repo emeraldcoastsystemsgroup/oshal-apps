@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | RBAC authorization and personal-scope isolation guards for Audio Studio.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Remove all hardcoded fallback secrets and synthetic default identities; enforce fail-closed kernel actor or explicit test-secret authentication.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | Register personal-scope (own) resource adapters for studio and editor on ctx.authorization so native host-process seal() succeeds fail-closed.
  */
 'use strict';
 
@@ -21,7 +22,7 @@ const ROLE_PERMISSIONS = {
 };
 
 const FORBIDDEN_SCOPE_PARAMS = ['tenantId', 'tenant_id', 'ownerSub', 'owner_sub', 'userSub', 'user_sub', 'workspaceId', 'workspace_id'];
-const FORBIDDEN_SCOPE_HEADERS = ['x-oshal-tenant-id', 'x-tenant-id', 'x-oshal-user-sub', 'x-user-sub', 'x-workspace-id'];
+const FORBIDDEN_SCOPE_HEADERS = ['x-oshal-tenant-id', 'x-tenant-id', 'x-user-sub', 'x-workspace-id'];
 
 function requireExplicitTestSecret() {
   const secret = process.env.OSHAL_AUDIO_TEST_SECRET;
@@ -34,7 +35,7 @@ function requireExplicitTestSecret() {
   return secret.trim();
 }
 
-function assertPersonalScopeOnly(req) {
+function assertPersonalScopeOnly(req, ctx) {
   const query = req.query || {};
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   for (const key of FORBIDDEN_SCOPE_PARAMS) {
@@ -49,6 +50,15 @@ function assertPersonalScopeOnly(req) {
   for (const h of FORBIDDEN_SCOPE_HEADERS) {
     if (headers[h] !== undefined) {
       const err = new Error(`Personal-scope application rejects caller-supplied ${h} header`);
+      err.status = 400;
+      err.code = 'audio_personal_scope_only';
+      throw err;
+    }
+  }
+  if (headers['x-oshal-user-sub'] !== undefined) {
+    const admittedSub = req.principal?.subject || ctx?.authorization?.currentActor?.()?.sub || null;
+    if (!admittedSub || String(headers['x-oshal-user-sub']) !== String(admittedSub)) {
+      const err = new Error('Personal-scope application rejects caller-supplied x-oshal-user-sub header');
       err.status = 400;
       err.code = 'audio_personal_scope_only';
       throw err;
@@ -132,7 +142,7 @@ function resolveActor(ctx, req) {
 
 async function authorizeRequest(ctx, req, res, permission) {
   try {
-    assertPersonalScopeOnly(req);
+    assertPersonalScopeOnly(req, ctx);
   } catch (err) {
     res.status(400).json({ error: err.code || 'audio_personal_scope_only', message: err.message });
     return null;
@@ -175,10 +185,26 @@ async function authorizeRequest(ctx, req, res, permission) {
   return actor;
 }
 
+function registerAudioResources(ctx) {
+  const register = ctx?.authorization?.registerResource;
+  if (typeof register !== 'function') return;
+  const ownAdapter = {
+    authorize({ actor, operation, grant }) {
+      return Boolean(
+        actor && actor.isActive && actor.issuer && actor.sub &&
+        grant && grant.scope === 'own' && !grant.fields && !operation?.tenantId
+      );
+    },
+  };
+  register('studio', ownAdapter);
+  register('editor', ownAdapter);
+}
+
 module.exports = {
   SecurityMiddleware,
   ROLE_PERMISSIONS,
   assertPersonalScopeOnly,
   resolveActor,
   authorizeRequest,
+  registerAudioResources,
 };

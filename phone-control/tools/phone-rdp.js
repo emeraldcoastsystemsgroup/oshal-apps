@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: RDP host setup scripts (Windows PowerShell Admin, Linux GNOME/xrdp, macOS FreeRDP Shadow, Any RDP Host), X.224 rdp-probe verification, live /api/rdp/sessions unified console frame stream + click/drag/keyboard/snapshot/Concierge execution, and optional Fire TV Bluetooth OSHAL-KB pairing helper.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: prevent Android companion APK resolution from falling back to the Fire TV APK, exclude Fire TVs when picking a connected Android phone, launch com.oshal.orbit instead of com.oshal.remote, and host shared AI Office studio stage helpers (device switcher, Controls | Concierge rail tabs, fullscreen stage + HUD, DRM notice, and touch indicator).
  */
 
 import { bytesToBase64, sha256Hex, swipeFromDrag, tapPoint, workHref } from '/api/phone-control/ui/computer-link.js';
@@ -394,13 +395,21 @@ export async function resolveCompanionApk(localApk, preferAndroid = false) {
       const body = await res.json();
       const list = Array.isArray(body?.downloads) ? body.downloads : Array.isArray(body?.files) ? body.files : [];
       const apks = list.filter((d) => /\.apk$/i.test(d?.file || ''));
-      const picked = (preferAndroid && apks.find((d) => /orbit.*android|android.*orbit|android/i.test(d.file)))
-        || apks.find((d) => /firetv|tv/i.test(d.file))
-        || apks[0] || null;
-      if (picked) return picked;
+      if (preferAndroid) {
+        const orbit = apks.find((d) => /orbit.*android|android.*orbit/i.test(d.file) && !/firetv|tv/i.test(d.file));
+        if (orbit) return orbit;
+      } else {
+        const picked = apks.find((d) => /firetv|tv/i.test(d.file)) || apks[0] || null;
+        if (picked) return picked;
+      }
     }
   } catch { /* fall back to local host summary */ }
-  return localApk ? { ...localApk, local: true, preferAndroid: Boolean(preferAndroid) } : null;
+  if (preferAndroid) {
+    const file = String(localApk?.file || '');
+    if (!file || /firetv|tv/i.test(file) || !/orbit.*android|android.*orbit/i.test(file)) return null;
+    return { ...localApk, local: true, preferAndroid: true };
+  }
+  return localApk ? { ...localApk, local: true, preferAndroid: false } : null;
 }
 
 /** @description Download, SHA-256 verify, and stage an APK onto the Linux bridge computer in 36 KiB chunks. @param {object} opts Staging options. @returns {Promise<{stageId:string,sha256:string}>} Staged descriptor. */
@@ -427,17 +436,19 @@ export async function stageCompanionApk({ apk, bridge, nodeName, onProgress }) {
 
 async function installAndroidCompanionFromConnect(ctx, saveAndOpenPhone) {
   if (!(await ctx.install('androidStatus'))) return;
-  const address = ctx.$('connectAddress').value.trim();
+  const raw = ctx.$('connectAddress').value.trim();
   let serial = '';
-  if (address) {
-    ctx.say('androidStatus', `Connecting to ${address}…`);
-    const conn = await ctx.bridge('adb-connect', { address }, 40000);
-    await ctx.remember('connect', `Connect Android at ${address}`, conn);
+  if (raw) {
+    const connArgs = raw.endsWith(':') ? { host: raw.slice(0, -1).trim() } : (raw.includes(':') ? { address: raw } : { host: raw });
+    ctx.say('androidStatus', `Connecting to ${raw}…`);
+    const conn = await ctx.bridge('adb-connect', connArgs, 40000);
+    await ctx.remember('connect', `Connect Android at ${raw}`, conn);
     if (!conn.ok) { ctx.fail('androidStatus', 'android_apk', conn); return; }
     serial = conn.serial;
   } else {
     const seen = await ctx.readStatus();
-    serial = (seen.adb?.devices || []).find((d) => d.state === 'device')?.serial || '';
+    serial = (seen.adb?.devices || []).find((d) =>
+      d.state === 'device' && !String(d.serial || '').endsWith(':5555') && !/^AFT/i.test(d.model || ''))?.serial || '';
   }
   if (!serial) {
     ctx.fail('androidStatus', 'android_apk', 'Connect your Android phone over USB or Wireless debugging first, or enter its Connect address above.', 'no_android_device');
@@ -446,21 +457,21 @@ async function installAndroidCompanionFromConnect(ctx, saveAndOpenPhone) {
   const localApk = ctx.app.state.reports.get(ctx.view.node)?.report?.tvApk || null;
   const apk = await resolveCompanionApk(localApk, true);
   if (!apk) {
-    ctx.fail('androidStatus', 'android_apk', 'No signed oshal Companion APK is staged on this server or computer yet.', 'no_companion_apk');
+    ctx.fail('androidStatus', 'android_apk', 'No Android Orbit APK is staged on this server yet — use Connect above to control your Android phone directly over Wireless debugging without any app install.', 'no_companion_apk');
     return;
   }
   const staged = await stageCompanionApk({ apk, bridge: ctx.bridge, nodeName: ctx.nodeName(), onProgress: (m) => ctx.say('androidStatus', m) });
-  ctx.say('androidStatus', `Installing and launching oshal Companion (${apk.file}) on ${serial}…`);
+  ctx.say('androidStatus', `Installing oshal Orbit (${apk.file}) on ${serial}…`);
   const installed = await ctx.bridge('adb-install-apk', {
-    serial, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true, launchPackage: 'com.oshal.remote'
+    serial, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true, launchPackage: 'com.oshal.orbit'
   }, 180000);
-  await ctx.remember('install apk', `Install oshal Companion on ${serial}`, installed);
+  await ctx.remember('install apk', `Install oshal Orbit on ${serial}`, installed);
   if (!installed.ok) { ctx.fail('androidStatus', 'android_apk', installed); return; }
   ctx.concierge.clearProblem();
   const info = await ctx.bridge('adb-info', { serial }, 30000);
   const name = info.ok && info.model ? `${info.manufacturer ? `${info.manufacturer} ` : ''}${info.model}` : serial;
   const device = await saveAndOpenPhone(ctx, 'android', serial, name);
-  ctx.say('androidStatus', `Installed and opened oshal Companion on ${device.name}.`);
+  ctx.say('androidStatus', `Installed oshal Orbit on ${device.name}.`);
   await ctx.readStatus();
 }
 
@@ -501,4 +512,94 @@ export function mountRdpAndTvBle(ctx, saveAndOpenPhone, openBleRemoveDialog) {
     pairTvBle: () => pairTvBluetooth(ctx, renderBleRows),
     renderTvBle: renderBleRows
   };
+}
+
+/** @description Populate #sessionDeviceSelect in the studio toolbar with all active devices. @param {object} ctx Stage context. @returns {void} */
+export function renderDeviceSwitcher(ctx) {
+  const { app, $ } = ctx;
+  const select = $('sessionDeviceSelect');
+  const opt = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; return o; };
+  select.replaceChildren(
+    ...app.state.phones.map((p) => opt(`phone:${p.id}`, `${p.name} (${p.form === 'tv' ? 'TV' : p.platform === 'android' ? 'Android' : 'iPhone'})`)),
+    ...app.state.computerList.map((c) => opt(`computer:${c.id}`, `${c.name || `Computer ${String(c.id).slice(0, 8)}`} (Computer)`)),
+    ...app.state.rdpSessions.map((r) => opt(`rdp:${r.sessionId}`, `${rdpLabel(r)} (RDP)`))
+  );
+  const activeKey = ctx.currentTargetKey();
+  if (activeKey) select.value = activeKey;
+}
+
+/** @description Show or hide the non-blocking DRM protected-surface overlay on TV frames. @param {object} ctx Stage context. @param {object} frame Frame metadata. @returns {void} */
+export function renderProtectedSurface(ctx, frame) {
+  const notice = ctx.$('protectedSurfaceNotice');
+  if (!frame?.protectedSurface) { notice.hidden = true; return; }
+  const pkg = frame.activePackage ? ` (${frame.activePackage})` : '';
+  ctx.$('protectedSurfaceTitle').textContent = `Protected video app active${pkg}`;
+  ctx.$('protectedSurfaceBody').textContent = 'Fire OS blocks Wi-Fi screen capture inside DRM streaming apps. Remote arrows, OK, Back, Home and Play/Pause still control your TV live.';
+  notice.hidden = false;
+}
+
+function notifyHostFullscreen(active) {
+  for (const target of new Set([window, window.parent, window.top])) {
+    try {
+      if (!target?.document?.documentElement) continue;
+      if (active) target.document.documentElement.setAttribute('data-oshal-stage-fullscreen', 'true');
+      else target.document.documentElement.removeAttribute('data-oshal-stage-fullscreen');
+      target.dispatchEvent(new CustomEvent('oshal:stage-fullscreen', { detail: { fullscreen: active } }));
+    } catch { /* cross-origin parent */ }
+  }
+}
+
+/** @description Toggle fullscreen stage mode (.is-fullscreen + Fullscreen API + parent event). @param {object} ctx Stage context. @param {boolean} active Desired state. @returns {void} */
+export function setFullscreenStage(ctx, active) {
+  const { $, view } = ctx;
+  const next = Boolean(active && ctx.app.state.selected);
+  view.fullscreen = next;
+  const card = $('stageCard');
+  card.classList.toggle('is-fullscreen', next);
+  $('fullscreenHud').hidden = !next;
+  $('fullscreenStageBtn').setAttribute('aria-pressed', String(next));
+  $('fullscreenStageLabel').textContent = next ? 'Exit full screen' : 'Full screen';
+  notifyHostFullscreen(next);
+  if (next && document.fullscreenElement !== card) card.requestFullscreen?.().catch(() => {});
+  else if (!next && document.fullscreenElement === card) document.exitFullscreen?.().catch(() => {});
+}
+
+/** @description Set the open/collapsed state and active tab (Controls | Concierge) of the 340px right rail. @param {object} ctx Stage context. @param {boolean} open Rail visibility. @param {string} tab Active tab key. @returns {void} */
+export function setRailState(ctx, open, tab) {
+  const { $, view } = ctx;
+  const nextTab = tab === 'controls' ? 'controls' : 'concierge';
+  view.conciergeCollapsed = !open;
+  view.railTab = nextTab;
+  if (!open) $('sessionView').setAttribute('data-concierge', 'collapsed');
+  else $('sessionView').removeAttribute('data-concierge');
+  $('railTabControls').setAttribute('aria-selected', String(nextTab === 'controls'));
+  $('railTabConcierge').setAttribute('aria-selected', String(nextTab === 'concierge'));
+  $('railControlsPane').hidden = nextTab !== 'controls';
+  $('railConciergePane').hidden = nextTab !== 'concierge';
+  $('openControlsRailBtn').setAttribute('aria-pressed', String(Boolean(open && nextTab === 'controls')));
+  $('toggleConciergeBtn').setAttribute('aria-pressed', String(Boolean(open && nextTab === 'concierge')));
+}
+
+/** @description Toggle or switch the desktop right rail tab, falling back to #sessionSheet on mobile. @param {object} ctx Stage context. @param {string} targetTab Tab key. @returns {void} */
+export function toggleRailTab(ctx, targetTab) {
+  if (!ctx.desktopMedia.matches) {
+    if (ctx.app.state.sessionSheetOpen) ctx.app.closeSessionSheet(false);
+    else ctx.app.openSessionSheet(true);
+    return;
+  }
+  const willClose = !ctx.view.conciergeCollapsed && ctx.view.railTab === targetTab;
+  setRailState(ctx, !willClose, targetTab);
+}
+
+/** @description Briefly display the visual touch gesture dot inside #deviceFrame. @param {object} ctx Stage context. @param {number} clientX Pointer X. @param {number} clientY Pointer Y. @returns {void} */
+export function flashTouchIndicator(ctx, clientX, clientY) {
+  const frame = ctx.$('deviceFrame');
+  const dot = ctx.$('touchIndicator');
+  const rect = frame.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  dot.style.left = `${Math.max(8, Math.min(rect.width - 8, Math.round(clientX - rect.left)))}px`;
+  dot.style.top = `${Math.max(8, Math.min(rect.height - 8, Math.round(clientY - rect.top)))}px`;
+  dot.hidden = false;
+  clearTimeout(ctx.view.touchTimer);
+  ctx.view.touchTimer = setTimeout(() => { dot.hidden = true; }, 380);
 }

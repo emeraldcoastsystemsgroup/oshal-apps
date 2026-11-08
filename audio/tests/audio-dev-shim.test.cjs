@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | End-to-end internal dev shim test driving Audio Studio through the oshal host-process bridge runner over stdio JSON-RPC.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Remove local home-directory paths, add zero-dependency catalog parser fallback for standalone CI runners, and verify every HTTP/UI/DSP route binding.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | Include studio and editor resources plus routes/application.mjs in fallback catalog parser so bridge runner seal() and native lasting-storage SQLite are always exercised.
  */
 'use strict';
 
@@ -47,13 +48,18 @@ function loadManifestAndCatalog() {
   return {
     manifest: {
       name: 'audio',
+      version: '1.2.1',
       routes: [
         { module: 'routes/package-smoke.js', factory: 'createPackageSmokeRoutes', mountPath: '/api/audio/_smoke', auth: 'service' },
-        { module: 'routes/audio-routes.js', factory: 'createAudioRoutes', mountPath: '/api/audio', auth: 'oidc' },
+        { module: 'routes/application.mjs', factory: 'createAudioRoutes', mountPath: '/api/audio', auth: 'oidc' },
       ],
       authorization: { roleTemplates: [] },
     },
-    catalog: { permissions, bindings: { http: httpBindings } },
+    catalog: {
+      resources: { studio: { scopes: ['own'] }, editor: { scopes: ['own'] } },
+      permissions,
+      bindings: { http: httpBindings },
+    },
   };
 }
 
@@ -118,7 +124,11 @@ function handleBridgeLine(line, { child, principal, catalog, buildCandidates, re
 function startBridgeHarness({ runnerPath, manifest, catalog, dataDir, grantedPermissions }) {
   const child = spawn(process.execPath, [runnerPath, PKG_DIR], {
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: Object.assign({}, process.env, { OSHAL_PACKAGE_DIR: PKG_DIR, OSHAL_PACKAGE_DATA_DIR: dataDir }),
+    env: Object.assign({}, process.env, {
+      OSHAL_PACKAGE_DIR: PKG_DIR,
+      OSHAL_PACKAGE_DATA_DIR: dataDir,
+      NODE_PATH: [path.join(REPO_ROOT, 'scripts', 'toolchain', 'node_modules'), process.env.NODE_PATH].filter(Boolean).join(path.delimiter),
+    }),
   });
 
   let stderrBuf = '';
@@ -225,7 +235,7 @@ test('Host-process bridge runner (runner.js) JSON-RPC integration when kernel br
 
     const smoke = await shim.callHttp('GET', '/api/audio/_smoke');
     assert.equal(smoke.status, 200);
-    assert.equal(smoke.body.version, '1.2.0');
+    assert.equal(smoke.body.version, String(manifest.version || '1.2.1'));
 
     for (const asset of ['audio.css', 'audio.js', 'audio-ui-helpers.js', 'dsp_engine.js', 'dsp_synth.js', 'editor-handoff.mjs']) {
       const assetRes = await shim.callHttp('GET', `/api/audio/ui/${asset}`);

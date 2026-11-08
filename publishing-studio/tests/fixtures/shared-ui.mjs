@@ -1,5 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Mount actual shared editor assets and the native public card alias in disposable Publishing browser fixtures.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Pass explicit root to sendFile so platform roots under dot-prefixed state directories (e.g. ~/.local/state) serve cleanly.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Mount /cockpit/css/themes alongside /shared/ui so surface-themes.css @import rules resolve in browser fixtures.
  */
 import {resolve} from 'node:path';
 import {requireRuntime} from './runtime.mjs';
@@ -8,6 +10,7 @@ const platform=resolve(process.env.OSHAL_PLATFORM_ROOT || resolve(import.meta.di
 
 /** The native alias serves the existing presenter; it is not a file under src/shared/ui. */
 export function mountSharedEditor(app){
- app.get('/shared/ui/js/package-tool-cards.js',(_request,response)=>response.sendFile(resolve(platform,'src/api/jarvis-package-tools.js')));
+ app.get('/shared/ui/js/package-tool-cards.js',(_request,response)=>response.sendFile('src/api/jarvis-package-tools.js',{root:platform}));
  app.use('/shared/ui',express.static(resolve(platform,'src/shared/ui')));
+ app.use('/cockpit/css/themes',express.static(resolve(platform,'src/pages/cockpit/css/themes')));
 }

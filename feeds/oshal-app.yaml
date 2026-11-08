@@ -4,6 +4,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Name the button, not the path. Sweep 8: the concierge told the person to go to 'Connections (/utilities)'. Every not-connected instruction now says to press Connect Slack on the Feeds page (or connect Slack on the Connections page). Guard: tests/feeds-connect-copy.test.js.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.4: declare feeds-curator as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.5 (UX audit 2026-11-06): before Slack is connected the bar withholds Live, Sync now and the settings gear (Connect Slack is the one action); the settings drawer is an opaque side sheet (full width on a phone) that saves each change as it is made and closes with Done; the page says it reads Slack channels and DMs, with a chat icon instead of RSS. Guard: tests/feeds-not-connected-controls.test.js.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.2.6: UX audit sweep (feeds--feeds-dashboard, D1=glass, D2=c). Drop manifest hardcoded theme: ocean, declare DS-00 collection contract and data-ds-work, hide repeated header title when framed, align radii/type/touch targets to the token scale, and wire browser Back dismissal on the opaque Feed settings sheet.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — feeds ("Feeds")
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -44,13 +45,11 @@ description: >-
   Your connected message feeds in one place — live stream, activity trends, hot
   channels, and trending topics over your own Slack messages. Other swarm bots can
   ask the curator "what did I miss" and get a signal-first summary.
-version: 1.2.5
+version: 1.2.6
 testing:
   version: 1
   catalog: tests/test-lab.yaml
 status: active
-
-theme: ocean
 
 source:
   type: git-subdir

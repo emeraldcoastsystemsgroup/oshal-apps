@@ -18,6 +18,7 @@
  * 12 | maintainer@emeraldcoastsystemsgroup.com | GET /characters is a pure read. It inserted the caller's starter character first, and the native host admits a GET read-only and refuses any SQL write, so the studio's first read answered 502 'SQL mutation requires original writer admission' for every account and listed nothing. The starter is now provisioned only by POST /characters/starter (lora.configure), which the studio offers when an account has no characters; it stays idempotent and owner-bound, and answers the same list GET /characters does.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | DELETE /characters/:subject (lora.configure): a character could not be deleted at all, so test characters stayed in every list. One owner-predicated delete; versions, scores, thumbnails, dataset rows and callback grants go with it through their cascade keys.
  * 14 | maintainer@emeraldcoastsystemsgroup.com | GET /worker (lora.read): { gpuWorker } from hasEdgeWorker(), the same worker selection every dispatch uses. A pure read with no side effect; the studio reads it once on open and withholds Train, Validate, Improve and Overnight where no GPU worker is registered (UX audit 2026-11-06, lora--lora-studio), instead of offering actions that could only answer box_required.
+ * 15 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01: serve GET /ui/photo-upload.mjs (app.open) for the studio's Step 2 multi-photo device uploader with interactive crop and per-photo captioning.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -410,6 +411,16 @@ function createBotLoraRoutes(ctx) {
             if (err) {
                 logger.error({ err }, 'serve lora UI failed');
                 res.status(404).send('Page not found');
+            }
+        });
+    });
+    /** GET /ui/photo-upload.mjs — client-side multi-photo crop and caption module (RP-LORA-01). */
+    router.get('/ui/photo-upload.mjs', (_req, res) => {
+        res.type('application/javascript');
+        res.sendFile(path.join(surfaceDir, 'lora-photo-upload.mjs'), (err) => {
+            if (err) {
+                logger.error({ err }, 'serve lora photo-upload module failed');
+                res.status(404).send('Module not found');
             }
         });
     });

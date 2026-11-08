@@ -37,6 +37,9 @@
  *                     |                             | editor-assistant.js 4), so the director can make the project the person asks for from the
  *                     |                             | start card or the list. A turn that began with no project open lists the projects again when
  *                     |                             | it returns and opens the one project that turn made; with none or several made it only lists.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com   | 0.4.3 (UX audit sweep, scene-studio--scene-studio, D1=glass, D2=c): replace browser
+ *                     |                             | confirm() and prompt() dialogs with an in-page sheet (#action-sheet) and wire popstate Back
+ *                     |                             | dismissal across #new-sheet, #action-sheet, and header disclosures.
  */
 (function () {
   'use strict';
@@ -486,7 +489,7 @@
   async function deleteFile() {
     const intent = selection();
     const path = $('file-path').value.trim();
-    if (!path || !confirm('Delete ' + path + '? (Restore brings it back.)')) return;
+    if (!path || !(await askSheet({ title: 'Delete file?', text: 'Delete ' + path + '? Restore brings it back.', ok: 'Delete file', danger: true }))) return;
     await act('Deleting ' + path, async () => {
       await api('DELETE', '/projects/' + intent.projectId + '/files', { path });
       if (!current(intent)) return;
@@ -546,17 +549,46 @@
 
   async function restore(revision) {
     const intent = selection();
-    if (!confirm('Put revision ' + revision + ' back? It becomes a new revision; nothing is lost.')) return;
+    if (!(await askSheet({ title: 'Restore revision ' + revision + '?', text: 'Put revision ' + revision + ' back? It becomes a new revision; nothing is lost.', ok: 'Restore' }))) return;
     await act('Restoring revision ' + revision, async () => {
       await api('POST', '/projects/' + intent.projectId + '/restore', { revision });
       if (current(intent)) await refreshProject(true);
     });
   }
 
-  function showNewSheet(show) {
+  let sheetHist = false;
+  function pushSheetHistory() { try { history.pushState({ sceneSheet: 1 }, ''); sheetHist = true; } catch {} }
+  function clearSheetHistory(fromPop) { if (sheetHist && !fromPop) { sheetHist = false; try { history.back(); } catch {} } else sheetHist = false; }
+
+  function showNewSheet(show, fromPop) {
     const sheet = $('new-sheet');
-    if (show && !sheet.open) sheet.showModal();
-    if (!show && sheet.open) sheet.close();
+    if (show && !sheet.open) { sheet.showModal(); pushSheetHistory(); }
+    if (!show && sheet.open) { sheet.close(); clearSheetHistory(fromPop); }
+  }
+
+  function askSheet(opts) {
+    const dlg = $('action-sheet'), field = $('action-sheet-field'), input = $('action-sheet-input'), ok = $('action-sheet-ok'), cancel = $('action-sheet-cancel');
+    if (!dlg) return Promise.resolve(false);
+    $('action-sheet-title').textContent = opts.title || 'Confirm';
+    $('action-sheet-text').textContent = opts.text || '';
+    field.hidden = !opts.prompt;
+    input.value = opts.initial || '';
+    ok.textContent = opts.ok || 'Continue';
+    ok.className = opts.danger ? 'danger' : 'primary';
+    return new Promise((resolve) => {
+      const done = (val, fromPop) => {
+        ok.onclick = null; cancel.onclick = null; dlg.oncancel = null;
+        if (dlg.open) dlg.close();
+        clearSheetHistory(fromPop);
+        resolve(val);
+      };
+      ok.onclick = () => done(opts.prompt ? input.value.trim() : true, false);
+      cancel.onclick = () => done(opts.prompt ? '' : false, false);
+      dlg.oncancel = () => done(opts.prompt ? '' : false, false);
+      dlg._cancelFromPop = () => done(opts.prompt ? '' : false, true);
+      if (!dlg.open) { dlg.showModal(); pushSheetHistory(); }
+      if (opts.prompt) input.focus();
+    });
   }
 
   /** New: one press makes an untitled project of the chosen type, opens it and renders its first preview. */
@@ -575,7 +607,7 @@
   }
 
   async function renameProject() {
-    const name = prompt('New name', state.project.title);
+    const name = await askSheet({ title: 'Rename project', text: 'Enter a new title for this project.', prompt: true, initial: state.project.title, ok: 'Save name' });
     if (!name) return;
     await act('Renaming', async () => {
       await api('PATCH', '/projects/' + state.project.projectId, { title: name });
@@ -585,7 +617,7 @@
 
   async function deleteProject() {
     const p = state.project;
-    if (!confirm('Delete "' + p.title + '" and every revision of it? This cannot be undone.')) return;
+    if (!(await askSheet({ title: 'Delete "' + p.title + '"?', text: 'Delete "' + p.title + '" and every revision of it? This cannot be undone.', ok: 'Delete project', danger: true }))) return;
     await act('Deleting', async () => {
       await api('DELETE', '/projects/' + p.projectId, { confirm: true });
       goHome();
@@ -693,6 +725,12 @@
     $('upload-file').addEventListener('change', (ev) => { uploadFile(ev.target.files[0]); ev.target.value = ''; });
     $('import-model').addEventListener('click', importModel);
     $('export-project').addEventListener('click', exportProject);
+    window.addEventListener('popstate', () => {
+      const actDlg = $('action-sheet');
+      if (actDlg && actDlg.open && actDlg._cancelFromPop) actDlg._cancelFromPop();
+      if ($('new-sheet') && $('new-sheet').open) showNewSheet(false, true);
+      document.querySelectorAll('header details[open]').forEach((d) => { d.open = false; });
+    });
     window.addEventListener('pagehide', stopPoll);
     setInterval(() => { if (!document.hidden && !state.busy) loadProjects().catch(() => undefined); }, 20000);
   }

@@ -6,6 +6,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.2: cloud-ops-bot declares routing words (cloud, gcp, google cloud, cloud resources, ...): asked from Jarvis, the request went to another application (Video Studio, Scan to Print) or to none. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: Cloud opens on its own Cloud Accounts screen (UX audit 2026-11-05, cloud-accounts, D). ribbon.defaultView was `chat`, so opening Cloud showed the global list of every Jarvis conversation, and the accounts tile (in the bottom section, behind the menu on a phone) framed the whole platform Connections page. The tile now opens ui/index.html from this package's own assets: Google Cloud not connected, one primary Connect Google Cloud; connected, the account tiles from /api/cloud/home-summary and one primary Ask the cloud bot. It sits in the top section and is the default view.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: a refused connect is said on the Cloud screen. Where the kernel refuses Google Cloud (the trial has no public web address) the connect window landed on Connections with the reason while this screen kept saying to finish signing in; it now shows the reason the Connections page announces (oshal-connections channel) as an alert.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: UX design-standard sweep (D1=glass, D2=c, cloud--cloud-accounts): declare DS-00 dashboard contract, load surface-glass.css, align card/tile radii and typography to the standard scale, keep controls opaque, and tighten empty-state copy within the phone word budget.
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — cloud (DevOps/Cloud bundle, ADR-038)
 # Carved out of OSHAL core 2026-07-19 (ADR-085 Wave 3, "skill with a surface" —
@@ -54,7 +55,7 @@ description: >-
   Inspect and operate your Google Cloud by chat. Connect GCP at /utilities; the
   cloud-ops-bot reads your projects/services/instances via your connector token and
   acts on your behalf (read-only by default). The API-based replacement for gcloud.
-version: 1.2.1
+version: 1.2.2
 status: active
 
 # (theme dropped at the carve: core declared `theme: blue`, which is NOT a known

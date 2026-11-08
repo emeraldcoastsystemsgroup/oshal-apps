@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The Social desk's rules and publish paths without a database or network: the posting plan's next free slot in the person's zone (skips taken slots and off days), post normalization (no channel, empty, over a channel's cap, a past time, variants kept only where they differ), and under OSHAL_EGRESS=kernel every publish reaches its provider with no Authorization header (X /2/tweets, LinkedIn userinfo then ugcPosts, Slack chat.postMessage in the chosen channel, a Facebook Page through /me/accounts, Mastodon statuses); a kernel "not connected" refusal is the channel's 409; Slack without a chosen channel is a 400; a post to two channels where one refuses ends partial with the refusal recorded; the due pass sends what is due and stops at its budget; Engage maps Slack DMs/mentions and X mentions and a reply goes to the thread or the tweet.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Test PUT /events/:id Go Live planned stream editing: shifts or replaces unsent announcements while preserving sent announcements, enforces owner isolation, and refuses start-time changes once a stream has started while allowing non-time updates.
  */
 'use strict';
 const test = require('node:test');
@@ -47,21 +48,36 @@ function fakeFetch(answers) {
 /** An in-memory stand-in for the admitted pool, enough for the desk's statements. */
 function memoryDb() {
   const posts = new Map();
+  const events = new Map();
   let settings = null;
   return {
     posts,
+    events,
     setSettings(s) { settings = s; },
     async query(sql, params) {
       if (/^INSERT INTO oshal_email_social_posts/.test(sql)) { posts.set(params[0], { post_id: params[0], user_sub: params[1], status: params[2], body: params[3], variants: params[4], channels: params[5], media_url: params[6], event_id: params[7], scheduled_at: params[8], sent_at: null, outcomes: '{}', created_at: new Date(), updated_at: new Date() }); return { rowCount: 1 }; }
       if (/^UPDATE oshal_email_social_posts/.test(sql)) {
-        const row = posts.get(params[0]); if (!row) return { rowCount: 0 };
+        const row = posts.get(params[0]); if (!row || row.user_sub !== params[1]) return { rowCount: 0 };
         const cols = [...sql.matchAll(/(\w+) = \$(\d+)/g)];
         for (const [, col, n] of cols) row[col] = params[Number(n) - 1];
         return { rowCount: 1 };
       }
+      if (/^DELETE FROM oshal_email_social_posts WHERE post_id = \$1/.test(sql)) {
+        const row = posts.get(params[0]); if (!row || row.user_sub !== params[1]) return { rowCount: 0 };
+        posts.delete(params[0]); return { rowCount: 1 };
+      }
       if (/FROM oshal_email_social_posts WHERE user_sub = \$1 AND status = 'scheduled' AND scheduled_at <= \$2/.test(sql)) return { rows: [...posts.values()].filter((r) => r.user_sub === params[0] && r.status === 'scheduled' && r.scheduled_at <= params[1]) };
       if (/FROM oshal_email_social_posts WHERE post_id = \$1/.test(sql)) { const r = posts.get(params[0]); return { rows: r && r.user_sub === params[1] ? [r] : [] }; }
       if (/FROM oshal_email_social_posts WHERE user_sub = \$1/.test(sql)) return { rows: [...posts.values()].filter((r) => r.user_sub === params[0] && (!/status = \$3/.test(sql) || r.status === params[2])) };
+      if (/^INSERT INTO oshal_email_social_events/.test(sql)) { events.set(params[0], { event_id: params[0], user_sub: params[1], title: params[2], description: params[3], start_at: params[4], destinations: params[5], watch_url: params[6], status: 'planned', created_at: new Date() }); return { rowCount: 1 }; }
+      if (/^UPDATE oshal_email_social_events/.test(sql)) {
+        const row = events.get(params[0]); if (!row || row.user_sub !== params[1]) return { rowCount: 0 };
+        const cols = [...sql.matchAll(/(\w+) = \$(\d+)/g)];
+        for (const [, col, n] of cols) row[col] = params[Number(n) - 1];
+        return { rowCount: 1 };
+      }
+      if (/FROM oshal_email_social_events WHERE event_id = \$1/.test(sql)) { const r = events.get(params[0]); return { rows: r && r.user_sub === params[1] ? [r] : [] }; }
+      if (/FROM oshal_email_social_events WHERE user_sub = \$1/.test(sql)) return { rows: [...events.values()].filter((r) => r.user_sub === params[0]) };
       if (/FROM oshal_email_social_settings/.test(sql)) return { rows: settings ? [settings] : [] };
       throw new Error(`unexpected sql ${sql}`);
     },
@@ -239,4 +255,58 @@ test('the channel rail reports each state from the connection metadata and who t
   assert.equal(by.x.limit, 280);
   assert.equal(r.body.native, true);
   assert.ok(r.body.destinations.some((d) => d.id === 'youtube'));
+});
+
+test('PUT /events/:id updates a planned stream, shifts unsent announcements, keeps sent ones, and refuses time changes once started', async () => {
+  const db = memoryDb();
+  db.setSettings({ plan: '{}', slack_channel: 'C9', slack_label: '#general', timezone: 'UTC' });
+  fakeFetch([['api.twitter.com/2/tweets', { data: { id: '501' } }], ['slack.com/api/chat.postMessage', { ok: true, ts: '5.5', channel: 'C9' }], ['slack.com/api/chat.getPermalink', { ok: true, permalink: 'https://w/p55' }]]);
+  const router = desk.createSocialDeskRoutes({ pool: db, intent: async () => ({ connections: [{ provider: 'twitter' }, { provider: 'slack' }] }) });
+  const startMs = Date.now() + 2 * 3600000;
+  const startIso = new Date(startMs).toISOString();
+  const created = res();
+  await router.routes['POST /events'](req({
+    title: 'Friday build night',
+    startAt: startIso,
+    watchUrl: 'https://youtube.com/live/old',
+    destinations: ['youtube'],
+    announcements: [
+      { key: 'announce', text: 'Going live tonight: Friday build night https://youtube.com/live/old', channels: ['x'], at: new Date().toISOString() },
+      { key: 'soon', text: 'Starting in 15 minutes: Friday build night https://youtube.com/live/old', channels: ['x'], at: new Date(startMs - 15 * 60000).toISOString() },
+      { key: 'live', text: "We're live now: Friday build night https://youtube.com/live/old", channels: ['x'], at: startIso },
+    ],
+  }), created);
+  assert.equal(created.code, 201);
+  const eventId = created.body.event.id;
+  const sentId = created.body.posts.find((p) => p.status === 'sent').id;
+
+  const shiftIso = new Date(startMs + 3600000).toISOString();
+  const shifted = res();
+  await router.routes['PUT /events/:id'](req({ title: 'Saturday build night', startAt: shiftIso, watchUrl: 'https://youtube.com/live/new', destinations: ['youtube', 'twitch'] }, { params: { id: eventId } }), shifted);
+  assert.equal(shifted.code, 200);
+  assert.equal(shifted.body.event.title, 'Saturday build night');
+  assert.deepEqual(shifted.body.event.destinations, ['youtube', 'twitch']);
+  const keptSent = shifted.body.posts.find((p) => p.id === sentId);
+  assert.equal(keptSent.status, 'sent');
+  assert.match(keptSent.text, /Friday build night/, 'already-sent announcement text stays untouched');
+  const unsent = shifted.body.posts.filter((p) => p.status === 'scheduled');
+  assert.equal(unsent.length, 2);
+  assert.ok(unsent.every((p) => p.text.includes('Saturday build night') && p.text.includes('https://youtube.com/live/new')));
+  assert.equal(unsent[1].scheduledAt, shiftIso, 'unsent scheduled time shifts with the stream');
+
+  const foreign = res();
+  await router.routes['PUT /events/:id'](req({ title: 'Other user' }, { oidc: { user: { sub: 'bob' } }, params: { id: eventId } }), foreign);
+  assert.equal(foreign.code, 404, 'another caller cannot edit the stream');
+
+  db.events.get(eventId).start_at = new Date(Date.now() - 60000).toISOString();
+  const refused = res();
+  await router.routes['PUT /events/:id'](req({ title: 'Saturday build night', startAt: new Date(Date.now() + 7200000).toISOString() }, { params: { id: eventId } }), refused);
+  assert.equal(refused.code, 409);
+  assert.equal(refused.body.error, 'already_started');
+  assert.match(refused.body.message, /already started/i);
+
+  const nonTimeEdit = res();
+  await router.routes['PUT /events/:id'](req({ title: 'Live Q&A right now', startAt: db.events.get(eventId).start_at, watchUrl: 'https://youtube.com/live/now' }, { params: { id: eventId } }), nonTimeEdit);
+  assert.equal(nonTimeEdit.code, 200, 'non-time edits stay allowed once started');
+  assert.equal(nonTimeEdit.body.event.title, 'Live Q&A right now');
 });

@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | AI Office 2.19.0 against the oshal design standard (docs/ux/design-standard.md §3.1, §3.3, §4.3, §4.4, §4.10, §5.1; Google Docs, Word and ONLYOFFICE, REFP CONVENTIONS §5.1). At 412x743 with real touch and at 1440x900: the page declares its contract and its work; with nothing saved it opens on a blank Word page with the caret on line 1 and no "create or open" box; typing lands in the document, then Export is the one primary and Save is never it; one app row (Back, the name and its menu, Undo, Redo, Save, Export); the phone's bottom bar is Format, Insert, Comment, Concierge and More (Slides first for a presentation); every pane opens as an opaque sheet that the phone's Back closes inside the editor; Format has Text and Paragraph tabs with the planned Highlight after Text colour; the planned controls (RP-OFF-01..07, RP-ALL-01) are greyed, aria-disabled, linked to their backlog ids and inert; Delete asks in the page; with a document saved the first screen is Your documents with one New, and an existing document opens to read on a phone with one Edit; on a desktop the Format | Concierge pane is docked and Zoom Fit keeps the whole slide in view whichever pane is open (the inspector used to float over the canvas and clip the slide's right third); a text selection raises Cut, Copy, Paste and Comment at the selection. Real routes over disposable PostgreSQL and the kernel's shared editor from OSHAL_PLATFORM_ROOT. Red on store main d88f3ed9 (AI Office 2.18.8).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 2.20.0 (RP-OFF-01..07): Highlight, Comment, Suggest changes, Find and replace, PDF and plain-text export, Mobile view and Share are now real controls in the same slots with zero RP-OFF-* planned attributes; RP-ALL-01 Summarize remains an inert planned control.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 2.20.1: verify the docked desktop Concierge composer stays pinned within 20px of the bottom of the right rail with zero outer rail/page scrollbar even when conversation messages scroll.
  */
 import{test}from'node:test';import assert from'node:assert/strict';import{createRequire}from'node:module';
 import{fixture}from'./fixture.mjs';
@@ -120,4 +121,28 @@ test('desktop: a text selection raises Cut, Copy, Paste and Comment at the selec
  const facts=await page.evaluate(()=>{const node=document.querySelector('.office-selection-bar'),range=getSelection().getRangeAt(0).getBoundingClientRect(),box=node.getBoundingClientRect();return{popover:node.matches(':popover-open'),labels:[...node.children].map(child=>child.getAttribute('aria-label')??child.textContent.trim()),clear:box.bottom<=range.top||box.top>=range.bottom,near:Math.min(Math.abs(range.top-box.bottom),Math.abs(box.top-range.bottom))<=48};});
  assert.equal(facts.popover,true,'on the float layer');assert.deepEqual(facts.labels,['Cut','Copy','Paste','Comment','More for the selection']);assert.equal(facts.clear,true,'it never covers the selection');assert.equal(facts.near,true,'it sits at the selection');
  await bar.getByRole('button',{name:'Cut',exact:true}).click();await page.waitForFunction(()=>import('/api/presentations/editor/assets/state.mjs').then(({state})=>state.model.pages[0].blocks[0].runs.map(run=>run.text).join('')==='Select these '));
+});
+
+test('desktop: Concierge composer is pinned flush at the bottom of the right rail with zero outer scrollbar',{timeout:120000},async t=>{
+ const{page}=await open(t,DESKTOP,'?kind=docx');
+ await page.locator('.office-pane-tabs [data-pane=concierge]').click();
+ await page.locator('.ef-concierge .ef-assistant-composer textarea').waitFor();
+ await page.waitForTimeout(150);
+ const measure=()=>page.evaluate(()=>{
+  const rail=document.querySelector('#office-root .ef-concierge'),ai=document.getElementById('office-ai'),assistant=rail.querySelector('.ef-assistant'),log=rail.querySelector('.ef-assistant-log'),composer=rail.querySelector('.ef-assistant-composer');
+  const rr=rail.getBoundingClientRect(),cr=composer.getBoundingClientRect();
+  return{bottomGap:Math.round(rr.bottom-cr.bottom),docOverflowY:document.documentElement.scrollHeight>window.innerHeight,railOverflowY:rail.scrollHeight>rail.clientHeight,aiOverflowY:ai.scrollHeight>ai.clientHeight,assistantOverflowY:assistant.scrollHeight>assistant.clientHeight,logScrolls:log.scrollHeight>log.clientHeight};
+ });
+ const initial=await measure();
+ assert.ok(initial.bottomGap>=8&&initial.bottomGap<=20,'composer sits pinned near rail bottom: '+JSON.stringify(initial));
+ assert.equal(initial.docOverflowY,false,'no outer document scrollbar');
+ assert.equal(initial.railOverflowY,false,'no outer right-rail scrollbar');
+ assert.equal(initial.aiOverflowY,false,'no #office-ai scrollbar');
+ assert.equal(initial.assistantOverflowY,false,'no .ef-assistant overflow');
+ await page.evaluate(()=>{const log=document.querySelector('#office-root .ef-concierge .ef-assistant-log');for(let i=0;i<24;i++){const a=document.createElement('article'),p=document.createElement('p');p.textContent='Conversation turn '+i+' keeps scrolling inside the log container only.';a.append(p);log.append(a);}});
+ const crowded=await measure();
+ assert.equal(crowded.logScrolls,true,'conversation log absorbs scroll');
+ assert.ok(crowded.bottomGap>=8&&crowded.bottomGap<=20,'composer stays pinned at bottom when log overflows: '+JSON.stringify(crowded));
+ assert.equal(crowded.railOverflowY,false,'right rail still has zero outer scrollbar');
+ assert.equal(crowded.docOverflowY,false,'document still has zero outer scrollbar');
 });

@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard the manifest-contributed whole-archive handler contract and compiled export.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Take over the BEHAVIOURAL Takeout-handler proof from the core repo. Entries 1-2 read the compiled file as text, which shows the wiring exists and nothing about what it does; the only case that actually CALLED the handler lived in core's takeout-package-registration.spec.ts and reached this package over a relative path into a sibling checkout. That is a Rule 0c violation, and it also made the core spec permanently red in the core nightly, whose gate runs from a git-archive export with no sibling store repo beside it. Moved here and widened: per-owner keying, the encrypted-at-rest envelope, a randomized envelope per write, and a refusal that never reaches the database.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | The raw export is sealed through `@/features/personal-data` encryptField (the kernel-held key, PDATA-01) instead of the retired SESSION_SECRET helper. The module double is ASYNCHRONOUS like the native kernel's, owner-bound and randomized, so a missed await (a Promise stored as raw_blob) and an owner mix-up both fail here; a refused seal never reaches the database.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | RP-KL-01: watch-history ingests write to oshal_youtube_children keyed by (user_sub, child_id) with raw_blob sealed at $5.
  */
 
 import assert from 'node:assert/strict';
@@ -81,11 +82,11 @@ function loadRoutesModule(pd) {
   }
 }
 
-/** A pool that records only the activity INSERT and answers everything else emptily. */
+/** A pool that records only the child-activity INSERT and answers everything else emptily. */
 function recordingPool(writes) {
   return {
     query: async (sql, params) => {
-      if (String(sql).includes('INSERT INTO oshal_youtube_activity')) writes.push({ sql, params });
+      if (String(sql).includes('INSERT INTO oshal_youtube_children')) writes.push({ sql, params });
       return { rows: [], rowCount: 0 };
     },
   };
@@ -111,13 +112,13 @@ test('Kid Lens Takeout handler keys every write to the supplied owner and stores
   // Identical content from two parents must never collapse onto one owner, in the row or the seal.
   assert.deepEqual(writes.map((write) => write.params[0]), ['parent-a', 'parent-b']);
   assert.deepEqual(seals, ['parent-a', 'parent-b']);
-  // raw_blob is $3: an awaited envelope string, never the bytes that arrived and never a Promise.
+  // raw_blob is $5: an awaited envelope string, never the bytes that arrived and never a Promise.
   for (const write of writes) {
-    assert.equal(typeof write.params[2], 'string');
-    assert.match(write.params[2], /^opd1:k1:/);
-    assert.notEqual(write.params[2], TAKEOUT_CONTENT);
+    assert.equal(typeof write.params[4], 'string');
+    assert.match(write.params[4], /^opd1:k1:/);
+    assert.notEqual(write.params[4], TAKEOUT_CONTENT);
   }
-  assert.notEqual(writes[0].params[2], writes[1].params[2]);
+  assert.notEqual(writes[0].params[4], writes[1].params[4]);
 });
 
 test('a refused seal fails the ingest before the activity row is written', async () => {

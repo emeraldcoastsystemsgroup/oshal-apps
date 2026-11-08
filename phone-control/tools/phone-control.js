@@ -9,9 +9,10 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: when /api/phone-control/devices answers 403 (an account that holds the page view only, not the administrator's role), show #notAllowed and hide the device and connect views.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: merge Connect into a modal sheet opened by Add a device or /config/ui, preserve the non-admin 403 #notAllowed view, manage history state so Back closes sheets before the session (DS-39), hide the shell orb during an active session, and guard inert planned controls.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: attach surface-bridge-client.js cleanly without console 404 when embedded in the cockpit, keep the shell concierge orb visible at all times, open the Connect sheet on #connect-tv, pass full device/computer context snapshot to the concierge rail, and sync modal background inert state.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: gate rdp.list() on hasStoredRdp() to eliminate 404 console noise when no RDP session is active, and exit fullscreen stage on Escape before closing modal sheets.
  */
 
-import { createComputerClient, createPackageClient, createRdpClient } from '/api/phone-control/ui/computer-link.js';
+import { createComputerClient, createPackageClient, createRdpClient, hasStoredRdp } from '/api/phone-control/ui/computer-link.js';
 import { mountStage } from '/api/phone-control/ui/phone-stage.js';
 import { mountSetup } from '/api/phone-control/ui/phone-setup.js';
 import { buildPhoneControlContextSnapshot, connectPhoneControlHandoff } from '/api/phone-control/ui/editor-handoff.mjs';
@@ -91,7 +92,7 @@ const app = {
       app.state.computerList = [];
       app.state.computersRefused = error.status === 401 ? 'Sign in through oshal to see your computers.' : `Your computers could not be read: ${error.message}`;
     }
-    app.state.rdpSessions = await app.rdp.list().catch(() => []);
+    app.state.rdpSessions = hasStoredRdp() ? await app.rdp.list().catch(() => []) : [];
     app.state.loadedOnce = true;
     app.emit();
   },
@@ -210,6 +211,7 @@ function wireLayers() {
   window.addEventListener('popstate', handlePopState);
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
+    if (byId('stageCard')?.classList.contains('is-fullscreen')) { app.exitFullscreen?.(); return; }
     if (!byId('rowMenu').hidden) { app.closeRowMenu?.(); return; }
     if (app.state.sessionSheetOpen) { app.closeSessionSheet?.(false); return; }
     if (app.state.connectOpen) app.closeConnect(false);

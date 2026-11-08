@@ -9,6 +9,7 @@
 # 0.11.3 | maintainer@emeraldcoastsystemsgroup.com | the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 # 0.11.4 | maintainer@emeraldcoastsystemsgroup.com | refresh-pass declares startsItself: it spends no money and answers 200 with no team followed.
 # 0.11.7 | maintainer@emeraldcoastsystemsgroup.com | the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
+# 0.12.0 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant concierge (F22): collapsible right-rail Concierge with bottom-pinned Jarvis composer, surface context bridge, inline sports-quant specialist persona, read-only tonight edge / outlier-trimmed ROI / game breakdown tools, and approval-card-gated forward-test pick/follow tool.
 #
 # An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
 # "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
@@ -91,6 +92,11 @@ rating:
       tier: T1
       generation: none
       degrade: template
+    - id: sports-quant-concierge
+      unit: question
+      tier: T2
+      generation: hosted
+      degrade: template
 displayName: Sports Edge
 description: >-
   Follow a team and really know its next game. Sports Edge builds a line from the ground up —
@@ -99,10 +105,30 @@ description: >-
   travel — then compares that line to the book's moneyline and spread. Every call is registered
   before kickoff and graded on closing-line value, so the model has to beat the market before it is
   allowed to stake anything. Fantasy leagues moved to their own app, Fantasy Football.
-version: 0.11.7
+version: 0.12.0
 status: active
-# Sports Edge packages no agent; the stable framework concierge owns its right rail.
-chatBot: general-bot
+chatBot: sports-quant
+
+bots:
+  - agentId: 5d08e672-4c91-4f38-8a19-7b204e6c91d2
+    name: sports-quant
+    persona: personas/sports-quant.yaml
+    posture: inline
+    role: sports-edge/quant
+    capabilities:
+      - edge-evaluation
+      - ledger-robustness
+      - game-walkthrough
+    selectorDescriptor: >-
+      Select for Sports Edge upcoming game lines, vig and de-vigged probabilities, quarter-Kelly sizing,
+      forward-test pick ROI, closing-line value (CLV), and outlier-trimmed model robustness.
+    routingKeywords:
+      - sports edge
+      - games tonight
+      - betting edge
+      - closing line value
+      - pick roi
+      - quarter kelly
 uses: [test-catalog, app-dependencies, world-data]
 testing:
   version: 1
@@ -168,7 +194,99 @@ schedules:
     description: Capture the book's lines, grade finished calls and rebuild previews for the teams you follow.
     offer: Keep my followed teams' previews, lines and graded calls fresh every three hours.
 
-theme: light-blue
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOLS — route-backed specialist tools for sports-quant and main Jarvis.
+# Read tools execute strictly read-only GET queries; mutations require approval.
+# ─────────────────────────────────────────────────────────────────────────────
+tools:
+  - name: sports_edge_tonight
+    displayName: Sports Edge tonight slate
+    type: api
+    category: finance
+    description: >-
+      Evaluate tonight's and upcoming games from Sports Edge's stored previews, book quotes, and line
+      observations. Returns matchup, vig %, de-vigged market probability vs model probability, edge %,
+      quarter-Kelly sizing, line movement, and scorecard staking gate. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/sports-edge/quant/tonight?league={input.league}&days={input.days}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        league: { type: string, description: "Optional league filter: nfl, nba, or ncaaf." }
+        days: { type: integer, description: "Optional horizon in days (1-21)." }
+    usageInstructions: Call for "which games have edge tonight?" or upcoming slate edge questions.
+    routingTags: [sports-edge, tonight, edge, lines, kelly, odds]
+    skills: [sports-edge]
+    tags: [sports-edge, route-backed]
+
+  - name: sports_edge_roi
+    displayName: Sports Edge ledger ROI and robustness
+    type: api
+    category: finance
+    description: >-
+      Evaluate Sports Edge settled pick ROI, Brier score vs market Brier, closing-line value (CLV),
+      and outlier-trimmed robustness after removing the top 20% of winning picks (withoutTopWinners).
+      Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/sports-edge/quant/roi?strategy={input.strategy}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        strategy: { type: string, description: "Strategy name (defaults to ensemble)." }
+    usageInstructions: Call for "does the model hold up?" or recent pick ROI / CLV questions.
+    routingTags: [sports-edge, roi, clv, holds-up, scorecard, ledger]
+    skills: [sports-edge]
+    tags: [sports-edge, route-backed]
+
+  - name: sports_edge_game
+    displayName: Sports Edge game preview walkthrough
+    type: api
+    category: finance
+    description: >-
+      Inspect a single upcoming game's full quantitative preview: Elo/power/unit signals, rest days,
+      production-weighted injury adjustments, book vig, edge candidates, line movement, and registered
+      forward-test calls. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/sports-edge/quant/game?eventId={input.eventId}&team={input.team}&league={input.league}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        eventId: { type: string, description: "ESPN event id." }
+        team: { type: string, description: "Team abbreviation (e.g. KC, BOS)." }
+        league: { type: string, description: "Optional league: nfl, nba, or ncaaf." }
+    usageInstructions: Call when the person asks to break down a specific team's next matchup or injury impact.
+    routingTags: [sports-edge, matchup, preview, injuries, line-movement]
+    skills: [sports-edge]
+    tags: [sports-edge, route-backed]
+
+  - name: sports_edge_record_pick
+    displayName: Record forward-test pick or follow team
+    cardText: Record pre-kickoff forward-test calls (at zero live money stake) or follow this team in Sports Edge.
+    type: api
+    category: finance
+    description: >-
+      Confirm-gated action to build/record pre-kickoff forward-test calls for an upcoming game in the
+      Sports Edge ledger (at zero live money stake) or follow a team. Requires explicit user approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/sports-edge/quant/record-pick" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        action: { type: string, enum: [record_pick, follow_team], description: "Action to perform." }
+        league: { type: string, enum: [nfl, nba, ncaaf], description: "League identifier." }
+        eventId: { type: string, description: "ESPN event id when action is record_pick." }
+        team: { type: string, description: "Team abbreviation when action is follow_team." }
+        teamId: { type: string, description: "ESPN team id when action is follow_team." }
+        displayName: { type: string, description: "Optional team display name." }
+      required: [league]
+    usageInstructions: Propose only when the user explicitly asks to record/refresh a pick or follow a team.
+    routingTags: [sports-edge, record-pick, follow-team]
+    skills: [sports-edge]
+    tags: [sports-edge, route-backed]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SETTINGS — read from THIS FILE at activation as the shipped defaults; a deployment row and a
@@ -285,6 +403,9 @@ ribbon:
     - logs
     - operations
   defaultView: sports-edge-home
+
+surface:
+  ops: [context, custom, notify]
 
 summary:
   path: /api/sports-edge/home-summary

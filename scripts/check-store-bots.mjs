@@ -30,6 +30,7 @@
  * Usage: node scripts/check-store-bots.mjs [repositoryRoot]
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Register audio-engineer concierge persona for Audio Studio 1.2.0.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | Register sports-quant and fantasy-quant concierge personas (F22) and remove sports-edge, fantasy-football, and intelligent-sports from general-bot PENDING.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -50,6 +51,7 @@ export const CONCIERGES = [
   'cloud/personas/cloud-ops-bot.yaml',
   'email-summarizer/personas/email-summarizer.yaml',
   'embodied/personas/embodied-operator.yaml',
+  'fantasy-football/personas/fantasy-quant.yaml',
   'feeds/personas/feeds-curator.yaml',
   'futures-research/personas/futures-research-worker.yaml',
   'home/personas/home-bot.yaml',
@@ -68,6 +70,7 @@ export const CONCIERGES = [
   'sat-ops/personas/sat-operator.yaml',
   'social/personas/social-writer.yaml',
   'spaces/personas/spaces-operator.yaml',
+  'sports-edge/personas/sports-quant.yaml',
   'travel/personas/travel-concierge.yaml',
   'video/personas/video-director.yaml',
   'vids/personas/vids-operator.yaml',
@@ -100,19 +103,16 @@ export const PENDING = new Set([
   'route lora/src-routes/lora-train-dispatch.ts calls bot a0000000-0000-0000-0000-000000000049, which is neither declared nor imported by this package',
   'route movies/routes/movies-routes.js calls bot b00b0000-0000-0000-0000-000000000001, which movies-concierge is node-posture',
   'route movies/src-routes/movies-routes.ts calls bot b00b0000-0000-0000-0000-000000000001, which movies-concierge is node-posture',
-  // Concierges still bound to the platform general-bot in other lanes' packages (payments, payroll, life, sports-edge,
-  // fantasy-football and intelligent-sports each answered with no app data in the 2026-10-11 sweep).
+  // Concierges still bound to the platform general-bot in other lanes' packages (payments, payroll, and life
+  // each answered with no app data in the 2026-10-11 sweep).
   'app classroom-experience binds its concierge to the platform general-bot, which holds none of its data',
   'app commons-experience binds its concierge to the platform general-bot, which holds none of its data',
   'app dev-workspace-index binds its concierge to the platform general-bot, which holds none of its data',
-  'app fantasy-football binds its concierge to the platform general-bot, which holds none of its data',
   'app hello-oshal binds its concierge to the platform general-bot, which holds none of its data',
-  'app intelligent-sports binds its concierge to the platform general-bot, which holds none of its data',
   'app life binds its concierge to the platform general-bot, which holds none of its data',
   'app orbit-experience binds its concierge to the platform general-bot, which holds none of its data',
   'app payments binds its concierge to the platform general-bot, which holds none of its data',
   'app payroll binds its concierge to the platform general-bot, which holds none of its data',
-  'app sports-edge binds its concierge to the platform general-bot, which holds none of its data',
   'app studio-experience binds its concierge to the platform general-bot, which holds none of its data',
   'app system binds its concierge to the platform general-bot, which holds none of its data',
   'app career-hunter concierge career-hunter: career-hunter is node-posture',

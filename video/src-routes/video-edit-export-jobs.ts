@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bounded export jobs for the manual video editor (CREATE-EDIT-05c): one active encode per Video process, one job per owner, at most four queued with a 30-second queue deadline. Each job re-checks current authority when it starts, every few seconds while encoding and again before it publishes; runs in its own private work directory that is always removed; is cancelled, timed out or revoked by aborting only its own tracked child (TERM, then KILL); and publishes its verified output only through a compare-and-set on the job row, so a cancelled, stale or deleted job can never leave a success behind.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Support 720p/1080p/4K 30/60fps export profiles and private sticker PNG staging.
  */
 import { AsyncResource } from 'node:async_hooks';
 import { createHash, randomUUID } from 'node:crypto';
@@ -11,7 +12,7 @@ import { createReadStream } from 'node:fs';
 import { lstat, mkdir, mkdtemp, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createChildLogger } from '@/shared/logger';
-import { compileTimeline, OUTPUT_NAME, type CompiledTimeline, type TimelineDocument } from './video-edit-compiler';
+import { compileTimeline, OUTPUT_NAME, type CompiledTimeline, type ExportFps, type ExportResolution, type TimelineDocument } from './video-edit-compiler';
 import { assessOutput, probeOutput, spawnEncoder, type Encoder, type OutputProber } from './video-edit-ffmpeg-adapter';
 import { EditorError, type EditorOwner } from './video-editor-types';
 
@@ -22,7 +23,7 @@ export const PROCESS_EPOCH = randomUUID();
 
 /** @description The first-slice job bounds from video/EDITOR-PLAN.md. */
 export const EXPORT_LIMITS = Object.freeze({ maxQueued: 4, queueMs: 30000, wallMs: 120000, graceMs: 2000, recheckMs: 5000,
-  outputBytes: 268435456, threads: 2 });
+  outputBytes: 536870912, threads: 2 });
 
 /** @description A job's end state as recorded on its row. */
 export interface ExportOutcome { status: 'succeeded' | 'failed' | 'cancelled'; error?: string;
@@ -35,7 +36,10 @@ export interface ExportJobStore {
 }
 
 /** @description Everything one encode needs once the job has been admitted and re-authorized. */
-export interface PreparedExport { document: TimelineDocument; media: Record<string, string>; variant: 'export' | 'preview'; outputFile: string }
+export interface PreparedExport {
+  document: TimelineDocument; media: Record<string, string>; variant: 'export' | 'preview';
+  resolution?: ExportResolution; fps?: ExportFps; outputFile: string;
+}
 
 /** @description One queued job. `prepare` resolves and verifies the owner's media only after the start-time authority check. */
 export interface ExportJob { id: string; owner: EditorOwner; prepare: () => Promise<PreparedExport>; authorize: () => Promise<void> }
@@ -142,6 +146,7 @@ export class ExportRunner {
   private async encode(job: ExportJob, active: Active, work: string): Promise<void> {
     const prepared = await job.prepare();
     const compiled = compileTimeline({ document: prepared.document, media: prepared.media, variant: prepared.variant,
+      resolution: prepared.resolution, fps: prepared.fps,
       fontFile: this.options.fontFile ?? (process.env.VIDEO_CAPTION_FONT || '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'), threads: this.limits.threads });
     for (const file of compiled.files) await writeFile(join(work, file.name), file.text, { flag: 'wx', mode: 0o600 });
     const timer = setTimeout(() => { active.reason ??= 'video_edit_export_timeout'; active.controller.abort(); }, this.limits.wallMs);

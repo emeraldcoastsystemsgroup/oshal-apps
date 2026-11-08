@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sourceDefinition = sourceDefinition;
 exports.inventorySnapshot = inventorySnapshot;
 exports.createOperationsExperienceRoutes = createOperationsExperienceRoutes;
+/** CHANGE LOG: 48 | maintainer@emeraldcoastsystemsgroup.com | Wire isolated recorded-window replay (RP-OPS-01), uploaded CloudEvents/OTLP batch replay (RP-OPS-02), and sandbox run clean-up into POST /replays while filtering discarded sandbox runs from reads. */
 /** CHANGE LOG: 47 | maintainer@emeraldcoastsystemsgroup.com | A sample replay is all or nothing: POST /replays also takes {preflight} (publish the scenario rules before anything is saved) and {discard} (remove what a failed run saved), and every read drops a discarded replay source (UX audit 2026-11-06). */
 /** CHANGE LOG: 46 | maintainer@emeraldcoastsystemsgroup.com | Serve experience/computers.js, the Your computers card on Connections (kernel ADR-206). */
 /** CHANGE LOG: 45 | maintainer@emeraldcoastsystemsgroup.com | The processing tick moved to processing-tick.ts, with the alarm steps first and what it tells the phone taken from the decisions on record (a third review, 2026-11-04). Its engine calls are held to 25 s so the tick answers inside the kernel's 60 s. */
@@ -74,6 +75,7 @@ const detection_engine_1 = require("./detection-engine");
 const pipeline_1 = require("./pipeline");
 const telemetry_store_1 = require("./telemetry-store");
 const replay_store_1 = require("./replay-store");
+const replay_sandbox_1 = require("./replay-sandbox");
 const Contract = require('../ui/source-contract.js');
 const Mapping = require('../ui/adapter-mapping.js');
 const digest = value => (0, node_crypto_1.createHash)('sha256').update(JSON.stringify(value)).digest('hex');
@@ -155,9 +157,9 @@ function createOperationsExperienceRoutes(ctx) {
     catch (error) {
         res.status(error.status || 503).json({ error: error.status ? error.message : 'Operations storage is unavailable. Retry after reconnecting.', ...(error.installHint ? { installHint: error.installHint } : {}) });
     } };
-    // A discarded sample-replay source (discardReplay) is gone from every read.
+    // A discarded sample-replay source or sandbox replay run is gone from every read.
     const read = async (name) => { const rows = await ctx.store.query(name); if (!Array.isArray(rows))
-        throw Error('Malformed store response'); return name === 'sources' ? rows.filter(r => !r?.discardedAt) : rows; };
+        throw Error('Malformed store response'); return ['sources', 'replays'].includes(name) ? rows.filter(r => !r?.discardedAt) : rows; };
     router.get('/records', handle(async (req, res) => {
         const [sources, events, inventory] = await Promise.all(['sources', 'events', 'inventory'].map(read));
         const intake = await (0, intake_1.intakeRecords)(ctx.pool, req.oidc?.user?.sub);
@@ -214,8 +216,8 @@ function createOperationsExperienceRoutes(ctx) {
     const engine = (0, detection_engine_1.detectionEngine)(ctx);
     const tickEngine = (0, detection_engine_1.detectionEngine)(ctx, processing_tick_1.ENGINE_MS);
     router.get('/replays', handle(async (req, res) => res.json({ runs: (await read('replays')).sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, 10), limit: 10 })));
-    // A sample replay's preflight and clean-up ride the replay write: a new route would change the catalog.
-    router.post('/replays', handle(async (req, res) => res.json(req.body?.preflight ? await (0, replay_store_1.preflightReplay)(engine, req.oidc?.user?.sub, req.body.preflight) : req.body?.discard ? await (0, replay_store_1.discardReplay)(ctx, req.oidc?.user?.sub, req.body.discard) : await (0, replay_store_1.completeReplay)(ctx, req.oidc?.user?.sub, req.body))));
+    // Sample replay preflight, isolated window/batch replays (RP-OPS-01..02) and clean-up ride the existing replay write.
+    router.post('/replays', handle(async (req, res) => res.json(req.body?.preflight ? await (0, replay_store_1.preflightReplay)(engine, req.oidc?.user?.sub, req.body.preflight) : req.body?.windowReplay ? await (0, replay_sandbox_1.windowReplay)(ctx, engine, req.oidc?.user?.sub, req.body.windowReplay) : req.body?.batchReplay ? await (0, replay_sandbox_1.batchReplay)(ctx, engine, req.oidc?.user?.sub, req.body.batchReplay) : req.body?.discardRun ? await (0, replay_sandbox_1.discardReplayRun)(ctx, req.oidc?.user?.sub, req.body.discardRun) : req.body?.discard ? await (0, replay_store_1.discardReplay)(ctx, req.oidc?.user?.sub, req.body.discard) : await (0, replay_store_1.completeReplay)(ctx, req.oidc?.user?.sub, req.body))));
     // Monitored installations read here beside the banks they feed: this GET already has a binding, and a new route would change the catalog.
     router.get('/telemetry', handle(async (req, res) => { const [streams, sources] = await Promise.all([(0, telemetry_store_1.streamRecords)(ctx.pool, req.oidc?.user?.sub), read('sources')]); let installations = null, watch = null; try {
         installations = await (0, installations_1.installationRecords)(ctx.pool, req.oidc?.user?.sub, sources, Number(req.query?.days) || 1);

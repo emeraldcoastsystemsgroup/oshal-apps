@@ -1,7 +1,11 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard for Publishing Studio (docs/ux/design-standard.md §3.1, §3.3, §4.2-§4.4, §4.10, §5.1; Canva and Adobe Express, REFP CONVENTIONS §5.5, C-DES-1..5; Roger F6). The page's own layers: opaque top-layer menus and sheets with Done that Escape, a tap outside and the phone's Back close (DS-39); one tool row (Text, Image, Shape, Pages, Styles, Concierge, the planned Brand, More last) that scrolls sideways at the bottom of a phone and sits in the app row on a desktop, and switches to the chosen item's tools (Font, Size, Colour, Alignment, Arrange); the selection float at the item (Duplicate, Delete, More); the publication menu (New with a size, Open, Duplicate, Share and export, Saved history, Delete with an in-page confirm); the desktop's 240 px Pages pane and 320 px Properties | Concierge tabs; Your publications with one New at the bottom right; Help for the limits and how-to. Planned controls (RP-PUB-01..07) come from the shared planned-control helper and do nothing.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: without the platform's planned-control helper (an older platform) the studio still opens and simply draws no planned control.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: replace all RP-PUB-01..07 planned placeholders with working controls and add RP-PUB-08 Animate and video timeline controls.
  */
+import {createPublishingFeatures} from './publishing-features.mjs';
+import {createPublishingTimeline} from './publishing-timeline.mjs';
+
 const make=(doc,tag,className,text)=>{const node=doc.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
 const ICONS={
  text:'<path d="M5 6V4h14v2M12 4v16M9 20h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
@@ -22,13 +26,15 @@ const ICONS={
  duplicate:'<rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" stroke-width="2"/>',
  trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
  comment:'<path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+ animate:'<polygon points="8 5 19 12 8 19 8 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 8h2M3 12h2M3 16h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+ group:'<rect x="3" y="3" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="11" y="11" width="10" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/>',
 };
 function icon(doc,name,size=22){const span=make(doc,'span','pub-glyph');span.setAttribute('aria-hidden','true');span.innerHTML=`<svg viewBox="0 0 24 24" width="${size}" height="${size}">${ICONS[name]}</svg>`;return span;}
 
 /**
  * @description Modal top-layer menus and sheets (design standard §4.3, §4.4): opaque dialogs that close on Done, Escape, a tap
  * outside or the browser's Back (one history entry each, DS-39). Borrowed page elements are put back where they were, so their
- * ids and handlers keep working. Shaped on Video 1.13.0's layers.
+ * ids and handlers keep working.
  * @param {Document} doc the editor's document
  * @returns {{create:Function,open:Function,close:Function,top:Function}} the layer controls
  */
@@ -46,7 +52,7 @@ export function createLayers(doc){
   const restore=nodes.filter(Boolean).map(node=>{const mark=doc.createComment('layer');node.before(mark);layer.body.append(node);return()=>mark.replaceWith(node);});
   stack.push({dialog:layer.dialog,restore,onClose});layer.dialog.showModal();
   if(anchor&&win.matchMedia('(min-width:801px)').matches){const box=anchor.getBoundingClientRect(),width=Math.max(240,layer.dialog.offsetWidth);layer.dialog.classList.add('ds-anchored');layer.dialog.style.left=Math.max(8,Math.min(box.right-width,win.innerWidth-width-8))+'px';layer.dialog.style.top=Math.min(box.bottom+4,Math.max(8,win.innerHeight-layer.dialog.offsetHeight-8))+'px';}
-  try{win.history.pushState({...(win.history.state||{}),dsLayer:stack.length},'');}catch{/* embedded without history access: Done and Escape still close it */}
+  try{win.history.pushState({...(win.history.state||{}),dsLayer:stack.length},'');}catch{/* embedded without history access */}
  }
  async function close(dialog,{history=true}={}){
   const index=stack.findIndex(entry=>entry.dialog===dialog);if(index<0)return;const [entry]=stack.splice(index,1);
@@ -62,27 +68,21 @@ export function createLayers(doc){
 
 /**
  * @description Build Publishing Studio's screen on the shared editor: app row, tool row, sheets and panes, the selection float,
- * the desktop tabs and the publications view. Every command runs the workbench's own operation (api), so history, validation,
- * authority and the concierge handoff stay where they were.
+ * the desktop tabs and the publications view.
  * @param {object} api the workbench's operations and state (workbench.mjs)
- * @param {{foundation:object,assistant:object,plannedControl:Function}} parts the shared editor, its concierge and the planned-control helper
- * @returns {{refresh:Function,confirm:Function,float:Function,painted:Function}} the shell's hooks for the workbench
+ * @param {{foundation:object,assistant:object}} parts the shared editor and its concierge
+ * @returns {object} the shell's hooks for the workbench
  */
-export function createPublishingShell(api,{foundation,assistant,plannedControl:helper}){
+export function createPublishingShell(api,{foundation,assistant}){
  const doc=document,root=doc.body,$=id=>doc.getElementById(id),shell=root.querySelector('.ef-shell'),layers=createLayers(doc);
  const wide=()=>!matchMedia('(max-width:800px)').matches,{state}=api;
  const act=work=>async event=>{event?.preventDefault?.();try{await work(event);}catch(error){api.status(error.message,true);}};
  const sec=name=>$('pub-sec-'+name);
- // Without the platform's planned-control helper (an older platform) a planned control is simply not drawn.
- const plannedControl=(d,options)=>helper?helper(d,options):null;
- const planned=(backlog,label,glyph,className='pub-tool')=>plannedControl(doc,{backlog,label,icon:glyph?icon(doc,glyph):undefined,className});
 
- // ── Layers: menus, sheets and the in-page confirm ──
  function menu(title,items,anchor){
   const layer=layers.create(title,'ds-menu'),list=make(doc,'div','ds-menu-list');list.setAttribute('role','menu');
   for(const item of items){
    if(!item)continue;if(item==='-'){list.append(make(doc,'hr','ds-menu-sep'));continue;}
-   if(item.planned){const row=plannedControl(doc,{backlog:item.planned,label:item.label,variant:'menu',className:'ds-menu-row'});if(row)list.append(row);continue;}
    const entry=make(doc,'button','ds-menu-row'+(item.danger?' ds-danger':''),item.label);entry.type='button';entry.disabled=Boolean(item.disabled);entry.setAttribute('role','menuitem');
    if(item.danger)entry.dataset.dsDestructive='';
    entry.onclick=act(async()=>{await layers.close(layer.dialog);await item.run();});list.append(entry);
@@ -99,7 +99,10 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
   });
  }
 
- // ── Panels: a sheet on a phone, the right pane's Properties tab on a desktop ──
+ let rowKey='';
+ const features=createPublishingFeatures(api,{layers,sheet,act,onBrandChanged:()=>{rowKey='';refreshRow();}});
+ const timeline=createPublishingTimeline(api,{layers,sheet,act});
+
  const SECTION_TITLES={text:'Text',format:'Text style',arrange:'Arrange',page:'Page',master:'Master',styles:'Styles',image:'Image'};
  let explicit=null;
  function panel(name,focus){
@@ -108,16 +111,12 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
   if(name==='page')nodes.push(sec('master'));
   return sheet(SECTION_TITLES[name],nodes,{half:name!=='image'}).then(()=>{if(focus)$(focus)?.focus({preventScroll:true});});
  }
- /** Which sections the desktop's Properties pane shows: the chosen tool's, else the selection's, else the page's own (§5.1). */
  function layout(){
   const item=api.selected(),kind=item?item.storyId?'frame':item.kind:'';
-  // A text frame shows its text and style; Arrange (geometry) is a tool of its own, as in the references' Position panel.
   const auto=!state.document?'summary':!item?'page master':kind==='frame'?'text format':kind==='text'?'format arrange':'arrange';
-  // A tool the selection already shows scrolls to its section; any other (Styles, Image, Page settings) shows on its own.
   root.dataset.pubPanel=explicit&&!auto.split(' ').includes(explicit)?explicit:auto;
  }
 
- // ── The tool row (N3): one row, More last; a chosen item's own tools (N4) ──
  const row=make(doc,'nav','pub-toolrow');row.dataset.dsToolrow='';row.setAttribute('aria-label','Tools');$('pub-tools-slot').append(row);
  function tool(label,glyph,run,{phoneOnly=false,cls=''}={}){const button=make(doc,'button','pub-tool'+(phoneOnly?' pub-phone-only':'')+(cls?' '+cls:''));button.type='button';button.append(icon(doc,glyph),make(doc,'span','pub-word',label));button.onclick=act(run);return button;}
  const moreTool=()=>{const button=tool('More','more',()=>moreTools(button));button.setAttribute('aria-haspopup','dialog');return button;};
@@ -125,47 +124,47 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
  async function addShape(){await api.addItem('rect');explicit=null;layout();}
  function mainTools(){return[
   tool('Text','text',addText),tool('Image','image',()=>panel('image')),tool('Shape','shape',addShape),
-  ...(state.document?[tool('Pages','pages',()=>pagesSheet(),{phoneOnly:true}),tool('Styles','styles',()=>panel('styles'))]:[]),
+  ...(state.document?[tool('Pages','pages',()=>pagesSheet(),{phoneOnly:true}),tool('Styles','styles',()=>panel('styles')),tool('Animate','animate',()=>timeline.openAnimateSheet())]:[]),
   tool('Concierge','concierge',()=>openConcierge(),{phoneOnly:true,cls:'pub-concierge'}),
-  planned('RP-PUB-05','Brand','brand'),moreTool()];}
+  ...(features.hasBrandKit()?[tool('Brand','brand',()=>features.openBrandSheet())]:[]),moreTool()];}
  function itemTools(item){
-  // Done leaves the item's tools on a phone; a desktop leaves them with a click on the page (or Escape), so its row keeps room for More.
   const done=tool('Done','done',()=>api.selectPage(state.page),{phoneOnly:true}),more=moreTool();
+  if(state.selectedIds.size>1)return[done,tool(features.isSingleGroupSelected()?'Ungroup':'Group','group',()=>features.toggleGroup()),tool('Delete','trash',()=>features.deleteSelectedItems()),more];
   if(item.storyId)return[done,tool('Text','text',()=>panel('text','story-text'),{phoneOnly:true}),tool('Font','font',()=>panel('format','fmt-font')),tool('Size','size',()=>panel('format','fmt-size')),tool('Colour','colour',()=>panel('format','fmt-color')),tool('Align','align',()=>panel('format','fmt-align')),tool('Arrange','arrange',()=>panel('arrange')),more];
-  if(item.kind==='image')return[done,tool('Arrange','arrange',()=>panel('arrange')),planned('RP-PUB-03','Remove background','cutout'),more];
-  if(item.kind==='rect')return[done,tool('Colour','colour',()=>panel('arrange','pub-fill-field')),tool('Arrange','arrange',()=>panel('arrange')),more];
-  return[done,...(item.kind==='text'?[tool('Font','font',()=>panel('format','fmt-font')),tool('Size','size',()=>panel('format','fmt-size'))]:[]),tool('Arrange','arrange',()=>panel('arrange')),more];
+  if(item.kind==='image')return[done,tool('Arrange','arrange',()=>panel('arrange')),tool('Remove background','cutout',()=>features.removeSelectedImageBackground()),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
+  if(item.kind==='rect')return[done,tool('Colour','colour',()=>panel('arrange','pub-fill-field')),tool('Arrange','arrange',()=>panel('arrange')),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
+  return[done,...(item.kind==='text'?[tool('Font','font',()=>panel('format','fmt-font')),tool('Size','size',()=>panel('format','fmt-size'))]:[]),tool('Arrange','arrange',()=>panel('arrange')),tool('Animate','animate',()=>timeline.openAnimateSheet()),more];
  }
- let rowKey='';
  function refreshRow(){
-  const item=api.selected(),key=state.view+'|'+(item?(item.storyId?'frame':item.kind)+':'+item.id:'none')+'|'+Boolean(state.document);
+  const item=api.selected(),key=[state.view,item?(item.storyId?'frame':item.kind)+':'+item.id:'none',Boolean(state.document),state.selectedIds.size,features.isSingleGroupSelected(),features.hasBrandKit(),state.multiSelect].join('|');
   if(key===rowKey&&row.children.length)return;rowKey=key;row.replaceChildren(...(state.view!=='editor'?[]:item?itemTools(item):mainTools()).filter(Boolean));
  }
 
- // ── Menus ──
- /** The app row's ⋯: the publication's own commands (C-DES-3: pages, resize, select multiple), then checks and Help. */
- function moreMenu(anchor){return menu('More',[
+ function moreMenu(anchor){const grouped=features.isSingleGroupSelected();return menu('More',[
   ...(!wide()&&!$('save').hidden?[{label:'Save revision',run:()=>api.run('save:click'),disabled:$('save').disabled},'-']:[]),
   {label:'Pages…',run:()=>pagesSheet(),disabled:!state.document},
-  {planned:'RP-PUB-04',label:'Resize'},{planned:'RP-PUB-02',label:'Select multiple'},{planned:'RP-PUB-02',label:'Group'},
-  ...(wide()?[]:[{planned:'RP-PUB-06',label:'Comment'}]),'-',
+  {label:'Resize…',run:()=>features.openResizeSheet(),disabled:!state.document},
+  {label:state.multiSelect?'Done selecting':'Select multiple',run:()=>features.toggleMultiSelect(),disabled:!state.document},
+  {label:grouped?'Ungroup':'Group',run:()=>features.toggleGroup(),disabled:!state.document||(!grouped&&!features.canGroup())},
+  ...(wide()?[]:[{label:'Comment…',run:()=>features.openCommentsSheet()}]),
+  {label:timeline.isOpen()?'Hide video timeline':'Video timeline',run:()=>timeline.toggleTimeline(),disabled:!state.document},'-',
   {label:'Render and check…',run:()=>exportSheet(),disabled:!state.document},{label:'Saved history…',run:()=>historySheet(),disabled:!state.document},
   {label:'Refresh files',run:()=>api.run('refresh:click')},'-',{label:'Help',run:()=>helpSheet()}],anchor);}
- /** The tool row's More (N3, its last item): the rest of what can be added to a page and the page's own settings. */
  function moreTools(anchor){return menu('More tools',[
   {label:'Add page number',run:()=>api.addItem('number')},
-  ...(state.document?[{label:'Page settings…',run:()=>panel('page')},{label:'Master…',run:()=>panel('master')}]:[])],anchor);}
- function newMenu(anchor){return menu('New',[{label:'Blank Letter page',run:()=>api.newPublication('letter')},{label:'Blank A4 page',run:()=>api.newPublication('a4')},{planned:'RP-PUB-01',label:'From template'}],anchor);}
+  ...(state.document?[{label:'Page settings…',run:()=>panel('page')},{label:'Master…',run:()=>panel('master')},{label:'Video timeline',run:()=>timeline.toggleTimeline(true)}]:[])],anchor);}
+ function newMenu(anchor){return menu('New',[{label:'Blank Letter page',run:()=>api.newPublication('letter')},{label:'Blank A4 page',run:()=>api.newPublication('a4')},{label:'From template…',run:()=>features.openTemplateGallery()}],anchor);}
  function documentMenu(anchor){const d=state.document;return menu(d?.title??'Untitled publication',[
-  {label:'New blank Letter page',run:()=>api.newPublication('letter')},{label:'New blank A4 page',run:()=>api.newPublication('a4')},{planned:'RP-PUB-01',label:'New from template'},'-',
+  {label:'New blank Letter page',run:()=>api.newPublication('letter')},{label:'New blank A4 page',run:()=>api.newPublication('a4')},{label:'New from template…',run:()=>features.openTemplateGallery()},'-',
   ...(state.documents.length?[{label:'Open…',run:()=>api.showList()}]:[]),
   {label:'Duplicate',run:()=>api.duplicateDocument(),disabled:!d},{label:'Share and export…',run:()=>exportSheet(),disabled:!d},{label:'Saved history…',run:()=>historySheet(),disabled:!d},'-',
   {label:'Delete publication',danger:true,disabled:!d,run:()=>api.run('delete-document:click')}],anchor);}
- function itemMenu(anchor){const item=api.selected();if(!item)return;return menu(item.storyId?'Text frame':item.kind==='rect'?'Shape':item.kind==='image'?'Image':'Item',[
+ function itemMenu(anchor){const item=api.selected();if(!item)return;const grouped=features.isSingleGroupSelected();return menu(item.storyId?'Text frame':item.kind==='rect'?'Shape':item.kind==='image'?'Image':'Item',[
   ...(item.storyId?[{label:'Edit text…',run:()=>panel('text','story-text')},{label:'Text style…',run:()=>panel('format')}]:[]),
-  {label:'Arrange…',run:()=>panel('arrange')},{label:'Duplicate',run:()=>api.duplicateItem()},'-',{label:'Delete',danger:true,run:()=>api.run('remove-object:click')}],anchor);}
+  {label:'Arrange…',run:()=>panel('arrange')},{label:'Animate…',run:()=>timeline.openAnimateSheet()},{label:'Comment…',run:()=>features.openCommentsSheet()},
+  ...(grouped?[{label:'Ungroup',run:()=>features.toggleGroup()}]:features.canGroup()?[{label:'Group',run:()=>features.toggleGroup()}]:[]),
+  {label:'Duplicate',run:()=>api.duplicateItem()},'-',{label:'Delete',danger:true,run:()=>state.selectedIds.size>1?features.deleteSelectedItems():api.run('remove-object:click')}],anchor);}
 
- // ── Sheets ──
  function pagesSheet(){
   if(wide()){$('page-rail').querySelector('[aria-current=true]')?.focus();return;}
   const settings=make(doc,'button','pub-secondary','Page settings…'),master=make(doc,'button','pub-secondary','Master…');settings.type=master.type='button';
@@ -175,9 +174,13 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
   });
  }
  function exportSheet(){
-  const pdf=make(doc,'div','pub-export-row'),layoutRow=make(doc,'div','pub-export-row'),check=make(doc,'div','pub-export-row'),download=make(doc,'button','pub-secondary','Download PDF');download.type='button';download.onclick=act(()=>api.downloadPdf());
-  pdf.append(make(doc,'span','pub-export-name','PDF for print'),download);layoutRow.append(make(doc,'span','pub-export-name','Layout file'));check.append(make(doc,'span','pub-export-name','Render and preflight'));
-  return sheet('Share and export',[],{extra:[pdf,layoutRow,check,plannedControl(doc,{backlog:'RP-PUB-07',label:'Schedule or post',variant:'menu',className:'ds-menu-row'})].filter(Boolean)}).then(layer=>{
+  const pdf=make(doc,'div','pub-export-row'),mp4=make(doc,'div','pub-export-row'),layoutRow=make(doc,'div','pub-export-row'),check=make(doc,'div','pub-export-row');
+  const dlPdf=make(doc,'button','pub-secondary','Download PDF'),dlMp4=make(doc,'button','pub-secondary','Download MP4'),social=make(doc,'button','ds-menu-row','Schedule or post…');
+  dlPdf.type=dlMp4.type=social.type='button';dlPdf.onclick=act(()=>api.downloadPdf());dlMp4.onclick=act(()=>timeline.downloadMp4());
+  pdf.append(make(doc,'span','pub-export-name','PDF for print'),dlPdf);mp4.append(make(doc,'span','pub-export-name','Animated video (MP4)'),dlMp4);
+  layoutRow.append(make(doc,'span','pub-export-name','Layout file'));check.append(make(doc,'span','pub-export-name','Render and preflight'));
+  return sheet('Share and export',[],{extra:[pdf,mp4,layoutRow,check,social]}).then(layer=>{
+   social.onclick=act(async()=>{await layers.close(layer.dialog);await features.openSocialSheet();});
    const borrow=(node,host)=>{const mark=doc.createComment('export');node.before(mark);host.append(node);node.hidden=false;return()=>mark.replaceWith(node);};
    const back=[borrow($('export-layout'),layoutRow),borrow($('render'),check),borrow($('cancel-render'),check),borrow($('preflight'),layer.body)];
    layer.dialog.addEventListener('close',()=>{for(const undo of back.reverse())undo();},{once:true});
@@ -186,21 +189,18 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
  function historySheet(){const field=$('history').closest('label');return sheet('Saved history',[field,$('open-history'),$('restore-history'),$('reopen')]);}
  function helpSheet(){return sheet('Help',[],{extra:[
   'Frames you see on the page are the layout. Text is drawn in its frame as you type; Render and check sets the exact text flow and makes the print PDF, which Download PDF does for you.',
-  'Save revision keeps a version you can return to in Saved history. Download PDF and Render save your changes first.',
+  'Start from a starter template, resize a copy into Letter, A4, A5 or social formats, select multiple items to group or move them together, remove an image background into a transparent PNG, pin comments, schedule social posts, or animate items for MP4 video export.',
   'Text in a linked story flows into its next frame when rendered. The draft draws a story in its first frame.',
-  'Publishing Studio sets English and basic Latin text in Libertinus Serif, up to 8 pages, with an RGB PDF. PDF/X, CMYK, ICC profiles, IDML and complex scripts are not supported.',
+  'Publishing Studio sets English and basic Latin text in Libertinus Serif, Liberation Sans and Liberation Mono, up to 8 pages, with RGB PDF and H.264 MP4 output. PDF/X, CMYK, ICC profiles, IDML and complex scripts are not supported.',
  ].map(text=>make(doc,'p','pub-help',text))});}
  async function openConcierge(){
   if(wide()){tab('concierge');return;}
   await sheet('Concierge',[assistant.element]);assistant.element.querySelector('textarea')?.focus({preventScroll:true});
  }
 
- // ── The desktop's right pane: Properties | Concierge tabs (§3.3, no fourth column) ──
  const tabs=make(doc,'div','pub-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Side pane');
  const tabButton=(name,label)=>{const button=make(doc,'button','pub-tab',label);button.type='button';button.setAttribute('role','tab');button.dataset.tab=name;button.onclick=()=>tab(name);return button;};
  tabs.append(tabButton('properties','Properties'),tabButton('concierge','Concierge'));shell.querySelector('.ef-body').append(tabs);
- // One assistant entry (DS-33, the shared editor's F12 rule): while the Today bar's own Concierge opens this editor's concierge,
- // the Concierge tab is drawn only while the concierge is open, so the way back to Properties is beside it.
  let shellOwns=false;
  function syncTabs(){const closed=root.dataset.editorConcierge!=='open',paneButton=shell.querySelector('.ef-panes [aria-controls$="-concierge"]');if(closed&&paneButton)shellOwns=paneButton.hidden;tabs.children[1].hidden=shellOwns&&closed;}
  function tab(name){
@@ -211,17 +211,19 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
  }
  new MutationObserver(()=>{const open=root.dataset.editorConcierge==='open';if(wide()&&(root.dataset.pubTab==='concierge')!==open)tab(open?'concierge':'properties');else syncTabs();}).observe(root,{attributes:true,attributeFilter:['data-editor-concierge']});
 
- // ── The selection float (N4) ──
  function float(item){
   if(state.document?.revision!==state.document?.currentRevision)return null;
   const bar=make(doc,'div','pub-float');bar.setAttribute('role','toolbar');bar.setAttribute('aria-label','Chosen item');
   const button=(glyph,label,run,danger)=>{const b=make(doc,'button','pub-icon pub-float-button');b.type='button';b.setAttribute('aria-label',label);b.title=label;b.append(icon(doc,glyph,20));if(danger){b.dataset.dsDestructive='';b.classList.add('pub-danger');}b.onclick=act(run);return b;};
   const more=button('more','More for this item',()=>itemMenu(more));more.setAttribute('aria-haspopup','dialog');
+  if(state.selectedIds.size>1){
+   bar.append(button('group',features.isSingleGroupSelected()?'Ungroup':'Group',()=>features.toggleGroup()),button('trash','Delete selected',()=>features.deleteSelectedItems(),true),more);
+   return bar;
+  }
   bar.append(button('duplicate','Duplicate',()=>api.duplicateItem()),button('trash',item.storyId?'Delete text frame':'Delete',()=>api.run('remove-object:click'),true),more);
   return bar;
  }
 
- // ── Format: the chosen text's own style, applied as it changes ──
  function styleTarget(){
   const item=api.selected(),m=state.model;if(!item||!m)return null;
   const paragraph=item.storyId?m.stories.find(s=>s.id===item.storyId)?.paragraphs[0]:item.kind==='text'?item.paragraph:null;if(!paragraph)return null;
@@ -230,6 +232,7 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
  const hex=color=>'#'+color.map(v=>Math.round(v).toString(16).padStart(2,'0')).join(''),rgb=value=>[1,3,5].map(i=>parseInt(value.slice(i,i+2),16));
  function setCharacter(values){const t=styleTarget();if(!t)throw new Error('Choose a text frame first.');api.edit({op:'set-character-style',name:t.character,values:{...t.cs,...values}});refreshFormat();}
  function setParagraph(values){const t=styleTarget();if(!t)throw new Error('Choose a text frame first.');api.edit({op:'set-paragraph-style',name:t.paragraph,values:{...t.ps,...values}});refreshFormat();}
+ $('fmt-font').addEventListener('change',act(()=>setCharacter({font:$('fmt-font').value})));
  $('fmt-size').addEventListener('change',act(()=>{const size=Number($('fmt-size').value);if(!Number.isFinite(size)||size<6||size>96)throw new Error('Choose a size from 6 to 96 points.');setCharacter({size});}));
  $('fmt-color').addEventListener('change',act(()=>setCharacter({color:rgb($('fmt-color').value)})));
  $('fmt-bold').addEventListener('click',act(()=>setCharacter({weight:styleTarget()?.cs.weight===700?400:700})));
@@ -237,27 +240,23 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
  $('fmt-align').addEventListener('click',act(event=>{const button=event.target.closest('[data-align]');if(button)setParagraph({align:button.dataset.align});}));
  function refreshFormat(){
   const t=styleTarget();if(!t)return;
-  $('fmt-size').value=t.cs.size;$('fmt-color').value=hex(t.cs.color);$('fmt-bold').setAttribute('aria-pressed',String(t.cs.weight===700));$('fmt-italic').setAttribute('aria-pressed',String(t.cs.style==='italic'));
+  $('fmt-font').value=t.cs.font;$('fmt-size').value=t.cs.size;$('fmt-color').value=hex(t.cs.color);$('fmt-bold').setAttribute('aria-pressed',String(t.cs.weight===700));$('fmt-italic').setAttribute('aria-pressed',String(t.cs.style==='italic'));
   for(const button of $('fmt-align').children)button.setAttribute('aria-pressed',String(button.dataset.align===t.ps.align));
   $('fmt-note').textContent=`Changes the “${t.character}” and “${t.paragraph}” styles, wherever they are used.`;
  }
 
- // ── App row, publications view, Comment ──
  $('document-menu').onclick=act(()=>documentMenu($('document-menu')));
  $('more-menu').onclick=act(()=>moreMenu($('more-menu')));
  $('back-to-list').onclick=act(()=>api.showList());
- // Escape with nothing open lets go of the chosen item, as Done does on a phone (a field being typed in keeps its own Escape).
  doc.addEventListener('keydown',event=>{if(event.key!=='Escape'||layers.top()||!api.selected()||event.target.closest?.('input,textarea,select'))return;act(()=>api.selectPage(state.page))(event);});
  let pagesChoice=null;
  $('pages-toggle').onclick=()=>{pagesChoice=root.dataset.pubPages==='closed'?'open':'closed';painted();};
  $('add-first').onclick=act(addText);
  $('new-publication').onclick=act(()=>newMenu($('new-publication')));
  $('place-image').onclick=act(async()=>{if(!$('object-asset').value)throw new Error('Upload an image first, then place it.');await api.addItem('image');explicit=null;layout();if(!wide())await layers.close(layers.top());});
- const comment=plannedControl(doc,{backlog:'RP-PUB-06',label:'Comment',icon:icon(doc,'comment',20),words:false,className:'pub-icon pub-desk-only'});if(comment)$('comment-slot').append(comment);
- // One assistant entry (DS-33): the editor opens with its concierge closed; the Concierge tool or tab opens it.
+ const commentBtn=make(doc,'button','pub-icon pub-desk-only');commentBtn.id='open-comments';commentBtn.type='button';commentBtn.setAttribute('aria-label','Comment');commentBtn.title='Comment';commentBtn.setAttribute('aria-haspopup','dialog');commentBtn.append(icon(doc,'comment',20));commentBtn.onclick=act(()=>features.openCommentsSheet());$('comment-slot').append(commentBtn);
  shell.dispatchEvent(new CustomEvent('editor-concierge:hide'));tab('properties');
 
- /** After every paint: the view, the row, the panes and the format fields follow the document and the selection. */
  let lastItem=null;
  function painted(){
   const item=api.selected()?.id??null;if(item!==lastItem){explicit=null;lastItem=item;}
@@ -266,11 +265,12 @@ export function createPublishingShell(api,{foundation,assistant,plannedControl:h
   const pages=pagesChoice??((state.model?.pages.length??0)>1?'open':'closed');root.dataset.pubPages=pages;
   $('pages-toggle').setAttribute('aria-expanded',String(pages==='open'));$('pages-toggle').setAttribute('aria-label',pages==='open'?'Hide pages':'Show pages');$('pages-toggle').title=$('pages-toggle').getAttribute('aria-label');
   $('back-to-list').hidden=state.view!=='editor'||!(state.documents.length||state.document);
-  for(const id of ['document-menu','undo','redo','more-menu'])$(id).hidden=state.view!=='editor';
-  refreshRow();layout();refreshFormat();syncTabs();
+  for(const id of ['document-menu','undo','redo','more-menu','open-comments'])$(id).hidden=state.view!=='editor';
+  refreshRow();layout();refreshFormat();syncTabs();timeline.syncTimeline();
   const fill=root.querySelector('[data-editor-property="color"]');if(fill)fill.id='pub-fill-field';
  }
- /** After Upload and place, a phone's Image sheet steps aside so the placed picture is what the person sees. */
+ function decorateBoard(section,p,i){features.decorateComments(section,p,i);timeline.decoratePreview();}
+ function onDocumentLoaded(view){return features.loadComments(view);}
  function placed(){if(!wide()&&layers.top())void layers.close(layers.top());}
- return{confirm,float,painted,placed,refresh:painted,menu,layers};
+ return{confirm,float,painted,placed,decorateBoard,onDocumentLoaded,refresh:painted,menu,layers};
 }

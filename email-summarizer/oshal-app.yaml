@@ -27,6 +27,9 @@
 # 23 | maintainer@emeraldcoastsystemsgroup.com | 1.6.8 (UX audit 2026-11-06, email-myday, email-inbox, email-golive, email-engage): My Day and the Inbox show one Connect a mailbox primary (a sheet with Google (Gmail) and Outlook / Microsoft 365) instead of two primaries, a path and a link; My Day greets by local time, hides the mailbox switch until a mailbox is connected and shows a greyed skeleton of what it holds; the Inbox is list-detail on a phone, centres its no-mailbox state, names its search's real scope and disables it with the reason where it cannot search; Engage says what it reads (Slack and X), asks to connect one instead of saying nothing is waiting, and refreshes from one button; Go Live says "Save stream" without an announce channel, tells what a save queued, names who announces each stream, and keeps Delete behind its ⋯ menu and an in-page confirm, after a greyed Edit (RP-COM-01). Primary labels use the theme's on-accent ink. Guarded by tests/surface-provider.test.mjs, mailbox-connect.test.cjs, mail-store-browser.test.cjs and social-desk-browser.test.cjs.
 # 24 | maintainer@emeraldcoastsystemsgroup.com | 1.6.9: on Engage too, the desk's New post is drawn as a secondary button, so Connect a channel is the screen's one primary (the trial check of 1.6.8 at 1440 counted two).
 # 25 | maintainer@emeraldcoastsystemsgroup.com | 1.6.10: UX audit batch 7 (little-monsters--lm-email FIX-LAYOUT): withhold the Inbox's stored-copy caption, Any mailbox switch, Refresh button and disabled search row when no mailbox is connected, and pass ?return=/cockpit/?app=little-monsters&screen=lm-email on /connectors/<id>/authorize when framed in Little Monsters Email. Guard: tests/mail-store-browser.test.cjs, tests/mailbox-connect.test.cjs, tests/surface-provider.test.mjs.
+# 26 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: Go Live planned stream editing: add owner-scoped PUT /api/email-social/events/:id and live Edit on each stream card's menu, prefilling title, start time, watch link, destinations and announcement channels, shifting or replacing unsent announcements while preserving already-sent announcements, and refusing start-time changes once a stream has started. Guarded by tests/social-store.test.cjs, tests/social-rules.test.cjs and tests/social-desk-browser.test.cjs.
+# 27 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: deterministic Gmail mailbox watches and security alerts (including the TotalConnect preset): migration 005 adds forced-RLS oshal_email_watches and oshal_email_watch_hits; /api/email-watches manages watch rules and runs the zero-LLM POST /check pass across live Gmail and stored oshal_email_messages; the 5-minute mail-watches schedule and mailbox-watches briefing notify Jarvis only on unseen alert arrivals; email-watches, email-watch-check and email-watch-save tools plus Home summary active-watch tiles. Guarded by tests/mail-watches.test.cjs.
+# 28 | maintainer@emeraldcoastsystemsgroup.com | 1.8.1: keep GET /api/email-watches strictly read-only (SELECT only, with graceful empty fallback before migration 005 is provisioned) while EMAIL_DEFAULT_WATCHES seeds on POST /api/email-watches/check and POST /api/email/sync. Guarded by tests/mail-watches.test.cjs.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — email-summarizer (Intelligent Communication, ADR-037)
@@ -91,11 +94,18 @@ description: >-
   mail is a single explicit-confirm gated action; every social publish goes out
   on the person's own connection through the kernel. The bot does the reasoning
   on its own harness/model with cost captured per user.
-version: 1.6.10
+version: 1.8.1
 testing:
   version: 1
   catalog: tests/test-lab.yaml
-uses: [test-catalog, app-dependencies, memory]
+uses: [jarvis-briefings, test-catalog, app-dependencies, memory]
+briefings:
+  - id: mailbox-watches
+    title: Mailbox security & priority alerts
+    description: Watched Gmail alerts (such as TotalConnect security notifications) delivered only when a new matching email arrives.
+    sessionId: mail-watches
+    botAgentId: b0000000-0000-0000-0000-000000000001
+    defaults: { enabled: true, frequency: as-available, channel: voice }
 status: active
 
 source:
@@ -315,6 +325,55 @@ tools:
       no_<channel>_connection outcome means that account is not connected yet (the Social desk's Channels view connects it).
     tags: [social, route-backed, approval-required]
 
+  - name: email-watches
+    displayName: Mailbox Watches
+    type: api
+    category: communication
+    description: List the person's active Gmail mailbox watches (such as TotalConnect security monitoring), available presets and recent alert hits.
+    executor: { executorType: api, apiEndpoint: "GET /api/email-watches" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what email watches or security monitors (such as TotalConnect) are configured, or to see recent watched alert hits.
+    tags: [email, watches, route-backed]
+
+  - name: email-watch-check
+    displayName: Check Mailbox Watches
+    type: api
+    category: communication
+    description: Run an immediate deterministic check of the person's enabled Gmail mailbox watches against connected Gmail and their stored mail copy.
+    executor: { executorType: api, apiEndpoint: "POST /api/email-watches/check" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        days: { type: integer, minimum: 1, maximum: 30, description: "Optional stored-copy lookback window in days (default 7)." }
+    usageInstructions: Call with {} (or {"days":7}) when the person asks to check their watched alerts or TotalConnect emails right now; report checked count, newHits and any matching hits returned.
+    tags: [email, watches, route-backed]
+
+  - name: email-watch-save
+    displayName: Save Mailbox Watch
+    type: api
+    category: communication
+    description: Create or update a deterministic Gmail mailbox watch rule (including the built-in totalconnect security monitor preset) for the signed-in person.
+    executor: { executorType: api, apiEndpoint: "POST /api/email-watches" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        preset: { type: string, enum: [totalconnect, totconnect], description: "Optional built-in preset (totalconnect or alias totconnect sets watchId, label and TotalConnect/AlarmNet/Resideo query defaults)." }
+        watchId: { type: string, maxLength: 64, description: "Slug identifier (2-64 lowercase letters, digits, hyphens or underscores); defaults to preset id when preset is supplied." }
+        label: { type: string, maxLength: 120, description: "Human-readable watch name." }
+        accountHint: { type: string, maxLength: 200, description: "Monitored Gmail address hint, e.g. the person's Gmail address." }
+        query: { type: string, maxLength: 500, description: "Gmail search expression (supports OR, from:, subject: and quoted phrases)." }
+        enabled: { type: boolean, description: "Whether periodic 5-minute monitoring is enabled (default true)." }
+    usageInstructions: >-
+      For TotalConnect security monitoring on Gmail, call with {"preset":"totalconnect","accountHint":"<their gmail address>","enabled":true}.
+      For a custom watch, supply {"watchId","label","query","accountHint","enabled":true}. Saving updates the person's own watch rule immediately.
+    tags: [email, watches, route-backed]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # COCKPIT UI SURFACE — ribbon icons open the email client pages (served by the
 # packaged createEmailRoutes at /api/email/*) in the main stage. Read-only
@@ -387,12 +446,21 @@ routes:
     requiresAuth: true
     requiresContext: true
 
+  - module: routes/mail-watches.js
+    factory: createMailWatchRoutes
+    mountPath: /api/email-watches
+    auth: oidc
+    requiresAuth: true
+    requiresContext: true
+    requiresAi: false
+
 # The stored mail copy and the day summary are declared: the native kernel provisions only declared tables.
 migrations:
   - migrations/001-email-mail-store.sql
   - migrations/002-email-social-desk.sql
   - migrations/003-email-digests.sql
   - migrations/004-email-sync-gap.sql
+  - migrations/005-email-watches.sql
 
 # The stored copy is kept current by the person's own job: every 10 minutes, as the person who turned it on.
 schedules:
@@ -419,6 +487,19 @@ schedules:
     timeoutSeconds: 60
     description: Send the social posts and stream announcements you scheduled, on your own connected accounts, within five minutes of their time.
     offer: Send my scheduled social posts and stream announcements when their time comes.
+  - id: mail-watches
+    startsItself: true
+    startsWhenConnected: google
+    cron: "*/5 * * * *"
+    runsAs: user
+    target: service-route
+    route: /api/email-watches/check
+    method: POST
+    body: {}
+    report: true
+    timeoutSeconds: 60
+    description: Check your connected Gmail for watched security and priority alerts (such as TotalConnect) and notify Jarvis only when a new matching email arrives.
+    offer: Monitor my Gmail for watched security and priority alerts (such as TotalConnect) every 5 minutes.
 
 # When /cockpit?app=email-summarizer is requested, show this app's surfaces and
 # hide the generic framework tabs (settings stays so config is always reachable).

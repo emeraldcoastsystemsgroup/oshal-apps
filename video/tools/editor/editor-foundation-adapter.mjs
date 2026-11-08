@@ -3,9 +3,11 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Phones (Roger, trial.oswarm.ai, 2026-11-06, F4: "doesn't have an upload vid to edit"): an empty project's one primary action is Add a clip (the real #addClip picker), with Add music as a text link; the first pane is named Media; Open a saved project, New, Undo, Redo and the Project menu move into More, so the app bar is the title, Save, Export and More.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §3, §4.3, §4.4, §4.10, §5.1; CapCut and InShot, REFP CONVENTIONS §5.3). The page declares its contract (an editor whose first action is adding a video; the preview is the work). Preview on top, then the transport (Undo, Redo, Play in the middle, Full screen), the timeline, and one row of labelled tools along the bottom that scrolls sideways with More last (Add, Text, Audio, Concierge, then the planned Stickers and Filters). Tapping a clip turns the row into that clip's tools (Split, Adjust, Earlier, Later, Delete, then the planned Speed, Effects, Chroma key, Remove background and Stabilize). An empty timeline holds the one primary, Add a clip, which opens the picker at once; with a clip on the timeline Export is the one primary at the right of the app row, and Save is a secondary button that shows only while there is something to save. The project name keeps its field and its menu (New, Open, Duplicate, Delete with an in-page confirm). Every tool opens an opaque modal sheet with Done that the phone's Back closes; the Export sheet keeps the working 720p row and greys 1080p, 4K and 60 fps. A clip the browser cannot decode is replaced by its placeholder sentence. The functions both references have and Video does not yet are greyed "Not available yet" controls (RP-VID-01..10, RP-ALL-01), from the shared planned-control helper.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.13.1: MERGE Vids clip generation into Add media — probe GET /api/vids/jobs?limit=1 and show "Generate a clip…" (prompt, orientation, placement, saved briefs) strictly when a Vids worker is online.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): wire live Stickers, Filters, Speed, Effects, Chroma key, Remove background, Stabilize, Auto captions, Voice, Sound effects and 720p/1080p/4K 30/60fps Export controls in place of planned placeholders while preserving RP-ALL-01 Summarize.
  */
 import * as timeline from './timeline-model.mjs';
 import {applyMultitrack} from './multitrack-model.mjs';
+import {createRpSheets} from './editor-rp-sheets.mjs';
 const number=(key,label,value,min,max,group='Timing')=>({key,label,value,type:'number',min,max,step:1,group,unit:group==='Timing'?'frames':'%'});
 const choice=(key,label,value,values)=>({key,label,value,type:'select',options:values.map(value=>({value,label:value[0].toUpperCase()+value.slice(1)})),group:'Text'});
 export function videoProperties(document,selection){
@@ -14,9 +16,9 @@ export function videoProperties(document,selection){
   const text=document[selection.kind]?.find(item=>item.id===selection.id);if(!text)return[];
   return [{key:'text',label:'Text',type:'textarea',value:text.text,group:'Text'},number('start','Start',text.start,0,1799),number('end','End',text.end,1,1800),choice('position','Position',text.position,['top','center','bottom']),choice('size','Size',text.size,['small','medium','large'])];
  }
- if(document.version===1){const clip=document.segments.find(item=>item.id===selection.id);if(!clip)return[];return[number('in','Source in',clip.in,0,document.sources[clip.source].frames-1),number('out','Source out',clip.out,1,document.sources[clip.source].frames),number('volume','Volume',clip.volume,0,200,'Audio')];}
+ if(document.version===1){const clip=document.segments.find(item=>item.id===selection.id);if(!clip)return[];return[number('in','Source in',clip.in,0,document.sources[clip.source].frames-1),number('out','Source out',clip.out,1,document.sources[clip.source].frames),number('volume','Volume',clip.volume,0,200,'Audio'),number('speed','Speed',clip.speed??100,25,400,'Audio')];}
  const track=document.tracks.find(track=>track.clips.some(clip=>clip.id===selection.id)),clip=track?.clips.find(item=>item.id===selection.id);if(!clip)return[];
- const fields=[number('start','Timeline start',clip.start,0,1799),number('in','Source in',clip.in,0,document.sources[clip.source].frames-1),number('out','Source out',clip.out,1,document.sources[clip.source].frames),number('volume','Volume',clip.volume,0,200,'Audio'),number('fadeIn','Fade in',clip.fadeIn,0,1800),number('fadeOut','Fade out',clip.fadeOut,0,1800)];
+ const fields=[number('start','Timeline start',clip.start,0,1799),number('in','Source in',clip.in,0,document.sources[clip.source].frames-1),number('out','Source out',clip.out,1,document.sources[clip.source].frames),number('volume','Volume',clip.volume,0,200,'Audio'),number('speed','Speed',clip.speed??100,25,400,'Audio'),number('fadeIn','Fade in',clip.fadeIn,0,1800),number('fadeOut','Fade out',clip.fadeOut,0,1800)];
  if(track.kind==='video')fields.push(number('x','X',clip.x,-100,100,'Geometry'),number('y','Y',clip.y,-100,100,'Geometry'),number('scale','Scale',clip.scale,10,200,'Geometry'),number('opacity','Opacity',clip.opacity,0,100,'Appearance'),number('brightness','Brightness',clip.brightness,-100,100,'Appearance'),number('contrast','Contrast',clip.contrast,0,300,'Appearance'),number('saturation','Saturation',clip.saturation,0,300,'Appearance'));
  return fields.map(field=>({...field,disabled:track.locked}));
 }
@@ -24,7 +26,7 @@ export function editVideoProperty(document,selection,key,value){
  const field=videoProperties(document,selection).find(field=>field.key===key);if(!field||field.disabled)throw new Error('Select an editable clip or title.');
  if(['titles','captions'].includes(selection.kind))return document.version===1?timeline.updateTitle(document,selection.id,{[key]:value}):applyMultitrack(document,{type:'updateText',track:selection.kind,id:selection.id,patch:{[key]:value}});
  if(document.version===2)return applyMultitrack(document,{type:'clip',id:selection.id,patch:{[key]:value}});
- const own=document.segments.find(item=>item.id===selection.id);return key==='volume'?timeline.setSegmentVolume(document,own.id,value):timeline.trimSegment(document,own.id,{in:own.in,out:own.out,[key]:value});
+ const own=document.segments.find(item=>item.id===selection.id);return key==='volume'?timeline.setSegmentVolume(document,own.id,value):key==='speed'?timeline.patchSegment(document,own.id,{speed:value}):timeline.trimSegment(document,own.id,{in:own.in,out:own.out,[key]:value});
 }
 function disclosure(label,...contents){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent=label;details.append(summary,...contents);return details;}
 const make=(tag,className,text)=>{const node=document.createElement(tag);if(className)node.className=className;if(text!==undefined)node.textContent=text;return node;};
@@ -134,6 +136,7 @@ export async function bindVideoFoundation(adapter){
  // One assistant entry (DS-33): the editor opens with its concierge closed; the tool row or the Today header opens it.
  root.querySelector('.ef-shell').dispatchEvent(new CustomEvent('editor-concierge:hide'));
  const layers=createLayers(document),vidsClip=createVidsClipGenerator(document,layers),wide=()=>!matchMedia('(max-width:800px)').matches,act=work=>async()=>{try{await work();}catch(error){$('error').textContent=error.message;$('error').hidden=false;}};
+ const rp=createRpSheets({doc:document,adapter,exporter:adapter.exporter,layers,make,act,setStatus:adapter.setStatus});
  const sheet=(title,nodes,extra=[])=>{const layer=layers.create(title,'ds-sheet');layer.body.append(...extra);return layers.open(layer,{nodes});};
  // App row (§3.1, X5): the project's name and its menu, then Save while there is something to save and the one primary, Export.
  const bar=document.querySelector('header.bar'),actions=bar.querySelector('.actions'),projectMenu=make('button','video-icon','▾'),exportButton=make('button','primary video-export','Export');
@@ -151,7 +154,6 @@ export async function bindVideoFoundation(adapter){
  // The bottom tool row (N3): labelled tools that scroll sideways, More last; a clip's own tools while one is selected (X8).
  const row=make('nav','video-toolrow');row.dataset.dsToolrow='';row.setAttribute('aria-label','Video tools');bar.querySelector('.title-field').parentElement.insertBefore(row,actions);
  const tool=(label,glyph,run)=>{const button=make('button','video-tool');button.type='button';button.append(make('span','video-glyph',glyph),make('span','video-word',label));button.firstChild.setAttribute('aria-hidden','true');button.onclick=act(run);return button;};
- const planned=(backlog,label,glyph)=>plannedControl(document,{backlog,label,icon:glyph,className:'video-tool'});
  const menu=(title,items,anchor)=>{const layer=layers.create(title,'ds-menu'),list=make('div','ds-menu-list');list.setAttribute('role','menu');
   for(const item of items){if(item==='-'){list.append(make('hr','ds-menu-sep'));continue;}if(item.planned){list.append(plannedControl(document,{backlog:item.planned,label:item.label,variant:'menu',className:'ds-menu-row'}));continue;}
    const entry=make('button','ds-menu-row'+(item.danger?' ds-danger':''),item.label);entry.type='button';entry.disabled=Boolean(item.disabled);entry.setAttribute('role','menuitem');entry.onclick=act(async()=>{await layers.close(layer.dialog);await item.run();});list.append(entry);}
@@ -161,16 +163,18 @@ export async function bindVideoFoundation(adapter){
  const audioRow=legacy.querySelector('#bedSource')?.closest('.row'),musicHeading=[...legacy.querySelectorAll('h2')].find(node=>node.textContent==='Music');
  function mainTools(){const more=tool('More','⋯',()=>moreTools(more));return[
   tool('Add','+',async()=>sheet('Add media',[media],await vidsClip.extraNodes())),
-  tool('Text','T',()=>sheet('Text',[$('titlesHeading'),$('titleForm'),$('titles')],[plannedControl(document,{backlog:'RP-VID-02',label:'Auto captions',variant:'menu',className:'ds-menu-row'})])),
-  tool('Audio','♪',()=>sheet('Audio',[musicHeading,audioRow],[plannedControl(document,{backlog:'RP-VID-07',label:'Voice',variant:'menu',className:'ds-menu-row'}),plannedControl(document,{backlog:'RP-VID-10',label:'Sound effects',variant:'menu',className:'ds-menu-row'})])),
-  conciergeTool(),planned('RP-VID-03','Stickers','☺'),planned('RP-VID-04','Filters','◐'),more];}
- function clipTools(){const more=tool('More','⋯',()=>moreTools(more)),version2=adapter.doc().version===2;return[
+  tool('Text','T',()=>sheet('Text',[$('titlesHeading'),$('titleForm'),$('titles')],[rp.buildAutoCaptionsNode()])),
+  tool('Audio','♪',()=>sheet('Audio',[musicHeading,audioRow],[rp.buildAudioActionsNode()])),
+  conciergeTool(),tool('Stickers','☺',()=>rp.openStickersSheet()),tool('Filters','◐',()=>rp.openLooksSheet('global')),more];}
+ function clipTools(isVideoClip=true){const more=tool('More','⋯',()=>moreTools(more)),version2=adapter.doc().version===2;return[
   tool('Done','✓',()=>{adapter.clearSelection();refresh();}),
-  ...(version2?[]:[tool('Split','✂',()=>$('split').click())]),
+  tool('Split','✂',()=>{if(version2){$('multiSplitFrame').value=String(adapter.frame());$('multiSplit').click();}else $('split').click();}),
   tool('Adjust','≡',()=>adjust()),
   ...(version2?[]:[tool('Earlier','←',()=>$('moveLeft').click()),tool('Later','→',()=>$('moveRight').click())]),
   destructive(tool('Delete','⌫',()=>version2?$('multiRemove').click():$('removeSegment').click())),
-  planned('RP-VID-01','Speed','⏩'),planned('RP-VID-04','Effects','✧'),planned('RP-VID-05','Chroma key','▣'),planned('RP-VID-06','Remove background','◌'),planned('RP-VID-08','Stabilize','≋'),more];}
+  tool('Speed','⏩',()=>rp.openSpeedSheet()),
+  ...(isVideoClip?[tool('Effects','✧',()=>rp.openLooksSheet('clip')),tool('Chroma key','▣',()=>rp.openChromaKeySheet()),tool('Remove background','◌',()=>rp.openRemoveBgSheet()),tool('Stabilize','≋',()=>rp.openStabilizeSheet())]:[]),
+  more];}
  function destructive(button){button.dataset.dsDestructive='';button.setAttribute('aria-label','Delete the selected clip');return button;}
  function conciergeTool(){const button=tool('Concierge','✦',()=>openConcierge());button.classList.add('video-concierge');return button;}
  function adjust(){if(wide()){root.querySelector('.ef-inspector')?.scrollIntoView({block:'nearest'});root.querySelector('.ef-inspector [data-editor-property]')?.focus({preventScroll:true});return;}return sheet('Adjust',[root.querySelector('.ef-inspector')]);}
@@ -183,9 +187,7 @@ export async function bindVideoFoundation(adapter){
   // The export controls are borrowed with their places kept, so they return to the page however the sheet closes.
   const layer=layers.create('Export','ds-sheet'),controls=['exportMp4','renderPreview','cancelExport','downloadExport'].map(id=>$(id));
   await layers.open(layer,{nodes:controls});
-  const rows=make('div','video-export-rows'),working=make('div','video-export-row'),tools=make('div','video-export-tools');
-  working.append(make('span','video-export-name','720p · 30 fps'),controls[0]);
-  rows.append(working,...['1080p','4K','60 fps'].map(label=>plannedControl(document,{backlog:'RP-VID-09',label,variant:'menu',className:'ds-menu-row'})));
+  const rows=rp.buildExportProfileNode(controls[0]),tools=make('div','video-export-tools');
   tools.append(...controls.slice(1));layer.body.append(rows,tools);
  }
  exportButton.onclick=act(()=>openExport());
@@ -201,9 +203,10 @@ export async function bindVideoFoundation(adapter){
  let rowKind='';
  const refresh=()=>{
   $('multiTracks').hidden=adapter.doc().version!==2;$('multiTextList').hidden=adapter.doc().version!==2;
-  const doc=adapter.doc(),hasMedia=Object.keys(doc.sources||{}).length>0,hasClip=doc.version===2?doc.tracks.some(item=>item.clips.length):doc.segments.length>0,clip=adapter.selection()&&['segment','clip'].includes(adapter.selection().kind);
+  const doc=adapter.doc(),hasMedia=Object.keys(doc.sources||{}).length>0,hasClip=doc.version===2?doc.tracks.some(item=>item.clips.length):doc.segments.length>0,sel=adapter.selection(),clip=sel&&['segment','clip'].includes(sel.kind);
+  const isVideoClip=Boolean(clip&&(doc.version!==2||doc.tracks.some(tr=>tr.kind==='video'&&tr.clips.some(c=>c.id===sel.id))));
   start.hidden=hasMedia;root.toggleAttribute('data-video-empty',!hasMedia);root.toggleAttribute('data-video-no-titles',!doc.titles?.length);startButton.disabled=$('addClip').disabled;$('saveProject').hidden=!(adapter.dirty()&&adapter.editable());exportButton.hidden=!hasClip;exportButton.disabled=!adapter.permissions().export;
-  const kind=clip?'clip':'main';if(kind!==rowKind||!row.children.length){rowKind=kind;row.replaceChildren(...(clip?clipTools():mainTools()));}
+  const kind=clip?(isVideoClip?'clip-video':'clip-audio'):'main';if(kind!==rowKind||!row.children.length){rowKind=kind;row.replaceChildren(...(clip?clipTools(isVideoClip):mainTools()));}
   const shellOwns=root.querySelector('.ef-panes [aria-controls$="-concierge"]')?.hidden;row.querySelector('.video-concierge')?.classList.toggle('video-phone-only',Boolean(shellOwns));
   foundation.refresh();assistant.refresh();};
  return{...foundation,destroy:()=>{assistant.destroy();foundation.destroy();},refresh,layers,confirmDelete};

@@ -10,6 +10,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | Register fantasy-zero-scoring: a scoring table that scores nothing is refused on save and, when saved earlier, every board answers the reason with no numbers and reads no feed; manual-form expects an empty scoring template that names its need.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register fantasy-open-slot: a lineup as set that leaves a starting slot empty names the starter that fills it, and the Start / sit card never says "already the best" beside a positive gain (sweep 13).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | Register slot-names: the Projected starters Slot column names each ESPN slot (QB, WR, FLEX), never the raw id (sweep 14).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0 (F22): register fantasy-quant (read-only FLEX start-sit, waivers, matchup breakdown, and confirm-gated mutations) and fantasy-quant-browser (collapsible Fantasy Quant Concierge rail across 1440x900 and 412x915).
 version: 1
 cases:
   - id: package-readiness
@@ -762,6 +763,7 @@ cases:
         - tests/fantasy-slot-names.test.js
     expected:
       - Slots 0, 4, 23, 16 and 17 read QB, WR, FLEX, D/ST and K; an unknown id reads "Slot 99".
+      - Slot 7 reads OP so superflex leagues show OP instead of raw slot id 7.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -769,4 +771,59 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: fantasy-quant
+    name: Fantasy Quant read-only FLEX/waiver/matchup endpoints and approval-gated mutations
+    purpose: >-
+      Drive compiled /quant/start-sit, /quant/waivers, /quant/matchup, /quant/set-lineup, and /quant/apply-waiver
+      over a hand-typed league with no ESPN connection, proving zero GET writes and owner-isolated POST updates.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-quant.test.js
+    expected:
+      - GET /quant/start-sit, /quant/waivers, and /quant/matchup return numeric projections, floor/ceiling, posture, and FAAB bids with zero DB writes.
+      - POST /quant/set-lineup and /quant/apply-waiver enforce ownership and update starters, roster, and FAAB only when invoked.
+      - Manifest and persona bind fantasy-quant and require approval before lineup or waiver mutations.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+    sideEffects: none
+    isolation:
+      mode: disposable
+      fixtures:
+        - tests/fantasy-leagues-fixture.js
+        - tests/fantasy-routes-harness.js
+        - tests/fantasy-manual-fixture.js
+      cleanup: In-memory ledger double confined to the Node process; no database, ESPN or provider.
+    limits:
+      timeoutMs: 30000
+      maxMemoryMb: 256
+    installation: never
+  - id: fantasy-quant-browser
+    name: Chromium proof for collapsible Fantasy Quant Concierge rail
+    purpose: >-
+      Verify in headless Chromium at 1440x900 and 412x915 across light-blue and midnight themes that the Fantasy Quant
+      Concierge rail collapses cleanly, pins its composer flush to the bottom, answers numeric FLEX starts, and gates mutations.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/fantasy-quant-browser.test.cjs
+    expected:
+      - Right rail opens on desktop, collapses via close and toggle buttons, and starts closed on 412x915 with zero horizontal overflow.
+      - Composer stays bottom-pinned with zero outer rail scrollbar, >= 4.5:1 button contrast, numeric FLEX replies, and approval card gating.
+    prerequisites:
+      - runner:node-test
+      - fixture:core-checkout
+      - runtime:store-pinned-toolchain
+      - runtime:chromium
+    sideEffects: none
+    isolation:
+      mode: disposable
+    limits:
+      timeoutMs: 60000
     installation: never

@@ -1,45 +1,12 @@
 <!DOCTYPE html>
-<!--
-  Fantasy Football — manage the team you have (?app=fantasy-football).
-
-  Moved out of Sports Edge's Fantasy tab (ADR-146 D1). Everything here is YOUR team only: the
-  leagues you linked, the lineup for the team your own ESPN account owns, and the ledger of calls
-  made for it. Nothing on this page changes a lineup on ESPN or submits a claim — it advises, you act.
-
-  2026-10-11 — Season, Waivers and Trades check the projection feed the way the Lineup board does: with no
-  projection for the week they say the ESPN projection feed is unavailable and why, instead of a season value of
-  0.0, "Nobody on the wire improves your starting lineup" and weeks claimed as priced from their own projection.
-
-  2026-10-12 — A league typed in by hand is entered in labelled fields (name, season, weeks, FAAB, one line per scoring
-  rule, slot, game and bye, and a fieldset per team with its roster and starters) instead of one unlabelled text box of
-  raw JSON. The form names a line it cannot read before anything is sent; the route still validates the league.
-
-  2026-10-12 — A new league's scoring starts empty with an example as a placeholder, not a "0 = 0" line, and a scoring
-  table that gives every stat 0 points is named before saving. A league saved that way earlier gets, on every board,
-  "this league's scoring gives every stat 0 points" and no numbers, instead of advice drawn from all-0.0 projections.
-
-  2026-11-06 — UX audit P0 SPLIT: two views in this one page. "This week" is the home: the league ▾ menu and a
-  Lineup · Season · Waivers · Trades segmented control with the chosen board right under it, opening on the first saved
-  league's Lineup. "League setup" holds connecting, linking and the hand-typed league form, now a walkthrough of one
-  group per step (League · Scoring · Roster slots · Schedule · Teams) with Back and Continue in a sticky bottom bar; it
-  opens by itself when no league exists yet. Edit and delete sit in a ⋯ row menu and delete asks in the page. Roster
-  slots read as positions (QB x 1, RB x 2, FLEX x 1); the stored values stay ESPN slot ids. The cookie steps are
-  withheld where this installation cannot send ESPN cookies, and the in-page title and tagline are gone.
-
-  Self-contained: no external assets. Framework theme tokens + the shared glass sheet only.
--->
-<html lang="en" data-theme="midnight">
+<!-- Fantasy Football (?app=fantasy-football): owner-scoped lineup, season, waiver and trade advice. Self-contained. -->
+<html lang="en" data-theme="midnight" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fantasy Football</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
-<!-- Audience view (ADR-164 D6). The Business shells (Studio, Orbit, Commons) open this page with ?audience=company: the
-     signed-in account's OWN fantasy team (linked leagues, start/sit calls waiting to be graded, calls graded in five
-     days) from GET /api/fantasy-football/home-summary (the read Home makes: owner-scoped, bounded, side-effect free),
-     painted by the shared kit in the company grammar. The view never reads ESPN, changes a lineup, submits a claim or
-     writes anything. Any other request runs the full Fantasy Football page below unchanged. -->
 <link rel="stylesheet" href="/shared/ui/css/app-view.css" />
 <script src="/shared/ui/js/app-view.js"></script>
 <script>
@@ -90,109 +57,103 @@
 </script>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <style>
-  /* Short aliases DERIVED from the framework theme, never literal hex — so all themes work. */
   :root {
-    --bg: var(--bg-primary);
-    --panel: var(--bg-card);
-    --border: var(--border-color);
-    --text: var(--text-primary);
-    --dim: var(--text-muted);
-    --green: var(--status-success, #3fb950);
-    --red: var(--status-error, #f85149);
-    --amber: var(--status-warning, #d29922);
-    --blue: var(--accent-primary, #58a6ff);
+    --bg: var(--bg-primary); --panel: var(--bg-card); --border: var(--border-color);
+    --text: var(--text-primary); --dim: var(--text-muted);
+    --green: var(--status-success, #3fb950); --red: var(--status-error, #f85149);
+    --amber: var(--status-warning, #d29922); --blue: var(--accent-primary, #58a6ff);
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  header {
-    position: sticky; top: 0; z-index: 5; height: 44px;
-    display: flex; align-items: center; gap: 14px; padding: 0 16px;
-    background: var(--panel); border-bottom: 1px solid var(--border);
-  }
-  header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .2px; }
-  header .sub { color: var(--dim); font-size: 12px; }
-  main { padding: 16px; max-width: 1180px; }
-  .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-    padding: 14px 16px; margin-bottom: 14px;
-  }
-  .card > h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  html, body { overscroll-behavior: contain; min-height: 100dvh; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/20px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { padding: 0 16px 24px; max-width: 1180px; margin: 0 auto; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .card > h2 { margin: 0 0 10px; font-size: 18px; line-height: 24px; font-weight: 600; }
   .muted { color: var(--dim); }
-  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  button.act {
-    background: var(--blue); color: var(--bg); border: none; border-radius: 5px;
-    padding: 6px 12px; font: inherit; font-weight: 600; cursor: pointer;
-  }
-  button.ghost {
-    background: none; color: var(--text); border: 1px solid var(--border);
-    border-radius: 5px; padding: 5px 10px; font: inherit; cursor: pointer;
-  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button.act { background: var(--ds-accent, var(--blue)); color: var(--ds-on-accent, var(--text-on-accent, #ffffff)); border: 1px solid var(--ds-accent, var(--blue)); border-radius: 10px; padding: 0 16px; min-height: 44px; font: 600 15px/22px inherit; cursor: pointer; }
+  button.ghost { background: var(--ds-surface-2, var(--panel)); color: var(--text); border: 1px solid var(--ds-line-control, var(--border)); border-radius: 10px; padding: 0 14px; min-height: 44px; font: 600 15px/22px inherit; cursor: pointer; }
   button.ghost:hover { border-color: var(--blue); }
-  input, textarea {
-    background: var(--bg); color: var(--text); border: 1px solid var(--border);
-    border-radius: 5px; padding: 6px 9px; font: inherit;
-  }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
-  th { color: var(--dim); font-weight: 500; font-size: 12px; }
+  button:disabled { opacity: 1; background: var(--ds-surface-2, var(--panel)); border-color: var(--border); color: var(--ds-ink-disabled, var(--dim)); cursor: default; }
+  input, textarea, select { background: var(--ds-surface, var(--bg)); color: var(--text); border: 1px solid var(--ds-line-control, var(--border)); border-radius: 10px; padding: 8px 12px; min-height: 44px; font: 16px/24px inherit; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; line-height: 16px; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .pos { color: var(--green); } .neg { color: var(--red); }
   .lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-  .linebox { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; }
-  .linebox .k { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
-  .linebox .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 3px; }
-  .banner {
-    border-left: 3px solid var(--amber); background: var(--bg); padding: 9px 12px;
-    border-radius: 0 6px 6px 0; margin-bottom: 12px; font-size: 12px;
-  }
+  .linebox { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .linebox .k { color: var(--dim); font-size: 12px; line-height: 16px; text-transform: uppercase; letter-spacing: .4px; }
+  .linebox .v { font-size: 24px; line-height: 32px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .banner { border-left: 3px solid var(--amber); background: var(--bg); padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; line-height: 20px; }
   .banner.hard { border-left-color: var(--red); }
-  /* The hand-typed league form: one labelled field per value. */
-  .mhead { margin: 12px 0 6px; font-size: 12px; font-weight: 600; }
-  .mform { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 8px; }
-  .mf { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; font-size: 12px; color: var(--dim); min-width: 0; }
-  .mf input, .mf textarea { width: 100%; box-sizing: border-box; color: var(--text); }
-  .mf.mine { flex-direction: row; align-items: center; color: var(--text); }
-  .mf.mine input { width: auto; }
-  fieldset.mteam { border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; margin: 10px 0; min-width: 0; }
-  fieldset.mteam legend { color: var(--dim); font-size: 12px; padding: 0 4px; }
+  .mhead { margin: 12px 0 6px; font-size: 18px; line-height: 24px; font-weight: 600; }
+  .mform { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 8px; }
+  .mf { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; font-size: 14px; line-height: 20px; color: var(--dim); min-width: 0; }
+  .mf input, .mf textarea, .mf select { width: 100%; box-sizing: border-box; color: var(--text); }
+  .mf.mine { flex-direction: row; align-items: center; color: var(--text); min-height: 44px; }
+  .mf.mine input { width: 20px; min-height: 20px; padding: 0; }
+  .mpick { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 10px; }
+  .mpick .mf { flex: 1 1 160px; }
+  fieldset.mteam { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin: 10px 0; min-width: 0; }
+  fieldset.mteam legend { color: var(--dim); font-size: 12px; line-height: 16px; padding: 0 4px; }
   fieldset.mteam .mf { margin-top: 8px; }
-  /* The split (2026-11-06): an app row per view, the board's segmented control, the stepped setup, the row menu. */
-  main { padding: 0 16px 16px; }
-  .approw { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-    padding: 10px 0; background: var(--bg); border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+  .approw { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
   .approw .grow { flex: 1 1 auto; }
   .approw select, .approw button, .seg button, .mbar button, .rowmenu button, .rowmenu summary { min-height: 44px; }
-  .approw select { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
-    padding: 0 10px; font: inherit; max-width: 100%; }
-  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  .seg button { background: none; color: var(--text); border: 0; border-right: 1px solid var(--border); padding: 0 14px;
-    font: inherit; cursor: pointer; }
+  .approw select { max-width: 100%; font-size: 15px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--ds-line-control, var(--border)); border-radius: 10px; overflow: hidden; background: var(--ds-surface-2, var(--panel)); }
+  .seg button { background: none; color: var(--text); border: 0; border-right: 1px solid var(--border); padding: 0 14px; font: 600 15px/22px inherit; cursor: pointer; }
   .seg button:last-child { border-right: 0; }
-  .seg button[aria-pressed="true"] { background: var(--blue); color: var(--text-on-accent, var(--bg)); font-weight: 600; }
-  .meta { color: var(--dim); font-size: 12px; margin: 4px 0 0; }
-  .mstepline { color: var(--dim); font-size: 12px; margin: 4px 0 8px; }
-  .mbar { position: sticky; bottom: 0; z-index: 4; display: flex; gap: 8px; align-items: center; justify-content: flex-end;
-    padding: 10px 0; margin-top: 12px; background: var(--panel); border-top: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--ds-accent, var(--blue)); color: var(--ds-on-accent, var(--text-on-accent, #ffffff)); }
+  .meta, .mstepline { color: var(--dim); font-size: 12px; line-height: 16px; margin: 4px 0 8px; }
+  .mbar { position: sticky; bottom: 0; z-index: 4; display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 10px 0; margin-top: 12px; background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; border-top: 1px solid var(--border); }
   .mbar .grow { flex: 1 1 auto; }
   .rowmenu { position: relative; display: inline-block; }
-  .rowmenu summary { list-style: none; cursor: pointer; padding: 0 12px; display: inline-flex; align-items: center;
-    border: 1px solid var(--border); border-radius: 6px; }
+  .rowmenu summary { list-style: none; cursor: pointer; min-width: 44px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--ds-line-control, var(--border)); border-radius: 10px; background: var(--ds-surface-2, var(--panel)); }
   .rowmenu summary::-webkit-details-marker { display: none; }
-  .rowmenu .menu { position: absolute; right: 0; z-index: 6; min-width: 160px; display: flex; flex-direction: column;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
-  .rowmenu .menu button { background: none; border: 0; color: var(--text); text-align: left; padding: 0 12px; font: inherit; cursor: pointer; }
+  .rowmenu .menu { position: absolute; right: 0; z-index: 6; min-width: 160px; display: flex; flex-direction: column; background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+  .rowmenu .menu button { background: none; border: 0; color: var(--text); text-align: left; padding: 0 12px; font: 600 15px/22px inherit; cursor: pointer; }
   .confirmrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  button.danger { background: var(--red); color: var(--text-on-accent, #fff); border: none; border-radius: 5px; padding: 0 12px; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; }
+  button.danger { background: var(--red); color: var(--text-on-accent, #fff); border: none; border-radius: 10px; padding: 0 14px; font: 600 15px/22px inherit; cursor: pointer; min-height: 44px; }
   [hidden] { display: none !important; }
 </style>
+<link rel="stylesheet" href="/api/fantasy-football/concierge.css" />
+<script src="/api/jarvis/assets/jarvis-package-tools.js"></script>
+<script src="/api/fantasy-football/concierge.js" defer></script>
 </head>
 <body>
-<main>
-  <div id="fantasyBody" class="muted">loading&hellip;</div>
-</main>
+<div class="ff-workspace">
+<header class="ff-topbar" data-no-glass>
+  <span class="ff-topbar-label">Lineup &middot; Waivers &middot; Matchup Quant</span>
+  <button type="button" class="concierge-toggle" id="conciergeToggle" aria-expanded="true" aria-controls="conciergeRail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Concierge</span></button>
+</header>
+<main data-ds-work><div id="fantasyBody" class="muted">loading&hellip;</div></main>
+</div>
+
+<aside id="conciergeRail" class="concierge-rail" aria-label="Concierge">
+  <div class="concierge-header"><h2>Concierge</h2><button type="button" id="conciergeClose" class="concierge-icon" aria-label="Hide concierge" title="Hide concierge">×</button></div>
+  <p class="concierge-help">Ask Fantasy Quant who to start at flex, best waiver wire upgrades, or your weekly win-probability swing. Lineup and waiver changes require your approval.</p>
+  <div id="conciergeLog" class="concierge-log" role="log" aria-label="Fantasy Quant conversation" aria-live="polite"></div>
+  <div class="concierge-chips" aria-label="Quick prompts">
+    <button type="button" class="concierge-chip" data-concierge-prompt="Who should I start at flex?">Who should I start at flex?</button>
+    <button type="button" class="concierge-chip" data-concierge-prompt="Best waiver wire upgrades">Best waiver wire upgrades</button>
+    <button type="button" class="concierge-chip" data-concierge-prompt="Matchup win probability breakdown">Matchup win probability breakdown</button>
+  </div>
+  <div id="conciergeComposer" class="concierge-composer">
+    <div id="conciergeContextRow" class="concierge-context-row"></div>
+    <form id="conciergeForm" class="concierge-form">
+      <textarea id="conciergeInput" rows="2" maxlength="12000" placeholder="Ask Fantasy Quant about flex, waivers, or matchup odds…" aria-label="Message to Fantasy Quant"></textarea>
+      <div class="concierge-controls">
+        <button type="button" id="conciergeAttach" class="concierge-icon" aria-label="Attach active board context" title="Attach active board context">+</button>
+        <button type="button" id="conciergeSpeaker" class="concierge-icon" aria-label="Read latest reply aloud" aria-pressed="false" title="Read latest reply aloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4 6 8H3v8h3l5 4V4Zm4 4c2 2 2 6 0 8m3-11c4 4 4 10 0 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" id="conciergeMic" class="concierge-icon" aria-label="Voice input" aria-pressed="false" title="Voice input"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm7 9a7 7 0 0 1-14 0m7 7v3m-4 0h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="submit" id="conciergeSend" class="concierge-send">Send</button>
+      </div>
+    </form>
+    <p id="conciergeNotice" class="concierge-notice" role="status"></p>
+  </div>
+</aside>
 
 <script>
 // Classic script, no modules — the surface convention across this codebase.
@@ -260,7 +221,7 @@ var manualLeagues = [];
 var shownKind = 'lineup';
 
 function weekViewHtml() {
-  return '<section id="weekView" aria-label="This week"><div class="approw">' +
+  return '<section id="weekView" aria-label="This week"><div class="approw" data-no-glass>' +
     '<label class="muted" for="fLeagueSel">League</label><select id="fLeagueSel"></select>' +
     '<div class="seg" role="group" aria-label="Board" id="fBoards">' + BOARD_KINDS.map(function (k) {
       return '<button type="button" data-kind="' + k + '" aria-pressed="' + (k === shownKind) + '">' + BOARD_LABELS[k] + '</button>';
@@ -271,7 +232,7 @@ function weekViewHtml() {
 }
 
 function setupViewHtml(d) {
-  var parts = ['<section id="setupView" aria-label="League setup" hidden><div class="approw">' +
+  var parts = ['<section id="setupView" aria-label="League setup" hidden><div class="approw" data-no-glass>' +
     '<button class="ghost" type="button" id="fToWeek">&larr; This week</button><strong class="grow">League setup</strong></div>'];
   if (!d.connected) {
     parts.push(connectCard(d));
@@ -280,7 +241,7 @@ function setupViewHtml(d) {
       '<p class="muted">The league id is the <code>leagueId=</code> number in your ESPN league URL.</p>' +
       '<div class="row"><input id="fLeagueId" placeholder="league id" style="width:160px" aria-label="ESPN league id">' +
       '<input id="fSeason" value="' + esc(d.season) + '" style="width:90px" aria-label="Season">' +
-      '<button class="act" id="fLink">Link</button></div></div>');
+      '<button class="act" id="fLink">Link</button></div><p class="muted" id="fLinkNote" role="status"></p></div>');
     if (fantasyState.leagues.length) {
       parts.push('<div class="card"><h2>Your ESPN leagues</h2><table>' +
         '<tr><th>Season</th><th>League</th><th>Your team</th><th></th></tr>' +
@@ -297,7 +258,7 @@ function setupViewHtml(d) {
 
 /** A ⋯ row menu holding a row's own actions (edit, delete), so they never sit beside the boards. */
 function rowMenu(items) {
-  return '<details class="rowmenu"><summary aria-label="More actions">&#8943;</summary><div class="menu">' + items + '</div></details>';
+  return '<details class="rowmenu"><summary aria-label="More actions">&#8943;</summary><div class="menu" data-no-glass>' + items + '</div></details>';
 }
 
 function renderFantasyHome(d) {
@@ -348,12 +309,12 @@ function bindHome() {
   var link = el('fLink');
   if (link) {
     link.addEventListener('click', function () {
-      var id = el('fLeagueId').value.trim();
-      if (!id) { alert('league id is required'); return; }
-      link.disabled = true; link.textContent = 'linking…';
+      var id = el('fLeagueId').value.trim(), note = el('fLinkNote');
+      if (!id) { if (note) note.textContent = 'Enter your ESPN league id first.'; return; }
+      link.disabled = true; link.textContent = 'linking…'; if (note) note.textContent = '';
       jbody('POST', API + '/link', { leagueId: id, season: Number(el('fSeason').value) })
         .then(function () { loadFantasy(); })
-        .catch(function (e) { alert(e.message); link.disabled = false; link.textContent = 'Link'; });
+        .catch(function (e) { if (note) note.textContent = e.message; link.disabled = false; link.textContent = 'Link'; });
     });
   }
   Array.prototype.forEach.call(el('fantasyBody').querySelectorAll('[data-unlink]'), function (b) {
@@ -460,6 +421,20 @@ var SLOT_NAMES = { 0: 'QB', 1: 'TQB', 2: 'RB', 3: 'RB/WR', 4: 'WR', 5: 'WR/TE', 
 function slotName(id) {
   return Object.prototype.hasOwnProperty.call(SLOT_NAMES, id) ? SLOT_NAMES[id] : 'Slot ' + id;
 }
+/* ESPN FFL scoringSettings.scoringItems stat ids and NFL proTeamIds (stored as numeric ids; shown and accepted in words). */
+var STAT_NAMES = { 3: 'Passing yards', 4: 'Passing TD', 19: '2-pt passing', 20: 'Interception', 24: 'Rushing yards',
+  25: 'Rushing TD', 26: '2-pt rushing', 42: 'Receiving yards', 43: 'Receiving TD', 44: '2-pt receiving', 53: 'Reception',
+  72: 'Fumble lost', 74: 'FG made 50+', 77: 'FG made 40-49', 80: 'FG made 0-39', 83: 'FG made', 85: 'FG missed',
+  86: 'PAT made', 88: 'PAT missed', 89: 'Points allowed 0', 90: 'Points allowed 1-6', 91: 'Points allowed 7-13',
+  92: 'Points allowed 14-17', 93: 'Defensive TD', 95: 'Defensive INT', 96: 'Fumble recovery', 97: 'Blocked kick',
+  98: 'Safety', 99: 'Sack', 101: 'Kickoff return TD', 102: 'Punt return TD' };
+var STAT_DEFAULTS = { 3: 0.04, 4: 4, 20: -2, 24: 0.1, 25: 6, 42: 0.1, 43: 6, 53: 1, 72: -2, 83: 3, 86: 1, 93: 6, 95: 2, 96: 2, 98: 2, 99: 1 };
+var PRO_TEAMS = { 1: 'ATL', 2: 'BUF', 3: 'CHI', 4: 'CIN', 5: 'CLE', 6: 'DAL', 7: 'DEN', 8: 'DET', 9: 'GB', 10: 'TEN',
+  11: 'IND', 12: 'KC', 13: 'LV', 14: 'LAR', 15: 'MIA', 16: 'MIN', 17: 'NE', 18: 'NO', 19: 'NYG', 20: 'NYJ', 21: 'PHI',
+  22: 'ARI', 23: 'PIT', 24: 'LAC', 25: 'SF', 26: 'SEA', 27: 'TB', 28: 'WSH', 29: 'CAR', 30: 'JAX', 33: 'BAL', 34: 'HOU' };
+var PRO_ALIASES = { WAS: 28, JAC: 30, LA: 14, OAK: 13, SD: 24 };
+function statName(id) { return Object.prototype.hasOwnProperty.call(STAT_NAMES, id) ? STAT_NAMES[id] : String(id); }
+function proTeamName(id) { return Object.prototype.hasOwnProperty.call(PRO_TEAMS, id) ? PRO_TEAMS[id] : String(id); }
 
 function startersCard(d) {
   return '<div class="card"><h2>Projected starters</h2><table>' +
@@ -701,7 +676,7 @@ function loadManual(prefer) {
     }).join('');
     var first = !allLeagues().length;
     el('manualBody').innerHTML = '<div class="card"><h2>Leagues typed in by hand</h2>' +
-      '<p class="muted">Needs no ESPN connection. Rosters are ESPN player ids; scoring is ESPN stat id → points, exactly as your league’s settings state it — nothing here assumes what a stat is worth.</p>' +
+      '<p class="muted">Needs no ESPN connection. Choose stats and NFL team byes in plain words or by ESPN id.</p>' +
       (rows ? '<table>' + rows + '</table>' : '') +
       '<p class="muted" id="mDropNote" role="status"></p>' +
       '<div class="row"' + (first ? ' hidden' : '') + ' id="mAddRow"><button class="act" type="button" id="mAdd">Add a league</button></div>' +
@@ -731,112 +706,82 @@ var manualTeamCount = 0;
 var MANUAL_STEPS = ['League', 'Scoring', 'Roster slots', 'Schedule', 'Teams'];
 var manualStep = 0;
 
-/** One labelled field: the label names what goes in and, for a list, how to write it. */
-function mField(id, label, control) {
-  return '<label class="mf" for="' + id + '"><span>' + label + '</span>' + control + '</label>';
-}
-function mInput(id, value, type, extra) {
-  return '<input id="' + id + '" type="' + (type || 'text') + '" value="' + esc(value === null || value === undefined ? '' : value) + '"' + (extra || '') + '>';
-}
+function mField(id, label, control) { return '<label class="mf" for="' + id + '"><span>' + label + '</span>' + control + '</label>'; }
+function mInput(id, value, type, extra) { return '<input id="' + id + '" type="' + (type || 'text') + '" value="' + esc(value === null || value === undefined ? '' : value) + '"' + (extra || '') + '>'; }
 function mArea(id, text, rows) { return '<textarea id="' + id + '" rows="' + (rows || 3) + '">' + esc(text) + '</textarea>'; }
 
-/** The league's lists as the one-per-line text their fields take. */
 function manualListsText(l) {
   return {
-    scoring: (l.scoring || []).map(function (r) { return r.statId + ' = ' + r.points; }).join('\n'),
-    slots: (l.slots || []).map(function (x) {
-      return (Object.prototype.hasOwnProperty.call(SLOT_NAMES, x.slotId) ? SLOT_NAMES[x.slotId] : x.slotId) + ' x ' + x.count;
-    }).join('\n'),
+    scoring: (l.scoring || []).map(function (r) { return statName(r.statId) + ' = ' + r.points; }).join('\n'),
+    slots: (l.slots || []).map(function (x) { return (Object.prototype.hasOwnProperty.call(SLOT_NAMES, x.slotId) ? SLOT_NAMES[x.slotId] : x.slotId) + ' x ' + x.count; }).join('\n'),
     schedule: (l.schedule || []).map(function (m) { return m.week + ': ' + m.home + (m.away === null || m.away === undefined ? '' : ' vs ' + m.away); }).join('\n'),
-    byes: Object.keys(l.byes || {}).map(function (t) { return t + ' = ' + l.byes[t]; }).join('\n')
+    byes: Object.keys(l.byes || {}).map(function (t) { return proTeamName(t) + ' = ' + l.byes[t]; }).join('\n')
   };
 }
 
-/** One team's fieldset from the raw text of its fields: id, name, whether it is yours, its roster and this week's starters. */
 function manualTeamHtml(t, i) {
   return '<fieldset class="mteam"><legend>Team ' + (i + 1) + '</legend><div class="mform">' +
     mField('mTeamId' + i, 'Team id', mInput('mTeamId' + i, t.teamId, 'number', ' min="1" max="1000"')) +
     mField('mTeamName' + i, 'Team name', mInput('mTeamName' + i, t.name)) +
-    '<label class="mf mine" for="mMine' + i + '"><input type="radio" name="mMine" id="mMine' + i + '"' + (t.mine ? ' checked' : '') + '> <span>This is my team</span></label>' +
-    '</div>' +
+    '<label class="mf mine" for="mMine' + i + '"><input type="radio" name="mMine" id="mMine' + i + '"' + (t.mine ? ' checked' : '') + '> <span>This is my team</span></label></div>' +
     mField('mRoster' + i, 'Roster: ESPN player ids, separated by commas', mArea('mRoster' + i, t.roster, 2)) +
     mField('mStart' + i, 'Starting this week: ESPN player ids from the roster', mArea('mStart' + i, t.starting, 2)) +
     '<button class="ghost" type="button" data-team-drop="' + i + '">Remove team ' + (i + 1) + '</button></fieldset>';
 }
 
-/** A league document as the raw text of every form field, so the form can be drawn from either. */
 function manualRawFromLeague(l) {
-  var lists = manualListsText(l);
-  var faab = l.faab || null;
-  var text = function (v) { return v === null || v === undefined ? '' : String(v); };
+  var lists = manualListsText(l), faab = l.faab || null, text = function (v) { return v === null || v === undefined ? '' : String(v); };
   return {
     name: text(l.name), season: text(l.season), lastWeek: text(l.lastWeek), playoff: text(l.playoffStart),
     faabBudget: faab ? text(faab.budget) : '', faabSpent: faab ? text(faab.spent) : '',
     scoring: lists.scoring, slots: lists.slots, schedule: lists.schedule, byes: lists.byes,
-    teams: (l.teams || []).map(function (t) {
-      return { teamId: text(t.teamId), name: text(t.name), mine: t.mine === true,
-        roster: (t.roster || []).join(', '), starting: (t.starting || []).join(', ') };
-    })
+    teams: (l.teams || []).map(function (t) { return { teamId: text(t.teamId), name: text(t.name), mine: t.mine === true, roster: (t.roster || []).join(', '), starting: (t.starting || []).join(', ') }; })
   };
 }
 
-/** The raw text of every field exactly as typed, including lines the form cannot read yet. */
 function manualRawFromForm() {
   var teams = [];
   for (var i = 0; i < manualTeamCount; i++) {
-    teams.push({ teamId: el('mTeamId' + i).value, name: el('mTeamName' + i).value, mine: !!el('mMine' + i).checked,
-      roster: el('mRoster' + i).value, starting: el('mStart' + i).value });
+    teams.push({ teamId: el('mTeamId' + i).value, name: el('mTeamName' + i).value, mine: !!el('mMine' + i).checked, roster: el('mRoster' + i).value, starting: el('mStart' + i).value });
   }
-  return {
-    name: el('mName').value, season: el('mSeason').value, lastWeek: el('mLastWeek').value, playoff: el('mPlayoff').value,
-    faabBudget: el('mFaabBudget').value, faabSpent: el('mFaabSpent').value,
-    scoring: el('mScoring').value, slots: el('mSlots').value, schedule: el('mSchedule').value, byes: el('mByes').value,
-    teams: teams
-  };
+  return { name: el('mName').value, season: el('mSeason').value, lastWeek: el('mLastWeek').value, playoff: el('mPlayoff').value,
+    faabBudget: el('mFaabBudget').value, faabSpent: el('mFaabSpent').value, scoring: el('mScoring').value, slots: el('mSlots').value, schedule: el('mSchedule').value, byes: el('mByes').value, teams: teams };
 }
 
-/** Draw the form for a league (the template for a new one, or the league being edited). */
 function renderManualForm(l, id) { drawManualForm(manualRawFromLeague(l), id); }
 
-/** Draw the form from raw field text, so redrawing it never changes or drops anything typed. */
+function statPickerHtml() {
+  var opts = Object.keys(STAT_NAMES).map(function (id) { return '<option value="' + id + '">' + esc(STAT_NAMES[id]) + '</option>'; }).join('');
+  return '<div class="mpick">' + mField('mStatPick', 'Stat', '<select id="mStatPick">' + opts + '</select>') +
+    mField('mStatPts', 'Points', mInput('mStatPts', '0.04', 'number', ' step="any"')) + '<button class="ghost" type="button" id="mAddStat">Add rule</button></div>';
+}
+function byePickerHtml() {
+  var entries = Object.keys(PRO_TEAMS).sort(function (a, b) { return PRO_TEAMS[a].localeCompare(PRO_TEAMS[b]); });
+  var opts = entries.map(function (id) { return '<option value="' + esc(PRO_TEAMS[id]) + '">' + esc(PRO_TEAMS[id]) + '</option>'; }).join('');
+  return '<div class="mpick">' + mField('mByePick', 'NFL team', '<select id="mByePick">' + opts + '</select>') +
+    mField('mByeWk', 'Bye week', mInput('mByeWk', '6', 'number', ' min="1" max="25"')) + '<button class="ghost" type="button" id="mAddBye">Add bye</button></div>';
+}
 function drawManualForm(r, id) {
   manualEditId = id ? String(id) : '';
   manualTeamCount = r.teams.length;
-  var step = function (i, html) {
-    return '<section class="mstep" data-step="' + i + '" aria-label="' + MANUAL_STEPS[i] + '"' + (i === manualStep ? '' : ' hidden') + '>' + html + '</section>';
-  };
+  var step = function (i, html) { return '<section class="mstep" data-step="' + i + '" aria-label="' + MANUAL_STEPS[i] + '"' + (i === manualStep ? '' : ' hidden') + '>' + html + '</section>'; };
   el('mForm').innerHTML = '<h3 class="mhead">' + (manualEditId ? 'Edit ' + esc(r.name) : 'Add a league') + '</h3>' +
     '<p class="mstepline" id="mStepLine">Step ' + (manualStep + 1) + ' of ' + MANUAL_STEPS.length + ' &middot; ' + MANUAL_STEPS[manualStep] + '</p>' +
-    step(0, '<div class="mform">' +
-    mField('mName', 'League name', mInput('mName', r.name)) +
-    mField('mSeason', 'Season (year)', mInput('mSeason', r.season, 'number', ' min="2000" max="2100"')) +
-    mField('mLastWeek', 'Last regular-season week', mInput('mLastWeek', r.lastWeek, 'number', ' min="1" max="25"')) +
-    mField('mPlayoff', 'Playoffs start in week (blank if none)', mInput('mPlayoff', r.playoff, 'number', ' min="1" max="25"')) +
-    mField('mFaabBudget', 'FAAB budget in dollars (blank if none)', mInput('mFaabBudget', r.faabBudget, 'number', ' min="0"')) +
-    mField('mFaabSpent', 'FAAB spent in dollars', mInput('mFaabSpent', r.faabSpent, 'number', ' min="0"')) + '</div>') +
-    step(1, '<div class="mform">' +
-      mField('mScoring', 'Scoring: one rule per line, ESPN stat id = points (for example 53 = 1), as your league settings state it',
-        mArea('mScoring', r.scoring, 6)) + '</div>') +
-    step(2, '<div class="mform">' +
-      mField('mSlots', 'Starting slots: one per line, position x count (for example RB x 2; QB, RB, WR, TE, FLEX, D/ST, K)', mArea('mSlots', r.slots, 6)) + '</div>') +
-    step(3, '<div class="mform">' +
-      mField('mSchedule', 'Schedule: one game per line, week: home team id vs away team id', mArea('mSchedule', r.schedule, 4)) +
-      mField('mByes', 'Bye weeks: one per line, pro-team id = week', mArea('mByes', r.byes, 4)) + '</div>') +
+    step(0, '<div class="mform">' + mField('mName', 'League name', mInput('mName', r.name)) + mField('mSeason', 'Season (year)', mInput('mSeason', r.season, 'number', ' min="2000" max="2100"')) +
+      mField('mLastWeek', 'Last regular-season week', mInput('mLastWeek', r.lastWeek, 'number', ' min="1" max="25"')) + mField('mPlayoff', 'Playoffs start in week (blank if none)', mInput('mPlayoff', r.playoff, 'number', ' min="1" max="25"')) +
+      mField('mFaabBudget', 'FAAB budget in dollars (blank if none)', mInput('mFaabBudget', r.faabBudget, 'number', ' min="0"')) + mField('mFaabSpent', 'FAAB spent in dollars', mInput('mFaabSpent', r.faabSpent, 'number', ' min="0"')) + '</div>') +
+    step(1, statPickerHtml() + '<div class="mform">' + mField('mScoring', 'Scoring: one rule per line, ESPN stat id = points or stat name = points (for example Passing TD = 4)', mArea('mScoring', r.scoring, 6)) + '</div>') +
+    step(2, '<div class="mform">' + mField('mSlots', 'Starting slots: one per line, position x count (for example RB x 2; QB, RB, WR, TE, FLEX, D/ST, K)', mArea('mSlots', r.slots, 6)) + '</div>') +
+    step(3, byePickerHtml() + '<div class="mform">' + mField('mSchedule', 'Schedule: one game per line, week: home team id vs away team id', mArea('mSchedule', r.schedule, 4)) +
+      mField('mByes', 'Bye weeks: one per line, NFL team = week (for example KC = 6)', mArea('mByes', r.byes, 4)) + '</div>') +
     step(4, r.teams.map(manualTeamHtml).join('') + '<button class="ghost" type="button" id="mAddTeam">Add a team</button>') +
-    '<div class="mbar"><span class="muted grow" id="mNote" role="status"></span>' +
-    (manualStep > 0 ? '<button class="ghost" type="button" id="mBack">Back</button>'
-      : allLeagues().length ? '<button class="ghost" type="button" id="mCancel">Cancel</button>' : '') +
-    (manualStep < MANUAL_STEPS.length - 1 ? '<button class="act" type="button" id="mNext">Continue</button>'
-      : '<button class="act" type="button" id="mSave">Save league</button>') + '</div>';
+    '<div class="mbar" data-no-glass><span class="muted grow" id="mNote" role="status"></span>' +
+    (manualStep > 0 ? '<button class="ghost" type="button" id="mBack">Back</button>' : allLeagues().length ? '<button class="ghost" type="button" id="mCancel">Cancel</button>' : '') +
+    (manualStep < MANUAL_STEPS.length - 1 ? '<button class="act" type="button" id="mNext">Continue</button>' : '<button class="act" type="button" id="mSave">Save league</button>') + '</div>';
   bindManualForm();
 }
-
-/** A team id no team in the form has: one more than the highest id typed. */
 function nextManualTeamId(teams) {
-  return teams.reduce(function (hi, t) {
-    var n = Number(String(t.teamId).trim());
-    return Number.isInteger(n) && n > hi ? n : hi;
-  }, 0) + 1;
+  return teams.reduce(function (hi, t) { var n = Number(String(t.teamId).trim()); return Number.isInteger(n) && n > hi ? n : hi; }, 0) + 1;
 }
 
 /** Redraw after adding or removing a team, then name anything the form still cannot read. */
@@ -859,6 +804,22 @@ function bindManualForm() {
     if (allLeagues().length) { el('mFormWrap').hidden = true; el('mAddRow').hidden = false; }
   });
   if (el('mSave')) el('mSave').addEventListener('click', saveManualLeague);
+  if (el('mStatPick')) el('mStatPick').addEventListener('change', function () {
+    var d = STAT_DEFAULTS[el('mStatPick').value];
+    if (d !== undefined && el('mStatPts')) el('mStatPts').value = String(d);
+  });
+  if (el('mAddStat')) el('mAddStat').addEventListener('click', function () {
+    var id = el('mStatPick').value, pts = String(el('mStatPts').value || '').trim();
+    if (!id || !pts) return;
+    var box = el('mScoring'), line = statName(id) + ' = ' + pts;
+    box.value = box.value.trim() ? box.value.trim() + '\n' + line : line;
+  });
+  if (el('mAddBye')) el('mAddBye').addEventListener('click', function () {
+    var team = el('mByePick').value, wk = String(el('mByeWk').value || '').trim();
+    if (!team || !wk) return;
+    var box = el('mByes'), line = team + ' = ' + wk;
+    box.value = box.value.trim() ? box.value.trim() + '\n' + line : line;
+  });
   el('mAddTeam').addEventListener('click', function () {
     var r = manualRawFromForm();
     var next = nextManualTeamId(r.teams);
@@ -900,6 +861,23 @@ function slotIdOf(text, problems) {
   problems.push('Starting slots: "' + text + '" is not a position (QB, RB, WR, TE, FLEX, D/ST, K, ...).');
   return null;
 }
+function statIdOf(text, problems) {
+  var raw = String(text || '').trim();
+  if (/^\d+$/.test(raw)) return Number(raw);
+  var want = raw.toLowerCase().replace(/\s+/g, ' ');
+  for (var id in STAT_NAMES) if (Object.prototype.hasOwnProperty.call(STAT_NAMES, id) && STAT_NAMES[id].toLowerCase() === want) return Number(id);
+  problems.push('Scoring: "' + raw + '" is not a known ESPN stat name or stat id.');
+  return null;
+}
+function proTeamIdOf(text, problems) {
+  var raw = String(text || '').trim();
+  if (/^\d+$/.test(raw)) return String(Number(raw));
+  var want = raw.toUpperCase();
+  if (Object.prototype.hasOwnProperty.call(PRO_ALIASES, want)) return String(PRO_ALIASES[want]);
+  for (var id in PRO_TEAMS) if (Object.prototype.hasOwnProperty.call(PRO_TEAMS, id) && PRO_TEAMS[id] === want) return String(Number(id));
+  problems.push('Bye weeks: "' + raw + '" is not an NFL team abbreviation (KC, BUF, SF, ...) or pro-team id.');
+  return null;
+}
 function numOrNull(v) { var t = String(v === undefined || v === null ? '' : v).trim(); return t === '' ? null : Number(t); }
 
 /** The team fieldsets as the teams the league route takes. */
@@ -920,11 +898,15 @@ function readManualForm() {
   var spent = numOrNull(el('mFaabSpent').value);
   if (budget === null && spent !== null) problems.push('FAAB spent is filled in but the FAAB budget is blank: fill in the budget, or clear spent.');
   var byes = {};
-  manualLines(el('mByes').value, /^(\d+)\s*[=:]\s*(\d+)$/, 'Bye weeks', '"pro-team id = week"', problems, function (m) { byes[m[1]] = Number(m[2]); return m; });
+  manualLines(el('mByes').value, /^([A-Za-z]{2,3}|\d+)\s*[=:]\s*(\d+)$/, 'Bye weeks', '"pro-team id = week"', problems, function (m) {
+    var tid = proTeamIdOf(m[1], problems);
+    if (tid !== null) byes[tid] = Number(m[2]);
+    return m;
+  });
   var league = {
     name: el('mName').value.trim(), season: numOrNull(el('mSeason').value),
-    scoring: manualLines(el('mScoring').value, /^(\d+)\s*[=:]\s*(-?\d+(?:\.\d+)?)$/, 'Scoring', '"stat id = points"', problems,
-      function (m) { return { statId: Number(m[1]), points: Number(m[2]) }; }),
+    scoring: manualLines(el('mScoring').value, /^([A-Za-z0-9 ()+\-\/]+?)\s*[=:]\s*(-?\d+(?:\.\d+)?)$/, 'Scoring', '"stat id = points"', problems,
+      function (m) { return { statId: statIdOf(m[1], problems), points: Number(m[2]) }; }).filter(function (x) { return x.statId !== null; }),
     slots: manualLines(el('mSlots').value, /^([A-Za-z][A-Za-z\/]*|\d+)\s*[x×*]\s*(\d+)$/i, 'Starting slots', '"position x count" (for example RB x 2)', problems,
       function (m) { return { slotId: slotIdOf(m[1], problems), count: Number(m[2]) }; }).filter(function (x) { return x.slotId !== null; }),
     teams: readManualTeams(problems),

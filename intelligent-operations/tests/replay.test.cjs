@@ -1,7 +1,8 @@
-// CHANGE LOG: replay a sample | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 regression: the sample replay is all or nothing. A detection service that cannot take the rules (the audit's HTTP 503 at POST /pipeline/policies, during the host disk's OpenSearch index-create block) saves nothing; a run that stops after saving removes its sources and telemetry; a source an earlier run left behind is offered for removal; only synthetic replay sources can be discarded.
-// CHANGE LOG: telemetry table | maintainer@emeraldcoastsystemsgroup.com | Retained context is one table: count each bank's meter across the stream rows.
-// CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Run the synthetic non-container scenario through real intake, OpenSearch, reduction, graph correlation and pinned context.
+// CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | Prove isolated recorded-window replay (RP-OPS-01), uploaded CloudEvents and OTLP batch replay (RP-OPS-02), mapping refusals, zero live side effects, and sandbox run clean-up.
+// CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 regression: the sample replay is all or nothing; failed runs remove created sources and telemetry, and only synthetic replay sources can be discarded.
+// CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | Retained context is one table: count each bank's meter across the stream rows.
 // CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Verify mixed batch results, pre-write source refusal and actual grouped resource cards.
+// CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Run the synthetic non-container scenario through real intake, OpenSearch, reduction, graph correlation and pinned context.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const {datacenter}=require('../ui/replay-scenarios.js'),{fixture,loadExperience}=require('./fixtures/intake.cjs'),{engineFixture}=require('./fixtures/detection.cjs');
@@ -80,7 +81,8 @@ test('a sample replay the detection service cannot take saves nothing, says whic
   await page.getByRole('button',{name:'Remove test data (1 source)',exact:true}).click();await page.getByText('Removed 1 test source',{exact:false}).waitFor();
   assert.ok(t.collections.get('sources').get(leftover.id).discardedAt,'the earlier run\'s source is discarded');
   const records=await (await fetch(t.base+'/api/intelligent-operations/records')).json();assert.equal(records.sources.length,0,'a discarded source is gone from every read');
-  for(const name of ['Replay a recorded window, not available yet','Replay an uploaded batch, not available yet']){const planned=page.getByRole('button',{name,exact:true});assert.equal(await planned.getAttribute('aria-disabled'),'true');assert.ok(await planned.getAttribute('data-ds-backlog'));}
+  assert.equal(await page.locator('#replay-sheet [data-ds-not-yet], #replay-sheet [data-ds-backlog]').count(),0,'all replay modes are live');
+  for(const name of ['Datacenter scenario','Replay a recorded window','Replay an uploaded batch'])assert.equal(await page.getByRole('button',{name,exact:true}).isEnabled(),true);
   const posts=[];page.on('request',r=>{if(r.method()==='POST')posts.push(new URL(r.url()).pathname);});
   await page.getByRole('button',{name:'Run datacenter scenario',exact:true}).click();
   const alert=page.getByRole('alert').filter({hasText:'Stopped at checking the detection service'});await alert.waitFor();
@@ -118,4 +120,62 @@ test('only synthetic replay sources can be discarded, and the replay write takes
   await assert.rejects(preflightReplay(async()=>({}),owner,{policy:{},sourceId:'x'}),e=>e.status===400);
   await assert.rejects(preflightReplay(async()=>({revision:'other',sealed:true,count:1}),owner,{policy:datacenter(randomUUID()).policy}),e=>e.status===503);
  }finally{await f.close();}
+});
+
+test('recorded-window replay (RP-OPS-01) and uploaded CloudEvents/OTLP batch replay (RP-OPS-02) run in an isolated sandbox with clean-up and zero live side effects',async()=>{
+ const {dependency,root}=require('./fixtures/intake.cjs'),express=dependency('express'),{chromium}=dependency('playwright');
+ const f=await fixture(),engine=await engineFixture(),owner='sandbox-replay-'+randomUUID(),pool=f.caller(owner),collections=new Map(),indexes=new Set();let browser,server;
+ try{
+  const app=express();app.use((req,_res,next)=>{req.oidc={user:{sub:owner}};next();});
+  app.use('/api/intelligent-operations',loadExperience().createOperationsExperienceRoutes({pool,appPackageDir:root,authorization:{registerResource(){}},store:{async query(name){return [...(collections.get(name)||new Map()).values()];},async put(name,id,value){if(!collections.has(name))collections.set(name,new Map());collections.get(name).set(id,value);}},intent:async(name,input)=>{if(input.request.cmd==='publish')indexes.add('ops-rules-'+hash(['detection-owner-v1',owner])+'-'+input.request.args.revision);return engine.intent(name,input);}}));
+  server=await new Promise(resolve=>{const s=app.listen(0,'127.0.0.1',()=>resolve(s));});const base='http://127.0.0.1:'+server.address().port+'/api/intelligent-operations';
+  const scenario=datacenter(randomUUID()),srcInput={...scenario.sources[0],name:'Prod host alerts',environment:'prod-lab',source:'urn:operations:source:prod-lab'};
+  const savedSrc=await (await fetch(base+'/sources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(srcInput)})).json();
+  await fetch(base+'/telemetry/configure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceId:savedSrc.id,config:scenario.configs.hosts,expectedRevision:0})});
+  const policyBody={name:'Sandbox Errors',window:{mode:'sliding',seconds:900},rules:[{name:'Host warning or critical',enabled:true,capture:true,query:{terms:{severity:['warning','critical']}}}]};
+  const pub=await (await fetch(base+'/pipeline/policies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceId:savedSrc.id,policy:policyBody,expectedRevision:0})})).json();
+  const mkEvent=(id,severity,resId,time,env='prod-lab')=>({specversion:'1.0',id,source:savedSrc.source,type:'operations.alert',time,dataschema:'urn:oshal:operations:alert:1',datacontenttype:'application/json',data:{environment:env,alertType:'HostCpuHigh',severity,status:'firing',message:'cpu spike',resource:{kind:'host',scope:'rack-1',id:resId}}});
+  const t0=new Date(Date.now()-60000).toISOString(),t1=new Date(Date.now()-50000).toISOString(),t2=new Date(Date.now()-40000).toISOString();
+  const admitted=await fetch(base+'/events/batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({events:[{sourceId:savedSrc.id,event:mkEvent('w-1','critical','host-a',t0)},{sourceId:savedSrc.id,event:mkEvent('w-2','critical','host-a',t1)},{sourceId:savedSrc.id,event:mkEvent('w-3','info','host-b',t2)}]})});
+  assert.equal(admitted.status,200);
+  browser=await chromium.launch({headless:true,args:['--disable-gpu']});const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(base+'/app#data');await page.getByRole('tab',{name:'Rules',exact:true}).click();await page.getByRole('button',{name:'Replay a sample',exact:true}).click();await page.locator('#replay-sheet[open]').waitFor();
+
+  // RP-OPS-01: Replay a recorded window against the chosen rule revision
+  await page.getByRole('button',{name:'Replay a recorded window',exact:true}).click();
+  await page.locator('#replay-window-source option[value="'+savedSrc.id+'"]').waitFor({state:'attached'});
+  await page.locator('#replay-window-policy option[value="'+pub.policy.id+'"]').waitFor({state:'attached'});
+  await page.locator('#replay-window-policy').selectOption(pub.policy.id);
+  await page.getByRole('button',{name:'Replay recorded window',exact:true}).click();
+  await page.getByText('Isolated sandbox replay complete',{exact:false}).waitFor();
+  assert.deepEqual(await page.locator('#replay-steps li').evaluateAll(items=>items.map(li=>li.dataset.state)),['done','done','done','done','done']);
+  assert.match(await page.locator('#replay-results').innerText(),/1 unmatched filtered; 1 repeated symptoms suppressed/);
+  assert.match(await page.locator('#replay-results').innerText(),/0 live symptoms, 0 evidence reservations, 0 notifications/);
+  for(const table of ['operations_filter_decisions','operations_symptoms','operations_symptom_occurrences','operations_evidence_work'])assert.equal(await count(pool,owner,table),0,table+' untouched by window replay');
+  await page.getByRole('button',{name:'Remove test run',exact:true}).click();await page.getByText('Removed sandbox test run receipt',{exact:false}).waitFor();
+  assert.equal((await (await fetch(base+'/replays')).json()).runs.length,0,'cleaned-up sandbox receipt is gone');
+  assert.equal(await count(pool,owner,'operations_deliveries'),3,'live deliveries stay intact');
+
+  // RP-OPS-02: Uploaded batch mapping validation refusal + CloudEvents file upload + OTLP logs batch
+  await page.getByRole('button',{name:'Replay an uploaded batch',exact:true}).click();
+  await page.locator('#replay-batch-json').fill(JSON.stringify([mkEvent('bad-1','critical','host-z',t0,'wrong-env')]));
+  await page.getByRole('button',{name:'Replay uploaded batch',exact:true}).click();
+  await page.locator('#replay-alert').waitFor();assert.match(await page.locator('#replay-alert').textContent(),/does not match source environment/);
+  assert.equal(await page.locator('#replay-steps li[data-step=source]').getAttribute('data-state'),'failed');
+
+  const ceBatch=[mkEvent('b-1','warning','host-c',t0),mkEvent('b-2','warning','host-c',t1),mkEvent('b-3','info','host-d',t2)];
+  await page.locator('#replay-batch-file').setInputFiles({name:'batch.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(ceBatch))});
+  await page.getByRole('button',{name:'Replay uploaded batch',exact:true}).click();
+  await page.getByText('Isolated sandbox replay complete · 3 occurrences → 2 rule matches → 1 symptoms',{exact:false}).waitFor();
+  assert.equal(await count(pool,owner,'operations_deliveries'),3,'uploaded batch never admits live deliveries');
+
+  const otlpBatch={resourceLogs:[{resource:{attributes:[{key:'host.id',value:{stringValue:'host-otlp-1'}},{key:'site.id',value:{stringValue:'rack-1'}}]},scopeLogs:[{logRecords:[{timeUnixNano:String(Date.now()*1e6),severityNumber:18,body:{stringValue:'kernel panic'}}]}]}]};
+  await page.locator('#replay-batch-format').selectOption('otlp-logs');
+  await page.locator('#replay-batch-json').fill(JSON.stringify(otlpBatch));
+  await page.getByRole('button',{name:'Replay uploaded batch',exact:true}).click();
+  await page.getByText('Isolated sandbox replay complete · 1 occurrences → 1 rule matches → 1 symptoms',{exact:false}).waitFor();
+  for(const table of ['operations_filter_decisions','operations_symptoms','operations_evidence_work','operations_telemetry_0'])assert.equal(await count(pool,owner,table),0,table+' untouched by OTLP sandbox batch');
+  await page.getByRole('button',{name:'Remove test run',exact:true}).click();await page.getByText('Removed sandbox test run receipt',{exact:false}).waitFor();
+  assert.deepEqual(errors,[]);
+ }finally{if(browser)await browser.close();if(server)await new Promise(resolve=>server.close(resolve));await engine.close();await f.close();for(const index of indexes){const r=await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'DELETE'});assert.ok(r.ok||r.status===404);}}
 });

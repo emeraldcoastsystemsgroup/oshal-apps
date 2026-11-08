@@ -3,6 +3,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Register takeout-unavailable: without the Takeout archive service the upload screen offers watch-history.json only, never shows the Dropbox button, refuses a .zip in words, and prints a refusal's detail instead of undefined.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Register brief-read-admission: GET /brief only reads under the kernel's read admission (answering {brief:null} with 200, since the kernel masks a package GET 404), POST /brief produces and stores the brief, and the page posts when GET answers an unanalyzed history or on Re-analyze.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Register home-summary-dates: the gift hand-off and the summary detail carry readable dates, never raw ISO stamps.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | RP-KL-01: register child-profiles behaviour, household isolation, 8-profile cap refusal, legacy migration, and Child ▾ UI switcher tests with regressionTests.
 version: 1
 cases:
   - id: kid-lens-status-without-store
@@ -20,7 +21,7 @@ cases:
     expected:
       - The native "SQL schema is not provisioned" refusal and PostgreSQL 42P01 both answer hasData:false.
       - Any other store failure still answers 500.
-      - migrations/001-youtube-activity.sql declares exactly the routes' CREATE TABLE.
+      - migrations/001-youtube-activity.sql declares the routes' activity CREATE TABLE.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -100,4 +101,32 @@ cases:
       mode: none
     limits:
       timeoutMs: 15000
+    installation: never
+  - id: kid-lens-child-profiles
+    name: Kid Lens household child profiles and isolation
+    purpose: >-
+      Verify RP-KL-01 child profile CRUD (up to 8 per parent), per-child watch history uploads and
+      parent briefs, delete cleanup, cross-parent isolation, read-only legacy fallback, and the live
+      Child ▾ header switcher.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/child-profiles.test.cjs
+        - tests/kid-lens-merge.test.cjs
+    expected:
+      - Parents add up to 8 child profiles by first name; a 9th profile, blank name, or duplicate name is refused.
+      - Each child profile stores its own sealed watch history and parent brief, and deleting a child removes both.
+      - Another signed-in parent sees none of those profiles and cannot read, upload to, rename, or delete them.
+      - The Child ▾ header control opens, switches briefs, and adds profiles with zero planned-backlog placeholders.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: In-memory database double and ephemeral loopback HTTP server closed after each test.
+    limits:
+      timeoutMs: 60000
+      maxMemoryMb: 512
     installation: never

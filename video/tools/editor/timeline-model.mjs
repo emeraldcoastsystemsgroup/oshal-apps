@@ -5,8 +5,10 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Immutable manual timeline operations: add/remove sources, append, trim, split, reorder and remove non-destructive segments, per-segment volume, one title track, one audio bed. Every operation returns a freshly validated document and never edits its input; structural edits refit titles to the new length instead of leaving them past the end.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Speed-aware v1 layout/split/playhead mapping and immutable segment-effect, caption and sticker helpers.
  */
 import { LIMITS, PROFILE, TITLE_POSITIONS, TITLE_SIZES, demand, integer, plainText, timelineFrames, validateTimeline } from './timeline-validation.mjs';
+import { clipDurationFrames } from './editor-effects.mjs';
 
 /** @description A new empty project in the one supported profile.
  * @param {string} name Project name. @returns {object} Validated empty document. */
@@ -33,7 +35,7 @@ export function parseTimeline(text) {
 export function timelineLayout(document) {
   let cursor = 0;
   return document.segments.map((segment, index) => {
-    const row = { ...segment, index, start: cursor, end: cursor + segment.out - segment.in };
+    const row = { ...segment, index, start: cursor, end: cursor + clipDurationFrames(segment.in, segment.out, segment.speed ?? 100) };
     cursor = row.end; return row;
   });
 }
@@ -44,7 +46,10 @@ export function timelineLayout(document) {
 export function locateFrame(document, frame) {
   integer(frame, 0, LIMITS.totalFrames, 'Playhead');
   const row = timelineLayout(document).find(item => frame >= item.start && frame < item.end);
-  return row ? { segment: row, sourceFrame: row.in + frame - row.start } : null;
+  if (!row) return null;
+  const speed = row.speed ?? 100;
+  const sourceFrame = speed === 100 ? row.in + frame - row.start : Math.min(row.out - 1, row.in + Math.floor(((frame - row.start) * speed) / 100));
+  return { segment: row, sourceFrame };
 }
 
 function nextId(taken, prefix) {
@@ -52,11 +57,16 @@ function nextId(taken, prefix) {
   throw new TypeError('No free identifier remains');
 }
 
-/** Keep the title track inside the new length: clamp ends and drop titles that now start after the end. */
+/** Keep titles, captions and stickers inside the new length: clamp ends and drop items starting past the end. */
 function refit(document) {
   const total = timelineFrames(document);
   const titles = document.titles.filter(title => title.start < total).map(title => ({ ...title, end: Math.min(title.end, total) }));
-  return validateTimeline({ ...document, titles });
+  const captions = document.captions?.filter(cue => cue.start < total).map(cue => ({ ...cue, end: Math.min(cue.end, total) }));
+  const stickers = document.stickers?.filter(st => st.start < total).map(st => {
+    const end = Math.min(st.end, total);
+    return { ...st, end, ...(st.keys ? { keys: st.keys.filter(k => k.frame <= end - st.start) } : {}) };
+  });
+  return validateTimeline({ ...document, titles, captions: captions?.length ? captions : undefined, stickers: stickers?.length ? stickers : undefined });
 }
 
 function withSegments(document, segments) { return refit({ ...document, segments }); }
@@ -112,7 +122,9 @@ export function splitSegment(document, id, frame) {
   demand(document.segments.length < LIMITS.segments, `The timeline holds at most ${LIMITS.segments} segments`);
   const row = timelineLayout(document)[segmentIndex(document, id)];
   integer(frame, row.start + 1, row.end - 1, 'Split point');
-  const cut = row.in + frame - row.start;
+  const speed = row.speed ?? 100;
+  const cut = speed === 100 ? row.in + frame - row.start : Math.min(row.out - 1, Math.max(row.in + 1, row.in + Math.round(((frame - row.start) * speed) / 100)));
+  demand(cut > row.in && cut < row.out, 'Clip is too short at this speed to split here');
   const right = nextId(new Set(document.segments.map(segment => segment.id)), 's');
   const segments = [...document.segments];
   segments.splice(row.index, 1, { ...segments[row.index], out: cut }, { ...segments[row.index], id: right, in: cut });
@@ -188,6 +200,57 @@ export function setAudioBed(document, key, volume = 40) {
 
 /** @description Rename the project. @param {object} document Document. @param {string} name New name. @returns {object} New document. */
 export function renameTimeline(document, name) { return validateTimeline({ ...document, name }); }
+
+/** @description Patch a v1 segment's speed, look, stabilize, chromaKey, removeBg, volume or trim range. */
+export function patchSegment(document, id, patch) {
+  const index = segmentIndex(document, id), segments = [...document.segments];
+  const allowed = ['in', 'out', 'volume', 'speed', 'look', 'stabilize', 'chromaKey', 'removeBg'];
+  demand(patch && Object.keys(patch).every(name => allowed.includes(name)), 'Unsupported segment change');
+  segments[index] = { ...segments[index], ...patch };
+  return withSegments(document, segments);
+}
+
+/** @description Replace timed captions on a v1 or v2 timeline document. */
+export function setCaptions(document, cues) {
+  const taken = new Set();
+  const normalized = (cues ?? []).map(cue => {
+    const id = cue.id && /^[a-z][a-z0-9-]{0,31}$/.test(cue.id) && !taken.has(cue.id) ? cue.id : nextId(taken, 'c');
+    taken.add(id);
+    return { id, text: cue.text, start: cue.start, end: cue.end, position: cue.position ?? 'bottom', size: cue.size ?? 'small' };
+  });
+  return validateTimeline({ ...document, captions: document.version === 2 ? normalized : (normalized.length ? normalized : undefined) });
+}
+
+/** @description Add a licensed sticker overlay to a v1 or v2 timeline document. */
+export function addSticker(document, sticker) {
+  const existing = document.stickers ?? [];
+  const id = nextId(new Set(existing.map(item => item.id)), 'st');
+  const total = timelineFrames(document);
+  demand(total > 0, 'Add a clip before placing stickers');
+  const start = Math.min(Math.max(0, sticker.start ?? 0), total - 1);
+  const end = Math.min(total, Math.max(start + 1, sticker.end ?? Math.min(total, start + 90)));
+  const entry = { id, stickerId: sticker.stickerId, start, end, x: sticker.x ?? 50, y: sticker.y ?? 25, scale: sticker.scale ?? 100, ...(sticker.keys?.length ? { keys: sticker.keys } : {}) };
+  return validateTimeline({ ...document, stickers: [...existing, entry] });
+}
+
+/** @description Update an existing sticker's placement, timing or keyframes on a v1 or v2 timeline document. */
+export function updateSticker(document, id, patch) {
+  const existing = document.stickers ?? [], index = existing.findIndex(item => item.id === id);
+  demand(index >= 0, 'That sticker is not on the timeline');
+  const allowed = ['stickerId', 'start', 'end', 'x', 'y', 'scale', 'keys'];
+  demand(patch && Object.keys(patch).every(name => allowed.includes(name)), 'Unsupported sticker change');
+  const stickers = [...existing];
+  stickers[index] = { ...stickers[index], ...patch, id };
+  return validateTimeline({ ...document, stickers });
+}
+
+/** @description Remove a sticker overlay from a v1 or v2 timeline document. */
+export function removeSticker(document, id) {
+  const existing = document.stickers ?? [];
+  demand(existing.some(item => item.id === id), 'That sticker is not on the timeline');
+  const next = existing.filter(item => item.id !== id);
+  return validateTimeline({ ...document, stickers: next.length ? next : undefined });
+}
 
 /** @description Replace a linked rendered cache after editing its exact owned Motion graph. All timeline timing stays fixed; a shorter/differently timed or locked source refuses. */
 export function replaceMotionSource(document, key, source) {

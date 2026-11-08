@@ -3,6 +3,8 @@
 # 0.4.0 | maintainer@emeraldcoastsystemsgroup.com | The oshal design standard (docs/ux/design-standard.md §3-§5; Canva and Adobe Express, REFP CONVENTIONS §5.5; Roger F6; UX audit decision publishing-studio--publishing-studio): the page declares its contract; with nothing saved it opens on one blank Letter page whose one first action is Add text frame, and with publications on Your publications (newest first, one New: Blank Letter, Blank A4, the planned From template); text typed in a frame is drawn on the page at once; Render and Download PDF run on the current draft and save it first; one app row (back, the publication's menu, undo, redo, Saved, More, the one primary) and one tool row (Text, Image, Shape, Pages, Styles, Concierge, More) that switches to the chosen item's tools under a selection float; Styles, Pages, Master and the item tools are half sheets on a phone and the Pages | page | Properties·Concierge panes on a desktop; one inspector; limits and how-to in Help; no browser dialog; planned controls for RP-PUB-01..07. POST /documents takes an optional size for a blank publication; no permission, binding or authorization change.
 # 0.4.1 | maintainer@emeraldcoastsystemsgroup.com | The studio opens on a platform without the shared planned-control helper (an older kernel platform, such as the store gate's fixture platform): the greyed placeholders are then simply not drawn, instead of the editor never starting. 0.4.0 was merged with this fix only in the gate's working tree.
 # 0.4.2 | maintainer@emeraldcoastsystemsgroup.com | At 1440x900 Your publications fills the app: the editor's desktop grid kept the list in its second column, an implicit 267px strip at the right with the rest of the app empty (the trial check of 0.4.1, 2026-11-06). Guard: tests/browser/design-standard.test.mjs, "Your publications takes the whole width".
+# 0.5.0 | maintainer@emeraldcoastsystemsgroup.com | Starter templates, multi-select and grouping, image background cutout, proportional format resize, Create brand kit integration, forced-RLS pinned comments, social post scheduling and publishing behind explicit confirmation, and item animation presets with collapsible timeline and H.264 MP4 video export (RP-PUB-01..08).
+# 0.5.1 | maintainer@emeraldcoastsystemsgroup.com | Snapshot-load referenced revision, blob, chunk, output, and comment-reply rows before native SQL updates and cascade deletes across video jobs, social posts, comments, and document removal.
 # CHANGE LOG: request-key | maintainer@emeraldcoastsystemsgroup.com | 0.3.5: issue fresh contract request keys and reject edit keys outside the existing backend UUID contract.
 # 0.3.4 | maintainer@emeraldcoastsystemsgroup.com | Use an obviously synthetic UUIDv4 request example while requiring a fresh identifier for each new request.
 # 0.3.1 | maintainer@emeraldcoastsystemsgroup.com | Share the pinned native concierge, live saved-document refresh, same-session manual follow-up and controller-owned approval cards.
@@ -15,9 +17,9 @@ name: publishing-studio
 suite: ai-creative
 displayName: Publishing Studio
 description: >-
-  Original-owned bounded English print layouts, linked stories, styles, masters and native Typst
-  PDF/PNG output.
-version: 0.4.2
+  Original-owned bounded English print and animated layouts, starter templates, linked stories,
+  styles, masters, subject cutouts, comments, social scheduling and native Typst PDF/PNG/MP4 output.
+version: 0.5.1
 runtime: process
 lastingStorage: true
 status: active
@@ -66,9 +68,14 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: []
+    apps: [create]
     tools: []
-    connectors: []
+    connectors: [twitter, linkedin]
+egress:
+  - host: api.twitter.com
+    credential: { connector: twitter, header: authorization, prefix: "Bearer " }
+  - host: api.linkedin.com
+    credential: { connector: linkedin, header: authorization, prefix: "Bearer " }
 routes:
   - module: routes/package-smoke.js
     factory: createPackageSmokeRoutes
@@ -96,12 +103,30 @@ smoke:
 migrations:
   - migrations/001-publishing-studio.sql
   - migrations/native/001-publishing-studio.sql
+  - migrations/002-publishing-features.sql
+  - migrations/native/002-publishing-features.sql
 nativeMigrations:
   - id: migrations/001-publishing-studio.sql
     native: skip
     reason: >-
       Native final schema retains Person scope and immutable rows; PostgreSQL additionally applies
       forced original-owner RLS.
+  - id: migrations/002-publishing-features.sql
+    native: skip
+    reason: >-
+      Native final schema provisions comments, social posts and video render jobs without PG GUC
+      policy DDL; PostgreSQL additionally applies forced two-arm original-owner RLS.
+schedules:
+  - id: publishing-social-publish
+    cron: "*/5 * * * *"
+    runsAs: user
+    target: service-route
+    route: /api/publishing-studio/social/run-due
+    method: POST
+    body: {}
+    timeoutSeconds: 60
+    description: Publish the social posts you scheduled from Publishing Studio on your own connected accounts within five minutes of their scheduled time.
+    offer: Publish my scheduled Publishing Studio social posts when their time comes.
 summary:
   path: /api/publishing-studio/home-summary
   tilesPointer: /metrics
@@ -384,6 +409,21 @@ tools:
           type: integer
           minimum: 1
           maximum: 8
+        size:
+          type: string
+          enum:
+            - letter
+            - a4
+            - a5
+            - square
+            - portrait
+            - widescreen
+        templateId:
+          type: string
+          enum:
+            - event-flyer
+            - newsletter
+            - booklet
         requestKey:
           type: string
           minLength: 36
@@ -623,6 +663,7 @@ tools:
             - layout
             - pdf
             - preview
+            - mp4
         page:
           type: integer
           minimum: 1
@@ -707,3 +748,174 @@ tools:
       - publishing-editing
     tags:
       - route-backed
+  - name: publishing-remove-background
+    displayName: Remove image background
+    type: api
+    category: creative
+    description: Extract foreground subject of an owned image into a new transparent PNG while keeping original unchanged.
+    executor: { executorType: api, apiEndpoint: "POST /api/publishing-studio/assets/{input.asset}/remove-background" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        asset: { type: string, minLength: 1, maxLength: 64 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        threshold: { type: number, minimum: 8, maximum: 120 }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+      required: [asset, requestKey]
+    usageInstructions: Supply owned asset id and fresh UUIDv4 requestKey; original asset stays intact.
+    routingTags: [publishing, cutout, image]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-resize-document
+    displayName: Resize publication into new format copy
+    type: api
+    category: creative
+    description: Create a new owned publication copy scaled proportionally into letter, a4, a5, square, portrait or widescreen.
+    executor: { executorType: api, apiEndpoint: "POST /api/publishing-studio/documents/{input.id}/resize" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        size: { type: string, enum: [letter, a4, a5, square, portrait, widescreen] }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+      required: [id, size, requestKey]
+    usageInstructions: Creates a new resized publication copy without overwriting the source document.
+    routingTags: [publishing, resize, format]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-apply-brand-kit
+    displayName: Apply brand kit colours, fonts and logo
+    type: api
+    category: creative
+    description: Apply brand palette colours, heading/body fonts and optional owned logo asset under baseRevision CAS.
+    executor: { executorType: api, apiEndpoint: "POST /api/publishing-studio/documents/{input.id}/apply-brand-kit" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        baseRevision: { type: integer, minimum: 1, maximum: 99 }
+        primaryColor: { type: string, minLength: 4, maxLength: 7 }
+        secondaryColor: { type: string, minLength: 4, maxLength: 7 }
+        accentColor: { type: string, minLength: 4, maxLength: 7 }
+        headingFont: { type: string, minLength: 1, maxLength: 64 }
+        bodyFont: { type: string, minLength: 1, maxLength: 64 }
+        logoAssetId: { type: string, minLength: 1, maxLength: 64 }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+      required: [id, baseRevision, primaryColor, requestKey]
+    usageInstructions: Supply hex colours (#rrggbb), optional font names and owned logoAssetId.
+    routingTags: [publishing, brand, styles]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-list-comments
+    displayName: List pinned publication comments
+    type: api
+    category: creative
+    description: List comments and replies pinned to pages, frames or objects of an owned publication.
+    executor: { executorType: api, apiEndpoint: "GET /api/publishing-studio/documents/{input.id}/comments" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+      required: [id]
+    usageInstructions: Read comments on an owned publication UUID.
+    routingTags: [publishing, comments]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-add-comment
+    displayName: Pin comment on publication
+    type: api
+    category: creative
+    description: Pin a comment to a page, text frame or object on an owned publication.
+    executor: { executorType: api, apiEndpoint: "POST /api/publishing-studio/documents/{input.id}/comments" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        pageId: { type: string, minLength: 1, maxLength: 64 }
+        targetType: { type: string, enum: [page, frame, object] }
+        targetId: { type: string, minLength: 1, maxLength: 64 }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+      required: [id, pageId, targetType, targetId, body, requestKey]
+    usageInstructions: Verify pageId and targetId exist on the saved publication before pinning.
+    routingTags: [publishing, comments]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-social-post
+    displayName: Schedule or post publication to social channel
+    type: api
+    category: creative
+    description: Post a rendered publication revision now or schedule it on a connected twitter or linkedin account.
+    executor: { executorType: api, apiEndpoint: "POST /api/publishing-studio/documents/{input.id}/social-posts" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        revision: { type: integer, minimum: 1, maximum: 100 }
+        channel: { type: string, enum: [twitter, linkedin] }
+        caption: { type: string, minLength: 1, maxLength: 2000 }
+        scheduledFor: { type: string, minLength: 10, maxLength: 64 }
+        confirm: { type: boolean }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+      required: [id, revision, channel, caption, confirm, requestKey]
+    usageInstructions: Revision must have a ready render; set confirm=true only with user approval.
+    routingTags: [publishing, social, schedule]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-render-video
+    displayName: Render animated MP4 video for publication
+    type: api
+    category: creative
+    description: Start native H.264 MP4 video rendering for an owned saved revision. Poll publishing-video-job-status until ready.
+    executor: { executorType: api, apiEndpoint: "POST /api/publishing-studio/documents/{input.id}/render-video" }
+    defaultAuthMode: ask
+    requiresApproval: true
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        revision: { type: integer, minimum: 1, maximum: 100 }
+        requestKey: { type: string, minLength: 36, maxLength: 36 }
+      required: [id, revision, requestKey]
+    usageInstructions: Poll returned video job ID via publishing-video-job-status until state=ready.
+    routingTags: [publishing, video, animate]
+    skills: [publishing-editing]
+    tags: [route-backed]
+  - name: publishing-video-job-status
+    displayName: Read publishing MP4 video render job
+    type: api
+    category: creative
+    description: Read status of an owned MP4 video render job.
+    executor: { executorType: api, apiEndpoint: "GET /api/publishing-studio/video-jobs/{input.id}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+      required: [id]
+    usageInstructions: Ready state unlocks publishing-export with format=mp4.
+    routingTags: [publishing, video, animate]
+    skills: [publishing-editing]
+    tags: [route-backed]

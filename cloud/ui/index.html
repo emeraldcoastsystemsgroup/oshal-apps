@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-ds-category="dashboard" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,36 +11,40 @@
   ---------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com   | Cloud's own first screen (UX audit 2026-11-05, cloud-accounts, D). Opening Cloud landed on the global Jarvis chat list, and its accounts tile was the whole platform Connections page. This page reads GET /api/cloud/home-summary and shows one thing: Google Cloud not connected, with one primary Connect Google Cloud (the kernel's /api/connect/gcp/start, in its own window because the provider refuses a frame); or connected, with the account tiles and one primary Ask the cloud bot, which hands a first question to the application's concierge (cloud-ops-bot) through the cockpit's app-ask message.
   2   | maintainer@emeraldcoastsystemsgroup.com   | Say what failed (trial check 2026-11-06): where the kernel refuses the connection (the trial has no public web address, so the connect window landed on Connections with connect_error) the screen kept saying "finish signing in". It now listens on the same-origin channel the Connections page announces each connect outcome on (oshal-connections, connect-outcome) and shows the kernel's reason as an alert, or reloads the tiles when the connection is saved.
+  3   | maintainer@emeraldcoastsystemsgroup.com   | 1.2.2: UX design-standard sweep (D1=glass, D2=c): declare DS-00 contract, load surface-glass.css, put radii ({10,14}) and font sizes ({14,15,18,24}) on the scale, keep controls opaque, and shorten not-connected copy to fit the phone word budget.
 -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css">
 <script src="cloud-model.js"></script>
 <style>
-  html, body { margin: 0; }
-  body { background: var(--bg-primary, #f5f8ff); color: var(--text-primary, #142034); font: 16px/1.5 system-ui, sans-serif; }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; box-sizing: border-box; }
-  .card { background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #d6e0f0); border-radius: 14px; padding: 20px; }
-  h2 { margin: 0 0 6px; font-size: 20px; }
-  p { margin: 0 0 16px; color: var(--text-secondary, #4a5a73); }
+  html, body { margin: 0; overscroll-behavior: contain; }
+  body { background: var(--bg-primary, #f5f8ff); color: var(--text-primary, #142034); font: 15px/1.5 system-ui, sans-serif; }
+  .wrap { max-width: 720px; min-height: 100dvh; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+  .card { background: var(--bg-card, #ffffff); border: 1px solid var(--ds-line, var(--border-color, #d6e0f0)); border-radius: 14px; padding: 20px; }
+  h2 { margin: 0 0 6px; font-size: 18px; line-height: 1.3; }
+  p { margin: 0 0 16px; color: var(--ds-ink-2, var(--text-secondary, #4a5a73)); font-size: 15px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 16px; }
-  .tile { border: 1px solid var(--border-color, #d6e0f0); border-radius: 12px; padding: 14px; }
-  .tile strong { display: block; font-size: 26px; }
-  .tile span { color: var(--text-secondary, #4a5a73); font-size: 14px; }
+  .tile { border: 1px solid var(--ds-line, var(--border-color, #d6e0f0)); border-radius: 10px; padding: 14px; }
+  .tile strong { display: block; font-size: 24px; }
+  .tile span { color: var(--ds-ink-2, var(--text-secondary, #4a5a73)); font-size: 14px; }
   .tile.warn strong { color: var(--status-warning, #b45309); }
   .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  button { font: inherit; min-height: 44px; padding: 0 18px; border-radius: 10px; cursor: pointer;
-    border: 1px solid var(--border-color, #d6e0f0); background: var(--bg-secondary, #eef3fb); color: inherit; }
-  button.primary { background: var(--accent-primary, #2563eb); border-color: var(--accent-primary, #2563eb); color: var(--ds-on-accent, var(--text-on-accent, #ffffff)); font-weight: 600; }
-  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent-primary, #2563eb); outline-offset: 3px; }
-  a { color: var(--accent-primary, #2563eb); }
-  .note { margin: 14px 0 0; font-size: 14px; color: var(--text-secondary, #4a5a73); }
-  .alert { color: var(--status-error, #b91c1c); margin: 0 0 12px; }
+  button { font: 600 15px/1 system-ui, sans-serif; min-height: 44px; padding: 0 18px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--ds-line-control, var(--border-color, #b8c7dc)); background: var(--ds-surface-2, var(--bg-secondary, #eef3fb)); color: inherit;
+    backdrop-filter: none; background-image: none; box-shadow: none; }
+  button.primary { background: var(--ds-accent, var(--accent-primary, #2563eb)); border-color: var(--ds-accent, var(--accent-primary, #2563eb)); color: var(--ds-on-accent, var(--text-on-accent, #ffffff)); font-weight: 600; }
+  button:disabled { opacity: 1; color: var(--ds-ink-disabled, #64748b); cursor: not-allowed; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--ds-accent, var(--accent-primary, #2563eb)); outline-offset: 2px; }
+  a { color: var(--ds-accent, var(--accent-primary, #2563eb)); }
+  .note { margin: 14px 0 0; font-size: 14px; color: var(--ds-ink-2, var(--text-secondary, #4a5a73)); }
+  .alert { color: var(--status-error, #b91c1c); margin: 0 0 12px; font-size: 14px; }
 </style>
 </head>
 <body>
 <main class="wrap">
-  <section class="card" id="card" aria-live="polite">
-    <p id="loading">Reading your Google Cloud connection…</p>
+  <section class="card" id="card" data-ds-work data-no-glass aria-live="polite">
+    <p id="loading">Reading Google Cloud status…</p>
   </section>
 </main>
 <script>
@@ -116,7 +120,7 @@
       actions.append(retry);
     } else if (v.state === 'not-connected') {
       card.append(el('h2', {}, 'Google Cloud: not connected'));
-      card.append(el('p', {}, 'Connect your Google Cloud account, then ask the cloud bot about your projects, services and instances. It reads with your own access, and only reads unless you ask it to change something.'));
+      card.append(el('p', {}, 'Connect Google Cloud to inspect projects, services, and instances in read-only mode.'));
       var go = el('button', { type: 'button', class: 'primary', id: 'connect' }, 'Connect Google Cloud');
       go.addEventListener('click', connect);
       actions.append(go);

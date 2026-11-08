@@ -1,6 +1,8 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, the oshal design standard for Publishing Studio (docs/ux/design-standard.md §3, §4, §5.1; REFP CONVENTIONS §5.5; Roger F6; the UX audit decision publishing-studio--publishing-studio). Real Chromium over the real routes, the real publishing engine and a disposable PostgreSQL: a blank Letter page opens ready with one primary (Add text frame) and one tool row with More last; typed text is drawn in its frame at once without a save; Download PDF saves, renders and downloads the draft by itself; no page preview is asked for before a render (the 409 regression); the chosen frame raises a selection float while the row switches to its tools; menus and sheets are opaque top-layer dialogs that Back closes, and nothing asks through a browser dialog; Your publications lists newest first with one New; the desktop has Pages | page | Properties·Concierge without a fourth column; Arrange is the one inspector; the planned controls are greyed and inert.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2: at 1440x900 Your publications fills the app; in 0.4.1 the editor's grid-column kept it in a 267px column on the right with the left empty (the trial check, 2026-11-06).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: replace RP-PUB-01..07 planned placeholders with live controls and verify Brand is withheld when Create has no brand kit.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 0.5.0: mount /cockpit/css/themes in the standalone fixture so surface-themes.css resolves theme palettes across platform snapshots.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,8 +17,9 @@ const DESKTOP = {viewport: {width: 1440, height: 900}, acceptDownloads: true};
 
 async function start(t, size = PHONE) {
   const f = await fixture({http: true, extend: app => {
-    app.get('/shared/ui/js/package-tool-cards.js', (_q, r) => r.sendFile(resolve(platform, 'src/api/jarvis-package-tools.js')));
+    app.get('/shared/ui/js/package-tool-cards.js', (_q, r) => r.sendFile('src/api/jarvis-package-tools.js', {root: platform}));
     app.use('/shared/ui', express.static(resolve(platform, 'src/shared/ui')));
+    app.use('/cockpit/css/themes', express.static(resolve(platform, 'src/pages/cockpit/css/themes')));
   }});
   t.after(() => f.close());
   const browser = await chromium.launch({headless: true}); t.after(() => browser.close());
@@ -29,18 +32,6 @@ async function start(t, size = PHONE) {
 /** The accent-filled controls a person sees in the app (R1 counts them). */
 const primaries = page => page.evaluate(() => [...document.querySelectorAll('button.primary')].filter(node => node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden').map(node => node.getAttribute('aria-label') || node.innerText.trim()));
 const alpha = color => color.startsWith('rgba') ? Number(color.split(',')[3].replace(')', '')) : 1;
-async function inert(page, locator, requests) {
-  const before = requests.length, html = await page.evaluate(() => document.body.innerHTML.length), dialogs = await page.locator('dialog[open]').count();
-  await locator.click({force: true}); await page.waitForTimeout(400);
-  assert.equal(requests.length, before, 'a planned control sends nothing');
-  assert.equal(await page.locator('dialog[open]').count(), dialogs, 'and opens nothing');
-  assert.equal(await page.evaluate(() => document.body.innerHTML.length), html, 'and changes nothing');
-}
-async function planned(locator, backlog) {
-  assert.equal(await locator.getAttribute('aria-disabled'), 'true');
-  assert.equal(await locator.getAttribute('data-ds-backlog'), backlog);
-  assert.match(await locator.getAttribute('aria-label'), /not available yet/i);
-}
 
 test('a blank Letter page opens ready: the contract, one primary and one tool row with More last', {timeout: 180000}, async t => {
   const {f, page} = await start(t);
@@ -50,8 +41,8 @@ test('a blank Letter page opens ready: the contract, one primary and one tool ro
   assert.deepEqual(await primaries(page), ['Add text frame'], 'one primary: the first creative action');
   const row = await page.evaluate(() => {const node = document.querySelector('[data-ds-toolrow]'), box = node.getBoundingClientRect(); return {bottom: Math.round(box.bottom), height: Math.round(box.height), last: node.lastElementChild.textContent.trim(), words: [...node.children].map(child => child.textContent.trim())};});
   assert.equal(row.last, 'More'); assert.equal(row.bottom, 915, 'the tool row is the bottom bar'); assert.ok(row.height <= 64);
-  assert.deepEqual(row.words, ['Text', 'Image', 'Shape', 'Concierge', 'Brand', 'More']);
-  await planned(page.locator('[data-ds-toolrow] [data-ds-not-yet]'), 'RP-PUB-05');
+  assert.deepEqual(row.words, ['Text', 'Image', 'Shape', 'Concierge', 'More']);
+  assert.equal(await page.locator('[data-ds-not-yet], [data-ds-backlog]').count(), 0);
   assert.equal(await page.getByText(/create or open/i).count(), 0);
   assert.equal(await page.locator('.ef-panes').isVisible(), false, 'no Navigation / Properties / Concierge band above the work');
 });
@@ -112,8 +103,8 @@ test('menus and sheets are opaque top-layer dialogs that Back closes; Delete con
   await page.locator('#document-menu').tap();
   const menu = page.locator('dialog[open]');
   assert.deepEqual(await menu.evaluate(node => [node.matches(':modal'), getComputedStyle(node).backgroundColor]).then(([modal, color]) => [modal, alpha(color)]), [true, 1]);
-  await planned(menu.locator('[data-ds-not-yet]'), 'RP-PUB-01');
-  await inert(page, menu.locator('[data-ds-not-yet]'), requests);
+  assert.equal(await menu.locator('[data-ds-not-yet]').count(), 0);
+  assert.equal(await menu.locator('.ds-menu-row', {hasText: 'New from template'}).isEnabled(), true);
   await page.goBack(); await page.waitForFunction(() => !document.querySelector('dialog[open]'));
   assert.equal(page.url(), address, 'Back closed the menu and stayed in the studio');
   await page.locator('#document-menu').tap();
@@ -122,11 +113,12 @@ test('menus and sheets are opaque top-layer dialogs that Back closes; Delete con
   await confirm.getByRole('button', {name: 'Cancel', exact: true}).tap(); await confirm.waitFor({state: 'detached'});
   assert.equal((await fetch(f.url + '/api/publishing-studio/documents/' + created.id)).status, 200, 'Cancel kept the publication');
   await page.locator('#more-menu').tap();
-  for (const [label, backlog] of [['Resize', 'RP-PUB-04'], ['Select multiple', 'RP-PUB-02'], ['Comment', 'RP-PUB-06']]) await planned(page.locator('dialog[open] [data-ds-not-yet]', {hasText: label}), backlog);
+  assert.equal(await page.locator('dialog[open] [data-ds-not-yet]').count(), 0);
+  for (const label of ['Resize…', 'Select multiple', 'Group', 'Comment…', 'Video timeline']) assert.equal(await page.locator('dialog[open] .ds-menu-row', {hasText: label}).count(), 1, label);
 });
 
 test('with publications the first screen is Your publications, newest first, with one New at the bottom right', {timeout: 180000}, async t => {
-  const {f, page, requests} = await start(t);
+  const {f, page} = await start(t);
   await createPublication(f, {title: 'Older flyer'}); await createPublication(f, {title: 'Newer flyer'});
   await openStudio(page, f.url);
   await page.locator('#publications').waitFor();
@@ -136,8 +128,8 @@ test('with publications the first screen is Your publications, newest first, wit
   assert.ok(412 - (box.x + box.width) <= 24 && 915 - (box.y + box.height) <= 40, 'at the bottom right ' + JSON.stringify(box));
   assert.equal(await page.locator('#new-publication').getAttribute('data-ef-floating'), '', 'the Today orb rests above it');
   await page.locator('#new-publication').tap();
-  assert.deepEqual(await page.locator('dialog[open] .ds-menu-row:not([data-ds-not-yet])').allTextContents(), ['Blank Letter page', 'Blank A4 page']);
-  await inert(page, page.locator('dialog[open] [data-ds-not-yet]'), requests);
+  assert.deepEqual(await page.locator('dialog[open] .ds-menu-row').allTextContents(), ['Blank Letter page', 'Blank A4 page', 'From template…']);
+  assert.equal(await page.locator('dialog[open] [data-ds-not-yet]').count(), 0);
   await page.locator('dialog[open] .ds-menu-row', {hasText: 'Blank A4 page'}).tap();
   await page.locator('#document-title').filter({hasText: 'Untitled publication'}).waitFor();
   const list = await (await fetch(f.url + '/api/publishing-studio/documents')).json();
@@ -168,7 +160,8 @@ test('desktop: Pages 240 | the page | Properties·Concierge 320, one app row, no
   await page.locator('.pub-tab', {hasText: 'Properties'}).click();
   const row = await page.evaluate(() => [...document.querySelectorAll('.pub-approw > button, .pub-approw [data-ds-toolrow] > button')].filter(node => node.getClientRects().length).map(node => {const box = node.getBoundingClientRect(); return [Math.round(box.top), Math.round(box.bottom)];}));
   assert.ok(Math.max(...row.map(([top]) => top)) < Math.min(...row.map(([, bottom]) => bottom)), 'one app row with the tool row inside it');
-  await planned(page.locator('.pub-approw > .pub-comment-slot [data-ds-not-yet], #comment-slot [data-ds-not-yet]').first(), 'RP-PUB-06');
+  assert.equal(await page.locator('#comment-slot #open-comments').isEnabled(), true);
+  assert.equal(await page.locator('[data-ds-not-yet], [data-ds-backlog]').count(), 0);
   await page.locator('[data-ds-toolrow]').getByRole('button', {name: 'Shape'}).click();
   await page.locator('[data-editor-property="x"]').waitFor();
   assert.equal(await page.locator('[data-editor-property="x"]:visible').count(), 1, 'one X field');

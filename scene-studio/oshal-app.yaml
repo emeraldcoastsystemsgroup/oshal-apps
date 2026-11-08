@@ -38,6 +38,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, UX audit 2026-11-06: Render preview, Run, Import, Set keyframe, Undo and Save stay disabled until a project is open and a preview never posts for no project; New makes a ready scene with its first preview; a first screen of project types or projects; Scene and Script & build views; no route or permission change.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 0.4.1: + New carries data-ef-floating (kernel PR #197) so the shell orb rests above it on a phone.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 0.4.2 (Roger F13): a concierge turn begun with no project open lists the projects again and opens the one project it made; no route, tool or permission change.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 0.4.3 (UX audit sweep, scene-studio--scene-studio, D1=glass, D2=c): editor contract, opaque sheets/menus/bars with data-no-glass, in-page confirmation/rename sheet replacing browser confirm/prompt, scale radii/typography, and popstate Back dismissal.
 name: scene-studio
 suite: ai-creative   # ADR-097: primary catalog shelf — exactly one (games and models are creative deliverables)
 # Rating label (core ADR-170): container memory in MiB and each model-touching feature.
@@ -52,7 +53,7 @@ rating:
       degrade: disable
 displayName: Scene Studio
 description: "Edit Blender objects, materials and keyframes, and Godot scene-node transforms, within saved native projects."
-version: 0.4.2
+version: 0.4.3
 status: active
 scope: person
 

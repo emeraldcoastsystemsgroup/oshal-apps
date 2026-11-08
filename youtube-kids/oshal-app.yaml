@@ -3,41 +3,17 @@
 # SEQ | AUTHOR                                      | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1   | maintainer@emeraldcoastsystemsgroup.com     | Declare migrations/001-youtube-activity.sql: on the native kernel GET /status 500'd "SQL schema is not provisioned" for everyone who had not uploaded, because a read cannot create the table. Register the package's Test Lab catalog.
-# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: declare kid-lens-bot as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it. A workflow application with no chatBot keeps every creation request with the assistant (jarvis_creation_kept), which answered without this application's tools.
-# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: kid-lens-bot declares routing words (youtube, youtube kids, kid video, kids video, ...): asked from Jarvis, the request went to another application (Video Studio, Scan to Print) or to none. Guarded by the kernel's jarvis_routing_store_tests sweep_requests_reach_the_application_that_does_the_work.
-# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: UX audit 2026-11-06 (youtube-kids-review MERGE, P0): Kid Lens Review leaves the menu and the parent brief is the app's one screen. Its form could never be sent (the shared connected-action panel is off since kernel 5174083d), so the tab ended in a dead end. The /api/youtube-kids/review address still answers and opens the brief (tools/review.html). To bring the tab back, restore the youtube-kids-review entry under ui.static (as it was before this entry) and remove the redirect line at the top of tools/review.html. The `theme: sakura` default is gone (DS §2.8, DS-34): the page wears the person's theme.
-# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1: the planned control 'Child ▾ · Not available yet' at the left of the Kid Lens header (design standard §4.10, backlog RP-KL-01), greyed and inert.
-# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2: the review template behind the redirect shows 'Your next brief' only when a connected action renders (UX audit P1, @ux-career's fix shape).
-# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
+# 2   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.1: declare kid-lens-bot as the chatBot, so a request from Jarvis that asks to make, build, order or plan something reaches it.
+# 3   | maintainer@emeraldcoastsystemsgroup.com     | 1.2.2: kid-lens-bot declares routing words (youtube, youtube kids, kid video, kids video, ...).
+# 4   | maintainer@emeraldcoastsystemsgroup.com     | 1.3.0: UX audit 2026-11-06 (youtube-kids-review MERGE, P0): Kid Lens Review leaves the menu and the parent brief is the app's one screen; no fixed sakura theme.
+# 5   | maintainer@emeraldcoastsystemsgroup.com     | 1.3.1: the planned control 'Child ▾ · Not available yet' at the left of the Kid Lens header (design standard §4.10, backlog RP-KL-01).
+# 6   | maintainer@emeraldcoastsystemsgroup.com     | 1.3.2: the review template behind the redirect shows 'Your next brief' only when a connected action renders.
+# 7   | maintainer@emeraldcoastsystemsgroup.com     | 1.3.3: the review page's buttons are on the design standard's scale.
+# 8   | maintainer@emeraldcoastsystemsgroup.com     | 1.4.0: RP-KL-01 household child profiles (up to 8 per signed-in parent), one watch history and parent brief per child, live Child ▾ header switcher, forced-RLS migrations, and concierge child-profile tools.
 # -----------------------------------------------------------------------------
-# ─────────────────────────────────────────────────────────────────────────────
-# OSHAL app package — youtube-kids ("Kid Lens")
-# Carved out of OSHAL core 2026-07-17 (ADR-085 Wave 1 carve #2).
-#
-# Turns a parent's Google Takeout YouTube watch-history export into a brief on
-# what their kid is into: top interests, decoded channels, gift ideas, and
-# conversation openers. v1 = Takeout upload only (no live youtube.readonly API —
-# that scope needs Google app verification first).
-#
-# ADR-036 split: the packaged route parses + aggregates the (large) export
-# cheaply and stores it user_sub-keyed (raw export encrypted at rest); the
-# accountable Kid Lens bot reasons over the compact aggregate so cost lands in
-# chat_tasks. The bot is reason-only, so it runs INLINE on the api container
-# (registered from this manifest by the loader — no core registry entry).
-#
-# STATUS: inactive — parity with how it lived in core (retired from the default
-# catalog 2026-07-16 but fully functional). Toggle active via the swarm-apps API
-# or cockpit to use it.
-#
-# Schema note: oshal_youtube_activity is a declared migration (the native kernel
-# provisions it per person) and the routes still declare it lazily at first use,
-# with the owner-scoped RLS applied at that chokepoint on PostgreSQL.
-# ─────────────────────────────────────────────────────────────────────────────
 
 name: youtube-kids
-suite: ai-home   # ADR-097: primary catalog shelf (tools keep their own category:)
-# Rating label (core ADR-170): container memory in MiB and each model-touching feature.
-# After editing, run `node scripts/ai-usage-ledger.mjs --write` (ledger + README section).
+suite: ai-home
 rating:
   memoryMb: { low: 32, high: 128, basis: declared }
   features:
@@ -53,13 +29,11 @@ rating:
       degrade: disable
 displayName: Kid Lens
 description: >-
-  Upload your YouTube Takeout watch history and get a parent-friendly brief on
-  what your kid is into — top interests, what the unfamiliar channels actually
-  are, gift ideas, and conversation openers. Read-only; nothing is posted or sent.
-version: 1.3.3
+  Upload your YouTube Takeout watch history for each child in your household (up to 8 profiles)
+  and get a parent-friendly brief on what each kid is into — top interests, what the unfamiliar
+  channels actually are, gift ideas, and conversation openers. Read-only; nothing is posted or sent.
+version: 1.4.0
 
-# ADR-139 wave 2 — "Send to…" destination: a Takeout watch-history.json from anywhere in the
-# swarm ingests straight into the parent brief (JSON only; zip archives use the Takeout spine).
 artifacts:
   accepts:
     - id: takeout
@@ -79,8 +53,6 @@ source:
   path: youtube-kids
   ref: main
 
-# CORE-05 install readiness is service-authenticated and reads package metadata only. It never
-# touches user data, calls a provider, mutates state, or spends tokens.
 smoke:
   - name: package-readiness
     method: GET
@@ -92,8 +64,6 @@ smoke:
       rejectValues: [noop, stub, empty]
     requiresAi: false
 
-# Self-contained: kernel skills only (agent-management BotNodeClient, shared
-# database bootstrap, logger) — no app, tool, or connector dependencies.
 dependencies:
   required:
     apps: []
@@ -104,29 +74,19 @@ dependencies:
     tools: []
     connectors: []
 
-# Kernel skills this app declares (ADR-090 uses: contract, fail-closed at load).
-# `app-dependencies` is the compatibility floor for the tiered dependencies block above: a core
-# that predates required/optional refuses this package instead of installing it without its
-# required dependencies and without its connector allow-list.
 uses:
   - app-dependencies
-  - memory           # @/features/personal-data — the raw Takeout export is sealed at rest by the kernel
+  - memory
+  - test-catalog
 
-# The bot a Jarvis creation request goes to (its own workflow bot).
 chatBot: kid-lens-bot
 
 ticketType: youtube-kids-brief
 
 workflow:
   name: Kid Lens Brief
-  # No `pipeline:` — single-bot worker dispatch. Interactive work (upload → brief)
-  # uses the direct BotNodeClient path in the packaged routes; a
-  # ticketType=youtube-kids-brief ticket (e.g. a future scheduled re-analysis)
-  # routes to the same bot over the mesh.
   workerBot: kid-lens-bot
 
-# The Kid Lens analyzer — reason-only inline concierge, upserted + registered by
-# the loader from this manifest (ADR-085; zero core-registry edits).
 bots:
   - agentId: a0000000-0000-0000-0000-000000000043
     name: kid-lens-bot
@@ -147,9 +107,118 @@ bots:
       - channel-decoding
       - gift-suggestion
       - conversation-prompts
+      - child-profiles
 
-# Compiled-JS route (built from src-routes/ by `oshal-app build`). Serves the
-# upload/brief surface from this package's tools/ and the per-user store API.
+tools:
+  - name: kid-lens-children-list
+    displayName: List Kid Lens Child Profiles
+    type: api
+    category: youtube-kids
+    description: List the signed-in parent's Kid Lens child profiles, whether each child has an uploaded watch history, and whether a parent brief is ready.
+    executor: { executorType: api, apiEndpoint: "GET /api/youtube-kids/children" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    routingTags: [kid-lens, youtube-kids, children, profiles]
+    skills: [child-profiles]
+    tags: [youtube-kids, route-backed]
+
+  - name: kid-lens-child-brief
+    displayName: Read Child Parent Brief
+    type: api
+    category: youtube-kids
+    description: Read the stored parent brief for a specific child profile (or the default child when childId is omitted) without re-running analysis.
+    executor: { executorType: api, apiEndpoint: "GET /api/youtube-kids/brief?childId={childId}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        childId:
+          type: string
+          description: Optional child profile ID from kid-lens-children-list.
+    routingTags: [kid-lens, youtube-kids, brief, children]
+    skills: [child-profiles, watch-history-analysis]
+    tags: [youtube-kids, route-backed]
+
+  - name: kid-lens-child-add
+    displayName: Add Kid Lens Child Profile
+    type: api
+    category: youtube-kids
+    description: Add a household child profile by first name (up to 8 profiles per parent account).
+    executor: { executorType: api, apiEndpoint: "POST /api/youtube-kids/children" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The child's first name (1 to 40 characters).
+      required: [name]
+    routingTags: [kid-lens, youtube-kids, children, add]
+    skills: [child-profiles]
+    tags: [youtube-kids, route-backed]
+
+  - name: kid-lens-child-rename
+    displayName: Rename Kid Lens Child Profile
+    type: api
+    category: youtube-kids
+    description: Rename one of the signed-in parent's Kid Lens child profiles.
+    executor: { executorType: api, apiEndpoint: "POST /api/youtube-kids/children/rename" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        childId:
+          type: string
+          description: Child profile ID from kid-lens-children-list.
+        name:
+          type: string
+          description: Updated first name (1 to 40 characters).
+      required: [childId, name]
+    routingTags: [kid-lens, youtube-kids, children, rename]
+    skills: [child-profiles]
+    tags: [youtube-kids, route-backed]
+
+  - name: kid-lens-child-delete
+    displayName: Delete Kid Lens Child Profile
+    cardText: Delete this child profile along with its uploaded watch history and saved parent brief.
+    type: api
+    category: youtube-kids
+    description: Delete one of the signed-in parent's child profiles along with its uploaded YouTube watch history and saved brief.
+    executor: { executorType: api, apiEndpoint: "POST /api/youtube-kids/children/delete" }
+    defaultAuthMode: approval
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        childId:
+          type: string
+          description: Child profile ID from kid-lens-children-list.
+      required: [childId]
+    routingTags: [kid-lens, youtube-kids, children, delete]
+    skills: [child-profiles]
+    tags: [youtube-kids, route-backed]
+
+  - name: kid-lens-child-analyze
+    displayName: Analyze Child Watch History
+    type: api
+    category: youtube-kids
+    description: Run or refresh the Kid Lens parent brief for a child profile that already has an uploaded watch history.
+    executor: { executorType: api, apiEndpoint: "POST /api/youtube-kids/brief" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        childId:
+          type: string
+          description: Optional child profile ID from kid-lens-children-list.
+    routingTags: [kid-lens, youtube-kids, brief, analyze]
+    skills: [child-profiles, watch-history-analysis]
+    tags: [youtube-kids, route-backed]
+
 routes:
   - module: routes/review.js
     factory: createReviewRoutes
@@ -179,13 +248,15 @@ routes:
     auth: oidc
     requiresContext: true
 
-# The shared kernel scans whole archives safely; this package owns the Google product path and
-# owner-keyed handler. Activation registers the contribution and toggle-off retracts it immediately.
-# The per-person activity store. The native kernel provisions declared migrations in a writer's own
-# scope (a read-only GET cannot create the table); the routes' runtime bootstrap still declares the
-# same table and, on PostgreSQL, its owner policy.
 migrations:
   - migrations/001-youtube-activity.sql
+  - migrations/002-youtube-children.sql
+  - migrations/003-youtube-children-rls.sql
+
+nativeMigrations:
+  - id: migrations/003-youtube-children-rls.sql
+    native: skip
+    reason: "Row security for oshal_youtube_children and oshal_youtube_activity: ENABLE/FORCE and pg_policies-guarded CREATE POLICY are PostgreSQL-only; the native per-person scope keeps each parent's profiles and briefs in their own database."
 
 takeout:
   - kind: youtube-watch-history
@@ -196,9 +267,6 @@ takeout:
     module: routes/youtube-kids-routes.js
     handler: ingestTakeoutWatchHistory
 
-# One ribbon tile opens the Kid Lens page (upload step + rendered brief). The former Kid Lens Review
-# tab (toolName youtube-kids-review, iframeUrl /api/youtube-kids/review) was merged into it on
-# 2026-11-06; its address now opens this page.
 ui:
   static:
     - toolName: youtube-kids

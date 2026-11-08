@@ -1,10 +1,12 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Add direct multitrack controls and measured waveforms to the existing private Video editor without adding another project store.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0: deselect() clears the chosen clip, so Done in the clip tool row returns to the main tools.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Size multitrack clip bars by speed-adjusted duration and display speed badges.
  */
 import { migrateMultitrack, applyMultitrack } from './multitrack-model.mjs';
 import { timelineFrames } from './timeline-validation.mjs';
 import { mediaUrl } from './editor-api.mjs';
+import { clipDurationFrames, formatSpeed } from './editor-effects.mjs';
 let selected = null;
 const $ = id => document.getElementById(id);
 const fields = ['start', 'in', 'out', 'volume', 'x', 'y', 'scale', 'opacity', 'fadeIn', 'fadeOut', 'brightness', 'contrast', 'saturation'];
@@ -29,9 +31,11 @@ export function createMultitrackEditor(ctx) {
         button(track.locked ? 'Unlock' : 'Lock', () => operate({ type: 'track', id: track.id, patch: { locked: !track.locked } }), !ctx.editable()));
       const strip = document.createElement('div'); strip.className = 'multi-clips';
       for (const clip of track.clips) {
-        const node = button(`${timeline.sources[clip.source].name} · ${clip.start}–${clip.start + clip.out - clip.in}f${clip.link ? ' · linked' : ''}`, () => { selected = clip.id; render(); ctx.onSelect?.(); });
+        const dur = clipDurationFrames(clip.in, clip.out, clip.speed ?? 100);
+        const speedTag = clip.speed && clip.speed !== 100 ? ` · ${formatSpeed(clip.speed)}` : '';
+        const node = button(`${timeline.sources[clip.source].name} · ${clip.start}–${clip.start + dur}f${speedTag}${clip.link ? ' · linked' : ''}`, () => { selected = clip.id; render(); ctx.onSelect?.(); });
         node.dataset.multiClip = clip.id; node.draggable = ctx.editable() && !track.locked;
-        const total = Math.max(1, timelineFrames(timeline)); node.style.left = `${clip.start / total * 100}%`; node.style.width = `${(clip.out - clip.in) / total * 100}%`;
+        const total = Math.max(1, timelineFrames(timeline)); node.style.left = `${clip.start / total * 100}%`; node.style.width = `${dur / total * 100}%`;
         node.ondragstart = event => { event.dataTransfer.setData('text/plain', clip.id); event.dataTransfer.effectAllowed = 'move'; };
          node.setAttribute('aria-pressed', String(selected === clip.id)); strip.append(node);
       }
@@ -39,8 +43,9 @@ export function createMultitrackEditor(ctx) {
       strip.ondrop = event => {
         event.preventDefault(); if (!ctx.editable() || track.locked) return;
         const id = event.dataTransfer.getData('text/plain'), own = timeline.tracks.flatMap(track => track.clips).find(clip => clip.id === id); if (!own) return;
+        const ownDur = clipDurationFrames(own.in, own.out, own.speed ?? 100);
         const box = strip.getBoundingClientRect(), frame = snapped(Math.round((event.clientX - box.left) / box.width * Math.max(1, timelineFrames(timeline))));
-        operate({ type: 'moveClip', id, track: track.id, start: Math.max(0, Math.min(1800 - own.out + own.in, frame)) });
+        operate({ type: 'moveClip', id, track: track.id, start: Math.max(0, Math.min(1800 - ownDur, frame)) });
       };
       row.append(strip); list.append(row);
     }
@@ -80,7 +85,7 @@ export function createMultitrackEditor(ctx) {
   function appendSource(document, sourceKey) {
     const kind = document.sources[sourceKey].kind, target = document.tracks.find(track => track.kind === kind && !track.locked);
     if (!target) throw new Error('Add an unlocked track for this source first.');
-    const start = Math.max(0, ...target.clips.map(clip => clip.start + clip.out - clip.in));
+    const start = Math.max(0, ...target.clips.map(clip => clip.start + clipDurationFrames(clip.in, clip.out, clip.speed ?? 100)));
     if (start >= 1800) return document;
     return applyMultitrack(document, { type: 'addClip', track: target.id, source: sourceKey, start });
   }

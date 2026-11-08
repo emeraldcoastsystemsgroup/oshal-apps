@@ -5,10 +5,11 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: iPhone AirPlay mirroring via headless UxPlay into SOI/EOI-verified JPEGs with sha256 chunked delivery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Android screen/UI/app helpers, adb file/clipboard verbs, mirror-ui screen text coordinates, Fire TV LAN scan & verified APK staging/install, and line-buffered BT.709 8fps UxPlay AirPlay pipeline.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: detect uniform-black protected DRM surfaces and asleep screens in adb-frame, report activePackage and activeActivity, and recover seamlessly from rotated Android Wireless Debugging TLS ports.
 """Frame, AirPlay, screen UI, file transfer, clipboard, and TV APK helpers for oshal_phone_bridge.py."""
 
 from concurrent.futures import ThreadPoolExecutor
-import base64, glob, hashlib, json, math, os, re, shutil, socket, struct, subprocess, time
+import base64, glob, hashlib, json, math, os, re, shutil, socket, struct, subprocess, time, zlib
 from xml.etree import ElementTree
 
 MIRROR_PACKAGES = ['uxplay', 'libavahi-compat-libdnssd1', 'gstreamer1.0-plugins-base',
@@ -58,20 +59,98 @@ def scaled_jpeg(ctx, png, width):
     return jpeg if code == 0 and jpeg[:2] == b'\xff\xd8' else None
 
 
+def png_is_uniform_black(png, dev_w, dev_h):
+    if len(png) > 65536 or len(png) < 33 or png[24] != 8 or png[25] not in (0, 2, 6):
+        return False
+    ch = {0: 1, 2: 3, 6: 4}[png[25]]
+    idat, idx = [], 8
+    while idx + 8 <= len(png):
+        ln = int.from_bytes(png[idx:idx + 4], 'big')
+        tag = png[idx + 4:idx + 8]
+        if idx + 12 + ln > len(png):
+            break
+        if tag == b'IDAT':
+            idat.append(png[idx + 8:idx + 8 + ln])
+        elif tag == b'IEND':
+            break
+        idx += 12 + ln
+    try:
+        raw = zlib.decompress(b''.join(idat))
+    except zlib.error:
+        return False
+    stride, vis = 1 + dev_w * ch, min(ch, 3)
+    if len(raw) < stride * dev_h:
+        return False
+    step_y, step_x = max(1, dev_h // 16), max(1, dev_w // 16)
+    for y in range(0, dev_h, step_y):
+        row = raw[y * stride:(y + 1) * stride]
+        if row[0] not in (0, 1, 2):
+            return False
+        for x in range(0, dev_w, step_x):
+            if max(row[1 + x * ch:1 + x * ch + vis]) >= 8:
+                return False
+    return True
+
+
+def is_uniform_black_frame(ctx, png, jpeg, dev_w, dev_h):
+    if dev_w < 64 or dev_h < 64 or (jpeg and len(jpeg) > 8000):
+        return False
+    ffmpeg = shutil.which('ffmpeg')
+    if ffmpeg:
+        try:
+            code, rgb, _ = ctx.run([ffmpeg, '-v', 'error', '-f', 'png_pipe', '-i', 'pipe:0',
+                                    '-vf', 'scale=16:16', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'],
+                                   5, data=png, binary=True)
+            if code == 0 and len(rgb) == 768:
+                return max(rgb) < 8
+        except ctx.Refusal:
+            pass
+    return png_is_uniform_black(png, dev_w, dev_h)
+
+
+def inspect_black_surface(ctx, serial):
+    try:
+        _, out, _ = ctx.adb_shell(
+            serial,
+            "dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'; dumpsys power | grep -E 'mWakefulness=|Display Power'",
+            4,
+        )
+    except Exception:
+        return {'protectedSurface': False, 'screenAsleep': False, 'activePackage': '', 'activeActivity': ''}
+    asleep = bool(re.search(r'mWakefulness=(?:Asleep|Dozing)|state=OFF', out, re.I))
+    focus = (re.search(r'mCurrentFocus=[^\n]*?([A-Za-z][\w.]+)/([A-Za-z0-9_.$]+)', out)
+             or re.search(r'mFocusedApp=[^\n]*?([A-Za-z][\w.]+)/([A-Za-z0-9_.$]+)', out))
+    pkg, act = (focus.group(1), focus.group(2)) if focus else ('', '')
+    return {'protectedSurface': not asleep, 'screenAsleep': asleep, 'activePackage': pkg, 'activeActivity': act}
+
+
+def adb_exec_with_reconnect(ctx, serial, subargs, timeout=30, binary=False):
+    code, out, err = ctx.adb_call(['-s', serial] + subargs, timeout, binary=binary)
+    err_text = err.decode('utf-8', 'replace') if isinstance(err, bytes) else str(err or '')
+    if code and hasattr(ctx, 'reconnect_rotated_serial') and any(w in err_text.lower() for w in ('not found', 'offline', 'closed', 'cannot connect')):
+        fresh = ctx.reconnect_rotated_serial(serial)
+        if fresh:
+            serial = fresh
+            code, out, err = ctx.adb_call(['-s', serial] + subargs, timeout, binary=binary)
+    return serial, code, out, err
+
+
 def verb_adb_frame(ctx, args):
     serial = ctx.need_serial(args)
     width = ctx.number(args, 'width', 160, 1080, 432)
-    code, png, err = ctx.adb_call(['-s', serial, 'exec-out', 'screencap', '-p'], 30, binary=True)
+    serial, code, png, err = adb_exec_with_reconnect(ctx, serial, ['exec-out', 'screencap', '-p'], 30, binary=True)
     dev_w, dev_h = png_size(png)
     if code or not dev_w:
         raise ctx.adb_refusal(err or 'the phone sent no picture')
     jpeg = scaled_jpeg(ctx, png, width)
+    surface = (inspect_black_surface(ctx, serial) if is_uniform_black_frame(ctx, png, jpeg, dev_w, dev_h)
+               else {'protectedSurface': False, 'screenAsleep': False, 'activePackage': '', 'activeActivity': ''})
     data, mime = (jpeg, 'image/jpeg') if jpeg else (png, 'image/png')
     digest = keep_frame(ctx, data, 'jpg' if jpeg else 'png')
     text = base64.b64encode(data).decode('ascii')
-    return {'ok': True, 'id': digest[:16], 'sha256': digest, 'mime': mime, 'bytes': len(data),
+    return {'ok': True, 'serial': serial, 'id': digest[:16], 'sha256': digest, 'mime': mime, 'bytes': len(data),
             'chunks': max(1, math.ceil(len(text) / ctx.CHUNK)), 'index': 0, 'data': text[:ctx.CHUNK],
-            'deviceWidth': dev_w, 'deviceHeight': dev_h, 'slow': not jpeg}
+            'deviceWidth': dev_w, 'deviceHeight': dev_h, 'slow': not jpeg, **surface}
 
 
 def verb_frame_chunk(ctx, args):
@@ -145,7 +224,7 @@ def ui_items(xml):
 
 def verb_adb_ui(ctx, args):
     serial = ctx.need_serial(args)
-    _, out, err = ctx.adb_call(['-s', serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty'], 30)
+    serial, _, out, err = adb_exec_with_reconnect(ctx, serial, ['exec-out', 'uiautomator', 'dump', '/dev/tty'], 30)
     if '</hierarchy>' not in out:
         ctx.adb_shell(serial, 'uiautomator dump /sdcard/oshal_ui.xml', 30)
         _, out, err = ctx.adb_call(['-s', serial, 'exec-out', 'cat', '/sdcard/oshal_ui.xml'], 20)
@@ -709,8 +788,8 @@ def find_local_tv_apk(prefer_android=False):
         for folder in dirs:
             if folder and os.path.isdir(folder):
                 apks = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith('.apk')]
-                pri = [p for p in apks if ('android' in os.path.basename(p).lower() or 'orbit' in os.path.basename(p).lower())] if prefer_android else []
-                tvs = [p for p in apks if ('firetv' in os.path.basename(p).lower() or 'tv' in os.path.basename(p).lower())]
+                pri = [p for p in apks if ('android' in os.path.basename(p).lower() or 'orbit' in os.path.basename(p).lower()) and 'firetv' not in os.path.basename(p).lower()] if prefer_android else []
+                tvs = [] if prefer_android else [p for p in apks if ('firetv' in os.path.basename(p).lower() or 'tv' in os.path.basename(p).lower())]
                 candidates.extend(sorted(pri, key=os.path.getmtime, reverse=True))
                 candidates.extend(sorted(tvs, key=os.path.getmtime, reverse=True))
     for path in candidates:

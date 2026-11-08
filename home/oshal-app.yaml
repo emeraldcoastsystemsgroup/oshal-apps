@@ -10,6 +10,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.2.9: the description names the weather forecast. Jarvis is told an application does only what its description states, so asked "Check the weather in Chicago and also tell me the top economy news" it wrote that no installed application gives weather, above Smart Home's own forecast. Guarded by home/tests/home-weather.test.js.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0 (UX audit 2026-11-05, home-dashboard, D): with no hub the Smart Home screen is one empty state (No devices yet, one primary Connect a hub that opens the SmartThings and Google Home rows with status pills); Schedules stay hidden until there is a device or a scene; devices, then scenes, then schedules; Refresh only once a hub has reported, and a refused refresh (409) is an alert with the fix; no inline Ask bar (the shell's concierge is the one assistant entry); no in-frame heading; the diagnostic brief is withheld while the cockpit offers no connected action. The Spaces tab (home-spaces) stays declared: the kernel withholds it while Spaces is turned off (Spaces' HIDE), and it returns when Spaces is turned on again.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1 (UX audit 2026-11-05 split, home-dashboard): Automations is its own tab (home-automations, ?view=automations) with the schedules and Add schedule; the Smart Home screen keeps devices, scenes and the hubs.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2 (UX audit sweep, home--home-accounts, D1=glass, D2=c): drop manifest theme override so portal theme selection applies; move Prepare a diagnostic brief from inline details into More as a theme-token sheet withheld when no connected action mounts; replace schedule window.confirm with in-page confirmation; align typography, radii, 44px touch targets and popstate Back dismissal.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -54,7 +55,7 @@ description: >-
   Destructive actions (locks, garage, thermostat) are confirmed first. It also
   gives the weather forecast for any US city, address or ZIP code from the
   National Weather Service (weather.gov): today, tonight and the coming days.
-version: 1.3.1
+version: 1.3.2
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -105,10 +106,6 @@ dependencies:
 uses:
   - app-dependencies
   - test-catalog
-
-# Per-app skin. Moved off forest (finance claimed it as the money bundle's color)
-# now that this is the iot.oshal.ai bundle front door (operator decision 2026-07-31).
-theme: ocean
 
 # Scheduled / swarm-initiated home control (e.g. a cron "morning routine") routes a
 # ticketType=home-control ticket via the generic single-bot worker dispatch straight

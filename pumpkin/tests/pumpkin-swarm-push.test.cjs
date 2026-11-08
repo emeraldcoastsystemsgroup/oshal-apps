@@ -1,3 +1,9 @@
+// CHANGE LOG
+// -----------------------------------------------------------------------------
+// SEQ | AUTHOR                                      | DESCRIPTION
+// -----------------------------------------------------------------------------
+// 1   | maintainer@emeraldcoastsystemsgroup.com     | RP-PUMP-01: allow 150..5000 ms poll interval so mid-sentence stop reaches polling projectors within 0.5 s.
+// -----------------------------------------------------------------------------
 /**
  * SWARM DOOR + ROOM TRANSPORT GUARDS.
  *
@@ -826,7 +832,7 @@ test('on the native bridge, register names the poll transport and /stream refuse
   const reg = await bridgeCall('POST /rooms/register', signedIn(sub, { body: { label: 'Front Porch' } }));
   assert.equal(reg.statusCode, 200);
   assert.equal(reg.body.transport, 'poll', 'a runtime that cannot hold a stream open must tell the projector to poll');
-  assert.ok(reg.body.pollMs >= 500 && reg.body.pollMs <= 5000);
+  assert.ok(reg.body.pollMs >= 150 && reg.body.pollMs <= 5000);
 
   const stream = await bridgeCall('GET /stream', signedIn(sub, { query: { room: reg.body.room } }));
   assert.equal(stream.statusCode, 501, 'never 500 internal_error');

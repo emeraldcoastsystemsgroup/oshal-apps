@@ -2,6 +2,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Fingerprint exactly the reviewed worker and bridge sources for native engine identity checks.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Include reproducible container/notice sources and normalize CRLF consistently with the compiled worker.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Include exact native keyframe adapters in the source identity.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: include audio_ops.rs and lib_tests.rs in the engine source identity.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -12,8 +13,10 @@ export const RUNTIME_FILES = [
   "Cargo.lock",
   "build.rs",
   "src/lib.rs",
+  "src/lib_tests.rs",
   "src/main.rs",
   "src/owned_assets.rs",
+  "src/audio_ops.rs",
   "src/graph.rs",
   "src/exact_keys.rs",
         "src/exact_text.rs",

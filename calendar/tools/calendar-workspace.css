@@ -5,6 +5,7 @@
  *   on a phone with the selected day's events as rows below the grid, the one "+ New event" at the bottom right, the add form as a
  *   sheet on a phone and a dialog on a desktop, and an opaque More menu in the top layer.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | The calendar fills the first screen on the full page, so preparation starts below it (DS-31: its words were counted before the work).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Align day badge, dot and sheet-handle radii to the design standard scale (DS-05) and ensure backdrop-filter is off on dialogs and menus under glass card mode (D1=glass).
  */
 .calendar-workspace,.calendar-confirm,.calendar-menu{--cal-ink:var(--ds-ink,var(--text-primary,#16202e));--cal-ink-2:var(--ds-ink-2,var(--text-secondary,#4b5563));--cal-page:var(--ds-page,var(--bg-primary,#fff));--cal-surface:var(--ds-surface,var(--bg-primary,#fff));--cal-surface-2:var(--ds-surface-2,#f1f3f6);--cal-surface-3:var(--ds-surface-3,#e3e7ec);--cal-line:var(--ds-line-control,#6b7280);--cal-edge:var(--ds-edge,#d5d9e0);--cal-hairline:var(--ds-hairline,#dde1e6);--cal-accent:var(--ds-accent,var(--accent-primary,#2563eb));--cal-on-accent:var(--ds-on-accent,var(--text-on-accent,#fff));--cal-bad:var(--ds-bad,var(--status-error,#b91c1c))}
 .calendar-workspace{max-width:1180px;margin:auto;min-width:0;color:var(--cal-ink);font:400 16px/24px system-ui,sans-serif}
@@ -31,7 +32,7 @@ html:not(.calendar-compact) .calendar-workspace{min-height:calc(100dvh - 8px);bo
 .calendar-blank{border-right:1px solid var(--cal-hairline);border-bottom:1px solid var(--cal-hairline)}
 .calendar-workspace .calendar-day{min-height:96px;min-width:0;padding:4px;border:0;border-right:1px solid var(--cal-hairline);border-bottom:1px solid var(--cal-hairline);border-radius:0;background:var(--cal-page);color:var(--cal-ink);text-align:left;display:flex;flex-direction:column;align-items:stretch;gap:4px;overflow:hidden;font-weight:400}
 .calendar-workspace .calendar-day:hover{background:var(--cal-surface-2)}
-.calendar-day-number{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;width:28px;height:28px;border-radius:999px;font-size:14px;line-height:20px}
+.calendar-day-number{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;width:28px;height:28px;border-radius:var(--ds-radius-l,14px);font-size:14px;line-height:20px}
 .calendar-day[aria-current=date] .calendar-day-number{font-weight:700;box-shadow:inset 0 0 0 2px var(--cal-accent)}
 .calendar-workspace .calendar-day[aria-pressed=true]{background:var(--cal-ink);color:var(--cal-page)}
 .calendar-workspace .calendar-day[aria-pressed=true] .calendar-chip{background:var(--cal-page);color:var(--cal-ink)}
@@ -40,7 +41,7 @@ html:not(.calendar-compact) .calendar-workspace{min-height:calc(100dvh - 8px);bo
 .calendar-chip{font-size:12px;line-height:16px;display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--cal-surface-3);color:var(--cal-ink);border-radius:var(--ds-radius-s,6px);padding:0 4px}
 .calendar-chip.google{box-shadow:inset 3px 0 0 var(--cal-line)}
 .calendar-dots{display:none;gap:4px;justify-content:center}
-.calendar-dot{width:6px;height:6px;border-radius:999px;background:var(--cal-accent)}
+.calendar-dot{width:6px;height:6px;border-radius:var(--ds-radius-s,6px);background:var(--cal-accent)}
 .calendar-dot.google{background:var(--cal-ink-2)}
 .calendar-agenda{min-width:0;align-self:start}
 .calendar-agenda h3{margin:0 0 8px;font:600 18px/24px system-ui,sans-serif}
@@ -52,7 +53,7 @@ html:not(.calendar-compact) .calendar-workspace{min-height:calc(100dvh - 8px);bo
 .calendar-event-text a{display:inline-block;margin-top:4px;font-size:14px;color:var(--ds-accent-ink,var(--cal-accent));text-decoration:underline}
 .calendar-new{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:5;min-height:52px!important;padding:0 20px!important}
 .calendar-new[hidden]{display:none}
-.calendar-sheet,.calendar-confirm{box-sizing:border-box;width:min(560px,calc(100% - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:0 24px 24px;border:1px solid var(--cal-hairline);border-radius:var(--ds-radius-xl,20px);background:var(--cal-surface);color:var(--cal-ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16);overflow:auto}
+.calendar-sheet,.calendar-confirm{box-sizing:border-box;width:min(560px,calc(100% - 32px));max-height:calc(100dvh - 32px);margin:auto;padding:0 24px 24px;border:1px solid var(--cal-hairline);border-radius:var(--ds-radius-xl,20px);background:var(--cal-surface);backdrop-filter:none;-webkit-backdrop-filter:none;color:var(--cal-ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16);overflow:auto}
 .calendar-confirm{width:min(440px,calc(100% - 32px));padding-top:16px}
 .calendar-sheet::backdrop,.calendar-confirm::backdrop{background:rgb(0 0 0 / .40)}
 .calendar-handle{display:none}
@@ -69,7 +70,7 @@ html:not(.calendar-compact) .calendar-workspace{min-height:calc(100dvh - 8px);bo
 .calendar-form-status{color:var(--cal-bad)}
 .calendar-form-status:empty{display:none}
 .calendar-sheet form>.calendar-primary{grid-column:1/-1;justify-self:end}
-.calendar-menu{position:fixed;inset:auto;margin:0;min-width:240px;padding:4px 0;border:1px solid var(--cal-hairline);border-radius:var(--ds-radius-l,14px);background:var(--cal-surface);color:var(--cal-ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16)}
+.calendar-menu{position:fixed;inset:auto;margin:0;min-width:240px;padding:4px 0;border:1px solid var(--cal-hairline);border-radius:var(--ds-radius-l,14px);background:var(--cal-surface);backdrop-filter:none;-webkit-backdrop-filter:none;color:var(--cal-ink);box-shadow:0 2px 6px rgb(0 0 0 / .08),0 12px 32px rgb(0 0 0 / .16)}
 .calendar-menu .calendar-menu-item{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;width:100%;border:0;border-radius:0;background:transparent;text-align:left;text-decoration:none;padding:8px 16px;box-sizing:border-box;color:inherit}
 .calendar-menu .calendar-menu-meta{font:400 12px/16px system-ui,sans-serif;color:var(--cal-ink-2)}
 .calendar-compact main{padding:12px}
@@ -81,7 +82,7 @@ html:not(.calendar-compact) .calendar-workspace{min-height:calc(100dvh - 8px);bo
 .calendar-dots{display:flex}
 .calendar-toolbar h2{margin-left:4px}
 .calendar-sheet{width:100%;max-width:none;max-height:calc(100dvh - 56px);margin:auto 0 0;border-radius:var(--ds-radius-xl,20px) var(--ds-radius-xl,20px) 0 0;padding:0 16px calc(16px + env(safe-area-inset-bottom,0px))}
-.calendar-handle{display:block;width:36px;height:5px;margin:8px auto 0;border-radius:999px;background:var(--ds-ink-disabled,#8a929c)}
+.calendar-handle{display:block;width:36px;height:5px;margin:8px auto 0;border-radius:var(--ds-radius-s,6px);background:var(--ds-ink-disabled,#8a929c)}
 .calendar-sheet form{grid-template-columns:1fr}
 .calendar-sheet form>.calendar-primary{justify-self:stretch}
 .calendar-workspace{width:100%}

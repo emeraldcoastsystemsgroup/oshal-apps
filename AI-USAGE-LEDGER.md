@@ -72,7 +72,7 @@ Coverage: 86 packages, 86 rated, 0 unrated.
 | email-summarizer | 64 / 256 (declared) | reply-draft | reply draft | T2 | none | disable | not yet measured | none recorded |
 | email-summarizer | 64 / 256 (declared) | comms-ticket | communications ticket | T3 | none | disable | not yet measured | none recorded |
 | embodied | 544 / 2176 (declared) | embodied-concierge-chat | concierge chat turn | T3 | none | disable | not yet measured | none recorded |
-| fantasy-football | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
+| fantasy-football | 32 / 128 (declared) | fantasy-quant-concierge | question | T2 | hosted | template | not yet measured | none recorded |
 | feeds | 32 / 128 (declared) | feeds-curation-ticket | feeds ticket | T3 | none | disable | not yet measured | none recorded |
 | finance | 64 / 256 (declared) | money-brief | money brief | T3 | none | disable | not yet measured | none recorded |
 | finance | 64 / 256 (declared) | context-review | draft review against your finances | T3 | none | disable | not yet measured | none recorded |
@@ -137,6 +137,7 @@ Coverage: 86 packages, 86 rated, 0 unrated.
 | social | 128 / 512 (declared) | linkedin-content-post | LinkedIn post ticket | T2 | none | disable | not yet measured | none recorded |
 | spaces | 32 / 128 (declared) | none (T0, no model in the loop) | | | | | | |
 | sports-edge | 32 / 128 (declared) | team-news-classification | news item | T1 | none | template | not yet measured | none recorded |
+| sports-edge | 32 / 128 (declared) | sports-quant-concierge | question | T2 | hosted | template | not yet measured | none recorded |
 | spotify | 64 / 256 (declared) | music-concierge-chat | concierge chat turn | T2 | none | disable | not yet measured | none recorded |
 | spotify | 64 / 256 (declared) | spotify-ticket | music request ticket | T4 | none | disable | not yet measured | none recorded |
 | storage | 64 / 256 (declared) | storage-assistant-command | storage command | T1 | none | disable | not yet measured | none recorded |

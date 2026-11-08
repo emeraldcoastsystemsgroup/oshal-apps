@@ -11,16 +11,18 @@
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Save all retained inspector drafts automatically through native commands before concierge reads; refresh the same editable composition while preserving selection, historical views and concurrent fields.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Requests refused only because the project storage lock was busy are retried (busy-retry.mjs) instead of losing the edit: a manual edit right after a concierge change failed with "Your project storage is busy. Retry shortly." (installed handoff run, 2026-10-29).
  * 12 | maintainer@emeraldcoastsystemsgroup.com | 0.3.0, the oshal design standard (docs/ux/design-standard.md §4.4, §5.1; REFP CONVENTIONS §5.4): Undo steps back through the revisions it restored and Redo returns to them (a new edit clears Redo); every "are you sure" asks in the page through the editor's own confirm sheet instead of the browser's confirm(); a new text, shape or solid is sized to the composition (the old 640×360 default keeps 36 px text), so it shows on a 1920×1080 stage; Refresh is gone (the list refreshes itself after every save); the properties status line keeps only the expression warning (how values are read is in Help); closeProject() leaves the open composition for a blank one; the timeline is one row per layer with its visible span and a lane of keyframe diamonds per animated property; selectLayer(null) chooses the composition itself, so the docked panel can show its settings.
+ * 13 | maintainer@emeraldcoastsystemsgroup.com | 0.4.0, RP-MOT-01 & RP-MOT-02: wire bounded video and audio uploads, synchronized work-area audio playback, audio/levels and mute switches, and composition/layer motion-blur controls.
  */
 import {bindMotionFoundation} from './editor-foundation-adapter.mjs';
 import {createInspectorDrafts} from './editor-handoff.mjs';
+import {formatAssetOption,layerSupportsAudio,paintCompMotionBlur,buildCompMotionBlurCommands,uploadAndImportFile,createPreviewAudioPlayer} from './media-workbench.mjs';
 import {valueChange} from './value-patch.mjs';
 import {RenderClient} from './render-client.mjs';
 import {fetchRetryingBusy} from './busy-retry.mjs';
 import {BundleClient} from './bundle-client.mjs';
 import {parseNative,stringifyNative,readProject} from './native-json.mjs';
 const $=id=>document.getElementById(id),base='/api/motion-studio';
-const state={project:null,historical:false,comp:null,layer:null,time:0,epoch:0,previewEpoch:0,busy:false,busyLease:0,ticks:0,ready:false,permissions:{},catalog:[],checked:new Set(),timingFields:{},effects:[],effect:null,effectInputs:[],fullEffectIntent:null,effectInfo:null,effectStamp:null,effectRenderedStamp:null,effectPending:null,effectEpoch:0,effectAbort:null,keyInfo:null,keyRef:null,keyEpoch:0,keyInitial:{},previewTick:null,workFields:{},playing:false,playEpoch:0,playAbort:null,playTask:Promise.resolve(),fonts:[],textInfo:null,textStamp:null,textEpoch:0,textAbort:null,textInitial:{},textColors:{},mask:null,maskVertex:0,maskInitial:{},maskVertexInitial:{},maskInfo:null,maskStamp:null,maskEpoch:0,maskAbort:null,featherIndex:0,featherInitial:{},propertiesInfo:null,propertiesStamp:null,propertiesEpoch:0,propertiesAbort:null,propertiesPending:null,propertiesInitial:{},sceneInputs:[]};
+const state={project:null,historical:false,comp:null,layer:null,time:0,epoch:0,previewEpoch:0,busy:false,busyLease:0,ticks:0,ready:false,permissions:{},catalog:[],checked:new Set(),timingFields:{},blurFields:{},assetById:new Map(),lastAudioPreview:null,effects:[],effect:null,effectInputs:[],fullEffectIntent:null,effectInfo:null,effectStamp:null,effectRenderedStamp:null,effectPending:null,effectEpoch:0,effectAbort:null,keyInfo:null,keyRef:null,keyEpoch:0,keyInitial:{},previewTick:null,workFields:{},playing:false,playEpoch:0,playAbort:null,playTask:Promise.resolve(),fonts:[],textInfo:null,textStamp:null,textEpoch:0,textAbort:null,textInitial:{},textColors:{},mask:null,maskVertex:0,maskInitial:{},maskVertexInitial:{},maskInfo:null,maskStamp:null,maskEpoch:0,maskAbort:null,featherIndex:0,featherInitial:{},propertiesInfo:null,propertiesStamp:null,propertiesEpoch:0,propertiesAbort:null,propertiesPending:null,propertiesInitial:{},sceneInputs:[]};
 let handoffBusy=false, collectedEdits=null, editorFoundation=null;
 // An "are you sure" in the page (the editor's confirm sheet, design standard §4.8); the browser's confirm() only until the editor binds.
 let ask=async message=>confirm(message);
@@ -35,6 +37,8 @@ const inspectorDrafts=createInspectorDrafts({context:inspectorContext,revision:(
 });
 async function api(path,options={}){const {response,text}=await fetchRetryingBusy(()=>fetch(base+path,{credentials:'same-origin',redirect:'error',...options}));let body;try{body=parseNative(text);if(body.project)body.project=readProject(body.project);}catch{throw new Error('The studio did not return a usable response.');}if(!response.ok&&body.error==='motion_effect_needs_owned_text_asset')throw new Error('This effect needs an owned source import. Paste inline data where supported.');if(!response.ok)throw new Error(typeof body.detail==='string'&&body.detail.length<=512?body.detail:body.error||'The request was refused.');return body;}
 const post=(path,body)=>api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:stringifyNative(body)});
+const previewAudio=createPreviewAudioPlayer(api);
+const layerHasAudio=selected=>layerSupportsAudio(selected,state.project?.document.items,state.assetById);
 function problem(error){$('error').hidden=false;$('error').textContent=error.message;}
 function guard(work){const run=async event=>{event?.preventDefault();$('error').hidden=true;try{await inspectorDrafts.action(work,event);}catch(error){problem(error);}finally{controls();$('status').textContent=state.busy?'Applying…':state.ready?(state.project?'Saved':'Ready'):'Engine unavailable';}};run.handoffWork=work;return run;}
 function busy(){stopPlayback();const lease=++state.busyLease;state.busy=true;$('status').textContent='Applying…';controls();return()=>{if(lease===state.busyLease){state.busy=false;controls();}};}
@@ -57,8 +61,9 @@ function controls(){const edit=Boolean(state.project&&state.permissions.change&&
   for(const id of ['effectEnabled','effectUp','effectDown','removeEffect'])$(id).disabled=!edit||!effectGroup();
   $('layerEffects').disabled=!effectGroups().length;
   bundleControls();renderControls();
-  $('image').disabled=!edit;$('reuse').disabled=!edit||!$('assets').value;$('dropAsset').disabled=!state.permissions.delete||state.busy||!$('assets').value;$('undo').disabled=!edit||!(shownRevision()>1);$('redo').disabled=!edit||!redoable();$('delete').disabled=!state.project||!state.permissions.delete||state.busy;$('export').disabled=!state.project||!state.permissions.export||state.busy;$('time').disabled=!state.project||!state.permissions.read;
+  $('image').disabled=!edit;$('videoFile').disabled=!edit;$('audioFile').disabled=!edit;$('reuse').disabled=!edit||!$('assets').value;$('dropAsset').disabled=!state.permissions.delete||state.busy||!$('assets').value;$('undo').disabled=!edit||!(shownRevision()>1);$('redo').disabled=!edit||!redoable();$('delete').disabled=!state.project||!state.permissions.delete||state.busy;$('export').disabled=!state.project||!state.permissions.export||state.busy;$('time').disabled=!state.project||!state.permissions.read;
   for(const field of $('workArea').elements)field.disabled=!edit;
+  for(const field of $('compMotionBlur').elements)field.disabled=!edit;
   for(const id of ['play','previousFrame','nextFrame','loop'])$(id).disabled=!state.project||!state.permissions.read||state.busy;
   $('play').textContent=state.playing?'Pause':'Play work area';$('play').setAttribute('aria-pressed',String(state.playing));
   propertyControls(edit);
@@ -68,9 +73,10 @@ function controls(){const edit=Boolean(state.project&&state.permissions.change&&
   if(state.textInfo&&!state.playing&&!state.busy&&state.permissions.read){$('textEdit').elements.content.disabled=false;$('textEdit').elements.content.readOnly=!textEdit;}
   $('comps').disabled=handoffBusy;for(const button of document.querySelectorAll('#layers button,#timeline .keyButton'))button.disabled=handoffBusy;
   if(handoffBusy)for(const id of ['time','play','previousFrame','nextFrame','loop','savedMasks','maskVertices','featherPoints','layerEffects'])$(id).disabled=true;
+  if(!state.busy)$('revision').textContent=state.project?state.project.title+' · revision '+state.project.revision:'';
   editorFoundation?.refresh();
 }
-function show(){return inspectorDrafts.paint(['layerSettings', 'layerTiming', 'workArea'],()=>showNow());}
+function show(){return inspectorDrafts.paint(['layerSettings', 'layerTiming', 'workArea', 'compMotionBlur'],()=>showNow());}
 function showNow(){const items=state.project?.document.items??{},comps=Object.values(items).filter(item=>item.kind.type==='Comp');if(!comps.some(item=>item.id===state.comp))state.comp=comps[0]?.id;
   $('comps').replaceChildren(...comps.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.name;return option;}));$('comps').value=state.comp??'';
   const layers=comp()?.layers??[];if(!layers.some(item=>item.id===state.layer))state.layer=state.compSelected?null:layers[0]?.id;
@@ -81,8 +87,9 @@ function showNow(){const items=state.project?.document.items??{},comps=Object.va
     check.onchange=()=>{if(check.checked)state.checked.add(item.id);else state.checked.delete(item.id);controls();};
     button.textContent=item.name;button.setAttribute('aria-selected',String(item.id===state.layer));button.onclick=()=>{state.compSelected=false;state.layer=item.id;show();};li.append(check,button);return li;
   }));
-  const selected=layer(),settings=$('layerSettings').elements;
+  const selected=layer(),settings=$('layerSettings').elements,hasAudio=layerHasAudio(selected);
   settings.name.value=selected?.name??'';settings.visible.checked=selected?.switches.video??false;
+  settings.motionBlur.checked=selected?.switches.motion_blur??false;settings.audioEnabled.checked=selected?.switches.audio??true;$('layerAudioWrap').hidden=!hasAudio;
   settings.parent.replaceChildren(new Option('None',''),...layers.filter(item=>item.id!==state.layer).map(item=>new Option(item.name,String(item.id))));settings.parent.value=selected?.parent===null||selected?.parent===undefined?'':String(selected.parent);
   state.timingFields={};for(const[name,field]of[['start','start_time'],['in','in_point'],['out','out_point']]){const text=selected?String(Number(selected[field])/state.ticks):'';$('layerTiming').elements[name].value=text;state.timingFields[name]=text;}
 
@@ -90,7 +97,9 @@ function showNow(){const items=state.project?.document.items??{},comps=Object.va
   refreshProperties().catch(problem);
   const current=comp();$('time').max=current?Number(current.duration)/state.ticks:5;$('time').step=current?current.frame_rate.den/current.frame_rate.num:1/30;$('time').value=state.time;$('timeLabel').textContent=state.time.toFixed(2)+' s';
   state.workFields={};for(const [index,name]of ['start','end'].entries()){const text=current?String(Number(current.work_area[index])/state.ticks):'';$('workArea').elements[name].value=text;state.workFields[name]=text;}
-  $('revision').textContent=state.project?state.project.title+' · revision '+state.project.revision:'';$('status').textContent=state.busy?'Applying…':state.project?'Saved':'Ready';
+  paintCompMotionBlur($,current,state);
+  if(!state.project||!state.busy)$('revision').textContent=state.project?state.project.title+' · revision '+state.project.revision:'';
+  $('status').textContent=state.busy?'Applying…':state.project?'Saved':'Ready';
   $('timeline').replaceChildren(...timelineRows(layers,current));showEffects();showMasks();controls();void refreshText();
 }
 /** The layer timeline (C-MOT-1, C-MOT-3): one row per layer with its visible span, and under it one lane per animated property whose keyframes are diamonds at their time; a diamond opens that exact key. */
@@ -106,7 +115,7 @@ function timelineRows(layers,current){const duration=Number(current?.duration)||
   walk(item.props);if(found)row.append(keys);return row;});}
 /** Select one layer, or with null the composition itself, whose settings the docked panel then shows. */
 function selectLayer(id){stopPlayback();state.compSelected=id===null;state.layer=id;clearKey();show();}
-async function refresh(){if(!state.permissions.read)return;const {projects}=await api('/projects');$('projects').replaceChildren(new Option('Open a composition',''),...projects.map(project=>new Option(project.title,project.id)));if(state.project)$('projects').value=state.project.id;const {assets}=await api('/assets');$('assets').replaceChildren(new Option('Choose a saved photo',''),...assets.map(asset=>new Option(asset.width+' × '+asset.height+' · '+asset.id.slice(0,8),asset.id)));controls();}
+async function refresh(){if(!state.permissions.read)return;const {projects}=await api('/projects');$('projects').replaceChildren(new Option('Open a composition',''),...projects.map(project=>new Option(project.title,project.id)));if(state.project)$('projects').value=state.project.id;const {assets}=await api('/assets');state.assetById=new Map(assets.map(asset=>[asset.id,asset]));$('assets').replaceChildren(new Option('Choose saved media',''),...assets.map(asset=>new Option(formatAssetOption(asset),asset.id)));controls();}
 async function open(id,revision){const epoch=++state.epoch;const done=busy();try{const {project}=await api('/projects/'+encodeURIComponent(id)+(revision?'/revisions/'+encodeURIComponent(revision):''));if(epoch!==state.epoch)return;const head=revision?await api('/projects/'+encodeURIComponent(id)):null;if(epoch!==state.epoch)return;state.project=project;state.historical=Boolean(head&&head.project.revision!==project.revision);clearKey();$('projects').value=project.id;state.comp=null;state.layer=null;state.checked.clear();state.time=0;show();await preview();}finally{done();}}
 async function preview(signal){if(!state.project||!state.permissions.read)return;const epoch=state.epoch,turn=++state.previewEpoch,document=state.project.document,selected=state.comp,current=()=>epoch===state.epoch&&turn===state.previewEpoch&&document===state.project?.document&&selected===state.comp;try{const result=await api('/projects/'+state.project.id+'/revisions/'+state.project.revision+(state.previewTick===null?'/preview/'+state.time:'/preview-ticks/'+state.previewTick)+'/'+(selected===undefined?'auto':String(selected))+'/1280/1',{signal});if(!current())return;$('preview').src='data:image/png;base64,'+result.png;$('preview').hidden=false;$('empty').hidden=true;if(!state.playing)refreshProperties().catch(problem);}catch(error){if(!current()||signal?.aborted)return;$('preview').hidden=true;$('empty').textContent='Preview unavailable for this revision.';$('empty').hidden=false;throw error;}}
 async function apply(commands,{previewTick}={}){if(collectedEdits){if(commands.length)collectedEdits.push({commands,previewTick});return;}if(!state.project||state.busy)return;const epoch=state.epoch,id=state.project.id,previousRevision=state.project.revision,oldComps=new Set(Object.values(state.project.document.items).filter(item=>item.kind.type==='Comp').map(item=>item.id)),oldLayers=new Set(comp()?.layers.map(item=>item.id));const done=busy();try{const result=await post('/projects/'+id+'/operations',{baseRevision:state.project.revision,requestKey:crypto.randomUUID(),commandsJson:stringifyNative(commands),compId:String(state.comp)});if(epoch!==state.epoch||state.project?.id!==id)return;inspectorDrafts.advance(id,previousRevision,result.project.revision);state.project=result.project;state.historical=false;clearKey();if(previewTick!==undefined)state.previewTick=previewTick;const addedComp=Object.values(state.project.document.items).find(item=>item.kind.type==='Comp'&&!oldComps.has(item.id));if(addedComp)state.comp=addedComp.id;const addedLayer=comp()?.layers.find(item=>!oldLayers.has(item.id));if(addedLayer)state.compSelected=false;state.layer=addedLayer?.id??state.layer;show();await refresh();await preview();return result;}finally{done();}}
@@ -137,6 +146,8 @@ $('layerSettings').onsubmit=guard(async()=>{
   if(!layer())return;const selected=layer(),form=$('layerSettings').elements,commands=[{command:'layer.select',params:{layers:[selected.id]}}];
   if(form.name.value!==selected.name)commands.push({command:'layer.rename',params:{layer:selected.id,name:form.name.value}});
   if(form.visible.checked!==selected.switches.video)commands.push({command:'layer.setSwitch',params:{layers:[selected.id],switch:'video',value:form.visible.checked}});
+  if(form.motionBlur.checked!==Boolean(selected.switches.motion_blur))commands.push({command:'layer.setSwitch',params:{layers:[selected.id],switch:'motionBlur',value:form.motionBlur.checked}});
+  if(layerHasAudio(selected)&&form.audioEnabled.checked!==Boolean(selected.switches.audio))commands.push({command:'layer.setSwitch',params:{layers:[selected.id],switch:'audio',value:form.audioEnabled.checked}});
   const parent=form.parent.value===''?null:parseNative(form.parent.value);
   if(parent!==(selected.parent??null)){
     const seen=new Set();for(let cursor=parent;cursor!==null&&cursor!==undefined;){if(cursor===selected.id||seen.has(cursor))throw new Error('Choose a parent that does not depend on this layer.');seen.add(cursor);cursor=comp().layers.find(item=>item.id===cursor)?.parent;}
@@ -395,12 +406,13 @@ function workPlan(){
   const numerator=BigInt(state.ticks)*BigInt(rate.den),denominator=BigInt(rate.num),count=((end-start)*denominator+numerator-1n)/numerator;
   return{start,end,count,at:index=>start+index*numerator/denominator,index:tick=>((tick-start+1n)*denominator-1n)/numerator,frameMs:1000*rate.den/rate.num};
 }
-function stopPlayback(){const wasPlaying=state.playing;state.playing=false;state.playEpoch++;state.previewEpoch++;state.playAbort?.abort();state.playAbort=null;$('playbackStatus').textContent='Stopped';controls();if(wasPlaying){void refreshText();void refreshMask();}}
+function stopPlayback(){previewAudio.stop();const wasPlaying=state.playing;state.playing=false;state.playEpoch++;state.previewEpoch++;state.playAbort?.abort();state.playAbort=null;$('playbackStatus').textContent='Stopped';controls();if(wasPlaying){void refreshText();void refreshMask();}}
 function setPreviewTick(tick){state.previewTick=String(tick);state.time=Number(tick)/state.ticks;$('time').value=state.time;$('timeLabel').textContent=state.time.toFixed(2)+' s';}
 function waitFrame(ms,signal){return new Promise(resolve=>{const finish=()=>{clearTimeout(timer);signal.removeEventListener('abort',finish);resolve();},timer=setTimeout(finish,ms);signal.addEventListener('abort',finish,{once:true});if(signal.aborted)finish();});}
 function startPlayback(){
   const plan=workPlan();clearKey();state.maskEpoch++;state.maskAbort?.abort();state.maskStamp=null;state.maskInfo=null;state.textEpoch++;state.textAbort?.abort();state.textStamp=null;state.textInfo=null;const turn=++state.playEpoch,epoch=state.epoch,document=state.project.document,selected=state.comp,previous=state.playTask,controller=new AbortController();state.playAbort=controller;state.playing=true;controls();
   const current=()=>state.playing&&turn===state.playEpoch&&epoch===state.epoch&&document===state.project?.document&&selected===state.comp;
+  void previewAudio.start({projectId:state.project.id,revision:state.project.revision,compId:selected,startTicks:String(plan.start),endTicks:String(plan.end),loop:$('loop').checked,signal:controller.signal,state}).catch(()=>{});
   state.playTask=(async()=>{
     await previous;let index=0n;
     while(current()){
@@ -427,10 +439,16 @@ $('workArea').onsubmit=guard(async()=>{
   if(start<0||end<=start||end>Number(comp().duration)/state.ticks)throw new Error('Choose a work area inside the composition with its end after its start.');
   await apply([{command:'comp.workArea',params:{comp:state.comp,...params}}]);
 });
+$('compMotionBlur').onsubmit=guard(async()=>{
+  const commands=buildCompMotionBlurCommands($,state.comp,state);
+  if(commands.length)await apply(commands);
+});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stopPlayback();});window.addEventListener('pagehide',stopPlayback);
 $('time').oninput=guard(async()=>{stopPlayback();state.time=Number($('time').value);state.previewTick=null;$('timeLabel').textContent=state.time.toFixed(2)+' s';void refreshText();void refreshMask();await preview();});
-$('image').onchange=guard(async()=>{const file=$('image').files[0];$('image').value='';if(!file)return;const epoch=state.epoch,id=state.project?.id,form=new FormData();form.append('file',file);const {asset}=await api('/assets',{method:'POST',body:form});if(epoch!==state.epoch||id!==state.project?.id)return;await apply([{command:'asset.import',params:{assetId:asset.id,name:file.name}}]);});
-$('assets').onchange=controls;$('reuse').onclick=guard(()=>apply([{command:'asset.import',params:{assetId:$('assets').value,name:'Saved photo'}}]));$('dropAsset').onclick=guard(async()=>{if(!await ask('Delete this unused photo? Photos in composition history are protected.'))return;await api('/assets/'+$('assets').value,{method:'DELETE'});await refresh();});
+$('image').onchange=guard(()=>uploadAndImportFile($('image'),{state,api,apply}));
+$('videoFile').onchange=guard(()=>uploadAndImportFile($('videoFile'),{state,api,apply}));
+$('audioFile').onchange=guard(()=>uploadAndImportFile($('audioFile'),{state,api,apply}));
+$('assets').onchange=controls;$('reuse').onclick=guard(()=>apply([{command:'asset.import',params:{assetId:$('assets').value,name:'Saved media'}}]));$('dropAsset').onclick=guard(async()=>{if(!await ask('Delete this unused media item? Items in composition history are protected.'))return;await api('/assets/'+$('assets').value,{method:'DELETE'});await refresh();});
 async function restoreTo(target,{undo}){const id=state.project.id,epoch=state.epoch,previewTick=state.previewTick,shown=shownRevision(),redo=redoable()?history.redo:[];const done=busy();try{const {project}=await post('/projects/'+id+'/restore',{revision:target,baseRevision:state.project.revision,requestKey:crypto.randomUUID()});if(epoch!==state.epoch||state.project?.id!==id)return;
   history.redo=undo?[...redo,shown]:redo.slice(0,-1);history.logical=target;history.logicalFor=project.revision;
   state.project=project;state.historical=false;clearKey();state.previewTick=previewTick;show();await preview();}finally{done();}}
@@ -484,7 +502,7 @@ setInterval(()=>{if((renders.pendingId||renders.record&&['queued','rendering'].i
 // The native workbench keeps its exact model, immediate revisions and draft ledger.
 /** Leave the open composition for a blank, unsaved one (New in the document menu); the list keeps every saved one. */
 function closeProject(){stopPlayback();state.epoch++;state.project=null;state.historical=false;clearKey();state.comp=null;state.layer=null;state.checked.clear();state.time=0;$('preview').hidden=true;$('empty').hidden=true;$('projects').value='';show();}
-try{editorFoundation=await bindMotionFoundation({state,layer,comp,apply,patchProperties,tick:currentTick,closeProject,canRedo:redoable,setAsk:fn=>{ask=fn;},selectLayer,chooseKey:ref=>chooseKey(ref),propertiesCurrent:()=>state.propertiesStamp===propertiesStamp(),textCurrent:()=>state.textStamp===textStamp(),text:()=>document.getElementById('textEdit').elements.content.value,textCommand:value=>textReplacementCommand(state.textInfo,value),hasDraft:()=>!!state.project&&inspectorDrafts.has(state.project.id),prepare:prepareDocumentHandoff,problem});controls();}catch(error){problem(error);}
+try{editorFoundation=await bindMotionFoundation({state,layer,comp,layerHasAudio,apply,patchProperties,tick:currentTick,closeProject,canRedo:redoable,setAsk:fn=>{ask=fn;},selectLayer,chooseKey:ref=>chooseKey(ref),propertiesCurrent:()=>state.propertiesStamp===propertiesStamp(),textCurrent:()=>state.textStamp===textStamp(),text:()=>document.getElementById('textEdit').elements.content.value,textCommand:value=>textReplacementCommand(state.textInfo,value),hasDraft:()=>!!state.project&&inspectorDrafts.has(state.project.id),prepare:prepareDocumentHandoff,problem});controls();}catch(error){problem(error);}
 
 await guard(async()=>{state.permissions=(await api('/permissions')).permissions;const contract=await api('/editing-contract');state.ticks=contract.engine.ticksPerSecond;if(!Number.isSafeInteger(state.ticks)||state.ticks<=0)throw new Error('The engine returned an invalid timeline unit.');state.ready=true;state.catalog=contract.engine.commands;state.effects=contract.engine.effects;state.fonts=contract.engine.fonts;effectChoices();$('commands').replaceChildren(...state.catalog.map(entry=>new Option(entry.label||entry.id,entry.id)));commandFields();show();await refresh();const project=new URLSearchParams(location.search).get('project');if(project){await open(project,new URLSearchParams(location.search).get('revision'));const requested=new URLSearchParams(location.search).get('compId');if(requested){const chosen=Object.values(state.project.document.items).find(item=>item.kind.type==='Comp'&&String(item.id)===requested);if(!chosen)throw new Error('The source composition is unavailable.');state.comp=chosen.id;state.layer=null;show();await preview();}}const job=new URLSearchParams(location.search).get('renderJob');if(job)await renders.status(job);const prepared=new URLSearchParams(location.search).get('bundleTransfer');if(prepared){const transfer=await bundles.useExport(prepared);bundleKind='export';bundleReceipt(transfer);$('bundleDownload').hidden=false;$('bundleStatus').textContent='Prepared bundle ready to download.';bundleControls();}})();// Bootstrap is access-gated and never assumes a provisioned engine.
 

@@ -1,6 +1,7 @@
 /**
  * CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the two-member Intelligent Sports group (ADR-146 Q4): exactly fantasy-football and sports-edge, no executable surface of its own, every tile a real unique member surface, the default view a borrowed surface, and the connector allow-list exactly the members' union.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant Concierge (F22): each member owns its own specialist concierge (fantasy-quant and sports-quant), and the group borrows its default required member's canonical concierge.
  */
 'use strict';
 const { test } = require('node:test');
@@ -26,7 +27,8 @@ test('Intelligent Sports has exactly the operator-decided members and no executa
   for (const key of ['bots', 'routes', 'tools', 'migrations', 'uses', 'ui', 'workflow', 'smoke']) {
     assert.equal(Object.hasOwn(group, key), false, key);
   }
-  for (const member of members.values()) assert.equal(member.chatBot, group.chatBot, 'the concierge is the members\' own');
+  for (const member of members.values()) assert.notEqual(member.chatBot, 'general-bot', 'each member owns a specialist concierge');
+  assert.ok([...members.values()].some((member) => member.chatBot === group.chatBot), 'the group borrows a required member\'s canonical concierge');
 });
 
 test('every tile is a real, unique member surface; no route or label is copied into the group', () => {

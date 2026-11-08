@@ -19,6 +19,7 @@ exports.verifyMediaDigest = verifyMediaDigest;
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Owned media for the manual video editor: an upload lands in a private temporary file, its container signature is checked, its actual bytes are hashed and probed with ffprobe through the file protocol and a forced demuxer (argument array, no shell, no network), its metadata is held to the first-slice bounds (H.264 MP4 clips of at most 30 s with at most one AAC track, PCM WAV beds of at most 60 s), and only then is it published as an immutable UUID file under a per-owner directory outside the package.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: exportPath names where a verified export is published, beside the owner's media and under the same per-owner directory.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Prefer OSHAL_PACKAGE_DATA_DIR when resolving the private media storage root.
  */
 const node_crypto_1 = require("node:crypto");
 const node_child_process_1 = require("node:child_process");
@@ -35,6 +36,8 @@ const PCM = new Set(['pcm_s16le', 'pcm_s24le', 'pcm_s32le', 'pcm_f32le']);
 function mediaRoot(env = process.env) {
     if (env.VIDEO_EDIT_DATA_DIR?.trim())
         return (0, node_path_1.resolve)(env.VIDEO_EDIT_DATA_DIR);
+    if (env.OSHAL_PACKAGE_DATA_DIR?.trim())
+        return (0, node_path_1.join)((0, node_path_1.resolve)(env.OSHAL_PACKAGE_DATA_DIR), 'video-edit');
     const shared = env.CLINE_WORKSPACE_ROOT || env.SHARED_WORKSPACE_ROOT
         || ((0, node_fs_1.existsSync)('/app/workspace-shared') ? '/app/workspace-shared' : (0, node_path_1.resolve)(process.cwd(), 'workspace-shared'));
     return (0, node_path_1.join)((0, node_path_1.resolve)(shared), 'video-edit');

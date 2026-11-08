@@ -1,5 +1,10 @@
 # Intelligent Communication (email-summarizer) — OSHAL app package
 
+1.8.0 adds deterministic **Mailbox Watches & Security Alerts** (`routes/mail-watches.js` at `/api/email-watches`, migration `005-email-watches.sql`, schedule `mail-watches` every 5 minutes, briefing `mailbox-watches`, and Jarvis tools `email-watches`, `email-watch-check`, `email-watch-save`):
+
+- **Zero-LLM monitoring** — checks connected Gmail (`newer_than:2d -in:chats -in:drafts`) and the person's stored Gmail copy (`oshal_email_messages`) every 5 minutes, deduplicating matched messages in `oshal_email_watch_hits` (`hit_key`) so Jarvis is notified only when a brand-new matching email arrives (`report: []` on quiet ticks).
+- **Built-in `totalconnect` preset** — monitors AlarmNet, TotalConnect2, MyTotalConnectComfort, Resideo, and TotalConnect security notifications for the signed-in person's Gmail account, classifying hits into `alarm`, `trouble`, `disarmed`, `armed`, `sensor`, or `activity` and surfacing active watch status on Home (`/api/email-summarizer/home-summary`).
+
 1.6.0 adds the **Social desk** (Roger, 2026-10-30: the Social tab was one profile card; he wants a publisher's tools a
 person can use to post or stream to two or three services, Slack included). The shape is the one Buffer, Later and
 Metricool share, kept casual:

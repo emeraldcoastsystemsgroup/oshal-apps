@@ -6,55 +6,80 @@
   -----------------------------------------------------------------------------
   1 | maintainer@emeraldcoastsystemsgroup.com | Follow the shared portal palette and scoped Career branding without changing screen workflows or document paper.
   2 | maintainer@emeraldcoastsystemsgroup.com | A refused read shows its reason instead of zeros. Live 2026-10-12 GET /analytics answered 503 {"detail":"unavailable: package response stalled ...","refused":"store_unavailable"} and the page parsed that body as data, so every figure read 0 and nothing said why.
+  3 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: period window control (All · 90d · 30d · 7d), friendly labels ('Average pay, fit 70+', 'Remote or no state'), thousands separators everywhere, withhold empty pay tiles and zero-fit badges, link company and state rows to Search Jobs, and align radii/typography to the design standard.
 -->
-
-<!--
-  Career Hunter — native Insights/Analytics surface (Phase 5). Reads /api/career-hunter/analytics
-  (headline + funnel + top companies + states + salary bands). Consolidates the engine's
-  insights/report/ready/progress/map metrics. Author: roger.murphy@emeraldcoastsystemsgroup.com
--->
-<html lang="en" data-theme="midnight" data-career-surface="insights-ui"><head>
+<html lang="en" data-theme="midnight" data-career-surface="insights-ui" data-ds-category="dashboard" data-ds-first-action="none"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Insights</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
+<link rel="stylesheet" href="/api/career-hunter/static/career-kit.css">
 <style>
   * { box-sizing:border-box; }
-  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  .wrap { max-width:1000px; margin:0 auto; padding:22px 22px 60px; }
-  h1 { font-size:20px; margin:0 0 14px; } h2 { font-size:13px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:24px 0 10px; }
-  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:11px; }
-  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
-  .stat .v { font-size:24px; font-weight:700; } .stat .l { font-size:11.5px; color:var(--muted); margin-top:2px; }
-  .funnel { display:flex; flex-direction:column; gap:6px; }
-  .frow { display:flex; align-items:center; gap:11px; } .frow .lbl { width:96px; font-size:12.5px; color:var(--muted); flex:none; text-align:right; }
-  .bar { height:26px; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); min-width:2px; display:flex; align-items:center; padding:0 9px; color:#fff; font-size:12px; font-weight:600; }
-  .twocol { display:grid; grid-template-columns:1fr 1fr; gap:22px; } @media(max-width:680px){ .twocol{grid-template-columns:1fr;} }
-  .list { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 4px; }
-  .li { display:flex; align-items:center; gap:10px; padding:7px 12px; font-size:13px; border-bottom:1px solid var(--line); } .li:last-child{border-bottom:none;}
-  .li .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .li .n { color:var(--muted); font-size:12px; } .li .fit { color:var(--accent2); font-size:11.5px; }
-  .empty { color:var(--muted); font-size:13px; padding:40px; text-align:center; border:1px dashed var(--line); border-radius:12px; }
+  html, body { overscroll-behavior:contain; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); font-size:15px; line-height:1.5; }
+  .wrap { max-width:1000px; margin:0 auto; padding:18px 20px 56px; }
+  .top-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 14px; }
+  h1 { font-size:24px; margin:0; line-height:32px; }
+  html.in-shell h1 { display:none; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:24px 0 10px; line-height:16px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(148px,1fr)); gap:12px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+  .stat .v { font-size:24px; font-weight:700; line-height:32px; font-variant-numeric:tabular-nums; }
+  .stat .l { font-size:12px; color:var(--muted); margin-top:2px; line-height:16px; }
+  .funnel { display:flex; flex-direction:column; gap:8px; }
+  .frow { display:flex; align-items:center; gap:12px; }
+  .frow .lbl { width:96px; font-size:14px; color:var(--muted); flex:none; text-align:right; }
+  .bar { min-height:28px; border-radius:6px; background:var(--ds-accent, var(--accent)); min-width:8px; display:flex; align-items:center; padding:0 10px; color:var(--ds-on-accent, var(--text-on-accent, #fff)); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .twocol { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media(max-width:680px){ .twocol{grid-template-columns:1fr;} .wrap{padding:14px 14px 44px;} }
+  .list { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:4px; overflow:hidden; }
+  .li-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .li-table tr + tr td { border-top:1px solid var(--line); }
+  .li-table td { padding:0; }
+  .li-link, .li-static { display:flex; align-items:center; gap:10px; min-height:44px; padding:8px 12px; font-size:14px; color:var(--text); text-decoration:none; border-radius:10px; }
+  .li-link:hover { background:var(--ds-surface-3, rgba(255,255,255,.06)); }
+  .li-link:focus-visible { outline:2px solid var(--ds-focus, var(--accent)); outline-offset:-2px; }
+  .nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .n { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .fit { color:var(--accent2); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .empty { color:var(--muted); font-size:14px; padding:32px 20px; text-align:center; border:1px dashed var(--line); border-radius:14px; }
   ::-webkit-scrollbar{width:11px;height:11px} ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px} ::-webkit-scrollbar-track{background:transparent}
   html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head>
 <body>
 <div class="wrap">
-  <h1>Insights</h1>
-  <div id="body"><div class="empty">Loading…</div></div>
+  <div class="top-row">
+    <h1>Insights</h1>
+    <div class="ck-seg" id="periodTabs" role="tablist" aria-label="Insights period">
+      <button type="button" role="tab" data-days="" aria-selected="true">All</button>
+      <button type="button" role="tab" data-days="90" aria-selected="false">90d</button>
+      <button type="button" role="tab" data-days="30" aria-selected="false">30d</button>
+      <button type="button" role="tab" data-days="7" aria-selected="false">7d</button>
+    </div>
+  </div>
+  <div id="body" data-ds-work><div class="empty">Loading…</div></div>
 </div>
+<script src="/api/career-hunter/static/career-job-actions.js"></script>
 <script>
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const k=n=>n>=1000?'$'+Math.round(n/1000)+'k':'$'+n;
+const fmt=n=>Number(n||0).toLocaleString('en-US');
+const k=n=>n>=1000?'$'+Math.round(n/1000).toLocaleString('en-US')+'k':'$'+fmt(n);
+const stateLabel=s=>(!s||s==='(remote/\u2014)')?'Remote or no state':String(s);
+const stateHref=s=>(!s||s==='(remote/\u2014)')?'/api/career-hunter/search-ui?remote=1':'/api/career-hunter/search-ui?state='+encodeURIComponent(String(s));
 function statCard(v,l){ return `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div></div>`; }
-function funnelRow(lbl,n,max){ const w=max>0?Math.max(2,Math.round(n/max*100)):2; return `<div class="frow"><div class="lbl">${lbl}</div><div class="bar" style="width:${w}%">${n.toLocaleString()}</div></div>`; }
+function funnelRow(lbl,n,max){ const w=max>0?Math.max(4,Math.round(n/max*100)):4; return `<div class="frow"><div class="lbl">${lbl}</div><div class="bar" style="width:${w}%">${fmt(n)}</div></div>`; }
+let activeDays='';
 
-async function load(){
+async function load(days){
+  if(days!==undefined) activeDays=String(days||'');
   const el=document.getElementById('body');
   try {
-    const res = await fetch('/api/career-hunter/analytics');
+    const url = activeDays ? '/api/career-hunter/analytics?days='+encodeURIComponent(activeDays) : '/api/career-hunter/analytics';
+    const res = await fetch(url);
     const a = await res.json().catch(()=>({}));
     if(!res.ok){
       const why = a.error || a.detail || ('HTTP '+res.status);
@@ -62,22 +87,54 @@ async function load(){
     }
     if(a.empty){ el.innerHTML='<div class="empty">No job data yet.</div>'; return; }
     const h=a.headline||{}, f=a.funnel||{};
-    const stats=[[ (h.inlane||0).toLocaleString(),'In-lane roles'],[(h.fit70||0).toLocaleString(),'Fit ≥ 70'],[h.fit80||0,'Fit ≥ 80'],
-      [(h.fresh7d||0).toLocaleString(),'Posted ≤ 7d'],[h.avg_pay_fit70?k(h.avg_pay_fit70):'—','Avg pay (fit70)'],[h.companies||0,'Companies']];
+    const stats=[[fmt(h.inlane),'In-lane roles']];
+    if(Number(h.fit70)>0) stats.push([fmt(h.fit70),'Fit 70+']);
+    if(Number(h.fit80)>0) stats.push([fmt(h.fit80),'Fit 80+']);
+    stats.push([fmt(h.fresh7d),'Posted in 7d']);
+    if(h.avg_pay_fit70) stats.push([k(h.avg_pay_fit70),'Average pay, fit 70+']);
+    stats.push([fmt(h.companies),'Companies']);
     const fsteps=[['Sourced',f.sourced||0],['Qualified',f.qualified||0],['Résumé',f.generated||0],['Applied',f.applied||0],['Interview',f.interview||0],['Offer',f.offer||0],['Promoted',f.promoted||0]];
     const fmax=Math.max(...fsteps.map(s=>s[1]),1);
-    const co=(a.topCompanies||[]).map(c=>`<div class="li"><span class="nm">${esc(c.company||'')}${c.referral?' ⭐':''}</span><span class="fit">fit ${c.avg_fit}</span><span class="n">${c.roles} roles</span></div>`).join('');
-    const st=(a.states||[]).map(s=>`<div class="li"><span class="nm">${esc(s.state)}</span><span class="n">${s.n.toLocaleString()}</span></div>`).join('');
-    const sb=(a.salaryBands||[]).map(b=>`<div class="li"><span class="nm">${esc(b.band)}</span><span class="n">${b.n.toLocaleString()}</span></div>`).join('');
+    const co=(a.topCompanies||[]).map(c=>{
+      const fitBadge=Number(c.avg_fit)>0?`<span class="fit">Fit ${fmt(c.avg_fit)}</span>`:'';
+      const href='/api/career-hunter/search-ui?company='+encodeURIComponent(String(c.company||''));
+      return `<tr><td><a class="li-link" data-career-tool="career-search" href="${esc(href)}"><span class="nm">${esc(c.company||'')}${c.referral?' ⭐':''}</span>${fitBadge}<span class="n">${fmt(c.roles)} roles</span></a></td></tr>`;
+    }).join('');
+    const st=(a.states||[]).map(s=>{
+      const href=stateHref(s.state);
+      return `<tr><td><a class="li-link" data-career-tool="career-search" href="${esc(href)}"><span class="nm">${esc(stateLabel(s.state))}</span><span class="n">${fmt(s.n)}</span></a></td></tr>`;
+    }).join('');
+    const sb=(a.salaryBands||[]).map(b=>`<tr><td><div class="li-static"><span class="nm">${esc(b.band)}</span><span class="n">${fmt(b.n)}</span></div></td></tr>`).join('');
     el.innerHTML=`
       <div class="stats">${stats.map(s=>statCard(s[0],s[1])).join('')}</div>
       <h2>Pipeline funnel</h2><div class="funnel">${fsteps.map(s=>funnelRow(s[0],s[1],fmax)).join('')}</div>
       <div class="twocol">
-        <div><h2>Top companies (open roles)</h2><div class="list">${co||'<div class="li">—</div>'}</div></div>
-        <div><h2>By state</h2><div class="list">${st||'<div class="li">—</div>'}</div>
-             <h2>Salary bands (fit ≥ 70)</h2><div class="list">${sb||'<div class="li">—</div>'}</div></div>
+        <div><h2>Top companies (open roles)</h2><div class="list"><table class="li-table"><tbody>${co||'<tr><td><div class="li-static"><span class="nm">No companies in window</span></div></td></tr>'}</tbody></table></div></div>
+        <div><h2>By state</h2><div class="list"><table class="li-table"><tbody>${st||'<tr><td><div class="li-static"><span class="nm">No postings in window</span></div></td></tr>'}</tbody></table></div>
+             ${sb?`<h2>Salary bands (fit 70+)</h2><div class="list"><table class="li-table"><tbody>${sb}</tbody></table></div>`:''}</div>
       </div>`;
-  } catch(e){ el.innerHTML='<div class="empty">Could not load: '+esc(e.message)+'</div>'; }
+  } catch(e){ el.innerHTML='<div class="empty" role="alert">Could not load: '+esc(e.message)+'</div>'; }
+}
+
+if(typeof document.querySelectorAll==='function'){
+  const tabs=document.getElementById('periodTabs');
+  if(tabs&&typeof tabs.addEventListener==='function'){
+    tabs.addEventListener('click',e=>{
+      const btn=e.target&&e.target.closest?e.target.closest('button[data-days]'):null;
+      if(!btn) return;
+      tabs.querySelectorAll('button[role="tab"]').forEach(b=>b.setAttribute('aria-selected',String(b===btn)));
+      load(btn.getAttribute('data-days')||'');
+    });
+  }
+  const bodyEl=document.getElementById('body');
+  if(bodyEl&&typeof bodyEl.addEventListener==='function'){
+    bodyEl.addEventListener('click',e=>{
+      const a=e.target&&e.target.closest?e.target.closest('a[data-career-tool]'):null;
+      if(!a||typeof window==='undefined'||window.parent===window||!window.CareerJobActions) return;
+      e.preventDefault();
+      window.CareerJobActions.navigate(a.getAttribute('data-career-tool'),a.href);
+    });
+  }
 }
 load();
 </script>

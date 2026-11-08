@@ -2,6 +2,7 @@
 //! 1 | maintainer@emeraldcoastsystemsgroup.com | Embed the exact worker/bridge source identity; changes rebuild instead of silently using stale engine code.
 //! 2 | maintainer@emeraldcoastsystemsgroup.com | Fingerprint normalized packaging and retained notice sources with the same ordered list as the bridge.
 //! 3 | maintainer@emeraldcoastsystemsgroup.com | Include exact native keyframe adapter source in the worker identity.
+//! 4 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: include audio_ops.rs and lib_tests.rs in the worker identity.
 use sha2::{Digest, Sha256};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?);
@@ -11,8 +12,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Cargo.lock",
         "build.rs",
         "src/lib.rs",
+        "src/lib_tests.rs",
         "src/main.rs",
         "src/owned_assets.rs",
+        "src/audio_ops.rs",
         "src/graph.rs",
         "src/exact_keys.rs",
         "src/exact_text.rs",

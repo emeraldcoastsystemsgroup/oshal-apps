@@ -1,6 +1,7 @@
 /** CHANGE LOG
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Prove immutable motion persistence, decoded raster bytes and current-actor isolation on shared disposable PostgreSQL.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Reopen and render real masked owned footage while retaining its source bytes through immutable SQL history.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01: apply 002-motion-media-assets.sql alongside 001-motion-projects.sql in disposable project-store tests.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -95,8 +96,9 @@ before(async () => {
   const password = randomUUID();
   await admin.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
   const migration = await readFile(new URL('../migrations/001-motion-projects.sql', import.meta.url), 'utf8');
+  const mediaMigration = await readFile(new URL('../migrations/002-motion-media-assets.sql', import.meta.url), 'utf8');
   const client = await admin.connect();
-  try { await client.query(`SET search_path TO ${schema}`); await client.query(migration); }
+  try { await client.query(`SET search_path TO ${schema}`); await client.query(migration); await client.query(mediaMigration); }
   finally { client.release(); }
   await admin.query(`GRANT USAGE ON SCHEMA ${schema} TO ${role}`);
   await admin.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${role}`);

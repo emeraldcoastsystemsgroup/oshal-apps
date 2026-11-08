@@ -8,6 +8,7 @@ exports.assessOutput = assessOutput;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Video-owned adapter around the runtime's FFmpeg and ffprobe for manual-editor exports (CREATE-EDIT-05c): spawn one tracked child from a fixed argument array (no shell, minimal environment, stdin closed), report -progress frames, and on abort send TERM, escalate to KILL after a bounded grace and resolve only once the child has exited. The produced file is then measured by ffprobe (decoded frame count, codecs, size, sample format) and held to the exact frames and canvas the compiler promised.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve 48 kHz AAC priming tolerance across both 30 fps and 60 fps output profiles.
  */
 const node_child_process_1 = require("node:child_process");
 const video_editor_types_1 = require("./video-editor-types");
@@ -81,7 +82,7 @@ exports.probeOutput = probeOutput;
  * @returns The verified frame count and duration.
  */
 function assessOutput(measure, expected) {
-    const expectedMs = (expected.frames * 1000) / expected.fps, slack = (2 * 1000) / expected.fps;
+    const expectedMs = (expected.frames * 1000) / expected.fps, slack = Math.max(67, (2 * 1000) / expected.fps);
     if (measure.frames !== expected.frames || measure.width !== expected.width || measure.height !== expected.height
         || measure.videoCodec !== 'h264' || measure.audioCodec !== 'aac' || measure.sampleRate !== 48000 || measure.channels !== 2
         || !(Math.abs(measure.durationMs - expectedMs) <= slack)) {

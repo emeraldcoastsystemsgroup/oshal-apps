@@ -84,7 +84,7 @@ test('the package migration creates feed_settings and feed_messages', () => {
 
 test('the settings drawer speaks to the person: no cron, database or operator step', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'tools', 'feeds.html'), 'utf8');
-  const drawer = /<aside class="drawer" id="drawer">([\s\S]*?)<\/aside>/.exec(html);
+  const drawer = /<aside class="drawer" id="drawer"[^>]*>([\s\S]*?)<\/aside>/.exec(html);
   assert.ok(drawer, 'the page has its settings drawer');
   const text = drawer[1].replace(/<[^>]+>/g, ' ');
   assert.match(text, /Saved to your account\. Scheduled pulls follow these settings\./);

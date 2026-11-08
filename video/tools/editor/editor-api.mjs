@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | The manual video editor's browser client for /api/video/editor (CREATE-EDIT-05d): same-origin JSON and multipart calls that never cache, stable error codes on every failure, and the plain-language sentence each refusal shows the person.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Name the storage refusal (video_edit_storage_unavailable) instead of "Something went wrong", so a failed upload or download says why (sweep 12).
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Plain-language refusal descriptions for voice synthesis, sound library and export resolution/frame-rate errors.
  */
 
 export const BASE = '/api/video/editor';
@@ -53,6 +54,11 @@ const WORDS = Object.freeze({
   video_edit_permission_revoked: 'Your access changed while exporting, so the export was stopped.',
   video_edit_export_interrupted: 'The export was interrupted by a restart. Start it again.',
   video_edit_storage_unavailable: 'The video editor cannot store files right now, so nothing was added or changed. Try again in a minute.',
+  video_edit_speech_text_invalid: 'Enter 1 to 400 characters of narration text first.',
+  video_edit_speech_synthesis_failed: 'Voice narration could not be synthesized right now.',
+  video_edit_sound_not_found: 'That sound effect is not in the library.',
+  video_edit_export_resolution_invalid: 'Choose 720p, 1080p, or 4K resolution.',
+  video_edit_export_fps_invalid: 'Choose 30 fps or 60 fps.',
 });
 
 /**

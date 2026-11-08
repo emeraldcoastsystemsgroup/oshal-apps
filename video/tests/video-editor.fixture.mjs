@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Serve the actual COMPILED video editor router with real Express and Multer from a core checkout, synthetic verified actors behind an authorization double shaped like the package context, and one explicitly NAMED ffprobe stand-in (fixtureProber) that reads the probe answer the test wrote into the upload itself. The kernel logger resolves to a recording double so a test can prove a failure was logged. Real ffprobe is exercised separately inside the runtime image (video-editor-media.test.mjs).
  * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: a NAMED FFmpeg stand-in (fixtureEncoder, with its output prober) for export route and database tests - it reads the compiled frame count and canvas, writes a marker output, reports progress, can be held, and honours abort - and a refusing default so a suite that names none can never start an export. Real FFmpeg exports run in video-edit-export.test.mjs.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05d: options.extend lets the browser proof add the core's shared theme assets to the same loopback server after the editor router.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Record compiled output frame rate in fixtureEncoder markers so 30 fps and 60 fps export routes verify exact container duration.
  */
 import { createRequire } from 'node:module';
 import Module from 'node:module';
@@ -54,6 +55,12 @@ export const actors = {
  */
 export async function fixtureProber(file) {
   const bytes = await readFile(file);
+  if (bytes.length >= 44 && bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 16).toString('latin1') === 'WAVEfmt ') {
+    const channels = bytes.readUInt16LE(22), sampleRate = bytes.readUInt32LE(24), byteRate = bytes.readUInt32LE(28);
+    const seconds = (Math.max(0, bytes.length - 44) / Math.max(1, byteRate)).toFixed(6);
+    return { format: { format_name: 'wav', duration: seconds },
+      streams: [{ codec_type: 'audio', codec_name: 'pcm_s16le', channels, sample_rate: String(sampleRate), duration: seconds }] };
+  }
   return JSON.parse(bytes.subarray(12).toString('utf8'));
 }
 fixtureProber.fixtureName = 'video-editor-fixture-prober';
@@ -69,20 +76,22 @@ export function fixtureEncoder() {
   let holding = false;
   const encoder = async request => {
     const frames = Number(request.args[request.args.indexOf('-frames:v') + 1]);
-    const canvas = /scale=(\d+):(\d+):/.exec(request.args[request.args.indexOf('-filter_complex') + 1]);
-    calls.push({ frames, args: request.args, cwd: request.cwd });
+    const fps = Number(request.args[request.args.indexOf('-r') + 1]) || 30;
+    const canvas = /scale=(\d+):(\d+):/.exec(request.args[request.args.indexOf('-filter_complex') + 1])
+      || /color=c=black:s=(\d+)x(\d+):/.exec(request.args[request.args.indexOf('-filter_complex') + 1]);
+    calls.push({ frames, fps, args: request.args, cwd: request.cwd });
     request.onProgress?.(1);
     if (holding) await new Promise(done => { holds.push(done); request.signal.addEventListener('abort', done, { once: true }); });
     if (request.signal.aborted) return { code: null, signal: 'SIGTERM', stderrTail: '' };
     const { writeFile } = await import('node:fs/promises');
     await writeFile(resolve(request.cwd, 'output.mp4'), Buffer.concat([Buffer.from('\0\0\0\x18ftypisom', 'latin1'),
-      Buffer.from(JSON.stringify({ frames, width: Number(canvas[1]), height: Number(canvas[2]) }))]));
+      Buffer.from(JSON.stringify({ frames, fps, width: Number(canvas[1]), height: Number(canvas[2]) }))]));
     return { code: 0, signal: null, stderrTail: '' };
   };
   encoder.fixtureName = 'video-editor-fixture-encoder';
   const prober = async file => {
-    const { frames, width, height } = JSON.parse((await readFile(file)).subarray(12).toString('utf8'));
-    return { frames, durationMs: Math.round((frames * 1000) / 30), width, height, videoCodec: 'h264', audioCodec: 'aac', sampleRate: 48000, channels: 2 };
+    const { frames, fps, width, height } = JSON.parse((await readFile(file)).subarray(12).toString('utf8'));
+    return { frames, durationMs: Math.round((frames * 1000) / (fps || 30)), width, height, videoCodec: 'h264', audioCodec: 'aac', sampleRate: 48000, channels: 2 };
   };
   prober.fixtureName = 'video-editor-fixture-output-prober';
   return { encoder, prober, calls, hold: () => { holding = true; }, release: () => { holding = false; holds.splice(0).forEach(done => done()); } };

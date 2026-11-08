@@ -1,10 +1,11 @@
 //! CHANGE LOG
 //! 1 | maintainer@emeraldcoastsystemsgroup.com | Read and patch native scene properties at exact ticks, retaining independent axes and original key/history semantics.
+//! 2 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01, RP-MOT-02: expose layer audio levels and motion-blur/audio switch state at exact composition ticks.
 use effectcraft_automation::Backend;
 use effectcraft_project::{GroupKind, LayerId, Node, ParamUi, PropGroup};
 use effectcraft_time::Tick;
 use serde_json::{Value, json};
-const GROUPS: &[&str] = &["transform", "cameraOptions", "lightOptions"];
+const GROUPS: &[&str] = &["transform", "audio", "cameraOptions", "lightOptions"];
 fn bad() -> String {
     "motion_invalid_exact_properties".into()
 }
@@ -146,7 +147,9 @@ pub fn execute(backend: &mut Backend, command: &str, p: &Value) -> Result<Value,
         }
     }
     let observed = json!({"layer":lid.0.to_string(),"compTimeTicks":time.0.to_string(),"layerTimeTicks":local.0.to_string(),
-        "effect":effect.map(|uid|uid.to_string()),"locked":layer.switches.locked,"threeD":layer.is_3d(),"source":layer.source,"properties":properties,
+        "effect":effect.map(|uid|uid.to_string()),"locked":layer.switches.locked,"threeD":layer.is_3d(),
+        "motionBlur":layer.switches.motion_blur,"audioEnabled":layer.switches.audio,"videoEnabled":layer.switches.video,
+        "source":layer.source,"properties":properties,
         "sampleSpace":"native values at exact layer time before expressions"});
     if !patch {
         return Ok(observed);

@@ -1,15 +1,7 @@
 "use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.FTS_TABLE = exports.CareerGeoIndexUnavailable = exports.CAREER_GEO_INDEX = exports.MAX_OFFSET = exports.MAX_PER = exports.ARM_POOL = exports.BROWSE_POOL = exports.BROWSE_SORT_MAP = void 0;
-exports.browseFilters = browseFilters;
-exports.browsePageGeometry = browsePageGeometry;
-exports.searchCandidateSql = searchCandidateSql;
-exports.fetchBrowsePage = fetchBrowsePage;
-exports.hasFullText = hasFullText;
-exports.ftsMatchExpression = ftsMatchExpression;
-exports.ftsExpressionFor = ftsExpressionFor;
 /**
  * CHANGE LOG
+ * 23 | maintainer@emeraldcoastsystemsgroup.com | Rank annual USD pay ahead of non-USD and non-annual figures on sort=salary while keeping idx_corpus_pay index walks with zero temp B-tree sorts.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | Allow indexed feeds and full-text searches to continue past the legacy depth ceiling; preserve a declared bound only for the unindexed fallback.
  * 21 | maintainer@emeraldcoastsystemsgroup.com | Recheck legacy remote flags in public filters and card projections so hybrid or occupational text is not advertised as fully remote.
  * -----------------------------------------------------------------------------
@@ -20,6 +12,15 @@ exports.ftsExpressionFor = ftsExpressionFor;
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Apply offline location/radius constraints inside every search arm before pools and pages, with exact distance and required geo-index readiness; expose real posting coordinates and salary provenance.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | Search titles and descriptions from the primary keyword box through FTS, retain employer matches and independent advanced-field constraints, and keep legacy fallback semantics consistent.
  */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.FTS_TABLE = exports.CareerGeoIndexUnavailable = exports.CAREER_GEO_INDEX = exports.MAX_OFFSET = exports.MAX_PER = exports.ARM_POOL = exports.BROWSE_POOL = exports.BROWSE_SORT_MAP = void 0;
+exports.browseFilters = browseFilters;
+exports.browsePageGeometry = browsePageGeometry;
+exports.searchCandidateSql = searchCandidateSql;
+exports.fetchBrowsePage = fetchBrowsePage;
+exports.hasFullText = hasFullText;
+exports.ftsMatchExpression = ftsMatchExpression;
+exports.ftsExpressionFor = ftsExpressionFor;
 /**
  * Career Hunter — corpus-only browse feed.
  *
@@ -266,6 +267,12 @@ function searchCandidateSql(deep, postingWhere = 'active = 1', geographic = fals
  * @param plan - Sort ordering and page geometry.
  * @returns The rows this page produced.
  */
+const SALARY_CANDIDATE_ORDER = `(CASE
+  WHEN UPPER(COALESCE(p.salary_currency, '')) = 'USD' AND COALESCE(p.salary_period, '') = 'year' AND COALESCE(p.salary_max,p.salary_min,0) > 0 THEN 0
+  WHEN UPPER(COALESCE(p.salary_currency, '')) = 'USD' AND COALESCE(p.salary_max,p.salary_min,0) > 0 THEN 1
+  WHEN COALESCE(p.salary_max,p.salary_min,0) > 0 THEN 2
+  ELSE 3 END) ASC, COALESCE(p.salary_max,p.salary_min,0) DESC, p.id DESC`;
+const USD_ANNUAL_PAY_SQL = "UPPER(COALESCE(p.salary_currency, '')) = 'USD' AND COALESCE(p.salary_period, '') = 'year' AND COALESCE(p.salary_max,p.salary_min,0) > 0";
 function runSearch(db, query, filters, plan) {
     const term = param(query, 'q');
     const title = param(query, 'title');
@@ -281,6 +288,7 @@ function runSearch(db, query, filters, plan) {
         extra.push('p.description LIKE ?');
         extraArgs.push(`%${description}%`);
     }
+    const orderSql = plan.order === exports.BROWSE_SORT_MAP.salary ? SALARY_CANDIDATE_ORDER : plan.order;
     const sql = `WITH cand AS (
         ${candidates.sql}
          LIMIT ${exports.BROWSE_POOL})   /* backstop only — each arm is already bounded */
@@ -289,7 +297,7 @@ function runSearch(db, query, filters, plan) {
         JOIN corpus.postings_corpus p ON p.id = cand.id
         JOIN corpus.companies c ON c.id = p.company_id
        WHERE ${filters.where}${extra.length ? ` AND ${extra.join(' AND ')}` : ''}
-       ORDER BY ${plan.order}
+       ORDER BY ${orderSql}
        LIMIT ? OFFSET ?`;
     const like = `%${term || title || description}%`;
     // Each arm carries the pushed-down predicate AND the term, in the order they appear in
@@ -313,11 +321,36 @@ function runSearch(db, query, filters, plan) {
  * @returns The rows this page produced.
  */
 function runFeed(db, filters, plan) {
+    if (plan.order === exports.BROWSE_SORT_MAP.salary && !filters.location) {
+        let slot = 0;
+        const numberedWhere = filters.where.replace(/\?/g, () => `?${++slot}`);
+        const perParam = `?${slot + 1}`;
+        const offParam = `?${slot + 2}`;
+        const cols = selectCols(filters.location);
+        const sql = `SELECT * FROM (
+        SELECT ${cols}
+          FROM corpus.postings_corpus p
+          JOIN corpus.companies c ON c.id = p.company_id
+         WHERE ${numberedWhere} AND ${USD_ANNUAL_PAY_SQL}
+         ORDER BY ${plan.order}
+         LIMIT (${perParam} + ${offParam}))
+      UNION ALL
+      SELECT * FROM (
+        SELECT ${cols}
+          FROM corpus.postings_corpus p
+          JOIN corpus.companies c ON c.id = p.company_id
+         WHERE ${numberedWhere} AND NOT (${USD_ANNUAL_PAY_SQL})
+         ORDER BY ${plan.order}
+         LIMIT (${perParam} + ${offParam}))
+      LIMIT ${perParam} OFFSET ${offParam}`;
+        return db.prepare(sql).all(...filters.args, plan.per, plan.offset);
+    }
+    const orderSql = plan.order === exports.BROWSE_SORT_MAP.salary ? SALARY_CANDIDATE_ORDER : plan.order;
     const sql = `SELECT ${selectCols(filters.location)}
         FROM corpus.postings_corpus p${filters.location ? ` INDEXED BY ${exports.CAREER_GEO_INDEX}` : ''}
         JOIN corpus.companies c ON c.id = p.company_id
        WHERE ${filters.where}
-       ORDER BY ${plan.order}
+       ORDER BY ${orderSql}
        LIMIT ? OFFSET ?`;
     return db.prepare(sql).all(...filters.args, plan.per, plan.offset);
 }
@@ -353,11 +386,12 @@ function runFullText(db, expression, employer, filters, plan, advanced) {
                ORDER BY p2.id DESC)`;
     const candidates = `SELECT rowid FROM corpus.${exports.FTS_TABLE} WHERE ${exports.FTS_TABLE} MATCH ?`
         + (employer ? employerArm : '');
+    const orderSql = plan.order === exports.BROWSE_SORT_MAP.salary ? SALARY_CANDIDATE_ORDER : plan.order;
     const sql = `SELECT ${selectCols(filters.location)}
         FROM corpus.postings_corpus p${filters.location ? ` INDEXED BY ${exports.CAREER_GEO_INDEX}` : ''}
         JOIN corpus.companies c ON c.id = p.company_id
        WHERE p.id IN (${candidates}) AND ${filters.where}
-       ORDER BY ${plan.order}
+       ORDER BY ${orderSql}
        LIMIT ? OFFSET ?`;
     const args = [expression];
     if (employer)

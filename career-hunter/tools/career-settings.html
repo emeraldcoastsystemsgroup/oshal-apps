@@ -15,15 +15,18 @@
   9 | maintainer@emeraldcoastsystemsgroup.com | Poll accepted manual scoring through the owner's actual run status and distinguish completion from an unavailable or unconfirmed result.
   10 | maintainer@emeraldcoastsystemsgroup.com | Offer Stop scoring only for the exact acknowledged run when native cancellation is available; keep stopping and final publication separate from completion.
   11 | maintainer@emeraldcoastsystemsgroup.com | Resume the tab's acknowledged score task after reload; current owner-scoped status remains authoritative over cached ids and limits.
-  13 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): a 3,200px column of 14 cards with seven Save buttons, two Remote checkboxes, and the matching preferences last. Settings is one home of sections (Matching first, then Target companies, Imports, Refresh and sources, Email and keys, Résumé and materials), each row opening its own page with a way back (#section addresses, so the browser's Back returns to the list). One "Remote jobs only" toggle replaces the two Remote checkboxes; preferences save on change with a "Saved" caption (imports and keys keep their own buttons, they are events); the administrator source configuration link is withheld from members (the companies route answers 403 for them); the hardcoded school and county directory is gone from the generic screen; controls are 44px with 16px text on touch; each explanation is one line with the rest under Help. Guard: tests/career-settings-home.test.mjs.
+  13 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (grade C): a 3,200px column of 14 cards with seven Save buttons, two Remote checkboxes, and the matching preferences last. Settings is one home of sections (Matching first, then Target companies, Imports, Refresh and sources, Email and keys, Résumé and materials), each row opening its own page with a way back (#section addresses, so the browser's Back returns to the list). One "Remote jobs only" toggle replaces the two Remote checkboxes; preferences save on change with a "Saved" caption (imports and keys keep their buttons, they are events); the administrator source configuration link is withheld from members (the companies route answers 403 for them); the hardcoded school and county directory is gone from the generic screen; controls are 44px with 16px text on touch; each explanation is one line with the rest under Help. Guard: tests/career-settings-home.test.mjs.
   12 | maintainer@emeraldcoastsystemsgroup.com | Show actual per-job preparation and exact-packet submission on managed installations; leave unsupported legacy digest and bulk toggles inactive without changing saved consent.
+  14 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: route Add career materials directly into Resume Studio (#materials), style CSV file input as a kit drop zone, contain overscroll, and declare DS-00..DS-45 contract attributes.
 -->
-<html lang="en" data-theme="midnight" data-career-surface="settings"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en" data-theme="midnight" data-career-surface="settings" data-ds-category="form" data-ds-first-action="tap"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Career Hunter — Settings</title>
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css">
 <script src="/shared/ui/js/surface-theme.js"></script>
 <link rel="stylesheet" href="/api/career-hunter/static/career-hunter.css">
 <style>
+html,body{overscroll-behavior:contain}
+html.in-shell h1,html.in-shell .lede{display:none}
 #linkedinJobsList a,#communitySourceList a{overflow-wrap:anywhere}
 #linkedinJobsList{max-height:420px;overflow:auto}
 #linkedinJobsCsv{box-sizing:border-box;width:100%;min-height:110px;resize:vertical}
@@ -33,8 +36,8 @@
 .settings-home li+li{border-top:1px solid var(--ds-hairline)}
 .settings-home a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:8px 16px;color:var(--ds-ink);text-decoration:none}
 .settings-home a:hover{background:var(--ds-surface-3)}
-.settings-home small{display:block;color:var(--ds-ink-2);font-size:13px;margin-top:2px}
-.settings-home a::after{content:"›";font-size:22px;color:var(--ds-ink-2)}
+.settings-home small{display:block;color:var(--ds-ink-2);font-size:12px;margin-top:2px}
+.settings-home a::after{content:"›";font-size:18px;color:var(--ds-ink-2)}
 html[data-settings-section] .settings-home, html[data-settings-section] .lede{display:none}
 html:not([data-settings-section]) [data-section], html:not([data-settings-section]) #sectionBack{display:none!important}
 #sectionBack{margin:0 0 12px}
@@ -48,6 +51,7 @@ input[type=checkbox]{width:22px;height:22px}
 @media (pointer: coarse){input,select,textarea{font-size:16px!important}}
 .card[hidden],#nativeWorkflow[hidden]{display:none!important}
 @media (max-width: 640px) {
+  .lede { display: none; }
   .row { flex-direction: column; align-items: flex-start; }
   input[type=text], input[type=password] { min-width: 0; width: 100%; font-size: 16px; }
   .btn { width: 100%; padding: 10px 13px; font-size: 14px; }
@@ -57,7 +61,7 @@ input[type=checkbox]{width:22px;height:22px}
   <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <link rel="stylesheet" href="/api/career-hunter/static/career-theme.css">
 </head><body>
-<div class="wrap">
+<div class="wrap" data-ds-work>
   <h1>Career Settings</h1>
   <p class="lede">Your matching preferences, job sources, imports and connected keys.</p>
   <ul class="settings-home" aria-label="Settings sections">
@@ -88,8 +92,7 @@ input[type=checkbox]{width:22px;height:22px}
       <a href="https://www.linkedin.com/help/linkedin/answer/a1339364" target="_blank" rel="noopener">LinkedIn's data download</a>.
       Extract the Saved Jobs CSV and import it here. This imports saved leads; it does not automatically download LinkedIn recommendations or mark an application submitted.</p>
     <div class="row">
-      <label for="linkedinJobsFile" class="hint">Saved Jobs CSV</label>
-      <input id="linkedinJobsFile" type="file" accept=".csv,text/csv" />
+      <label for="linkedinJobsFile" class="ck-dropzone" style="flex:1 1 240px"><span id="linkedinJobsDropLabel">Drop Saved Jobs CSV here, or tap to choose</span><input id="linkedinJobsFile" type="file" accept=".csv,text/csv" /></label>
       <button type="button" class="btn primary" id="linkedinJobsImport">Import saved jobs</button>
     </div>
     <label for="linkedinJobsCsv" class="hint">Or paste saved-job CSV</label>
@@ -185,26 +188,12 @@ input[type=checkbox]{width:22px;height:22px}
   </div>
 
   <div class="card" data-section="materials">
-    <h2>Your résumé</h2>
-    <p class="hint">Upload or edit your résumé in Resume Studio.</p>
-    <a class="btn" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">Open Resume Studio</a>
-  </div>
-  <div class="card" data-section="materials">
-    <h2>Add career materials</h2>
-    <p class="hint">Upload more than a résumé — work samples, exported job emails, a LinkedIn <b>“Download your data”</b> archive, or a status report. OSHAL reads them and adds what you actually do to your profile. Add-only: nothing already in your profile is overwritten.</p>
+    <h2>Your résumé &amp; career materials</h2>
+    <p class="hint">Upload or edit your master résumé, work samples, LinkedIn exports and job emails in Resume Studio.</p>
     <div class="row">
-      <select id="artKind">
-        <option value="status-report">Status report</option>
-        <option value="work-sample">Work sample</option>
-        <option value="linkedin-export">LinkedIn export</option>
-        <option value="email">Job email(s)</option>
-        <option value="resume-extra">Another résumé</option>
-        <option value="other">Other</option>
-      </select>
-      <input type="file" id="artFiles" multiple accept=".pdf,.docx,.txt,.md,.csv,.tsv,.html,.htm,.eml,.json,.zip">
-      <button class="btn primary" id="artUpload">Add to my profile</button>
+      <a class="btn primary" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio">Open Resume Studio</a>
+      <a class="btn" data-career-tool="career-resume-studio" href="/api/career-hunter/resume-studio#materials">Add career materials</a>
     </div>
-    <div id="artOut" class="hint" style="white-space:pre-wrap"></div>
   </div>
 
   <div class="card" data-section="matching" hidden>
@@ -563,8 +552,8 @@ $('#titleRun').onclick = async()=>{
     : ('Not started: '+(r.reason||r.error||'failed')+(r.reason==='no-title-profile'?' — save some target titles first.':''));
   toast(r.started?'Title pass started':'Title pass not started');
 };
-// Add career materials — upload artifacts, absorb into the profile, then show what was learned.
-$('#artUpload').onclick = async()=>{
+// Career materials moved to Resume Studio (#materials); guard optional hook if absent.
+if ($('#artUpload')) $('#artUpload').onclick = async()=>{
   const inp=$('#artFiles'); const files=inp&&inp.files; if(!files||!files.length){ toast('Pick one or more files'); return; }
   const o=$('#artOut'); o.innerHTML='<span class="spin"></span> Reading your materials…';
   const fd=new FormData(); fd.append('kind',$('#artKind').value); for(const f of files) fd.append('files',f);
@@ -574,14 +563,12 @@ $('#artUpload').onclick = async()=>{
     inp.value='';
     o.textContent='Added '+(j.accepted?.length||0)+' file(s). Learning from them…'+(j.rejected?.length?(' ('+j.rejected.length+' skipped: unsupported type)'):'');
     toast('Absorbing your materials');
-    let tries=0; const poll=setInterval(async()=>{
-      tries++; const s=await fetch(API+'/artifacts').then(x=>x.json()).catch(()=>({learned:[]}));
-      const recent=(s.learned||[]).flatMap(e=>e.changelog||[]).slice(-8);
-      if(recent.length){ o.textContent='Learned:\n• '+recent.join('\n• '); }
-      if(tries>=10){ clearInterval(poll); if(!recent.length) o.textContent='Processed — nothing new to add, or still working. Check back shortly.'; }
-    }, 4000);
   }catch(e){ o.textContent='Upload failed: '+e.message; toast('Upload failed'); }
 };
+$('#linkedinJobsFile')?.addEventListener('change', ()=>{
+  const f=$('#linkedinJobsFile')?.files?.[0], lbl=$('#linkedinJobsDropLabel');
+  if(lbl) lbl.textContent=f?f.name:'Drop Saved Jobs CSV here, or tap to choose';
+});
 async function refreshAutomation(){
   if(careerOperationMode!=='legacy')return;
   const s = await fetch(API+'/automation/state').then(r=>r.json()).catch(()=>({}));

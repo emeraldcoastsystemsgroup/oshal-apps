@@ -329,3 +329,28 @@ cases:
     limits:
       timeoutMs: 120000
     installation: never
+  - id: team-theme-contrast
+    name: Team buttons and theme-aware team dots across themes and viewports
+    purpose: >-
+      Load the shipped stage.html, ui scripts and CSS in Chromium at 412x915 and 1440x900 under light-blue, midnight,
+      and all twenty portal themes, checking lobby, You sheet, and Host Desk team buttons and dot contrast.
+    level: browser
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/team-theme-contrast.test.js
+    expected:
+      - Selected team buttons use accent fill and on-accent text at >= 4.5:1; unselected team buttons use surface fill, hairline border, and ink at >= 4.5:1.
+      - Team identity is drawn as a small .gs-team-dot (not the button fill), with deeper team hues on light themes and studio hues on dark themes at >= 3:1 against background across all 20 themes.
+      - Lobby, You sheet, and Host Desk team controls render cleanly without horizontal overflow at 412x915 and 1440x900 in light-blue and midnight, while .gp-studio keeps its dark broadcast hues.
+    prerequisites:
+      - runner:node-test
+      - dependency:playwright
+      - browser:chromium
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 120000
+    installation: never

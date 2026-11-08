@@ -3,6 +3,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve exact native integer transport and bind an approval-held exact edit tool.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Bind read-only native effect index/schema tools on existing view grants.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind original-read exact key metadata and tick previews.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01: bind revision-pinned composition audio window previews on own read grants.
 version: 1
 resources:
   projects:
@@ -302,6 +303,12 @@ bindings:
     - id: exact-preview
       method: GET
       path: /projects/:id/revisions/:revision/preview-ticks/:timeTicks/:compId/:maxSide/:transparent
+      allOf:
+        - project.view
+        - project.read
+    - id: exact-audio
+      method: GET
+      path: /projects/:id/revisions/:revision/audio/:compId/:startTicks/:endTicks
       allOf:
         - project.view
         - project.read

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: dedicated Phone Concierge & Connection Concierge client controller — direct iPhone click-to-tap (ble-tap), drag-to-swipe (ble-swipe), wheel-to-scroll (ble-scroll), AssistiveTouch 1-click helper, mobile task chips (Organize my apps, What's on my screen?, Open Notes, Go Home), bounded 5-round anti-loop execution over closed phone primitives, and Connection sheet troubleshooting with 1-click fixes.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned bottom-pinned Jarvis composer (Enter-to-send / Shift+Enter-newline, + screen context attachment, speaker read-aloud toggle, Screenshot chip), live iOS stage touchpad tap/swipe/scroll before AirPlay frames arrive, Re-center pointer via ble-sync, direct computer keyboard navigation on TV sessions, and fast post-action frame wakeups.
  */
 
 import { bytesToBase64, iosGestureFromDrag } from '/api/phone-control/ui/computer-link.js';
@@ -22,12 +23,23 @@ const SWIPE_VECTORS = Object.freeze({
 const ANDROID_KEY_MAP = Object.freeze({
   Home: 'HOME', Back: 'BACK', Recents: 'RECENTS', Enter: 'ENTER',
   Backspace: 'BACKSPACE', VolumeUp: 'VOLUME_UP', VolumeDown: 'VOLUME_DOWN', Escape: 'BACK', Spotlight: 'HOME',
-  Up: 'UP', Down: 'DOWN', Left: 'LEFT', Right: 'RIGHT', Select: 'OK', PlayPause: 'PLAY_PAUSE', Menu: 'RECENTS', Tab: 'ENTER'
+  Up: 'UP', Down: 'DOWN', Left: 'LEFT', Right: 'RIGHT', Select: 'OK', PlayPause: 'PLAY_PAUSE', Menu: 'MENU', Tab: 'ENTER'
 });
 
 const STAGE_SPECIAL_KEYS = Object.freeze({
   Enter: 'Enter', Backspace: 'Backspace', Escape: 'Escape', Tab: 'Tab',
   ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right'
+});
+
+const TV_STAGE_KEYS = Object.freeze({
+  ArrowUp: { adb: 'UP', ios: 'Up', label: 'Up' },
+  ArrowDown: { adb: 'DOWN', ios: 'Down', label: 'Down' },
+  ArrowLeft: { adb: 'LEFT', ios: 'Left', label: 'Left' },
+  ArrowRight: { adb: 'RIGHT', ios: 'Right', label: 'Right' },
+  Enter: { adb: 'OK', ios: 'Select', label: 'OK' },
+  Backspace: { adb: 'BACK', ios: 'Back', label: 'Back' },
+  Escape: { adb: 'BACK', ios: 'Back', label: 'Back' },
+  ' ': { adb: 'PLAY_PAUSE', ios: 'PlayPause', label: 'Play/Pause' }
 });
 
 function appendConciergeEntry(host, role, text) {
@@ -182,7 +194,7 @@ async function executeGestureOrKeyAction(ctx, phone, action, dims) {
 function setConciergeBusy(ctx, busy) {
   ctx.$('conciergeSendBtn').disabled = busy;
   ctx.$('conciergeStopBtn').hidden = !busy;
-  for (const id of ['chipOrganizeApps', 'chipReadScreen', 'chipOpenNotes', 'chipGoHome']) {
+  for (const id of ['chipOrganizeApps', 'chipReadScreen', 'chipScreenshot', 'chipOpenNotes', 'chipGoHome']) {
     ctx.$(id).disabled = busy;
   }
 }
@@ -197,7 +209,10 @@ async function executeRoundActions(ctx, target, state, actions, log) {
       : executePhoneAction(ctx, target.phone, action, state)));
     state.steps.push({ summary: stepText || action.kind, ok: Boolean(reply?.ok), error: reply?.error || null });
     if (!reply?.ok) { failed = reply; break; }
-    if (action.kind !== 'read_screen') mutated = true;
+    if (action.kind !== 'read_screen') {
+      mutated = true;
+      if (target.phone?.platform === 'android') ctx.scheduleFastFrame?.(260);
+    }
     if (stepText) appendConciergeEntry(log, 'step', stepText);
   }
   return { failed, mutated };
@@ -215,8 +230,10 @@ async function runPhonePrompt(ctx, state, rawPrompt) {
   }
   state.running = true;
   state.aborted = false;
+  ctx.$('conciergeContextRow').hidden = true;
   setConciergeBusy(ctx, true);
   appendConciergeEntry(log, 'user', prompt);
+  const replyOut = (text) => { state.lastReply = text; appendConciergeEntry(log, 'assistant', text); };
   let lastSig = screenSignature(state.screen);
   const device = rdp
     ? { name: rdpLabel(rdp), platform: 'rdp', form: 'rdp', mirrorRunning: true }
@@ -229,25 +246,35 @@ async function runPhonePrompt(ctx, state, rawPrompt) {
       const { failed, mutated } = await executeRoundActions(ctx, { phone, rdp }, state, actions, log);
       if (failed) {
         if (failed.error === 'assistive_touch_off') ctx.$('assistiveTouchBar').hidden = false;
-        appendConciergeEntry(log, 'assistant', refusalAdvice(failed));
+        replyOut(refusalAdvice(failed));
         break;
       }
-      if (turn?.reply && (turn.done || round === MAX_ROUNDS - 1 || !actions.length)) appendConciergeEntry(log, 'assistant', turn.reply);
+      if (turn?.reply && (turn.done || round === MAX_ROUNDS - 1 || !actions.length)) replyOut(turn.reply);
       if (turn?.done || !actions.length) break;
       const nextSig = screenSignature(state.screen);
       if (mutated && nextSig && nextSig === lastSig) {
-        appendConciergeEntry(log, 'assistant', 'Stopped because the screen did not change after the last action.');
+        replyOut('Stopped because the screen did not change after the last action.');
         break;
       }
       lastSig = nextSig;
     }
     if (state.aborted) appendConciergeEntry(log, 'step', 'Stopped.');
   } catch (error) {
-    appendConciergeEntry(log, 'assistant', error?.message || 'Concierge could not complete that turn.');
+    replyOut(error?.message || 'Concierge could not complete that turn.');
   } finally {
     state.running = false;
     setConciergeBusy(ctx, false);
   }
+}
+
+function sendStageText(ctx, text, verbLabel = 'Type') {
+  if (!text) return;
+  const rdp = ctx.selectedRdp();
+  if (rdp) { void ctx.queue.press(() => sendRdpInput(ctx, rdp, { action: 'type', text, enter: false }, `${verbLabel} ${text.length} characters`)); return; }
+  const phone = ctx.selectedPhone();
+  if (!phone || !phone.controlEnabled) return;
+  const extra = phone.platform === 'ios' ? { address: phone.address } : {};
+  ctx.press('type', `${verbLabel} ${text.length} characters`, 'keyboard-type', { platform: phone.platform, ...extra, text });
 }
 
 function wireStageKeyboard(ctx) {
@@ -257,25 +284,24 @@ function wireStageKeyboard(ctx) {
   const flush = () => {
     clearTimeout(timer); timer = null;
     const text = buffer; buffer = '';
-    if (!text) return;
-    const rdp = ctx.selectedRdp();
-    if (rdp) { void ctx.queue.press(() => sendRdpInput(ctx, rdp, { action: 'type', text, enter: false }, `Type ${text.length} characters`)); return; }
-    const phone = ctx.selectedPhone();
-    if (!phone || !phone.controlEnabled) return;
-    const extra = phone.platform === 'ios' ? { address: phone.address } : {};
-    ctx.press('type', `Type ${text.length} characters`, 'keyboard-type', { platform: phone.platform, ...extra, text });
+    sendStageText(ctx, text, 'Type');
   };
   frame.addEventListener('keydown', (event) => {
     const phone = ctx.selectedPhone();
     const rdp = ctx.selectedRdp();
     if ((!rdp && (!phone || !phone.controlEnabled)) || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
     if (event.target?.matches?.('input, textarea, select')) return;
+    if (phone?.form === 'tv' && TV_STAGE_KEYS[event.key] && (event.key !== ' ' || !buffer)) {
+      const tvKey = TV_STAGE_KEYS[event.key];
+      event.preventDefault(); flush();
+      ctx.press(`key ${tvKey.adb.toLowerCase()}`, tvKey.label, phone.platform === 'android' ? 'adb-key' : 'ble-key', { key: phone.platform === 'android' ? tvKey.adb : tvKey.ios });
+      return;
+    }
     const mapped = STAGE_SPECIAL_KEYS[event.key];
     if (mapped) {
       event.preventDefault(); flush();
       if (rdp) { void ctx.queue.press(() => sendRdpInput(ctx, rdp, { action: 'key', key: mapped }, `Press ${mapped}`)); return; }
-      const extra = phone.platform === 'ios' ? { address: phone.address } : {};
-      ctx.press('key', `Press ${mapped}`, 'keyboard-key', { platform: phone.platform, ...extra, key: mapped });
+      ctx.press('key', `Press ${mapped}`, 'keyboard-key', { platform: phone.platform, ...(phone.platform === 'ios' ? { address: phone.address } : {}), key: mapped });
       return;
     }
     if (event.key.length === 1) {
@@ -285,14 +311,11 @@ function wireStageKeyboard(ctx) {
   });
   frame.addEventListener('paste', (event) => {
     const phone = ctx.selectedPhone();
-    const rdp = ctx.selectedRdp();
-    if ((!rdp && (!phone || !phone.controlEnabled)) || event.target?.matches?.('input, textarea, select')) return;
+    if ((!ctx.selectedRdp() && (!phone || !phone.controlEnabled)) || event.target?.matches?.('input, textarea, select')) return;
     const text = event.clipboardData?.getData('text') || '';
     if (!text) return;
     event.preventDefault();
-    if (rdp) { void ctx.queue.press(() => sendRdpInput(ctx, rdp, { action: 'type', text, enter: false }, `Paste ${text.length} characters`)); return; }
-    const extra = phone.platform === 'ios' ? { address: phone.address } : {};
-    ctx.press('type', `Paste ${text.length} characters`, 'keyboard-type', { platform: phone.platform, ...extra, text });
+    sendStageText(ctx, text, 'Paste');
   });
 }
 
@@ -411,7 +434,7 @@ async function installSessionCompanionApk(ctx) {
       });
       ctx.status(`Installing and launching oshal Companion (${apk.file})…`);
       const installed = await ctx.phoneCommand(phone, 'adb-install-apk', {
-        serial: phone.address, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true, launchPackage: 'com.oshal.remote'
+        serial: phone.address, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true, launchPackage: 'com.oshal.orbit'
       }, 'install apk', `Install oshal Companion on ${phone.name}`, 180000);
       if (!installed) return;
       ctx.status(installed.ok ? `Installed and opened oshal Companion on ${phone.name}.` : (installed.message || 'APK install failed.'));
@@ -428,8 +451,7 @@ function wirePointerHelpersAndQuickBar(ctx) {
     ctx.press('open app', 'Open AssistiveTouch settings', 'ble-open', { name: 'AssistiveTouch' });
   });
   $('recenterPointerBtn').addEventListener('click', () => {
-    const phone = ctx.selectedPhone();
-    ctx.press('pointer', 'Re-center pointer', 'ble-tap', { nx: 0.5, ny: 0.5, rehome: true, address: phone?.address });
+    void ctx.syncActiveDevice();
   });
   $('calibratePointerBtn').addEventListener('click', () => {
     const phone = ctx.selectedPhone();
@@ -464,7 +486,8 @@ function wireScreenScrollAndQuickBar(ctx) {
   let lastWheelAt = 0;
   wireStageKeyboard(ctx);
   wirePointerHelpersAndQuickBar(ctx);
-  $('screenImage').addEventListener('wheel', (event) => {
+  const onWheel = (event) => {
+    if (event.defaultPrevented) return;
     const rdp = ctx.selectedRdp();
     const phone = ctx.selectedPhone();
     if (!rdp && (!phone || !phone.controlEnabled || (phone.platform === 'ios' && phone.form === 'tv'))) return;
@@ -489,7 +512,9 @@ function wireScreenScrollAndQuickBar(ctx) {
       x1: Math.round(w * 0.5), y1: Math.round(h * (down ? 0.72 : 0.28)),
       x2: Math.round(w * 0.5), y2: Math.round(h * (down ? 0.28 : 0.72)), ms: 200
     });
-  }, { passive: false });
+  };
+  $('screenImage').addEventListener('wheel', onWheel, { passive: false });
+  $('deviceFrame').addEventListener('wheel', onWheel, { passive: false });
 }
 
 function handleIosGestureOnStage(ctx, start, end) {
@@ -497,10 +522,6 @@ function handleIosGestureOnStage(ctx, start, end) {
   const phone = ctx.selectedPhone();
   if (!phone || phone.platform !== 'ios') return;
   $('deviceFrame').focus({ preventScroll: true });
-  if (!ctx.view.frame) {
-    ctx.status('Press Start mirroring first so you can tap or swipe directly on your iPhone screen.');
-    return;
-  }
   try {
     const gesture = iosGestureFromDrag(start, end, end.box, ctx.view.frame, performance.now() - start.at);
     ctx.status(`${gesture.summary}…`);
@@ -528,23 +549,101 @@ function renderConciergeCard(ctx) {
   if (!phone && !rdp) return;
   $('conciergeHeading').textContent = rdp ? 'RDP Concierge' : tv ? 'TV Concierge' : 'Phone Concierge';
   $('conciergeSub').textContent = rdp
-    ? `Controlling ${rdpLabel(rdp)} over RDP`
-    : `Controlling ${phone.name} through ${ctx.app.computer(phone.computerNodeId)?.name || 'your Linux computer'}`;
-  $('conciergeInput').placeholder = rdp
-    ? 'Ask RDP Concierge (e.g. Click Start, Open Terminal, Type hello)…'
-    : tv ? 'Ask TV Concierge (e.g. Open YouTube, Play/Pause, Go Home)…' : 'Ask Phone Concierge (e.g. organize my apps)…';
+    ? `Ask about ${rdpLabel(rdp)} or request an action.`
+    : `Ask about ${phone.name} or request an action.`;
+  $('conciergeInput').placeholder = 'Ask or describe an action…';
   $('chipOrganizeApps').hidden = Boolean(tv || rdp);
-  $('chipReadScreen').textContent = (tv || rdp) ? "What's on screen?" : "What's on my screen?";
+  $('chipReadScreen').textContent = (tv || rdp) ? "What's on screen?" : 'Read screen';
   $('chipOpenNotes').textContent = rdp ? 'Open Terminal' : tv ? 'Open YouTube' : 'Open Notes';
   $('conciergeSwipeLeftBtn').textContent = rdp ? 'Press Escape' : tv ? 'Open oshal TV' : 'Swipe left';
   $('conciergeSwipeRightBtn').textContent = rdp ? 'Press Enter' : tv ? 'Play / Pause' : 'Swipe right';
 }
 
+async function attachLiveScreenContext(ctx, state) {
+  const { $ } = ctx;
+  const rdp = ctx.selectedRdp();
+  if (rdp) {
+    const snap = await sendRdpInput(ctx, rdp, { action: 'snapshot' }, 'Read RDP screen');
+    if (!snap?.ok) return;
+    state.screen = snap;
+    $('conciergeContextText').textContent = `Screen context attached (${snap.items?.length || 0} labels)`;
+    $('conciergeContextRow').hidden = false;
+    return;
+  }
+  const phone = ctx.selectedPhone();
+  if (!phone) return;
+  const res = await readPhoneScreenMap(ctx, phone);
+  if (!res?.ok) { ctx.status(res?.message || 'Could not read screen context yet.'); return; }
+  state.screen = res;
+  $('conciergeContextText').textContent = `Screen context attached (${res.items?.length || 0} labels)`;
+  $('conciergeContextRow').hidden = false;
+}
+
+function toggleSpeakLastReply(ctx, state) {
+  const synth = globalThis.speechSynthesis;
+  const Utter = globalThis.SpeechSynthesisUtterance;
+  const btn = ctx.$('conciergeSpeakBtn');
+  if (!synth || typeof Utter !== 'function') { ctx.status('Read-aloud is not supported in this browser.'); return; }
+  if (synth.speaking) { synth.cancel(); btn.setAttribute('aria-pressed', 'false'); return; }
+  const text = String(state.lastReply || '').trim();
+  if (!text) return;
+  const u = new Utter(text);
+  btn.setAttribute('aria-pressed', 'true');
+  u.onend = () => btn.setAttribute('aria-pressed', 'false');
+  u.onerror = () => btn.setAttribute('aria-pressed', 'false');
+  synth.speak(u);
+}
+
+function wireConciergeComposerExtras(ctx, state) {
+  const { $ } = ctx;
+  $('conciergeInput').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      $('conciergeForm').requestSubmit();
+    }
+  });
+  $('conciergeAttachBtn').addEventListener('click', () => void attachLiveScreenContext(ctx, state));
+  $('conciergeClearContextBtn').addEventListener('click', () => { state.screen = null; $('conciergeContextRow').hidden = true; });
+  $('conciergeSpeakBtn').addEventListener('click', () => toggleSpeakLastReply(ctx, state));
+  $('chipScreenshot').addEventListener('click', () => $('screenshotBtn').click());
+  $('conciergeStopBtn').addEventListener('click', () => { state.aborted = true; });
+  $('chipOrganizeApps').addEventListener('click', () => void runPhonePrompt(ctx, state, 'Organize my applications'));
+  $('chipReadScreen').addEventListener('click', () => void runPhonePrompt(ctx, state, (ctx.selectedRdp() || ctx.selectedPhone()?.form === 'tv') ? "What's on screen?" : "What's on my screen?"));
+  $('chipOpenNotes').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Open Terminal' : ctx.selectedPhone()?.form === 'tv' ? 'Open YouTube' : 'Open Notes'));
+  $('chipGoHome').addEventListener('click', () => void runPhonePrompt(ctx, state, 'Go Home'));
+  $('conciergeSwipeLeftBtn').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Press Escape' : ctx.selectedPhone()?.form === 'tv' ? 'Open oshal TV' : 'Swipe left'));
+  $('conciergeSwipeRightBtn').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Press Enter' : ctx.selectedPhone()?.form === 'tv' ? 'Play/Pause' : 'Swipe right'));
+}
+
+function resetConciergeForTarget(ctx, state) {
+  const { $ } = ctx;
+  state.aborted = true; state.screen = null; state.steps = [];
+  $('assistiveTouchBar').hidden = true;
+  $('conciergeContextRow').hidden = true;
+  globalThis.speechSynthesis?.cancel?.();
+  $('conciergeSpeakBtn').setAttribute('aria-pressed', 'false');
+  const nextId = ctx.currentTargetKey();
+  if (nextId === state.targetId) return;
+  state.targetId = nextId;
+  $('conciergeLog').replaceChildren();
+  const phone = ctx.selectedPhone();
+  const rdp = ctx.selectedRdp();
+  if (!phone && !rdp) return;
+  const welcome = rdp
+    ? `Ready for ${rdpLabel(rdp)}. Click or drag directly on the desktop picture, type on your keyboard, or ask RDP Concierge.`
+    : phone.form === 'tv'
+      ? `Ready for ${phone.name}. Click directly on the TV picture, type on your keyboard, or ask TV Concierge to open apps or control playback.`
+      : `Ready for ${phone.name}. Tap the screen directly to tap or swipe, or choose a task below.`;
+  state.lastReply = welcome;
+  appendConciergeEntry($('conciergeLog'), 'assistant', welcome);
+}
+
 /** @description Mount the specialized Phone/TV/RDP Concierge and iOS direct-touch helpers in the session view. @param {object} ctx Stage context. @returns {object} Controller. */
 export function mountPhoneConcierge(ctx) {
   const { $ } = ctx;
-  const state = { running: false, aborted: false, screen: null, steps: [], targetId: '' };
+  const state = { running: false, aborted: false, screen: null, steps: [], targetId: '', lastReply: '' };
   wireScreenScrollAndQuickBar(ctx);
+  wireConciergeComposerExtras(ctx, state);
   $('conciergeForm').addEventListener('submit', (event) => {
     event.preventDefault();
     const prompt = $('conciergeInput').value.trim();
@@ -559,31 +658,8 @@ export function mountPhoneConcierge(ctx) {
     $('conciergeInput').value = '';
     void runPhonePrompt(ctx, state, res.text);
   });
-  $('conciergeStopBtn').addEventListener('click', () => { state.aborted = true; });
-  $('chipOrganizeApps').addEventListener('click', () => void runPhonePrompt(ctx, state, 'Organize my applications'));
-  $('chipReadScreen').addEventListener('click', () => void runPhonePrompt(ctx, state, (ctx.selectedRdp() || ctx.selectedPhone()?.form === 'tv') ? "What's on screen?" : "What's on my screen?"));
-  $('chipOpenNotes').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Open Terminal' : ctx.selectedPhone()?.form === 'tv' ? 'Open YouTube' : 'Open Notes'));
-  $('chipGoHome').addEventListener('click', () => void runPhonePrompt(ctx, state, 'Go Home'));
-  $('conciergeSwipeLeftBtn').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Press Escape' : ctx.selectedPhone()?.form === 'tv' ? 'Open oshal TV' : 'Swipe left'));
-  $('conciergeSwipeRightBtn').addEventListener('click', () => void runPhonePrompt(ctx, state, ctx.selectedRdp() ? 'Press Enter' : ctx.selectedPhone()?.form === 'tv' ? 'Play/Pause' : 'Swipe right'));
   return {
-    onSelectTarget() {
-      state.aborted = true; state.screen = null; state.steps = [];
-      $('assistiveTouchBar').hidden = true;
-      const nextId = ctx.currentTargetKey();
-      if (nextId === state.targetId) return;
-      state.targetId = nextId;
-      $('conciergeLog').replaceChildren();
-      const phone = ctx.selectedPhone();
-      const rdp = ctx.selectedRdp();
-      if (!phone && !rdp) return;
-      const welcome = rdp
-        ? `Ready for ${rdpLabel(rdp)}. Click or drag directly on the desktop picture, type on your keyboard, or ask RDP Concierge.`
-        : phone.form === 'tv'
-          ? `Ready for ${phone.name}. Click directly on the TV picture, type on your keyboard, or ask TV Concierge to open apps or control playback.`
-          : `Ready for ${phone.name}. Tap the screen directly to tap or swipe, or choose a phone task above.`;
-      appendConciergeEntry($('conciergeLog'), 'assistant', welcome);
-    },
+    onSelectTarget: () => resetConciergeForTarget(ctx, state),
     render: () => renderConciergeCard(ctx),
     handleIosGesture: (start, end) => handleIosGestureOnStage(ctx, start, end)
   };

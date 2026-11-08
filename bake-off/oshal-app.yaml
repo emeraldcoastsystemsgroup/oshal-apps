@@ -8,6 +8,7 @@
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.6: the review page no longer forces color-scheme: dark, so its native form controls follow the portal theme like the rest of the page.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Roger, 2026-11-04: the default look is now Light Blue, "the white background blue highlights"; this package declared midnight, so it now declares light-blue. A person's saved theme still wins.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.1.8: the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.1.9: UX design-standard sweep (D1=glass, D2=c, bake-off--bake-off-review): drop manifest theme override so the user's saved theme governs unless Application colors is enabled; place AI Bake-Off first in ui.static; withhold 'Your next brief' on Review when no connected action mounts, replace the 58-word scoping paragraph with column tooltips, and show 'No benchmarks yet' with 'Create a benchmark'.
 # -----------------------------------------------------------------------------
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — bake-off ("AI Bake-Off")
@@ -60,7 +61,7 @@ description: >-
   grade every output on the shared quality judge against your own rubric, and get one
   recommendation: the cheapest lane that still clears your quality bar, and what switching saves
   per month. Refuses to recommend anything it cannot honestly measure.
-version: 1.1.8
+version: 1.1.9
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -122,8 +123,6 @@ dependencies:
     apps: []
     tools: []
     connectors: []
-
-theme: light-blue
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BOTS — one analyst. It does NOT run the race and it does NOT grade: candidate output
@@ -209,15 +208,15 @@ nativeMigrations:
 # ─────────────────────────────────────────────────────────────────────────────
 ui:
   static:
-    - toolName: bake-off-review
-      label: AI Bake-Off Review
-      icon: codicon codicon-notebook
-      iframeUrl: /api/bake-off/review
-      section: top
     - toolName: bake-off-home
       label: AI Bake-Off
       icon: codicon codicon-dashboard
       iframeUrl: /api/bake-off/
+      section: top
+    - toolName: bake-off-review
+      label: AI Bake-Off Review
+      icon: codicon codicon-notebook
+      iframeUrl: /api/bake-off/review
       section: top
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -50,6 +50,7 @@
  * 21 | maintainer@emeraldcoastsystemsgroup.com | A demo installation's mailbox: with the EMAIL_DEMO_MAIL setting, POST /demo-mail plants sample rows in the stored copy and a person with no connection reads them through a mailbox that cannot send (Roger, 2026-10-31: visitors get mock email). Off by default; a real connection always wins.
  * 22 | maintainer@emeraldcoastsystemsgroup.com | The demo mailbox answers when My Day names Google (its summary was refused with 409 before any model was asked) and has today's sample events.
  * 23 | maintainer@emeraldcoastsystemsgroup.com | The saved summary is sealed by the kernel: the package helper needed a SESSION_SECRET the native kernel never hands a package, so saving the model's answer failed with 502. The digest table is a declared migration and is written without ON CONFLICT, which the native kernel refused on the lazily made table.
+ * 24 | maintainer@emeraldcoastsystemsgroup.com | Run checkCallerWatches after POST /sync finishes so installations running mail-copy also seed EMAIL_DEFAULT_WATCHES and evaluate mailbox watches against newly synced Gmail rows.
  */
 
 import { Router, type Request, type Response, type RequestHandler } from 'express';
@@ -76,6 +77,8 @@ import {
   connectionState, kernelEgress, kernelFetch, kernelSendGmail, kernelSendOutlook, kernelTokenFor, readConnections, summarizeGmail,
 } from './kernel-mail';
 import { demoEventsToday, demoMailAnswers, listStored, plantDemoMail, storedMessage, type DemoMail, readStoreState, searchStored, searchWindow, storeCovers, storeIsFresh, syncGmail, STORE_DAYS, type GmailReader, type StoreState } from './mail-store';
+import { checkCallerWatches } from './mail-watches';
+import { missingWatchTable } from './mail-watches-store';
 
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
@@ -633,7 +636,14 @@ function syncMail(ctx: AppContext): RequestHandler {
       return;
     }
     try {
-      res.json({ provider: mailbox.provider, ...(await syncGmail(ctx.pool, String(callerSub(req)), mailbox.reader, Date.now() + SYNC_BUDGET_MS)) });
+      const sub = String(callerSub(req));
+      const synced = await syncGmail(ctx.pool, sub, mailbox.reader, Date.now() + SYNC_BUDGET_MS);
+      try {
+        await checkCallerWatches({ pool: ctx.pool, logger }, sub, { gmailConnected: true, skipLiveGmail: true });
+      } catch (watchErr) {
+        if (!missingWatchTable(watchErr)) logger.warn({ err: watchErr }, 'Mailbox watch evaluation after sync failed');
+      }
+      res.json({ provider: mailbox.provider, ...synced });
     } catch (err) {
       providerFailure(req, res, err, 'Stored mail sync failed', mailbox.provider);
     }

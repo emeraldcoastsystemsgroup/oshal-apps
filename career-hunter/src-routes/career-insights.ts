@@ -4,6 +4,7 @@
  * SEQ                 | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Insights read off covering indexes. Live 2026-10-12 GET /analytics answered 503 "package response stalled before the next protocol message" after ~10 s on every call and Insights showed all zeros: five aggregates joined the corpus rows, whose lane columns sit after each posting's inline description, so a cold read dragged the 7.4 GB corpus through the page cache (44.3 s measured on a copy of the live corpus, 0.5 s warm). The lane is now read from idx_corpus_insights (active, target_role, company_id, posted_date, state, salary_max), which the engine's CORPUS_SCHEMA creates at the nightly ingest; the caller's scores are read in one sequential pass of user_signals; the five answers are computed from those two reads (2.4 s cold on the same copy). Before the index exists the read refuses at once with InsightsNotReady instead of stalling.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Support optional 7d/30d/90d posted-date windows in readAnalytics while preserving the 1-arg covering-index scan and output byte-for-byte.
  */
 
 /**
@@ -113,7 +114,7 @@ function statusCounts(db: any): Map<string, number> {
  * @param db - The caller's signals database with the tenant corpus attached as `corpus`.
  * @returns {headline, funnel, topCompanies, states, salaryBands}, the shapes the Insights page reads.
  */
-export function readAnalytics(db: any): Record<string, unknown> {
+export function readAnalytics(db: any, windowDays?: number): Record<string, unknown> {
   requireIndex(db);
   const lane = db.prepare(
     `SELECT id, company_id, posted_date, state, salary_max FROM corpus.postings_corpus INDEXED BY ${INSIGHTS_INDEX}
@@ -121,11 +122,14 @@ export function readAnalytics(db: any): Record<string, unknown> {
   ).all() as LaneRow[];
   const scores = laneScores(db);
   const fresh = (db.prepare("SELECT date('now','-7 days') AS d").get() as { d: string }).d;
+  const days = typeof windowDays === 'number' && Number.isFinite(windowDays) && windowDays > 0 ? Math.trunc(windowDays) : 0;
+  const cutoff = days ? (db.prepare("SELECT date('now', ?) AS d").get(`-${days} days`) as { d: string }).d : null;
+  const scoped = cutoff ? lane.filter((row) => row.posted_date !== null && String(row.posted_date) >= cutoff) : lane;
   const groups = new Map<number, Group>();
   const states = new Map<string, number>();
   const bands = new Map<string, number>();
   let fit70 = 0; let fit80 = 0; let fresh7d = 0; let paySum = 0; let payCount = 0;
-  for (const row of lane) {
+  for (const row of scoped) {
     const score = scores.get(Number(row.id)) || 0;
     const group = groups.get(row.company_id) || { roles: 0, scoreSum: 0 };
     group.roles += 1; group.scoreSum += score;
@@ -141,11 +145,11 @@ export function readAnalytics(db: any): Record<string, unknown> {
     bands.set(bandOf(pay), (bands.get(bandOf(pay)) || 0) + 1);
   }
   const status = statusCounts(db);
-  const funnel: Record<string, number> = { sourced: lane.length, qualified: fit70 };
+  const funnel: Record<string, number> = { sourced: scoped.length, qualified: fit70 };
   for (const name of FUNNEL_STATUSES) funnel[name] = status.get(name) || 0;
   return {
     headline: {
-      inlane: lane.length, fit70, fit80, fresh7d,
+      inlane: scoped.length, fit70, fit80, fresh7d,
       avg_pay_fit70: payCount ? Math.trunc(paySum / payCount) : null, companies: groups.size,
     },
     funnel,

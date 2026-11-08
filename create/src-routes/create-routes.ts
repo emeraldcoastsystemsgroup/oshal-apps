@@ -14,6 +14,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve the three fixed PSD import/review/worker modules through the existing view-bound editor route.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Support the shared automatic document save/read/refresh handoff and preserve concurrent drafts and editable layers.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Admit the package-owned shared editor adapter through the existing exact asset allowlist.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | Serve the Create Home work-card and file-import module through the existing exact asset allowlist.
  */
 
 import * as fs from 'node:fs';
@@ -80,7 +81,7 @@ export function createCreateRoutes(ctx: CreateRouteContext): Router {
     'history.mjs', 'renderer.mjs', 'image-assets.mjs', 'hit-test.mjs', 'editor.css',
     'templates.mjs', 'editor-templates.mjs', 'editor-context.mjs', 'editor-handoff.mjs', 'editor-foundation-adapter.mjs', 'brand-kit.mjs', 'brand-page.mjs', 'brand-editor.mjs', 'brand.css',
     'region-select.mjs', 'region-edit-panel.mjs', 'generate-image-panel.mjs', 'group-geometry.mjs', 'vector-geometry.mjs', 'polygon-clipping.mjs', 'vector-worker.mjs', 'vector-editor.mjs', 'vector-svg.mjs',
-    'editor-psd.mjs', 'psd-reader.mjs', 'psd-worker.mjs'];
+    'editor-psd.mjs', 'psd-reader.mjs', 'psd-worker.mjs', 'home-actions.mjs'];
   for (const file of modules) {
     const type = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
     router.get('/editor/' + file, (_req: Request, res: Response) => sendBundled(res, path.join(root, 'tools', 'editor', file), type));

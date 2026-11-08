@@ -2,6 +2,7 @@
 <!-- CHANGE LOG
 1 | maintainer@emeraldcoastsystemsgroup.com | The manual video editor screen (CREATE-EDIT-05d): media, preview, timeline, selected-segment, title, music and export panels over the shared theme tokens, with every control labelled and a keyboard equivalent for every timeline action.
 2 | maintainer@emeraldcoastsystemsgroup.com | 1.13.0, the oshal design standard (docs/ux/design-standard.md §5.0, §5.1): the page declares its contract (an editor whose first action is adding a video), the package stylesheet loads after the shared editor's so the standard's tokens win, and the keyboard list leaves the timeline for More > Keyboard shortcuts.
+3 | maintainer@emeraldcoastsystemsgroup.com | 1.14.0 (RP-VID-01..10): add live preview composite canvas, underlay video element, SVG sticker overlay layer and timed caption overlay inside the preview screen.
 -->
 <html lang="en" data-theme="graphite" data-ds-category="editor" data-ds-first-action="file:video">
 <head>
@@ -54,8 +55,12 @@
     </section>
     <section class="panel preview" aria-labelledby="previewHeading">
       <h2 id="previewHeading">Preview</h2>
-      <div class="screen">
+      <div class="screen" id="previewScreen">
+        <video id="underlayViewer" class="underlay-video" playsinline preload="auto" muted hidden></video>
         <video id="viewer" playsinline preload="auto"></video>
+        <canvas id="compositeCanvas" class="composite-canvas" width="640" height="360" hidden></canvas>
+        <div id="stickerLayer" class="sticker-layer" hidden></div>
+        <div id="captionOverlay" class="title-overlay caption-overlay" hidden></div>
         <div id="titleOverlay" class="title-overlay" hidden></div>
         <p id="noPicture" class="no-picture" hidden>This browser cannot show this clip. Timing and titles still work, and the export includes it.</p>
       </div>

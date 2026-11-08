@@ -21,6 +21,7 @@ body[data-gs-show="whammy"] { --gp-accent: var(--gs-red); }
   --gs-gold: #fbbf24; --gs-gold-2: #f59e0b; --gs-red: #ef4444; --gs-green: #22c55e;
   --gs-ink: #f8fafc; --gs-dim: #b6c2dc; --gs-surface: #0d1433; --gs-surface-2: #1c2652;
   --gs-card: #12193f; --gs-card-hover: #1a2452; --gs-line: rgba(255, 255, 255, .2);
+  --gs-teamA: #38bdf8; --gs-teamB: #f472b6;
   --gp-accent: var(--gs-cyan); color: var(--gs-ink); }
 .gp-studio { flex: 1; min-height: 100vh; background: radial-gradient(1400px 700px at 50% -10%, #1b2860, #0a1030 72%); }
 body[data-gs-show="family-feud"] .gp-studio { --gp-accent: #fbbf24; }

@@ -1,3 +1,4 @@
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | Style active replay mode selectors (RP-OPS-01..02) and the Git explorer Link by URL form panel (RP-OPS-03); remove obsolete planned-control placeholders. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: one compact heading row (screen name for screen readers, an Updated caption, one refresh icon); the Replay a sample sheet with its steps and alert; Connections & access as provider rows beside a settings pane (a sheet on a phone); Live context checklist rows, Advanced disclosure and spacing; planned controls greyed per the design standard section 4.10. */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Narrow screens and the cockpit frame: the page menu is one sticky, swipeable row (labels and footer hidden) instead of sixteen stacked links; tighter header and main padding. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Glass skin over the whole Operations experience, loaded last: the platform's surface-glass variables on every card, the trading application's density (13px text and tables, uppercase muted labels, tabular numbers, status pills), a compact top bar and navigation, compact controls, the Ops console terminal and the compact Git explorer tree and viewer. Layout and behaviour are unchanged; only presentation. */
@@ -160,8 +161,10 @@ a.button{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;b
 button.tertiary{background:transparent;border-color:transparent;color:var(--ops-accent);font-weight:600;min-height:44px}
 .ops-alert{border:1px solid var(--skin-bad);color:var(--ops-text);background:color-mix(in srgb,var(--skin-bad) 10%,var(--ops-card,#fff));border-radius:8px;padding:10px 12px;margin:8px 0}
 .ops-alert button{margin-left:8px}
-[data-ds-not-yet]{color:var(--ds-ink-disabled,#8a94a3)!important;background:var(--ds-surface-2,#eef1f5)!important;border-color:var(--skin-border)!important;cursor:default;opacity:1}
-[data-ds-not-yet] small{display:block;font-size:11px}
+.git-link-url-panel{margin-top:10px;padding-top:10px;border-top:1px solid var(--skin-border);display:grid;gap:10px}
+.git-link-url-panel[hidden],.replay-mode-panel[hidden]{display:none}
+.git-link-url-panel label,.replay-mode-panel label{display:grid;gap:4px;min-width:0}
+.git-link-url-panel input,.git-link-url-panel select,.replay-mode-panel input,.replay-mode-panel select,.replay-mode-panel textarea{width:100%;box-sizing:border-box;min-width:0}
 /* Replay a sample sheet */
 dialog.ops-sheet{padding:0;border:1px solid var(--skin-border);border-radius:16px;background:var(--ops-bg,#fff);color:var(--ops-text);width:min(720px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto}
 dialog.ops-sheet::backdrop{background:rgb(0 0 0 / .45)}
@@ -169,8 +172,9 @@ dialog.ops-sheet::backdrop{background:rgb(0 0 0 / .45)}
 .ops-sheet-head h2{margin:0;font-size:18px}
 .ops-sheet-handle{display:none}
 .ops-sheet-body{padding:12px 16px 20px}
-.replay-choices{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
-.replay-choices button{min-height:44px;text-align:left}
+.replay-choices{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+.replay-choices button{min-height:40px;text-align:left;font-weight:600}
+.replay-choices button[aria-pressed=true]{background:color-mix(in srgb,var(--ops-accent) 18%,var(--skin-control));border-color:var(--ops-accent);color:var(--ops-text)}
 .replay-steps{list-style:none;margin:12px 0;padding:0;display:grid;gap:4px}
 .replay-steps li{display:flex;align-items:center;gap:10px;min-height:36px;padding:4px 8px;border-radius:8px;color:var(--ops-muted)}
 .replay-steps .step-mark{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--skin-border);font-size:13px}

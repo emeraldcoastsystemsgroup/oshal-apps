@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com    | The Social desk routes (Roger, 2026-10-30: Intelligent Communication's Social tab was one profile card; he asked for a publisher's tools a casual person can use to post or stream to two or three services, Slack included). Mounted at /api/email-social: the desk page; the person's channels and who each account is; the Slack channel list; the posting plan; posts (draft, add to the queue's next slot, schedule, post now, edit, delete, retry); the due-post pass the person's social-publish job runs; Engage (Slack DMs and mentions, X mentions, reply); Go Live events whose announcements are posts. Every publish goes out through social-channels on the person's own connection; a request stays inside the kernel's 60 s call (channels in parallel, 12 s each; the due pass stops at 45 s and the next pass continues).
+ * 2   | maintainer@emeraldcoastsystemsgroup.com    | Add owner-scoped PUT /events/:id for editing planned Go Live streams: updates title, start time, destinations and watch link, shifts or replaces unsent announcements while leaving already-sent announcements untouched, and refuses start-time changes once a stream has started.
  */
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
@@ -324,6 +325,63 @@ function createEventRoute(ctx) {
   };
 }
 
+/** Reconcile a Go Live event's announcements on edit: sent posts stay untouched; unsent posts update or shift. */
+async function reconcileEventPosts(ctx, sub, existing, next, list, nowMs) {
+  const all = (await store.listPosts(ctx.pool, sub)).filter((p) => p.eventId === existing.id);
+  const sent = all.filter((p) => p.status === 'sent' || p.status === 'partial' || p.status === 'sending');
+  const unsent = all.filter((p) => p.status !== 'sent' && p.status !== 'partial' && p.status !== 'sending');
+  if (Array.isArray(list)) {
+    for (const u of unsent) await store.deletePost(ctx.pool, sub, u.id);
+    const created = await announce(ctx, sub, await store.readSettings(ctx.pool, sub), existing.id, list, nowMs);
+    return { sent, updated: created };
+  }
+  const deltaMs = Date.parse(next.startAt) - Date.parse(existing.startAt);
+  const shifted = [];
+  for (const u of unsent) {
+    let text = u.text || '';
+    if (existing.title && existing.title !== next.title) text = text.split(existing.title).join(next.title);
+    if (existing.watchUrl && existing.watchUrl !== next.watchUrl) text = text.split(existing.watchUrl).join(next.watchUrl);
+    else if (!existing.watchUrl && next.watchUrl && !text.includes(next.watchUrl)) text = `${text} ${next.watchUrl}`.trim();
+    const prevMs = u.scheduledAt ? Date.parse(u.scheduledAt) : NaN;
+    const scheduledAt = Number.isFinite(prevMs) && deltaMs !== 0 ? new Date(Math.max(nowMs, prevMs + deltaMs)).toISOString() : u.scheduledAt;
+    await store.updatePost(ctx.pool, sub, u.id, { text, scheduledAt });
+    const fresh = await store.readPost(ctx.pool, sub, u.id);
+    if (fresh) shifted.push(fresh);
+  }
+  return { sent, updated: shifted };
+}
+
+/** Edit a Go Live event and shift or replace its unsent announcements while keeping sent ones untouched. */
+function updateEventRoute(ctx) {
+  return async (req, res) => {
+    const sub = callerSub(req);
+    if (!sub) return res.status(401).json({ error: 'not_authenticated' });
+    try {
+      const existing = await store.readEvent(ctx.pool, sub, String(req.params.id));
+      if (!existing) return res.status(404).json({ error: 'not_found', message: 'Stream not found.' });
+      const b = req.body || {};
+      const nowMs = Date.now();
+      const title = b.title !== undefined ? store.bounded(b.title, 200).trim() : existing.title;
+      if (!title) return res.status(400).json({ error: 'no_title', message: 'Give the stream a title.' });
+      const startAtMs = Date.parse(b.startAt !== undefined ? b.startAt : existing.startAt);
+      if (!Number.isFinite(startAtMs)) return res.status(400).json({ error: 'bad_time', message: 'When does it start?' });
+      const existingStartMs = Date.parse(existing.startAt);
+      const started = (Number.isFinite(existingStartMs) && existingStartMs <= nowMs) || Boolean(existing.status && existing.status !== 'planned');
+      const timeChanged = Math.abs(startAtMs - existingStartMs) >= 1000;
+      if (started && timeChanged) return res.status(409).json({ error: 'already_started', message: 'This stream has already started, so its start time cannot be changed.' });
+      if (!started && timeChanged && startAtMs < nowMs - 60000) return res.status(400).json({ error: 'past', message: 'That start time has already passed; choose a later time.' });
+      const destinations = b.destinations !== undefined ? [...new Set((Array.isArray(b.destinations) ? b.destinations : []).map(String))].filter((d) => DESTINATIONS.some((x) => x.id === d)) : existing.destinations;
+      const next = { title, description: b.description !== undefined ? store.bounded(b.description, 2000).trim() : (existing.description || ''), startAt: timeChanged ? new Date(startAtMs).toISOString() : existing.startAt, destinations, watchUrl: b.watchUrl !== undefined ? mediaLink(b.watchUrl) : existing.watchUrl };
+      await store.updateEvent(ctx.pool, sub, existing.id, next);
+      const { sent, updated } = await reconcileEventPosts(ctx, sub, existing, next, b.announcements, nowMs);
+      const posts = [...sent, ...updated];
+      res.json({ event: { ...(await store.readEvent(ctx.pool, sub, existing.id)), posts }, posts, updatedPosts: updated });
+    } catch (err) {
+      fail(res, err, 'update event failed');
+    }
+  };
+}
+
 /**
  * @description Build the Social desk router. The manifest mounts it at /api/email-social (auth: oidc, requiresContext).
  * @param {object} ctx - The application context: pool (admitted SQL), intent (connectors.metadata), appPackageDir.
@@ -359,6 +417,7 @@ function createSocialDeskRoutes(ctx) {
     res.json({ events: events.map((e) => ({ ...e, posts: posts.filter((p) => p.eventId === e.id) })), destinations: DESTINATIONS });
   }));
   router.post('/events', createEventRoute(ctx));
+  router.put('/events/:id', updateEventRoute(ctx));
   router.delete('/events/:id', auth(async (sub, req, res) => res.status((await store.deleteEvent(ctx.pool, sub, String(req.params.id))) ? 200 : 404).json({ ok: true })));
   return router;
 }

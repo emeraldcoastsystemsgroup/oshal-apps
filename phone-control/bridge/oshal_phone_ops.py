@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: learnable BLE pointer calibration (ble-calibrate + ble-profiles.json), RDP X.224 port probe (rdp-probe), and unified screen/pointer/keyboard bridge verbs (screen-info, pointer-move, pointer-click, pointer-drag, keyboard-type, keyboard-key).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: map Android MENU alias to MENU keycode, handle string phone lists in ble-calibrate, and pass target address to BLE keyboard/key ops.
 """Calibration, RDP probe, and unified pointer/keyboard verbs for oshal_phone_bridge.py."""
 
 import io, json, os, re, shutil, socket, struct, time
@@ -23,7 +24,7 @@ IOS_KEY_ALIASES = {
 ANDROID_KEY_ALIASES = {
     'ENTER': 'ENTER', 'RETURN': 'ENTER', 'SELECT': 'OK', 'OK': 'OK',
     'BACKSPACE': 'BACKSPACE', 'ESCAPE': 'BACK', 'ESC': 'BACK', 'BACK': 'BACK', 'TAB': 'TAB',
-    'HOME': 'HOME', 'MENU': 'RECENTS', 'RECENTS': 'RECENTS', 'PLAYPAUSE': 'PLAY_PAUSE', 'PLAY_PAUSE': 'PLAY_PAUSE',
+    'HOME': 'HOME', 'MENU': 'MENU', 'RECENTS': 'RECENTS', 'PLAYPAUSE': 'PLAY_PAUSE', 'PLAY_PAUSE': 'PLAY_PAUSE',
     'UP': 'UP', 'ARROWUP': 'UP', 'DOWN': 'DOWN', 'ARROWDOWN': 'DOWN',
     'LEFT': 'LEFT', 'ARROWLEFT': 'LEFT', 'RIGHT': 'RIGHT', 'ARROWRIGHT': 'RIGHT',
     'VOLUMEUP': 'VOLUME_UP', 'VOLUME_UP': 'VOLUME_UP', 'VOLUMEDOWN': 'VOLUME_DOWN', 'VOLUME_DOWN': 'VOLUME_DOWN',
@@ -110,10 +111,13 @@ def verb_ble_calibrate(ctx, args):
     raw0, dev_w, dev_h, _ = oshal_phone_mirror.latest_mirror_jpeg(ctx)
     if not raw0:
         raise ctx.Refusal('no_mirror_frame', f'Mirroring has no live frame yet. Choose {oshal_phone_mirror.receiver_name()} in iPhone Screen Mirroring first.')
-    homed = ctx.ble_op('home', {})
+    homed = ctx.ble_op('home', {'address': args.get('address')} if args.get('address') else {})
     phones = homed.get('phones') or []
-    address = str(args.get('address') or (phones[0].get('address') if phones else '') or 'DEFAULT').strip().upper()
-    dev_kind = str(args.get('deviceKind') or (phones[0].get('name') if phones else '') or 'iPhone').strip()[:80]
+    first = phones[0] if phones else None
+    addr_hint = first.get('address') if isinstance(first, dict) else ''
+    name_hint = first.get('name') if isinstance(first, dict) else (first or '')
+    address = str(args.get('address') or addr_hint or 'DEFAULT').strip().upper()
+    dev_kind = str(args.get('deviceKind') or name_hint or 'iPhone').strip()[:80]
     pause_s = max(0.02, min(0.8, float(os.environ.get('OSHAL_BLE_CALIB_SETTLE', '0.22'))))
     g0, _, _ = sample_cal_frame(ctx, pause_s)
     dx_slow, dy_slow, dx_fast = 160, 240, 160
@@ -272,7 +276,7 @@ def verb_keyboard_type(ctx, args):
         if enter:
             ctx.verb_adb_key({'serial': target, 'key': 'ENTER'})
         return dict(reply, platform='android', typed=len(text), enter=enter)
-    reply = ctx.ble_op('type', {'text': text, 'enter': enter})
+    reply = ctx.ble_op('type', {'text': text, 'enter': enter, **({'address': target} if target else {})})
     return dict(reply, platform='ios', enter=enter)
 
 
@@ -285,5 +289,5 @@ def verb_keyboard_key(ctx, args):
         reply = ctx.verb_adb_key({'serial': target, 'key': mapped})
         return dict(reply, platform='android', key=mapped)
     mapped = IOS_KEY_ALIASES.get(norm, raw)
-    reply = ctx.ble_op('key', {'key': mapped})
+    reply = ctx.ble_op('key', {'key': mapped, **({'address': target} if target else {})})
     return dict(reply, platform='ios', key=mapped)

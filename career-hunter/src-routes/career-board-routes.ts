@@ -1,5 +1,6 @@
 /**
  * CHANGE LOG
+ * 28 | maintainer@emeraldcoastsystemsgroup.com | Forward optional 7d/30d/90d period window query (?days=) to readAnalytics on GET /analytics.
  * 27 | maintainer@emeraldcoastsystemsgroup.com | Correct only an explicit mistaken manual submission mark through the original-owner write lease, retaining audit history and refusing actual submission evidence.
  * 26 | maintainer@emeraldcoastsystemsgroup.com | Read and revise owner-private additional experience, validate exact per-application selections, and pass explicit saved priorities to board pagination.
  * 25 | maintainer@emeraldcoastsystemsgroup.com | Persist reversible original-owner Not interested feedback through the existing status permission and apply it before feed pagination.
@@ -135,7 +136,9 @@ function getAnalytics(req: Request, res: Response): void {
   if (!userSub) { res.status(401).json({ error: 'unauthorized' }); return; }
   const db = openUserDb(userSub);
   if (!db) { res.json({ empty: true }); return; }
-  try { res.json(readAnalytics(db)); }
+  const rawDays = Number(req.query.days);
+  const windowDays = [7, 30, 90].includes(rawDays) ? rawDays : undefined;
+  try { res.json(readAnalytics(db, windowDays)); }
   catch (err) {
     if (err instanceof InsightsNotReady) {
       logger.warn({ userSub, reason: err.code }, 'career analytics refused: insights index missing');

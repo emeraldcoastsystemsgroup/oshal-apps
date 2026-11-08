@@ -1,14 +1,16 @@
 /**
  * CHANGE LOG
  * -----------------------------------------------------------------------------
- * SEQ | AUTHOR | DESCRIPTION
+ * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
- * 1 | maintainer@emeraldcoastsystemsgroup.com | Sweep 7: the gift hand-off draft carried the saved brief's raw Markdown flattened into one line ('## Top interests - **Aerospace & Physics**: ...'). plainBrief() states the brief as plain sentences (a heading ends with a colon, a list item or line with a full stop, emphasis, code marks and link targets dropped) before it is clipped. Guard: tests/home-summary-dates.test.cjs.
+ * 1   | maintainer@emeraldcoastsystemsgroup.com     | Sweep 7: the gift hand-off draft carried the saved brief's raw Markdown flattened into one line ('## Top interests - **Aerospace & Physics**: ...'). plainBrief() states the brief as plain sentences (a heading ends with a colon, a list item or line with a full stop, emphasis, code marks and link targets dropped) before it is clipped. Guard: tests/home-summary-dates.test.cjs.
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | RP-KL-01: summarize per-child watch histories and briefs from oshal_youtube_children with read-only fallback to legacy oshal_youtube_activity rows when no child profile rows exist yet.
+ * -----------------------------------------------------------------------------
  */
 /** Saved youtube-kids evidence. GET is owner-scoped, bounded, and side-effect free. */
 import { Router } from 'express';
 import type { AppContext } from '@/app/composition/app-context';
-const clip = (v: unknown, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0,cap);
+const clip = (v: unknown, cap = 400) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, cap);
 /** Inline Markdown as text: link labels kept, code and emphasis marks dropped. */
 const plainInline = (t: string) => t.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/`+/g, '').replace(/(\*\*|__)(.+?)\1/g, '$2').replace(/(^|[^\w*])[*_]([^*_\n]+)[*_](?![\w*])/g, '$1$2').trim();
 /** A sentence ends with one mark; a heading reads as a label with a colon. */
@@ -22,34 +24,33 @@ export function plainBrief(md: unknown): string {
     return ended(plainInline((item ? item[1] : line).replace(/^>\s*/, '')), '.');
   }).filter((t) => t && t !== '.' && t !== ':').join(' ');
 }
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const pad2 = (n: number) => String(n).padStart(2,'0');
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const pad2 = (n: number) => String(n).padStart(2, '0');
 /** A date a person reads in a hand-off draft ("Oct 12, 2026 00:05 UTC"), never a raw ISO stamp. */
-const date = (v: unknown) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? MONTHS[d.getUTCMonth()]+' '+d.getUTCDate()+', '+d.getUTCFullYear()+' '+pad2(d.getUTCHours())+':'+pad2(d.getUTCMinutes())+' UTC' : 'date unavailable'; };
+const date = (v: unknown) => { const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear() + ' ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) + ' UTC' : 'date unavailable'; };
+const METRICS_SQL = "SELECT count(*)::text AS imports,coalesce(sum(total_watched),0)::text AS watched,count(*) FILTER(WHERE nullif(trim(brief),'') IS NOT NULL AND brief_at<=$2)::text AS briefs FROM (SELECT total_watched,brief,brief_at,uploaded_at FROM oshal_youtube_children WHERE user_sub = $1 AND uploaded_at IS NOT NULL AND uploaded_at<=$2 UNION ALL SELECT a.total_watched,a.brief,a.brief_at,a.uploaded_at FROM oshal_youtube_activity a WHERE a.user_sub = $1 AND a.uploaded_at<=$2 AND NOT EXISTS(SELECT 1 FROM oshal_youtube_children c WHERE c.user_sub = $1)) s";
+const ITEMS_SQL = "SELECT child_name,uploaded_at,brief_at,left(brief,1400) AS excerpt,total_watched FROM (SELECT name AS child_name,uploaded_at,brief_at,brief,total_watched FROM oshal_youtube_children WHERE user_sub = $1 AND uploaded_at IS NOT NULL AND uploaded_at<=$2 UNION ALL SELECT NULL::text AS child_name,a.uploaded_at,a.brief_at,a.brief,a.total_watched FROM oshal_youtube_activity a WHERE a.user_sub = $1 AND a.uploaded_at<=$2 AND NOT EXISTS(SELECT 1 FROM oshal_youtube_children c WHERE c.user_sub = $1)) s ORDER BY uploaded_at DESC LIMIT 8";
 export function createHomeSummaryRoutes(ctx: AppContext): Router {
- const router = Router();
- router.get('/', async (req, res) => {
-  res.setHeader('Cache-Control','no-store');
-  const oidc = (req as any).oidc, sub = oidc?.user?.sub || oidc?.user?.oid;
-  if (!sub || oidc?.isAuthenticated?.() !== true) { res.status(401).json({error:'not_authenticated'}); return; }
-  const now = new Date();
-  const result = await Promise.allSettled([
-  "SELECT count(*)::text AS imports,coalesce(max(total_watched),0)::text AS watched,count(*) FILTER(WHERE nullif(trim(brief),'') IS NOT NULL AND brief_at<=$2)::text AS briefs FROM oshal_youtube_activity WHERE user_sub = $1 AND uploaded_at<=$2",
-  "SELECT uploaded_at,brief_at,left(brief,1400) AS excerpt,total_watched FROM oshal_youtube_activity WHERE user_sub = $1 AND uploaded_at<=$2"
-].map(text => ctx.pool.query({text,values:[String(sub),now],query_timeout:1800} as any)));
-  const rows = (i: number): any[] => { const r=result[i]; return r.status==='fulfilled' ? r.value.rows : []; };
-  const metrics = [[0,"imports","saved-import","Saved history import"],[0,"watched","imported-records","Imported watch records"],[0,"briefs","saved-brief","Saved parent brief"]].map(([i,key,id,label]) => ({id,label,value:result[Number(i)].status==='fulfilled' ? String(rows(Number(i))[0]?.[key] ?? '0') : 'Unavailable'}));
-  const items: any[] = [];
-  const item = (title: unknown, detail: string, body: string, actions: string[], tone = 'neutral') => {
-   const text = clip(title,120), notes = clip(detail + '\n' + body,2000);
-   items.push({text,detail:clip(detail),tone,fix:"youtube-kids",actions:actions.map(integration => ({integration,context:{title:text,notes}}))});
-  };
-  rows(1).forEach(r=>item('Kid Lens history','Imported '+date(r.uploaded_at),r.brief_at&&new Date(r.brief_at)<=now&&r.excerpt?'Saved AI parent brief from '+date(r.brief_at)+': '+clip(plainBrief(r.excerpt),1400)+' Review interests and choose a gift budget/age range yourself.':'No saved parent brief. Open Kid Lens to request one explicitly.',r.brief_at&&new Date(r.brief_at)<=now&&r.excerpt?['plan-gift','prepare-document']:[]));
-  const failed=result.filter(r => r.status==='rejected').length;
-  if(failed) items.push({text:'Some saved sources cannot be checked.',tone:'warn',fix:"youtube-kids"});
-  else if(!items.length) items.push({text:'No saved work yet. Open the app to begin.',tone:'neutral',fix:"youtube-kids"});
-  items.push({text:"Shows the latest caller-uploaded history snapshot and already-saved parent brief. Imported watch records are not recent screen time; brief age and import age are separate. Explicit gift planning shares a bounded saved brief with Shopping for review, never raw watch history, and does not buy anything or generate a new profile.",tone:'neutral',fix:"youtube-kids"});
-  res.status(failed===result.length ? 503 : 200).json({metrics,tiles:metrics,items,asOf:now.toISOString(),partial:failed>0});
- });
- return router;
+  const router = Router();
+  router.get('/', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const oidc = (req as any).oidc, sub = oidc?.user?.sub || oidc?.user?.oid;
+    if (!sub || oidc?.isAuthenticated?.() !== true) { res.status(401).json({ error: 'not_authenticated' }); return; }
+    const now = new Date();
+    const result = await Promise.allSettled([METRICS_SQL, ITEMS_SQL].map((text) => ctx.pool.query({ text, values: [String(sub), now], query_timeout: 1800 } as any)));
+    const rows = (i: number): any[] => { const r = result[i]; return r.status === 'fulfilled' ? r.value.rows : []; };
+    const metrics = [[0, 'imports', 'saved-import', 'Saved history import'], [0, 'watched', 'imported-records', 'Imported watch records'], [0, 'briefs', 'saved-brief', 'Saved parent brief']].map(([i, key, id, label]) => ({ id, label, value: result[Number(i)].status === 'fulfilled' ? String(rows(Number(i))[0]?.[key] ?? '0') : 'Unavailable' }));
+    const items: any[] = [];
+    const item = (title: unknown, detail: string, body: string, actions: string[], tone = 'neutral') => {
+      const text = clip(title, 120), notes = clip(detail + '\n' + body, 2000);
+      items.push({ text, detail: clip(detail), tone, fix: 'youtube-kids', actions: actions.map((integration) => ({ integration, context: { title: text, notes } })) });
+    };
+    rows(1).forEach((r) => item(r.child_name ? `Kid Lens · ${r.child_name}` : 'Kid Lens history', 'Imported ' + date(r.uploaded_at), r.brief_at && new Date(r.brief_at) <= now && r.excerpt ? 'Saved AI parent brief from ' + date(r.brief_at) + ': ' + clip(plainBrief(r.excerpt), 1400) + ' Review interests and choose a gift budget/age range yourself.' : 'No saved parent brief. Open Kid Lens to request one explicitly.', r.brief_at && new Date(r.brief_at) <= now && r.excerpt ? ['plan-gift', 'prepare-document'] : []));
+    const failed = result.filter((r) => r.status === 'rejected').length;
+    if (failed) items.push({ text: 'Some saved sources cannot be checked.', tone: 'warn', fix: 'youtube-kids' });
+    else if (!items.length) items.push({ text: 'No saved work yet. Open the app to begin.', tone: 'neutral', fix: 'youtube-kids' });
+    items.push({ text: 'Shows the latest caller-uploaded history snapshot and already-saved parent brief per child. Imported watch records are not recent screen time; brief age and import age are separate. Explicit gift planning shares a bounded saved brief with Shopping for review, never raw watch history, and does not buy anything or generate a new profile.', tone: 'neutral', fix: 'youtube-kids' });
+    res.status(failed === result.length ? 503 : 200).json({ metrics, tiles: metrics, items, asOf: now.toISOString(), partial: failed > 0 });
+  });
+  return router;
 }

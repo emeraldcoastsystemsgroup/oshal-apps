@@ -17,6 +17,7 @@ exports.createVideoEditorRoutes = createVideoEditorRoutes;
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Extend the existing private timeline/store/export contract with bounded v2 tracks, linked clips, color/fades/keyframes and timed captions.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | Serve editor effect/sticker/sheet modules, advertise 720p/1080p/4K 30/60fps export profiles, and mount auto-caption, voice TTS and CC0 sound-library routes.
  */
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
@@ -37,11 +38,14 @@ const video_editor_export_routes_1 = require("./video-editor-export-routes");
 const video_editor_export_store_1 = require("./video-editor-export-store");
 const video_editor_motion_1 = require("./video-editor-motion");
 const video_editor_native_1 = require("./video-editor-native");
+const video_editor_speech_1 = require("./video-editor-speech");
 const logger = (0, logger_1.createChildLogger)({ module: 'video-editor-routes' });
 /** The editor screen's only files: a fixed name-to-type allowlist, never a path taken from the request. */
 const EDITOR_ASSETS = Object.freeze({
     'artifact-import.mjs': 'text/javascript; charset=utf-8', 'editor-foundation-adapter.mjs': 'text/javascript; charset=utf-8', 'editor.css': 'text/css; charset=utf-8', 'editor.mjs': 'text/javascript; charset=utf-8', 'editor-api.mjs': 'text/javascript; charset=utf-8',
     'editor-player.mjs': 'text/javascript; charset=utf-8', 'editor-export.mjs': 'text/javascript; charset=utf-8',
+    'editor-effects.mjs': 'text/javascript; charset=utf-8', 'editor-stickers.mjs': 'text/javascript; charset=utf-8',
+    'editor-rp-sheets.mjs': 'text/javascript; charset=utf-8',
     'timeline-view.mjs': 'text/javascript; charset=utf-8', 'timeline-model.mjs': 'text/javascript; charset=utf-8',
     'timeline-validation.mjs': 'text/javascript; charset=utf-8', 'multitrack-model.mjs': 'text/javascript; charset=utf-8', 'multitrack-editor.mjs': 'text/javascript; charset=utf-8',
     'multitrack-validation.mjs': 'text/javascript; charset=utf-8',
@@ -201,6 +205,7 @@ function projectWrites(router, env) {
 /** What this installation actually accepts; the browser reads it instead of assuming. */
 function capabilities() {
     return { profile: { id: 'hd720p30', width: 1280, height: 720, fps: 30, video: 'h264', audio: 'aac', sampleRate: 48000 },
+        exportProfiles: ['hd720p30', 'hd720p60', 'hd1080p30', 'hd1080p60', 'uhd4k30', 'uhd4k60'],
         uploads: { video: { container: 'mp4', videoCodecs: ['h264'], audioCodecs: ['aac'], maxBytes: video_editor_types_1.EDITOR_LIMITS.clipBytes, maxSeconds: video_editor_types_1.EDITOR_LIMITS.clipSeconds,
                 maxDimension: video_editor_types_1.EDITOR_LIMITS.maxDimension, maxPixels: video_editor_types_1.EDITOR_LIMITS.maxPixels, maxFps: video_editor_types_1.EDITOR_LIMITS.maxFps },
             audio: { container: 'wav', audioCodecs: ['pcm_s16le', 'pcm_s24le', 'pcm_s32le', 'pcm_f32le'], maxBytes: video_editor_types_1.EDITOR_LIMITS.bedBytes, maxSeconds: video_editor_types_1.EDITOR_LIMITS.bedSeconds } },
@@ -235,6 +240,7 @@ function createVideoEditorRoutes(ctx, options = {}) {
     router.get('/editor/capabilities', (0, video_editor_http_1.admit)(env, 'view'), (0, video_editor_http_1.handler)(env, 'view', async (_req, res) => { res.json(capabilities()); }));
     router.get('/editor/permissions', (0, video_editor_http_1.admit)(env, 'view'), (0, video_editor_http_1.handler)(env, 'view', async (_req, res) => { res.json({ permissions: await (0, video_authorization_1.editorPermissions)(ctx), nativeMedia: await (0, video_editor_native_1.nativeMedia)(env) }); }));
     (0, video_editor_motion_1.motionRoutes)(router, env);
+    (0, video_editor_speech_1.registerSpeechRoutes)(router, env);
     pageRoutes(router, env);
     mediaRoutes(router, env);
     projectReads(router, env);

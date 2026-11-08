@@ -7,6 +7,7 @@ exports.ExportRunner = exports.EXPORT_LIMITS = exports.PROCESS_EPOCH = void 0;
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Bounded export jobs for the manual video editor (CREATE-EDIT-05c): one active encode per Video process, one job per owner, at most four queued with a 30-second queue deadline. Each job re-checks current authority when it starts, every few seconds while encoding and again before it publishes; runs in its own private work directory that is always removed; is cancelled, timed out or revoked by aborting only its own tracked child (TERM, then KILL); and publishes its verified output only through a compare-and-set on the job row, so a cancelled, stale or deleted job can never leave a success behind.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Support 720p/1080p/4K 30/60fps export profiles and private sticker PNG staging.
  */
 const node_async_hooks_1 = require("node:async_hooks");
 const node_crypto_1 = require("node:crypto");
@@ -22,7 +23,7 @@ const logger = (0, logger_1.createChildLogger)({ module: 'video-edit-export-jobs
 exports.PROCESS_EPOCH = (0, node_crypto_1.randomUUID)();
 /** @description The first-slice job bounds from video/EDITOR-PLAN.md. */
 exports.EXPORT_LIMITS = Object.freeze({ maxQueued: 4, queueMs: 30000, wallMs: 120000, graceMs: 2000, recheckMs: 5000,
-    outputBytes: 268435456, threads: 2 });
+    outputBytes: 536870912, threads: 2 });
 function hashFile(file) {
     return new Promise((done, fail) => {
         const hash = (0, node_crypto_1.createHash)('sha256');
@@ -138,6 +139,7 @@ class ExportRunner {
     async encode(job, active, work) {
         const prepared = await job.prepare();
         const compiled = (0, video_edit_compiler_1.compileTimeline)({ document: prepared.document, media: prepared.media, variant: prepared.variant,
+            resolution: prepared.resolution, fps: prepared.fps,
             fontFile: this.options.fontFile ?? (process.env.VIDEO_CAPTION_FONT || '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'), threads: this.limits.threads });
         for (const file of compiled.files)
             await (0, promises_1.writeFile)((0, node_path_1.join)(work, file.name), file.text, { flag: 'wx', mode: 0o600 });

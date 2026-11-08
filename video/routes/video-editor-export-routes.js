@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Export routes for the manual video editor (CREATE-EDIT-05c): request an export or a low-resolution preview of one saved revision, read a job and its live progress, cancel only an owned job, and download a verified success. A job resolves and re-hashes the owner's media only after it has re-checked current authority at start; polling never creates or retries work.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Preserve legacy routes while enabling bounded original-owner native media transport.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Accept 720p/1080p/4K resolution and 30/60fps options on export requests.
  */
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
@@ -25,6 +26,22 @@ function variant(value) {
         return 'preview';
     throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_variant');
 }
+function parseProfileOptions(body) {
+    const resolution = body.resolution;
+    if (resolution !== undefined && resolution !== '720p' && resolution !== '1080p' && resolution !== '4k') {
+        throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_profile');
+    }
+    const fps = body.fps;
+    if (fps !== undefined && fps !== 30 && fps !== 60) {
+        throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_export_profile');
+    }
+    return { resolution: resolution, fps: fps };
+}
+function profileToOptions(profile) {
+    const resolution = profile.startsWith('uhd4k') ? '4k' : profile.startsWith('hd1080p') ? '1080p' : '720p';
+    const fps = profile.endsWith('60') ? 60 : 30;
+    return { resolution, fps };
+}
 /** Resolve and verify everything one job reads, as the job, after its start-time authority check. */
 async function prepare(env, owner, job, sha256) {
     const snapshot = await env.exportStore.verifiedSnapshot(owner, job.projectId, job.revision, sha256);
@@ -34,7 +51,8 @@ async function prepare(env, owner, job, sha256) {
         await (0, video_editor_media_1.verifyMediaDigest)(file, row);
         media[key] = file;
     }
-    return { document: snapshot.document, media, variant: job.variant, outputFile: (0, video_editor_media_1.exportPath)(env.dataRoot, owner, job.id) };
+    const { resolution, fps } = profileToOptions(job.profile);
+    return { document: snapshot.document, media, variant: job.variant, resolution, fps, outputFile: (0, video_editor_media_1.exportPath)(env.dataRoot, owner, job.id) };
 }
 async function removePruned(env, owner, pruned) {
     for (const row of pruned) {
@@ -56,13 +74,14 @@ function registerExportRoutes(router, env) {
     if ((0, video_editor_native_1.nativeExportRoutes)(router, env))
         return;
     router.post('/editor/projects/:id/exports', (0, video_editor_http_1.admit)(env, 'export'), video_editor_http_1.bodyParser, (0, video_editor_http_1.handler)(env, 'export', async (req, res, owner) => {
-        (0, video_editor_validation_1.exactFields)(req.body ?? {}, ['id', 'revision', 'variant']);
+        (0, video_editor_validation_1.exactFields)(req.body ?? {}, ['id', 'revision', 'variant', 'resolution', 'fps']);
         if (req.body.id !== undefined && (0, video_editor_validation_1.editorId)(req.body.id) !== (0, video_editor_validation_1.editorId)(req.params.id))
             throw new video_editor_types_1.EditorError(400, 'invalid_video_edit_id');
         const projectId = (0, video_editor_validation_1.editorId)(req.params.id), revision = (0, video_editor_validation_1.baseRevision)(req.body.revision), kind = variant(req.body.variant);
+        const profileOptions = parseProfileOptions(req.body ?? {});
         if (env.exports.holds(owner))
             throw new video_editor_types_1.EditorError(409, 'video_edit_export_in_progress');
-        const created = await env.exportStore.create(owner, projectId, revision, kind, env.exports.epoch, (0, video_editor_http_1.confirm)(env, 'export', owner));
+        const created = await env.exportStore.create(owner, projectId, revision, kind, env.exports.epoch, (0, video_editor_http_1.confirm)(env, 'export', owner), profileOptions);
         await removePruned(env, owner, created.pruned);
         try {
             env.exports.admit({ id: created.record.id, owner, authorize: (0, video_editor_http_1.confirm)(env, 'export', owner),

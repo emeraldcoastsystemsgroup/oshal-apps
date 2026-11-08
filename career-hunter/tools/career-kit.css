@@ -4,7 +4,9 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: the design standard's --ds-* tokens, derived from the active palette the same way the platform derives them (the platform file is not served yet), and one small Career kit every Career screen shares: primary, secondary, tertiary and destructive buttons, labelled fields, empty state, alert with Retry, segmented stages, sheet, row menu, in-page confirm. Imported by career-theme.css; the Job Board links it directly.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Design standard finish (D1=glass, D2=c): keep segmented chips, icon buttons and saved captions strictly on the radius ({6,10,14,20}) and font ({12,14,15,16,18,24,32}) scales, contain page overscroll, enforce opaque controls with visible 2px focus rings, and support drop-zone file inputs.
  */
+:where(html[data-career-surface], html[data-career-surface] body) { overscroll-behavior: contain; }
 /* ── Design standard kit (UX audit 2026-11-06) ────────────────────────────────────────────
    The --ds-* tokens use the platform's own formulas (docs/ux/design-standard.md §2.11). Both rules
    sit at zero specificity, so when the platform's design-tokens.css is served the later file wins
@@ -38,6 +40,7 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: var(--ds-target); padding: 0 16px; border-radius: var(--ds-radius-m);
   font-weight: 600; font-size: 15px; line-height: 1.2; font-family: inherit; cursor: pointer; text-decoration: none; white-space: nowrap;
+  backdrop-filter: none; -webkit-backdrop-filter: none; background-image: none; box-shadow: none; transition: background-color 140ms ease, border-color 140ms ease;
 }
 .ck-primary { background: var(--ds-accent); color: var(--ds-on-accent); border: 0; }
 .ck-primary:hover { box-shadow: inset 0 0 0 1px var(--ds-on-accent); }
@@ -50,8 +53,11 @@
   background: var(--ds-surface-2); color: var(--ds-ink-disabled); border-color: var(--ds-hairline); opacity: 1; cursor: default; box-shadow: none;
 }
 .ck-icon { display: inline-flex; align-items: center; justify-content: center; width: var(--ds-target); height: var(--ds-target);
-  border: 0; border-radius: var(--ds-radius-m); background: none; color: var(--ds-ink); font-size: 20px; cursor: pointer; }
+  border: 0; border-radius: var(--ds-radius-m); background: none; color: var(--ds-ink); font-size: 18px; cursor: pointer; }
 .ck-icon:hover { background: var(--ds-surface-3); }
+:where(html[data-career-surface]) :is(.ck-primary, .ck-btn, .ck-danger, .ck-tertiary, .ck-icon, .ck-seg > button, .ck-seg > a):focus-visible {
+  outline: 2px solid var(--ds-accent); outline-offset: 2px;
+}
 
 /* Forms (§4.7): the label above its control. */
 .ck-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -80,8 +86,9 @@
 .ck-seg { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0 8px; margin: 0 0 12px; }
 .ck-seg::-webkit-scrollbar { display: none; }
 .ck-seg > :is(button, a) { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: var(--ds-target); padding: 0 14px;
-  border: 1px solid var(--ds-line-control); border-radius: 999px; background: var(--ds-surface-2); color: var(--ds-ink);
-  font-weight: 600; font-size: 14px; line-height: 1; font-family: inherit; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  border: 1px solid var(--ds-line-control); border-radius: var(--ds-radius-xl); background: var(--ds-surface-2); color: var(--ds-ink);
+  font-weight: 600; font-size: 14px; line-height: 1; font-family: inherit; cursor: pointer; text-decoration: none; white-space: nowrap;
+  backdrop-filter: none; -webkit-backdrop-filter: none; background-image: none; box-shadow: none; }
 .ck-seg > :is(button, a) .n { font-weight: 400; color: var(--ds-ink-2); }
 .ck-seg > :is([aria-selected="true"], [aria-pressed="true"], [aria-current="page"]) { background: var(--ds-ink); color: var(--ds-page); border-color: var(--ds-ink); }
 .ck-seg > :is([aria-selected="true"], [aria-pressed="true"], [aria-current="page"]) .n { color: inherit; }
@@ -114,6 +121,9 @@ dialog.ck-sheet > footer { display: flex; justify-content: flex-end; gap: 8px; p
 .ck-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--ds-bad);
   border-radius: var(--ds-radius-m); background: var(--ds-surface); color: var(--ds-ink); font-size: 15px; }
 .ck-confirm > span { flex: 1 1 200px; }
-.ck-saved { color: var(--ds-ink-2); font-size: 13px; }
+.ck-saved { color: var(--ds-ink-2); font-size: 12px; }
+.ck-dropzone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 10px 14px;
+  border: 1px dashed var(--ds-line-control); border-radius: var(--ds-radius-m); background: var(--ds-surface-2); color: var(--ds-ink); cursor: pointer; }
+.ck-dropzone:hover, .ck-dropzone.dragover { border-color: var(--ds-accent); background: var(--ds-surface-3); }
 /* The kit's display rules never override the hidden attribute. */
-:is(.ck-primary, .ck-btn, .ck-danger, .ck-tertiary, .ck-icon, .ck-field, .ck-empty, .ck-alert, .ck-seg, .ck-confirm)[hidden] { display: none; }
+:is(.ck-primary, .ck-btn, .ck-danger, .ck-tertiary, .ck-icon, .ck-field, .ck-empty, .ck-alert, .ck-seg, .ck-confirm, .ck-dropzone)[hidden] { display: none; }

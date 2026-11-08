@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: Kid Lens Review is merged into the Kid Lens brief. The manifest has one tab and no fixed theme; the old review address opens the brief; the brief's buttons wear the theme (no fixed pink) and Re-analyze leads only when a new export waits; Upload new export has a Cancel back to the brief; the upload view names watch-history.json while the Takeout archive service is absent (the .zip and Dropbox ways appear only when it answers) and asks once per page; brief headings meet 4.5:1 on a light theme; the three stat tiles share one row on a phone. Chromium over the shipped tools/ files with the package's JSON routes stubbed and the light-blue theme tokens as a fixture.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | The Child ▾ planned control (DS-45, RP-KL-01) at the left of the header: aria-disabled, its backlog id, opacity 1, not the accent, and a press makes no request and changes nothing.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | UX audit P1 (the dead 'Your next brief' form): the review template behind the redirect, run with stub platform modules, keeps the brief hidden and draws no 'Use this evidence' when no connected action renders (or the module throws), and shows both when one does.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | RP-KL-01: replace the Child ▾ planned-control test with a live Playwright test proving the Child ▾ switcher opens, adds a child profile, switches briefs per child, and carries zero data-ds-backlog attributes.
  * -----------------------------------------------------------------------------
  *
  * Needs the store toolchain (express, js-yaml, playwright, chromium).
@@ -33,12 +34,31 @@ const BRIEF = '## Top interests\n- Minecraft builds\n## Gift ideas\n- **LEGO** s
 /** @description Serve the shipped pages with stubbed reads; `opts` sets the export/brief times and the archive service. */
 function serve(opts) {
   const calls = { takeout: 0 };
+  const children = opts.children ? opts.children.map((c) => ({ ...c })) : [
+    { childId: 'leo', name: 'Leo', hasData: true, totalWatched: 1204, hasBrief: true, brief: BRIEF, uploadedAt: opts.uploadedAt, briefAt: opts.briefAt, dateRange: { from: '2026-01-02T00:00:00Z', to: '2026-11-01T00:00:00Z' } },
+  ];
   const app = express();
+  app.use(express.json());
   app.get('/api/youtube-kids/', (_req, res) => res.sendFile(path.join(TOOLS, 'youtube-kids-dashboard.html')));
   app.get('/api/youtube-kids/review', (_req, res) => res.sendFile(path.join(TOOLS, 'review.html')));
-  app.get('/api/youtube-kids/status', (_req, res) => res.json({ hasData: true, totalWatched: 1204, hasBrief: true,
-    dateRange: { from: '2026-01-02T00:00:00Z', to: '2026-11-01T00:00:00Z' }, uploadedAt: opts.uploadedAt, briefAt: opts.briefAt }));
-  app.get('/api/youtube-kids/brief', (_req, res) => res.json({ brief: BRIEF, briefAt: opts.briefAt, hasData: true, analyzed: true, cached: true }));
+  app.get('/api/youtube-kids/children', (_req, res) => res.json({ children, maxChildren: 8 }));
+  app.post('/api/youtube-kids/children', (req, res) => {
+    const name = String(req.body?.name || '').trim();
+    const childId = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const created = { childId, name, hasData: false, totalWatched: 0, hasBrief: false, brief: null, uploadedAt: null, briefAt: null, dateRange: null };
+    children.push(created);
+    res.status(201).json({ ok: true, child: created, children, maxChildren: 8 });
+  });
+  app.get('/api/youtube-kids/status', (req, res) => {
+    const c = req.query.childId ? children.find((x) => x.childId === req.query.childId) : children[0];
+    if (!c || !c.hasData) return res.json({ hasData: false, childId: c?.childId, childName: c?.name });
+    return res.json({ hasData: true, childId: c.childId, childName: c.name, totalWatched: c.totalWatched, hasBrief: c.hasBrief, dateRange: c.dateRange, uploadedAt: c.uploadedAt, briefAt: c.briefAt });
+  });
+  app.get('/api/youtube-kids/brief', (req, res) => {
+    const c = req.query.childId ? children.find((x) => x.childId === req.query.childId) : children[0];
+    if (!c || !c.hasData) return res.json({ brief: null, hasData: false, analyzed: false });
+    return res.json({ brief: c.brief, briefAt: c.briefAt, childId: c.childId, childName: c.name, hasData: true, analyzed: Boolean(c.brief), cached: true });
+  });
   app.get('/api/takeout/dropbox/list', (_req, res) => { calls.takeout += 1; return opts.archive ? res.json({ candidates: [] }) : res.status(404).json({ refused: 'not_found' }); });
   app.get('/shared/ui/css/surface-themes.css', (_req, res) => res.type('css').send(LIGHT_BLUE));
   app.get('/shared/ui/js/surface-theme.js', (_req, res) => res.type('js').send("document.documentElement.dataset.theme='light-blue';"));
@@ -173,16 +193,33 @@ test('with the Takeout archive service the upload view offers the .zip and the D
   });
 });
 
-test('Child ▾ is a planned control at the left of the header (RP-KL-01)', async () => {
-  await withPage({ uploadedAt: '2026-11-01T00:00:00Z', briefAt: '2026-11-02T00:00:00Z' }, async (page, server) => {
+test('Child ▾ is a live household profile switcher at the left of the header with no backlog placeholder (RP-KL-01)', async () => {
+  await withPage({
+    uploadedAt: '2026-11-01T00:00:00Z',
+    briefAt: '2026-11-02T00:00:00Z',
+    children: [
+      { childId: 'leo', name: 'Leo', hasData: true, totalWatched: 1204, hasBrief: true, brief: '## Top interests\n- Space rockets', uploadedAt: '2026-11-01T00:00:00Z', briefAt: '2026-11-02T00:00:00Z', dateRange: { from: '2026-01-02T00:00:00Z', to: '2026-11-01T00:00:00Z' } },
+      { childId: 'maya', name: 'Maya', hasData: true, totalWatched: 840, hasBrief: true, brief: '## Top interests\n- Watercolor painting', uploadedAt: '2026-11-01T00:00:00Z', briefAt: '2026-11-02T00:00:00Z', dateRange: { from: '2026-02-01T00:00:00Z', to: '2026-11-01T00:00:00Z' } },
+    ],
+  }, async (page, server) => {
     await page.goto(server.base + '/api/youtube-kids/');
     await page.locator('.brief').waitFor();
-    const first = await page.$eval('.head', (h) => h.firstElementChild.id);
-    assert.equal(first, 'childNotYet', 'Child ▾ is the first thing in the header');
-    assert.match(await page.textContent('#childNotYet'), /Child ▾/);
-    const calls = server.calls.takeout;
-    await probePlanned(page, '#childNotYet', 'RP-KL-01', '--accent');
-    assert.equal(server.calls.takeout, calls, 'a press asks the server nothing');
+    assert.equal(await page.locator('[data-ds-backlog], [data-ds-not-yet]').count(), 0, 'no planned placeholder remains');
+    assert.equal(await page.$eval('.head', (h) => h.firstElementChild.id), 'childPicker', 'Child ▾ sits first in the header');
+    assert.match(await page.textContent('#childPickerBtn'), /Leo ▾/);
+    assert.match(await page.textContent('.brief'), /Space rockets/);
+
+    await page.locator('#childPickerBtn').click();
+    await page.locator('#childSel_1').click();
+    await page.waitForFunction(() => document.querySelector('.brief')?.textContent?.includes('Watercolor painting'));
+    assert.match(await page.textContent('#childPickerBtn'), /Maya ▾/);
+
+    await page.locator('#childPickerBtn').click();
+    await page.locator('#newChildName').fill('Sam');
+    await page.locator('#addChildBtn').click();
+    await page.locator('#dropHead').waitFor();
+    assert.match(await page.textContent('#childPickerBtn'), /Sam ▾/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   });
 });
 

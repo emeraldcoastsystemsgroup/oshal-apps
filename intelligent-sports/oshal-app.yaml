@@ -1,6 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL application GROUP — Intelligent Sports (ADR-141)
 # 1.0.0 | maintainer@emeraldcoastsystemsgroup.com | Initial — the operator's Q4 decision on ADR-146 (2026-09-27): fantasy-football and sports-edge ship as two packages bundled by this group. Metadata only: every tile is borrowed from a member by app + surface name; no route, bot, tool or migration of its own.
+# 1.0.3 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant Concierge (F22): bind the group concierge to fantasy-quant (the canonical concierge of default member fantasy-football) now that both members own specialist concierges instead of general-bot.
 #
 # A group carries NO code. It binds two installed applications into one front door:
 #   fantasy-football  manage your own fantasy team: the lineup that beats this week's opponent
@@ -26,12 +27,12 @@ description: >-
   One front door for sport: manage your own fantasy football team, and follow a team's next game
   with an odds maker that is graded on closing-line value before it may stake anything. Each
   destination remains owned by its member app.
-version: 1.0.2
+version: 1.0.3
 status: active
 scope: public
 theme: light-blue
-# Both members hand their right rail to the stable framework concierge; the group borrows it.
-chatBot: general-bot
+# fantasy-football is the default required member, so its fantasy-quant concierge owns the group right rail.
+chatBot: fantasy-quant
 
 source:
   type: git-subdir

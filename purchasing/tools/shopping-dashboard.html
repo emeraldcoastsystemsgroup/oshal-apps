@@ -1,9 +1,17 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="midnight" data-ds-category="collection" data-ds-first-action="none">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>List</title>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                  | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 collection contract, mobile touch targets, and clean header chrome.
+-->
+
   <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
   <script src="/shared/ui/js/surface-theme.js"></script>
   <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household's shopping list
@@ -92,11 +100,11 @@
        Checkout are shown only when the readiness read (GET /deals) says this installation has a retail rail; without
        one they are not rendered at all. Errors are an alert in the error colour where the work is, never green header
        text. No inner Shop | List | Deals bar: the application's screens are the navigation. -->
-  <main class="list-screen">
+  <main class="list-screen" data-ds-work>
     <form id="add-form" class="add-item" autocomplete="off">
       <label class="sr-only" for="add-title">Add an item</label>
       <input id="add-title" type="text" maxlength="300" placeholder="Add an item" enterkeyhint="done" />
-      <button type="submit" class="primary" id="add-btn">Add</button>
+      <button type="submit" class="primary" id="add-btn" data-ds-primary>Add</button>
     </form>
     <div id="alert" class="alert hidden" role="alert"></div>
     <p id="status" class="status-line" role="status"></p>
@@ -132,32 +140,32 @@
     .list-screen { padding: 16px; max-width: 760px; margin: 0 auto; }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     .add-item { display: flex; gap: 8px; margin-bottom: 12px; }
-    .add-item input { flex: 1; min-width: 0; min-height: 44px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; background: var(--card); color: var(--ink); }
+    .add-item input { flex: 1; min-width: 0; min-height: 44px; padding: 10px 14px; border: 1px solid var(--ds-line-control, var(--line)); border-radius: 10px; font-size: 16px; background: var(--ds-surface, var(--card)); color: var(--ink); }
     .add-item .primary { min-height: 44px; }
-    .alert { color: var(--status-error, #b91c1c); border: 1px solid var(--status-error, #b91c1c); background: var(--card); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
-    .status-line { color: var(--muted); font-size: 13px; min-height: 0; margin: 4px 2px; }
+    .alert { color: var(--status-error, #b91c1c); border: 1px solid var(--status-error, #b91c1c); background: var(--card); border-radius: 10px; padding: 10px 12px; margin: 8px 0; font-size: 14px; line-height: 20px; }
+    .status-line { color: var(--muted); font-size: 14px; line-height: 20px; min-height: 0; margin: 4px 2px; }
     .status-line:empty { display: none; }
     .list-row { gap: 8px; padding: 6px 8px; }
     .list-row.done .lr-title { text-decoration: line-through; color: var(--muted); }
-    .tick { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .tick { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; cursor: pointer; }
     .tick input { width: 22px; height: 22px; }
     .stepper { display: inline-flex; align-items: center; gap: 2px; flex: none; }
-    .stepper button { width: 44px; height: 44px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; font-size: 18px; cursor: pointer; }
-    .stepper output { min-width: 24px; text-align: center; font-weight: 600; }
+    .stepper button { width: 44px; height: 44px; border: 1px solid var(--ds-line-control, var(--line)); background: var(--ds-surface, var(--card)); color: var(--ink); border-radius: 10px; font-size: 18px; cursor: pointer; }
+    .stepper output { min-width: 24px; text-align: center; font-weight: 600; font-size: 14px; }
     .row-more { position: relative; flex: none; }
     .row-more summary { list-style: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 10px; font-size: 20px; }
     .row-more summary::-webkit-details-marker { display: none; }
-    .row-more .menu { position: absolute; right: 0; top: 46px; z-index: 5; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 4px; min-width: 140px; }
-    .row-more .menu button { width: 100%; min-height: 44px; text-align: left; background: none; border: 0; color: var(--status-error, #b91c1c); font: inherit; cursor: pointer; padding: 0 12px; }
+    .row-more .menu { position: absolute; right: 0; top: 46px; z-index: 5; background: var(--ds-surface, var(--bg-card-solid, var(--card))); border: 1px solid var(--line); border-radius: 10px; padding: 4px; min-width: 140px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+    .row-more .menu button { width: 100%; min-height: 44px; text-align: left; background: none; border: 0; color: var(--status-error, #b91c1c); font: inherit; font-size: 14px; cursor: pointer; padding: 0 12px; }
     .list-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
-    .secondary { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; font-weight: 700; cursor: pointer; }
+    .secondary { min-height: 44px; padding: 0 18px; border: 1px solid var(--ds-line-control, var(--line)); background: var(--ds-surface, var(--card)); color: var(--ink); border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
     .secondary:disabled { opacity: 1; color: var(--muted); background: var(--subtle, var(--card)); cursor: default; }
-    .deals-title { font-size: 16px; margin: 22px 0 0; }
+    .deals-title { font-size: 16px; line-height: 24px; margin: 22px 0 0; }
     .prefs { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 10px; }
-    .prefs summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; }
-    .pref-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--line); }
-    .pref-row input { width: 55%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 16px; background: var(--card); color: var(--ink); }
-    .pref-usuals { color: var(--muted); text-align: right; }
+    .prefs summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 700; font-size: 14px; }
+    .pref-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .pref-row input { width: 55%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--ds-line-control, var(--line)); border-radius: 10px; font-size: 16px; background: var(--ds-surface, var(--card)); color: var(--ink); }
+    .pref-usuals { color: var(--muted); text-align: right; font-size: 14px; }
   </style>
 
   <script>
@@ -292,8 +300,8 @@
       plus.addEventListener('click', () => updateRow(i, { quantity: qty + 1 }));
       step.append(minus, out, plus);
       const more = document.createElement('details'); more.className = 'row-more';
-      const sum = document.createElement('summary'); sum.textContent = '⋯'; sum.setAttribute('aria-label', 'More for ' + (i.title || 'this item'));
-      const menu = document.createElement('div'); menu.className = 'menu';
+      const sum = document.createElement('summary'); sum.textContent = '⋯'; sum.setAttribute('aria-label', 'More for ' + (i.title || 'this item')); sum.title = 'More for ' + (i.title || 'this item');
+      const menu = document.createElement('div'); menu.className = 'menu'; menu.setAttribute('data-no-glass', '');
       const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'rm'; rm.textContent = 'Remove';
       rm.addEventListener('click', async () => { await api('/lists/' + listId + '/items/' + encodeURIComponent(i.item_id), { method: 'DELETE' }); loadList(); });
       menu.append(rm); more.append(sum, menu);
@@ -381,6 +389,14 @@
     if (!window.AppView || !AppView.active()) {
       receiveHandoff({ app: 'purchasing', action: 'plan-purchase', contextType: 'planning-brief', version: 1, fields: ['title', 'notes', 'sourceUrl'] },
         (context) => { const field = document.getElementById('add-title'); field.value = String(context.title || '').slice(0, 300); field.focus(); });
+      document.addEventListener('toggle', (e) => {
+        if (e.target && e.target.tagName === 'DETAILS' && e.target.open) {
+          try { history.pushState({ shopDisclosure: 1 }, ''); } catch {}
+        }
+      }, true);
+      window.addEventListener('popstate', () => {
+        document.querySelectorAll('details[open]').forEach((d) => { d.open = false; });
+      });
     }
   </script>
 </body>

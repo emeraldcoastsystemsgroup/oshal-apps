@@ -13,6 +13,8 @@
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | Register Trading's quant-desk person schedule.
  * 9 | maintainer@emeraldcoastsystemsgroup.com   | Pin Trading's report-video (runsAs: user, 1.50.0): the person's own job that films their saved OSHAL report after each close, one video per account, through the package's report studio engine.
  * 10 | maintainer@emeraldcoastsystemsgroup.com  | Pin Career's two owner-activated service schedules, application updates and nightly matches, released in 1.47.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com  | Pin Publishing Studio's publishing-social-publish (runsAs: user, 0.5.0): the person's own job that sends their due scheduled social posts (RP-PUB-07).
+ * 12 | maintainer@emeraldcoastsystemsgroup.com  | Pin Intelligent Communication's mail-watches (runsAs: user, 1.8.0): the person's own 5-minute deterministic Gmail watch check that reports only unseen security/priority alert arrivals (such as TotalConnect).
  */
 
 import test from 'node:test';
@@ -33,11 +35,13 @@ const DECLARED = [
   ['daily-trade-recap', 'daily-trade-recap-recorded-reports', 'system'],
   ['email-summarizer', 'mail-copy', 'user'],
   ['email-summarizer', 'social-publish', 'user'],
+  ['email-summarizer', 'mail-watches', 'user'],
   ['intelligent-operations', 'operations-process-recorded-alerts', 'user'],
   ['kalshi', 'background-scan', 'user'],
   ['lora', 'lora-autonomous-overnight', 'system'],
   ['marketing-engine', 'daily-metrics-ingest', 'system'],
   ['marketing-engine', 'weekly-campaign-review', 'system'],
+  ['publishing-studio', 'publishing-social-publish', 'user'],
   ['sports-edge', 'refresh-pass', 'user'],
   ['trading', 'oshal-daily-report', 'user'],
   ['trading', 'report-video', 'user'],

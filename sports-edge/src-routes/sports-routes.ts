@@ -27,6 +27,7 @@
  * 7 | maintainer@emeraldcoastsystemsgroup.com   | POST /refresh/run is bounded: the pass covers the caller's own followed teams and answers skipped 'not_due' inside refreshIntervalMinutes of the caller's last pass; {force:true} skips that check only for an operator (403 otherwise), the same line POST /ratings/refresh draws. GET /status adds the caller's stored lastPassAt and the interval, so the page can say when the last pass really ran. Guard: tests/sports-refresh-schedule.test.js.
  * 8 | maintainer@emeraldcoastsystemsgroup.com   | GET /preview/:eventId only reads: it answers the stored preview with its calls, or 200 {built:false} when none is stored, and never calls ESPN or writes (the native kernel admits a GET as a reader and refused the build's INSERT with 'SQL mutation requires original writer admission', so every preview answered 502). Building and rebuilding moved to POST /preview/:eventId/build, which runs under writer admission. Guard: tests/sports-preview-readonly.test.js.
  * 9 | maintainer@emeraldcoastsystemsgroup.com | GET /games names its window (horizonDays) and, when the window holds no game for the followed teams but the schedule read succeeded, the next game within 35 days (nextGame). After following the Dolphins in their bye week the Games screen said only "No games ... inside the horizon", which read as a broken schedule.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | Mount Sports Quant read-only and confirm-gated routes (/quant/*) and serve the collapsible right-rail Concierge assets (/concierge.css, /concierge.js).
  *
  * @module sports-routes
  */
@@ -52,6 +53,7 @@ import {
 import { registerFantasyMoved } from './sports-fantasy-moved';
 import { summariseMovement } from './sports-line-history';
 import { captureStats, ensureLineSchema, observationsFor } from './sports-line-store';
+import { registerQuantRoutes } from './sports-quant';
 
 const log = createChildLogger({ module: 'sports-routes' });
 
@@ -109,6 +111,16 @@ export function createSportsEdgeRoutes(ctx: AppContext): Router {
 
   router.get('/', servePage(toolsDir, 'sports-edge.html'));
   router.get('/ui', servePage(toolsDir, 'sports-edge.html'));
+  router.get('/concierge.css', (_req: Request, res: Response) => {
+    res.setHeader('content-type', 'text/css; charset=utf-8');
+    res.setHeader('cache-control', 'no-store');
+    res.sendFile(path.join(toolsDir, 'concierge.css'));
+  });
+  router.get('/concierge.js', (_req: Request, res: Response) => {
+    res.setHeader('content-type', 'application/javascript; charset=utf-8');
+    res.setHeader('cache-control', 'no-store');
+    res.sendFile(path.join(toolsDir, 'concierge.js'));
+  });
 
   registerTeamRoutes(router, pool);
   registerGameRoutes(router, pool);
@@ -116,6 +128,7 @@ export function createSportsEdgeRoutes(ctx: AppContext): Router {
   registerRecordRoutes(router, pool);
   registerSettingsRoutes(router, pool);
   registerLineRoutes(router, pool);
+  registerQuantRoutes(router, pool);
   // The fantasy half moved to the fantasy-football package (ADR-146 D1); its old routes say so.
   registerFantasyMoved(router);
   return router;

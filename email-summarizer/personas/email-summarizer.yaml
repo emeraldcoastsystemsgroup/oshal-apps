@@ -3,6 +3,7 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | "Email it to me" leaves the recipient out (their own address) and an earlier step's file goes in the body as its link.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Searching the person's mailbox (Roger, 2026-10-29): "check my email for a offer for a sat training course" was handed to Little Monsters on "SAT" and "training", and the inbox read was the 30 newest messages with no search. The routing words now hold the phrases that ask to look in one's own mail, and email-messages takes the search words, the days to look back and how many to list.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: email-messages answers from the person's stored copy of their Gmail while it is current (up to 180 days back) and from Gmail live otherwise (30 days); the answer's source, store and matchedAll say which, how much and whether every word matched.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.8.0: email-watches, email-watch-check and email-watch-save manage deterministic Gmail mailbox watches (including the TotalConnect security monitor preset) and check watched alerts without spending model tokens on quiet intervals.
 # Email / Communications bot — Intelligent Communication app.
 #
 # Native kernel: an inline application bot. It reads the person's mail and calendar only through
@@ -43,6 +44,13 @@ perspective: |
     deck or document an earlier step made, put its title and link in the body.
     It is held for their approval: the card is their confirmation, so call it as soon as they ask
     to send, never ask them to confirm in words, and never say it was sent until the tool answers ok.
+  - email-watches: list the person's active Gmail mailbox watches (such as TotalConnect security
+    monitoring), available presets and recent alert hits. Call with {}.
+  - email-watch-save: create or update a Gmail mailbox watch rule. For TotalConnect security
+    monitoring on Gmail, call with {"preset": "totalconnect", "accountHint": "<their gmail address>",
+    "enabled": true}. For a custom watch, pass {"watchId", "label", "query", "accountHint", "enabled": true}.
+  - email-watch-check: run an immediate check of active Gmail mailbox watches against connected Gmail
+    and the stored mail copy ({"days": 7}), and report how many watches were checked and any new hits.
   If the task already contains the mail or calendar data, reason over that and do
   not fetch it again.
 
@@ -119,6 +127,15 @@ routing_keywords:
   - in gmail
   - my mailbox
   - mailbox
+  - totalconnect
+  - totconnect
+  - total connect
+  - email watch
+  - mailbox watch
+  - watch my email
+  - monitor my gmail
+  - security alert
+  - alarm alert
 
 runtime:
   # Temporarily on claude-code: codex (gpt-5.5) is the intended provider but its

@@ -10,12 +10,22 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Hold shared/exclusive owner leases and committed SQL epoch fences across original references, safe orphan recovery and publication.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Stream complete editable archives and atomically create recipient-owned remapped sources and precise project snapshots.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Bind render source services to matching sealed original principals before any source read.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01: persist, reconcile, list and read bounded video and audio footage assets alongside owned photos.
  */
 import { encodeBundle, decodeBundle } from './portable-bundle.mjs';
-import {parseNative,stringifyNative} from '../tools/native-json.mjs';
+import {
+  validateMediaProbe, queryMediaBlobHandles, queryOwnerAssetUsage,
+  resolveRevisionAssetKinds, readRevisionAllAssets, queryAllAssetMetadata,
+  readMediaAsset, deleteMediaAssetRow
+} from './media-store.mjs';
+import { parseNative, stringifyNative } from '../tools/native-json.mjs';
 import { randomUUID, createHash } from 'node:crypto';
-export const LIMITS = Object.freeze({ documentBytes: 2097152, projects: 1000, revisions: 1000, imageBytes: 4194304,
-  assets: 64, assetBytes: 268435456, revisionBytes: 268435456, dimension: 8192, pixels: 33554432, references: 64, title: 160 });
+
+export const LIMITS = Object.freeze({
+  documentBytes: 2097152, projects: 1000, revisions: 1000, imageBytes: 4194304,
+  mediaBytes: 67108864, sessionBytes: 201326592, assets: 64, assetBytes: 268435456,
+  revisionBytes: 268435456, dimension: 8192, pixels: 33554432, references: 64, title: 160
+});
 export class MotionError extends Error {
   constructor(status, code) { super(code); this.status = status; this.code = code; }
 }
@@ -33,9 +43,11 @@ function identity(ctx) {
   return { issuer: actor.issuer, sub: actor.sub };
 }
 function snapshot(row, assets) {
-  return { id: row.project_id, title: row.title, revision: row.revision ?? row.current_revision,
+  return {
+    id: row.project_id, title: row.title, revision: row.revision ?? row.current_revision,
     createdAt: new Date(row.created_at).toISOString(), updatedAt: new Date(row.updated_at ?? row.created_at).toISOString(),
-    ...((row.document_text!==undefined||row.document) ? { document: row.document_text!==undefined?parseNative(row.document_text):row.document, assets } : {}) };
+    ...((row.document_text !== undefined || row.document) ? { document: row.document_text !== undefined ? parseNative(row.document_text) : row.document, assets } : {})
+  };
 }
 function documentInput(value) {
   fields(value, ['title', 'document', 'assets', 'requestKey', 'baseRevision']);
@@ -77,7 +89,7 @@ export class MotionProjectStore {
     const own = identity(this.#ctx), actor = identity(ctx);
     if (own.issuer !== actor.issuer || own.sub !== actor.sub || typeof ctx.intent !== 'function' || typeof this.#ctx.intent !== 'function') fail(401, 'motion_original_context_mismatch');
     const left = (await this.#ctx.intent('auth.caller', {}))?.principal, right = (await ctx.intent('auth.caller', {}))?.principal;
-    if (!left || !right || !['id','tenant','issuer','subject'].every(key => typeof left[key] === 'string' && left[key] && left[key] === right[key]) || left.state !== 'active' || right.state !== 'active'
+    if (!left || !right || !['id', 'tenant', 'issuer', 'subject'].every(key => typeof left[key] === 'string' && left[key] && left[key] === right[key]) || left.state !== 'active' || right.state !== 'active'
         || left.issuer !== own.issuer || left.subject !== own.sub) fail(401, 'motion_original_context_mismatch');
     const currentOwn = identity(this.#ctx), currentActor = identity(ctx);
     if (currentOwn.issuer !== own.issuer || currentOwn.sub !== own.sub || currentActor.issuer !== actor.issuer || currentActor.sub !== actor.sub) fail(401, 'motion_original_context_mismatch');
@@ -107,12 +119,16 @@ export class MotionProjectStore {
     await this.#begin(client, owner, true); await this.#access(action, owner);
     // Commit an actual changed collection together with the observed references.
     // Native optimistic CAS compares all observed revisions, fencing a late old commit.
-    await this.#fence(client, owner); let photo, revisions;
-    if (this.#blobs) photo = (await client.query('SELECT blob_handle FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND blob_handle IS NOT NULL', [owner.issuer, owner.sub])).rows;
+    await this.#fence(client, owner); let liveHandles, revisions;
+    if (this.#blobs) {
+      const photo = (await client.query('SELECT blob_handle FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND blob_handle IS NOT NULL', [owner.issuer, owner.sub])).rows;
+      const media = await queryMediaBlobHandles(client, [owner.issuer, owner.sub]);
+      liveHandles = new Set([...photo.map(row => row.blob_handle), ...media]);
+    }
     if (this.#revisionBlobs) revisions = (await client.query('SELECT document_blob FROM motion_revisions WHERE owner_issuer=$1 AND owner_sub=$2 AND document_blob IS NOT NULL', [owner.issuer, owner.sub])).rows;
     await this.#access(action, owner); await lease.check(); await client.query('COMMIT');
     // No orphan is removed until this recovery snapshot has committed successfully.
-    if (photo) await this.#blobs.reconcile(new Set(photo.map(row => row.blob_handle)), action, lease);
+    if (liveHandles) await this.#blobs.reconcile(liveHandles, action, lease);
     if (revisions) await this.#revisionBlobs.reconcile(new Set(revisions.map(row => row.document_blob)), action, lease);
   }
   async #transaction(action, write, work, expected, beforeCommit) {
@@ -149,8 +165,8 @@ export class MotionProjectStore {
       try { row.document_text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); parseNative(row.document_text); }
       catch { fail(503, 'motion_revision_integrity_error'); }
     }
-    const references = await client.query('SELECT asset_id FROM motion_revision_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND project_id=$3 AND revision=$4 ORDER BY asset_id', [...owner, id, result.rows[0].revision]);
-    return snapshot(result.rows[0], references.rows.map(row => row.asset_id));
+    const references = await readRevisionAllAssets(client, owner, id, result.rows[0].revision);
+    return snapshot(result.rows[0], references);
   }
   get(id, version) {
     id = uuid(id); if (version !== undefined) version = revision(version);
@@ -161,8 +177,8 @@ export class MotionProjectStore {
     return this.#transaction('read', false, async (client, owner) => {
       const result = await client.query(`SELECT p.project_id,r.title,r.revision,p.created_at,r.created_at AS updated_at
         FROM motion_projects p JOIN motion_revisions r ON r.project_id=p.project_id AND r.owner_issuer=p.owner_issuer AND r.owner_sub=p.owner_sub
-        WHERE p.owner_issuer=$1 AND p.owner_sub=$2 AND p.project_id=$3 AND r.revision=$4`, [...owner,id,version]);
-      if (!result.rows.length) fail(404,'motion_project_not_found');
+        WHERE p.owner_issuer=$1 AND p.owner_sub=$2 AND p.project_id=$3 AND r.revision=$4`, [...owner, id, version]);
+      if (!result.rows.length) fail(404, 'motion_project_not_found');
       return snapshot(result.rows[0]);
     });
   }
@@ -170,13 +186,8 @@ export class MotionProjectStore {
     id = uuid(id); if (version !== undefined) version = revision(version);
     return this.#transaction('export', false, (client, owner) => this.#read(client, owner, id, version, 'export'));
   }
-  async #checkAssets(client, owner, assets) {
-    if (!assets.length) return;
-    const result = await client.query('SELECT asset_id FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=ANY($3::uuid[])', [...owner, assets]);
-    if (result.rows.length !== assets.length) fail(400, 'motion_asset_unavailable');
-  }
   async #append(client, owner, id, version, input, action, receipts) {
-    await this.#checkAssets(client, owner, input.assets);
+    const { photoIds, mediaIds } = await resolveRevisionAssetKinds(client, owner, input.assets, fail);
     const text = stringifyNative(input.document), bytes = Buffer.from(text);
     if (!this.#revisionBlobs && this.#ctx.pool.storageModel === 'kernel-scoped-documents') fail(503, 'motion_revision_storage_unavailable');
     const budget = await client.query('SELECT COALESCE(SUM(COALESCE(document_bytes,octet_length(document::text))),0)::bigint AS bytes FROM motion_revisions WHERE owner_issuer=$1 AND owner_sub=$2', owner);
@@ -185,7 +196,8 @@ export class MotionProjectStore {
     let receipt;
     if (this.#revisionBlobs) { receipt = await this.#revisionBlobs.put(bytes, action); receipts.push(receipt); }
     await client.query('INSERT INTO motion_revisions (project_id,owner_issuer,owner_sub,revision,title,document,document_blob,document_bytes,document_sha256) VALUES ($3,$1,$2,$4,$5,$6::jsonb,$7,$8,$9)', [...owner, id, version, input.title, receipt ? null : text, receipt?.ref.id ?? null, receipt?.ref.bytes ?? null, receipt?.ref.sha256 ?? null]);
-    for (const asset of input.assets) await client.query('INSERT INTO motion_revision_assets (project_id,revision,owner_issuer,owner_sub,asset_id) VALUES ($3,$4,$1,$2,$5)', [...owner, id, version, asset]);
+    for (const asset of photoIds) await client.query('INSERT INTO motion_revision_assets (project_id,revision,owner_issuer,owner_sub,asset_id) VALUES ($3,$4,$1,$2,$5)', [...owner, id, version, asset]);
+    for (const asset of mediaIds) await client.query('INSERT INTO motion_revision_media_assets (project_id,revision,owner_issuer,owner_sub,asset_id) VALUES ($3,$4,$1,$2,$5)', [...owner, id, version, asset]);
   }
   async #replay(client, owner, input, fingerprint, action) {
     const result = await client.query('SELECT fingerprint,project_id,revision FROM motion_requests WHERE owner_issuer=$1 AND owner_sub=$2 AND request_key=$3', [...owner, input.requestKey]);
@@ -293,22 +305,44 @@ export class MotionProjectStore {
     if (!this.#blobs && this.#ctx.pool.storageModel === 'kernel-scoped-documents') fail(503, 'motion_blob_storage_unavailable');
     let receipt;
     try {
-      const result = await this.#transaction('upload', true, async (client, owner) => {
-        const count = await client.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(byte_length),0)::bigint AS bytes FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2', owner);
-        if (count.rows[0].count >= LIMITS.assets || Number(count.rows[0].bytes) + bytes.length > LIMITS.assetBytes) fail(409, 'motion_asset_limit');
+      return await this.#transaction('upload', true, async (client, owner) => {
+        const usage = await queryOwnerAssetUsage(client, owner);
+        if (usage.count >= LIMITS.assets || usage.bytes + bytes.length > LIMITS.assetBytes) fail(409, 'motion_asset_limit');
         if (this.#blobs) receipt = await this.#blobs.put(bytes);
         await client.query('INSERT INTO motion_assets (asset_id,owner_issuer,owner_sub,media_type,width,height,byte_length,sha256,content_base64,blob_handle) VALUES ($3,$1,$2,$4,$5,$6,$7,$8,$9,$10)', [...owner, id, type, width, height, bytes.length, hash, receipt ? null : bytes.toString('base64'), receipt?.ref.id ?? null]);
         return { id, type, width, height, bytes: bytes.length, sha256: hash };
       }, original, () => receipt?.commit());
-      return result;
     } catch (error) { await receipt?.rollback(); throw error; }
   }
-
+  /** Media probe runs in the isolated Rust engine outside SQL transactions; storage persists verified bytes and bounds. */
+  async uploadMediaAsset(value) {
+    const original = await this.#access('upload');
+    fields(value, ['bytes', 'probe']);
+    const meta = validateMediaProbe(value.bytes, value.probe, LIMITS, fail);
+    const bytes = Buffer.from(value.bytes), hash = digest(bytes), id = randomUUID();
+    if (!this.#blobs && (this.#ctx.pool.storageModel === 'kernel-scoped-documents' || bytes.length > LIMITS.imageBytes)) fail(503, 'motion_blob_storage_unavailable');
+    let receipt;
+    try {
+      return await this.#transaction('upload', true, async (client, owner) => {
+        const usage = await queryOwnerAssetUsage(client, owner);
+        if (usage.count >= LIMITS.assets || usage.bytes + bytes.length > LIMITS.assetBytes) fail(409, 'motion_asset_limit');
+        if (this.#blobs) receipt = await this.#blobs.put(bytes);
+        await client.query(
+          `INSERT INTO motion_media_assets (asset_id,owner_issuer,owner_sub,media_kind,media_type,width,height,duration_ticks,fps_num,fps_den,has_video,has_audio,audio_sample_rate,audio_channels,codec,byte_length,sha256,content_base64,blob_handle)
+           VALUES ($3,$1,$2,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+          [...owner, id, meta.kind, meta.mediaType, meta.width, meta.height, meta.durationTicks, meta.fpsNum, meta.fpsDen, meta.hasVideo, meta.hasAudio, meta.audioSampleRate, meta.audioChannels, meta.codec, bytes.length, hash, receipt ? null : bytes.toString('base64'), receipt?.ref.id ?? null]
+        );
+        return {
+          id, kind: meta.kind, type: meta.mediaType, width: meta.width, height: meta.height,
+          durationTicks: meta.durationTicks, frameRate: { num: meta.fpsNum, den: meta.fpsDen },
+          hasVideo: meta.hasVideo, hasAudio: meta.hasAudio, audioSampleRate: meta.audioSampleRate,
+          audioChannels: meta.audioChannels, codec: meta.codec, bytes: bytes.length, sha256: hash
+        };
+      }, original, () => receipt?.commit());
+    } catch (error) { await receipt?.rollback(); throw error; }
+  }
   listAssets() {
-    return this.#transaction('read', false, async (client, owner) => {
-      const result = await client.query('SELECT asset_id,media_type,width,height,byte_length,sha256 FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 ORDER BY created_at DESC,asset_id LIMIT 64', owner);
-      return result.rows.map(row => ({ id: row.asset_id, type: row.media_type, width: row.width, height: row.height, bytes: row.byte_length, sha256: row.sha256 }));
-    });
+    return this.#transaction('read', false, (client, owner) => queryAllAssetMetadata(client, owner));
   }
   async deleteAsset(id) {
     id = uuid(id); let retired;
@@ -316,7 +350,12 @@ export class MotionProjectStore {
       const references = await client.query('SELECT COUNT(*)::int AS count FROM motion_revision_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=$3', [...owner, id]);
       if (references.rows[0].count) fail(409, 'motion_asset_in_use');
       const found = await client.query('SELECT blob_handle,sha256,byte_length FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=$3', [...owner, id]);
-      if (!found.rows.length) fail(404, 'motion_asset_not_found');
+      if (!found.rows.length) {
+        const mediaDeleted = await deleteMediaAssetRow(client, owner, id, fail);
+        if (!mediaDeleted) fail(404, 'motion_asset_not_found');
+        retired = mediaDeleted.retired;
+        return { deleted: true };
+      }
       const row = found.rows[0];
       if (row.blob_handle) retired = { id: row.blob_handle, sha256: row.sha256, bytes: row.byte_length };
       const deleted = await client.query('DELETE FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=$3', [...owner, id]);
@@ -330,7 +369,11 @@ export class MotionProjectStore {
   }
   async #asset(client, owner, id, action = 'read') {
     const result = await client.query('SELECT asset_id,media_type,width,height,byte_length,sha256,content_base64,blob_handle FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=$3', [...owner, id]);
-    if (!result.rows.length) fail(404, 'motion_asset_not_found');
+    if (!result.rows.length) {
+      const media = await readMediaAsset(client, owner, id, this.#blobs, action, fail);
+      if (media) return media;
+      fail(404, 'motion_asset_not_found');
+    }
     const row = result.rows[0];
     if (row.blob_handle && !this.#blobs) fail(503, 'motion_blob_storage_unavailable');
     const bytes = row.blob_handle ? await this.#blobs.read({ id: row.blob_handle, sha256: row.sha256, bytes: row.byte_length }, action) : Buffer.from(row.content_base64, 'base64');
@@ -342,15 +385,17 @@ export class MotionProjectStore {
     return this.#transaction('read', false, (client, owner) => this.#asset(client, owner, id));
   }
   /** Sink is the source-owned streaming transport, never a caller URL/path or identity.
-   * The shared read lease and original SQL snapshot remain live throughout sink backpressure.
-   */
+   * The shared read lease and original SQL snapshot remain live throughout sink backpressure. */
   async exportBundleTo(id, version, sink) {
     const original = await this.#access('export'); id = uuid(id); if (version !== undefined) version = revision(version);
     if (typeof sink !== 'function') fail(400, 'motion_bundle_sink_required');
     return this.#transaction('export', false, async (client, owner) => {
       const project = await this.#read(client, owner, id, version, 'export');
       const rows = project.assets.length ? (await client.query('SELECT asset_id,media_type,width,height,byte_length,sha256 FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=ANY($3::uuid[]) ORDER BY asset_id', [...owner, project.assets])).rows : [];
-      if (rows.length !== project.assets.length) fail(503, 'motion_asset_unavailable');
+      if (rows.length !== project.assets.length) {
+        const mediaRows = project.assets.length ? (await client.query('SELECT asset_id FROM motion_media_assets WHERE owner_issuer=$1 AND owner_sub=$2 AND asset_id=ANY($3::uuid[])', [...owner, project.assets])).rows : [];
+        fail(rows.length + mediaRows.length === project.assets.length ? 409 : 503, rows.length + mediaRows.length === project.assets.length ? 'motion_bundle_media_unsupported' : 'motion_asset_unavailable');
+      }
       const assets = rows.map(row => ({ id: row.asset_id, type: row.media_type, width: row.width, height: row.height, bytes: row.byte_length, sha256: row.sha256 }));
       const stream = encodeBundle({ title: project.title, document: project.document, assets }, async asset => (await this.#asset(client, owner, asset, 'export')).bytes, () => this.#access('export', original));
       const hasher = createHash('sha256'); let bytes = 0;
@@ -358,20 +403,7 @@ export class MotionProjectStore {
       return { project: id, revision: project.revision, bytes, sha256: hasher.digest('hex'), format: 'oshal-motion-bundle', version: 1 };
     }, original);
   }
-  /** A portable copy creates new recipient-owned assets; archive ids are local references, never authority. */
-  async importBundle(source, options) {
-    const original = await this.#access('copy'); fields(options, ['requestKey','title']); const requestKey = uuid(options.requestKey);
-    const bundle = await decodeBundle(source, () => this.#access('copy', original));
-    const title = options.title ?? bundle.manifest.title;
-    if (typeof title !== 'string' || !title.trim() || title.length > LIMITS.title) fail(400, 'motion_invalid_title');
-    const fingerprint = digest(JSON.stringify(['portable-import', bundle.sha256, title]));
-    const replay = await this.#transaction('copy', false, async (client, owner) => {
-      const held = await client.query('SELECT fingerprint,project_id,revision FROM motion_requests WHERE owner_issuer=$1 AND owner_sub=$2 AND request_key=$3', [...owner, requestKey]);
-      if (!held.rows.length) return null;
-      if (held.rows[0].fingerprint !== fingerprint) fail(409, 'motion_idempotency_conflict');
-      return this.#read(client, owner, held.rows[0].project_id, held.rows[0].revision, 'copy');
-    }, original);
-    if (replay) return replay;
+  async #prepareBundleImport(bundle, title, requestKey, original) {
     const incoming = new Map();
     for (const asset of bundle.assets) {
       await this.#access('copy', original); const decoded = await this.#decodeRaster(asset.data);
@@ -394,6 +426,23 @@ export class MotionProjectStore {
     // Supplemental attached sources stay portable without inflating compositor input.
     let input = documentInput({ title, document, assets: [...incoming.values()].map(asset => asset.id), requestKey });
     input = documentInput({ ...input, document: await this.#validateDocument(input.document, renderer) });
+    return { incoming, input };
+  }
+  /** A portable copy creates new recipient-owned assets; archive ids are local references, never authority. */
+  async importBundle(source, options) {
+    const original = await this.#access('copy'); fields(options, ['requestKey', 'title']); const requestKey = uuid(options.requestKey);
+    const bundle = await decodeBundle(source, () => this.#access('copy', original));
+    const title = options.title ?? bundle.manifest.title;
+    if (typeof title !== 'string' || !title.trim() || title.length > LIMITS.title) fail(400, 'motion_invalid_title');
+    const fingerprint = digest(JSON.stringify(['portable-import', bundle.sha256, title]));
+    const replay = await this.#transaction('copy', false, async (client, owner) => {
+      const held = await client.query('SELECT fingerprint,project_id,revision FROM motion_requests WHERE owner_issuer=$1 AND owner_sub=$2 AND request_key=$3', [...owner, requestKey]);
+      if (!held.rows.length) return null;
+      if (held.rows[0].fingerprint !== fingerprint) fail(409, 'motion_idempotency_conflict');
+      return this.#read(client, owner, held.rows[0].project_id, held.rows[0].revision, 'copy');
+    }, original);
+    if (replay) return replay;
+    const { incoming, input } = await this.#prepareBundleImport(bundle, title, requestKey, original);
     await this.#access('copy', original);
     return this.#transaction('copy', true, async (client, owner, receipts) => {
       const held = await client.query('SELECT fingerprint,project_id,revision FROM motion_requests WHERE owner_issuer=$1 AND owner_sub=$2 AND request_key=$3', [...owner, requestKey]);
@@ -401,9 +450,9 @@ export class MotionProjectStore {
         if (held.rows[0].fingerprint !== fingerprint) fail(409, 'motion_idempotency_conflict');
         return this.#read(client, owner, held.rows[0].project_id, held.rows[0].revision, 'copy');
       }
-      const budget = (await client.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(byte_length),0)::bigint AS bytes FROM motion_assets WHERE owner_issuer=$1 AND owner_sub=$2', owner)).rows[0];
+      const usage = await queryOwnerAssetUsage(client, owner);
       const total = [...incoming.values()].reduce((sum, asset) => sum + asset.bytes.length, 0);
-      if (budget.count + incoming.size > LIMITS.assets || Number(budget.bytes) + total > LIMITS.assetBytes) fail(409, 'motion_asset_limit');
+      if (usage.count + incoming.size > LIMITS.assets || usage.bytes + total > LIMITS.assetBytes) fail(409, 'motion_asset_limit');
       const count = await client.query('SELECT COUNT(*)::int AS count FROM motion_projects WHERE owner_issuer=$1 AND owner_sub=$2', owner);
       if (count.rows[0].count >= LIMITS.projects) fail(409, 'motion_project_limit');
       if (this.#ctx.pool.storageModel === 'kernel-scoped-documents' && !this.#blobs) fail(503, 'motion_blob_storage_unavailable');

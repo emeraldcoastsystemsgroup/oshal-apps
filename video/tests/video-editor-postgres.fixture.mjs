@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Own one uniquely labelled, loopback-only disposable PostgreSQL (existing local postgres:16-alpine image, no pull, tmpfs data) inside the machine-wide fixture-slot ceiling, and apply Video's declared migrations twice AS the application role so that role owns every table - the installed condition under which only FORCEd row security filters anything.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | CREATE-EDIT-05c: apply migration 069 (export jobs) with the rest of the declared set and clear its table between cases.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | Apply migration 073 (720p/1080p/4K 30/60fps export profiles) with the declared set.
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -18,7 +19,7 @@ import { requireCore, packageRoot } from './video-editor.fixture.mjs';
 const { Pool } = requireCore('pg');
 
 export const MIGRATIONS = ['migrations/066-video-series.sql', 'migrations/067-video-episode-scenes.sql', 'migrations/068-video-edit-projects.sql',
-  'migrations/069-video-edit-exports.sql','migrations/072-video-motion-sources.sql'];
+  'migrations/069-video-edit-exports.sql', 'migrations/072-video-motion-sources.sql', 'migrations/073-video-edit-export-profiles.sql'];
 export const EDITOR_TABLES = ['video_edit_projects', 'video_edit_revisions', 'video_edit_assets', 'video_edit_revision_assets', 'video_edit_exports','video_edit_motion_sources'];
 const SLOT_ROOT = join(tmpdir(), 'oshal-fixture-slots');
 

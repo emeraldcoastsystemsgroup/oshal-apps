@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 2026-07-22 03:02:00 | roger.murphy@emeraldcoastsystemsgroup.com  | The clock and the fire exit: a live countdown every surface renders from the server's deadline, and the host desk's stuck-game recovery panel. Show-agnostic — the countdown reads state.timer and the override buttons are gated by what the server accepts, never by a hard-coded phase list.
  * 2026-11-06 08:55:00 | maintainer@emeraldcoastsystemsgroup.com    | UX audit 2026-11-06 (Host Desk): every select in the fixes panel carries its label (Answer to reveal, Give the board to, Podium to remove).
+ * 2026-11-07 06:52:00 | maintainer@emeraldcoastsystemsgroup.com    | F19: Give the board to Team A / Team B buttons use GS.teamChoice with active control state and theme-aware team dots.
  */
 
 /* global window, document, setInterval */
@@ -123,9 +124,11 @@
   /** @description Hand the board to a specific team (Feud) or player (Jeopardy). */
   function controlRow(showId) {
     if (showId === 'family-feud') {
+      var ctrl = GS.state && GS.state.board && GS.state.board.control;
       return GS.el('div', { class: 'gs-row' },
         GS.el('span', { class: 'gs-muted' }, 'Give the board to:'),
-        btn('Team A', 'setControl', { team: 'A' }), btn('Team B', 'setControl', { team: 'B' }),
+        GS.teamChoice('A', 'Team A', ctrl === 'A', function () { C.override('setControl', { team: 'A' }); }),
+        GS.teamChoice('B', 'Team B', ctrl === 'B', function () { C.override('setControl', { team: 'B' }); }),
         btn('Clear a strike', 'clearStrike'));
     }
     var sel = GS.el('select', { class: 'gs-input', style: 'max-width:200px', 'aria-label': 'Give the board to' });

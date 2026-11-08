@@ -8,6 +8,7 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Bind DELETE /characters/:subject to lora.configure. A character could not be deleted at all; deleting one is a write like creating it, so a viewer cannot.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | Bind the director's read tools lora-characters (GET /characters) and lora-models (GET /models) to lora.read, the permission their routes need.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | Bind GET /worker to lora.read. The studio reads it once on open to learn whether a GPU worker is registered and withholds its training actions where none is (UX audit 2026-11-06).
+# 6 | maintainer@emeraldcoastsystemsgroup.com | Bind GET /ui/photo-upload.mjs to app.open, GET /dataset/:imageId/preview to lora.read, and POST /dataset/upload to lora.configure so multi-photo device uploads with crop and caption stage under owner-scoped dataset authority (RP-LORA-01).
 #
 # One resource with `own` scope only. Row ownership is still enforced by each route's owner
 # predicate and the tables' forced row-level security; the catalog decides which named permission a
@@ -48,6 +49,7 @@ roles:
 bindings:
   http:
     - { id: studio, method: GET, path: /ui, allOf: [app.open] }
+    - { id: studio-photo-upload-script, method: GET, path: /ui/photo-upload.mjs, allOf: [app.open] }
     - { id: summary, method: GET, path: /, allOf: [lora.read] }
     - { id: characters-read, method: GET, path: /characters, allOf: [lora.read] }
     - { id: worker-read, method: GET, path: /worker, allOf: [lora.read] }
@@ -60,6 +62,7 @@ bindings:
     - { id: editor-caption-read, method: GET, path: /dataset/:imageId/caption, allOf: [lora.read] }
     - { id: editor-caption-write, method: PATCH, path: /dataset/:imageId/caption, allOf: [lora.source.change] }
     - { id: editor-caption-retry, method: POST, path: /dataset/:imageId/caption/retry, allOf: [lora.source.change] }
+    - { id: dataset-preview-read, method: GET, path: /dataset/:imageId/preview, allOf: [lora.read] }
     - { id: dataset-read, method: GET, path: /dataset, allOf: [lora.read] }
     - { id: characters-create, method: POST, path: /characters, allOf: [lora.source.change] }
     - { id: characters-starter, method: POST, path: /characters/starter, allOf: [lora.source.change] }
@@ -68,6 +71,7 @@ bindings:
     - { id: active-version, method: POST, path: /characters/:subject/active, allOf: [lora.configure] }
     - { id: model-delete, method: DELETE, path: /models/:subject/:version, allOf: [lora.configure] }
     - { id: dataset-import, method: POST, path: /dataset/import, allOf: [lora.configure] }
+    - { id: dataset-upload, method: POST, path: /dataset/upload, allOf: [lora.configure] }
     - { id: train, method: POST, path: /train, allOf: [lora.execute] }
     - { id: validate, method: POST, path: /validate, allOf: [lora.execute] }
     - { id: improve, method: POST, path: /improve, allOf: [lora.execute] }

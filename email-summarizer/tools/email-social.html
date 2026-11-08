@@ -4,6 +4,7 @@
   SEQ | AUTHOR | DESCRIPTION
   1 | maintainer@emeraldcoastsystemsgroup.com | The Social desk (Roger, 2026-10-30: the tab was one Facebook card; he wants a publisher's tools a person can use to post or stream to two or three services, Slack included). The shape is the one Buffer, Later and Metricool share: a channel rail with the connected accounts, a Queue and a week Calendar, a composer that writes once and customizes per channel with a live preview, "Add to queue" / "Post now" / "Schedule", Drafts and Sent, an Engage list (Slack DMs and mentions, X mentions, reply in place), Go Live events that announce a stream (the Restream Events idea) and one Settings panel (posting plan, Slack channel, the publishing job). Every colour derives from the portal theme tokens.
   2 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (email-summarizer--email-engage and --email-golive, FIX-LAYOUT). Engage and Go Live opened as their own screens (?view=engage / ?view=live) are reached from the app's own bar: on a phone the desk's inner strip is not drawn, and a view they open (Channels) has a back control and a history entry. Engage states its scope once in the header ("Slack and X"); with neither connected it says "Connect Slack or X to see mentions" with one Connect a channel primary, and "Nothing waiting for you" only when one is connected and the list is empty; one 44px Refresh icon button with the last-checked time. Go Live: with no announce channel connected or chosen the button reads "Save stream" and Announce on says "Connect a channel to announce" with Channels; after saving a toast says what was queued ("Saved · 2 announcements queued" / "Saved · not announced"); each stream card names the channels that will announce it or "Not announced"; Delete moves into the card's ⋯ menu with an in-page confirm, after a greyed "Edit · Not available yet" (backlog RP-COM-01); Plan a stream is the view's one primary. Guarded by tests/social-desk-browser.test.cjs.
+  3 | maintainer@emeraldcoastsystemsgroup.com | Go Live planned stream editing: replace the planned Edit menu item with live Edit opening the stream form prefilled with title, start time, watch link, destinations and announcement channels, saving via PUT /events/:id while preserving already-sent announcements and surfacing start-time refusals on started streams.
 -->
 <head>
 <meta charset="UTF-8" />
@@ -176,8 +177,6 @@
   .rowmenu button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 16px; border: 0; background: transparent; color: var(--text); font-size: 14px; text-align: left; }
   .rowmenu button:hover:not([aria-disabled]) { background: var(--panel2); }
   .rowmenu button.del { color: var(--bad); border-top: 1px solid var(--line); }
-  .rowmenu [data-ds-not-yet] { color: var(--ds-ink-disabled, color-mix(in srgb, var(--text) 45%, var(--bg))); cursor: default; }
-  .rowmenu [data-ds-not-yet] small { margin-left: auto; font-size: 12px; }
   .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--bad) 50%, var(--line)); border-radius: 10px; font-size: 13.5px; }
   .confirm .sp { flex: 1 1 200px; }
   .confirm .btn.dangerous { background: var(--bad); color: var(--bg); border-color: transparent; font-weight: 600; }
@@ -486,24 +485,27 @@
     var ids = []; (ev.posts || []).forEach(function (p) { (p.channels || []).forEach(function (id) { if (ids.indexOf(id) < 0) ids.push(id); }); });
     return ids.map(function (id) { return (ch(id) || { label: id }).label; });
   }
-  /** What a save queued, in words: the toast after Plan a stream. */
-  function savedWords(posts) {
+  /** What a save queued, in words: the toast after Plan a stream or Edit stream. */
+  function savedWords(posts, edited) {
+    var head = edited ? 'Updated · ' : 'Saved · ';
     var list = posts || [], queued = list.filter(function (p) { return p.status === 'scheduled'; }).length, sent = list.filter(function (p) { return p.status === 'sent' || p.status === 'partial'; }).length;
-    if (!list.length) return 'Saved · not announced';
+    if (!list.length) return head + 'not announced';
     var parts = [];
     if (sent) parts.push(sent + (sent === 1 ? ' announcement' : ' announcements') + ' sent');
     if (queued) parts.push(queued + (queued === 1 ? ' announcement' : ' announcements') + ' queued');
     if (!parts.length) parts.push('the announcements did not go out');
-    return 'Saved · ' + parts.join(', ');
+    return head + parts.join(', ');
   }
-  /** A stream card's ⋯ menu (top layer): Edit is a planned control (backlog RP-COM-01), Delete asks in the page first. */
-  function openRowMenu(trigger, ev, card) {
+  /** A stream card's ⋯ menu (top layer): Edit opens the prefilled stream form, Delete asks in the page first. */
+  function openRowMenu(trigger, ev, card, onEdit) {
     var m = $('rowMenu');
-    m.innerHTML = '<button type="button" role="menuitem" aria-disabled="true" data-ds-not-yet data-ds-backlog="RP-COM-01" aria-label="Edit, not available yet" title="Not available yet">Edit <small>Not available yet</small></button>'
+    m.innerHTML = '<button type="button" role="menuitem" data-menu="edit">Edit</button>'
       + '<button type="button" role="menuitem" class="del" data-menu="delete">Delete…</button>';
     m.onclick = function (e) {
       var b = e.target.closest('[data-menu]'); if (!b) return;
-      closeRowMenu(); confirmDelete(ev, card);
+      var act = b.getAttribute('data-menu');
+      closeRowMenu();
+      if (act === 'edit') onEdit(ev); else confirmDelete(ev, card);
     };
     if (typeof m.showPopover === 'function') m.showPopover(); else m.hidden = false;
     var r = trigger.getBoundingClientRect(), w = m.offsetWidth || 220, h = m.offsetHeight || 100;
@@ -530,62 +532,90 @@
     card.children[1].appendChild(c);
     c.querySelector('[data-c=no]').focus();
   }
-  async function paintLive(body) {
-    body.innerHTML = '';
-    var h = $('headActions'); var plan = el('<button class="btn primary"><svg><use href="#i-plus"/></svg> Plan a stream</button>'); h.appendChild(plan);
-    var listEl = el('<div></div>'); body.appendChild(listEl);
-    var form = el('<div class="panel" id="liveForm" hidden><h3>Plan a stream</h3><div class="hint">Say where you go live and the desk announces it on your channels at the right times. Streaming itself runs in your usual app (OBS, Streamlabs, the platform studio); the console links open it.</div>'
-      + '<div class="grid2"><div><label class="f">Title</label><input type="text" id="lvTitle" placeholder="Friday build night" /><label class="f">When</label><input type="datetime-local" id="lvAt" /><label class="f">Watch link (optional)</label><input type="url" id="lvUrl" placeholder="https://… where people watch" /></div>'
-      + '<div><label class="f">Where you stream</label><div class="row" id="lvDest"></div><label class="f">Announce on</label><div class="row" id="lvCh"></div></div></div>'
-      + '<label class="f">Announcements</label><div id="lvAnn"></div><div class="row" style="margin-top:12px"><button class="btn primary" id="lvSave">Save and announce</button><button class="btn ghost" id="lvCancel">Cancel</button><span class="status" id="lvStatus"></span></div></div>');
-    body.insertBefore(form, listEl);
-    var f = { title: '', startAt: '', watchUrl: '', destinations: [], channels: S.channels.filter(function (c) { return c.state === 'connected'; }).map(function (c) { return c.id; }), ann: {} };
-    var def = new Date(Date.now() + 2 * 3600000); def.setMinutes(0, 0, 0); form.querySelector('#lvAt').value = localInput(def); f.startAt = def.toISOString();
-    (S.destinations || []).forEach(function (d) { var t = el('<button class="tog"><span class="k"></span>' + esc(d.label) + '</button>'); t.onclick = function () { t.classList.toggle('on'); f.destinations = t.classList.contains('on') ? f.destinations.concat(d.id) : f.destinations.filter(function (x) { return x !== d.id; }); paintAnn(); }; form.querySelector('#lvDest').appendChild(t); });
-    var connectedChannels = S.channels.filter(function (c) { return c.state === 'connected'; });
-    connectedChannels.forEach(function (c) { var t = el('<button class="tog on">' + avatar(c) + esc(c.account && c.account.name ? c.account.name : c.label) + '</button>'); t.onclick = function () { t.classList.toggle('on'); f.channels = t.classList.contains('on') ? f.channels.concat(c.id) : f.channels.filter(function (x) { return x !== c.id; }); saveLabel(); }; form.querySelector('#lvCh').appendChild(t); });
-    if (!connectedChannels.length) {
-      var none = el('<div class="row"><span class="status">Connect a channel to announce</span><button type="button" class="btn" id="lvToCh">Channels</button></div>');
-      none.querySelector('#lvToCh').onclick = function () { setView('channels'); }; form.querySelector('#lvCh').appendChild(none);
+  /** Derive the editable Go Live form state for a new stream or an existing planned stream. */
+  function liveFormState(ev, connectedIds) {
+    if (!ev) {
+      var def = new Date(Date.now() + 2 * 3600000); def.setMinutes(0, 0, 0);
+      return { id: null, title: '', startAt: def.toISOString(), watchUrl: '', destinations: [], channels: connectedIds.slice(), ann: {}, sentCount: 0 };
     }
-    /** With no announce channel connected or chosen, the stream is only saved: the button says so. */
-    function saveLabel() { form.querySelector('#lvSave').textContent = f.channels.length ? 'Save and announce' : 'Save stream'; }
-    saveLabel();
-    function paintAnn() {
-      var box = form.querySelector('#lvAnn'); box.innerHTML = '';
-      announcementTexts(f).forEach(function (a) {
-        if (!(a.key in f.ann)) f.ann[a.key] = { on: true, text: '' };
-        var row = el('<div class="row" style="margin-bottom:8px;align-items:flex-start"><label class="tog' + (f.ann[a.key].on ? ' on' : '') + '" style="min-width:170px"><span class="k"></span>' + esc(a.label) + '</label><textarea style="min-height:52px;flex:1">' + esc(f.ann[a.key].text || a.text) + '</textarea></div>');
-        row.querySelector('label').onclick = function () { f.ann[a.key].on = !f.ann[a.key].on; row.querySelector('label').classList.toggle('on', f.ann[a.key].on); };
-        row.querySelector('textarea').oninput = function (e) { f.ann[a.key].text = e.target.value; };
-        box.appendChild(row);
-      });
-    }
-    ['lvTitle', 'lvUrl', 'lvAt'].forEach(function (id) { form.querySelector('#' + id).oninput = function (e) { if (id === 'lvTitle') f.title = e.target.value; if (id === 'lvUrl') f.watchUrl = e.target.value; if (id === 'lvAt') f.startAt = e.target.value ? new Date(e.target.value).toISOString() : ''; Object.keys(f.ann).forEach(function (k) { f.ann[k].text = ''; }); paintAnn(); }; });
-    paintAnn();
-    plan.onclick = function () { form.hidden = false; plan.hidden = true; form.querySelector('#lvTitle').focus(); };
-    form.querySelector('#lvCancel').onclick = function () { form.hidden = true; plan.hidden = false; };
-    form.querySelector('#lvSave').onclick = async function () {
-      var st = form.querySelector('#lvStatus'); st.textContent = 'Saving…'; st.className = 'status';
-      var start = Date.parse(f.startAt);
-      var announcements = !f.channels.length ? [] : announcementTexts(f).filter(function (a) { return f.ann[a.key].on; }).map(function (a) { return { key: a.key, text: f.ann[a.key].text || a.text, channels: f.channels, at: a.offsetMin == null ? new Date().toISOString() : new Date(start + a.offsetMin * 60000).toISOString() }; });
-      try {
-        var saved = await api('/events', { method: 'POST', body: JSON.stringify({ title: f.title, startAt: f.startAt, watchUrl: f.watchUrl, destinations: f.destinations, announcements: announcements }) });
-        form.hidden = true; plan.hidden = false; toast(savedWords(saved && saved.posts)); await reloadPosts();
-      }
-      catch (err) { st.textContent = err.message; st.className = 'status bad'; }
-    };
-    var r; try { r = await api('/events'); } catch (err) { listEl.innerHTML = '<div class="empty">' + esc(err.message) + '</div>'; return; }
-    S.events = r.events || [];
-    if (!S.events.length) { listEl.innerHTML = '<div class="empty"><div class="big">📡</div><b>No streams planned</b>Plan a stream: pick where you go live, and the desk announces it on your channels before and when you start.</div>'; return; }
-    S.events.forEach(function (ev) {
+    var posts = ev.posts || [];
+    var sent = posts.filter(function (p) { return p.status === 'sent' || p.status === 'partial' || p.status === 'sending'; });
+    var unsent = posts.filter(function (p) { return p.status !== 'sent' && p.status !== 'partial' && p.status !== 'sending'; });
+    var chSource = unsent.length ? unsent : sent, picked = [];
+    chSource.forEach(function (p) { (p.channels || []).forEach(function (id) { if (connectedIds.indexOf(id) >= 0 && picked.indexOf(id) < 0) picked.push(id); }); });
+    var f = { id: ev.id, title: ev.title || '', startAt: ev.startAt, watchUrl: ev.watchUrl || '', destinations: (ev.destinations || []).slice(), channels: picked, ann: {}, sentCount: sent.length };
+    var defaults = announcementTexts(f), startMs = Date.parse(ev.startAt || '');
+    f.ann = { announce: { on: false, text: '' }, soon: { on: !posts.length, text: '' }, live: { on: !posts.length, text: '' } };
+    unsent.forEach(function (u) {
+      var atMs = Date.parse(u.scheduledAt || ''), slot = Number.isFinite(atMs) && Number.isFinite(startMs) && atMs <= startMs - 5 * 60000 ? 'soon' : 'live';
+      var defSlot = defaults.find(function (d) { return d.key === slot; });
+      f.ann[slot] = { on: true, text: defSlot && u.text === defSlot.text ? '' : (u.text || '') };
+    });
+    return f;
+  }
+  function renderLiveCards(listEl, events, onEdit) {
+    if (!events.length) { listEl.innerHTML = '<div class="empty"><div class="big">📡</div><b>No streams planned</b>Plan a stream: pick where you go live, and the desk announces it on your channels before and when you start.</div>'; return; }
+    events.forEach(function (ev) {
       var dests = ev.destinations.map(function (id) { var d = (S.destinations || []).find(function (x) { return x.id === id; }) || { id: id, label: id }; return '<a class="chip" href="' + esc(d.console || '#') + '" target="_blank" rel="noopener"><i style="background:' + (DEST_COLOR[id] || 'var(--muted)') + '"></i>' + esc(d.label) + ' console</a>'; }).join('');
       var posts = ev.posts.map(function (p) { return '<span class="chip ' + (p.status === 'sent' ? 'ok' : p.status === 'failed' ? 'bad' : '') + '">' + esc(p.status === 'sent' ? 'sent ' + fmtTime(p.sentAt) : p.status === 'scheduled' ? 'announces ' + fmtDay(p.scheduledAt) + ' ' + fmtTime(p.scheduledAt) : p.status) + '</span>'; }).join('');
       var by = announcers(ev);
       var card = el('<div class="post"><div class="time">' + esc(fmtTime(ev.startAt)) + '<small>' + esc(fmtDay(ev.startAt)) + '</small></div><div><div class="txt"><b>' + esc(ev.title) + '</b>' + (ev.watchUrl ? ' · <a href="' + esc(ev.watchUrl) + '" target="_blank" rel="noopener">watch link</a>' : '') + '</div><div class="meta">' + dests + '</div><div class="meta">' + posts + '</div><div class="announcers">' + esc(by.length ? 'Announced on ' + by.join(', ') : 'Not announced') + '</div></div><div class="acts"><button type="button" class="btn ghost icon" data-act="menu" aria-haspopup="menu" aria-label="More for ' + esc(ev.title) + '">⋯</button></div></div>');
-      card.querySelector('[data-act=menu]').onclick = function (e) { openRowMenu(e.currentTarget, ev, card); };
+      card.querySelector('[data-act=menu]').onclick = function (e) { openRowMenu(e.currentTarget, ev, card, onEdit); };
       listEl.appendChild(card);
     });
+  }
+  function paintAnnRows(box, f) {
+    box.innerHTML = '';
+    if (f.sentCount > 0) box.appendChild(el('<div class="hint" id="lvSentNote">' + f.sentCount + (f.sentCount === 1 ? ' announcement already sent — kept untouched.' : ' announcements already sent — kept untouched.') + '</div>'));
+    announcementTexts(f).forEach(function (a) {
+      if (!(a.key in f.ann)) f.ann[a.key] = { on: true, text: '' };
+      var row = el('<div class="row" style="margin-bottom:8px;align-items:flex-start"><label class="tog' + (f.ann[a.key].on ? ' on' : '') + '" style="min-width:170px"><span class="k"></span>' + esc(a.label) + '</label><textarea style="min-height:52px;flex:1">' + esc(f.ann[a.key].text || a.text) + '</textarea></div>');
+      row.querySelector('label').onclick = function () { f.ann[a.key].on = !f.ann[a.key].on; row.querySelector('label').classList.toggle('on', f.ann[a.key].on); };
+      row.querySelector('textarea').oninput = function (e) { f.ann[a.key].text = e.target.value; };
+      box.appendChild(row);
+    });
+  }
+  async function paintLive(body) {
+    body.innerHTML = '';
+    var plan = el('<button class="btn primary"><svg><use href="#i-plus"/></svg> Plan a stream</button>'); $('headActions').appendChild(plan);
+    var listEl = el('<div></div>'); body.appendChild(listEl);
+    var form = el('<div class="panel" id="liveForm" hidden><h3 id="lvHeading">Plan a stream</h3><div class="hint">Say where you go live and the desk announces it on your channels at the right times. Streaming itself runs in your usual app (OBS, Streamlabs, the platform studio); the console links open it.</div>'
+      + '<div class="grid2"><div><label class="f">Title</label><input type="text" id="lvTitle" placeholder="Friday build night" /><label class="f">When</label><input type="datetime-local" id="lvAt" /><label class="f">Watch link (optional)</label><input type="url" id="lvUrl" placeholder="https://… where people watch" /></div>'
+      + '<div><label class="f">Where you stream</label><div class="row" id="lvDest"></div><label class="f">Announce on</label><div class="row" id="lvCh"></div></div></div>'
+      + '<label class="f">Announcements</label><div id="lvAnn"></div><div class="row" style="margin-top:12px"><button class="btn primary" id="lvSave">Save and announce</button><button class="btn ghost" id="lvCancel">Cancel</button><span class="status" id="lvStatus"></span></div></div>');
+    body.insertBefore(form, listEl);
+    var connectedChannels = S.channels.filter(function (c) { return c.state === 'connected'; }), connectedIds = connectedChannels.map(function (c) { return c.id; });
+    var f = liveFormState(null, connectedIds), annBox = form.querySelector('#lvAnn');
+    var saveLabel = function () { form.querySelector('#lvSave').textContent = f.id ? (f.channels.length ? 'Save changes' : 'Save stream') : (f.channels.length ? 'Save and announce' : 'Save stream'); };
+    (S.destinations || []).forEach(function (d) { var t = el('<button type="button" class="tog" data-dest="' + esc(d.id) + '"><span class="k"></span>' + esc(d.label) + '</button>'); t.onclick = function () { t.classList.toggle('on'); f.destinations = t.classList.contains('on') ? f.destinations.concat(d.id) : f.destinations.filter(function (x) { return x !== d.id; }); paintAnnRows(annBox, f); }; form.querySelector('#lvDest').appendChild(t); });
+    connectedChannels.forEach(function (c) { var t = el('<button type="button" class="tog on" data-ch="' + esc(c.id) + '">' + avatar(c) + esc(c.account && c.account.name ? c.account.name : c.label) + '</button>'); t.onclick = function () { t.classList.toggle('on'); f.channels = t.classList.contains('on') ? f.channels.concat(c.id) : f.channels.filter(function (x) { return x !== c.id; }); saveLabel(); }; form.querySelector('#lvCh').appendChild(t); });
+    if (!connectedChannels.length) { var none = el('<div class="row"><span class="status">Connect a channel to announce</span><button type="button" class="btn" id="lvToCh">Channels</button></div>'); none.querySelector('#lvToCh').onclick = function () { setView('channels'); }; form.querySelector('#lvCh').appendChild(none); }
+    function openForm(ev) {
+      f = liveFormState(ev, connectedIds);
+      form.querySelector('#lvHeading').textContent = ev ? 'Edit stream' : 'Plan a stream';
+      form.querySelector('#lvTitle').value = f.title; form.querySelector('#lvUrl').value = f.watchUrl; form.querySelector('#lvAt').value = f.startAt ? localInput(new Date(f.startAt)) : '';
+      form.querySelector('#lvStatus').textContent = ''; form.querySelector('#lvStatus').className = 'status';
+      form.querySelectorAll('#lvDest [data-dest]').forEach(function (b) { b.classList.toggle('on', f.destinations.indexOf(b.getAttribute('data-dest')) >= 0); });
+      form.querySelectorAll('#lvCh [data-ch]').forEach(function (b) { b.classList.toggle('on', f.channels.indexOf(b.getAttribute('data-ch')) >= 0); });
+      saveLabel(); paintAnnRows(annBox, f); form.hidden = false; plan.hidden = true; form.querySelector('#lvTitle').focus();
+    }
+    ['lvTitle', 'lvUrl', 'lvAt'].forEach(function (id) { form.querySelector('#' + id).oninput = function (e) { if (id === 'lvTitle') f.title = e.target.value; if (id === 'lvUrl') f.watchUrl = e.target.value; if (id === 'lvAt') f.startAt = e.target.value ? new Date(e.target.value).toISOString() : ''; Object.keys(f.ann).forEach(function (k) { f.ann[k].text = ''; }); paintAnnRows(annBox, f); }; });
+    saveLabel(); paintAnnRows(annBox, f);
+    plan.onclick = function () { openForm(null); };
+    form.querySelector('#lvCancel').onclick = function () { form.hidden = true; plan.hidden = false; };
+    form.querySelector('#lvSave').onclick = async function () {
+      var st = form.querySelector('#lvStatus'); st.textContent = 'Saving…'; st.className = 'status';
+      var start = Date.parse(f.startAt);
+      var announcements = !f.channels.length ? [] : announcementTexts(f).filter(function (a) { return f.ann[a.key] && f.ann[a.key].on; }).map(function (a) { return { key: a.key, text: f.ann[a.key].text || a.text, channels: f.channels, at: a.offsetMin == null ? new Date().toISOString() : new Date(start + a.offsetMin * 60000).toISOString() }; });
+      var payload = JSON.stringify({ title: f.title, startAt: f.startAt, watchUrl: f.watchUrl, destinations: f.destinations, announcements: announcements });
+      try {
+        var saved = f.id ? await api('/events/' + encodeURIComponent(f.id), { method: 'PUT', body: payload }) : await api('/events', { method: 'POST', body: payload });
+        form.hidden = true; plan.hidden = false; toast(savedWords(f.id ? (saved && saved.updatedPosts) : (saved && saved.posts), !!f.id)); await reloadPosts();
+      } catch (err) { st.textContent = err.message; st.className = 'status bad'; }
+    };
+    var r; try { r = await api('/events'); } catch (err) { listEl.innerHTML = '<div class="empty">' + esc(err.message) + '</div>'; return; }
+    S.events = r.events || [];
+    renderLiveCards(listEl, S.events, openForm);
   }
   /* ── channels ── */
   function connectUrl(c) { return '/api/connect/' + encodeURIComponent(c.connect) + '/start?return=' + encodeURIComponent('/utilities?connected=' + encodeURIComponent(c.connect) + '&window=connect'); }

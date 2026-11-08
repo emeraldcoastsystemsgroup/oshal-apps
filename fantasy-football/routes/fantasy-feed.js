@@ -15,6 +15,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com   | Initial — the per-person projection cache and the shared in-flight fetch moved out of fantasy-routes.ts so the lineup and the management routes share them, plus the cached-weeks read the season plan is built from and the season defaults.
  * 2 | maintainer@emeraldcoastsystemsgroup.com   | projectionsFor reports the feed's state ({ok, source, reason}) from the client's onError instead of returning an empty feed that a surface rendered as zero-point projections, takes {persist:false} so a reader request (GET) never writes the cache the native kernel refuses there, keeps a fetched feed when its cache write fails, and returns the completed weeks it fetched so a read can weigh them without storing them. Guard: tests/fantasy-lineup-readonly.test.js.
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | seasonFeeds also returns the current week's feed state, so the season, waiver and trade boards can refuse to price from an empty feed (they showed SEASON VALUE 0.0 and "Nobody on the wire improves..." when ESPN's projection feed answered no players). Guard: tests/fantasy-boards-no-projection.test.js.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | seasonFeeds forwards {persist:false} to projectionsFor so Fantasy Quant GET tools run strictly read-only under native reader admission.
  *
  * @module fantasy-feed
  */
@@ -150,8 +151,8 @@ async function projectionsFor(pool, sub, season, week, opts = {}) {
  * @param lastWeek - The last week of the plan.
  * @returns Feeds keyed by week, the current week's cache age, and the current week's feed state.
  */
-async function seasonFeeds(pool, sub, season, currentWeek, lastWeek) {
-    const current = await projectionsFor(pool, sub, season, currentWeek);
+async function seasonFeeds(pool, sub, season, currentWeek, lastWeek, opts = {}) {
+    const current = await projectionsFor(pool, sub, season, currentWeek, opts);
     const feeds = new Map();
     for (const [week, players] of await (0, fantasy_store_1.readProjectionWeeks)(pool, sub, season, Math.max(1, currentWeek - 1), lastWeek)) {
         feeds.set(week, players);

@@ -10,6 +10,7 @@
  * 9 | maintainer@emeraldcoastsystemsgroup.com | Validate exact keyframe read/tool bindings and register native curve/path workflows.
  * 10 | maintainer@emeraldcoastsystemsgroup.com | Require the automatic document handoff browser recipe in the actual source catalog.
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Prove fresh actual contract keys, native/backend edit-key refusals, and register the 49-case Test Lab catalog.
+ * 12 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01 & RP-MOT-02: register native media migration 002 and the 50-case Test Lab catalog including media-and-motion-blur.test.mjs.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -104,7 +105,7 @@ test('genuine importer loads forty-three exact route bindings, original own role
   assert.deepEqual(permissions('creator'), ['project.create', 'project.read', 'project.view']);
   assert.deepEqual(permissions('editor'), ['project.change', 'project.read', 'project.view']);
   assert.deepEqual(permissions('exporter'), ['project.export', 'project.read', 'project.view']);
-  assert.deepEqual(report.migrations.map(migration => migration.id), ['migrations/native/001-motion.sql']);
+  assert.deepEqual(report.migrations.map(migration => migration.id), ['migrations/native/001-motion.sql', 'migrations/native/002-motion-media.sql']);
 });
 test('unbound or mismatched source tools lose their route contract instead of receiving wider permissions', async () => {
   const missing = await mutate((_app, auth) => { auth.bindings.tools = auth.bindings.tools.filter(binding => binding.id !== 'motion-apply-edits'); });
@@ -316,11 +317,11 @@ test('Test Lab catalog is loaded by the actual framework catalog reader and regi
   assert.ok(framework, 'Explicit framework source required for catalog loader proof');
   const loader = createRequire(resolve(framework, 'package.json'))('./scripts/oshal-test-catalog.js');
   const result = loader.loadPackageTestCatalog(root, source);
-  assert.equal(result.catalog.cases.length, 49);
+  assert.equal(result.catalog.cases.length, 52);
   const registered = new Set(result.catalog.cases.flatMap(testCase => testCase.runner.files));
   for (const file of ['engine/src/lib.rs', 'tests/project-store.test.mjs', 'tests/engine-bridge.test.mjs',
     'tests/application.test.mjs', 'tests/browser/document-handoff.test.mjs', 'tests/browser/editor-foundation.test.mjs', 'tests/workbench.test.mjs', 'tests/native-runner.test.mjs',
-    'tests/native-sql.test.mjs', 'tests/bounded-json-wire.test.mjs', 'tests/package-contract.test.mjs', 'tests/project-inspection.test.mjs', 'tests/engine-container.test.mjs', 'tests/document-exchange.test.mjs','tests/lossless-json.test.mjs','tests/lossless-documents.test.mjs','tests/owned-blobs.test.mjs','tests/durable-assets.test.mjs','tests/durable-revisions.test.mjs','tests/crash-recovery.test.mjs','tests/portable-bundle.test.mjs','tests/portable-store.test.mjs','tests/render-export.test.mjs','tests/layer-workflows.test.mjs','tests/effects.test.mjs','tests/keyframe-workflows.test.mjs','tests/playback-workflows.test.mjs','tests/text-workflows.test.mjs','tests/point-text.test.mjs','tests/candidate-package.test.mjs','tests/mask-workflows.test.mjs','tests/animated-mask-workflows.test.mjs','tests/per-character-text.test.mjs','tests/variable-feather.test.mjs','tests/bundle-transfers.test.mjs','tests/bundle-http.test.mjs','tests/bundle-workbench.test.mjs','tests/sha256-stream.test.mjs','tests/bundle-streaming.test.mjs','tests/properties-workflows.test.mjs','tests/busy-retry.test.mjs','tests/edit-title-guidance.test.mjs','tests/text-approval-guidance.test.mjs']) assert.ok(registered.has(file), file);
+    'tests/native-sql.test.mjs', 'tests/bounded-json-wire.test.mjs', 'tests/package-contract.test.mjs', 'tests/project-inspection.test.mjs', 'tests/engine-container.test.mjs', 'tests/document-exchange.test.mjs','tests/lossless-json.test.mjs','tests/lossless-documents.test.mjs','tests/owned-blobs.test.mjs','tests/durable-assets.test.mjs','tests/durable-revisions.test.mjs','tests/crash-recovery.test.mjs','tests/portable-bundle.test.mjs','tests/portable-store.test.mjs','tests/render-export.test.mjs','tests/layer-workflows.test.mjs','tests/effects.test.mjs','tests/keyframe-workflows.test.mjs','tests/playback-workflows.test.mjs','tests/text-workflows.test.mjs','tests/point-text.test.mjs','tests/candidate-package.test.mjs','tests/mask-workflows.test.mjs','tests/animated-mask-workflows.test.mjs','tests/per-character-text.test.mjs','tests/variable-feather.test.mjs','tests/bundle-transfers.test.mjs','tests/bundle-http.test.mjs','tests/bundle-workbench.test.mjs','tests/sha256-stream.test.mjs','tests/bundle-streaming.test.mjs','tests/properties-workflows.test.mjs','tests/busy-retry.test.mjs','tests/edit-title-guidance.test.mjs','tests/text-approval-guidance.test.mjs','tests/media-and-motion-blur.test.mjs']) assert.ok(registered.has(file), file);
 });
 
 test('both native edit schemas reject malformed and v7 request keys before proposal and backend work',async()=>{

@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                  | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Submission activity, grade C). The real tools/career-submissions.html in Chromium over a synthetic fixture: one status row "No computer connected · last seen 30 days ago" with one Connect a computer (no picker row, no repeated "no worker" lines, no hour count); the lanes are 44px role=tab chips that filter the list; an empty queue is "Nothing sent yet" with one primary Open Job Board; Job Apply's counters are one row computed from these records and each row names its portal; Connect a computer opens the kit sheet with a primary, a tertiary Cancel and an X close, and never a browser dialog.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Guard trial guest behavior: withhold Connect a computer when /api/guest/session reports an active guest visitor.
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,6 +18,7 @@ const lastSeen = Date.now() - 30 * 86400000 - 3600000;
 function api(state) {
   return ({ url }) => {
     const p = url.pathname;
+    if (p === '/api/guest/session') return { json: { guest: Boolean(state.guest), active: Boolean(state.guest) } };
     if (p === '/api/apply-operator/workers') return { json: { workers: [], available: false, observedBrowserNodes: [{ lastSeen }] } };
     if (p === '/api/career-hunter/submission-queue') return { json: { items: state.items } };
     if (p === '/api/career-hunter/applications') return { json: { applications: [] } };
@@ -63,5 +65,14 @@ test('desktop: counters row, portal on each row, chips filter, and the connect s
     await sheet.getByRole('button', { name: 'Close' }).click();
     await page.waitForFunction(() => !document.querySelector('dialog.ck-sheet'));
     assert.equal(calls.filter((c) => c.method === 'DIALOG').length, 0);
+  } finally { await context.close(); }
+});
+
+test('guest visitor: Connect a computer is withheld', async () => {
+  const { page, context } = await openScreen(browser, 'career-submissions.html', api({ items: [], guest: true }), PHONE);
+  try {
+    await page.getByRole('heading', { name: 'Nothing sent yet' }).waitFor();
+    assert.match(await page.locator('#worker').innerText(), /No computer connected/);
+    assert.equal(await page.locator('#connectComputer').count(), 0);
   } finally { await context.close(); }
 });

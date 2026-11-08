@@ -256,7 +256,8 @@ cases:
     name: The table reads under every theme
     purpose: >-
       Load the shipped table.html, dnd.css and scripts in headless Chromium with each of the twenty themes' tokens
-      (tests/browser/theme-tokens.json) and measure every text on the dark set against what is painted under it.
+      (tests/browser/theme-tokens.json), verify the table chrome follows light and dark themes, and measure every text
+      against what is painted under it, including >= 13.86:1 story-panel contrast across all twenty themes.
     level: browser
     runner:
       kind: node-test
@@ -264,9 +265,9 @@ cases:
       files:
         - tests/browser/dnd-theme-contrast.test.cjs
     expected:
-      - The Dungeon Master drawer (Current Quest, Table Talk, quick questions, Ask DM), the status strip, the five HUD controls and the More menu, the dock, End Turn and a waiting Move, and the banner read at 4.5:1 (3:1 for large text) under every theme.
+      - The Dungeon Master drawer (Current Quest, Table Talk, quick questions, Ask DM), the status strip, the five HUD controls and the More menu, the dock, End Turn and a waiting Move, and the banner read at 4.5:1 (3:1 for large text) under every theme, with >= 13.86:1 story-panel contrast across all 20 themes.
       - My Games' heading, rows, Resume, the row's ⋯ menu and Delete Campaign read at 4.5:1 on an opaque card under every theme.
-      - Under light-blue the same holds at 412 px and at 1440 px, and nothing is written.
+      - Under both light-blue and midnight the same holds at 412 px and at 1440 px, and nothing is written.
     prerequisites:
       - runner:node-test
       - dependency:playwright

@@ -8,10 +8,15 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: a TV (Fire TV or Android TV, form === 'tv') shows as TV in the rail and header, reveals the TV remote (arrows, OK, Play/Pause), hides Recent apps and Power, and tells a tap or drag on the TV picture to use the remote's arrows and OK.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: remote-control first screen and session (C-REM-1, C-REM-6, C-REM-7, N14, DS-39): device rows with overflow menu (Allow control, in-page confirmed Remove), full-frame phone session with Android bottom bar, live iPhone AirPlay screen mirroring through UxPlay (Start mirroring / Stop mirroring + mirror-frame loop), 48px Session sheet handle, desktop top session toolbar ending with X and 320px right pane.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: integrate sessionComputer, sessionMedia, sessionCollab, and specialized phoneConcierge controllers for RP-PHC-01..13, direct iPhone click-to-tap / drag-to-swipe / wheel-to-scroll, auto-resumed AirPlay mirroring, mirrored iPhone screen text reading, streamlined quick-control dock, and modal background inert gating.
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned studio toolbar (#sessionDeviceSelect switcher, inline Home/Back/Recents/Sync/#sessionMirrorBtn/+ Add Device/Controls/Concierge/Full screen), collapsible 340px Controls | Concierge right rail, fullscreen stage (.is-fullscreen + parent event fallback + #fullscreenHud), TV #protectedSurfaceNotice + fast post-input frame wakeups, pre-mirror iPhone stage touchpad + #iosStageGuide, and persisted RDP state cleanup.
  */
 
-import { readFrame, tapPoint, swipeFromDrag, createQueue, workHref, computerStanding, phoneReachable } from '/api/phone-control/ui/computer-link.js';
-import { handleRdpPointerUp, loadStageHistory, rdpLabel, rdpLoop, readRdpScreen, renderRdpHead, renderScreenItems, sendRdpInput } from '/api/phone-control/ui/phone-rdp.js';
+import { readFrame, tapPoint, swipeFromDrag, createQueue, workHref, computerStanding, phoneReachable, setStoredRdp } from '/api/phone-control/ui/computer-link.js';
+import {
+  flashTouchIndicator, handleRdpPointerUp, loadStageHistory, rdpLabel, rdpLoop, readRdpScreen,
+  renderDeviceSwitcher, renderProtectedSurface, renderRdpHead, renderScreenItems, sendRdpInput,
+  setFullscreenStage, setRailState, toggleRailTab
+} from '/api/phone-control/ui/phone-rdp.js';
 import { mountSessionComputer } from '/api/phone-control/ui/session-computer.js';
 import { mountSessionMedia } from '/api/phone-control/ui/session-media.js';
 import { mountSessionCollab } from '/api/phone-control/ui/session-collab.js';
@@ -48,7 +53,9 @@ function createStageContext(app) {
     desktopMedia: window.matchMedia('(min-width: 1040px)'),
     view: {
       generation: 0, frame: null, pictureUrl: '', apps: [], computerTag: '',
-      drag: null, menuPhone: null, menuRdp: null, menuTrigger: null, pendingRemoveId: null, pendingRemoveRdpId: null, mirrorRunning: false
+      drag: null, padDrag: null, menuPhone: null, menuRdp: null, menuTrigger: null,
+      pendingRemoveId: null, pendingRemoveRdpId: null, mirrorRunning: false,
+      wakeFrame: null, fastFramePendingAt: 0, fullscreen: false, conciergeCollapsed: false, railTab: 'concierge', touchTimer: null
     },
     selectedPhone: () => (app.state.selected?.kind === 'phone' ? app.state.phones.find((p) => p.id === app.state.selected.id) || null : null),
     selectedComputer: () => (app.state.selected?.kind === 'computer' ? app.computer(app.state.selected.id) : null),
@@ -65,6 +72,9 @@ function createStageContext(app) {
     return targetKey ? app.records.savePreferences({ targetKey, ...patch }).catch(() => null) : Promise.resolve(null);
   };
   ctx.restartFrameLoops = () => restartFrameLoops(ctx);
+  ctx.scheduleFastFrame = (delayMs = 260) => scheduleFastFrame(ctx, delayMs);
+  ctx.syncActiveDevice = () => syncActiveDevice(ctx);
+  ctx.flashTouchIndicator = (clientX, clientY) => flashTouchIndicator(ctx, clientX, clientY);
   ctx.refreshActiveComputerFrame = () => { ctx.view.computerTag = ''; restartFrameLoops(ctx); };
   ctx.sessionComputer = mountSessionComputer(ctx);
   ctx.sessionMedia = mountSessionMedia(ctx);
@@ -82,9 +92,13 @@ export function mountStage(app) {
   app.closeSessionSheet = (fromPop = false) => closeSessionSheet(ctx, fromPop);
   app.closeRowMenu = () => closeRowMenu(ctx);
   app.syncModalLayers = () => syncModalLayers(ctx);
+  app.exitFullscreen = () => setFullscreenStage(ctx, false);
   wireRowActions(ctx);
   wireControls(ctx);
   ctx.desktopMedia.addEventListener?.('change', () => renderStage(ctx));
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && ctx.view.fullscreen) setFullscreenStage(ctx, false);
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') restartFrameLoops(ctx);
   });
@@ -166,6 +180,7 @@ function renderRail(ctx) {
   });
   $('computerRail').replaceChildren(...computerRows, ...rdpRows);
   $('railEmpty').hidden = Boolean(app.state.phones.length || app.state.computerList.length || app.state.rdpSessions.length);
+  renderDeviceSwitcher(ctx);
 }
 
 function openRowMenu(ctx, phone, trigger, rdp = null) {
@@ -197,10 +212,26 @@ function closeRowMenu(ctx) {
 }
 
 function syncSessionPlacement(ctx) {
-  const { $, desktopMedia } = ctx;
+  const { $, desktopMedia, app } = ctx;
   const desktop = desktopMedia.matches;
-  const detailsHost = desktop ? $('sideColumn') : $('sessionSheetDetails');
-  detailsHost.append($('conciergeCard'), $('computerConciergeCard'), $('screenTextCard'), $('historyCard'));
+  const sheetOpen = Boolean(app.state.sessionSheetOpen);
+  const controls = [
+    $('allowControlRow'), $('typeForm'), $('openForm'),
+    $('controlBar'), $('pointerPad'), $('computerPointerSection'), $('sessionFeaturesSection')
+  ];
+  if (desktop && !sheetOpen) {
+    $('railConciergeBody').append($('conciergeCard'), $('computerConciergeCard'));
+    $('railControlsDynamic').append(...controls);
+    $('railControlsBody').append($('screenTextCard'), $('historyCard'));
+  } else {
+    $('sessionSheetControlsSlot').append(...controls);
+    if (desktop) {
+      $('railConciergeBody').append($('conciergeCard'), $('computerConciergeCard'));
+      $('sessionSheetDetails').append($('screenTextCard'), $('historyCard'));
+    } else {
+      $('sessionSheetDetails').append($('conciergeCard'), $('computerConciergeCard'), $('screenTextCard'), $('historyCard'));
+    }
+  }
   const computer = ctx.selectedComputer();
   const workHost = desktop && computer ? $('desktopAssistSlot') : $('computerActions');
   workHost.append($('workOnIt'));
@@ -227,6 +258,7 @@ function closeSessionSheet(ctx, fromPop = false) {
   $('sessionSheet').hidden = true;
   $('sessionSheetScrim').hidden = true;
   $('sessionHandleBtn').setAttribute('aria-expanded', 'false');
+  syncSessionPlacement(ctx);
   if (!fromPop && history.state?.pcView === 'session-sheet') history.back();
   app.emit();
 }
@@ -246,10 +278,14 @@ async function probeIosMirror(ctx, phone, generation) {
   const reply = await phoneCommand(ctx, phone, 'status', { adb: false });
   if (generation !== ctx.view.generation || !reply?.ok) return;
   await ctx.app.keepReport(phone.computerNodeId, reply);
-  if (generation !== ctx.view.generation || !reply.mirror?.running || ctx.view.mirrorRunning) return;
-  ctx.view.mirrorRunning = true;
+  if (generation !== ctx.view.generation) return;
+  if (reply.mirror?.running && !ctx.view.mirrorRunning) {
+    ctx.view.mirrorRunning = true;
+    renderStage(ctx);
+    restartFrameLoops(ctx);
+    return;
+  }
   renderStage(ctx);
-  restartFrameLoops(ctx);
 }
 
 function selectDevice(ctx, choice, push = true) {
@@ -272,7 +308,6 @@ function selectDevice(ctx, choice, push = true) {
   ctx.sessionMedia.resetForSelection();
   ctx.sessionCollab.onSelectTarget();
   ctx.phoneConcierge.onSelectTarget();
-  loadTargetPreferences(ctx, ctx.currentTargetKey(), view.generation);
   if (push) {
     const fn = history.state?.pcView === 'connect' ? 'replaceState' : 'pushState';
     history[fn]({ pcView: 'session', selected: choice }, '');
@@ -281,9 +316,10 @@ function selectDevice(ctx, choice, push = true) {
   renderRail(ctx);
   void loadStageHistory(ctx);
   app.emit();
+  restartFrameLoops(ctx);
+  loadTargetPreferences(ctx, ctx.currentTargetKey(), view.generation);
   if (phone?.platform === 'android' && phone.controlEnabled) void loadApps(ctx, phone, view.generation);
   if (phone?.platform === 'ios' && phone.controlEnabled && !view.mirrorRunning) void probeIosMirror(ctx, phone, view.generation);
-  restartFrameLoops(ctx);
 }
 
 async function endSession(ctx, fromPop = false) {
@@ -300,6 +336,7 @@ async function endSession(ctx, fromPop = false) {
   $('sessionSheet').hidden = true;
   $('sessionSheetScrim').hidden = true;
   $('sessionHandleBtn').setAttribute('aria-expanded', 'false');
+  setFullscreenStage(ctx, false);
   app.state.selected = null;
   view.generation += 1;
   view.frame = null;
@@ -320,9 +357,63 @@ function showPicture(ctx, blob) {
   if (ctx.view.pictureUrl) URL.revokeObjectURL(ctx.view.pictureUrl);
   ctx.view.pictureUrl = blob ? URL.createObjectURL(blob) : '';
   image.hidden = !blob;
-  if (blob) image.src = ctx.view.pictureUrl; else image.removeAttribute('src');
+  if (blob) {
+    image.src = ctx.view.pictureUrl;
+    ctx.$('iosStageGuide').hidden = true;
+  } else {
+    image.removeAttribute('src');
+    ctx.$('protectedSurfaceNotice').hidden = true;
+  }
   ctx.sessionComputer.render();
   ctx.sessionCollab.renderWhiteboard();
+}
+
+function adoptRotatedSerial(ctx, phone, nextSerial) {
+  if (!phone || phone.platform !== 'android' || !nextSerial || nextSerial === phone.address) return;
+  phone.address = nextSerial;
+  void ctx.app.records.updatePhone(phone.id, { address: nextSerial }).catch(() => {});
+}
+
+async function syncActiveDevice(ctx) {
+  const phone = ctx.selectedPhone();
+  if (ctx.selectedComputer() || ctx.selectedRdp()) {
+    ctx.status('Refreshing screen…');
+    ctx.refreshActiveComputerFrame();
+    return;
+  }
+  if (!phone) return;
+  await ctx.queue.press(async () => {
+    if (phone.platform === 'ios') {
+      ctx.status('Syncing Bluetooth & pointer…');
+      const synced = await phoneCommand(ctx, phone, 'ble-sync', { address: phone.address }, 'sync', 'Sync iPhone Bluetooth', 25000);
+      const fresh = await phoneCommand(ctx, phone, 'status', { adb: false });
+      if (fresh?.ok) await ctx.app.keepReport(phone.computerNodeId, fresh);
+      if (!synced) return;
+      ctx.$('assistiveTouchBar').hidden = !synced.assistiveTouchOff;
+      ctx.status(synced.message || (synced.ok ? 'iPhone Bluetooth synced.' : 'Bluetooth sync needs attention.'));
+      renderStage(ctx);
+      return;
+    }
+    ctx.status(isTv(phone) ? 'Syncing TV connection…' : 'Syncing Android connection…');
+    const verb = isTv(phone) ? 'adb-connect-tv' : 'adb-connect';
+    if (isTv(phone) || phone.address.includes(':')) {
+      const synced = await phoneCommand(ctx, phone, verb, { address: phone.address }, 'sync', `Sync ${phone.name}`, 25000);
+      if (synced?.ok) adoptRotatedSerial(ctx, phone, synced.serial);
+    }
+    const fresh = await phoneCommand(ctx, phone, 'status', {});
+    if (fresh?.ok) await ctx.app.keepReport(phone.computerNodeId, fresh);
+    ctx.status(`${phone.name} synced.`);
+    renderStage(ctx);
+    restartFrameLoops(ctx);
+    scheduleFastFrame(ctx, 60);
+  });
+}
+
+function sendHomeKey(ctx) {
+  const phone = ctx.selectedPhone();
+  if (!phone) return;
+  if (phone.platform === 'android') press(ctx, 'key home', 'Home', 'adb-key', { key: 'HOME' });
+  else press(ctx, 'key home', 'Home', 'ble-key', { key: 'Home', address: phone.address });
 }
 
 function syncPlatformAttributes(phone, tv, ios) {
@@ -352,24 +443,28 @@ function renderStage(ctx) {
   setVisible('quickControlDock', active);
   setVisible('typeForm', active);
   setVisible('openForm', active);
-  setVisible('tvRemote', tv && ios);
+  setVisible('tvRemote', tv);
   setVisible('pointerPad', ios);
   setVisible('computerPointerSection', Boolean(computer));
-  setVisible('iosMirrorBar', ios && !tv);
-  setVisible('androidNavBar', phone?.platform === 'android');
+  setVisible('iosMirrorBar', false);
+  setVisible('androidNavBar', phone?.platform === 'android' && !tv);
   setVisible('screenTextCard', phone?.platform === 'android' || (ios && view.mirrorRunning) || Boolean(rdp));
   setVisible('computerActions', Boolean(computer) && !desktopMedia.matches);
   setVisible('sessionHandleBtn', !desktopMedia.matches);
   setVisible('refreshScreen', phone?.platform === 'android' || (ios && view.mirrorRunning) || Boolean(rdp));
   const mirrorLabel = view.mirrorRunning ? 'Stop mirroring' : 'Start mirroring';
-  for (const id of ['sessionMirrorBtn', 'iosMirrorBtn', 'sheetMirrorBtn', 'quickMirrorBtn']) $(id).textContent = mirrorLabel;
+  $('sessionMirrorLabel').textContent = mirrorLabel;
+  for (const id of ['iosMirrorBtn', 'sheetMirrorBtn', 'quickMirrorBtn']) $(id).textContent = mirrorLabel;
   syncPlatformAttributes(phone, tv, ios);
+  $('iosStageGuide').hidden = true;
+  $('screenNote').hidden = false;
   if (phone) renderPhoneHead(ctx, phone);
   else if (computer) renderComputerHead(ctx, computer);
   else if (rdp) renderRdpHead(ctx, rdp);
   ctx.sessionComputer.render();
   ctx.sessionCollab.renderWhiteboard();
   ctx.phoneConcierge.render();
+  setRailState(ctx, !view.conciergeCollapsed, view.railTab);
   syncSessionPlacement(ctx);
   syncModalLayers(ctx);
 }
@@ -385,23 +480,29 @@ function renderPhoneHead(ctx, phone) {
   $('stageTitle').textContent = phone.name;
   $('stageSub').textContent = `${how}${dims} · through ${host?.name || 'a computer that is not listed now'}`;
   $('allowControl').checked = phone.controlEnabled;
+  const showIosGuide = Boolean(phone.platform === 'ios' && !tv && phone.controlEnabled && $('screenImage').hidden);
+  $('iosStageGuide').hidden = !showIosGuide;
   if ($('screenImage').hidden) {
     if (tv && phone.platform === 'ios') {
+      $('screenNote').hidden = false;
       $('screenNote').textContent = phone.controlEnabled
         ? 'Connected over Bluetooth (OSHAL-KB). Use the TV remote below or type on your keyboard.'
         : 'Allow control is off: nothing is sent to this TV.';
     } else if (phone.platform === 'ios') {
       const rcv = app.state.reports.get(phone.computerNodeId)?.report?.mirror?.receiverName || 'OSHAL Mirror';
+      $('iosMirrorTargetName').textContent = rcv;
+      $('screenNote').hidden = showIosGuide;
       $('screenNote').textContent = !phone.controlEnabled
         ? 'Allow control is off: nothing is sent to this iPhone.'
-        : view.mirrorRunning
-          ? `Waiting for your iPhone. Open Control Center → Screen Mirroring → ${rcv} on the same Wi-Fi.`
-          : 'Press Start mirroring, then choose OSHAL Mirror on your iPhone under Control Center → Screen Mirroring to view, tap and swipe your iPhone screen directly.';
+        : `Waiting for ${rcv} — swipe down Control Center → Screen Mirroring → ${rcv}.`;
     } else {
+      $('screenNote').hidden = false;
       $('screenNote').textContent = phone.controlEnabled
         ? (tv ? 'Reading the TV’s screen…' : 'Reading the phone’s screen…')
         : (tv ? 'Allow control is off: nothing is sent to this TV.' : 'Allow control is off: nothing is sent to this phone.');
     }
+  } else {
+    $('screenNote').hidden = false;
   }
   $('appInput').placeholder = phone.platform === 'ios' ? 'App name, for example Notes' : 'App name or package';
 }
@@ -443,14 +544,45 @@ async function phoneCommand(ctx, phone, verb, args, action, summary, limitMs) {
   return reply;
 }
 
+function scheduleFastFrame(ctx, delayMs = 260) {
+  const wait = Math.max(40, delayMs);
+  ctx.view.fastFramePendingAt = Date.now() + wait;
+  if (typeof ctx.view.wakeFrame !== 'function') return;
+  const wake = ctx.view.wakeFrame;
+  ctx.view.wakeFrame = null;
+  setTimeout(wake, wait);
+}
+
+function waitNextFrame(ctx, ms) {
+  let waitMs = ms;
+  if (ctx.view.fastFramePendingAt > 0) {
+    waitMs = Math.min(ms, Math.max(40, ctx.view.fastFramePendingAt - Date.now()));
+    ctx.view.fastFramePendingAt = 0;
+  }
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (ctx.view.wakeFrame === finish) ctx.view.wakeFrame = null;
+      resolve();
+    };
+    const timer = setTimeout(finish, waitMs);
+    ctx.view.wakeFrame = finish;
+  });
+}
+
 function press(ctx, action, summary, verb, args, after) {
   const phone = ctx.selectedPhone();
   if (!phone) return;
   ctx.status(`${summary}…`);
   void ctx.queue.press(async () => {
-    const fullArgs = { ...args, ...(phone.platform === 'android' ? { serial: phone.address } : {}) };
-    const reply = await phoneCommand(ctx, phone, verb, fullArgs, action, summary);
+    const extra = phone.platform === 'android' ? { serial: phone.address } : { address: phone.address };
+    const reply = await phoneCommand(ctx, phone, verb, { ...extra, ...args }, action, summary);
     if (!reply) return;
+    if (phone.platform === 'android' && reply.ok) scheduleFastFrame(ctx, 260);
+    if (phone.platform === 'ios' && reply.error === 'assistive_touch_off') ctx.$('assistiveTouchBar').hidden = false;
     ctx.status(reply.ok ? `${summary}: done.` : reply.message || 'It did not work.');
     if (reply.ok && after) after(reply);
   });
@@ -504,11 +636,14 @@ async function frameLoop(ctx, generation) {
         try {
           const frame = await job;
           if (generation !== view.generation) return;
+          adoptRotatedSerial(ctx, phone, frame.serial);
           view.frame = { ...frame, width: frame.deviceWidth, height: frame.deviceHeight };
           showPicture(ctx, new Blob([frame.bytes], { type: frame.mime }));
+          renderProtectedSurface(ctx, frame);
           renderPhoneHead(ctx, phone);
           $('screenNote').textContent = '';
-          status(frame.slow ? 'This computer has no ffmpeg, so each picture is a full PNG and slow.' : '');
+          if (frame.screenAsleep) status('Screen is asleep — press Home or OK to wake it.');
+          else status(frame.slow ? 'This computer has no ffmpeg, so each picture is a full PNG and slow.' : '');
         } catch (error) {
           if (generation !== view.generation) return;
           if (error?.reply?.error === 'mirror_not_running') {
@@ -521,7 +656,7 @@ async function frameLoop(ctx, generation) {
         }
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, ctx.sessionMedia.phoneFrameMs()));
+    await waitNextFrame(ctx, ctx.sessionMedia.phoneFrameMs());
   }
 }
 
@@ -594,6 +729,7 @@ async function confirmRemovePhone(ctx) {
   if (rdpId) {
     await ctx.app.rdp.disconnect(rdpId).catch(() => {});
     ctx.app.state.rdpSessions = ctx.app.state.rdpSessions.filter((item) => item.sessionId !== rdpId);
+    setStoredRdp(ctx.app.state.rdpSessions.length > 0);
     if (ctx.app.state.selected?.kind === 'rdp' && ctx.app.state.selected.id === rdpId) await endSession(ctx, false);
     else ctx.app.emit();
     return;
@@ -635,8 +771,34 @@ function wireRowActions(ctx) {
   });
 }
 
+function wireToolbarControls(ctx) {
+  const { $ } = ctx;
+  $('backToDevicesBtn').addEventListener('click', () => void endSession(ctx, false));
+  $('sessionDeviceSelect').addEventListener('change', (event) => {
+    const [kind, ...rest] = String(event.target.value || '').split(':');
+    const id = rest.join(':');
+    if (kind && id) selectDevice(ctx, { kind, id }, true);
+  });
+  $('syncDeviceBtn').addEventListener('click', () => void syncActiveDevice(ctx));
+  $('sessionAddDeviceBtn').addEventListener('click', () => ctx.app.openConnect(true));
+  $('openControlsRailBtn').addEventListener('click', () => toggleRailTab(ctx, 'controls'));
+  $('toggleConciergeBtn').addEventListener('click', () => toggleRailTab(ctx, 'concierge'));
+  $('railTabControls').addEventListener('click', () => setRailState(ctx, true, 'controls'));
+  $('railTabConcierge').addEventListener('click', () => setRailState(ctx, true, 'concierge'));
+  const hideRail = () => setRailState(ctx, false, ctx.view.railTab);
+  $('closeConciergeRailBtn').addEventListener('click', hideRail);
+  $('closeComputerRailBtn').addEventListener('click', hideRail);
+  $('closeControlsRailBtn').addEventListener('click', hideRail);
+  $('fullscreenStageBtn').addEventListener('click', () => setFullscreenStage(ctx, !ctx.view.fullscreen));
+  $('fsSyncBtn').addEventListener('click', () => void syncActiveDevice(ctx));
+  $('fsHomeBtn').addEventListener('click', () => sendHomeKey(ctx));
+  $('fsExitBtn').addEventListener('click', () => setFullscreenStage(ctx, false));
+  $('protectedGoHomeBtn').addEventListener('click', () => sendHomeKey(ctx));
+}
+
 function wireControls(ctx) {
   const { $, app } = ctx;
+  wireToolbarControls(ctx);
   for (const button of document.querySelectorAll('.pc-key')) {
     button.addEventListener('click', () => {
       const phone = ctx.selectedPhone();
@@ -668,6 +830,7 @@ function wireControls(ctx) {
   $('readScreen').addEventListener('click', () => readScreen(ctx));
   wireForms(ctx);
   wirePicture(ctx);
+  wireStageTouchpad(ctx);
 }
 
 function wireForms(ctx) {
@@ -716,6 +879,33 @@ function wireForms(ctx) {
   });
 }
 
+function finishScreenPointerUp(ctx, event, end) {
+  const start = ctx.view.drag;
+  ctx.view.drag = null;
+  if (!start) return;
+  const rdp = ctx.selectedRdp();
+  if (rdp) { handleRdpPointerUp(ctx, rdp, start, end); return; }
+  const phone = ctx.selectedPhone();
+  if (phone?.platform === 'ios' && !isTv(phone)) {
+    flashTouchIndicator(ctx, event.clientX, event.clientY);
+    ctx.phoneConcierge.handleIosGesture(start, end);
+    return;
+  }
+  ctx.$('deviceFrame').focus({ preventScroll: true });
+  if (isTv(phone) && phone?.platform === 'ios') { ctx.status("Use the remote's arrows and OK."); return; }
+  if (!ctx.view.frame) return;
+  try {
+    const swipe = swipeFromDrag(start, end, end.box, ctx.view.frame, performance.now() - start.at);
+    if (swipe) press(ctx, 'swipe', 'Swipe', 'adb-swipe', swipe);
+    else {
+      const point = tapPoint(end, end.box, ctx.view.frame);
+      press(ctx, 'tap', `Tap at ${point.x}, ${point.y}`, 'adb-tap', point);
+    }
+  } catch (error) {
+    ctx.status(error.message);
+  }
+}
+
 function wirePicture(ctx) {
   const image = ctx.$('screenImage');
   image.addEventListener('load', () => {
@@ -731,32 +921,42 @@ function wirePicture(ctx) {
   const local = (event) => { const box = image.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top, box }; };
   image.addEventListener('pointerdown', (event) => {
     if (ctx.selectedComputer()) { ctx.sessionComputer.onPointerDown(local(event)); return; }
+    const phone = ctx.selectedPhone();
+    if (phone?.platform === 'ios' && !isTv(phone)) flashTouchIndicator(ctx, event.clientX, event.clientY);
     ctx.view.drag = { ...local(event), at: performance.now() };
   });
   image.addEventListener('pointermove', (event) => {
-    if (ctx.selectedComputer()) ctx.sessionComputer.onPointerMove(event, local(event));
+    if (ctx.selectedComputer()) { ctx.sessionComputer.onPointerMove(event, local(event)); return; }
+    if (ctx.view.drag && ctx.selectedPhone()?.platform === 'ios') flashTouchIndicator(ctx, event.clientX, event.clientY);
   });
   image.addEventListener('pointerup', (event) => {
     if (ctx.selectedComputer()) { ctx.sessionComputer.onPointerUp(local(event)); return; }
-    const start = ctx.view.drag;
-    ctx.view.drag = null;
-    if (!start) return;
-    const end = local(event);
-    const rdp = ctx.selectedRdp();
-    if (rdp) { handleRdpPointerUp(ctx, rdp, start, end); return; }
+    finishScreenPointerUp(ctx, event, local(event));
+  });
+}
+
+function wireStageTouchpad(ctx) {
+  const frame = ctx.$('deviceFrame');
+  const localPad = (event) => {
+    const box = frame.getBoundingClientRect();
+    return { x: event.clientX - box.left, y: event.clientY - box.top, box };
+  };
+  frame.addEventListener('pointerdown', (event) => {
+    if (!ctx.$('screenImage').hidden || event.target?.closest?.('button, a, #protectedSurfaceNotice')) return;
     const phone = ctx.selectedPhone();
-    if (phone?.platform === 'ios' && !isTv(phone)) { ctx.phoneConcierge.handleIosGesture(start, end); return; }
-    ctx.$('deviceFrame').focus({ preventScroll: true });
-    if (isTv(phone) && phone?.platform === 'ios') { ctx.status("Use the remote's arrows and OK."); return; }
-    if (!ctx.view.frame) return;
-    try {
-      const swipe = swipeFromDrag(start, end, end.box, ctx.view.frame, performance.now() - start.at);
-      if (swipe) return press(ctx, 'swipe', 'Swipe', 'adb-swipe', swipe);
-      const point = tapPoint(end, end.box, ctx.view.frame);
-      return press(ctx, 'tap', `Tap at ${point.x}, ${point.y}`, 'adb-tap', point);
-    } catch (error) {
-      return ctx.status(error.message);
-    }
+    if (!phone || phone.platform !== 'ios' || isTv(phone)) return;
+    flashTouchIndicator(ctx, event.clientX, event.clientY);
+    ctx.view.padDrag = { ...localPad(event), at: performance.now() };
+  });
+  frame.addEventListener('pointermove', (event) => {
+    if (ctx.view.padDrag) flashTouchIndicator(ctx, event.clientX, event.clientY);
+  });
+  frame.addEventListener('pointerup', (event) => {
+    const start = ctx.view.padDrag;
+    ctx.view.padDrag = null;
+    if (!start) return;
+    flashTouchIndicator(ctx, event.clientX, event.clientY);
+    ctx.phoneConcierge.handleIosGesture(start, localPad(event));
   });
 }
 

@@ -7,6 +7,7 @@
  * 6 | maintainer@emeraldcoastsystemsgroup.com | Expose genuine original fixture principals for explicitly identified history-cardinality seeding.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | Expose controlled boundary hooks and SIGKILL only exact owned package children with safe dead-pipe handling.
  * 8 | maintainer@emeraldcoastsystemsgroup.com | Expose direct controlled source-service contexts backed by genuine SDK pools, original-person native SQL and compositor relay.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | RP-MOT-01: accept two applied native SQL migrations when media tables are initialized.
  */
 import {parseNative} from '../tools/native-json.mjs';
 import { createRequire } from 'node:module';
@@ -128,7 +129,7 @@ export async function startNativeSqlFixture({ durable = true } = {}) {
     async function startRunner(actor, { lasting = durable } = {}) {
       const principal = ready.principals.find(value => value.subject === actor);
       const migration = await rpc(actor, 'migrate');
-      if (!migration.complete || ![0,1].includes(migration.applied)) throw new Error('Native migration incomplete');
+      if (!migration.complete || ![0,1,2].includes(migration.applied)) throw new Error('Native migration incomplete');
       const preload = `import Module,{createRequire} from 'node:module';
         const require=createRequire(${JSON.stringify(resolve(kernel, 'crates/host-process/bridge/runner.js'))});
         const shim=require('./express_shim.js').createExpressShim(), original=Module._load;

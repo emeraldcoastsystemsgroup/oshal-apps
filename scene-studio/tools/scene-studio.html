@@ -7,11 +7,19 @@
   OSHAL STL viewer. Behaviour is served by this package's route (/api/scene-studio/assets/…); the
   theme is inherited from the surrounding cockpit. (.html is exempt from the CHANGE LOG header.)
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="midnight" data-ds-category="editor" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Scene Studio</title>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                  | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 editor contract and bottom-sheet responsive chrome.
+-->
+
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
@@ -65,29 +73,29 @@
   .layout { display: grid; grid-template-columns: 250px 1fr; min-height: calc(100vh - 49px); }
   aside { border-right: 1px solid var(--ss-line); padding: 12px; background: var(--ss-panel); overflow: auto; }
   main { padding: 14px 18px 40px; overflow: auto; min-width: 0; }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ss-line); color: var(--ss-muted); white-space: nowrap; }
+  .badge { font-size: 12px; line-height: 16px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--ss-line); color: var(--ss-muted); white-space: nowrap; }
   .badge.godot { border-color: #478cbf; color: #6fb1e6; }
   .badge.blender { border-color: #e87d0d; color: #f5a14a; }
   .badge.ok { border-color: var(--ss-ok); color: var(--ss-ok); }
   .badge.bad { border-color: var(--ss-danger); color: var(--ss-danger); }
-  .banner { border: 1px solid var(--ss-danger); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; background: var(--ss-panel2); }
+  .banner { border: 1px solid var(--ss-danger); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; background: var(--ss-panel2); }
   .banner code { user-select: all; word-break: break-all; }
   section.step { border: 1px solid var(--ss-line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: var(--ss-panel); }
   section.step h2 { font-size: 14px; margin: 0 0 8px; }
   section.step h2 small { color: var(--ss-muted); font-weight: normal; margin-left: 8px; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
   button, input, select, textarea { font: inherit; color: var(--ss-text); }
-  button.primary { background: var(--ss-accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button.primary { background: var(--ss-accent); color: var(--ds-on-accent, var(--text-on-accent, #fff)); border: 0; border-radius: 10px; padding: 8px 14px; cursor: pointer; }
   button.primary:disabled, button.ghost:disabled { opacity: .5; cursor: default; }
-  button.ghost { background: transparent; border: 1px solid var(--ss-line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  button.ghost { background: transparent; border: 1px solid var(--ss-line); border-radius: 10px; padding: 6px 10px; cursor: pointer; }
   button.link { background: none; border: 0; color: var(--ss-accent); cursor: pointer; padding: 0 4px; }
-  input[type=text], input[type=number], select, textarea { background: var(--ss-panel2); border: 1px solid var(--ss-line); border-radius: 6px; padding: 5px 8px; }
+  input[type=text], input[type=number], select, textarea { background: var(--ss-panel2); border: 1px solid var(--ss-line); border-radius: 6px; padding: 6px 8px; }
   textarea { width: 100%; min-height: 220px; font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 12px; }
   textarea.short { min-height: 120px; }
-  pre { white-space: pre-wrap; word-break: break-word; background: var(--ss-panel2); border: 1px solid var(--ss-line); border-radius: 8px; padding: 8px; margin: 6px 0; max-height: 320px; overflow: auto; font-size: 12px; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--ss-panel2); border: 1px solid var(--ss-line); border-radius: 6px; padding: 8px; margin: 6px 0; max-height: 320px; overflow: auto; font-size: 12px; }
   .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .preview-grid img { width: 100%; border-radius: 8px; border: 1px solid var(--ss-line); background: var(--ss-panel2); }
-  canvas#viewer { width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; border: 1px solid var(--ss-line); color: var(--ss-accent); background: var(--ss-panel2); touch-action: none; }
+  .preview-grid img { width: 100%; border-radius: 6px; border: 1px solid var(--ss-line); background: var(--ss-panel2); }
+  canvas#viewer { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; border: 1px solid var(--ss-line); color: var(--ss-accent); background: var(--ss-panel2); touch-action: none; }
   ul.files, ul.revisions { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow: auto; }
   ul.files li, ul.revisions li { display: flex; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--ss-line); }
   ul.files li .path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
@@ -103,12 +111,13 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
 .scene-foundation summary {display:flex;align-items:center;font-weight:600;cursor:pointer}
 .scene-foundation details {padding:8px 0}
 /* Secondary actions are solid with one edge in every theme (Refresh objects was the browser's flat grey). */
-.scene-foundation button.ghost,.scene-foundation button.scene-secondary,.scene-foundation .scene-object-tree button,.scene-foundation .scene-frame-tools button,.scene-foundation .scene-projects button,.scene-foundation header button:not(.primary):not([role=tab]),.scene-foundation header summary,.scene-sheet button.ghost {font:inherit;font-weight:600;border:1px solid var(--border-color);border-radius:8px;padding:8px 12px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);cursor:pointer}
-.scene-foundation button.primary {font:inherit;font-weight:650;border:1px solid var(--accent-primary);border-radius:8px;padding:8px 16px;background:var(--accent-primary);color:var(--text-on-accent,#fff);cursor:pointer}
+.scene-foundation button.ghost,.scene-foundation button.scene-secondary,.scene-foundation .scene-object-tree button,.scene-foundation .scene-frame-tools button,.scene-foundation .scene-projects button,.scene-foundation header button:not(.primary):not([role=tab]),.scene-foundation header summary,.scene-sheet button.ghost {font:inherit;font-weight:600;border:1px solid var(--border-color);border-radius:10px;padding:8px 12px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);cursor:pointer}
+.scene-foundation button.primary,.scene-sheet button.primary {font:inherit;font-weight:650;border:1px solid var(--accent-primary);border-radius:10px;padding:8px 16px;background:var(--accent-primary);color:var(--ds-on-accent,var(--text-on-accent,#fff));cursor:pointer}
+.scene-sheet button.danger {font:inherit;font-weight:650;border:1px solid var(--status-error,#d92d20);border-radius:10px;padding:8px 16px;background:var(--status-error,#d92d20);color:#fff;cursor:pointer}
 .scene-foundation button.primary:disabled,.scene-foundation button.ghost:disabled,.scene-foundation header button:disabled,.scene-foundation button.scene-secondary:disabled,.scene-foundation .scene-frame-tools button:disabled {opacity:1;cursor:default;color:var(--text-muted);background:var(--bg-card-solid,var(--bg-primary));border-color:var(--border-color)}
 .scene-sr {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 /* Navigation: the project selector (full names) and the scene tree (icon + name on one line, the type in the tooltip). */
-.scene-foundation .ef-navigation h2 {font-size:13px;margin:14px 0 8px}
+.scene-foundation .ef-navigation h2 {font-size:14px;margin:14px 0 8px}
 .scene-foundation .scene-projects {display:grid;gap:6px}
 .scene-foundation .scene-projects button {display:grid;gap:4px;justify-items:start;text-align:left;width:100%;white-space:normal;overflow-wrap:break-word;font-weight:500}
 .scene-foundation .scene-projects button[aria-current=true] {border-color:var(--accent-primary)}
@@ -128,59 +137,61 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
 .scene-foundation .scene-viewport>.scene-panel {flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
 .scene-foundation #scene-panel>section.step {flex:1;min-height:0;display:flex;flex-direction:column;margin:0}
 .scene-foundation .scene-stage {flex:1;min-height:260px;display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));grid-auto-rows:minmax(240px,1fr);border-radius:10px;background:var(--bg-secondary)}
-.scene-foundation #preview-img,.scene-foundation #viewer {width:100%;height:100%;min-height:240px;aspect-ratio:auto;object-fit:contain;box-sizing:border-box;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary)}
+.scene-foundation #preview-img,.scene-foundation #viewer {width:100%;height:100%;min-height:240px;aspect-ratio:auto;object-fit:contain;box-sizing:border-box;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-secondary)}
 .scene-foundation #build-panel {display:grid;gap:12px;align-content:start}
 .scene-foundation #build-panel>section.step {margin:0}
 .scene-foundation #build-panel #file-text {min-height:42vh}
 .scene-foundation .ef-inspector .step {padding:0;border:0}.scene-foundation .ef-inspector textarea {max-width:100%;min-width:0}
 .scene-foundation .scene-frame-tools {display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:4px 0}
-.scene-foundation .scene-frame-tools h3 {width:100%;margin:0;font-size:13px}
+.scene-foundation .scene-frame-tools h3 {width:100%;margin:0;font-size:14px}
 .scene-foundation .scene-frame-tools p {width:100%;font-size:12px;margin:0;color:var(--text-secondary,var(--text-muted))}
 .scene-foundation .scene-frame-tools input {width:90px;min-height:44px}
 .scene-foundation .ef-navigation>div:has(>button+button) {display:flex;gap:8px;flex-wrap:wrap}
 /* The app row: views, then the menus; Revision history and Help open as a panel under their button. */
 .scene-views {display:inline-flex;gap:2px;padding:2px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-card-solid,var(--bg-primary))}
-.scene-views [role=tab] {font:inherit;font-weight:600;border:0;border-radius:8px;padding:8px 14px;min-height:40px;background:transparent;color:var(--text-primary);cursor:pointer}
+.scene-views [role=tab] {font:inherit;font-weight:600;border:0;border-radius:6px;padding:8px 14px;min-height:44px;background:transparent;color:var(--text-primary);cursor:pointer}
 .scene-views [role=tab][aria-selected=true] {background:var(--text-primary);color:var(--bg-primary)}
 .scene-foundation header summary {list-style:none}.scene-foundation header summary::-webkit-details-marker {display:none}
 .scene-foundation header details {position:relative;padding:0}.scene-foundation header details[open] {z-index:20}
 .scene-foundation header details button {display:block;width:100%}
 .scene-foundation header .scene-pop>:not(summary) {position:absolute;right:0;top:calc(100% + 6px);width:min(420px,80vw);max-height:70vh;overflow:auto;box-sizing:border-box;padding:12px 14px;border:1px solid var(--border-color);border-radius:10px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);box-shadow:0 10px 28px rgba(0,0,0,.18);z-index:30}
-.scene-help-text p {margin:0 0 8px;font-size:13px;line-height:1.5}
+.scene-help-text p {margin:0 0 8px;font-size:14px;line-height:20px}
 /* The first screen: three types with nothing saved; the projects newest first and one New at the bottom right once there are some. */
 .scene-foundation .scene-home {display:flex;flex-direction:column;min-height:100%;box-sizing:border-box}
 .scene-foundation .scene-home h2,.scene-sheet h2 {font-size:18px;margin:4px 0 10px}
 .scene-foundation #home-list {display:flex;flex-direction:column;flex:1}
 .scene-types {display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
-.scene-types button {display:grid;justify-items:start;align-content:start;gap:6px;min-height:104px;padding:16px;text-align:left;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);font:inherit;cursor:pointer}
+.scene-types button {display:grid;justify-items:start;align-content:start;gap:6px;min-height:104px;padding:16px;text-align:left;border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);font:inherit;cursor:pointer}
 .scene-types button:hover,.scene-card:hover {border-color:var(--accent-primary)}
 .scene-type-icon {color:var(--accent-primary)}.scene-type-icon svg {width:30px;height:30px}
 .scene-type-label {font-weight:650;font-size:16px}
 .scene-type-note,.scene-card-meta {font-size:12px;color:var(--text-muted)}
 .scene-cards {display:grid;gap:10px;align-items:start;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
-.scene-card {display:grid;gap:6px;justify-items:start;align-content:start;min-height:72px;padding:14px;text-align:left;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);font:inherit;cursor:pointer}
+.scene-card {display:grid;gap:6px;justify-items:start;align-content:start;min-height:72px;padding:14px;text-align:left;border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary);font:inherit;cursor:pointer}
 .scene-card-title {font-weight:650;overflow-wrap:break-word}
-.scene-card-thumb {justify-self:stretch;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:var(--bg-secondary)}
+.scene-card-thumb {justify-self:stretch;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:var(--bg-secondary)}
 .scene-foundation .scene-fab {position:sticky;bottom:16px;align-self:flex-end;margin-top:auto;min-height:52px;padding:12px 22px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.2)}
-.scene-sheet {width:min(640px,calc(100vw - 32px));box-sizing:border-box;padding:18px;border:1px solid var(--border-color);border-radius:16px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary)}
+.scene-sheet {width:min(640px,calc(100vw - 32px));box-sizing:border-box;padding:18px;border:1px solid var(--border-color);border-radius:14px;background:var(--bg-card-solid,var(--bg-primary));color:var(--text-primary)}
 .scene-sheet::backdrop {background:rgba(0,0,0,.32)}
 .scene-sheet>.ghost {margin-top:14px;min-height:44px}
+.scene-sheet-actions {display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.scene-sheet input[type=text] {width:100%;min-height:44px;font-size:16px;padding:8px 12px;border-radius:10px}
 @media(max-width:800px){
  .scene-foundation header {flex-wrap:nowrap;gap:6px;padding:6px 8px}
  .scene-foundation .ef-sheet-content>button {text-align:left;font-weight:600}
  .scene-foundation .ef-navigation,.scene-foundation .ef-inspector {max-height:none;border:0}
  .scene-foundation .scene-stage {min-height:52dvh}
  .scene-views [role=tab] {padding:8px 10px}
- .scene-sheet {margin:auto 0 0;width:100%;max-width:none;border-radius:16px 16px 0 0}
+ .scene-sheet {margin:auto 0 0;width:100%;max-width:none;border-radius:14px 14px 0 0}
 }
 </style>
 <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />
 </head>
 <body>
-<header>
+<header data-no-glass>
   <h1 data-ef-phone="brand">Scene Studio</h1>
   <span id="engine-pill" class="badge" title="" data-ef-phone="more">engine…</span>
-  <div id="scene-views" class="scene-views" role="tablist" aria-label="Views" hidden>
+  <div id="scene-views" class="scene-views" role="tablist" aria-label="Views" hidden data-no-glass>
     <button type="button" role="tab" id="view-scene" aria-selected="true" aria-controls="scene-panel">Scene</button>
     <button type="button" role="tab" id="view-build" aria-selected="false" aria-controls="build-panel" tabindex="-1">Script &amp; build</button>
   </div>
@@ -189,7 +200,7 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
   <details id="scene-history" class="scene-pop" data-ef-phone="more" hidden><summary>Revision history</summary></details>
   <details id="scene-help" class="scene-pop" data-ef-phone="more">
     <summary>Help</summary>
-    <div class="scene-help-text">
+    <div class="scene-help-text" data-no-glass>
       <p>Scene Studio makes <strong>Godot</strong> games and 3-D scenes and <strong>Blender</strong> models. You and the swarm drive Godot and Blender through their MCP servers.</p>
       <p>Pick New, choose what to make, then ask the <strong>Scene Studio director</strong> in the chat to build it — for example "a small island with three palm trees and a red boat" — or edit it here.</p>
       <p>Every change is a revision you can undo. Previews are rendered by Blender; a Godot scene is exported to glTF first. Code you or the director write runs in the engine's sandbox, which has no network access.</p>
@@ -200,7 +211,7 @@ body.scene-foundation {margin:0;background:var(--bg-primary);color:var(--text-pr
   <aside>
     <div id="project-list"></div>
   </aside>
-  <main>
+  <main data-ds-work>
     <div id="engine-banner" class="banner" hidden>
       <strong>The Scene Studio engine container is not answering.</strong>
       <div id="engine-reason" class="small"></div>
@@ -306,10 +317,19 @@ result = {"objects": sorted(o.name for o in bpy.data.objects)}</textarea>
     </div>
   </main>
 </div>
-<dialog id="new-sheet" class="scene-sheet" aria-labelledby="new-sheet-title">
+<dialog id="new-sheet" class="scene-sheet" aria-labelledby="new-sheet-title" data-ds-sheet data-no-glass>
   <h2 id="new-sheet-title">New</h2>
   <div class="scene-types" data-scene-types></div>
   <button type="button" id="cancel-new" class="ghost">Cancel</button>
+</dialog>
+<dialog id="action-sheet" class="scene-sheet" aria-labelledby="action-sheet-title" data-ds-sheet data-no-glass>
+  <h2 id="action-sheet-title">Confirm</h2>
+  <p id="action-sheet-text" class="muted"></p>
+  <label id="action-sheet-field" hidden><span class="scene-sr">Project name</span><input id="action-sheet-input" type="text" maxlength="120" /></label>
+  <div class="scene-sheet-actions">
+    <button type="button" id="action-sheet-cancel" class="ghost">Cancel</button>
+    <button type="button" id="action-sheet-ok" class="primary">Continue</button>
+  </div>
 </dialog>
 <script src="/shared/ui/js/stl-viewer.js"></script>
 <script src="/api/scene-studio/assets/scene-studio.js"></script>

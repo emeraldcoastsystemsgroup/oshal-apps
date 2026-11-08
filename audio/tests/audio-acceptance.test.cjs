@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com | End-to-end acceptance suite for Audio Studio covering smoke readiness, RBAC, CAS deduplication, DSP mixdown, TTS personas, live modulation, concierge bridge, and Screen Standard compliance.
  * 2   | maintainer@emeraldcoastsystemsgroup.com | Add ADR-208 real DSP math proofs (85Hz HPF, constant-power pan, sidechain ducking, -14 LUFS BS.1770 mastering, MP3 FFmpeg export, HTTP 206 byte ranges, owner blob isolation, Kokoro TTS fail-closed 503, and crisp-glass design checks).
+ * 3   | maintainer@emeraldcoastsystemsgroup.com | Update readiness smoke expectation for Audio Studio 1.2.1.
  */
 'use strict';
 
@@ -128,11 +129,11 @@ test.after(async () => {
   fs.rmSync(testVault, { recursive: true, force: true });
 });
 
-test('1. Package readiness smoke probe returns version 1.2.0 and connected storage', async () => {
+test('1. Package readiness smoke probe returns version 1.2.1 and connected storage', async () => {
   const res = await request('GET', '/api/audio/_smoke');
   assert.equal(res.status, 200);
   assert.equal(res.json.package, 'audio');
-  assert.equal(res.json.version, '1.2.0');
+  assert.equal(res.json.version, '1.2.1');
   assert.equal(res.json.status, 'ready');
 });
 

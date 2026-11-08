@@ -1,4 +1,11 @@
-/** Actual catalog and source-authorizer closure; explicit named-authority port seam, no provider/SQL substitutes claimed as native acceptance. */
+/**
+ * CHANGE LOG
+ * -----------------------------------------------------------------------------
+ * SEQ | AUTHOR | DESCRIPTION
+ * -----------------------------------------------------------------------------
+ * 1 | maintainer@emeraldcoastsystemsgroup.com | Actual catalog and source-authorizer closure; explicit named-authority port seam, no provider/SQL substitutes claimed as native acceptance.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Verify HTTP permission bindings for Creative Studio 1.5.0 storyboard builds, comments, schedules, and RP module routes.
+ */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -79,6 +86,17 @@ test('real mounted surfaces/contracts/HTTP edits have one exact binding and matc
  assert.deepEqual(bound('GET',mount+'/home-summary'),['app.open','legacy.read']);
  assert.deepEqual(bound('GET',mount+'/_smoke'),['app.open']);
  assert.deepEqual(bound('POST',mount+'/source-projects'),['app.open','source.read','source.create']);
+ assert.deepEqual(bound('GET',mount+'/creative-studio-rp.mjs'),['app.open']);
+ assert.deepEqual(bound('GET',mount+'/source-projects/templates'),['app.open','source.read']);
+ assert.deepEqual(bound('GET',mount+'/source-projects/owned-id/comments'),['app.open','source.read']);
+ assert.deepEqual(bound('POST',mount+'/source-projects/owned-id/comments'),['app.open','source.read','source.change']);
+ assert.deepEqual(bound('POST',mount+'/source-projects/owned-id/comments/comment-id/resolve'),['app.open','source.read','source.change']);
+ assert.deepEqual(bound('GET',mount+'/source-projects/owned-id/builds'),['app.open','source.read']);
+ assert.deepEqual(bound('POST',mount+'/source-projects/owned-id/builds'),['app.open','source.read','source.change']);
+ assert.deepEqual(bound('GET',mount+'/source-projects/owned-id/builds/build-id/video.mp4'),['app.open','source.read']);
+ assert.deepEqual(bound('GET',mount+'/schedules'),['app.open','source.read']);
+ assert.deepEqual(bound('POST',mount+'/schedules'),['app.open','source.read','source.change']);
+ assert.deepEqual(bound('POST',mount+'/schedules/sched-id/cancel'),['app.open','source.read','source.change']);
  for(const tool of manifest.tools.filter(t=>t.executor?.executorType==='api')){
   const [method,path]=tool.executor.apiEndpoint.split(' ');assert.deepEqual(catalog.bindings.tools.find(b=>b.id===tool.name).allOf,bound(method,path.replaceAll('{input.id}','owned-id')));
  }

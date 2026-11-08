@@ -9,6 +9,7 @@
  * 4   | maintainer@emeraldcoastsystemsgroup.com     | The access probe's limit covers sixteen studios answered one after another (the trial's "can't check" on every template).
  * 5   | maintainer@emeraldcoastsystemsgroup.com     | New is position:fixed (offsetParent always null): the orb case gives New a null offsetParent and a real box, the trial's failure shape.
  * 6   | maintainer@emeraldcoastsystemsgroup.com     | No template or blank start speaks set-up wording (the trial sweep: "desktop worker" on the Video clip card).
+ * 7   | maintainer@emeraldcoastsystemsgroup.com     | RP-CRE-01..03: zero planned placeholders remain on Home or in New; Custom size validates 16..8192 whole pixels; home-actions.mjs classifies raster, SVG, Office and PDF imports and enforces studio access and size bounds.
  *
  * Dependency-free `node --test` suite (the store-CI contract: plain node, no install).
  */
@@ -75,19 +76,37 @@ test('search counts in words: "1 match", "2 matches"', () => {
   assert.doesNotMatch(source, /matches in your workspace/, 'the old "1 matches" sentence is gone');
 });
 
-test('a planned control is greyed, says "Not available yet", names its backlog entry and has no handler', () => {
-  const made = [];
-  const node = () => ({ attrs: {}, listeners: 0, setAttribute(k, v) { this.attrs[k] = String(v); }, addEventListener() { this.listeners += 1; } });
-  const page = load(['el', 'planned'], { document: { createElement: () => { const n = node(); made.push(n); return n; }, createTextNode: () => ({}) } });
-  const row = page.planned(null, 'Rename', 'RP-CRE-01', 'menuitem');
-  assert.deepEqual(plain(row.attrs), { role: 'menuitem', 'aria-disabled': 'true', 'data-ds-not-yet': '', 'data-ds-backlog': 'RP-CRE-01', 'aria-label': 'Rename, not available yet' });
-  assert.equal(row.title, 'Not available yet');
-  assert.equal(row.listeners, 0, 'a press does nothing');
-  const ids = [...source.matchAll(/data-ds-backlog(?:="|', ')(RP-CRE-\d\d)/g)].map((m) => m[1]);
-  assert.ok(ids.includes('RP-CRE-03'), 'Import a file is planned in the sheet');
-  assert.match(source, /planned\('blank', 'Custom size', 'RP-CRE-02'\)/, 'Custom size closes the Blank row');
-  assert.deepEqual(plain(load(['PLANNED']).PLANNED.map((p) => [p.label, p.backlog])), [['Rename', 'RP-CRE-01'], ['Duplicate', 'RP-CRE-01'], ['Delete', 'RP-CRE-01']]);
-  assert.doesNotMatch(declaration('planned'), /addEventListener|onclick/);
+test('no RP-CRE-01..03 planned placeholders remain on Home or in New, and Custom size validates 16..8192 px', () => {
+  assert.doesNotMatch(source, /data-ds-not-yet|data-ds-backlog|Not available yet/, 'all RP-CRE-01..03 controls are live');
+  assert.match(source, /id="renameDialog"/);
+  assert.match(source, /id="deleteDialog"/);
+  assert.match(source, /id="customSizeForm"/);
+  assert.match(source, /id="importInput"/);
+  const page = load(['parseCustomSize']);
+  assert.deepEqual(plain(page.parseCustomSize('1200', '628')), { ok: true, width: 1200, height: 628, query: 'size=1200x628' });
+  assert.deepEqual(plain(page.parseCustomSize(16, 8192)), { ok: true, width: 16, height: 8192, query: 'size=16x8192' });
+  for (const [w, h] of [['15', '1080'], ['1080', '8193'], ['100.5', '200'], ['-50', '500'], ['', '400'], ['abc', '400']]) {
+    const bad = plain(page.parseCustomSize(w, h));
+    assert.equal(bad.ok, false, `${w}x${h} rejected`);
+    assert.match(bad.message, /16 and 8192/);
+  }
+});
+
+test('home-actions classifies supported import formats and enforces studio access and byte limits (RP-CRE-03)', async () => {
+  const actions = await import(path.join(PKG, 'tools', 'editor', 'home-actions.mjs'));
+  assert.equal(actions.parseItemId('project=00000000-0000-4000-8000-0000000000c1', 'project'), '00000000-0000-4000-8000-0000000000c1');
+  assert.equal(actions.parseItemId('project=not-a-uuid', 'project'), '');
+  assert.equal(actions.copyTitle('Launch deck'), 'Launch deck (copy)');
+  assert.equal(actions.cleanImportTitle('Q4_brand-guide.final.pdf'), 'Q4 brand guide.final');
+  const openAll = { create: 'open', presentations: 'open', 'pdf-workbench': 'open' };
+  assert.equal(actions.classifyImportFile({ name: 'photo.webp', size: 1024 }, openAll).spec.kind, 'raster');
+  assert.equal(actions.classifyImportFile({ name: 'badge.svg', size: 512 }, openAll).spec.kind, 'svg');
+  assert.equal(actions.classifyImportFile({ name: 'slides.pptx', size: 4096 }, openAll).spec.kind, 'office');
+  assert.equal(actions.classifyImportFile({ name: 'memo.docx', size: 4096 }, openAll).spec.kind, 'office');
+  assert.equal(actions.classifyImportFile({ name: 'form.pdf', size: 8192 }, openAll).spec.kind, 'pdf');
+  assert.equal(actions.classifyImportFile({ name: 'archive.zip', size: 100 }, openAll).ok, false);
+  assert.equal(actions.classifyImportFile({ name: 'huge.svg', size: 3 * 1024 * 1024 }, openAll).ok, false);
+  assert.equal(actions.classifyImportFile({ name: 'slides.pptx', size: 1024 }, { ...openAll, presentations: 'locked' }).ok, false);
 });
 
 test('the Blank row comes first and every start is a real studio address', () => {

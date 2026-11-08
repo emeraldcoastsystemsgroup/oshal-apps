@@ -12,8 +12,9 @@
   8 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (lora--lora-studio, grade D). The studio opens ready: with no character selected the work area is New character at step 1 (Name, Trigger word, Identity sentence; Subject slug, Hero image and the other four under a closed Advanced) with Create character the one primary; a blank Subject slug is made from the Name, and a missing Hero image opens Advanced and is named. The Properties pane no longer repeats the creation form: it shows a selected character's facts (and Delete). A stepper in the app row, 1 Identity · 2 Dataset (Characters & dataset) and 3 Train · 4 Scorecards (Training & scorecards), shows one step's controls at a time; Train, Validate, Improve and Overnight are step 3's actions, withheld unless one GET /worker read on open says a GPU worker is registered. On a phone the first screen is the character list (thumbnail, versions, best score) with one + New character at the bottom right, and a tap opens the character. The inline Concierge column is retired (no editor-assistant column or pane button); the shell's Concierge stays the one entry and still reaches the open source through registerDocumentSession. Copy: "Hero image on the worker" is "Hero image", "prepare its own curated dataset on the GPU worker" and the byte limit are gone from the labels.
   9 | maintainer@emeraldcoastsystemsgroup.com | The steps are painted again once the shared editor has mounted: the character list can finish first, and the Saved source panel (Reload saved source) then showed under New character with no character chosen.
   10 | maintainer@emeraldcoastsystemsgroup.com | + New character carries data-ef-floating (kernel PR #197), so on a phone the shell orb rests above it instead of on it.
+  11 | maintainer@emeraldcoastsystemsgroup.com | RP-LORA-01 and design-standard sweep: add multi-photo Upload photos from this device (file picker, drag-and-drop, modal crop/framing canvas, per-photo captioning, owner-scoped preview thumbnails) in Step 2 Dataset while keeping Send-to import alongside; align controls, radii, type scale, focus rings, overscroll, inline discard confirmation, and phone Back drawer dismissal with DS-00..DS-45.
 -->
-<html lang="en" data-theme="light-blue">
+<html lang="en" data-theme="light-blue" data-ds-category="studio" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -124,136 +125,192 @@
   A.boot({ app: 'lora', escapeLabel: 'Open LoRA Studio in the cockpit', audiences: { family: family, company: family } });
 })();
 </script>
+<link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
+<link rel="stylesheet" href="/shared/ui/css/editor-foundation.css" />
 <style>
-  /* Keep the surface's short alias names, but DERIVE each from a framework theme token so all eleven
-     themes work — not just the dark one whose hex this used to hardcode. Chrome aliases map straight
-     through; accent/status aliases keep the old hex as a fallback so they stay legible if a theme
-     omits the token. */
-  :root { --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-tertiary); --line:var(--border-color); --text:var(--text-primary); --muted:var(--text-muted); --accent:var(--accent-primary,#6c7bff); --accent2:var(--status-success,#00d3a7); }
+  :root {
+    --bg:var(--bg-primary); --panel:var(--bg-card); --panel2:var(--bg-secondary,var(--bg-tertiary));
+    --line:var(--border-color); --ctrl-line:color-mix(in srgb,var(--text-primary) 46%,var(--bg-card));
+    --text:var(--text-primary); --muted:var(--text-muted); --accent:var(--accent-primary,#2563eb); --accent2:var(--status-success,#00d3a7);
+  }
   * { box-sizing:border-box; }
-  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--text); }
-  .top { padding:16px 22px 12px; border-bottom:1px solid var(--line); }
-  .top h1 { font-size:19px; margin:0 0 2px; } .top .sub { color:var(--muted); font-size:12.5px; }
-  .split { display:flex; height:calc(100vh - 64px); }
-  .pane { overflow-y:auto; padding:18px 20px; }
-  .left { flex:0 0 38%; border-right:1px solid var(--line); }
+  html, body { overscroll-behavior:contain; }
+  body { margin:0; font-family:var(--font-family,system-ui,-apple-system,Segoe UI,sans-serif); font-size:14px; background:var(--bg); color:var(--text); }
+  .top { padding:10px 16px; border-bottom:1px solid var(--line); }
+  .top h1 { font-size:18px; margin:0 0 2px; }
+  .top .sub { color:var(--muted); font-size:12px; }
+  html.in-shell .top h1, html.in-shell .top .sub, .ef-editor[data-ef-framed] .top .sub { display:none; }
+  html.in-shell .lora-steps, .ef-editor[data-ef-framed] .lora-steps { margin-top:0; }
+  .split { display:flex; height:calc(100dvh - 64px); }
+  .pane { overflow-y:auto; padding:16px 18px; overscroll-behavior:contain; }
+  .left { flex:0 0 34%; border-right:1px solid var(--line); }
   .right { flex:1; }
-  .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); margin:0 0 10px; }
-  .btn { border:none; border-radius:9px; padding:10px 15px; font-size:13.5px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; }
-  .btn.ghost { background:var(--panel2); border:1px solid var(--line); color:var(--text); }
-  .btn.sm { padding:6px 11px; font-size:12px; }
-  .btn:disabled { opacity:.5; cursor:default; }
-  .bar { display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .lbl { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin:0 0 10px; }
+  button, input, select, textarea {
+    font-family:inherit; backdrop-filter:none!important; -webkit-backdrop-filter:none!important;
+    background-image:none!important; box-shadow:none!important;
+    transition:background-color 150ms ease,border-color 150ms ease,color 150ms ease;
+  }
+  :is(button, input, select, textarea, summary, a):focus-visible { outline:2px solid var(--accent-primary); outline-offset:2px; }
+  .btn { min-height:40px; border:1px solid var(--accent); border-radius:10px; padding:8px 14px; font-size:14px; font-weight:600; cursor:pointer; background:var(--accent); color:var(--text-on-accent,#fff); }
+  .btn.ghost { background:var(--panel); border:1px solid var(--ctrl-line); color:var(--text); }
+  .btn.sm { min-height:36px; padding:6px 12px; font-size:12px; }
+  .btn:disabled, .lora-step:disabled, .ef-editor .ef-button:disabled, .ef-editor .source-edit-panel button:disabled,
+  input:disabled, textarea:disabled, select:disabled {
+    opacity:1!important; cursor:default; background:var(--panel2); border-color:var(--ctrl-line); color:var(--muted);
+  }
+  .bar { display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap; }
   .hint { color:var(--muted); font-size:12px; }
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px 14px; margin-bottom:11px; cursor:pointer; }
-  .card.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; cursor:pointer; }
+  .card.sel { border-color:var(--accent); }
   .card .ch { display:flex; align-items:center; gap:10px; }
-  .card .avatar { flex:0 0 auto; width:40px; height:40px; border-radius:9px; background:linear-gradient(135deg,var(--panel2),var(--accent)); display:flex; align-items:center; justify-content:center; font-size:20px; }
-  .card .nm { font-weight:600; font-size:14px; } .card .tg { color:var(--muted); font-size:11.5px; }
-  .card .meta { color:var(--muted); font-size:11.5px; margin-top:8px; display:flex; gap:14px; flex-wrap:wrap; }
+  .card .avatar { flex:0 0 auto; width:40px; height:40px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .card .nm { font-weight:600; font-size:14px; } .card .tg { color:var(--muted); font-size:12px; }
+  .card .meta { color:var(--muted); font-size:12px; margin-top:8px; display:flex; gap:12px; flex-wrap:wrap; }
   .card .meta b { color:var(--text); }
-  .toggle { display:flex; align-items:center; gap:7px; margin-top:9px; font-size:12.5px; color:var(--text); }
-  .toggle input { width:auto; }
-  .ver { background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:12px 14px; margin-bottom:10px; }
+  .toggle { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; color:var(--text); min-height:44px; }
+  .toggle input { width:20px; height:20px; min-height:20px; }
+  .ver { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
   .ver .vh { display:flex; align-items:center; gap:10px; }
   .ver .vn { font-weight:700; font-size:14px; }
-  .badge { font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; padding:2px 8px; border-radius:20px; border:1px solid var(--line); color:var(--muted); }
+  .badge { font-size:12px; text-transform:uppercase; letter-spacing:.4px; padding:2px 8px; border-radius:20px; border:1px solid var(--line); color:var(--muted); }
   .badge.scored { color:var(--accent2); border-color:var(--accent2); }
-  .badge.training { color:var(--status-warning,#ffcf5a); border-color:var(--status-warning,#ffcf5a); }
-  .badge.failed { color:var(--status-error,#ff8a8a); border-color:var(--status-error,#ff5a5a); }
-  .badge.active { color:#fff; background:var(--accent); border-color:var(--accent); }
+  .badge.training { color:var(--status-warning,#b26b00); border-color:var(--status-warning,#b26b00); }
+  .badge.failed { color:var(--status-error,#dc2626); border-color:var(--status-error,#dc2626); }
+  .badge.active { color:var(--text-on-accent,#fff); background:var(--accent); border-color:var(--accent); }
   .scores { display:flex; gap:16px; margin:10px 0 4px; }
-  .score { text-align:center; } .score .n { font-size:18px; font-weight:700; } .score .k { color:var(--muted); font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; }
-  .weak { color:var(--muted); font-size:11.5px; margin-top:6px; } .weak span { color:var(--status-warning,#ffb15a); }
-  .cells { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:9px; margin-top:12px; }
-  .cell { background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px; font-size:11px; }
-  .cell .cs { font-weight:700; font-size:13px; } .cell .cm { color:var(--muted); margin-top:2px; }
-  .cell img { width:100%; border-radius:6px; margin-bottom:6px; background:var(--bg-tertiary,#000); }
-  .result { margin-top:14px; padding:12px 14px; border-radius:10px; font-size:13px; display:none; }
-  .result.ok { background:rgba(0,211,167,.1); border:1px solid var(--accent2); color:var(--accent2); display:block; }
-  .result.err { background:rgba(255,90,90,.1); border:1px solid var(--status-error,#ff5a5a); color:var(--status-error,#ff9a9a); display:block; }
-  .result.warn { background:rgba(255,180,80,.1); border:1px solid var(--status-warning,#ffb15a); color:var(--status-warning,#ffd29a); display:block; }
-  .empty { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); font-size:13px; }
-  .spin { color:var(--muted); font-size:13px; }
-  .character-editor { margin-bottom:18px; border:1px solid var(--line); border-radius:10px; padding:12px; background:var(--panel); }
-  .character-editor summary { cursor:pointer; font-size:14px; font-weight:600; }
+  .score { text-align:center; } .score .n { font-size:18px; font-weight:700; } .score .k { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+  .weak { color:var(--muted); font-size:12px; margin-top:6px; } .weak span { color:var(--status-warning,#b26b00); }
+  .cells { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-top:12px; }
+  .cell { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:8px; font-size:12px; }
+  .cell .cs { font-weight:700; font-size:14px; } .cell .cm { color:var(--muted); margin-top:2px; }
+  .cell img { width:100%; border-radius:10px; margin-bottom:6px; background:var(--panel2); }
+  .result { margin-top:12px; padding:10px 14px; border-radius:10px; font-size:14px; display:none; background:var(--panel); border:1px solid var(--ctrl-line); color:var(--text); }
+  .result.ok { border-color:var(--accent2); display:block; }
+  .result.err { border-color:var(--status-error,#dc2626); display:block; }
+  .result.warn { border-color:var(--status-warning,#b26b00); display:block; }
+  .empty { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; text-align:center; color:var(--muted); font-size:14px; }
+  .spin { color:var(--muted); font-size:14px; }
+  .character-editor { margin-bottom:16px; border:1px solid var(--line); border-radius:10px; padding:14px; background:var(--panel); }
+  .character-editor.lora-drop-active { border:2px dashed var(--accent); }
   .character-editor fieldset { margin:12px 0 0; border:0; padding:0; display:grid; gap:10px; }
-  .character-editor label { display:grid; gap:4px; font-size:12px; }
-  .character-editor input,.character-editor textarea { width:100%; padding:8px; background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:6px; font:inherit; }
-  .character-editor textarea { min-height:65px; resize:vertical; }
+  .character-editor label { display:grid; gap:4px; font-size:12px; color:var(--text); }
+  .character-editor input,.character-editor textarea { width:100%; min-height:40px; padding:8px 10px; background:var(--bg); color:var(--text); border:1px solid var(--ctrl-line); border-radius:10px; font:inherit; font-size:14px; }
+  .character-editor textarea { min-height:68px; resize:vertical; }
   .character-config { margin-top:12px; font-size:12px; overflow-wrap:anywhere; }
   .character-config dt { margin-top:8px; color:var(--muted); }
   .character-config dd { margin:3px 0; white-space:pre-wrap; }
   ::-webkit-scrollbar{width:10px;height:10px} ::-webkit-scrollbar-track{background:transparent}
-  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(255,255,255,.14));border-radius:6px}
-  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(255,255,255,.14)) transparent}
-  @media (max-width: 640px){ .split{flex-direction:column;height:auto} .left{flex:none;width:100%;border-right:none;border-bottom:1px solid var(--line)} }
+  ::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb,rgba(120,130,150,.28));border-radius:10px}
+  html{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb,rgba(120,130,150,.28)) transparent}
 
-.split.ef-editor{display:block;height:100dvh;max-width:none;margin:0}.ef-editor .ef-header-slot>.top{padding:12px 16px;margin:0}.ef-editor .top h1{font-size:20px}
-.ef-editor .ef-navigation>.left,.ef-editor .ef-viewport>.right,.ef-editor .lora-inspector{width:auto;max-width:none;height:auto;min-width:0;overflow:auto;border:0;padding:14px;flex:none}
-.ef-editor .ef-viewport>.right{height:100%}.ef-editor .lora-inspector .bar{display:flex;flex-wrap:wrap;gap:8px}.ef-editor .lora-inspector button{min-height:40px}
-.ef-editor .character-config dl{margin:0}.ef-editor #datasetRows{overflow-wrap:anywhere}.ef-editor #actions{margin-top:0}
-@media(max-width:800px){.ef-editor .btn,.ef-editor summary,.ef-editor input{min-height:44px}.ef-editor input,.ef-editor textarea{font-size:16px}}
+  .split.ef-editor{display:block;height:100dvh;max-width:none;margin:0}
+  .ef-editor .ef-header-slot>.top{padding:8px 14px;margin:0}
+  .ef-editor .ef-header-slot:has(.lora-steps[hidden]) .top{padding:0;border:0}
+  .ef-editor .top h1{font-size:18px}
+  .ef-editor .ef-body{grid-template-columns:200px minmax(0,1fr) 240px}
+  .ef-editor .ef-button,.ef-editor .ef-discard{border-radius:10px;border:1px solid var(--ctrl-line);background:var(--panel);font-size:14px;min-height:40px}
+  .ef-editor .ef-property>input,.ef-editor .ef-property>textarea,.ef-editor .ef-property>select{border-radius:10px;border:1px solid var(--ctrl-line);background:var(--bg);font-size:14px;min-height:40px}
+  .ef-editor .ef-more-tools>summary{font-size:14px;min-height:40px;display:flex;align-items:center}
+  .ef-editor .ef-navigation>.left,.ef-editor .ef-viewport>.right,.ef-editor .lora-inspector{width:auto;max-width:none;height:auto;min-width:0;overflow:auto;border:0;padding:14px;flex:none}
+  .ef-editor .ef-viewport>.right{height:100%}
+  .ef-editor .lora-inspector .bar{display:flex;flex-wrap:wrap;gap:8px}
+  .ef-editor .lora-inspector button{min-height:40px}
+  .ef-editor .character-config dl{margin:0}
+  .ef-editor #datasetRows{overflow-wrap:anywhere}
+  .ef-editor #actions{margin-top:0}
 
+  .ef-editor .source-edit-panel{padding:4px 0 18px;border-block-end:1px solid var(--line);margin-bottom:16px}
+  .ef-editor .source-edit-panel h3,.ef-editor .source-edit-panel h4{margin:8px 0;font-size:16px}
+  .ef-editor .source-edit-panel label{display:grid;gap:6px;margin:12px 0;font-size:12px}
+  .ef-editor .source-edit-panel input,.ef-editor .source-edit-panel textarea{width:100%;border:1px solid var(--ctrl-line);border-radius:10px;background:var(--bg);color:var(--text);padding:10px;font:inherit;font-size:14px;min-height:44px}
+  .ef-editor .source-edit-panel textarea{min-height:140px;line-height:1.5}
+  .ef-editor .source-edit-panel button{min-height:44px;border:1px solid var(--ctrl-line);border-radius:10px;background:var(--panel);color:var(--text);padding:8px 12px;font:inherit;font-size:14px;font-weight:600;margin:0 6px 6px 0;cursor:pointer}
+  .ef-editor #datasetRows .card{overflow-wrap:anywhere;cursor:default;padding:10px 12px;margin:8px 0}
+  .ef-editor #datasetRows [data-dataset-id]{width:auto;text-align:left;white-space:normal}
+  .lora-ds-item{display:flex;align-items:flex-start;gap:12px}
+  .lora-ds-thumb{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:0 0 auto;border:1px solid var(--line);background:var(--panel2)}
 
-.ef-editor .source-edit-panel{padding:4px 0 20px;border-block-end:1px solid var(--border-color);margin-bottom:16px}
-.ef-editor .source-edit-panel h3{margin:8px 0;font-size:15px}.ef-editor .source-edit-panel label{display:grid;gap:6px;margin:12px 0}
-.ef-editor .source-edit-panel input,.ef-editor .source-edit-panel textarea{width:100%;box-sizing:border-box;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:10px;font:inherit;min-height:44px}
-.ef-editor .source-edit-panel textarea{min-height:160px;line-height:1.55}.ef-editor .source-edit-panel button{min-height:44px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-card);color:var(--text-primary);padding:8px 12px;font:inherit;margin:0 6px 6px 0}
-.ef-editor .source-edit-panel button:hover{border-color:var(--accent-primary)}.ef-editor .source-edit-panel button:disabled{opacity:.5}
-.ef-editor #datasetRows .card{overflow-wrap:anywhere}.ef-editor #datasetRows [data-dataset-id]{width:100%;text-align:left;white-space:normal}
-/* Steps, the phone's character list and its one New (UX audit 2026-11-06). Theme tokens only; tap targets at least 44px. */
-.lora-steps[hidden],.lora-home[hidden],.lora-work[hidden],.lora-panel[hidden],#trainActions[hidden],#noFacts[hidden]{display:none!important}
-.lora-steps{display:flex;flex-wrap:wrap;gap:16px;margin-top:10px}
-.lora-view{display:flex;align-items:center;gap:6px}
-.lora-view-name{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-right:2px}
-.lora-step{min-height:44px;padding:0 14px;border:1px solid var(--border-color);border-radius:22px;background:var(--bg-card);color:var(--text-primary);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
-.lora-step[aria-current=step]{border-color:var(--accent-primary);color:var(--accent-primary);box-shadow:inset 0 0 0 1px var(--accent-primary)}
-.lora-step:disabled{opacity:.5;cursor:default}
-.lora-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}.lora-list-head .lbl{margin:0}
-.lora-list-head .btn{min-height:44px}
-.lora-panel-title{font-size:16px;margin:0 0 6px}
-.lora-advanced{margin-top:4px}.lora-advanced>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;font-size:13px}
-.lora-advanced>summary::before{content:'▸';margin-right:6px}.lora-advanced[open]>summary::before{content:'▾'}
-.lora-advanced-fields{display:grid;gap:10px;margin-top:6px}
-.character-editor fieldset>.bar{margin-top:4px}
-.lora-home{padding:4px 0 150px}
-.lora-row{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;margin:0 0 8px;padding:10px 12px;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-card);color:var(--text-primary);font:inherit;text-align:left;cursor:pointer}
-.lora-row .avatar{flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--bg-tertiary),var(--accent-primary));display:flex;align-items:center;justify-content:center;font-size:22px}
-.lora-row .nm{display:block;font-weight:600;font-size:15px}.lora-row .tg{display:block;color:var(--text-muted);font-size:12.5px;margin-top:2px}
-.lora-fab{position:fixed;right:16px;bottom:calc(56px + 76px + env(safe-area-inset-bottom,0px));z-index:31;min-height:48px;padding:0 20px;border-radius:24px;color:var(--text-on-accent,#fff);box-shadow:0 2px 10px color-mix(in srgb,var(--text-primary) 22%,transparent)}
-@media(max-width:800px){.lora-view-name,.top .sub{display:none}.lora-steps{flex-wrap:nowrap;gap:4px;margin-top:6px}.lora-view{gap:4px}.lora-step{padding:0 9px;font-size:13px;white-space:nowrap}}
+  .lora-steps[hidden],.lora-home[hidden],.lora-work[hidden],.lora-panel[hidden],#trainActions[hidden],#noFacts[hidden],.lora-step[hidden],#importArtifactBtn[hidden],dialog.lora-upload-sheet[hidden]{display:none!important}
+  .lora-steps{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+  .lora-view{display:flex;align-items:center;gap:6px}
+  .lora-view-name{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-right:2px}
+  .lora-step{min-height:44px;padding:0 14px;border:1px solid var(--ctrl-line);border-radius:20px;background:var(--panel);color:var(--text);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .lora-step[aria-current=step]{border-color:var(--accent);color:var(--accent)}
+  .lora-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+  .lora-list-head .lbl{margin:0}
+  .lora-list-head .btn{min-height:44px}
+  .lora-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .lora-panel-title{font-size:16px;margin:0}
+  .lora-advanced{margin-top:4px}
+  .lora-advanced>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;font-size:14px}
+  .lora-advanced>summary::before{content:'▸';margin-right:6px}
+  .lora-advanced[open]>summary::before{content:'▾'}
+  .lora-advanced-fields{display:grid;gap:10px;margin-top:6px}
+  .character-editor fieldset>.bar{margin-top:4px}
+  .lora-home{padding:4px 0 150px}
+  .lora-row{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;margin:0 0 8px;padding:10px 12px;border:1px solid var(--ctrl-line);border-radius:10px;background:var(--panel);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+  .lora-row .avatar{flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:18px}
+  .lora-row .nm{display:block;font-weight:600;font-size:16px}
+  .lora-row .tg{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  .lora-fab{position:fixed;right:16px;bottom:calc(56px + 76px + env(safe-area-inset-bottom,0px));z-index:31;min-height:48px;padding:0 20px;border-radius:20px;color:var(--text-on-accent,#fff)}
 
+  dialog.lora-upload-sheet{background:var(--panel);color:var(--text);border:1px solid var(--ctrl-line);border-radius:20px;padding:16px;width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow-y:auto}
+  dialog.lora-upload-sheet::backdrop{background:rgba(15,23,42,.48)}
+  .lora-upload-grid{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:14px;margin-top:10px;align-items:start}
+  .lora-crop-box{display:grid;gap:8px;justify-items:center}
+  #photoCropCanvas{max-width:100%;border-radius:10px;border:1px solid var(--ctrl-line);background:var(--panel2);touch-action:none;cursor:grab}
+  .lora-aspect-bar{display:flex;gap:6px;flex-wrap:wrap}
+  .lora-aspect-btn[aria-checked=true]{border-color:var(--accent);color:var(--accent)}
+  .lora-upload-thumbs{display:flex;gap:8px;overflow-x:auto;padding:6px 0}
+  .lora-upload-thumb{width:52px;height:52px;padding:2px;border-radius:10px;border:1px solid var(--ctrl-line);background:var(--panel);cursor:pointer;flex:0 0 auto}
+  .lora-upload-thumb[aria-current=true]{border:2px solid var(--accent)}
+  .lora-upload-thumb img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+  .lora-sliders{display:grid;gap:6px;width:100%}
+  .lora-sliders label{display:grid;grid-template-columns:56px 1fr;align-items:center;gap:8px;font-size:12px}
+  .lora-sliders input[type=range]{min-height:32px;padding:0}
+
+  @media(max-width:800px){
+    .split{flex-direction:column;height:auto}
+    .left{flex:none;width:100%;border-right:none;border-bottom:1px solid var(--line)}
+    .lora-view-name,.top .sub{display:none}
+    .lora-steps{flex-wrap:nowrap;gap:4px;margin-top:0;overflow-x:auto}
+    .lora-view{gap:4px}
+    .lora-step{padding:0 10px;font-size:12px;white-space:nowrap}
+    .ef-editor .btn,.ef-editor summary,.ef-editor input,.ef-editor select,.ef-editor button{min-height:44px}
+    .ef-editor input,.ef-editor textarea,.ef-editor select,dialog.lora-upload-sheet input,dialog.lora-upload-sheet textarea{font-size:16px}
+    .ef-editor .ef-navigation,.ef-editor .ef-inspector,.ef-editor .ef-sheet{border-radius:20px 20px 0 0;background:var(--panel);backdrop-filter:none}
+    .ef-editor .ef-panes>.ef-button{border:0}
+    .lora-upload-grid{grid-template-columns:1fr}
+  }
 </style>
-  <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
-  <link rel="stylesheet" href="/shared/ui/css/editor-foundation.css">
 </head>
 <body>
   <div class="top">
     <h1 data-ef-phone="brand">🧬 LoRA Studio</h1>
-    <div class="sub">Train a reusable character → validate it on a fixed matrix → improve the weak spots and retrain. Every version scored, so "better" is a number.</div>
+    <div class="sub">Train a reusable character, validate it on a fixed matrix, and improve weak spots with objective scores.</div>
     <nav class="lora-steps" id="loraSteps" aria-label="Steps">
       <div class="lora-view" role="group" aria-label="Characters &amp; dataset"><span class="lora-view-name" aria-hidden="true">Characters &amp; dataset</span>
-        <button type="button" class="lora-step" data-step="identity">1 Identity</button><button type="button" class="lora-step" data-step="dataset">2 Dataset</button></div>
+        <button type="button" class="lora-step" data-no-glass data-step="identity">1 Identity</button><button type="button" class="lora-step" data-no-glass data-step="dataset">2 Dataset</button></div>
       <div class="lora-view" role="group" aria-label="Training &amp; scorecards"><span class="lora-view-name" aria-hidden="true">Training &amp; scorecards</span>
-        <button type="button" class="lora-step" data-step="train">3 Train</button><button type="button" class="lora-step" data-step="scorecards">4 Scorecards</button></div>
+        <button type="button" class="lora-step" data-no-glass data-step="train">3 Train</button><button type="button" class="lora-step" data-no-glass data-step="scorecards">4 Scorecards</button></div>
     </nav>
   </div>
   <div class="split">
     <div class="pane left">
-      <div class="lora-list-head"><div class="lbl">Characters</div><button class="btn sm" id="newCharacterBtn" type="button">+ New character</button></div>
+      <div class="lora-list-head"><div class="lbl">Characters</div><button class="btn ghost sm" data-no-glass id="newCharacterBtn" type="button">+ New character</button></div>
       <div class="result" id="charsStatus" role="status" aria-live="polite"></div>
       <div id="chars"><div class="spin">Loading…</div></div>
       <div id="actions" style="display:none">
         <div class="lbl">Character · <span id="actName"></span></div>
         <div class="character-config" id="characterConfig"></div>
-        <div class="bar"><button class="btn ghost sm" id="deleteCharBtn" type="button">Delete character</button><button class="btn ghost sm" id="deleteCharCancel" type="button" style="display:none">Keep it</button></div>
+        <div class="bar"><button class="btn ghost sm" data-no-glass id="deleteCharBtn" type="button">Delete character</button><button class="btn ghost sm" data-no-glass id="deleteCharCancel" type="button" style="display:none">Keep it</button></div>
       </div>
     </div>
-    <div class="pane right">
+    <div class="pane right" data-ds-work>
       <section class="lora-home" id="phoneHome" hidden aria-label="Your characters">
         <div id="phoneChars"></div>
-        <button class="btn lora-fab" id="newCharacterFab" type="button" data-ef-floating>+ New character</button>
+        <button class="btn lora-fab" data-no-glass id="newCharacterFab" type="button" data-ef-floating>+ New character</button>
       </section>
       <div class="lora-work" id="loraWork">
         <p class="hint" id="sourceEditStatus" role="status"></p>
@@ -264,22 +321,22 @@
             <p class="hint">Saving starts no training and creates no schedule.</p>
             <form id="characterForm" novalidate>
               <fieldset id="characterFields">
-                <label>Name<input name="displayName" maxlength="2048" required autocomplete="off" /></label>
-                <label>Trigger word<input name="triggerWord" maxlength="2048" autocomplete="off" /></label>
-                <label>Identity sentence<textarea name="identPrompt" maxlength="2048" required></textarea></label>
+                <label>Name<input name="displayName" data-no-glass maxlength="2048" required autocomplete="off" /></label>
+                <label>Trigger word<input name="triggerWord" data-no-glass maxlength="2048" autocomplete="off" /></label>
+                <label>Identity sentence<textarea name="identPrompt" data-no-glass maxlength="2048" required></textarea></label>
                 <details class="lora-advanced" id="characterAdvanced">
                   <summary>Advanced</summary>
                   <div class="lora-advanced-fields">
-                    <label>Subject slug<input name="subject" maxlength="64" autocomplete="off" placeholder="Made from the name" /></label>
-                    <label>Hero image<input name="heroImage" maxlength="2048" required autocomplete="off" /></label>
-                    <label>Negative prompt<textarea name="negativePrompt" maxlength="2048"></textarea></label>
-                    <label>Expected structure<textarea name="identityStructure" maxlength="2048"></textarea></label>
-                    <label>Structure violation<textarea name="identityViolation" maxlength="2048"></textarea></label>
+                    <label>Subject slug<input name="subject" data-no-glass maxlength="64" autocomplete="off" placeholder="Made from the name" /></label>
+                    <label>Hero image<input name="heroImage" data-no-glass maxlength="2048" required autocomplete="off" /></label>
+                    <label>Negative prompt<textarea name="negativePrompt" data-no-glass maxlength="2048"></textarea></label>
+                    <label>Expected structure<textarea name="identityStructure" data-no-glass maxlength="2048"></textarea></label>
+                    <label>Structure violation<textarea name="identityViolation" data-no-glass maxlength="2048"></textarea></label>
                     <span class="hint">Provide both structural prompts or neither.</span>
-                    <label>Base checkpoint<input name="baseModel" maxlength="2048" placeholder="v1-5-pruned-emaonly-fp16.safetensors" autocomplete="off" /></label>
+                    <label>Base checkpoint<input name="baseModel" data-no-glass maxlength="2048" placeholder="v1-5-pruned-emaonly-fp16.safetensors" autocomplete="off" /></label>
                   </div>
                 </details>
-                <div class="bar"><button class="btn" type="submit">Create character</button><button class="btn ghost" id="cancelCharacter" type="button">Cancel</button></div>
+                <div class="bar"><button class="btn" data-no-glass type="submit">Create character</button><button class="btn ghost" data-no-glass id="cancelCharacter" type="button">Cancel</button></div>
               </fieldset>
             </form>
             <div class="result" id="createResult" role="status" aria-live="polite"></div>
@@ -287,12 +344,19 @@
         </section>
         <section class="lora-panel" data-step-panel="dataset" id="stepDataset" hidden>
           <div class="character-editor" id="datasetPanel">
-            <h2 class="lora-panel-title">Dataset</h2>
-            <p class="hint" id="artifactHint">Send an owner-owned image here from Portrait Studio or another image source, then choose this character before queueing it to the GPU worker.</p>
+            <div class="lora-panel-head">
+              <h2 class="lora-panel-title">Dataset</h2>
+              <div class="bar" style="margin-top:0">
+                <button class="btn" data-no-glass id="uploadPhotosBtn" type="button">Upload photos</button>
+                <input id="uploadPhotosInput" type="file" accept="image/png,image/jpeg,image/webp" multiple hidden />
+                <button class="btn ghost sm" data-no-glass id="importArtifactBtn" type="button" hidden disabled>Import selected image</button>
+                <button class="btn ghost sm" data-no-glass id="refreshDatasetBtn" type="button">Refresh dataset</button>
+              </div>
+            </div>
+            <p class="hint" id="artifactHint">Upload PNG, JPEG, or WebP reference photos from this device (or drag and drop them here) to crop and caption each training pair, or send an image from Portrait Studio.</p>
             <label class="hint" style="display:grid;gap:4px">Caption for the training pair
-              <textarea id="datasetCaption" maxlength="2048" placeholder="Leave blank to use this character's trigger word."></textarea>
+              <textarea id="datasetCaption" data-no-glass maxlength="2048" placeholder="Leave blank to use this character's trigger word."></textarea>
             </label>
-            <div class="bar"><button class="btn sm" id="importArtifactBtn" type="button" disabled>Import selected image</button><button class="btn ghost sm" id="refreshDatasetBtn" type="button">Refresh dataset</button></div>
             <h3 class="lbl" style="margin-top:16px">Dataset images</h3>
             <div id="datasetRows" class="hint">Loading dataset receipts…</div>
           </div>
@@ -300,12 +364,12 @@
         <section class="lora-panel" data-step-panel="train" id="stepTrain" hidden>
           <div id="trainActions" hidden>
             <div class="bar">
-              <button class="btn" id="trainBtn" onclick="act('train')">⚙️ Train new version</button>
-              <button class="btn ghost" id="valBtn" onclick="act('validate')">📊 Validate latest</button>
-              <button class="btn ghost" id="impBtn" onclick="act('improve')">🎯 Improve</button>
+              <button class="btn" data-no-glass id="trainBtn" onclick="act('train')">⚙️ Train new version</button>
+              <button class="btn ghost" data-no-glass id="valBtn" onclick="act('validate')">📊 Validate latest</button>
+              <button class="btn ghost" data-no-glass id="impBtn" onclick="act('improve')">🎯 Improve</button>
             </div>
             <label class="toggle"><input type="checkbox" id="autoTog" onchange="setAuto()" /> Improve overnight (autonomous, gated review)</label>
-            <div class="bar"><button class="btn ghost sm" id="overnightBtn" onclick="act('improve-overnight')">🌙 Run overnight now</button></div>
+            <div class="bar"><button class="btn ghost sm" data-no-glass id="overnightBtn" onclick="act('improve-overnight')">🌙 Run overnight now</button></div>
           </div>
           <div class="lbl" style="margin-top:16px">Versions <span class="hint" id="verMeta"></span></div>
           <div id="vers"><div class="empty">Select a character to see its trained versions and scorecards.</div></div>
@@ -316,12 +380,51 @@
       </div>
     </div>
   </div>
+  <dialog id="photoUploadSheet" class="lora-upload-sheet" data-ds-sheet data-no-glass hidden aria-labelledby="photoUploadTitle">
+    <div class="lora-panel-head">
+      <div>
+        <h2 class="lora-panel-title" id="photoUploadTitle">Frame &amp; caption photos</h2>
+        <span class="hint" id="photoUploadCount">1 of 1 photo</span>
+      </div>
+      <button class="btn ghost sm" data-no-glass id="photoUploadCloseBtn" type="button">Close</button>
+    </div>
+    <div class="lora-upload-thumbs" id="photoUploadThumbs" aria-label="Selected photos"></div>
+    <div class="lora-upload-grid">
+      <div class="lora-crop-box">
+        <canvas id="photoCropCanvas" width="280" height="280" aria-label="Crop preview"></canvas>
+        <div class="lora-aspect-bar" role="radiogroup" aria-label="Crop aspect ratio">
+          <button type="button" class="btn ghost sm lora-aspect-btn" data-no-glass role="radio" aria-checked="true" data-crop-aspect="1:1">1:1 Square</button>
+          <button type="button" class="btn ghost sm lora-aspect-btn" data-no-glass role="radio" aria-checked="false" data-crop-aspect="3:4">3:4 Portrait</button>
+          <button type="button" class="btn ghost sm lora-aspect-btn" data-no-glass role="radio" aria-checked="false" data-crop-aspect="4:3">4:3 Landscape</button>
+        </div>
+        <div class="lora-sliders">
+          <label>Zoom<input id="photoZoomRange" data-no-glass type="range" min="100" max="300" value="100" /></label>
+          <label>Pan X<input id="photoPanXRange" data-no-glass type="range" min="-100" max="100" value="0" /></label>
+          <label>Pan Y<input id="photoPanYRange" data-no-glass type="range" min="-100" max="100" value="0" /></label>
+        </div>
+      </div>
+      <div class="character-editor" style="margin:0">
+        <label>Photo filename<input id="photoNameInput" data-no-glass maxlength="96" autocomplete="off" /></label>
+        <label style="margin-top:10px">Training caption<textarea id="photoCaptionInput" data-no-glass maxlength="2048" rows="4" placeholder="Describe subject, pose, framing, lighting…"></textarea></label>
+        <div class="bar">
+          <button type="button" class="btn ghost sm" data-no-glass id="photoUploadAddBtn">+ Add photos</button>
+          <button type="button" class="btn ghost sm" data-no-glass id="photoUploadRemoveBtn">Remove photo</button>
+        </div>
+      </div>
+    </div>
+    <div class="result" id="photoUploadStatus" role="status" aria-live="polite"></div>
+    <div class="bar" style="justify-content:flex-end">
+      <button type="button" class="btn ghost" data-no-glass id="photoUploadCancelBtn">Cancel</button>
+      <button type="button" class="btn" data-no-glass id="photoUploadSaveBtn">Save to dataset</button>
+    </div>
+  </dialog>
 
 <script>
+if (window.top && window.top !== window) document.documentElement.classList.add('in-shell');
 const $ = (id) => document.getElementById(id);
 let CHARS = [], SEL = null;
 let loraEditor, creationDraft=false;
-let STEP='identity', HOME=true, GPU_WORKER=null;
+let STEP='identity', HOME=true, GPU_WORKER=null, DISCARD_ARMED='';
 const characterDraft='character-draft:'+crypto.randomUUID();
 let identitySource = null, captionObject = null, datasetObjects = [], sourceBusy = false, identityLoad = 0, datasetLoad = 0, loraAssistant = null, sourceSelectionEpoch = 0, modelDispatchBusy = false, currentModels = [], sourceUnavailableReason = "";
 function sourceSelection() { return { kind: creationDraft || !SEL ? 'character draft' : captionObject ? 'dataset image' : 'character', ids: [creationDraft || !SEL ? characterDraft : captionObject?.id ?? identitySource?.characterId ?? SEL] }; }
@@ -331,7 +434,14 @@ function captionDirty() { return Boolean(captionObject && $('editSavedCaption') 
 function identityDirty() { return Boolean(identitySource && $('editIdentityName') && $('editIdentityName').value !== identitySource.displayName); }
 function sourceDirty() { return captionDirty() || identityDirty() || Boolean(loraEditor?.hasPending()); }
 function captionsPending() { return datasetObjects.some(row => row.caption_status && row.caption_status !== 'applied' || Number(row.caption_revision ?? 0) !== Number(row.applied_revision ?? 0)); }
-function notifySource() { if ($('sourceEditPanel'))
+function confirmDiscardInline(key, msg) {
+  if (DISCARD_ARMED === key) { DISCARD_ARMED = ''; return true; }
+  DISCARD_ARMED = key;
+  sourceMessage(msg + ' Tap again to confirm.');
+  showResult('warn', msg + ' Tap again to confirm.');
+  return false;
+}
+function notifySource() { DISCARD_ARMED = ''; if ($('sourceEditPanel'))
     $('sourceEditPanel').hidden = creationDraft || !SEL; loraEditor?.refresh(); loraAssistant?.refresh(); const pending = captionsPending(); for (const id of ['trainBtn', 'impBtn', 'overnightBtn']) {
     $(id).disabled = sourceBusy || modelDispatchBusy || pending || Boolean(SEL && !identitySource) || identitySource?.canExecute === false;
     $(id).title = pending ? 'Apply saved dataset captions on the worker before training.' : '';
@@ -365,7 +475,7 @@ async function chooseDatasetObject(id) { try {
     if (sourceBusy)
         return;
     await loraEditor?.flushPending();
-    if (captionDirty() && !confirm('Discard the unsaved caption and select another image?'))
+    if (captionDirty() && !confirmDiscardInline('caption:' + id, 'Unsaved caption changes will be discarded.'))
         return;
     const row = datasetObjects.find(item => item.id === id);
     if (!row)
@@ -435,7 +545,7 @@ async function refreshLoraSource(expected) { if (expected?.recordId && expected.
     throw Error('The source changed while loading. Your draft remains here.'); if (!identity.ok || !dataset.ok)
     throw Error('The saved source could not be refreshed.'); identitySource = identity.j; $('editIdentityName').value = identity.j.displayName; datasetObjects = dataset.j.images ?? []; if (captionObject)
     captionObject = datasetObjects.find(row => row.id === captionObject.id) ?? null; paintCaptionSource(); await loadChars(); await loadDataset(subject); }
-function mountSourceControls() { const panel = document.createElement('section'); panel.id = 'sourceEditPanel'; panel.className = 'source-edit-panel'; panel.innerHTML = '<h3>Saved source</h3><div id="identitySourceEditor" hidden><label>Display name<input id="editIdentityName" maxlength="120" disabled></label><button id="saveIdentityName" type="button" disabled>Save identity name</button><p class="hint">Trigger words, hero anchors and trained weights keep their original identity.</p></div><button id="reloadSavedSource" type="button">Reload saved source</button>'; $('stepIdentity').append(panel); const captions = document.createElement('section'); captions.className = 'source-edit-panel'; captions.innerHTML = '<div id="savedCaptionEditor" hidden><h4 id="selectedSourceFilename">Selected dataset image</h4><p id="captionReceipt" class="hint"></p><label>Caption source<textarea id="editSavedCaption" maxlength="2048" rows="5"></textarea></label><div class="bar"><button id="saveSavedCaption" type="button">Save caption</button><button id="retrySavedCaption" type="button">Retry worker sync</button></div><p class="hint">Applied caption on the worker</p><pre id="appliedCaption" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><p class="hint">Saving caption text retains the original image and every trained model. Training waits for the matching worker acknowledgement.</p></div>'; $('stepDataset').append(captions); $('reloadSavedSource').onclick = () => { if (SEL)
+function mountSourceControls() { const panel = document.createElement('section'); panel.id = 'sourceEditPanel'; panel.className = 'source-edit-panel'; panel.innerHTML = '<h3>Saved source</h3><div id="identitySourceEditor" hidden><label>Display name<input id="editIdentityName" data-no-glass maxlength="120" disabled></label><button id="saveIdentityName" data-no-glass type="button" disabled>Save identity name</button><p class="hint">Trigger words, hero anchors and trained weights keep their original identity.</p></div><button id="reloadSavedSource" data-no-glass type="button">Reload saved source</button>'; $('stepIdentity').append(panel); const captions = document.createElement('section'); captions.className = 'source-edit-panel'; captions.innerHTML = '<div id="savedCaptionEditor" hidden><h4 id="selectedSourceFilename">Selected dataset image</h4><p id="captionReceipt" class="hint"></p><label>Caption source<textarea id="editSavedCaption" data-no-glass maxlength="2048" rows="5"></textarea></label><div class="bar"><button id="saveSavedCaption" data-no-glass type="button">Save caption</button><button id="retrySavedCaption" data-no-glass type="button">Retry worker sync</button></div><p class="hint">Applied caption on the worker</p><pre id="appliedCaption" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><p class="hint">Saving caption text retains the original image and every trained model. Training waits for the matching worker acknowledgement.</p></div>'; $('stepDataset').append(captions); $('reloadSavedSource').onclick = () => { if (SEL)
     void select(SEL).catch(error => sourceMessage(error.message)); }; for (const id of ['editIdentityName', 'editSavedCaption'])
     $(id).addEventListener('input', notifySource); for (const [id, fn] of [['saveIdentityName', saveIdentitySource], ['saveSavedCaption', () => saveCaptionSource(false)], ['retrySavedCaption', () => saveCaptionSource(true)]]) {
     $(id).onpointerdown = event => { if (document.activeElement?.matches('[data-editor-property]'))
@@ -465,6 +575,18 @@ function applyCharacterProperty(key,value,expected){
   const previous=field.value;field.value=String(value);if(!field.checkValidity()){field.value=previous;throw Error('Correct the character field before saving.');}
   field.dispatchEvent(new Event('input',{bubbles:true}));
 }
+function wirePhoneDrawerHistory(root){
+  let pushed=false,closing=false;
+  const open=()=>Boolean(root.dataset.editorPanel||root.dataset.editorSheet);
+  new MutationObserver(()=>{
+    if(open()&&!pushed&&!closing){pushed=true;history.pushState({loraEfLayer:true},'');}
+    else if(!open())pushed=false;
+  }).observe(root,{attributes:true,attributeFilter:['data-editor-panel','data-editor-sheet']});
+  window.addEventListener('popstate',()=>{
+    if(!open()){pushed=false;return;}
+    closing=true;pushed=false;loraEditor?.showPanel(null);root.removeAttribute('data-editor-sheet');closing=false;
+  });
+}
 async function mountLoraWorkspace(){
   const{createEditorFoundation}=await import('/shared/ui/js/editor-foundation.js');
   const root=document.querySelector('.split'),navigation=root.querySelector('.left'),viewport=root.querySelector('.right'),inspector=document.createElement('section');
@@ -472,9 +594,16 @@ async function mountLoraWorkspace(){
   inspector.className='lora-inspector';inspector.append(noFacts,$('actions'));root.append(inspector);mountSourceControls();
   loraEditor=createEditorFoundation({root,navigation,navigationLabel:'Characters',viewport,inspector,header:document.querySelector('.top'),
     getState:loraSourceState,getSelection:sourceSelection,getProperties:characterProperties,applyProperty:applyCharacterProperty,actions:{save:async()=>{if(creationDraft||!SEL)return saveCharacter({preventDefault(){}});if(identityDirty())await saveIdentitySource();if(captionDirty())await saveCaptionSource(false);}}});
+  wirePhoneDrawerHistory(root);
   root.addEventListener('input',notifySource);root.addEventListener('change',notifySource);root.addEventListener('editor-foundation:draft',notifySource);
   paintSteps(); // the list may have painted before the shared editor finished mounting the saved-source panel
   const{registerDocumentSession}=await import('/shared/ui/js/document-handoff.js');registerDocumentSession({app:'lora',prepare:prepareLoraSource,refresh:refreshLoraSource});
+  import('/api/lora/ui/photo-upload.mjs').then(({mountPhotoUpload})=>mountPhotoUpload({
+    getSubject:()=>SEL,
+    getDefaultCaption:()=>$('datasetCaption').value.trim()||(CHARS.find(c=>c.subject===SEL)?.trigger_word||''),
+    showStatus:(kind,msg)=>showResult(kind,msg),
+    onUploaded:async(_count,msg)=>{showResult('ok',msg);if(SEL)await loadDataset(SEL);},
+  })).catch(()=>{});
   window.addEventListener('pagehide',event=>{if(!event.persisted)loraEditor.destroy();},{once:true});
 }
 const ARTIFACT_REF = (()=>{
@@ -582,11 +711,16 @@ const STEPS=['identity','dataset','train','scorecards'];
 function phoneLayout(){ return window.matchMedia('(max-width:800px)').matches; }
 function paintSteps(){
   if(!SEL) STEP='identity';
-  const home=phoneLayout()&&HOME&&!SEL&&CHARS.length>0;
+  const phone=phoneLayout(), home=phone&&HOME&&!SEL&&CHARS.length>0;
   $('phoneHome').hidden=!home; $('loraWork').hidden=home; $('loraSteps').hidden=home;
-  document.querySelectorAll('[data-step]').forEach(b=>{ b.setAttribute('aria-current',b.dataset.step===STEP?'step':'false'); b.disabled=!SEL&&b.dataset.step!=='identity'; });
+  document.querySelectorAll('[data-step]').forEach(b=>{
+    b.setAttribute('aria-current',b.dataset.step===STEP?'step':'false');
+    b.disabled=!SEL&&b.dataset.step!=='identity';
+    b.hidden=phone&&!SEL&&b.dataset.step!=='identity';
+  });
   document.querySelectorAll('[data-step-panel]').forEach(panel=>{ panel.hidden=panel.dataset.stepPanel!==STEP; });
   $('characterEditor').hidden=Boolean(SEL); if($('noFacts')) $('noFacts').hidden=Boolean(SEL); if($('sourceEditPanel')) $('sourceEditPanel').hidden=creationDraft||!SEL;
+  $('importArtifactBtn').hidden=!ARTIFACT_REF;
   paintWorker();
 }
 function showStep(step){
@@ -608,7 +742,7 @@ function openLatestScorecard(subject){
 }
 async function newCharacter(){
   if(sourceBusy) return;
-  if(sourceDirty()&&!confirm('Discard unsaved source edits and start a new character?')) return;
+  if(sourceDirty()&&!confirmDiscardInline('new-character','Unsaved source edits will be discarded.')) return;
   loraEditor?.discardPending(); ++sourceSelectionEpoch;
   SEL=null; HOME=false; creationDraft=true; identitySource=null; captionObject=null; datasetObjects=[]; currentModels=[];
   $('actions').style.display='none'; $('verMeta').textContent=''; $('gallery').innerHTML=''; delete $('gallery').dataset.version;
@@ -677,7 +811,8 @@ async function loadDataset(subject){
     const status=safeDatasetStatus(row.status);
     const bytes=Number(row.byte_size);
     const size=Number.isFinite(bytes)?' · '+Math.round(bytes/1024)+' KiB':'';
-    return '<div class="card" style="cursor:default;padding:9px 10px;margin:7px 0"><div><button type="button" class="btn ghost" data-dataset-id="'+esc(row.id)+'">Edit '+esc(row.filename)+'</button> <span class="badge '+(status==='ready'?'scored':status)+'">'+esc(datasetStatusText(status))+'</span><span class="hint"> caption '+esc(row.caption_status??'applied')+' · r'+Number(row.caption_revision??0)+'</span></div><div class="hint">'+esc(row.caption||'')+esc(size)+'</div></div>';
+    const thumb=row.has_preview?'<img class="lora-ds-thumb" src="/api/lora/dataset/'+encodeURIComponent(row.id)+'/preview?subject='+encodeURIComponent(subject)+'" alt="" loading="lazy" />':'';
+    return '<div class="card"><div class="lora-ds-item">'+thumb+'<div style="flex:1;min-width:0"><div><button type="button" class="btn ghost sm" data-no-glass data-dataset-id="'+esc(row.id)+'">Edit '+esc(row.filename)+'</button> <span class="badge '+(status==='ready'?'scored':status)+'">'+esc(datasetStatusText(status))+'</span><span class="hint"> caption '+esc(row.caption_status??'applied')+' · r'+Number(row.caption_revision??0)+'</span></div><div class="hint">'+esc(row.caption||'')+esc(size)+'</div></div></div></div>';
   }).join(''):'<div class="hint">No curated images recorded yet.</div>';
 }
 
@@ -695,7 +830,7 @@ async function importIncomingArtifact(){
 // the starter character explicitly: POST /characters/starter saves it and answers the list. A viewer may only read,
 // and its refusal is shown in place.
 function renderNoCharacters(){
-  $('chars').innerHTML='<div class="empty">No characters yet.<div class="bar"><button class="btn sm" id="addStarterBtn" type="button">Add the starter character</button></div></div>';
+  $('chars').innerHTML='<div class="empty">No characters yet.<div class="bar" style="justify-content:center"><button class="btn ghost sm" data-no-glass id="addStarterBtn" type="button">Add the starter character</button></div></div>';
   $('addStarterBtn').addEventListener('click', addStarterCharacter);
 }
 
@@ -727,7 +862,7 @@ async function loadChars(){
   $('chars').querySelectorAll('[data-char-index]').forEach((node)=>{
     node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.charIndex)]; if(c) void select(c.subject); });
   });
-  $('phoneChars').innerHTML=CHARS.map((c,index)=>'<button type="button" class="lora-row" data-home-index="'+index+'"><span class="avatar" aria-hidden="true">🧿</span><span><span class="nm">'+esc(c.display_name)+'</span><span class="tg">'+(safeInt(c.version_count)??0)+' versions · best score '+esc(fmt(c.latest_score))+'</span></span></button>').join('');
+  $('phoneChars').innerHTML=CHARS.map((c,index)=>'<button type="button" class="lora-row" data-no-glass data-home-index="'+index+'"><span class="avatar" aria-hidden="true">🧿</span><span><span class="nm">'+esc(c.display_name)+'</span><span class="tg">'+(safeInt(c.version_count)??0)+' versions · best score '+esc(fmt(c.latest_score))+'</span></span></button>').join('');
   $('phoneChars').querySelectorAll('[data-home-index]').forEach((node)=>{
     node.addEventListener('click',()=>{ const c=CHARS[Number(node.dataset.homeIndex)]; if(c) void select(c.subject); });
   });
@@ -737,13 +872,13 @@ async function loadChars(){
 
 async function select(subject){
   if(sourceBusy||!CHARS.some(row=>row.subject===subject))return;
-  if(sourceDirty()&&!confirm('Discard unsaved source edits and select another character?'))return;
+  if(sourceDirty()&&!confirmDiscardInline('select:'+subject,'Unsaved source edits will be discarded.'))return;
   const fromNew=!SEL;
   const generation=++sourceSelectionEpoch,before=JSON.stringify({subject:SEL,name:$('editIdentityName')?.value,caption:$('editSavedCaption')?.value,pending:loraEditor?.hasPending()});
   const [incomingIdentity,incomingDataset]=await Promise.all([api('/characters/'+encodeURIComponent(subject)+'/editor'),api('/dataset?subject='+encodeURIComponent(subject))]);
   if(generation!==sourceSelectionEpoch)return;
   if(!incomingDataset.ok){showResult('err','The saved character data could not open. Your current draft remains here.');return;}
-  if(before!==JSON.stringify({subject:SEL,name:$('editIdentityName')?.value,caption:$('editSavedCaption')?.value,pending:loraEditor?.hasPending()})&&sourceDirty()&&!confirm('Discard the newer source edits and select this character?'))return;
+  if(before!==JSON.stringify({subject:SEL,name:$('editIdentityName')?.value,caption:$('editSavedCaption')?.value,pending:loraEditor?.hasPending()})&&sourceDirty()&&!confirmDiscardInline('select-newer:'+subject,'Newer source edits will be discarded.'))return;
   loraEditor?.discardPending();captionObject=null;identitySource=incomingIdentity.ok?incomingIdentity.j:null;sourceUnavailableReason=incomingIdentity.ok?'':String(incomingIdentity.j.error||'The saved source editor is unavailable.');datasetObjects=incomingDataset.j.images??[];
   if($('editIdentityName')){$('editIdentityName').value=identitySource?.displayName??'';$('editIdentityName').disabled=!identitySource?.canConfigure;}
   if(DELETE_ARMED!==subject) resetDeleteCharacter();
@@ -754,8 +889,10 @@ async function select(subject){
   $('actName').textContent = c.display_name;
   showCharacterConfig(c);
   $('autoTog').checked = !!c.autonomous;
-  $('artifactHint').textContent=ARTIFACT_REF?'An owner-owned image is ready to import. Confirm the character and caption, then queue it to the GPU worker.':'Send an owner-owned image here from Portrait Studio or another image source, then choose this character before queueing it to the GPU worker.';
+  $('artifactHint').textContent=ARTIFACT_REF?'An owner-owned image is ready to import. Confirm the character and caption, then queue it to the GPU worker.':'Upload PNG, JPEG, or WebP reference photos from this device (or drag and drop them here) to crop and caption each training pair, or send an image from Portrait Studio.';
+  $('importArtifactBtn').hidden=!ARTIFACT_REF;
   $('importArtifactBtn').disabled=!ARTIFACT_REF;
+  $('uploadPhotosBtn').disabled=identitySource?.canConfigure===false;
   $('result').className='result'; $('result').style.display='none';
   paintCaptionSource();if(!identitySource)sourceMessage('Read-only saved evidence. '+sourceUnavailableReason);await loadDataset(subject);
   await loadVersions(subject); paintSteps(); loraEditor?.refresh();
@@ -790,8 +927,8 @@ async function loadVersions(subject){
       </div>`:'<div class="hint" style="margin-top:8px">Not scored yet.</div>'}
       ${weak?`<div class="weak">weak: ${weak}</div>`:''}
       <div class="bar">
-        ${m.overall!=null&&version!=null?`<button class="btn ghost sm" data-gallery-index="${index}">View scorecard</button>`:''}
-        ${(status==='scored'&&!active&&version!=null)?`<button class="btn sm" data-active-index="${index}">Keep as active</button>`:''}
+        ${m.overall!=null&&version!=null?`<button class="btn ghost sm" data-no-glass data-gallery-index="${index}">View scorecard</button>`:''}
+        ${(status==='scored'&&!active&&version!=null)?`<button class="btn ghost sm" data-no-glass data-active-index="${index}">Keep as active</button>`:''}
       </div>
     </div>`;
   }).join('');

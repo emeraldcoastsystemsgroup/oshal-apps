@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                     | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com    | The Social desk's store and its pure rules (Roger, 2026-10-30: a publisher's queue for a person posting to two or three services). Posts (text, per-channel variants, channels, when, per-channel outcomes), the posting plan (days and times in the person's time zone; "Add to queue" takes the next free slot the way Buffer's queue does), the chosen Slack channel and Go Live events. Native-kernel safe: one-column keys, plain INSERTs, reads by key or by owner with a LIMIT, sorting here, no ON CONFLICT, ORDER BY or DISTINCT (the kernel copies a table for those).
+ * 2   | maintainer@emeraldcoastsystemsgroup.com    | Add owner-scoped readEvent and updateEvent for Go Live planned stream editing, preserving native-kernel SQL rules (no ON CONFLICT, ORDER BY or DISTINCT).
  */
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
@@ -332,6 +333,46 @@ async function listEvents(db, sub) {
   return r.rows.map(toEvent).sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
 }
 exports.listEvents = listEvents;
+
+/**
+ * @description One Go Live event by key, the owner's only.
+ * @param {{query:Function}} db - The admitted pool.
+ * @param {string} sub - The owner.
+ * @param {string} id - The event key.
+ * @returns {Promise<object|null>} The event or null.
+ */
+async function readEvent(db, sub, id) {
+  const r = await db.query(
+    'SELECT event_id, user_sub, title, description, start_at, destinations, watch_url, status, created_at FROM oshal_email_social_events WHERE event_id = $1 AND user_sub = $2',
+    [id, sub],
+  );
+  return r.rows[0] ? toEvent(r.rows[0]) : null;
+}
+exports.readEvent = readEvent;
+
+/**
+ * @description Update an owner's Go Live event fields.
+ * @param {{query:Function}} db - The admitted pool.
+ * @param {string} sub - The owner.
+ * @param {string} id - The event key.
+ * @param {object} patch - Fields to set: title, description, startAt, destinations, watchUrl, status.
+ * @returns {Promise<boolean>} True when a row changed.
+ */
+async function updateEvent(db, sub, id, patch) {
+  const sets = [];
+  const params = [id, sub];
+  const set = (column, value) => { params.push(value); sets.push(`${column} = $${params.length}`); };
+  if (patch.title !== undefined) set('title', patch.title);
+  if (patch.description !== undefined) set('description', patch.description);
+  if (patch.startAt !== undefined) set('start_at', patch.startAt);
+  if (patch.destinations !== undefined) set('destinations', JSON.stringify(patch.destinations || []));
+  if (patch.watchUrl !== undefined) set('watch_url', patch.watchUrl || '');
+  if (patch.status !== undefined) set('status', patch.status);
+  if (!sets.length) return false;
+  const r = await db.query(`UPDATE oshal_email_social_events SET ${sets.join(', ')} WHERE event_id = $1 AND user_sub = $2`, params);
+  return (r.rowCount || 0) > 0;
+}
+exports.updateEvent = updateEvent;
 
 /**
  * @description Remove an event and the posts that were still waiting to announce it.

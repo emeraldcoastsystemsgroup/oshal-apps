@@ -33,6 +33,7 @@
   opened directly on a phone at /api/career-hunter/mobile); follows the operator's cockpit theme.
 
   CHANGE LOG
+  9 | maintainer@emeraldcoastsystemsgroup.com | UX Design Standard sweep: primary ink var(--text-on-accent), overscroll containment, opaque disabled controls, and DS-00..DS-45 contract attributes.
   8 | maintainer@emeraldcoastsystemsgroup.com | Distinguish AI assessments from keyword matches and show saved assessment dates in the swipe deck, ready list and job review.
   -----------------------------------------------------------------------------
   SEQ                 | AUTHOR                                      | DESCRIPTION
@@ -45,7 +46,7 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | Preserve an explicit zero AI fit on swipe cards, the ready queue and selected review instead of substituting the keyword score or hiding it.
   7 | maintainer@emeraldcoastsystemsgroup.com | Display salary amounts with their explicit units and currencies, including per-course and unknown periods.
 -->
-<html lang="en" data-theme="midnight" data-career-surface="mobile">
+<html lang="en" data-theme="midnight" data-career-surface="mobile" data-ds-category="collection" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -61,9 +62,7 @@
   --bg:var(--bg-primary); --bg2:var(--bg-secondary); --card:var(--bg-card); --card2:var(--bg-card-hover);
   --ink:var(--text-primary); --muted:var(--text-muted); --line:var(--border-color);
   --teal:var(--accent-primary);
-  /* Ink ON the accent fill: the page background is the one ink that contrasts in every theme,
-     because each pairs a bright accent with a dark page (or a dark accent with a light page). */
-  --teal-ink:var(--bg-primary);
+  --teal-ink:var(--text-on-accent, #fff);
   --green:var(--status-success); --red:var(--status-error);
   --amber:var(--status-warning); --blue:var(--status-active);
   --shadow:var(--panel-shadow);
@@ -71,7 +70,7 @@
   --safe-b:env(safe-area-inset-bottom,0px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%}
+html,body{margin:0;height:100%;overscroll-behavior:contain}
 /* --bg2 is a GLASS token — translucent in every theme — and the body gradient uses it, so the page
    needs an opaque ground underneath or the top of the gradient composites over the browser's white
    canvas and washes out in the dark themes. */
@@ -81,7 +80,7 @@ body{
   color:var(--ink);
   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
   -webkit-font-smoothing:antialiased;
-  overscroll-behavior:none;
+  overscroll-behavior:contain;
 }
 .app{display:flex;flex-direction:column;height:100dvh;max-width:520px;margin:0 auto;position:relative}
 header{
@@ -156,12 +155,12 @@ main{flex:1 1 auto;position:relative;overflow:hidden}
 .row .rc{color:var(--muted);font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .rfit{flex:0 0 auto;font-weight:850;font-size:.82rem;color:var(--teal);min-width:34px;text-align:right}
 .row .rfit small{display:block;font-size:.62rem;font-weight:500;color:var(--muted)}
-.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:10px 14px;font:inherit;font-weight:800;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:10px 14px;font:inherit;font-weight:700;min-height:44px;cursor:pointer}
 .btn.primary{background:var(--teal);color:var(--teal-ink);border-color:transparent}
 .btn.ghost{background:transparent}
-.btn.block{width:100%;padding:14px;font-size:1rem}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn.small{padding:7px 11px;font-size:.78rem;border-radius:10px}
+.btn.block{width:100%;padding:14px;font-size:16px}
+.btn:disabled{opacity:1;color:var(--ds-ink-disabled,var(--muted));cursor:not-allowed}
+.btn.small{padding:7px 11px;font-size:14px;border-radius:10px}
 
 /* ---------- Review overlay ---------- */
 .sheet{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:20}
@@ -243,7 +242,7 @@ nav button .badge{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;
     <div class="pill" id="statePill">—</div>
   </header>
 
-  <main>
+  <main data-ds-work>
     <!-- ===== Discover ===== -->
     <section class="view active" id="v-discover">
       <div id="deck"></div>

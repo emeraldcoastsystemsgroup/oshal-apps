@@ -13,6 +13,7 @@
 # 9 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 split: register pumpkin-views (Show and Look & setup, one primary per view, the greyed Stop placeholder, colour wells, Reset to preset).
 # 10 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: register review-brief-gate (the review brief shows only when a connected action mounts).
 # 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (pumpkin--pumpkin-review, MERGE): register pumpkin-review-merge (tile removal, disclaimer/Refresh removal, Saved lines + Play on the projector).
+# 12 | maintainer@emeraldcoastsystemsgroup.com | RP-PUMP-01: update pumpkin-views for the live Stop control and register stop-mid-sentence (tests/pumpkin-stop.test.cjs) with regressionTests.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -167,7 +168,7 @@ cases:
     expected:
       - Show is the default and holds the look, mode, Speak and Saved responses; Look & setup holds the editor, projector setup and phone remote.
       - Say it and Save as new look are the only primaries; Launch Projector is a secondary with an SVG icon; the selected mode is inverted.
-      - Stop is a greyed planned control with backlog id RP-PUMP-01 and no handler.
+      - Stop is a live secondary control beside Ask the pumpkin bound to stopAll() with no remaining backlog placeholder attributes.
       - A colour well and opacity slider write the rgba string the Advanced field holds; Reset to preset restores the preset; status lines use the page ink.
     prerequisites:
       - runner:node-test
@@ -210,6 +211,27 @@ cases:
       - pumpkin-review is absent from ui.static while pumpkin-control is first and routes/review.js remains mounted.
       - Neither home-summary nor tools/review.html carries the 67-word disclaimer or Refresh evidence.
       - Saved lines shows saved and pinned counts, orders pinned lines first, and replays via Play on the projector.
+    prerequisites:
+      - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: none
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: stop-mid-sentence
+    name: Stop silences the pumpkin mid-sentence across paired rooms and concierge
+    purpose: Drive POST /rooms/stop and POST /stop over the compiled router and run PumpkinFace.stop() and PumpkinAudio.forceStop() in a VM - no browser, database or provider.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/pumpkin-stop.test.cjs
+    expected:
+      - POST /rooms/stop delivers stop to SSE and polling projectors with a valid pairing token and refuses bad tokens or foreign owners with 403.
+      - POST /stop silences the owner's live rooms for concierge OIDC or service secret and refuses MOCK_OIDC, forged secrets, and dark rooms.
+      - PumpkinFace.stop() snaps the jaw shut to zero immediately and PumpkinAudio.forceStop() aborts mid-synthesis without falling through to browser TTS.
     prerequisites:
       - runner:node-test
     sideEffects: none

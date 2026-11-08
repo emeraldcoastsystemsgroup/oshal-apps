@@ -3,12 +3,14 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Use original native owner ports for bounded media and durable real exports; keep legacy FFmpeg lifecycle unchanged.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | Overlay one complete validated native success receipt instead of mixing fresh success with a stale SQL row.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | Register and verify original-owner agent editing, immutable revision batches and approval-bound API tools.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | Support 720p/1080p/4K 30/60fps export profiles in native export receipts and admission.
  */
 import type { Router, Request, Response } from 'express';
 import { EditorError, type EditorMedia, type EditorOwner } from './video-editor-types';
 import { admit, bodyParser, confirm, handler, type RouteEnvironment } from './video-editor-http';
 import { baseRevision, editorId, exactFields, isRecord, mediaKind } from './video-editor-validation';
 import type { ExportRecord } from './video-editor-export-store';
+import type { ExportFps, ExportResolution } from './video-edit-compiler';
 
 /** @description Detect only the explicit original native SQL bridge. */
 export function nativeEditor(env: RouteEnvironment): boolean {
@@ -87,15 +89,15 @@ export async function nativeDeletedExports(env: RouteEnvironment, ids: string[])
   if (!nativeEditor(env)) return false;
   await prune(env, ids); return true;
 }
-/** @description Keep native measurements within the shipped 256 MiB, 1800-frame, 30 fps output profile. */
-function successOutput(value: unknown): Pick<ExportRecord, 'outputBytes' | 'outputSha256' | 'outputFrames' | 'outputDurationMs'> {
+/** @description Keep native measurements within the shipped 512 MiB, 3600-frame, 30/60 fps output profile. */
+function successOutput(value: unknown, fps = 30): Pick<ExportRecord, 'outputBytes' | 'outputSha256' | 'outputFrames' | 'outputDurationMs'> {
   if (!isRecord(value)) throw new EditorError(503, 'video_edit_export_output_invalid');
   const { outputBytes, outputSha256, outputFrames, outputDurationMs } = value;
-  if (typeof outputBytes !== 'number' || !Number.isSafeInteger(outputBytes) || outputBytes < 1 || outputBytes > 268435456
+  if (typeof outputBytes !== 'number' || !Number.isSafeInteger(outputBytes) || outputBytes < 1 || outputBytes > 536870912
       || typeof outputSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(outputSha256)
-      || typeof outputFrames !== 'number' || !Number.isSafeInteger(outputFrames) || outputFrames < 1 || outputFrames > 1800
+      || typeof outputFrames !== 'number' || !Number.isSafeInteger(outputFrames) || outputFrames < 1 || outputFrames > 3600
       || typeof outputDurationMs !== 'number' || !Number.isSafeInteger(outputDurationMs) || outputDurationMs < 1
-      || Math.abs(outputDurationMs - outputFrames * 1000 / 30) > 2000 / 30) {
+      || Math.abs(outputDurationMs - outputFrames * 1000 / fps) > Math.max(67, 2000 / fps)) {
     throw new EditorError(503, 'video_edit_export_output_invalid');
   }
   return { outputBytes, outputSha256, outputFrames, outputDurationMs };
@@ -104,19 +106,23 @@ function successOutput(value: unknown): Pick<ExportRecord, 'outputBytes' | 'outp
 async function status(env: RouteEnvironment, row: ExportRecord): Promise<ExportRecord & { progressFrames: number | null }> {
   const current = await call(env, { op: 'export_status', id: row.id });
   const state = current.state === 'verified' ? 'running' : typeof current.state === 'string' ? current.state : row.status;
-  const output = state === 'succeeded' ? successOutput(current.output) : undefined;
+  const fps = row.profile?.endsWith('60') ? 60 : 30;
+  const output = state === 'succeeded' ? successOutput(current.output, fps) : undefined;
   return { ...row, ...output, status: state,
     error: state === 'succeeded' ? null : typeof current.error === 'string' ? current.error : row.error,
     progressFrames: output?.outputFrames ?? null };
 }
 /** @description Canonical native export request records actual SQL revision then captures original durable work before202. */
 async function start(env: RouteEnvironment, req: Request, res: Response, owner: EditorOwner): Promise<void> {
-  exactFields(req.body ?? {}, ['id', 'revision', 'variant']);
-    if (req.body.id !== undefined && editorId(req.body.id) !== editorId(req.params.id)) throw new EditorError(400, 'invalid_video_edit_id');
+  exactFields(req.body ?? {}, ['id', 'revision', 'variant', 'resolution', 'fps']);
+  if (req.body.id !== undefined && editorId(req.body.id) !== editorId(req.params.id)) throw new EditorError(400, 'invalid_video_edit_id');
   const kind = req.body.variant ?? 'export';
   if (!['export', 'preview'].includes(kind)) throw new EditorError(400, 'invalid_video_edit_export_variant');
+  const resolution = req.body.resolution as ExportResolution | undefined, fps = req.body.fps as ExportFps | undefined;
+  if (resolution !== undefined && resolution !== '720p' && resolution !== '1080p' && resolution !== '4k') throw new EditorError(400, 'invalid_video_edit_export_profile');
+  if (fps !== undefined && fps !== 30 && fps !== 60) throw new EditorError(400, 'invalid_video_edit_export_profile');
   const { epoch } = await call(env, { op: 'epoch' });
-  const created = await env.exportStore.create(owner, editorId(req.params.id), baseRevision(req.body.revision), kind, String(epoch), confirm(env, 'export', owner));
+  const created = await env.exportStore.create(owner, editorId(req.params.id), baseRevision(req.body.revision), kind, String(epoch), confirm(env, 'export', owner), { resolution, fps });
   if (created.pruned.length) await prune(env, created.pruned.map(row => row.id));
   await call(env, { op: 'export_start', id: created.record.id });
   res.status(202).json({ export: { ...created.record, progressFrames: null } });

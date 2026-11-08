@@ -9,119 +9,149 @@
 
   Self-contained: no external assets, framework theme tokens only.
 -->
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="midnight" data-ds-category="form" data-ds-first-action="tap">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Bake-Off</title>
+<!--
+  CHANGE LOG
+  -----------------------------------------------------------------------------
+  SEQ | AUTHOR                                  | DESCRIPTION
+  -----------------------------------------------------------------------------
+  1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 surface contract, button sizing, and in-shell header collapse.
+-->
+
 <!-- Framework theme tokens + the bootstrap that follows the operator's theme live. Theme files
      scope to [data-theme="…"] with NO :root fallback, so the default on <html> above matters. -->
 <link rel="stylesheet" href="/shared/ui/css/surface-themes.css" />
 <script src="/shared/ui/js/surface-theme.js"></script>
+<script>if (window.parent && window.parent !== window) document.documentElement.setAttribute('data-embedded', '');</script>
 <link rel="stylesheet" href="/shared/ui/css/surface-glass.css" />
 <style>
   /* Derived from the framework theme, never hardcoded hex, so all themes work — not just dark. */
   :root {
     --bg: var(--bg-primary);
     --panel: var(--bg-card);
-    --border: var(--border-color);
+    --border: color-mix(in srgb, var(--text-primary) 24%, var(--bg-primary));
+    --edge: color-mix(in srgb, var(--text-primary) 48%, var(--bg-primary));
     --text: var(--text-primary);
-    --dim: var(--text-muted);
-    --green: var(--status-success, #3fb950);
-    --red: var(--status-error, #f85149);
-    --amber: var(--status-warning, #d29922);
-    --blue: var(--accent-primary, #58a6ff);
+    --dim: color-mix(in srgb, var(--text-primary) 72%, var(--bg-primary));
+    --green: var(--status-success, #2da44e);
+    --red: var(--status-error, #cf222e);
+    --amber: var(--status-warning, #9a6700);
+    --blue: var(--accent-primary, #2563eb);
   }
   * { box-sizing: border-box; }
+  html, body { overscroll-behavior-y: contain; }
   body {
-    margin: 0; padding: 1rem; background: var(--bg); color: var(--text);
+    margin: 0; padding: 12px 16px 32px; background: var(--bg); color: var(--text);
     font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
-  h2 { font-size: .95rem; margin: 0 0 .6rem; letter-spacing: .02em; }
-  .sub { color: var(--dim); font-size: .82rem; margin: 0 0 1rem; max-width: 70ch; }
-  .grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
-  @media (min-width: 960px) { .grid { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); } }
+  @media (pointer: fine) { body { font-size: 15px; } }
+  html[data-embedded] h1 { display: none; }
+  h1 { font-size: 24px; line-height: 1.25; margin: 0 0 4px; }
+  h2 { font-size: 16px; line-height: 1.35; margin: 0 0 8px; }
+  .sub { color: var(--dim); font-size: 14px; margin: 0 0 10px; max-width: 70ch; }
+  .grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+  .col-editor { order: -1; }
+  @media (min-width: 960px) {
+    .grid { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); }
+    .col-editor { order: 0; }
+  }
   .card {
     background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: .9rem 1rem; min-width: 0;
+    border-radius: 14px; padding: 14px 16px; min-width: 0;
   }
-  label { display: block; font-size: .78rem; color: var(--dim); margin: .6rem 0 .2rem; }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--dim); margin: 10px 0 4px; }
   input, textarea, select {
-    width: 100%; background: var(--bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 6px; padding: .45rem .55rem;
-    font: inherit; font-size: .85rem;
+    width: 100%; min-height: 44px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--edge); border-radius: 10px; padding: 10px 12px;
+    font: inherit; font-size: 16px;
   }
-  textarea { min-height: 5.5rem; resize: vertical; }
-  .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+  @media (pointer: fine) { input, textarea, select { font-size: 15px; } }
+  textarea { min-height: 88px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .row > * { min-width: 0; }
   button {
-    background: var(--blue); color: var(--bg); border: 0; border-radius: 6px;
-    padding: .45rem .8rem; font: inherit; font-weight: 600; cursor: pointer;
+    min-height: 44px; min-width: 44px; background: var(--blue); color: var(--ds-on-accent, #ffffff);
+    border: 1px solid var(--blue); border-radius: 10px; padding: 10px 16px;
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: background-color 150ms ease, border-color 150ms ease;
   }
-  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500; }
-  button:disabled { opacity: .5; cursor: default; }
+  button.ghost {
+    background: var(--bg-secondary, var(--bg)); color: var(--text);
+    border: 1px solid var(--edge); font-weight: 600;
+  }
+  button:disabled {
+    opacity: 1; background: var(--bg-secondary, var(--bg));
+    color: color-mix(in srgb, var(--text) 52%, var(--bg));
+    border-color: var(--border); cursor: not-allowed;
+  }
+  @media (max-width: 959px) {
+    #run:disabled, #verdict:disabled, #del:disabled { display: none; }
+  }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .scroll { overflow-x: auto; }
-  table { border-collapse: collapse; width: 100%; font-size: .82rem; min-width: 46rem; }
-  th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  th { color: var(--dim); font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 46rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tr.win td { background: color-mix(in srgb, var(--green) 12%, transparent); }
+  tr.win td { background: color-mix(in srgb, var(--green) 12%, var(--bg)); }
   .tag {
-    display: inline-block; font-size: .68rem; padding: .1rem .4rem; border-radius: 999px;
+    display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 6px;
     border: 1px solid var(--border); color: var(--dim);
   }
   .tag.bad { color: var(--red); border-color: var(--red); }
   .tag.warn { color: var(--amber); border-color: var(--amber); }
   .tag.ok { color: var(--green); border-color: var(--green); }
-  .headline { font-size: 1rem; font-weight: 700; margin: 0 0 .3rem; }
+  .headline { font-size: 16px; font-weight: 700; margin: 0 0 6px; }
   .money { color: var(--green); font-variant-numeric: tabular-nums; }
   .blocked { color: var(--amber); }
-  ul.caveats { margin: .5rem 0 0; padding-left: 1.1rem; color: var(--dim); font-size: .8rem; }
-  ul.caveats li { margin-bottom: .25rem; }
-  .lane { display: flex; gap: .5rem; align-items: flex-start; padding: .35rem 0; border-bottom: 1px solid var(--border); }
+  ul.caveats { margin: 8px 0 0; padding-left: 18px; color: var(--dim); font-size: 14px; }
+  ul.caveats li { margin-bottom: 4px; }
+  .lane { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--border); }
   .lane:last-child { border-bottom: 0; }
-  .lane code { font-size: .74rem; color: var(--dim); overflow-wrap: anywhere; }
-  .jobs button.ghost { width: 100%; text-align: left; margin-bottom: .3rem; }
-  .jobs button.ghost.sel { border-color: var(--blue); color: var(--blue); }
-  .msg { font-size: .8rem; margin-top: .5rem; }
+  .lane code { font-size: 12px; color: var(--dim); overflow-wrap: anywhere; }
+  .jobs button.ghost { width: 100%; text-align: left; margin-bottom: 6px; }
+  .jobs button.ghost.sel { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, var(--bg)); }
+  .msg { font-size: 14px; margin-top: 8px; }
   .msg.err { color: var(--red); }
-  .msg.warn { color: var(--amber); margin: 0 0 .6rem; }
-  .scroll.stale { opacity: .65; }
+  .msg.warn { color: var(--amber); margin: 0 0 10px; }
+  .scroll.stale { opacity: 1; }
   pre.out {
     white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg);
-    border: 1px solid var(--border); border-radius: 6px; padding: .6rem;
-    font-size: .78rem; max-height: 22rem; overflow-y: auto; margin: .5rem 0 0;
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px;
+    font-size: 12px; max-height: 22rem; overflow-y: auto; margin: 8px 0 0;
+  }
+  .ask-sheet {
+    position: fixed; inset: auto 16px 16px 16px; max-width: 440px; margin: 0 auto; z-index: 40;
+    background: var(--bg); border: 1px solid var(--edge); border-radius: 14px; padding: 16px;
   }
 </style>
 </head>
 <body>
 <h1>AI Bake-Off</h1>
-<p class="sub">
-  Race one job across every lane you already have — each bot &times; harness &times; provider pairing —
-  grade every output on the shared quality judge against your rubric, and see which lane is cheapest
-  at acceptable quality. No new credentials: these are the bots this deployment already runs.
-</p>
+<p class="sub">Race one job across your lanes to find the lowest-cost match.</p>
 
-<div class="grid">
+<div class="grid" data-ds-work>
   <div>
     <div class="card">
       <h2>Your lanes</h2>
       <div id="lanes">loading&hellip;</div>
-      <p class="sub" style="margin:.6rem 0 0">
-        A bot appears here only if it declares an explicit harness <em>and</em> provider — a bot on the
-        process default is not a distinguishable lane. Operator-scoped internal bots are never lanes.
+      <p class="sub" style="margin:10px 0 0">
+        Bots with an explicit harness and provider appear here as distinct lanes.
       </p>
     </div>
 
-    <div class="card" style="margin-top:1rem">
+    <div class="card" style="margin-top:14px">
       <h2>Jobs</h2>
       <div class="jobs" id="jobs"></div>
-      <button class="ghost" id="newJob" style="width:100%;margin-top:.4rem">+ New job</button>
+      <button class="ghost" id="newJob" style="width:100%;margin-top:8px">+ New job</button>
     </div>
   </div>
 
-  <div>
+  <div class="col-editor">
     <div class="card" id="editor">
       <h2>Job</h2>
       <label for="f-name">Name</label>
@@ -129,27 +159,40 @@
       <label for="f-prompt">The prompt to race (at least 20 characters)</label>
       <textarea id="f-prompt" placeholder="The exact prompt your recurring job sends. Include the instructions and the format you expect back."></textarea>
       <label for="f-rubric">Rubric — one criterion per line (blank = the default rubric)</label>
-      <textarea id="f-rubric" style="min-height:4rem"></textarea>
+      <textarea id="f-rubric" style="min-height:64px"></textarea>
       <label for="f-ref">Reference answer (optional — improves grading when you have a gold output)</label>
-      <textarea id="f-ref" style="min-height:3rem"></textarea>
+      <textarea id="f-ref" style="min-height:56px"></textarea>
       <div class="row">
         <div style="flex:1 1 8rem"><label for="f-bar">Quality bar (0-100)</label><input id="f-bar" type="number" min="0" max="100" value="70"></div>
         <div style="flex:1 1 8rem"><label for="f-vol">Runs per month</label><input id="f-vol" type="number" min="1" value="100"></div>
       </div>
-      <div class="row" style="margin-top:.8rem">
-        <button id="save">Save job</button>
+      <div class="row" style="margin-top:12px">
+        <button id="save" data-ds-primary>Save job</button>
         <button class="ghost" id="run" disabled>Run bake-off</button>
         <button class="ghost" id="verdict" disabled>Ask the analyst</button>
         <button class="ghost" id="del" disabled>Delete</button>
       </div>
-      <div class="msg" id="msg"></div>
+      <div class="msg" id="msg" role="alert"></div>
     </div>
 
-    <div class="card" style="margin-top:1rem">
+    <div class="card" style="margin-top:14px">
       <h2>Report</h2>
       <p class="msg warn" id="edited" role="status" hidden><strong>Not run with your edits.</strong> You changed the prompt, rubric or reference above; the results below measure the saved job. Save the changes (as a new job when this one has a run) and run it to measure them.</p>
       <div id="report">No run yet. Save a job, then Run bake-off.</div>
     </div>
+
+    <div class="card" style="margin-top:14px" id="recordedCard">
+      <h2>Recorded work</h2>
+      <div id="recorded">No recorded runs yet.</div>
+    </div>
+  </div>
+</div>
+
+<div id="askSheet" class="ask-sheet" role="dialog" aria-modal="true" data-ds-sheet data-no-glass hidden>
+  <p id="askText" style="margin:0 0 12px;font-size:14px"></p>
+  <div class="row">
+    <button id="askYes" class="ghost">Confirm</button>
+    <button id="askNo" class="ghost">Cancel</button>
   </div>
 </div>
 
@@ -364,13 +407,39 @@ async function loadReport() {
 // ── Actions ──────────────────────────────────────────────────────────────────
 $('newJob').onclick = () => { SEL = null; fillEditor(null); loadJobs(); say(''); };
 
+function askInPage(text) {
+  return new Promise((resolve) => {
+    const sheet = $('askSheet');
+    $('askText').textContent = text;
+    sheet.hidden = false;
+    try { history.pushState({ dsLayer: 'ask' }, ''); } catch (_) {}
+    const finish = (ok) => { sheet.hidden = true; window.removeEventListener('popstate', onPop); resolve(ok); };
+    const onPop = () => { sheet.hidden = true; window.removeEventListener('popstate', onPop); resolve(false); };
+    window.addEventListener('popstate', onPop);
+    $('askYes').onclick = () => finish(true);
+    $('askNo').onclick = () => finish(false);
+  });
+}
+
+async function loadRecordedWork() {
+  try {
+    const d = await api('/home-summary');
+    const items = Array.isArray(d && d.items) ? d.items : [];
+    $('recorded').innerHTML = items.length
+      ? items.map((it) => '<div class="lane"><div><strong>' + esc(it.title || it.name || 'Run') + '</strong>'
+          + (it.detail ? '<br><code>' + esc(it.detail) + '</code>' : '') + '</div></div>').join('')
+      : 'No recorded runs yet.';
+  } catch (_) { $('recorded').textContent = 'No recorded runs yet.'; }
+}
+
 // Save edits the selected job in place (PATCH keeps its id and runs); with no job selected it
 // creates one. Saving always POSTed before, so editing a job made a duplicate.
 // A job with a run keeps the prompt, rubric and reference that run was graded on (409 spec-has-runs):
 // the page offers to save the changes as a new job, so the old report never reads as the new prompt's.
 async function saveAsNewIfAsked(e) {
   if (e.code !== 'spec-has-runs') throw e;
-  if (!confirm(e.message + '\n\nSave these changes as a new job?')) return null;
+  const msg = e.message + '\n\nSave these changes as a new job?';
+  if (!(await (typeof askInPage === 'function' ? askInPage(msg) : confirm(msg)))) return null;
   return api('/jobs', { method: 'POST', body: JSON.stringify(body()) });
 }
 $('save').onclick = async () => {
@@ -405,7 +474,8 @@ $('verdict').onclick = async () => {
 // Deleting a job also deletes its runs and results, so it asks first.
 $('del').onclick = async () => {
   const job = JOBS.find((j) => j.id === SEL);
-  if (!SEL || !confirm('Delete the job "' + (job ? job.name : 'this job') + '" and all of its runs? This cannot be undone.')) return;
+  const msg = 'Delete the job "' + (job ? job.name : 'this job') + '" and all of its runs? This cannot be undone.';
+  if (!SEL || !(await (typeof askInPage === 'function' ? askInPage(msg) : confirm(msg)))) return;
   try {
     await api('/jobs/' + encodeURIComponent(SEL), { method: 'DELETE' });
     SEL = null; fillEditor(null); await loadJobs(); loadReport(); say('Deleted.');
@@ -414,6 +484,7 @@ $('del').onclick = async () => {
 
 loadLanes();
 loadJobs();
+loadRecordedWork();
 </script>
 </body>
 </html>
