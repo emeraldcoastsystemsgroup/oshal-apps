@@ -7,6 +7,7 @@
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: bridgeSupport refuses Windows and macOS with Linux-only guidance and accepts Linux or empty; computerStanding names Let Jarvis control this computer; adb-connect-tv and ble-remove are closed verbs.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: installer carries oshal_phone_mirror.py, lowercase oshal Node guidance, closed setup-mirror / mirror-start / mirror-stop / mirror-frame verbs, readFrame custom verb support, and phoneReachable with mirror.hasFrame.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: cover computerPoint coordinate mapping (normalized and multi-monitor physical offset), desktopControlSupport capability gating, safeFileName, bytesToBase64, QUALITY_PRESETS, and adb-files/adb-push/adb-pull/adb-clipboard-* verbs.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the installer carries oshal_phone_lan.py, its single-quoted payload installs for real, and lan-discover / lan-control are closed verbs.
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,8 +62,9 @@ test('the install command installs exactly the package bridge, and the bridge re
   const installed = parseReply(shell(installCommand(manifest)));
   assert.equal(installed.ok, true, installed.message);
   assert.deepEqual(installed.installed.sort(), [
-    'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
+    'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
   ]);
+  assert.ok(installCommand(manifest).length < 100 * 1024, 'the install command stays one shell argument with room to spare');
   for (const file of manifest.files) {
     const where = file.name === 'oshal-phone-bridge' ? join(home, '.local', 'bin', file.name) : join(home, '.local', 'share', 'oshal-phone-bridge', file.name);
     assert.equal(createHash('sha256').update(readFileSync(where)).digest('hex'), file.sha256, file.name);

@@ -1,3 +1,5 @@
+# CHANGE LOG: 30 | maintainer@emeraldcoastsystemsgroup.com | Remove a saved source (1.5.3, P5-55b): POST /sources/remove and the Jarvis tool ops-remove-source under the existing records.write grant, beside the source save it undoes. No permission, role or grant changed.
+# CHANGE LOG: 29 | maintainer@emeraldcoastsystemsgroup.com | The four desks (spec lanes/monitoring-four-desks-spec-2026-11-08.md): permissions desk.app, desk.security, desk.platform, desk.release (read, viewer) and desk.<x>.write (write, editor) on the same own-scoped application resource; roles ops-app, ops-security, ops-platform, ops-release, each granting app.open and its desk's two permissions, because a role that cannot open the page cannot see its desk (closure is transitive); operator keeps everything. Each desk's read route and Jarvis tool bind to its desk.<x>, its policy save to desk.<x>.write; the desk catalog and the desks.js asset carry no record and ride app.open.
 # CHANGE LOG: 28 | maintainer@emeraldcoastsystemsgroup.com | Admit the Your computers page script through existing own app.open reads for GET and HEAD.
 # CHANGE LOG: 27 | maintainer@emeraldcoastsystemsgroup.com | Cloud clusters script: GET and HEAD under app.open.
 # CHANGE LOG: 26 | maintainer@emeraldcoastsystemsgroup.com | Ops console script and glass skin stylesheet: GET and HEAD under app.open.
@@ -40,6 +42,38 @@ permissions:
     resource: application
     effect: write
     minimumTier: editor
+  desk.app:
+    resource: application
+    effect: read
+    minimumTier: viewer
+  desk.app.write:
+    resource: application
+    effect: write
+    minimumTier: editor
+  desk.security:
+    resource: application
+    effect: read
+    minimumTier: viewer
+  desk.security.write:
+    resource: application
+    effect: write
+    minimumTier: editor
+  desk.platform:
+    resource: application
+    effect: read
+    minimumTier: viewer
+  desk.platform.write:
+    resource: application
+    effect: write
+    minimumTier: editor
+  desk.release:
+    resource: application
+    effect: read
+    minimumTier: viewer
+  desk.release.write:
+    resource: application
+    effect: write
+    minimumTier: editor
 roles:
   reader:
     tier: viewer
@@ -52,6 +86,58 @@ roles:
       - permission: app.open
         scope: own
       - permission: records.write
+        scope: own
+      - permission: desk.app
+        scope: own
+      - permission: desk.app.write
+        scope: own
+      - permission: desk.security
+        scope: own
+      - permission: desk.security.write
+        scope: own
+      - permission: desk.platform
+        scope: own
+      - permission: desk.platform.write
+        scope: own
+      - permission: desk.release
+        scope: own
+      - permission: desk.release.write
+        scope: own
+  ops-app:
+    tier: editor
+    grants:
+      - permission: app.open
+        scope: own
+      - permission: desk.app
+        scope: own
+      - permission: desk.app.write
+        scope: own
+  ops-security:
+    tier: editor
+    grants:
+      - permission: app.open
+        scope: own
+      - permission: desk.security
+        scope: own
+      - permission: desk.security.write
+        scope: own
+  ops-platform:
+    tier: editor
+    grants:
+      - permission: app.open
+        scope: own
+      - permission: desk.platform
+        scope: own
+      - permission: desk.platform.write
+        scope: own
+  ops-release:
+    tier: editor
+    grants:
+      - permission: app.open
+        scope: own
+      - permission: desk.release
+        scope: own
+      - permission: desk.release.write
         scope: own
 bindings:
   bots:
@@ -66,7 +152,76 @@ bindings:
     - {id: ops-systems, allOf: [app.open]}
     - {id: ops-response-plans, allOf: [app.open]}
     - {id: ops-anomalies, allOf: [app.open]}
+    - {id: ops-app-desk, allOf: [desk.app]}
+    - {id: ops-security-desk, allOf: [desk.security]}
+    - {id: ops-platform-desk, allOf: [desk.platform]}
+    - {id: ops-release-desk, allOf: [desk.release]}
+    - {id: ops-remove-source, allOf: [records.write]}
   http:
+    - id: desks-asset-get
+      method: GET
+      path: /assets/desks.js
+      allOf: [app.open]
+    - id: desks-asset-head
+      method: HEAD
+      path: /assets/desks.js
+      allOf: [app.open]
+    - id: desks-catalog-get
+      method: GET
+      path: /desks
+      allOf: [app.open]
+    - id: desks-catalog-head
+      method: HEAD
+      path: /desks
+      allOf: [app.open]
+    - id: desk-app-ops-get
+      method: GET
+      path: /desks/app-ops
+      allOf: [desk.app]
+    - id: desk-app-ops-head
+      method: HEAD
+      path: /desks/app-ops
+      allOf: [desk.app]
+    - id: desk-app-ops-policy
+      method: POST
+      path: /desks/app-ops/policy
+      allOf: [desk.app.write]
+    - id: desk-sec-ops-get
+      method: GET
+      path: /desks/sec-ops
+      allOf: [desk.security]
+    - id: desk-sec-ops-head
+      method: HEAD
+      path: /desks/sec-ops
+      allOf: [desk.security]
+    - id: desk-sec-ops-policy
+      method: POST
+      path: /desks/sec-ops/policy
+      allOf: [desk.security.write]
+    - id: desk-platform-ops-get
+      method: GET
+      path: /desks/platform-ops
+      allOf: [desk.platform]
+    - id: desk-platform-ops-head
+      method: HEAD
+      path: /desks/platform-ops
+      allOf: [desk.platform]
+    - id: desk-platform-ops-policy
+      method: POST
+      path: /desks/platform-ops/policy
+      allOf: [desk.platform.write]
+    - id: desk-dev-ops-get
+      method: GET
+      path: /desks/dev-ops
+      allOf: [desk.release]
+    - id: desk-dev-ops-head
+      method: HEAD
+      path: /desks/dev-ops
+      allOf: [desk.release]
+    - id: desk-dev-ops-policy
+      method: POST
+      path: /desks/dev-ops/policy
+      allOf: [desk.release.write]
     - id: computers-asset-get
       method: GET
       path: /assets/computers.js
@@ -501,6 +656,11 @@ bindings:
     - id: write-0
       method: POST
       path: /sources
+      allOf:
+        - records.write
+    - id: sources-remove
+      method: POST
+      path: /sources/remove
       allOf:
         - records.write
     - id: write-1

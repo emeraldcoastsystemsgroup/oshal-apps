@@ -11,6 +11,7 @@
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.6.0 (UX audit 2026-11-06): the Signals tile is merged into Workspace · Engage and taken off the menu (its address leads there; the signals routes still answer; restore the ui.static entry and tools/social-signals.html from 549cd0e9 to bring it back). Workspace gets its own icon (Composer and Workspace both showed the same pencil), a phone bottom bar Feed · Engage · Saved · Compose, network tabs that choose the format before an account is linked, Organize with AI in Engage, a saved-draft ⋯ menu and 44px touch targets. Home's fix links lead to the Workspace. Guarded by tests/workspace-browser.test.cjs.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.6.1: UX audit batch 7 (social--social-composer MERGE): move social-composer below social-workspace in ui.static with label Compose (retained because business-experience and prepare-post name surface social-composer); /api/social/composer opens Workspace's Compose (?view=compose) while both Workspace and Composer carry the Business/Home audience view. Guard: tests/composer-merge.test.cjs.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.7.0: unify Compose and Workspace into one social-workspace surface (remove the duplicate social-composer tile from ui.static and route prepare-post handoffs to social-workspace; /api/social/composer 302-redirects to /api/social/workspace?view=compose preserving query parameters).
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.7.1: Jarvis routing words (backlog P4-16a): social-writer adds 'a linkedin post', 'a facebook post', 'publish' and 'facebook'. "Draft a LinkedIn post about our product launch" went to Marketing Engine on its 'product launch' phrase, and "Publish this to X and Facebook at the same time" was a four-way tie, because Social declared its platform words only inside phrases; both reach Social now, while "Publish the book layout" stays with Publishing Studio. No route, tool or permission changed.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — social (Social swarm, ADR-038)
@@ -65,7 +66,7 @@ description: >-
   input — then publishes to multiple platforms at once (LinkedIn + Facebook + X).
   AI drafting runs on the comms bot; publishing uses your per-user connector
   tokens. Human-approved — nothing posts until you click Publish.
-version: 1.7.0
+version: 1.7.1
 status: active
 
 source:

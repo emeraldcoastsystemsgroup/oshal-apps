@@ -1,3 +1,5 @@
+/** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: guard the install-time probe a review asked for (2026-11-09): the compose test above reads files only, so nothing proved the running search applies the free-space watermarks or lifts the index-create block. The installer must read the three watermarks from compose.yaml before it starts anything (its parser gives exactly the values js-yaml reads), and once the engine and its link are in place it must run engine/search-disk-guard.py over search's own GET /_cluster/settings?include_defaults=true&flat_settings=true, retry for 3 minutes and refuse to finish (search's answer, its log, exit 1) when it never passes. The guard itself is proven against a real OpenSearch in tests/search-disk-guard.test.cjs. */
+/** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: guard the search service's disk watermarks. All three are absolute free-space sizes shrinking from low to high to flood stage, the disk monitor and the create-index auto-release are never turned off, and lab/detection.py renders the same three. On 2026-11-08 the Spark's 91 % full 3.5 TB disk (310 GB free) tripped OpenSearch's default 90 % high watermark; its index-create block refused every new rule index with HTTP 403, desk activation failed and the processing tick answered 503 every minute. */
 /** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | The closing-step guard expects the on-demand wording, not an "only control" claim: publishing, previewing and evaluating report the engine state with the same install command (third review, 2026-11-03). */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | A hello carrying error (the engine's own busy signal, {"error":"engine-busy"} relayed by the kernel with a null reply) must be the transient busy 503 without an installHint property, never the build-mismatch refusal; the installer must prove the restarted link unit (systemctl --user is-active and a TCP connect to the loopback port parsed from the unit, within 5 s) before saying the kernel dials the engine again, and print the unit's last 20 journal lines and exit 1 otherwise; and its closing step must name the real control, the Operations navigation entry "Data pipeline" and its button "Check detection service" (GET /pipeline/health), as experience/index.html spells them. */
 /** CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Guard the engine-container pattern the store gate checks (scripts/check-engine-container-pattern.mjs): the compiled route exports INSTALL_HINT naming install-engine.sh and refuses an unreachable engine or an identity-digest mismatch with status 503, the command in the message and installHint beside it (a kernel deadline or a busy engine carries none), the mounted router answers that shape over HTTP, and the installer restarts an existing oshal-native-operations-link user unit after the recreate through systemctl --user cat/restart only, printing the two host steps when the unit is absent. */
@@ -63,6 +65,42 @@ test('the engine runs read-only without capabilities as 1000:1000 over exactly t
   assert.equal(search.environment['discovery.type'],'single-node');assert.equal(String(search.environment.DISABLE_SECURITY_PLUGIN),'true');assert.equal(String(search.environment.DISABLE_INSTALL_DEMO_CONFIG),'true');
   assert.equal(search.environment.OPENSEARCH_JAVA_OPTS,'-Xms512m -Xmx512m');assert.equal(String(search.environment['node.store.allow_mmap']),'false');
   assert.deepEqual(search.volumes,['search-data:/usr/share/opensearch/data']);assert.ok(compose.volumes['search-data']!==undefined);
+});
+
+test('search judges disk pressure by free space in both shapes, so a mostly full large disk cannot block new rule indexes',()=>{
+  // A percentage of a 3.5 TB disk is hundreds of GB: at 91 % used the default 90 % high watermark put the index-create block
+  // on the cluster and every new rule index (each desk's default policy among them) came back HTTP 403.
+  const env=compose.services.search.environment,keys=['low','high','flood_stage'].map(k=>'cluster.routing.allocation.disk.watermark.'+k);
+  const free=keys.map(k=>{const v=String(env[k]??'');assert.match(v,/^[1-9]\d*gb$/,k+' must be an absolute free-space size such as 20gb, never a percentage or a ratio');return Number.parseInt(v,10);});
+  assert.ok(free[0]>free[1]&&free[1]>free[2],'free space must shrink from the low to the high to the flood-stage watermark');
+  for(const off of ['cluster.routing.allocation.disk.threshold_enabled','cluster.blocks.create_index.auto_release'])
+    assert.notEqual(String(env[off]),'false',off+' stays on: the disk monitor is what lifts an index-create block it set');
+  assert.equal(env['cluster.blocks.create_index'],undefined,'the compose file never sets the block itself');
+  const objects=JSON.parse(execFileSync('python3',[path.join(root,'lab/detection.py'),'render'],{encoding:'utf8'}));
+  const search=objects.find(o=>o.kind==='Deployment').spec.template.spec.containers.find(c=>c.name==='search');
+  const lab=Object.fromEntries(search.env.map(e=>[e.name,e.value]));
+  for(const k of keys)assert.equal(lab[k],String(env[k]),'lab/detection.py renders '+k+' as engine/container/compose.yaml declares it');
+});
+
+test('the install finishes only when the running search reports the free-space watermarks compose.yaml sets and no index-create block',()=>{
+  const code=fs.readFileSync(installer,'utf8').split('\n').filter(l=>!/^\s*#/.test(l)).join('\n');
+  assert.match(code,/^SETTINGS='http:\/\/127\.0\.0\.1:9200\/_cluster\/settings\?include_defaults=true&flat_settings=true'$/m,'what search applies, its node settings included');
+  const parser=/^watermark\(\) \{\n[\s\S]*?\n\}\n/m.exec(code);assert.ok(parser,'the installer defines watermark()');
+  const levels=['low','high','flood_stage'],env=compose.services.search.environment;
+  const parsed=execFileSync('sh',['-c',parser[0]+'COMPOSE=$1; for level in low high flood_stage; do watermark "$level"; done','installer',composeFile],{encoding:'utf8'}).trim().split('\n');
+  assert.deepEqual(parsed,levels.map(l=>String(env['cluster.routing.allocation.disk.watermark.'+l])),'the installer requires exactly the values compose.yaml gives search');
+  for(const [name,level] of [['LOW','low'],['HIGH','high'],['FLOOD','flood_stage']])assert.match(code,new RegExp('^'+name+'=\\$\\(watermark '+level+'\\)$','m'));
+  assert.match(code,/\|\| die "compose\.yaml gives search no free-space disk watermarks/,'a compose file without them stops the install');
+  assert.ok(code.indexOf('LOW=$(watermark low)')<code.indexOf('docker compose -p'),'the watermarks are read before anything starts');
+  const check=/^disk_settings\(\) \{\n([\s\S]*?)\n\}\n/m.exec(code);assert.ok(check,'the installer defines disk_settings()');
+  assert.equal(check[1].trim(),'docker exec "$SEARCH" curl -fsS "$SETTINGS" | python3 -I "$ENGINE_DIR/search-disk-guard.py" "$LOW" "$HIGH" "$FLOOD"','search answers inside its container and the guard judges it with the three values');
+  assert.ok(fs.statSync(path.join(engine,'search-disk-guard.py')).isFile(),'the guard ships beside the installer');
+  const loop=/\nuntil verdict=\$\(disk_settings\); do\n([\s\S]*?)\ndone\n/.exec(code);assert.ok(loop,'the installer retries the check');
+  assert.match(loop[1],/\[ "\$i" -ge 36 \]/);assert.match(loop[1],/sleep 5/,'36 tries 5 s apart: the disk monitor lifts an old block on a pass after the restart');
+  assert.match(loop[1],/printf '%s\\n' "\$verdict" >&2/,'search\'s last answer is printed');assert.match(loop[1],/docker logs --tail 40 "\$SEARCH"/);
+  assert.match(loop[1],/\n\s+die "after 3 minutes search still does not judge disk by the free space compose\.yaml sets or still blocks new indexes/,'and the install refuses to finish, exit 1');
+  const link=code.indexOf('\nfi\n',code.indexOf('{"intelligent-operations":"127.0.0.1:%s"}')),until=code.indexOf('\nuntil verdict=$(disk_settings)'),closing=code.lastIndexOf('say "then open Operations');
+  assert.ok(link>0&&until>link&&closing>until,'the check runs once the engine and its link are in place, so a refusal leaves the kernel dialling the engine, and before the closing step');
 });
 
 test('identity.json is the SHA-256 of percolation.py then server.py, the digest the installer self-test compares',()=>{

@@ -33,6 +33,7 @@
   SEQ | AUTHOR                                  | DESCRIPTION
   -----------------------------------------------------------------------------
   1   | maintainer@emeraldcoastsystemsgroup.com | Apply Design Standard v1.2 dashboard contract, solid button states, and tabular figures.
+  2   | maintainer@emeraldcoastsystemsgroup.com | Pass individual sortable table elements to KernelTable.enhance instead of container elements (<main> / <div>) and default missing aggregate arrays so the overview never throws on .length.
 -->
 
 <script>try{if(window.parent!==window)document.documentElement.classList.add('in-shell');}catch(_){document.documentElement.classList.add('in-shell');}</script>
@@ -396,6 +397,12 @@ async function afterConnect() {
   await renderDashboard(true);
 }
 
+/** Enhance every sortable table inside a container without passing a non-table node to KernelTable.enhance. */
+function enhanceTables(scope) {
+  if (!window.KernelTable?.enhance || !scope?.querySelectorAll) return;
+  scope.querySelectorAll('table[data-sortable], .table-scroll table, .scroll table').forEach((t) => window.KernelTable.enhance(t));
+}
+
 /** Dashboard — net worth, accounts, holdings, spending, + brief. */
 async function renderDashboard(freshBrief) {
   $('actions').style.display = 'flex';
@@ -406,7 +413,12 @@ async function renderDashboard(freshBrief) {
     if (e.code === 'no_data') { main.innerHTML = '<div class="notice">Linked, but not synced yet.</div><div style="text-align:center"><button class="btn primary" id="s2">Sync now</button></div><div id="linksPanel"></div>'; $('s2').onclick = () => doSync(); loadLinks(); return; }
     main.innerHTML = '<div class="notice err">' + e.message + '</div>'; return;
   }
-  const a = summary.aggregate; const cur = a.currency || 'USD';
+  const a = summary.aggregate || {}; const cur = a.currency || 'USD';
+  a.netWorth = a.netWorth && typeof a.netWorth === 'object' ? a.netWorth : { assets: 0, liabilities: 0, net: 0 };
+  a.accounts = Array.isArray(a.accounts) ? a.accounts : [];
+  a.holdings = Array.isArray(a.holdings) ? a.holdings : [];
+  a.topSpending = Array.isArray(a.topSpending) ? a.topSpending : [];
+  a.notes = Array.isArray(a.notes) ? a.notes : [];
   const nwClass = a.netWorth.net < 0 ? 'neg' : '';
   main.innerHTML = `
     <div class="stats">
@@ -415,14 +427,14 @@ async function renderDashboard(freshBrief) {
       <div class="stat"><div class="n">${money(a.netWorth.liabilities, cur)}</div><div class="l">liabilities</div></div>
       <div class="stat"><div class="n">${a.holdings.length}</div><div class="l">holdings</div></div>
     </div>
-    <div class="foot synced" style="margin-bottom:14px">Synced ${fmtDate(summary.syncedAt)} <button class="icon-btn" id="syncIcon" type="button" aria-label="Sync accounts" title="Sync accounts">⟳</button>${(summary.aggregate.notes||[]).length ? ' · ' + (summary.aggregate.notes||[]).join(' · ') : ''}</div>
+    <div class="foot synced" style="margin-bottom:14px">Synced ${fmtDate(summary.syncedAt)} <button class="icon-btn" id="syncIcon" type="button" aria-label="Sync accounts" title="Sync accounts">⟳</button>${(a.notes||[]).length ? ' · ' + (a.notes||[]).join(' · ') : ''}</div>
     <div class="panel brief" id="briefPanel"><div class="spin"><span class="dot"></span> Finance analyst is reading your accounts… (~30s)</div></div>
     <div class="cols">
       <div>${renderAccounts(a, cur)}</div>
       <div>${a.holdings.length ? renderHoldings(a, cur) : ''}${a.topSpending.length ? renderSpending(a, cur) : ''}</div>
     </div>`;
   $('syncIcon').onclick = doSync;
-  window.KernelTable?.enhance(main);
+  enhanceTables(main);
   loadBrief(freshBrief);
 }
 
@@ -444,13 +456,13 @@ async function loadPayHistory() {
   if (!host) return;
   let hist = { payments: [] };
   try { hist = await api('/payments'); } catch (e) { /* history optional */ }
-  const rows = renderPayHistory(hist.payments || []);
+  const rows = renderPayHistory(Array.isArray(hist.payments) ? hist.payments : []);
   host.innerHTML = rows ? `<div class="panel">${rows}</div>` : '';
-  window.KernelTable?.enhance(host);
+  enhanceTables(host);
 }
 
 function renderPayHistory(payments) {
-  if (!payments.length) return '';
+  if (!Array.isArray(payments) || !payments.length) return '';
   return `<div><h2 style="font-size:14px">Recent transfers</h2><table data-sortable><thead><tr><th>Date</th><th>To</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>` +
     payments.map((p) => `<tr><td>${fmtDate(p.created_at)}</td><td>${p.payee || p.description || '—'}</td><td class="num">${money((p.amount_cents||0)/100)}</td><td>${p.status}${p.test_mode ? ' <span class="sub">(test)</span>' : ''}</td></tr>`).join('') +
     `</tbody></table></div>`;
@@ -460,19 +472,22 @@ function renderPayHistory(payments) {
 // the card instead of being cut at its edge (sweep 8: 'BALANC', '$11' for $110 at 412 px).
 // Plaid reports credit and loan balances as amounts owed: they are the Liabilities group and read negative (UX audit).
 function renderAccounts(a, cur) {
+  const accounts = Array.isArray(a && a.accounts) ? a.accounts : [];
   const owed = (x) => x.type === 'credit' || x.type === 'loan';
   const row = (x) => `<tr><td>${x.name}${x.mask ? ' ····' + x.mask : ''}${x.institution ? `<span class="acct-inst-line">${x.institution}</span>` : ''}</td><td class="acct-inst">${x.institution}</td><td>${x.subtype || x.type}</td><td class="num${owed(x) ? ' owed' : ''}">${owed(x) ? '−' + money(Math.abs(x.balance), cur) : money(x.balance, cur)}</td></tr>`;
   const group = (label, list) => list.length ? `<div class="accounts-group"><span>${label}</span></div><table class="accounts" data-sortable><thead><tr><th>Account</th><th class="acct-inst">Institution</th><th>Type</th><th class="num">Balance</th></tr></thead><tbody>${list.map(row).join('')}</tbody></table>` : '';
-  return `<div class="panel"><h2>Accounts</h2>${group('Assets', a.accounts.filter((x) => !owed(x)))}${group('Liabilities', a.accounts.filter(owed))}</div>`;
+  return `<div class="panel"><h2>Accounts</h2>${group('Assets', accounts.filter((x) => !owed(x)))}${group('Liabilities', accounts.filter(owed))}</div>`;
 }
 function renderHoldings(a, cur) {
+  const holdings = Array.isArray(a && a.holdings) ? a.holdings : [];
   return `<div class="panel"><h2>Holdings</h2><table data-sortable><thead><tr><th>Holding</th><th>Ticker</th><th class="num">Qty</th><th class="num">Value</th></tr></thead><tbody>` +
-    a.holdings.slice(0, 25).map((h) => `<tr><td>${h.name}</td><td>${h.ticker || '—'}</td><td class="num">${(h.quantity||0).toLocaleString()}</td><td class="num">${money(h.value, cur)}</td></tr>`).join('') +
+    holdings.slice(0, 25).map((h) => `<tr><td>${h.name}</td><td>${h.ticker || '—'}</td><td class="num">${(h.quantity||0).toLocaleString()}</td><td class="num">${money(h.value, cur)}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 function renderSpending(a, cur) {
-  return `<div class="panel"><h2>Top spending (last ${a.transactionWindowDays} days)</h2><table data-sortable><thead><tr><th>Category</th><th class="num">Spent</th><th class="num">#</th></tr></thead><tbody>` +
-    a.topSpending.map((s) => `<tr><td>${s.category}</td><td class="num">${money(s.total, cur)}</td><td class="num">${s.count}</td></tr>`).join('') +
+  const topSpending = Array.isArray(a && a.topSpending) ? a.topSpending : [];
+  return `<div class="panel"><h2>Top spending (last ${a.transactionWindowDays || 90} days)</h2><table data-sortable><thead><tr><th>Category</th><th class="num">Spent</th><th class="num">#</th></tr></thead><tbody>` +
+    topSpending.map((s) => `<tr><td>${s.category}</td><td class="num">${money(s.total, cur)}</td><td class="num">${s.count}</td></tr>`).join('') +
     `</tbody></table></div>`;
 }
 

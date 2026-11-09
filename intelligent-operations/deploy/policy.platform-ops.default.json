@@ -1,0 +1,219 @@
+{
+ "name": "spark/platform-ops checks",
+ "rules": [
+  {
+   "name": "SiteDown",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "SiteDown"
+    }
+   }
+  },
+  {
+   "name": "KernelMetricsUnreachable",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "KernelMetricsUnreachable"
+    }
+   }
+  },
+  {
+   "name": "ContainerMissing",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "ContainerMissing"
+    }
+   }
+  },
+  {
+   "name": "ContainerRestarting",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "ContainerRestarting"
+    }
+   }
+  },
+  {
+   "name": "ContainerOutOfMemory",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "ContainerOutOfMemory"
+    }
+   }
+  },
+  {
+   "name": "DiskFull",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "DiskFull"
+    }
+   }
+  },
+  {
+   "name": "MemoryLow",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "MemoryLow"
+    }
+   }
+  },
+  {
+   "name": "PostgresDown",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "PostgresDown"
+    }
+   }
+  },
+  {
+   "name": "MonitoringBlind",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "MonitoringBlind"
+    }
+   }
+  },
+  {
+   "name": "PrometheusCannotStore",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "PrometheusCannotStore"
+    }
+   }
+  },
+  {
+   "name": "InstallationSilent",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "InstallationSilent"
+    }
+   }
+  },
+  {
+   "name": "SlotDown",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "SlotDown"
+    }
+   }
+  },
+  {
+   "name": "TunnelDown",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "TunnelDown"
+    }
+   }
+  },
+  {
+   "name": "SiteSlow",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "SiteSlow"
+    }
+   }
+  },
+  {
+   "name": "DiskHigh",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "DiskHigh"
+    }
+   }
+  },
+  {
+   "name": "LoadHigh",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "LoadHigh"
+    }
+   }
+  },
+  {
+   "name": "RebootRequired",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "RebootRequired"
+    }
+   }
+  },
+  {
+   "name": "SecurityUpdatesPending",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "SecurityUpdatesPending"
+    }
+   }
+  },
+  {
+   "name": "ContainerFactsStale",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "ContainerFactsStale"
+    }
+   }
+  },
+  {
+   "name": "GpuThermal",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "GpuThermal"
+    }
+   }
+  },
+  {
+   "name": "EngineLinkStale",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "EngineLinkStale"
+    }
+   }
+  }
+ ],
+ "window": {
+  "mode": "sliding",
+  "seconds": 900
+ }
+}

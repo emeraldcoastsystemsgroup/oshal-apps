@@ -4,6 +4,8 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: specialized Phone & Connection Concierge turn planner (/api/phone-control/concierge/turn) bound to device-concierge (f518c3e9-92a4-47d6-85c1-d827a93c1058) with closed phone primitives (read_screen, open_app, tap, drag_icon, swipe, type, key), Home Screen app organization planning, and Fire TV / ADB / Bluetooth / AirPlay connection diagnostics.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add register_device action primitive, DPAD_UP/DPAD_DOWN/DPAD_LEFT/DPAD_RIGHT/DPAD_CENTER key alias normalization, and multi-step D-Pad/remote sequence planning (for example "move down one and select").
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the Connection Concierge never offers Connect in console, which the page hides until an RDP session backend exists (nothing implements /api/rdp/sessions): connect_rdp is no longer an accepted action, so a model reply naming it is dropped, and an RDP question gets the setup scripts and Check RDP port (after Use this computer when none is chosen). sanitizeConnectAction is exported for its guard.
  */
 
 'use strict';
@@ -16,19 +18,30 @@ try {
 }
 
 const DEVICE_CONCIERGE_AGENT = 'f518c3e9-92a4-47d6-85c1-d827a93c1058';
-const PHONE_KINDS = new Set(['read_screen', 'calibrate_pointer', 'open_app', 'move', 'tap', 'drag_icon', 'swipe', 'type', 'key']);
+const PHONE_KINDS = new Set(['read_screen', 'calibrate_pointer', 'register_device', 'open_app', 'move', 'tap', 'drag_icon', 'swipe', 'type', 'key']);
 const SWIPE_DIRS = new Set(['left', 'right', 'up', 'down']);
 const ALLOWED_KEYS = new Set([
   'Home', 'Spotlight', 'Back', 'Recents', 'Enter', 'Select', 'Menu', 'PlayPause',
   'Escape', 'Backspace', 'Tab', 'Up', 'Down', 'Left', 'Right', 'VolumeUp', 'VolumeDown'
 ]);
+const KEY_SYNONYMS = Object.freeze({
+  DPAD_UP: 'Up', UP: 'Up', ARROWUP: 'Up',
+  DPAD_DOWN: 'Down', DOWN: 'Down', ARROWDOWN: 'Down',
+  DPAD_LEFT: 'Left', LEFT: 'Left', ARROWLEFT: 'Left',
+  DPAD_RIGHT: 'Right', RIGHT: 'Right', ARROWRIGHT: 'Right',
+  DPAD_CENTER: 'Select', SELECT: 'Select', OK: 'Select',
+  ENTER: 'Enter', RETURN: 'Enter', HOME: 'Home', BACK: 'Back', MENU: 'Menu',
+  PLAYPAUSE: 'PlayPause', PLAY_PAUSE: 'PlayPause', 'PLAY/PAUSE': 'PlayPause',
+  ESCAPE: 'Escape', ESC: 'Escape', BACKSPACE: 'Backspace', TAB: 'Tab',
+  VOLUMEUP: 'VolumeUp', VOLUME_UP: 'VolumeUp', VOLUMEDOWN: 'VolumeDown', VOLUME_DOWN: 'VolumeDown'
+});
+const COUNT_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5 });
 const CONNECT_KINDS = Object.freeze({
   scan_tvs: 'Find TVs on Wi-Fi',
   connect_tv: 'Connect TV',
   push_tv_apk: 'Push & open oshal TV app',
   pair_tv_ble: 'Pair Fire TV over Bluetooth',
   open_ble_window: 'Open iPhone pairing window',
-  connect_rdp: 'Connect in console',
   probe_rdp: 'Check RDP port',
   setup_adb: 'Set up Android tools',
   setup_mirror: 'Set up AirPlay mirroring',
@@ -70,6 +83,16 @@ function clamp01(value, fallback = 0.5) {
 function sanitizePhoneAction(raw) {
   if (!raw || typeof raw !== 'object' || !PHONE_KINDS.has(raw.kind)) return null;
   if (raw.kind === 'read_screen' || raw.kind === 'calibrate_pointer') return { kind: raw.kind };
+  if (raw.kind === 'register_device') {
+    const address = String(raw.address || '').trim().slice(0, 96);
+    if (!address) return null;
+    const isBle = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(address);
+    const platform = raw.platform === 'ios' || isBle ? 'ios' : 'android';
+    const name = String(raw.name || (platform === 'ios' ? 'iPhone' : 'Android Device')).trim().slice(0, 60);
+    const form = raw.form === 'tv' || /tv|fire|stick|shield|chromecast|bravia|roku/i.test(name) ? 'tv' : 'phone';
+    const normAddr = platform === 'android' && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(address) ? `${address}:5555` : address;
+    return { kind: 'register_device', name, platform, form, address: normAddr };
+  }
   if (raw.kind === 'open_app') {
     const name = String(raw.name || '').trim().slice(0, 80);
     return name ? { kind: 'open_app', name } : null;
@@ -94,7 +117,8 @@ function sanitizePhoneAction(raw) {
     const text = String(raw.text || '').slice(0, 240);
     return text ? { kind: 'type', text, enter: Boolean(raw.enter) } : null;
   }
-  const key = String(raw.key || '').trim();
+  const rawKey = String(raw.key || '').trim();
+  const key = KEY_SYNONYMS[rawKey.toUpperCase().replace(/-/g, '_')] || rawKey;
   return ALLOWED_KEYS.has(key) ? { kind: 'key', key } : null;
 }
 
@@ -190,11 +214,44 @@ function planTapTurn(label, items, round) {
 
 const DIRECT_KEY_MAP = Object.freeze({
   up: 'Up', down: 'Down', left: 'Left', right: 'Right',
+  dpad_up: 'Up', dpad_down: 'Down', dpad_left: 'Left', dpad_right: 'Right', dpad_center: 'Select',
   select: 'Select', ok: 'Select', menu: 'Menu', 'play/pause': 'PlayPause', play: 'PlayPause', pause: 'PlayPause',
-  back: 'Back', enter: 'Enter', escape: 'Escape', esc: 'Escape', tab: 'Tab'
+  back: 'Back', home: 'Home', enter: 'Enter', escape: 'Escape', esc: 'Escape', tab: 'Tab'
 });
 
+function planNavigationSequence(prompt) {
+  const clauses = prompt.split(/\s*(?:,\s*(?:and\s+|then\s+)?|\b(?:and\s+then|then|and)\b)\s*/i).filter(Boolean);
+  if (!clauses.length) return null;
+  const actions = [];
+  for (const clause of clauses) {
+    const dir = /^(?:(?:move|go|press|step|cursor|dpad)\s+)?(up|down|left|right|dpad_up|dpad_down|dpad_left|dpad_right)(?:\s+(?:by\s+)?(one|two|three|four|five|\d+)(?:\s+(?:times?|steps?|rows?|items?))?)?$/i.exec(clause);
+    if (dir) {
+      const key = DIRECT_KEY_MAP[dir[1].toLowerCase()];
+      const count = Math.max(1, Math.min(5, COUNT_WORDS[String(dir[2] || '').toLowerCase()] || Number(dir[2]) || 1));
+      for (let i = 0; i < count && actions.length < 6; i += 1) actions.push({ kind: 'key', key });
+      continue;
+    }
+    const keyHit = /^(?:(?:press|hit|tap|click)\s+)?(select|ok|enter|dpad_center|back|home|menu|play\/pause|play|pause|escape|esc|tab)(?:\s+(?:it|that|this|item))?$/i.exec(clause);
+    if (keyHit && actions.length < 6) {
+      actions.push({ kind: 'key', key: DIRECT_KEY_MAP[keyHit[1].toLowerCase()] });
+      continue;
+    }
+    return null;
+  }
+  return actions.length ? { reply: `Sending ${actions.map((a) => a.key).join(' → ')}.`, done: true, actions } : null;
+}
+
 function planDirectInputTurn(prompt, lower, screen) {
+  const reg = /^(?:please\s+)?(?:register|enrol+|add)\s+(?:(?:a|the|my|new)\s+)?(?:(tv|fire\s*tv|fire\s*stick|android|iphone|ios|phone|device)\s+)?(?:named\s+)?(.+?)\s+(?:at\s+|on\s+|ip\s+|address\s+)?(\d{1,3}(?:\.\d{1,3}){3}(?::\d{2,5})?|(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}|[A-Za-z0-9._:-]{4,64})$/i.exec(prompt);
+  if (reg) {
+    const hint = `${reg[1] || ''} ${reg[2] || ''}`;
+    const action = sanitizePhoneAction({
+      kind: 'register_device', name: reg[2].trim(), address: reg[3].trim(),
+      platform: /iphone|ios/i.test(hint) ? 'ios' : undefined,
+      form: /tv|fire|stick/i.test(hint) ? 'tv' : undefined
+    });
+    if (action) return { reply: `Registering ${action.name} (${action.address}) for remote control.`, done: true, actions: [action] };
+  }
   if (/calibrat|drift|off[- ]?target|miss(?:ing)?\s+tap|learn\s+pointer|pointer\s+scale/i.test(lower)) {
     return {
       reply: 'Calibrating the Bluetooth pointer against your live mirrored screen and saving its learned gain profile.',
@@ -214,12 +271,7 @@ function planDirectInputTurn(prompt, lower, screen) {
       done: true, actions: [sanitizePhoneAction({ kind, x, y, nx: x / w, ny: y / h, label })]
     };
   }
-  const keyHit = /^(?:press\s+)?(up|down|left|right|select|ok|menu|play\/pause|play|pause|back|enter|escape|esc|tab)$/i.exec(prompt);
-  if (keyHit) {
-    const mapped = DIRECT_KEY_MAP[keyHit[1].toLowerCase()];
-    return { reply: `Sending ${mapped}.`, done: true, actions: [{ kind: 'key', key: mapped }] };
-  }
-  return null;
+  return planNavigationSequence(prompt);
 }
 
 function planPhoneTurn(body) {
@@ -303,10 +355,11 @@ function planConnectTurn(body) {
   const ctx = body?.context && typeof body.context === 'object' ? body.context : {};
   const combined = `${body?.prompt || ''} ${ctx.lastErrorCode || ''} ${ctx.lastErrorMessage || ''} ${ctx.step || ''}`;
   if (/\brdp\b|3389|remote desktop|xrdp|grdctl|freerdp/i.test(combined)) {
+    const first = ctx.selectedComputer ? '' : 'press Use this computer on your Linux computer, then ';
     return {
-      reply: 'To connect over RDP (:3389), run the setup script for Windows (PowerShell Admin), Linux (grdctl or xrdp), or macOS (FreeRDP shadow) on the target host, enter its IP, username and password, and press Connect in console (or Check RDP port to verify the X.224 handshake).',
+      reply: `To get a host ready for RDP (:3389), run the setup script for Windows (PowerShell Admin), Linux (grdctl or xrdp) or macOS (FreeRDP shadow) on it, enter its address, and ${first}press Check RDP port to verify the X.224 handshake. This console does not open RDP desktops.`,
       done: true,
-      actions: [{ kind: 'connect_rdp', label: 'Connect in console' }, ...(ctx.selectedComputer ? [{ kind: 'probe_rdp', label: 'Check RDP port' }] : [])]
+      actions: ctx.selectedComputer ? [{ kind: 'probe_rdp', label: 'Check RDP port' }] : []
     };
   }
   if (!ctx.selectedComputer) {
@@ -406,5 +459,6 @@ module.exports = {
   createPhoneControlConciergeRoutes,
   planPhoneTurn,
   planConnectTurn,
-  parseStructuredReply
+  parseStructuredReply,
+  sanitizeConnectAction
 };

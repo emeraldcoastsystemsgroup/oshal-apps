@@ -1,4 +1,7 @@
 # CHANGE LOG
+# 32 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: register remove-source (tests/remove-source.test.cjs over the real router and SQL, and the Systems card in Chromium in tests/installations-screen.test.cjs): backlog P5-55b, the stopped fleet observer's six made-up installations, and no way to take a source out.
+# 31 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: register search-disk-guard (tests/search-disk-guard.test.cjs: the installer's search disk check judged against a real OpenSearch); the engine container contract also expects the installer to refuse to finish until the running search reports the free-space watermarks and no index-create block; monitoring-desks also expects every rule index a fresh person's tick published to be gone once the engine fixture closes (the leak that filled the gate's test search on 2026-11-09).
+# 30 | maintainer@emeraldcoastsystemsgroup.com | Register the four desks (spec lanes/monitoring-four-desks-spec-2026-11-08.md): monitoring-desks (tests/desks.test.cjs, tests/desks-authorization.test.cjs: defaults, activation on the tick, the desk reads, topic routing, composites) and monitoring-desks-screen (tests/desks-screen.test.cjs: the four tabs at 390x844 and 412x915); first-use-processing now expects the first tick to activate the desks.
 # 29 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06: datacenter-replay also covers Replay a sample all-or-nothing (refused rules save nothing, a stopped run removes what it saved, leftovers offered, only synthetic sources discarded) and Live context reading its detector on open.
 # 28 | maintainer@emeraldcoastsystemsgroup.com | Register default/disabled first-use tick safety against real SQL; existing silence-watch opt-in remains separate.
 # 27 | maintainer@emeraldcoastsystemsgroup.com | Register the Your computers guard (tests/computers.test.cjs, kernel ADR-206).
@@ -35,11 +38,12 @@ version: 1
 cases:
   - id: first-use-processing
     name: First-use tick with default or disabled evaluation
-    purpose: Verify that first-use scheduling enables no evaluation, capture, discovery, investigation or notification for an empty default owner, or for explicitly disabled evaluation with eligible admitted data and no independently configured watch.
+    purpose: Verify that a fresh person's first tick activates the four desks (sources, mappings, default policies through the real percolator, processing list) and nothing else - no connector, ticket or notification - that later ticks do no work and call no engine, and that explicitly disabled evaluation with eligible admitted data still evaluates, captures, discovers, investigates and notifies nothing.
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/first-use-processing.test.cjs] }
     expected:
-      - Repeated default ticks make no engine, connector, ticket or notification call.
+      - The first tick creates the four desk sources and publishes their default policies, and sends, opens and reaches nothing.
+      - Repeated ticks after that make no engine, connector, ticket or notification call.
       - Disabled evaluation leaves pending admitted data undecided and creates no work or message.
     prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch]
     sideEffects: none
@@ -380,10 +384,26 @@ cases:
       - The installer is executable, parses, self-tests the hello against identity.json, restarts an existing oshal-native-operations-link user unit after the recreate and proves it within 5 s (systemctl --user is-active and a TCP connect to the loopback port parsed from the unit) before saying so, printing the unit's last 20 journal lines and exiting 1 otherwise; without the unit it prints the link-unit and OSHAL_PACKAGE_ENGINES steps without applying them.
       - routes/detection-engine.js exports INSTALL_HINT naming install-engine.sh; an unreachable engine or an identity-digest mismatch is a 503 carrying installHint and the command in its message, a kernel deadline or a hello carrying error (the engine's own busy signal, relayed with a null reply) carries none, a matching hello completes with the engine build, and the mounted router answers that shape over HTTP.
       - The installer's closing step names the Operations navigation entry Data pipeline and its button Check detection service (GET /pipeline/health), the on-demand check that reports the engine state with the install hint (publishing, previewing and evaluating report the same), exactly as experience/index.html spells them.
+      - The installer reads the three free-space watermarks from compose.yaml before starting anything and, once the engine and its link are in place, runs engine/search-disk-guard.py over search's GET /_cluster/settings?include_defaults=true&flat_settings=true for up to 3 minutes; when it never passes it prints search's answer and log and exits 1.
     prerequisites: [runner:node-test, dependency:js-yaml, dependency:express]
     sideEffects: none
     isolation: { mode: none }
     limits: { timeoutMs: 15000 }
+    installation: never
+  - id: search-disk-guard
+    name: The engine installer's search disk check against a real OpenSearch
+    purpose: Prove engine/search-disk-guard.py, which install-engine.sh runs before it may finish, against the disposable OpenSearch 3.3.2 rather than the compose file - OpenSearch accepts compose.yaml's three free-space watermarks as one valid set and refuses them out of order, and the guard passes only the declared free space with no index-create block, reading transient over persistent over the node's own settings as the cluster applies them.
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/search-disk-guard.test.cjs] }
+    expected:
+      - OpenSearch acknowledges compose.yaml's 30gb, 20gb and 10gb watermarks as one set, refuses them reversed (low less than high), and reports them in the answer at the installer's own settings path; the guard passes it.
+      - Percentages the cluster applies over the declared values fail the guard, each named, transient winning over persistent.
+      - A create-index block fails the guard; with the disk monitor off it also says nothing lifts it; node settings under defaults are read.
+      - An empty or non-object answer fails and a call without the three values is a usage error.
+    prerequisites: [runner:node-test, runtime:python3, service:opensearch, dependency:js-yaml]
+    sideEffects: fixture-write
+    isolation: { mode: disposable, cleanup: Removes the three transient disk watermark settings it set on the disposable test search. }
+    limits: { timeoutMs: 60000 }
     installation: never
   - id: migrations-native-grammar
     name: Migrations fit the native kernel's grammar
@@ -749,4 +769,54 @@ cases:
     sideEffects: none
     isolation: { mode: disposable, cleanup: Drop the fixture database and role. }
     limits: { timeoutMs: 120000, maxMemoryMb: 512 }
+    installation: never
+  - id: monitoring-desks
+    name: The four monitoring desks over the one pipeline
+    purpose: "Verify (spec lanes/monitoring-four-desks-spec-2026-11-08.md) that the shipped default policies name the spec's alert types with capture on the critical column only, that the processing tick activates the four desks for the person it runs as once (source spark/<desk>, Alertmanager mapping, default policy through the real percolator, processing list with the chain on) and keeps an edited policy, that a desk stays pending with the engine down and finishes when it returns, that a desk's read carries what is firing with its investigation, its source's standing with the threshold snapshot a heartbeat carried, and its own runbooks only, that a symptom from a desk's source is told on the desk's topic beside operations-attention and a foreign source's is not, that rule toggles publish revision-checked, and that the composites admit a person holding only ops-security to Sec Ops and refuse App Ops reads and saves."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/desks.test.cjs, tests/desks-authorization.test.cjs] }
+    expected:
+      - Each default policy's rules equal the spec's alert types; critical rules capture, warning rules record.
+      - A first tick activates four desks and tells the phone nothing; a second tick changes nothing.
+      - An edited desk policy survives later ticks; a stale revision is refused.
+      - A SiteDown on spark/platform-ops is told on operations-attention and platform-attention; a droplet's is told on operations-attention alone.
+      - A heartbeat's thresholds annotation shows as the desk's snapshot with its file path; a hostile key or an oversized one is dropped.
+      - ops-security reads and saves Sec Ops, is refused on App Ops; reader is refused on every desk; operator holds all.
+      - The four rule indexes a fresh person's tick published exist on the test search while the engine is open and are gone once the engine fixture closes.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, service:opensearch]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role and delete the rules indexes the test published. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 512 }
+    installation: never
+  - id: monitoring-desks-screen
+    name: The four desk tabs on a phone
+    purpose: "Verify in Chromium over the shipped assets that App Ops, Sec Ops, Platform Ops and Dev Ops follow Overview, that each tab shows Firing now, Sources, Rules, Runbooks and Settings, that an empty desk says what fills each panel and names its probe, that Settings shows the topic with the way to Notifications, the source, the producer tokens and the host threshold file path with the last snapshot or that none was reported, that nothing overflows at 390x844 or 412x915, that the four topics are seeded once with channel none through POST /api/notify/prefs, that a rule toggle is reached by keyboard and saved through the desk's own policy route with the binding's revision, and that a refused desk clears and names its role."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/desks-screen.test.cjs] }
+    expected:
+      - The menu reads Overview, App Ops, Sec Ops, Platform Ops, Dev Ops; each desk page has the five panels.
+      - An empty Platform Ops says no source has reported yet and names the heartbeat; the 21 default rules show read-only.
+      - The four topics are posted once with channel none; Notifications is linked in the top window.
+      - A capture toggle flipped by keyboard enables Save; the save posts the desk's rules and expectedRevision to its own route.
+      - A 403 on one desk clears it and names the role; the other desks still read.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Close the browser and the loopback fixture server. }
+    limits: { timeoutMs: 120000, maxMemoryMb: 768 }
+    installation: never
+  - id: remove-source
+    name: Remove a saved source
+    purpose: "Verify (backlog P5-55b) through the real router, real SQL with forced owner policies and a store per person that POST /sources/remove takes confirm: true and one way to name the source, that another person cannot remove it, that Sources, Systems' installations, the systems summary and the attention list drop it, that its alerts are refused, that its installation row, day history and stream stay, that a retry answers the first removal and saving the same source again brings it back with its history, that a shared or unknown name and a desk's own source are refused in words, and that the Jarvis tool is held for approval under records.write, which a reader lacks; and in Chromium over the shipped Systems page that Remove this source takes two presses, says what stays, posts confirm true, drops the card and reloads the records, is never offered on a desk's own source, and says a refusal on the card."
+    level: integration
+    runner: { kind: node-test, scope: package, files: [tests/remove-source.test.cjs, tests/installations-screen.test.cjs] }
+    expected:
+      - A removal without confirm true, with both names or an unknown key is 400; another person's is 404.
+      - After removal Sources, Systems, the systems summary and the attention list no longer name it, and its alerts answer 404.
+      - Its installation row, day history and stream are still in SQL; saving it again shows its earlier reports.
+      - A shared name is 409, an unknown name 404, a desk's own source 409 and its card offers no removal.
+      - The Systems card posts {sourceId, confirm true} only on the second press and goes when the server says removed.
+    prerequisites: [runner:node-test, service:postgres-disposable-35689, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Drop the fixture database and role; close the browser and the loopback fixture server. }
+    limits: { timeoutMs: 180000, maxMemoryMb: 768 }
     installation: never

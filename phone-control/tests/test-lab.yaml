@@ -6,6 +6,9 @@
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: register Batch-7 UX + UxPlay AirPlay mirroring regression guard (tests/phone-control-ux-batch7.test.cjs), update readiness to 1.3.0, and cover mirrored iPhone isolation in phone-control-isolation.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: ship RP-PHC-01..13 session features, Phone & TV Concierge, learnable BLE pointer calibration, 1-step Fire TV Load oshal TV, and RDP setup/probe; register phone-control-rp-features and phone-control-rp-browser.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: update readiness to 1.4.1 and register phone-control-141 covering studio toolbar/fullscreen/concierge toggle, BLE bonded reconnect & non-flooding swipes, pre-mirror touchpad gestures, Fire TV DRM protectedSurface notice + fast frame wakeups, gated RDP polling, and guided Android pairing auto-connect.
+# 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: readiness 1.5.0, and phone-control-lan registers the bridge's TV module suite (Python unittest against local protocol fakes, run by tests/phone-control-lan.test.mjs). A real TV is never pressed by a test: the live press is the operator's own, on their own TV.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: readiness 1.5.1; phone-control-rp-browser now proves Connect in console and its sign-in fields are hidden, the RDP card's Check RDP port answers through the bridge, the page makes no /api/rdp/sessions call, and the Connection Concierge never offers Connect in console.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: readiness 1.5.2 (device-concierge routing words 'android', 'ipad' and 'iphone', backlog P4-16k).
 version: 1
 cases:
   - id: package-readiness
@@ -16,7 +19,7 @@ cases:
       kind: smoke
       smoke: package-readiness
     expected:
-      - The installed phone-control package answers its identity and version 1.4.1 with its store open.
+      - The installed phone-control package answers its identity and version 1.5.2 with its store open.
     prerequisites: []
     sideEffects: none
     isolation:
@@ -37,6 +40,7 @@ cases:
     expected:
       - Fourteen removed 1.0.0 routes answer 404; no kernel caller is 401; a chosen tenant or owner is 400.
       - Another person reads a phone, its history and the reports as missing or empty.
+      - The Connection Concierge never offers Connect in console; an RDP question gets Check RDP port only, and a model reply naming connect_rdp is dropped.
       - Every 1.0.0 device row (each carries the invented handshake), its frames and its blob files are deleted once; other rows stay.
     prerequisites:
       - runner:node-test
@@ -130,6 +134,7 @@ cases:
     expected:
       - Computer session dispatches desktop.control, monitor enumeration, captures, transfers, clipboard, chat, and whiteboard saves.
       - Phone & TV Concierge execute bounded actions, Load oshal TV polls unauthorized to device and installs APK, and RDP probe verifies X.224.
+      - Connect in console and the RDP sign-in fields are hidden, Check RDP port answers through the bridge, and the Connect sheet makes no /api/rdp/sessions request.
     prerequisites:
       - runner:node-test
       - runtime:store-pinned-toolchain
@@ -215,6 +220,35 @@ cases:
     installation: never
     regressionTests:
       - { level: integration, file: tests/phone-control-bridge.test.mjs }
+
+  - id: phone-control-lan
+    name: TVs and streaming sticks on the home network, against protocol fakes
+    purpose: Prove the bridge's lan-discover and lan-control verbs (bridge/oshal_phone_lan.py) refuse any address that is not a private home-network address and any action outside the closed list, send the exact Wake-on-LAN bytes only to the MACs named, read a Samsung, Roku or Cast device read-only, press keys on a fake Roku ECP server and a fake Samsung TLS WebSocket TV, keep the Samsung pairing token 0600 on the computer, and find two fake TVs without running adb or installing anything.
+    level: integration
+    runner:
+      kind: node-test
+      scope: package
+      files:
+        - tests/phone-control-lan.test.mjs
+    expected:
+      - A public address (8.8.8.8, 192.0.2.x, 100.64.x) answers public_address from the installed verb in one JSON line with exit 3.
+      - The Wake-on-LAN packet received on a local UDP socket is six 0xFF bytes and the MAC sixteen times.
+      - The fake Samsung TV gets no key before Allow ("Press Allow on the TV, then Retry."); after Allow the token is saved 0600 in a 0700 folder, never appears in an answer, and is used on the next connection.
+      - The fake Roku records one POST /keypress/<Key> per press; a 403 answers roku_control_off in words.
+      - Discovery of two fake TVs answers their kinds, names, power and MACs, sends no packet, and never calls adb.
+    prerequisites:
+      - runner:node-test
+      - runtime:python3
+      - runtime:openssl
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The throwaway home, token folder, certificate and loopback servers are removed when the suite ends.
+    limits:
+      timeoutMs: 120000
+    installation: never
+    regressionTests:
+      - { level: integration, file: tests/phone-control-lan.test.mjs }
 
   - id: phone-control-runner
     name: Under the kernel's real package runner

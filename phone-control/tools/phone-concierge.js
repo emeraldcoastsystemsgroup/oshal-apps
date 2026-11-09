@@ -5,6 +5,9 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: dedicated Phone Concierge & Connection Concierge client controller — direct iPhone click-to-tap (ble-tap), drag-to-swipe (ble-swipe), wheel-to-scroll (ble-scroll), AssistiveTouch 1-click helper, mobile task chips (Organize my apps, What's on my screen?, Open Notes, Go Home), bounded 5-round anti-loop execution over closed phone primitives, and Connection sheet troubleshooting with 1-click fixes.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned bottom-pinned Jarvis composer (Enter-to-send / Shift+Enter-newline, + screen context attachment, speaker read-aloud toggle, Screenshot chip), live iOS stage touchpad tap/swipe/scroll before AirPlay frames arrive, Re-center pointer via ble-sync, direct computer keyboard navigation on TV sessions, and fast post-action frame wakeups.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: support mouse-wheel scrolling across desktop computers, Swarm-enrolled Android nodes, RDP sessions, and phones, and normalize WheelEvent.deltaY across line/page deltaMode so Linux/Firefox wheel ticks scroll reliably.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: pass com.oshal.remote and serverUrl in installSessionCompanionApk for zero-touch companion launch.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: support register_device Concierge actions and DPAD_UP/DPAD_DOWN/DPAD_LEFT/DPAD_RIGHT/DPAD_CENTER key aliases in ANDROID_KEY_MAP.
  */
 
 import { bytesToBase64, iosGestureFromDrag } from '/api/phone-control/ui/computer-link.js';
@@ -23,7 +26,9 @@ const SWIPE_VECTORS = Object.freeze({
 const ANDROID_KEY_MAP = Object.freeze({
   Home: 'HOME', Back: 'BACK', Recents: 'RECENTS', Enter: 'ENTER',
   Backspace: 'BACKSPACE', VolumeUp: 'VOLUME_UP', VolumeDown: 'VOLUME_DOWN', Escape: 'BACK', Spotlight: 'HOME',
-  Up: 'UP', Down: 'DOWN', Left: 'LEFT', Right: 'RIGHT', Select: 'OK', PlayPause: 'PLAY_PAUSE', Menu: 'MENU', Tab: 'ENTER'
+  Up: 'UP', Down: 'DOWN', Left: 'LEFT', Right: 'RIGHT', Select: 'OK', OK: 'OK',
+  DPAD_UP: 'UP', DPAD_DOWN: 'DOWN', DPAD_LEFT: 'LEFT', DPAD_RIGHT: 'RIGHT', DPAD_CENTER: 'OK',
+  PlayPause: 'PLAY_PAUSE', Menu: 'MENU', Tab: 'ENTER'
 });
 
 const STAGE_SPECIAL_KEYS = Object.freeze({
@@ -204,6 +209,19 @@ async function executeRoundActions(ctx, target, state, actions, log) {
   let mutated = false;
   for (const action of actions) {
     if (state.aborted) break;
+    if (action.kind === 'register_device') {
+      const saved = await ctx.app.records.savePhone({
+        name: action.name, platform: action.platform, form: action.form, address: action.address,
+        computerNodeId: target.phone?.computerNodeId || ctx.selectedComputer()?.id
+      });
+      await ctx.app.load?.();
+      const dev = saved?.device || action;
+      const stepText = `Registered ${dev.name} (${dev.address})`;
+      state.steps.push({ summary: stepText, ok: true, error: null });
+      appendConciergeEntry(log, 'step', stepText);
+      mutated = true;
+      continue;
+    }
     const { reply, stepText } = await ctx.queue.press(() => (target.rdp
       ? executeRdpConciergeAction(ctx, target.rdp, action, state)
       : executePhoneAction(ctx, target.phone, action, state)));
@@ -434,7 +452,8 @@ async function installSessionCompanionApk(ctx) {
       });
       ctx.status(`Installing and launching oshal Companion (${apk.file})…`);
       const installed = await ctx.phoneCommand(phone, 'adb-install-apk', {
-        serial: phone.address, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true, launchPackage: 'com.oshal.orbit'
+        serial: phone.address, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true,
+        launchPackage: 'com.oshal.remote', serverUrl: globalThis.location?.origin || 'https://oshal.agenticfederal.us'
       }, 'install apk', `Install oshal Companion on ${phone.name}`, 180000);
       if (!installed) return;
       ctx.status(installed.ok ? `Installed and opened oshal Companion on ${phone.name}.` : (installed.message || 'APK install failed.'));
@@ -488,26 +507,35 @@ function wireScreenScrollAndQuickBar(ctx) {
   wirePointerHelpersAndQuickBar(ctx);
   const onWheel = (event) => {
     if (event.defaultPrevented) return;
+    const computer = ctx.selectedComputer();
     const rdp = ctx.selectedRdp();
     const phone = ctx.selectedPhone();
-    if (!rdp && (!phone || !phone.controlEnabled || (phone.platform === 'ios' && phone.form === 'tv'))) return;
+    if (!computer && !rdp && (!phone || !phone.controlEnabled || (phone.platform === 'ios' && phone.form === 'tv'))) return;
+    const rawDelta = event.deltaMode === 1 ? event.deltaY * 32 : event.deltaMode === 2 ? event.deltaY * 240 : event.deltaY;
+    if (Math.abs(rawDelta) < 0.5) return;
     event.preventDefault();
     const now = performance.now();
-    if (now - lastWheelAt < WHEEL_THROTTLE_MS || Math.abs(event.deltaY) < 4) return;
+    if (now - lastWheelAt < WHEEL_THROTTLE_MS) return;
     lastWheelAt = now;
+    const down = rawDelta > 0;
+    if (computer) {
+      const box = $('screenImage').getBoundingClientRect();
+      const local = box.width > 0 && box.height > 0 ? { x: event.clientX - box.left, y: event.clientY - box.top, box } : null;
+      void ctx.sessionComputer.scrollOnComputer(computer, down, local);
+      return;
+    }
     if (rdp) {
-      const amount = event.deltaY > 0 ? -4 : 4;
+      const amount = down ? -4 : 4;
       void ctx.queue.press(() => sendRdpInput(ctx, rdp, { action: 'scroll', amount }, amount < 0 ? 'Scroll down' : 'Scroll up'));
       return;
     }
     if (phone.platform === 'ios') {
-      const dy = (event.deltaY > 0 ? -1 : 1) * 6;
+      const dy = (down ? -1 : 1) * 6;
       ctx.press('scroll', dy < 0 ? 'Scroll down' : 'Scroll up', 'ble-scroll', { dy });
       return;
     }
     const w = ctx.view.frame?.deviceWidth || 1080;
     const h = ctx.view.frame?.deviceHeight || 2340;
-    const down = event.deltaY > 0;
     ctx.press('scroll', down ? 'Scroll down' : 'Scroll up', 'adb-swipe', {
       x1: Math.round(w * 0.5), y1: Math.round(h * (down ? 0.72 : 0.28)),
       x2: Math.round(w * 0.5), y2: Math.round(h * (down ? 0.28 : 0.72)), ms: 200

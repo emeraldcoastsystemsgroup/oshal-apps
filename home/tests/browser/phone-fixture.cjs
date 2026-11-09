@@ -4,6 +4,7 @@
  * SEQ | AUTHOR                                      | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | Phone-width fixture for the package's own page in headless Chromium: the real page file from disk on a synthetic origin, synthetic read-only answers for the routes the test names, every write refused and recorded, nothing leaves the browser. Measures what a person sees at 412 x 915 (a phone) and 392 x 641 (the same phone's cockpit application frame).
+ * 2   | maintainer@emeraldcoastsystemsgroup.com     | home 1.4.0: spec.onPage(page) runs before the page loads, so a test can listen for console errors from the first request on.
  */
 'use strict';
 const fs = require('node:fs');
@@ -26,9 +27,9 @@ function playwright() {
  * @description Open one page at one viewport with only synthetic answers.
  * @param {object} browser Chromium browser.
  * @param {{width:number,height:number}} viewport Viewport.
- * @param {{url:string, files:Record<string,string>, reads:Record<string,object>, framed?:boolean}} spec Page URL, served files (URL path
+ * @param {{url:string, files:Record<string,string>, reads:Record<string,object>, framed?:boolean, onPage?:Function}} spec Page URL, served files (URL path
  *   to disk path), JSON reads; framed puts the page in a full-size iframe, as the cockpit shows an application (pages add
- *   framed-only controls such as "Open full page").
+ *   framed-only controls such as "Open full page"); onPage(page) runs before the first request.
  * @returns {Promise<{page:object, context:object, writes:string[]}>} The page (the iframe's frame when framed) and the refused writes.
  */
 async function openPage(browser, viewport, spec) {
@@ -48,6 +49,7 @@ async function openPage(browser, viewport, spec) {
   });
   const page = await context.newPage();
   page.on('dialog', (dialog) => dialog.dismiss());
+  if (spec.onPage) await spec.onPage(page);
   if (!spec.framed) {
     await page.goto(ORIGIN + spec.url, { waitUntil: 'load' });
     return { page, context, writes };

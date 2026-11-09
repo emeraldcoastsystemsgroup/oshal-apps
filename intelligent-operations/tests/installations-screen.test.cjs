@@ -1,3 +1,4 @@
+/* CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Remove this source (1.5.3, P5-55b) on the shipped Systems page: two presses with what goes and what stays said before the second, the post carries {sourceId, confirm: true}, the card goes and the records reload; a desk's own source is never offered; a refusal stays on the card in the server's words, and a 403 takes the offer away. The fixture answers POST /sources/remove like the server. */
 /* CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Settle the initial navigation frame before positioning the near-bottom stop press; prove its real pointer target before testing the second-press safeguard. */
 /* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved on these screens (2026-11-04): an alert reported cleared and being confirmed turns nothing red and says so, a critical stays on the tile and the edge as a server goes Late and on an alerts-only server, the empty sentence says what the read shows and names a source waiting for its first report, a refusal and the second press's sentence clear the sticky bars in the page's own tab, hash changes and tab returns cannot pile reads up, a refused stop reads at once and a stop that went through takes the card even if the next read fails, a failed Refresh records keeps the rows and the reading and recovers on its own, and an announcement under failed reads says so. */
 /* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | What a third review proved on these screens (2026-11-04): failed reads, and only failed reads made while the screen is reading, move a standing, whether a computer woke, a read was out over a sleep, a person left for another screen or a kernel answers slower than the poll; a failing page keeps its poll; Stop watching follows the server's state, so its stop flows run on a silent row and the Overview sentence for an empty account moved the Systems waits to their own scope; a critical alert is not healthy; nothing says now under a failed read; the grace names its time; a long name wraps on Overview; a refusal, an expired choice, the chart's tip and a press at the first spot each behave at the frames the review measured. */
@@ -29,7 +30,7 @@ const sureName=/^Delete its history and stop watching/;
 async function pressStop(page,card){await card.getByRole('button',{name:'Stop watching this installation'}).click();const sure=card.getByRole('button',{name:sureName});await sure.waitFor();await page.waitForTimeout(450);await sure.click();}
 const readNow=page=>page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
 async function page(run,initial,options={}){
- const http=require('node:http'),fs=require('node:fs'),{chromium}=dependency('playwright');let body={streams:[],limits:{},installations:initial,watch:options.watch===undefined?{lastTickAt:new Date(Date.now()-40000).toISOString(),ageSeconds:40,overdue:false,graceUntil:null}:options.watch};let status=200,postStatus=null;const requests=[];
+ const http=require('node:http'),fs=require('node:fs'),{chromium}=dependency('playwright');let body={streams:[],limits:{},installations:initial,watch:options.watch===undefined?{lastTickAt:new Date(Date.now()-40000).toISOString(),ageSeconds:40,overdue:false,graceUntil:null}:options.watch};let status=200,postStatus=null,removeStatus=null,removeError='';const requests=[];
  const source={id:'source-a',name:'gsq-staging',environment:'gsq-staging',source:'urn:ops:a',mapping:{environment:'/data/environment'}};
  const event={id:'event-a',sourceId:'source-a',decision:'validated',receivedAt:new Date().toISOString(),ingestion:'transactional',reasons:[],normalized:{time:new Date().toISOString(),data:{alertType:'DiskHigh',environment:'gsq-staging',severity:'warning',status:'firing',resource:{kind:'host',scope:'gsq-staging',id:'gsq-staging'}}}};
  const server=http.createServer((req,res)=>{const url=new URL(req.url,'http://localhost'),json=(b,s=200)=>{res.writeHead(s,{'Content-Type':'application/json'});res.end(JSON.stringify(b));};requests.push([req.method,url.pathname+url.search]);
@@ -38,6 +39,7 @@ async function page(run,initial,options={}){
   if(url.pathname.startsWith(prefix)&&!route.startsWith('/assets/')&&route!=='/app'){
    if(route==='/telemetry')return status===200?json(body):json({error:'refused'},status);
    if(route.startsWith('/ingest/mapping/')&&req.method==='GET')return json(options.mapped?{sourceId:route.split('/').pop(),source:'urn:ops:a',environment:'gsq-staging',resourceKind:'host',idLabel:'instance',scope:'gsq-staging'}:{mapped:false});
+   if(route==='/sources/remove'&&req.method==='POST'){let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{requests.push(['REMOVE',raw]);if(removeStatus)return json({error:removeError||'refused'},removeStatus);const id=JSON.parse(raw).sourceId;body={...body,installations:body.installations.filter(i=>i.sourceId!==id)};json({removed:true,sourceId:id});});return;}
    if(route==='/ingest/mapping'&&req.method==='POST'){if(postStatus)return json({error:'refused'},postStatus);let raw='';req.on('data',c=>raw+=c);req.on('end',()=>{requests.push(['BODY',raw]);body={...body,installations:[]};json({forgotten:true});});return;}
    if(route==='/records')return json({sources:[source],events:[event],inventory:[],processing:[],attempts:[]});if(route==='/pipeline')return json({policies:[],bindings:[],decisions:[],symptoms:[],evidenceWork:[],correlations:[]});if(route==='/investigations')return json({items:[]});if(route==='/topology')return json(options.graph||{asOf:new Date().toISOString(),assets:[],relationships:[],collections:[]});if(route==='/topology/discovery')return json(options.discovery||{enabled:false});
    if(route==='/pipeline/processing')return json({config:{enabled:false,sourceIds:[],batchSize:10,maxAttempts:8,retrySeconds:30,revision:0},scheduleName:'fixture',jobs:[],limit:200,leaseSeconds:120});if(route==='/executions')return json({items:[]});if(route==='/delegations')return json({items:[]});if(route==='/anomaly')return json({baselines:[],cursors:[],config:{}});return json({error:'Fixture does not implement this action'},404);
@@ -51,7 +53,7 @@ async function page(run,initial,options={}){
   const origin='http://127.0.0.1:'+server.address().port,base=origin+'/api/intelligent-operations/app';
   /** The page inside a real same-origin iframe, the way the shell hosts it. */
   const framed=async hash=>{await tab.route(origin+'/wrapper',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><html><body style="margin:0;height:100vh"><iframe id="f" src="'+base+hash+'" style="width:100%;height:100%;border:0"></iframe></body></html>'}));await tab.goto(origin+'/wrapper');return (await tab.waitForSelector('#f')).contentFrame();};
-  await run({page:tab,context,base,framed,requests,errors,set:next=>{body={...body,...next};},refuse:code=>{status=code;},refusePost:code=>{postStatus=code;}});assert.deepEqual(errors,[]);
+  await run({page:tab,context,base,framed,requests,errors,set:next=>{body={...body,...next};},refuse:code=>{status=code;},refusePost:code=>{postStatus=code;},refuseRemove:(code,error)=>{removeStatus=code;removeError=error;}});assert.deepEqual(errors,[]);
  }finally{await browser?.close();server.closeAllConnections();await new Promise(r=>server.close(r));}
 }
 test('Systems proves the installation is watched: heard when, every check in words, what is firing, the charts',async()=>page(async({page,base,requests})=>{
@@ -631,4 +633,26 @@ test('a refresh refused for access still clears the installations with the rest,
 },[well()]));
 test('an announcement outside a failing streak still speaks plainly',async()=>page(async({page,base,set})=>{
  await page.clock.install();await page.goto(base+'#systems');const standing=page.locator('#installations-standing');await page.locator('.installation').waitFor();set({installations:[late()]});await page.clock.runFor(30000);await page.waitForFunction(()=>document.getElementById('installations-standing').textContent!=='');assert.equal(await standing.textContent(),'gsq <b>staging</b> is now Late.');
+},[well()]));
+test('Remove this source takes two presses, says what stays, posts confirm true and drops the card; a desk source is never offered',async()=>page(async({page,base,requests})=>{
+ await page.goto(base+'#systems');const card=page.locator('.installation[data-source="source-a"]'),desk=page.locator('.installation[data-source="source-desk"]');await card.waitFor();await desk.waitFor();
+ assert.equal(await desk.getByRole('button',{name:'Remove this source'}).count(),0,'a desk\'s own source comes back on the next tick, so it is not offered');
+ const first=card.getByRole('button',{name:'Remove this source'});assert.equal(await first.isVisible(),true);assert.equal(await card.locator('.installation-remove-sure').isVisible(),false);
+ await first.click();const go=card.getByRole('button',{name:'Remove gsq <b>staging</b> from Operations'});await go.waitFor();
+ assert.match(await card.locator('.installation-remove-sure').textContent(),/alerts sent to it are refused\. Everything it recorded stays\./);
+ assert.equal(await card.getByRole('button',{name:'Keep this source'}).isVisible(),true);assert.ok(!requests.some(([m])=>m==='REMOVE'),'the first press posts nothing');
+ await go.click();await card.waitFor({state:'detached'});
+ assert.deepEqual(requests.filter(([m])=>m==='REMOVE').map(([,b])=>JSON.parse(b)),[{sourceId:'source-a',confirm:true}]);
+ const recordReads=()=>requests.filter(([m,u])=>m==='GET'&&u==='/api/intelligent-operations/records').length;for(let i=0;i<50&&recordReads()<2;i++)await page.waitForTimeout(100);
+ assert.ok(recordReads()>=2,'the records reload, so Sources drops the source too');
+ assert.equal(await desk.isVisible(),true,'the other card stays');
+},[well(),well({sourceId:'source-desk',name:'spark/platform-ops',removable:false})]));
+test('A refused removal stays on the card in the server\'s words, and a role that cannot write loses the offer',async()=>page(async({page,base,refuseRemove})=>{
+ await page.goto(base+'#systems');const card=page.locator('.installation');await card.waitFor();
+ refuseRemove(409,'2 saved sources are named "gsq"; remove the one you mean from Systems, or by its id.');
+ await card.getByRole('button',{name:'Remove this source'}).click();await card.getByRole('button',{name:/^Remove .* from Operations$/}).click();
+ const said=card.locator('.installation-remove [role=alert]');await said.waitFor();assert.equal(await said.textContent(),'Not removed: 2 saved sources are named "gsq"; remove the one you mean from Systems, or by its id.');assert.equal(await card.isVisible(),true);
+ refuseRemove(403,'refused');await card.getByRole('button',{name:'Remove this source'}).click();await card.getByRole('button',{name:/^Remove .* from Operations$/}).click();
+ await page.waitForFunction(()=>document.querySelector('.installation-remove [role=alert]')?.textContent==='Your role cannot remove a source. It stays.');
+ assert.equal(await card.getByRole('button',{name:'Remove this source'}).count(),0,'the offer goes with the role');
 },[well()]));

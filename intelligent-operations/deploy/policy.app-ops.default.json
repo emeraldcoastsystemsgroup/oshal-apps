@@ -1,0 +1,89 @@
+{
+ "name": "spark/app-ops checks",
+ "rules": [
+  {
+   "name": "PackageScheduleRefused",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "PackageScheduleRefused"
+    }
+   }
+  },
+  {
+   "name": "PackageScheduleMissed",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "PackageScheduleMissed"
+    }
+   }
+  },
+  {
+   "name": "PackageCostDurabilityFailed",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "PackageCostDurabilityFailed"
+    }
+   }
+  },
+  {
+   "name": "PackageInstallFailed",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "PackageInstallFailed"
+    }
+   }
+  },
+  {
+   "name": "PackageErrorBurst",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "PackageErrorBurst"
+    }
+   }
+  },
+  {
+   "name": "PackageEgressSpike",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "PackageEgressSpike"
+    }
+   }
+  },
+  {
+   "name": "PackageVersionDrift",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "PackageVersionDrift"
+    }
+   }
+  },
+  {
+   "name": "PackageScheduleSkipped",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "PackageScheduleSkipped"
+    }
+   }
+  }
+ ],
+ "window": {
+  "mode": "sliding",
+  "seconds": 900
+ }
+}

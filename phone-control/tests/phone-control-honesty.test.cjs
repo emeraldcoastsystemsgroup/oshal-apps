@@ -6,6 +6,7 @@
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.1.0 honesty guard: goes red if a fake comes back. The package server reaches no network, process or radio; no mirroring key, receiver, drawn screen or OCR claim remains in what a person or the concierge reads; there is no public default secret; every button on the page is wired to a handler that runs a bridge verb or a package route, every verb the page uses exists in the bridge, every route has exactly one catalog binding, and the bridge stays small enough for its one install command. migrations/ is left out of the word scan: those two files are checksum-pinned 1.0.0 declarations the kernel keeps, not anything a person reads.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: keep 1.0.0 fake-key, fake-receiver and OCR bans while allowing real UxPlay AirPlay mirroring, lowercase oshal Node download link, mirror-* bridge verbs, and oshal_phone_mirror.py size budget.
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: scan session-computer.js, session-media.js, session-collab.js, and phone-control-session-routes.js across button wiring, verb parity, catalog bindings, and package-only concierge tool endpoints.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the bridge budget counts oshal_phone_lan.py and allows 200 KiB of sources; the binding limit stays the install command under 100 KiB (~75 KB now that its payload is encoded once). The server still reaches no network: the TV verbs run on the person's computer.
  */
 'use strict';
 
@@ -151,8 +152,9 @@ test('every file the package needs has an extension the kernel stages into the p
 });
 
 test('the bridge fits its one install command and its version is the package version', async () => {
-  const sizes = ['oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'].map((name) => fs.statSync(path.join(PKG, 'bridge', name)).size);
-  assert.ok(sizes.reduce((a, b) => a + b, 0) < 140 * 1024, `bridge sources are ${sizes.join(' + ')} bytes`);
+  const sizes = ['oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py']
+    .map((name) => fs.statSync(path.join(PKG, 'bridge', name)).size);
+  assert.ok(sizes.reduce((a, b) => a + b, 0) < 200 * 1024, `bridge sources are ${sizes.join(' + ')} bytes`);
   const { bridgeManifest } = require(path.join(PKG, 'lib', 'bridge-files.js'));
   const link = await import(path.join(PKG, 'tools', 'computer-link.js'));
   assert.ok(link.installCommand(bridgeManifest(PKG)).length < 100 * 1024, 'gzipped install command fits well under 100 KiB');

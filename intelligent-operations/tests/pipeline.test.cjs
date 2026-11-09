@@ -1,4 +1,5 @@
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Prove actual percolation and transactional reduction under concurrency, replay, late states and backend failure.
+// CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The engine fixture now deletes every rule index it published when it closes (tests/fixtures/detection.cjs): the browser case checks its published index exists while the engine is open and is gone once the fixture has closed, instead of deleting it a second time.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const {fixture,loadExperience}=require('./fixtures/intake.cjs'),{engineFixture}=require('./fixtures/detection.cjs');
@@ -108,7 +109,7 @@ test('the shipped Data view publishes and evaluates through real SQL and percola
   await page.goto(base+'/api/intelligent-operations/app#data');await page.locator('#status',{hasText:/^Updated /}).waitFor();
   await page.getByRole('tab',{name:'Rules',exact:true}).click();await page.getByText('Saved generations and advanced JSON',{exact:true}).click();await page.locator('#policy-json').fill(JSON.stringify(policy({rules:[{name:'Only selected type',enabled:true,capture:true,query:{term:{alertType:example().data.alertType}}}]})));
   await page.locator('#policy-import-json').click();await page.getByRole('button',{name:'Publish and activate',exact:true}).click();await page.waitForFunction(()=>document.getElementById('policy-active').textContent.includes('binding revision 1'),{}, {timeout:15000});
-  const binding=(await pipelineRecords(x.p,x.owner)).bindings[0];index='ops-rules-'+hash(['detection-owner-v1',x.owner])+'-'+binding.policyId;
+  const binding=(await pipelineRecords(x.p,x.owner)).bindings[0];index='ops-rules-'+hash(['detection-owner-v1',x.owner])+'-'+binding.policyId;assert.equal((await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'HEAD'})).status,200,'the browser published its rule index');
   await page.getByRole('tab',{name:'Flow',exact:true}).click();await page.getByRole('button',{name:'Check detection service',exact:true}).click();await page.getByText('Detection service: opensearch',{exact:false}).waitFor();
   await page.getByRole('tab',{name:'Events',exact:true}).click();for(const check of await page.locator('#event-list input[type=checkbox]').all())await check.check();
   await page.getByRole('button',{name:'Evaluate selected events',exact:true}).click();await page.getByText('4 evaluations completed; 0 require attention.',{exact:false}).waitFor();
@@ -123,7 +124,7 @@ test('the shipped Data view publishes and evaluates through real SQL and percola
   await page.reload();await page.locator('#status',{hasText:/^Updated /}).waitFor();await page.getByRole('tab',{name:'Correlation',exact:true}).click();await page.getByText('1 groups from 1 events',{exact:true}).waitFor();
   for(const width of [1440,390,320]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}
   assert.deepEqual(errors,[]);
- }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await x.close();if(index)assert.equal((await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'DELETE'})).ok,true);}
+ }finally{await browser?.close();if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}await x.close();if(index)assert.equal((await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'HEAD'})).status,404,'the engine fixture deleted the rule index the browser published');}
 });
 test('incomplete percolation responses cannot become a successful match set',()=>{
  const {spawnSync}=require('node:child_process');const code=String.raw`import copy

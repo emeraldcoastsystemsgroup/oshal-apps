@@ -10,6 +10,7 @@
 # 0.11.4 | maintainer@emeraldcoastsystemsgroup.com | refresh-pass declares startsItself: it spends no money and answers 200 with no team followed.
 # 0.11.7 | maintainer@emeraldcoastsystemsgroup.com | the review page's buttons are on the design standard's scale (docs/ux/design-standard.md §4.1; Roger F14, 2026-11-06: "not following the general sizing of objects"): body-size labels at 600 (15px on a desktop with a fine pointer), 44px tall with 16px sides, radius m, a solid secondary fill with the control edge, and the label on one line, so a button hugs its label instead of wrapping into a two-line bubble.
 # 0.12.0 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant concierge (F22): collapsible right-rail Concierge with bottom-pinned Jarvis composer, surface context bridge, inline sports-quant specialist persona, read-only tonight edge / outlier-trimmed ROI / game breakdown tools, and approval-card-gated forward-test pick/follow tool.
+# 0.12.1 | maintainer@emeraldcoastsystemsgroup.com | Jarvis routing words (backlog P4-16o): sports-quant adds 'tonight' (not 'edge', a word of this application's name that would take Kalshi's "Which prediction markets have an edge tonight?"). "Is there an edge on the Lakers game tonight?" now reaches Sports Edge; "What should I watch tonight?" stays with Marquee. No route, tool or permission changed.
 #
 # An odds maker you point at ONE TEAM. Operator, 2026-09-06, after seeing the broad-sweep design:
 # "this isn't a broad market sweep ... pick a team and fan out from there. first follow the players
@@ -105,7 +106,7 @@ description: >-
   travel — then compares that line to the book's moneyline and spread. Every call is registered
   before kickoff and graded on closing-line value, so the model has to beat the market before it is
   allowed to stake anything. Fantasy leagues moved to their own app, Fantasy Football.
-version: 0.12.0
+version: 0.12.1
 status: active
 chatBot: sports-quant
 

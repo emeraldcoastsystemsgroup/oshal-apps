@@ -4,6 +4,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Ambient Recall browser controller reading /api/jarvis/ambient/person/{projection,recall,asks,people,trends} with graceful empty-state and pre-promotion 404 handling.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Add Continuous Profile Learning & Eavesdrop Business Cards controller (/api/person-model/profile-cards, /api/person-model/recall) merged with ambient person endpoints.
  */
 
 window.__OSHAL_SCREEN_CONTRACT__ = {
@@ -12,8 +13,10 @@ window.__OSHAL_SCREEN_CONTRACT__ = {
 };
 
 const API = '/api/jarvis/ambient/person';
+const PKG_API = '/api/person-model';
 const $ = (id) => document.getElementById(id);
 let lastReceipts = [];
+let cachedProfileStore = { selfProfile: null, cards: [] };
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -28,15 +31,15 @@ function day(iso) {
   return esc(String(iso || '').slice(0, 10));
 }
 
-async function getJson(subPath) {
-  const res = await fetch(API + subPath, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+async function getJson(subPath, base = API) {
+  const res = await fetch(base + subPath, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
   if (res.status === 401) throw new Error('sign_in');
   const body = res.ok || res.status < 500 ? await res.json().catch(() => ({})) : {};
   return { ok: res.ok, status: res.status, body };
 }
 
-async function postJson(subPath, payload) {
-  const res = await fetch(API + subPath, {
+async function postJson(subPath, payload, base = API) {
+  const res = await fetch(base + subPath, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -65,9 +68,265 @@ function showTab(name, opts = {}) {
   url.searchParams.set('tab', name);
   if (!opts.profile) url.searchParams.delete('profile');
   history.replaceState(null, '', url.toString());
+  if (name === 'cards') void loadProfileCards();
   if (name === 'asks' && !$('asks-list').innerHTML) void loadAsks();
   if (name === 'people' && !opts.profile) void loadPeople();
   if (name === 'trends' && !$('trend-out').innerHTML) void loadTrends();
+}
+
+function renderSelfProfileCard(self) {
+  const box = $('self-profile-card');
+  if (!box || !self) return;
+  const facts = Array.isArray(self.facts) ? self.facts : [];
+  const factsHtml = facts.map((f) =>
+    `<li class="fact-item" data-fact-id="${esc(f.id)}"><span class="fact-cat">${esc(f.category || 'learned')}</span>`
+    + `<span class="fact-text">${esc(f.text)}</span>`
+    + `<button type="button" class="fact-del" data-del-fact="${esc(f.id)}" title="Remove fact">×</button></li>`).join('');
+  box.innerHTML = `<div class="hero-top"><div><span class="biz-badge self-badge">My Learned Profile · Continuous Learning Active</span>`
+    + `<h2 data-testid="self-profile-name">${esc(self.fullName)}</h2><p class="meta">${esc(self.role)} · ${esc(self.organization)}</p></div>`
+    + `<div class="hero-meta"><span><b>Address:</b> ${esc(self.address)}</span>`
+    + `<span><b>Contact:</b> ${esc(self.email)} · ${esc(self.phone)}</span>`
+    + `<span><b>Clearance:</b> ${esc(self.clearance || '—')} · <b>Education:</b> ${esc(self.education || '—')}</span></div></div>`
+    + `<h3>Learned Profile &amp; Household Facts (${facts.length})</h3>`
+    + `<ul class="fact-list" data-testid="self-facts-list">${factsHtml}</ul>`;
+  box.querySelectorAll('[data-del-fact]').forEach((btn) => {
+    btn.addEventListener('click', () => void deleteFact(btn.dataset.delFact));
+  });
+}
+
+function renderSingleBusinessCard(c) {
+  const topics = Array.isArray(c.topics) ? c.topics : [];
+  const asks = Array.isArray(c.openCommitments) ? c.openCommitments : [];
+  const quotes = Array.isArray(c.recentQuotes) ? c.recentQuotes : [];
+  return `<article class="biz-card" data-card-id="${esc(c.cardId)}"><div class="biz-head"><div>`
+    + `<h3>${esc(c.name)}</h3><div class="biz-role">${esc(c.role || 'Ambient Contact')}${c.organization ? ' · ' + esc(c.organization) : ''}</div></div>`
+    + `<span class="biz-badge">${esc(c.relationship || 'Contact')}</span></div>`
+    + (c.email || c.phone ? `<div class="biz-contact">${c.email ? esc(c.email) : ''}${c.email && c.phone ? ' · ' : ''}${c.phone ? esc(c.phone) : ''}</div>` : '')
+    + `<div class="biz-stats"><span><b>${Number(c.utterances || 0)}</b> utterances</span>`
+    + `<span>Source: ${esc(c.source || 'eavesdrop')}</span>`
+    + `${c.lastHeardAt ? `<span>Last heard: ${day(c.lastHeardAt)}</span>` : ''}</div>`
+    + (topics.length ? `<div class="pill-row">${topics.map((t) => `<span class="topic-pill">${esc(t)}</span>`).join('')}</div>` : '')
+    + (asks.length ? `<div class="biz-section"><b>Open Commitments:</b><ul>${asks.map((a) => `<li>${esc(a)}</li>`).join('')}</ul></div>` : '')
+    + (quotes.length ? `<div class="biz-quote">“${esc(quotes[0].quote)}”</div>` : '')
+    + `<div class="actions"><button type="button" class="btn small ghost" data-edit-card="${esc(c.cardId)}">Edit Card</button>`
+    + `<button type="button" class="btn small ghost" data-delete-card="${esc(c.cardId)}">Remove</button></div></article>`;
+}
+
+function renderBusinessCardsGrid(cards) {
+  const grid = $('business-cards-grid');
+  const filter = ($('cards-filter')?.value || '').trim().toLowerCase();
+  const filtered = filter
+    ? cards.filter((c) => JSON.stringify(c).toLowerCase().includes(filter))
+    : cards;
+  const badge = $('cards-count-badge');
+  if (badge) badge.textContent = `${filtered.length} card${filtered.length === 1 ? '' : 's'}`;
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="note" data-testid="cards-empty">No matching business cards found.</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map((c) => renderSingleBusinessCard(c)).join('');
+  grid.querySelectorAll('[data-edit-card]').forEach((btn) => {
+    btn.addEventListener('click', () => openCardEditor(btn.dataset.editCard));
+  });
+  grid.querySelectorAll('[data-delete-card]').forEach((btn) => {
+    btn.addEventListener('click', () => void deleteBusinessCard(btn.dataset.deleteCard));
+  });
+}
+
+function mergeAmbientPeopleIntoCards(cards, ambientCards, ambientPeople) {
+  const byName = new Map(cards.map((c) => [String(c.name || '').toLowerCase(), { ...c }]));
+  for (const kc of (Array.isArray(ambientCards) ? ambientCards : [])) {
+    const key = String(kc.name || kc.label || '').toLowerCase();
+    if (!key) continue;
+    if (!byName.has(key)) {
+      byName.set(key, {
+        cardId: kc.cardId || `card-${key.replace(/[^a-z0-9]+/g, '-')}`,
+        profileId: kc.profileId || '',
+        name: kc.name || kc.label,
+        role: kc.role || 'Ambient Voice Profile',
+        organization: kc.organization || '',
+        email: kc.email || '',
+        phone: kc.phone || '',
+        relationship: kc.relationship || 'Ambient',
+        source: kc.source || 'eavesdrop',
+        utterances: Number(kc.utterances || 0),
+        lastHeardAt: kc.lastHeardAt || '',
+        topics: Array.isArray(kc.topics) ? kc.topics : [],
+        openCommitments: Array.isArray(kc.openCommitments) ? kc.openCommitments : [],
+        recentQuotes: Array.isArray(kc.recentQuotes) ? kc.recentQuotes : [],
+      });
+    }
+  }
+  for (const p of (Array.isArray(ambientPeople) ? ambientPeople : [])) {
+    const key = String(p.label || '').toLowerCase();
+    if (!key || p.isSelf) continue;
+    const existing = byName.get(key);
+    if (existing) {
+      existing.utterances = Math.max(Number(existing.utterances || 0), Number(p.utterances || 0));
+      if (p.lastHeardAt) existing.lastHeardAt = p.lastHeardAt;
+    } else {
+      byName.set(key, {
+        cardId: `card-${p.profileId || key}`,
+        profileId: p.profileId || '',
+        name: p.label,
+        role: 'Named Ambient Voice',
+        organization: '',
+        relationship: 'Voice Profile',
+        source: 'voice-diarization',
+        utterances: Number(p.utterances || 0),
+        lastHeardAt: p.lastHeardAt || '',
+        topics: [],
+        openCommitments: [],
+        recentQuotes: [],
+      });
+    }
+  }
+  return Array.from(byName.values());
+}
+
+async function loadProfileCards() {
+  try {
+    const [pkgRes, kernelCardsRes, peopleRes] = await Promise.all([
+      getJson('/profile-cards', PKG_API),
+      getJson('/business-cards', API).catch(() => ({ ok: false, body: {} })),
+      getJson('/people', API).catch(() => ({ ok: false, body: {} })),
+    ]);
+    if (!pkgRes.ok) return;
+    const selfProfile = pkgRes.body.selfProfile;
+    const mergedCards = mergeAmbientPeopleIntoCards(
+      pkgRes.body.cards || [],
+      kernelCardsRes.ok ? kernelCardsRes.body?.cards : [],
+      peopleRes.ok ? peopleRes.body?.people : [],
+    );
+    cachedProfileStore = { selfProfile, cards: mergedCards };
+    renderSelfProfileCard(selfProfile);
+    renderBusinessCardsGrid(mergedCards);
+  } catch (e) {
+    $('self-profile-card').innerHTML = noteFor(e);
+  }
+}
+
+async function teachFact() {
+  const input = $('teach-fact-input');
+  const fact = input.value.trim();
+  if (!fact) return;
+  const category = $('teach-fact-category').value;
+  $('teach-fact-btn').disabled = true;
+  try {
+    const { ok, body } = await postJson('/profile-cards', { action: 'teach_fact', fact, category }, PKG_API);
+    if (ok && body.selfProfile) {
+      input.value = '';
+      cachedProfileStore.selfProfile = body.selfProfile;
+      renderSelfProfileCard(body.selfProfile);
+    }
+  } finally {
+    $('teach-fact-btn').disabled = false;
+  }
+}
+
+async function deleteFact(factId) {
+  const { ok, body } = await postJson('/profile-cards', { action: 'delete_fact', factId }, PKG_API);
+  if (ok && body.selfProfile) {
+    cachedProfileStore.selfProfile = body.selfProfile;
+    renderSelfProfileCard(body.selfProfile);
+  }
+}
+
+function openSelfEditor() {
+  const s = cachedProfileStore.selfProfile || {};
+  $('self-name-input').value = s.fullName || '';
+  $('self-address-input').value = s.address || '';
+  $('self-email-input').value = s.email || '';
+  $('self-phone-input').value = s.phone || '';
+  $('self-role-input').value = s.role || '';
+  $('self-org-input').value = s.organization || '';
+  $('self-clearance-input').value = s.clearance || '';
+  $('self-education-input').value = s.education || '';
+  $('edit-self-form').hidden = false;
+}
+
+async function saveSelfProfile(e) {
+  e.preventDefault();
+  const payload = {
+    action: 'update_self',
+    fullName: $('self-name-input').value.trim(),
+    address: $('self-address-input').value.trim(),
+    email: $('self-email-input').value.trim(),
+    phone: $('self-phone-input').value.trim(),
+    role: $('self-role-input').value.trim(),
+    organization: $('self-org-input').value.trim(),
+    clearance: $('self-clearance-input').value.trim(),
+    education: $('self-education-input').value.trim(),
+  };
+  const { ok, body } = await postJson('/profile-cards', payload, PKG_API);
+  if (ok && body.selfProfile) {
+    $('edit-self-form').hidden = true;
+    cachedProfileStore.selfProfile = body.selfProfile;
+    renderSelfProfileCard(body.selfProfile);
+  }
+}
+
+function openCardEditor(cardId = '') {
+  const existing = cachedProfileStore.cards.find((c) => c.cardId === cardId);
+  $('card-id-input').value = existing?.cardId || '';
+  $('card-name-input').value = existing?.name || '';
+  $('card-role-input').value = existing?.role || '';
+  $('card-org-input').value = existing?.organization || '';
+  $('card-rel-input').value = existing?.relationship || 'Contact';
+  $('card-email-input').value = existing?.email || '';
+  $('card-phone-input').value = existing?.phone || '';
+  $('card-topics-input').value = (existing?.topics || []).join(', ');
+  $('card-commitments-input').value = (existing?.openCommitments || []).join(', ');
+  $('card-quote-input').value = existing?.recentQuotes?.[0]?.quote || '';
+  $('upsert-card-form').hidden = false;
+}
+
+async function saveBusinessCard(e) {
+  e.preventDefault();
+  const payload = {
+    action: 'upsert_card',
+    cardId: $('card-id-input').value.trim(),
+    name: $('card-name-input').value.trim(),
+    role: $('card-role-input').value.trim(),
+    organization: $('card-org-input').value.trim(),
+    relationship: $('card-rel-input').value.trim() || 'Contact',
+    email: $('card-email-input').value.trim(),
+    phone: $('card-phone-input').value.trim(),
+    topics: $('card-topics-input').value.trim(),
+    openCommitments: $('card-commitments-input').value.trim(),
+    quote: $('card-quote-input').value.trim(),
+  };
+  if (!payload.name) return;
+  const { ok, body } = await postJson('/profile-cards', payload, PKG_API);
+  if (ok && Array.isArray(body.cards)) {
+    $('upsert-card-form').hidden = true;
+    cachedProfileStore.cards = body.cards;
+    renderBusinessCardsGrid(body.cards);
+  }
+}
+
+async function deleteBusinessCard(cardId) {
+  const { ok, body } = await postJson('/profile-cards', { action: 'delete_card', cardId }, PKG_API);
+  if (ok && Array.isArray(body.cards)) {
+    cachedProfileStore.cards = body.cards;
+    renderBusinessCardsGrid(body.cards);
+  }
+}
+
+function renderProfileRecallResult(data) {
+  const box = $('answer');
+  const s = data.selfProfile || {};
+  const facts = Array.isArray(data.selfMatches) ? data.selfMatches : [];
+  const cards = Array.isArray(data.cardMatches) ? data.cardMatches : [];
+  let html = `<p class="headline" data-testid="recall-headline">${esc(data.summary)}</p>`;
+  html += `<div class="receipt"><span class="t">Learned Owner Profile</span><b>${esc(s.fullName)}</b> · ${esc(s.address)} · ${esc(s.email)} · ${esc(s.phone)}</div>`;
+  for (const f of facts.slice(0, 5)) {
+    html += `<div class="receipt"><span class="t">${esc(f.category)}</span>${esc(f.text)}</div>`;
+  }
+  for (const c of cards.slice(0, 4)) {
+    html += `<div class="receipt"><span class="t">Business Card · ${esc(c.relationship || 'Contact')}</span><b>${esc(c.name)}</b> (${esc(c.role || 'Contact')}) — Topics: ${esc((c.topics || []).join(', ') || 'none')}</div>`;
+  }
+  box.innerHTML = html;
 }
 
 function renderRecall(data) {
@@ -105,9 +364,13 @@ async function recall() {
   box.hidden = false;
   box.innerHTML = '<p class="meta">Searching your transcripts…</p>';
   try {
+    if (/\b(my address|my profile|who am i|where do i live|my phone|my email|my clearance|learned profile|business card|business cards)\b/i.test(q)) {
+      const pkgRecall = await getJson('/recall?q=' + encodeURIComponent(q), PKG_API);
+      if (pkgRecall.ok) { renderProfileRecallResult(pkgRecall.body); return; }
+    }
     const { ok, status, body } = await getJson('/recall?q=' + encodeURIComponent(q));
     if (status === 400) {
-      box.innerHTML = '<div class="note">Try asking “how many times has &lt;person&gt; mentioned &lt;topic&gt;”, or check the Asks, People, and Trends tabs.</div>';
+      box.innerHTML = '<div class="note">Try asking “how many times has &lt;person&gt; mentioned &lt;topic&gt;”, or check the Profile &amp; Cards, Asks, People, and Trends tabs.</div>';
       return;
     }
     if (!ok) {
@@ -310,6 +573,20 @@ async function loadProjectionStatus() {
   }
 }
 
+function wireProfileCardsControls() {
+  $('teach-fact-btn').onclick = () => void teachFact();
+  $('teach-fact-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') void teachFact(); });
+  $('edit-self-toggle').onclick = () => openSelfEditor();
+  $('self-cancel-btn').onclick = () => { $('edit-self-form').hidden = true; };
+  $('edit-self-form').addEventListener('submit', (e) => void saveSelfProfile(e));
+  $('new-card-toggle').onclick = () => openCardEditor('');
+  $('card-cancel-btn').onclick = () => { $('upsert-card-form').hidden = true; };
+  $('upsert-card-form').addEventListener('submit', (e) => void saveBusinessCard(e));
+  $('cards-filter').addEventListener('input', () => renderBusinessCardsGrid(cachedProfileStore.cards || []));
+  const openCardsBtn = $('open-cards-tab-btn');
+  if (openCardsBtn) openCardsBtn.onclick = () => showTab('cards');
+}
+
 function bootAmbientRecall() {
   document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $('go').onclick = () => void recall();
@@ -318,6 +595,7 @@ function bootAmbientRecall() {
   $('asks-person').addEventListener('keydown', (e) => { if (e.key === 'Enter') void loadAsks(); });
   $('trend-load').onclick = () => void loadTrends();
   $('conn-load').onclick = () => void loadConnections();
+  wireProfileCardsControls();
   document.querySelectorAll('[data-ex]').forEach((el) => el.addEventListener('click', () => {
     const ex = el.dataset.ex || '';
     if (/asked me/i.test(ex)) { showTab('asks'); $('asks-person').value = 'Ella'; void loadAsks(); return; }
@@ -329,6 +607,7 @@ function bootAmbientRecall() {
   const tab = params.get('tab') || (profile ? 'people' : 'recall');
   showTab(tab, { profile: Boolean(profile) });
   if (profile) void loadProfile(profile);
+  void loadProfileCards();
   void loadProjectionStatus();
 }
 

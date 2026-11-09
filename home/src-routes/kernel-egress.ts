@@ -14,6 +14,7 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | Initial: kernel egress detection, the SmartThings connection state from connectors.metadata, and the "not connected" refusal test used by /control, /scene/run and /refresh.
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | Treat personal marketplace "turned off for your account" refusals as not-connected (409) instead of 502.
  *
  * @module kernel-egress
  */
@@ -73,5 +74,5 @@ export function connectionUsable(meta: ConnectionsAnswer | null, connector: stri
  * @returns Whether the rejection means "not connected".
  */
 export function isNotConnected(err: unknown): boolean {
-  return kernelEgress() && /is not connected/i.test(String((err as Error)?.message || ''));
+  return kernelEgress() && /(is not connected|turned .* off for your account)/i.test(String((err as Error)?.message || ''));
 }

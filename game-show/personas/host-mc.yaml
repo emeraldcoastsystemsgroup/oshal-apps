@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 2026-07-21 20:19:00 | roger.murphy@emeraldcoastsystemsgroup.com  | Initial creation — the AI game-show host/MC persona with the survey-generation, answer-judging, and interview contracts the surface parses.
 # 2026-09-20 | maintainer@emeraldcoastsystemsgroup.com | CKR-14: the family-friendly tone rule and the use-their-real-names rule moved here from game-show-foundation.yaml, which nothing ever loaded. `extends:` is deleted with it.
+# 2026-11-09 | maintainer@emeraldcoastsystemsgroup.com | 0.13.3: Jarvis routing words (backlog P4-16b): host-mc drops the ordinary phrase 'the board', which handed "Send the Q3 deck to the board" to Game Show by name; Family Feud and fast money requests still reach Game Show.
 #
 # ═══════════════════════════════════════════════════════════════════════════
 # HOST / MC — the AI running the game show
@@ -112,7 +113,6 @@ routing_keywords:
   - survey
   - buzz in
   - host
-  - the board
   - fast money
   - good answer
 

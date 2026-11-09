@@ -1,3 +1,5 @@
+/* CHANGE LOG: 18 | maintainer@emeraldcoastsystemsgroup.com | Remove this source on a monitored installation card (1.5.3): its offer sits under Stop watching, and its second press sits in a bordered row below its note, like the stop's, in the neutral border colour because nothing is deleted. */
+/* CHANGE LOG: 17 | maintainer@emeraldcoastsystemsgroup.com | The desk pages: five stacked cards, symptom and rule rows that wrap on a phone, 44px toggles, a read-only snapshot block; theme variables only. */
 /* CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Recorded command row ⋯ menu (Copy, Run again) on Cloud & SSH commands (UX audit 2026-11-06 P1). */
 /* CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | The List | Graph control of Systems (UX audit 2026-11-06: Topology merged in as the Graph view). */
 /* CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | A critical alert keeps a Late card and an alerts-only card edged red, and in the page's own tab a refusal and the second press's sentence scroll to below the two sticky bars, which a frame does not have (fourth review, 2026-11-04). */
@@ -128,7 +130,7 @@ textarea[rows][maxlength]{min-height:0;height:auto;font:14px/1.5 system-ui,sans-
 .installation-plotbox{position:relative;margin-top:6px;padding-left:40px}.installation-plot{display:block;width:100%;height:auto;overflow:visible;touch-action:pan-y}.installation-line{fill:none;stroke:var(--ops-accent);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}.installation-wash{fill:var(--ops-accent);fill-opacity:.1;stroke:none}.installation-end{fill:var(--ops-accent);stroke:var(--ops-card,#172231);stroke-width:2}.installation-axis,.installation-grid,.installation-hair{stroke:var(--ops-border);stroke-width:1;vector-effect:non-scaling-stroke}.installation-hair{stroke:var(--ops-muted)}.installation-dot{fill:var(--ops-accent)}.installation-tick{position:absolute;left:0;width:36px;font-size:11px;line-height:1;text-align:right;color:var(--ops-muted);font-variant-numeric:tabular-nums}.installation-tick.top{top:2px}.installation-tick.low{bottom:0}.installation-times{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 8px;margin-top:2px;padding-left:40px;font-size:11px;line-height:1.35;color:var(--ops-muted);font-variant-numeric:tabular-nums}
 .installation-tip{position:absolute;top:30px;z-index:2;display:flex;flex-direction:column;gap:1px;width:max-content;max-width:calc(100% - 4px);padding:6px 9px;font-size:12px;background:var(--ops-bg,#101822);color:var(--ops-text);border:1px solid var(--ops-border);border-radius:8px;box-shadow:0 4px 14px rgb(0 0 0/.25);pointer-events:none}.installation-tip[hidden]{display:none}.installation-tip strong{font-size:14px;font-variant-numeric:tabular-nums}.installation-tip small{color:var(--ops-muted)}
 .installations-brief{padding:14px 18px;margin:0 0 16px}.installations-brief[hidden]{display:none}.installation-row{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%}.installation-row-top{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.installation-health{font-size:12px;font-weight:600}.operator-catalogue-row .installation-row-care{color:var(--ops-text);font-weight:600}.installations-empty,.installations-brief-empty{overflow-wrap:anywhere}.installations-brief-empty{margin:0}
-.installation details{overflow-x:auto}.installation details td:first-child{white-space:nowrap}.installation-stop{margin-top:14px}.installation-stop-sure{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px;padding:10px 12px;border:1px solid var(--ops-bad);border-radius:8px}.installation-stop-sure .operator-note{flex:1 1 200px;margin:0}.installation-live{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.installation details{overflow-x:auto}.installation details td:first-child{white-space:nowrap}.installation-stop{margin-top:14px}.installation-stop-sure{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;margin-top:14px;padding:10px 12px;border:1px solid var(--ops-bad);border-radius:8px}.installation-stop-sure .operator-note{flex:1 1 200px;margin:0}.installation-remove{margin-top:10px}.installation-remove-sure{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px;margin-top:10px;padding:10px 12px;border:1px solid var(--ops-border);border-radius:8px}.installation-remove-sure .operator-note{flex:1 1 200px;margin:0}.installation-remove-sure button{max-width:100%;overflow-wrap:anywhere}.installation-live{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 @media (max-width:640px){.installation-head{flex-direction:column}.installation-standing{align-items:flex-start;text-align:left}.installation-checks td:first-child,.check-state{white-space:normal}.installation-checks td.check-state{overflow-wrap:normal}.installation-table th,.installation-table td{padding:6px 5px}}
 .installation.alerting{border-left-color:var(--ops-bad)}
 #status,.installation-stop-sure .operator-note{scroll-margin-top:125px}.operations-embedded #status,.operations-embedded .installation-stop-sure .operator-note{scroll-margin-top:0}
@@ -147,3 +149,31 @@ textarea[rows][maxlength]{min-height:0;height:auto;font:14px/1.5 system-ui,sans-
 .commands-row-more{position:relative;flex-shrink:0}.commands-row-more>summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 10px;border:1px solid var(--ops-border);border-radius:8px;background:var(--ops-card);cursor:pointer;font-weight:700;user-select:none}.commands-row-more>summary::-webkit-details-marker{display:none}
 .commands-row-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:160px;padding:4px;border:1px solid var(--ops-border);border-radius:10px;background:var(--ops-card,#fff);box-shadow:0 8px 24px rgb(0 0 0 / .18);display:grid;gap:2px}
 .commands-row-menu button{width:100%;min-height:40px;padding:8px 12px;border:0;border-radius:6px;background:transparent;color:var(--ops-text);text-align:left;font-size:13px;font-weight:600;cursor:pointer}.commands-row-menu button:hover{background:color-mix(in srgb,var(--ops-accent) 12%,var(--ops-card))}
+
+/* The desk pages (App Ops, Sec Ops, Platform Ops, Dev Ops). */
+.desk-head{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;margin:0 0 10px}
+.desk-head p{margin:0}
+.desk-panel{margin:0 0 12px}
+.desk-panel h2{margin:0 0 4px}
+.desk-body{margin-top:8px}
+.desk-empty{color:var(--ops-muted);margin:4px 0}
+.desk-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.desk-row,.desk-rule{display:grid;gap:4px;padding:8px 0;border-top:1px solid var(--ops-border)}
+.desk-row:first-child,.desk-rule:first-child{border-top:0}
+.desk-row-top,.desk-row-meta,.desk-row-action{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.desk-row-meta{color:var(--ops-muted);font-size:13px}
+.desk-rule{grid-template-columns:minmax(0,1fr) auto auto;align-items:center;column-gap:12px}
+.desk-rule strong{overflow-wrap:anywhere}
+.desk-toggle{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 4px;cursor:pointer}
+.desk-toggle input{width:20px;height:20px;margin:0}
+.desk-add,.desk-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.desk-add input{flex:1 1 180px;min-height:40px}
+.desk-source{border-top:1px solid var(--ops-border);padding:6px 0}
+.desk-source:first-child{border-top:0}
+.desk-source summary{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;min-height:44px;cursor:pointer}
+.desk-facts{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:4px 12px;margin:8px 0;font-size:13px}
+.desk-facts dt{color:var(--ops-muted);font-weight:600}
+.desk-facts dd{margin:0;overflow-wrap:anywhere}
+.desk-snapshot{max-width:100%;overflow:auto;padding:10px;border:1px solid var(--ops-border);border-radius:8px;background:var(--ops-bg);color:var(--ops-text);font-size:12px}
+.meta-caption[data-tone=bad]{color:var(--ops-bad)}
+@media(max-width:620px){.desk-rule{grid-template-columns:1fr 1fr;row-gap:0}.desk-rule strong{grid-column:1/-1;padding-top:4px}.desk-facts{grid-template-columns:1fr}.desk-facts dd{margin-bottom:6px}}

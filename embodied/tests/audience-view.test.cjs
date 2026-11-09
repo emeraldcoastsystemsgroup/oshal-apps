@@ -8,6 +8,7 @@
  * -----------------------------------------------------------------------------
  * @module audience-view.test
  * 3 | maintainer@emeraldcoastsystemsgroup.com   | ADR-202: the two spider-18 route modules are siblings embodied-routes.js may import.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com   | ADR-203 D9: embodied-plant-routes is a sibling embodied-routes.js may import. The plant routes (5d70a949) were imported by the mount without joining this list, so six cases failed on the import guard before reaching GET /tasks, unseen because no gate ran this suite.
  */
 'use strict';
 const assert = require('node:assert/strict');
@@ -93,7 +94,7 @@ const EMBODIED_STUBS = {
   '@/shared/artifact-exchange': { redeemArtifactViaRelay: () => Promise.resolve({ ok: false, status: 503, error: 'synthetic relay' }) },
 };
 /** The package's own route modules the mount imports; each loads through the same checked loader. */
-const SIBLINGS = ['./embodied-arm-routes', './embodied-hexapod-routes', './embodied-hexapod-physics-routes', './surface-files', './task-store'];
+const SIBLINGS = ['./embodied-arm-routes', './embodied-hexapod-routes', './embodied-hexapod-physics-routes', './embodied-plant-routes', './surface-files', './task-store'];
 
 /**
  * @description Load one of the package's compiled route modules with a recording express Router: node built-ins and the

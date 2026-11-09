@@ -12,6 +12,11 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: real iPhone screen mirroring over AirPlay through UxPlay on the person's Linux computer, explicit Bluetooth peripheral pairing steps, merged Connect sheet (phone-control-config removed from ui.static; /api/phone-control/config/ui opens the Connect sheet), and full-frame remote-control session layout. Authorization contract unchanged.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: deliver all 13 Reference-Product session features (RP-PHC-01..13) — direct computer pointer/keyboard control in touch or mouse mode, special keys & chords (Ctrl+Alt+Del, Super, F1-F12), file transfer, clipboard sync, multi-monitor switching, screenshot & session clip recording, picture quality presets, capability-gated privacy screen, lock-on-end, session chat, whiteboard annotations, switch sides, and concierge session tool parity.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: screen-first studio session workspace with Sync, single Mirror toggle, Full screen stage (.is-fullscreen + parent event fallback + corner HUD), collapsible Concierge rail, compact TV remote + keyboard navigation, BlueZ bonded LE HID reconnect + non-flooding AssistiveTouch swipes + pre-mirror stage touchpad, Fire TV DRM protected-surface notice + fast post-action frame wakeups, gated RDP session polling, and guided Android pairing steps with Samsung Auto Blocker tip.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add phone-provision (POST /api/phone-control/provision) for one-click and Jarvis zero-touch ADB APK push & auto-sign-in over the enrolled Linux computer.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add phone-control-register-device (POST /api/phone-control/devices), phone-control-update-device (POST /api/phone-control/devices/{input.id}), and phone-control-execute-device (POST /api/phone-control/devices/{input.id}/execute) so the Swarm and device-concierge can register, configure, and execute single-step or multi-step device control actions in the background or foreground.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the computer bridge gains lan-discover and lan-control (bridge/oshal_phone_lan.py): the person's own computer finds TVs and streaming sticks on its home network and presses their buttons (Samsung Tizen, Roku, Android TV); Smart Home's TVs section and Jarvis use them. A device registered without a computer resolves to one of the caller's own computers or is refused in words; the fixed fallback computer id is gone. No route, tool or permission changed.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console is hidden until an RDP session backend exists (Roger, 2026-11-09: "rdp and we do support that but never really have a use for it"): nothing implements /api/rdp/sessions, so the RDP card keeps its setup scripts, Copy setup script and Check RDP port, the Connection Concierge offers Check RDP port only, and the description no longer promises live RDP desktops. No route, tool or permission changed.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: Jarvis routing words (backlog P4-16k): device-concierge adds 'android', 'ipad' and 'iphone' (not 'phone' or 'device', words of this application's name that would take "Find my phone" and "My phone number changed"). "Connect my Android phone so I can control it from here" and "Register my iPad as a device I can drive from Jarvis" scored here but claimed nothing, because every keyword was a phrase; both reach Phone & Device Control now. No route, tool or permission changed.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: phone-control
@@ -30,11 +35,11 @@ rating:
 displayName: Phone & Device Control
 description: >-
   Unified live-image console for computers (pointer in touch or mouse mode, keyboard,
-  special keys, monitors, file transfer, clipboard, lock on end), live RDP desktops,
-  Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring
-  (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV/RDP
-  Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.
-version: 1.4.1
+  special keys, monitors, file transfer, clipboard, lock on end), RDP host setup with a port
+  check, Android phones and Fire TV / Android TV over Wi-Fi, and iPhone AirPlay screen mirroring
+  (UxPlay) with calibrated Bluetooth pointer & keyboard (OSHAL-KB), dedicated Phone/TV and
+  Connection Concierge, screenshots, session recordings, quality presets, chat and whiteboard overlays.
+version: 1.5.2
 status: active
 scope: person
 chatBot: device-concierge
@@ -117,6 +122,14 @@ bots:
       - android phone control
       - iphone keyboard
       - device concierge
+      - register device
+      - enroll device
+      - fire tv
+      - dpad
+      - move down one and select
+      - android
+      - ipad
+      - iphone
 
 migrations:
   - migrations/001_initial_phone_control.sql
@@ -768,3 +781,143 @@ tools:
       - phone-device-control
     tags:
       - route-backed
+
+  - name: phone-provision
+    displayName: Provision or Update Open Swarm APK over ADB
+    type: api
+    category: operations
+    description: Build and validate a zero-touch ADB provisioning command plan (connects to the Fire TV or Android phone IP/serial over the enrolled Linux computer, installs/updates the signed Open Swarm APK, and launches SignInActivity with prefilled serverUrl and optional joinCode).
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/provision
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        serialOrIp:
+          type: string
+          minLength: 3
+          maxLength: 96
+        computerNodeId:
+          type: string
+          maxLength: 96
+        serverUrl:
+          type: string
+          maxLength: 256
+        joinCode:
+          type: string
+          maxLength: 256
+        preferAndroid:
+          type: boolean
+      required:
+        - serialOrIp
+      additionalProperties: false
+    usageInstructions: Pass serialOrIp (for example "192.168.1.42" or "192.168.1.42:5555") to generate the zero-touch ADB APK installation and auto-sign-in command for the enrolled Linux computer.
+    routingTags:
+      - phone
+      - tv
+      - firetv
+      - apk
+      - install
+      - update
+      - provision
+    skills:
+      - phone-device-control
+    tags:
+      - route-backed
+
+  - name: phone-control-register-device
+    displayName: Register Phone or TV Device
+    type: api
+    category: operations
+    description: Register or update a phone or TV in Phone & Device Control (Android over Wi-Fi ADB or iPhone/TV over Bluetooth) with automatic computerNodeId resolution and :5555 port normalization.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/devices
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        address: { type: string, minLength: 3, maxLength: 96 }
+        platform: { type: string, enum: [android, ios] }
+        form: { type: string, enum: [phone, tv] }
+        computerNodeId: { type: string, maxLength: 96 }
+        controlEnabled: { type: boolean }
+      required: [name, address]
+      additionalProperties: false
+    usageInstructions: Pass name and address (for example "192.168.1.42" for a Fire TV or Android phone, or a Bluetooth MAC for an iPhone); computerNodeId, platform, and form auto-resolve when omitted.
+    routingTags: [operations, phone-control, devices, register, enroll, tv]
+    skills: [phone-device-control]
+    tags: [route-backed]
+
+  - name: phone-control-update-device
+    displayName: Update Phone or TV Device Settings
+    type: api
+    category: operations
+    description: Enable or disable remote control, rename a saved phone or TV, or update its address or computer node.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/devices/{input.id}
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, minLength: 2, maxLength: 64 }
+        name: { type: string, minLength: 1, maxLength: 60 }
+        controlEnabled: { type: boolean }
+        address: { type: string, minLength: 3, maxLength: 96 }
+        computerNodeId: { type: string, maxLength: 96 }
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Pass id (device UUID, name, or IP/serial) and the fields to update such as controlEnabled true|false.
+    routingTags: [operations, phone-control, devices, configuration]
+    skills: [phone-device-control]
+    tags: [route-backed]
+
+  - name: phone-control-execute-device
+    displayName: Execute Device Control Sequence
+    type: api
+    category: operations
+    description: Execute a single action, multi-step sequence, or natural-language D-Pad/remote prompt (such as "move down one and select") on a saved phone or TV in the background or foreground.
+    executor:
+      executorType: api
+      apiEndpoint: POST /api/phone-control/devices/{input.id}/execute
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        id: { type: string, minLength: 2, maxLength: 64 }
+        mode: { type: string, enum: [foreground, background] }
+        prompt: { type: string, minLength: 1, maxLength: 300 }
+        action: { type: string, enum: [screen, move, click, tap, drag, swipe, type, key, calibrate] }
+        key: { type: string, minLength: 1, maxLength: 32 }
+        text: { type: string, minLength: 1, maxLength: 300 }
+        enter: { type: boolean }
+        x: { type: integer, minimum: 0, maximum: 16384 }
+        y: { type: integer, minimum: 0, maximum: 16384 }
+        steps:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: object
+            properties:
+              action: { type: string, enum: [screen, move, click, tap, drag, swipe, type, key, calibrate] }
+              key: { type: string, minLength: 1, maxLength: 32 }
+              text: { type: string, minLength: 1, maxLength: 300 }
+              enter: { type: boolean }
+              x: { type: integer, minimum: 0, maximum: 16384 }
+              y: { type: integer, minimum: 0, maximum: 16384 }
+            required: [action]
+            additionalProperties: false
+      required: [id]
+      additionalProperties: false
+    usageInstructions: Pass id (device id, name, or IP) plus either prompt (e.g. "move down one and select"), steps array, or a single action/key; supports DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT, DPAD_CENTER, OK, Home, Back, PlayPause.
+    routingTags: [operations, phone-control, devices, execute, dpad, tv]
+    skills: [phone-device-control]
+    tags: [route-backed]

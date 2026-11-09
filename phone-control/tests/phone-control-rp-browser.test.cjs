@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 Chromium acceptance suite: verifies all 13 Reference-Product session features (RP-PHC-01..13), Phone & TV Concierge task chips + anti-loop stop, ble-calibrate, 1-step Fire TV Load oshal TV with unauthorized auto-poll + APK install, RDP X.224 setup/probe, overflow ⋯ button, zero console/404 errors, shell orb visibility, and 412x743 + 1440x900 layout geometry.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: update mock bridge status version to 1.4.1.
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console is hidden until an RDP session backend exists (nothing implements /api/rdp/sessions): the Connect sheet case proves the button and its Username, Password and Domain fields are not shown, the Any RDP Host steps point at Check RDP port, Check RDP port still answers through the bridge, and the sheet makes no /api/rdp/sessions request (red on 1.5.0, which showed the button). The session viewer kept for that backend is now reached from a listed session (the page's own oshal.pc.hasRdp path) instead of the hidden button, with the same click, dictation, voice Concierge and APK push assertions.
  */
 'use strict';
 
@@ -406,24 +407,36 @@ test('Phone Concierge organizes apps & calibrates on iPhone, TV Concierge adapts
   await page.close();
 });
 
-test('Connect sheet 1-step Load oshal TV polls unauthorized -> device + installs APK, and RDP setup switches OS + probes port', async () => {
+test('Connect sheet 1-step Load oshal TV polls unauthorized -> device + installs APK, and RDP setup switches OS + probes port with Connect in console hidden', async () => {
   calls = [];
   tvConnectCount = 0;
   const errors = [];
+  const rdpRequests = [];
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   attachConsoleAnd404Guard(page, errors);
+  page.on('request', (request) => { if (request.url().includes('/api/rdp/sessions')) rdpRequests.push(request.url()); });
   await page.addInitScript(() => { window.__PC_TV_POLL_MS = 35; });
   await page.goto(`${base}/api/phone-control/config/ui`, { waitUntil: 'networkidle' });
 
   await page.locator('#computersBody button', { hasText: 'Use this computer' }).first().click();
   await page.waitForFunction(() => !document.getElementById('tvCard').hidden && !document.getElementById('tvSend').hasAttribute('aria-busy'));
 
+  for (const id of ['#rdpConnectBtn', '#rdpUsername', '#rdpPassword', '#rdpDomain']) {
+    assert.equal(await page.locator(id).isHidden(), true, `${id} is not shown while no RDP session backend exists`);
+  }
+  assert.equal(await page.getByText('Connect in console').isVisible(), false);
+  assert.equal(await page.locator('#rdpProbeBtn').isVisible(), true);
+  assert.equal(await page.locator('#copyRdpScriptBtn').isVisible(), true);
+  await page.locator('#rdpOsAnyBtn').click();
+  assert.match(await page.locator('#rdpSetupScript').textContent(), /press Check RDP port/);
+  assert.doesNotMatch(await page.locator('#rdpSetupScript').textContent(), /Connect in console|password/i);
   await page.locator('#rdpOsLinuxBtn').click();
   assert.match(await page.locator('#rdpSetupScript').textContent(), /grdctl|xrdp/);
   await page.locator('#rdpHost').fill('192.168.1.50');
   await page.locator('#rdpProbeBtn').click();
   await page.waitForFunction(() => !document.getElementById('rdpWorkLink').hidden && !document.getElementById('tvSend').hasAttribute('aria-busy'));
   assert.match(await page.locator('#rdpStatus').textContent(), /RDP X\.224 handshake verified/);
+  assert.ok(calls.some((c) => String(c.arguments?.command || '').includes(' rdp-probe ')), 'Check RDP port ran the bridge rdp-probe');
 
   await page.locator('#tvAddress').fill('192.168.1.138');
   await page.locator('#tvSend').click();
@@ -433,19 +446,21 @@ test('Connect sheet 1-step Load oshal TV polls unauthorized -> device + installs
   });
   assert.equal(tvConnectCount >= 2, true);
   assert.ok(calls.some((c) => String(c.arguments?.command || '').includes(' adb-install-apk ')));
+  assert.deepEqual(rdpRequests, [], 'the Connect sheet never calls the RDP session route nothing implements');
   assert.deepEqual(errors, []);
   await page.close();
 });
 
-test('RDP Connect in console streams /api/rdp/sessions, maps clicks + voice dictation + voice Concierge, and pushes Android Companion APK', async () => {
+test('A listed RDP session (the viewer kept for a future backend) streams frames, maps clicks + voice dictation + voice Concierge, and pushes Android Companion APK', async () => {
   calls = [];
   rdpInputs = [];
-  rdpSessions = [];
+  rdpSessions = [{ sessionId: 'rdp_desk_1', host: '192.168.1.50', port: 3389, username: 'roger', width: 1280, height: 800, connected: true }];
   ambientTranscriptions = [];
   const errors = [];
   const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   attachConsoleAnd404Guard(page, errors);
   await page.addInitScript(() => {
+    localStorage.setItem('oshal.pc.hasRdp', '1');
     window.__PC_VOICE_RECORD_MS = 60;
     delete window.SpeechRecognition;
     delete window.webkitSpeechRecognition;
@@ -460,12 +475,9 @@ test('RDP Connect in console streams /api/rdp/sessions, maps clicks + voice dict
       }
     };
   });
-  await page.goto(`${base}/api/phone-control/config/ui`, { waitUntil: 'networkidle' });
+  await page.goto(`${base}/api/phone-control/ui`, { waitUntil: 'networkidle' });
 
-  await page.locator('#rdpHost').fill('192.168.1.50');
-  await page.locator('#rdpUsername').fill('roger');
-  await page.locator('#rdpPassword').fill('s3cr3t');
-  await page.locator('#rdpConnectBtn').click();
+  await page.locator('#computerRail .pc-rail-item', { hasText: 'roger@192.168.1.50' }).click();
 
   await page.waitForFunction(() => {
     const img = document.getElementById('screenImage');

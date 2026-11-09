@@ -1,0 +1,79 @@
+{
+ "name": "spark/dev-ops checks",
+ "rules": [
+  {
+   "name": "ReleaseRolledBack",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "ReleaseRolledBack"
+    }
+   }
+  },
+  {
+   "name": "ReleaseLabelMismatch",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "ReleaseLabelMismatch"
+    }
+   }
+  },
+  {
+   "name": "ReleaseVerifyFailed",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "ReleaseVerifyFailed"
+    }
+   }
+  },
+  {
+   "name": "ReleasePromoted",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "ReleasePromoted"
+    }
+   }
+  },
+  {
+   "name": "TrialBehindDev",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "TrialBehindDev"
+    }
+   }
+  },
+  {
+   "name": "DirtyTreeOnHost",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "DirtyTreeOnHost"
+    }
+   }
+  },
+  {
+   "name": "PublishGateRed",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "PublishGateRed"
+    }
+   }
+  }
+ ],
+ "window": {
+  "mode": "sliding",
+  "seconds": 900
+ }
+}

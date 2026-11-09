@@ -1,0 +1,119 @@
+{
+ "name": "spark/sec-ops checks",
+ "rules": [
+  {
+   "name": "SignInFailureBurst",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "SignInFailureBurst"
+    }
+   }
+  },
+  {
+   "name": "RootTransferred",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "RootTransferred"
+    }
+   }
+  },
+  {
+   "name": "AdminTierGranted",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "AdminTierGranted"
+    }
+   }
+  },
+  {
+   "name": "ProducerTokenIssued",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "ProducerTokenIssued"
+    }
+   }
+  },
+  {
+   "name": "DoorSeatsExhausted",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "DoorSeatsExhausted"
+    }
+   }
+  },
+  {
+   "name": "UncommittedCodeInProduction",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "UncommittedCodeInProduction"
+    }
+   }
+  },
+  {
+   "name": "PlainHttpListenerPresent",
+   "enabled": true,
+   "capture": true,
+   "query": {
+    "term": {
+     "alertType": "PlainHttpListenerPresent"
+    }
+   }
+  },
+  {
+   "name": "KernelRefusalStorm",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "KernelRefusalStorm"
+    }
+   }
+  },
+  {
+   "name": "RefusalCodeNew",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "RefusalCodeNew"
+    }
+   }
+  },
+  {
+   "name": "TokenRevoked",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "TokenRevoked"
+    }
+   }
+  },
+  {
+   "name": "LocationStepUp",
+   "enabled": true,
+   "capture": false,
+   "query": {
+    "term": {
+     "alertType": "LocationStepUp"
+    }
+   }
+  }
+ ],
+ "window": {
+  "mode": "sliding",
+  "seconds": 900
+ }
+}

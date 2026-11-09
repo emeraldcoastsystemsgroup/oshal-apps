@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Register readiness smoke and Ambient Recall surface empty-state + pre-promotion 404 acceptance suite.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | Document Continuous Profile Learning and Eavesdrop Business Cards verification in ambient-recall-surface e2e case.
 version: 1
 cases:
   - id: package-readiness
@@ -22,8 +23,8 @@ cases:
       timeoutMs: 15000
     installation: safe-smoke
   - id: ambient-recall-surface
-    name: Ambient Recall unhidden tile, five-endpoint empty states, and pre-promotion 404 grace
-    purpose: Verify person-model manifest unhide, inline concierge contract, and Chromium rendering of empty states across projection, recall, asks, people, and trends as well as HTTP 404 pre-promotion grace.
+    name: Ambient Recall unhidden tile, Continuous Profile Learning, Business Cards, and pre-promotion 404 grace
+    purpose: Verify person-model 1.2.1 manifest unhide, inline concierge contract, Continuous Profile Learning & Eavesdrop Business Cards UI/API, and Chromium rendering of empty states across projection, recall, asks, people, and trends as well as HTTP 404 pre-promotion grace.
     level: e2e
     runner:
       kind: node-test
@@ -31,14 +32,15 @@ cases:
       files:
         - tests/person-model-surface.test.cjs
     expected:
-      - Manifest declares active Ambient Recall tile at /api/person-model/app and canonical readiness probe.
+      - Manifest declares active Ambient Recall tile at /api/person-model/app, lastingStorage, and route-backed profile/card tools.
+      - Profile & Cards tab renders the owner's continuously learned profile, teaches new facts, and creates/updates Eavesdrop Business Cards.
       - Recall, Asks, People, Trends, and Projection render clean empty states when transcript arrays are empty.
       - Pre-promotion HTTP 404 responses on /api/jarvis/ambient/person/* render calm empty-preview notices without page errors.
     prerequisites: [runner:node-test]
     sideEffects: none
     isolation:
       mode: disposable
-      cleanup: Close ephemeral loopback server and headless browser context.
+      cleanup: Close ephemeral loopback server, headless browser context, and temporary dataDir.
     limits:
       timeoutMs: 45000
     installation: never

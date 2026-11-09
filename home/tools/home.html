@@ -31,7 +31,10 @@
        yet, Connect a hub). The Smart Home screen keeps devices, scenes and the hubs.
      6 | maintainer@emeraldcoastsystemsgroup.com | UX audit sweep (home--home-accounts, D1=glass, D2=c): dashboard contract, Prepare a
        diagnostic brief moved into More as a theme-token sheet withheld when no connected action mounts, in-page schedule
-       confirmation, scale radii/typography, 44px touch targets, and popstate Back dismissal. -->
+       confirmation, scale radii/typography, 44px touch targets, and popstate Back dismissal.
+     7 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: Add Operations Guide & Runbook section (#runbookSection) displaying SmartThings API playbooks, auto-discovered device capabilities (including Samsung Family Hub ViewInside camera), live capability inspection, and persistent runbook note authoring.
+     8 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: Expand #fridgeCameraSection with Samsung Family Hub 3-bay optical camera snapshot, weekly Sunday 9:00 AM assessment schedule, week-over-week shelf comparison, interactive grocery cart starter, and weekly meal list builder.
+     9 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: TVs and streaming sticks (#tvSection, tools/home-tvs.js): pick one of your computers, Scan for TVs (it says what it does; nothing is installed or changed), one card per TV with real buttons run on that computer, and the computer's answer in words. A network TV in the device grid no longer has a switch that flipped a saved state with nothing sent; the custom registration form no longer offers TVs (the scan adds them) and its example address is a neutral one. -->
 <!-- Audience view (ADR-164 D6). The Home shell opens this page with ?audience=family: the household picture
      (what is on, scenes to run, what is scheduled) from the SAME routes as the full page, painted by the shared
      kit in the family grammar. Any other request runs the full Smart Home page below unchanged. -->
@@ -165,10 +168,27 @@
   .lnk { background:transparent; border:0; color:var(--accent); cursor:pointer; font:inherit; font-size:12px; min-height:44px; min-width:44px; padding:0 6px; display:inline-flex; align-items:center; text-decoration:underline; }
   .empty { color:var(--muted); font-size:14px; line-height:20px; padding:30px 2px; }
   .hubs { max-width:600px; margin:14px 0; gap:10px; }
-  .hubs .hubrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+  .hubs .hubrow { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--ds-surface-2, var(--panel2)); }
+  .hubs .hubrow .hub-meta { display:inline-flex; flex-wrap:wrap; gap:8px; align-items:center; font-weight:600; }
+  .hubs .hubrow .hub-actions { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .hubs .subpanel { padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--ds-surface, var(--panel)); display:flex; flex-direction:column; gap:10px; }
+  .hubs .subpanel[hidden] { display:none; }
   .hubs[hidden] { display:none; }
   body.view-hubs .dash-only { display:none !important; }
-  body.view-automations #devicesSection, body.view-automations #scenes, body.view-automations #scenes-title { display:none !important; }
+  body.view-automations #devicesSection, body.view-automations #scenes, body.view-automations #scenes-title, body.view-automations #tvSection { display:none !important; }
+  /* TVs and streaming sticks (1.4.0) */
+  #tvSection [hidden] { display:none !important; } /* .schf and .lnk set display, which would beat the hidden attribute */
+  .tv-scan { max-width:600px; gap:8px; margin-bottom:12px; }
+  .tv-note { color:var(--muted); font-size:14px; line-height:20px; margin:0; }
+  .tv-card .tv-meta { color:var(--muted); font-size:12px; line-height:16px; overflow-wrap:anywhere; }
+  .tv-card .tv-steps { margin:0; font-size:13px; line-height:18px; color:var(--text); background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .tv-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .tv-row .btn { flex:1 1 auto; }
+  .tv-pad { display:grid; grid-template-columns:repeat(3, minmax(44px, 76px)); grid-template-areas:". up ." "left select right" ". down ."; gap:6px; justify-content:center; }
+  .tv-pad [data-action="up"] { grid-area:up; } .tv-pad [data-action="left"] { grid-area:left; } .tv-pad [data-action="select"] { grid-area:select; }
+  .tv-pad [data-action="right"] { grid-area:right; } .tv-pad [data-action="down"] { grid-area:down; }
+  .tv-result { margin:0; font-size:13px; line-height:18px; color:var(--muted); min-height:18px; overflow-wrap:anywhere; }
+  .tv-result .lnk { min-height:44px; }
   .toast { position:fixed; z-index:21; bottom:78px; left:50%; transform:translateX(-50%); background:var(--ds-surface, var(--panel2)); border:1px solid var(--line); color:var(--text); padding:10px 16px; border-radius:10px; font-size:14px; line-height:20px; opacity:0; transition:opacity .2s; pointer-events:none; }
   .toast.show { opacity:1; }
   .more-wrap { position:relative; }
@@ -216,21 +236,167 @@
   </section>
 
   <section class="card hubs" id="hubsPanel" hidden aria-labelledby="hubs-title">
-    <div class="nm" id="hubs-title">Hubs</div>
+    <div class="nm" id="hubs-title">Hubs &amp; Direct Swarm Devices</div>
     <p class="dim" id="hubsReporting" role="status">Checking which hubs have reported devices…</p>
-    <div class="hubrow"><span>Samsung SmartThings <span class="pill" id="pill-smartthings">Not connected</span></span><a class="btn solid" href="/api/connect/smartthings/start" target="_top" data-ds-primary>Connect SmartThings</a></div>
-    <div class="hubrow"><span>Google Home <span class="pill" id="pill-google-home">Not connected</span></span><a class="btn" href="/utilities" target="_top">Set up in Connections</a></div>
-    <p class="dim">After connecting, press Refresh to read the hub's devices.</p>
+    <div class="hubrow">
+      <span class="hub-meta">Swarm Local (Bluetooth · Android · LAN) <span class="pill ok" id="pill-swarm-local">Ready · $0 API</span></span>
+      <span class="hub-actions"><button type="button" class="btn" id="btn-swarm-discover" onclick="toggleLocalSwarmPanel()">Scan &amp; Register Local Devices</button></span>
+    </div>
+    <div class="hubrow">
+      <span class="hub-meta">Samsung SmartThings <span class="pill" id="pill-smartthings">Not connected</span></span>
+      <span class="hub-actions"><a class="btn" id="btn-smartthings" href="/api/connect/smartthings/start" target="_top">Connect SmartThings</a><button type="button" class="btn" id="btn-st-token" onclick="toggleStTokenBox()">Paste Token</button></span>
+    </div>
+    <div class="hubrow">
+      <span class="hub-meta">Google Home <span class="pill" id="pill-google-home">Not connected</span></span>
+      <span class="hub-actions"><a class="btn" id="btn-google-home" href="/utilities" target="_top">Set up in Connections</a></span>
+    </div>
+    <div class="subpanel" id="localSwarmPanel" hidden>
+      <div class="crow"><span class="nm">Direct Swarm Device Registration (Zero Cloud API Cost)</span><button type="button" class="btn" onclick="autoRegisterAllLocal()">⚡ Register All Discovered</button></div>
+      <div class="dim">Register Bluetooth, Android, and LAN appliances directly with your Swarm — no cloud OAuth app or paid API required.</div>
+      <div id="localCandidatesList" style="display:flex;flex-direction:column;gap:6px"></div>
+      <details>
+        <summary class="lnk" style="min-height:36px">+ Register custom Bluetooth / Android / LAN device</summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <label class="schf" for="reg-name"><span>Device name</span><input id="reg-name" class="tin" placeholder="e.g. Samsung Family Hub Refrigerator" /></label>
+          <div class="dim" style="gap:8px;flex-wrap:wrap">
+            <label class="schf" for="reg-category"><span>Type</span>
+              <select id="reg-category" class="sel">
+                <option value="Refrigerator">Refrigerator / Family Hub</option>
+                <option value="Appliance">Bluetooth Appliance</option>
+                <option value="Speaker">Bluetooth Speaker</option>
+                <option value="Light">Smart Light / Switch</option>
+                <option value="Sensor">Sensor</option>
+              </select>
+            </label>
+            <label class="schf" for="reg-protocol"><span>Transport</span>
+              <select id="reg-protocol" class="sel">
+                <option value="bluetooth">Bluetooth (BLE / Classic)</option>
+                <option value="android-adb">Android / Swarm Node</option>
+                <option value="lan-http">Local LAN (HTTP / mDNS)</option>
+                <option value="swarm-node">Enrolled Swarm Companion</option>
+              </select>
+            </label>
+          </div>
+          <div class="dim" style="gap:8px;flex-wrap:wrap">
+            <label class="schf" for="reg-address" style="flex:1"><span>Bluetooth MAC / LAN IP / Node ID</span><input id="reg-address" class="tin" placeholder="e.g. 00:11:22:33:44:55 or 10.0.0.50" /></label>
+            <label class="schf" for="reg-room"><span>Room</span><input id="reg-room" class="tin" value="Kitchen" placeholder="Kitchen" /></label>
+          </div>
+          <div class="crow"><button type="button" class="btn" onclick="registerCustomLocalDevice()">Register in Swarm</button></div>
+        </div>
+      </details>
+    </div>
+    <div class="subpanel" id="stTokenPanel" hidden>
+      <div class="nm">Direct SmartThings Personal Access Token (No OAuth Redirect Required)</div>
+      <div class="dim">If you haven't created a Samsung developer OAuth app redirect, generate a Personal Access Token at <strong>account.smartthings.com/tokens</strong> (select Devices, Scenes, and Locations scopes) and paste it below.</div>
+      <label class="schf" for="st-token-input"><span>Personal Access Token</span><input id="st-token-input" type="password" class="tin" placeholder="Paste SmartThings Personal Access Token (UUID)…" /></label>
+      <div class="crow"><button type="button" class="btn" onclick="saveDirectSmartThingsToken()">Save Token &amp; Load Devices</button></div>
+    </div>
+    <p class="dim">After connecting or registering a device, press Refresh to read your devices.</p>
   </section>
 
   <div class="dash-only">
+  <section id="fridgeCameraSection" hidden>
+  <div class="sectitle">Samsung Family Hub Refrigerator — View Inside, Weekly Assessment &amp; Meal Planner</div>
+  <div class="card" style="gap:12px">
+    <div class="crow" style="flex-wrap:wrap">
+      <span class="nm">Family Hub View Inside (3 Optical Camera Bays)</span>
+      <span class="pill on" id="fridgeTempCooler">Cooler: 37°F · Closed</span>
+      <span class="pill on" id="fridgeTempFreezer">Freezer: 0°F · Closed</span>
+      <span class="pill ok" id="fridgeWeeklySchedBadge">Weekly Assessment: Sunday 09:00 · Active (phone-control + SmartThings)</span>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="refreshFridgeCamBtn" onclick="refreshFridgeCamera()">📸 Refresh View Inside Camera</button>
+      <button type="button" class="btn" id="runFridgeAssessmentBtn" onclick="runFridgeAssessmentNow()">📊 Run Weekly Assessment Now</button>
+      <button type="button" class="btn" id="startFridgeCartBtn" onclick="startFridgeCart()">🛒 Start Grocery Cart</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--panel2)">
+          <img id="fridgeCamImg" src="/api/home/fridge-image" alt="Samsung Family Hub View Inside Refrigerator Snapshot" style="display:block;width:100%;max-height:520px;object-fit:contain" loading="lazy" />
+        </div>
+        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+          <div class="nm" style="margin-bottom:6px">3-Shelf Optical Inventory (This Week)</div>
+          <div id="fridgeShelfInventory" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px;color:var(--muted)"></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+          <div class="nm" style="margin-bottom:4px">Week-over-Week Comparison (This Week vs. Last Week &amp; Orders)</div>
+          <div id="fridgeComparisonSummary" class="dim" style="margin-bottom:8px"></div>
+          <div id="fridgeComparisonLists" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
+        </div>
+        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+          <div class="crow" style="margin-bottom:6px">
+            <span class="nm">Recommended Grocery Cart</span>
+            <span class="pill ok" id="fridgeCartStatusBadge">Recommended</span>
+          </div>
+          <div id="fridgeCartItems" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px"></div>
+          <div class="crow" style="margin-top:8px">
+            <label class="schf" for="fridge-cart-add-input" style="flex:1"><span>Add item to cart</span><input id="fridge-cart-add-input" class="tin" placeholder="e.g. Avocado Oil or Sparkling Water" /></label>
+            <button type="button" class="btn" onclick="addFridgeCartItem()">+ Add Item</button>
+          </div>
+        </div>
+        <div style="padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+          <div class="crow" style="margin-bottom:6px;flex-wrap:wrap">
+            <span class="nm">Weekly Meal List (From Fridge + Ordered Staples)</span>
+            <span class="spacer"></span>
+            <label class="schf" for="fridge-meal-focus" style="flex-direction:row;align-items:center;gap:6px"><span>Focus</span>
+              <select id="fridge-meal-focus" class="sel" onchange="rebuildFridgeMealList()">
+                <option value="use-first">Eat-First Fresh Priority</option>
+                <option value="high-protein">High-Protein</option>
+                <option value="quick-prep">Quick 10-Min Prep</option>
+              </select>
+            </label>
+          </div>
+          <div id="fridgeMealPlanList" style="display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:18px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </section>
+
   <section id="devicesSection" hidden>
   <div class="sectitle">Devices</div>
   <div class="grid" id="grid"><div class="empty">Loading…</div></div>
   </section>
 
+  <section id="tvSection" hidden aria-labelledby="tv-title">
+  <div class="sectitle" id="tv-title">TVs and streaming sticks</div>
+  <div class="card tv-scan">
+    <label class="schf" id="tvComputerLabel" for="tvComputer" hidden><span>Computer that looks for them</span><select id="tvComputer" class="sel"></select></label>
+    <p class="tv-note" id="tvComputerHelp" hidden></p>
+    <a class="lnk" id="tvDevicesLink" href="/devices" target="_top" hidden>Open the Devices page</a>
+    <div class="crow"><button type="button" class="btn" id="tvScan">Scan for TVs</button></div>
+    <p class="tv-note" id="tvScanWhat">Your computer looks for TVs and streaming sticks on its Wi-Fi and reads what they say about themselves. Nothing is installed or changed on them.</p>
+    <p class="tv-note" id="tvStatus" role="status" aria-live="polite"></p>
+  </div>
+  <p class="empty" id="tvEmpty">No TVs saved yet. Press Scan for TVs.</p>
+  <div class="grid" id="tvList"></div>
+  </section>
+
   <div class="sectitle" id="scenes-title" style="display:none">Scenes</div>
   <div class="scenes" id="scenes"></div>
+
+  <section id="runbookSection" hidden>
+  <div class="sectitle">Operations Guide &amp; Runbook <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted)">— SmartThings API, refrigerator camera &amp; discovered capabilities</span></div>
+  <div class="card" style="gap:10px">
+    <div class="crow">
+      <span class="nm">Smart Home Operations Guide</span>
+      <button type="button" class="btn" id="inspectAllBtn" onclick="inspectDevicesLive()">↻ Inspect SmartThings Capabilities</button>
+    </div>
+    <div id="runbookPlaybooks" style="display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:20px;color:var(--muted)"></div>
+    <div id="runbookDiscovered" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px;color:var(--muted)"></div>
+    <div id="runbookEntries" style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:18px;color:var(--text)"></div>
+    <details style="margin-top:4px">
+      <summary class="lnk" style="min-height:36px">+ Add or update runbook note for Jarvis &amp; Smart Home</summary>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <label class="schf" for="rb-title"><span>Note title</span><input id="rb-title" class="tin" placeholder="e.g. Family Hub Fridge Camera Note" /></label>
+        <label class="schf" for="rb-device"><span>Device (optional)</span><input id="rb-device" class="tin" placeholder="e.g. refrigerator" /></label>
+        <label class="schf" for="rb-content"><span>Operational note / API finding</span><textarea id="rb-content" class="tin" rows="3" placeholder="Document device capabilities, SmartThings API behavior, or instructions for Jarvis…"></textarea></label>
+        <div class="crow"><button type="button" class="btn" id="saveRunbookNoteBtn" onclick="saveRunbookNote()">Save to Operations Guide</button></div>
+      </div>
+    </details>
+  </div>
+  </section>
 
   <section id="schedSection" hidden>
   <div class="sectitle">Schedules <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted)">— timers (also on the Calendar)</span></div>
@@ -279,15 +445,20 @@ async function api(path, body, method) {
 function deviceName(d) { return d.userName || d.name; }
 function isOn(d) { return d.switch === 'on'; }
 function hasDim(d) { return (d.capabilities || []).includes('switchLevel'); }
+function isLocalSwarm(d) { return (d.sources || []).some((s) => s.hub === 'swarm-local'); }
+/** A TV on the network is pressed through the person's computer under TVs and streaming sticks, never by a saved switch. */
+function isNetworkTvDevice(d) { return isLocalSwarm(d) && (d.protocol === 'lan-tv' || /(^|[^a-z])(tv|television|display|roku|streaming|chromecast|fire ?stick)([^a-z]|$)/i.test(String(d.category || ''))); }
 function cardHtml(d) {
   const on = isOn(d);
+  const localBadge = isLocalSwarm(d) ? ` <span class="pill ok" title="Direct Swarm ${esc(d.protocol || 'local')} ($0 API)">Swarm · ${esc(d.protocol || 'local')}</span>` : '';
+  const tempBadge = d.temperatureF != null ? ` <span class="pill">${esc(d.temperatureF)}°F</span>` : '';
   const dim = hasDim(d) ? `<div class="dim"><input type="range" min="1" max="100" value="50" aria-label="Brightness for ${esc(deviceName(d))}"
       onchange="setLevel('${d.key}', this.value)" /><span class="lvl" id="lvl-${d.key}">50%</span></div>` : '';
   return `<div class="card ${on?'on':''}" id="card-${d.key}">
-    <div class="crow"><span class="nm">${esc(deviceName(d))}</span>
+    <div class="crow"><span class="nm">${esc(deviceName(d))}${localBadge}${tempBadge}</span>
       <span class="pill ${on?'on':''}">${on?'On':'Off'}</span></div>
     <div class="crow">
-      <button type="button" class="sw ${on?'on':''}" role="switch" aria-checked="${on?'true':'false'}" aria-label="Switch ${esc(deviceName(d))}" onclick="toggle('${d.key}', ${on?0:1})"><span class="sw-track"><span class="knob"></span></span></button>
+      ${isNetworkTvDevice(d) ? '<span class="tv-note">Pressed under TVs and streaming sticks.</span>' : `<button type="button" class="sw ${on?'on':''}" role="switch" aria-checked="${on?'true':'false'}" aria-label="Switch ${esc(deviceName(d))}" onclick="toggle('${d.key}', ${on?0:1})"><span class="sw-track"><span class="knob"></span></span></button>`}
       <span class="spacer"></span></div>
     ${dim}
   </div>`;
@@ -303,15 +474,159 @@ async function loadDevices() {
   layout();
 }
 
+function hasFridgeDevice() {
+  return DEVICES.some((d) => /refrigerat|fridge|family\s*hub/i.test(deviceName(d)) || (d.capabilities || []).some((c) => /viewInside|refrigeration|fridgeMode/i.test(c)));
+}
+function renderFridgeComparisonAndShelves(a) {
+  if ($('fridgeTempCooler') && a.telemetry) $('fridgeTempCooler').textContent = `Cooler: ${a.telemetry.coolerTempF}°F · Closed`;
+  if ($('fridgeTempFreezer') && a.telemetry) $('fridgeTempFreezer').textContent = `Freezer: ${a.telemetry.freezerTempF}°F · Closed`;
+  if ($('fridgeWeeklySchedBadge') && a.weeklySchedule) {
+    $('fridgeWeeklySchedBadge').textContent = `Weekly Assessment: ${a.weeklySchedule.dayOfWeek} ${a.weeklySchedule.time} · ${a.weeklySchedule.enabled ? 'Active' : 'Paused'}`;
+  }
+  const items = (a.currentSnapshot && a.currentSnapshot.items) || [];
+  if ($('fridgeShelfInventory')) {
+    $('fridgeShelfInventory').innerHTML = items.map((i) => {
+      const badgeCls = i.status === 'use-first' ? 'pill on' : (i.status === 'running-low' ? 'pill' : 'pill ok');
+      return `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <span><strong style="color:var(--text)">${esc(i.name)}</strong> <span class="dim">(${esc(i.shelf)} · ${esc(i.quantity)})</span></span>
+        <span class="${badgeCls}">${esc(i.status)}</span>
+      </div>`;
+    }).join('');
+  }
+  const cmp = a.comparison || {};
+  if ($('fridgeComparisonSummary')) $('fridgeComparisonSummary').textContent = cmp.summaryText || '';
+  if ($('fridgeComparisonLists')) {
+    const useFirst = (cmp.useFirst || []).map((u) => esc(u.name)).join(', ') || 'None';
+    const depleted = (cmp.depletedFromLastWeek || []).map((d) => esc(d.name)).join(', ') || 'None';
+    const low = (cmp.runningLow || []).map((r) => `${esc(r.name)} (${esc(r.quantity)})`).join(', ') || 'None';
+    $('fridgeComparisonLists').innerHTML =
+      `<div><strong style="color:var(--text)">Eat First (48–72h):</strong> ${useFirst}</div>` +
+      `<div><strong style="color:var(--text)">Depleted Since Last Week:</strong> ${depleted}</div>` +
+      `<div><strong style="color:var(--text)">Running Low on Shelf:</strong> ${low}</div>`;
+  }
+}
+function renderFridgeAssessment(a) {
+  if (!a || !a.comparison) return;
+  renderFridgeComparisonAndShelves(a);
+  const cart = a.cart || { items: [], status: 'recommended', activeItemCount: 0 };
+  if ($('fridgeCartStatusBadge')) {
+    $('fridgeCartStatusBadge').textContent = `${cart.status === 'active' ? 'Cart Started' : 'Recommended'} · ${cart.activeItemCount || 0} items`;
+  }
+  if ($('fridgeCartItems')) {
+    $('fridgeCartItems').innerHTML = (cart.items || []).map((c) =>
+      `<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" ${c.inCart ? 'checked' : ''} onchange="toggleFridgeCartItem('${esc(c.id)}')" />
+          <span><strong style="color:var(--text)">${esc(c.name)}</strong> <span class="dim">(${esc(c.quantity)} — ${esc(c.reason)})</span></span>
+        </label>
+        <span class="pill ${c.inCart ? 'ok' : ''}">${c.inCart ? 'In Cart' : 'Optional'}</span>
+      </div>`
+    ).join('');
+  }
+  const meals = (a.mealPlan && a.mealPlan.entries) || [];
+  if ($('fridgeMealPlanList')) {
+    $('fridgeMealPlanList').innerHTML = meals.map((m) =>
+      `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px">
+        <div class="crow"><strong style="color:var(--text)">${esc(m.day)}: ${esc(m.title)}</strong><span class="pill">${esc(m.prepTimeMin)} min</span></div>
+        <div class="dim" style="margin-top:2px"><strong>From Fridge:</strong> ${esc((m.usesFromFridge || []).join(', '))}</div>
+        ${(m.usesFromOrdersOrCart || []).length ? `<div class="dim"><strong>From Orders / Cart:</strong> ${esc(m.usesFromOrdersOrCart.join(', '))}</div>` : ''}
+        <div class="dim" style="margin-top:2px">${esc(m.notes)}</div>
+      </div>`
+    ).join('');
+  }
+}
+async function loadFridgeAssessment() {
+  try {
+    const a = await api('/fridge-assessment');
+    renderFridgeAssessment(a);
+  } catch (e) { /* optional in synthetic fixtures */ }
+}
+async function runFridgeAssessmentNow() {
+  const b = $('runFridgeAssessmentBtn');
+  if (b) { b.disabled = true; b.textContent = '📊 Assessing…'; }
+  try {
+    const focus = ($('fridge-meal-focus') && $('fridge-meal-focus').value) || 'use-first';
+    const a = await api('/fridge-assessment', { focus }, 'POST');
+    renderFridgeAssessment(a);
+    toast('Weekly refrigerator assessment & meal plan updated');
+  } catch (e) {
+    toast('Assessment failed: ' + e.message);
+  } finally {
+    if (b) { b.disabled = false; b.textContent = '📊 Run Weekly Assessment Now'; }
+  }
+}
+async function startFridgeCart() {
+  try {
+    const a = await api('/fridge-meal-plan', { action: 'start-cart' }, 'POST');
+    renderFridgeAssessment(a);
+    toast('Grocery cart started with recommended restock items');
+  } catch (e) {
+    toast('Cart failed: ' + e.message);
+  }
+}
+async function toggleFridgeCartItem(id) {
+  try {
+    const a = await api('/fridge-meal-plan', { action: 'toggle-cart-item', id }, 'POST');
+    renderFridgeAssessment(a);
+  } catch (e) {
+    toast('Update failed: ' + e.message);
+  }
+}
+async function addFridgeCartItem() {
+  const inp = $('fridge-cart-add-input');
+  const name = (inp && inp.value || '').trim();
+  if (!name) { toast('Enter an item name to add'); return; }
+  try {
+    const a = await api('/fridge-meal-plan', { action: 'add-cart-item', name }, 'POST');
+    if (inp) inp.value = '';
+    renderFridgeAssessment(a);
+    toast('Added ' + name + ' to grocery cart');
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  }
+}
+async function rebuildFridgeMealList() {
+  const focus = ($('fridge-meal-focus') && $('fridge-meal-focus').value) || 'use-first';
+  try {
+    const a = await api('/fridge-meal-plan', { action: 'build-meal-list', focus }, 'POST');
+    renderFridgeAssessment(a);
+    toast('Rebuilt meal list (' + focus + ')');
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  }
+}
+async function refreshFridgeCamera() {
+  const b = $('refreshFridgeCamBtn');
+  if (b) { b.disabled = true; b.textContent = '📸 Refreshing Cameras…'; }
+  try {
+    const r = await api('/fridge-refresh', {});
+    const img = $('fridgeCamImg');
+    if (img && r.imageUrl) img.src = r.imageUrl;
+    await loadFridgeAssessment();
+    toast('Refreshed Samsung Family Hub View Inside');
+  } catch (e) {
+    toast('Camera refresh: ' + e.message);
+  } finally {
+    if (b) { b.disabled = false; b.textContent = '📸 Refresh View Inside Camera'; }
+  }
+}
 /** What the dashboard shows, by what exists: no device and no scene is one empty state; Schedules need something to run. */
 function layout() {
   const scenes = (window.__scenes || []).length, devices = DEVICES.length, any = devices > 0 || scenes > 0;
+  const showFridge = !AUTOMATIONS_VIEW && hasFridgeDevice();
+  if ($('fridgeCameraSection')) {
+    const wasHidden = $('fridgeCameraSection').hidden;
+    $('fridgeCameraSection').hidden = !showFridge;
+    if (showFridge && wasHidden) loadFridgeAssessment();
+  }
   $('devicesSection').hidden = AUTOMATIONS_VIEW || devices === 0;
   $('schedSection').hidden = !AUTOMATIONS_VIEW || !any;
-  $('emptyState').hidden = any || !DEVICES_LOADED;
+  $('runbookSection').hidden = AUTOMATIONS_VIEW || (!any && !RUNBOOK_VIEW);
+  $('emptyState').hidden = any || RUNBOOK_VIEW || !DEVICES_LOADED;
   $('refresh').hidden = !HUBS_SEEN;
 }
 let HUBS_SEEN = false, DEVICES_LOADED = false;
+const RUNBOOK_VIEW = new URLSearchParams(location.search).get('view') === 'runbook';
 /** Show the hub rows (the empty state's Connect a hub, a refused refresh). */
 function showHubs() { $('connectHub').hidden = true; $('hubsPanel').hidden = false; $('hubsPanel').scrollIntoView({ block: 'nearest' }); }
 $('connectHub').onclick = showHubs;
@@ -343,6 +658,108 @@ function renderHubsReporting(hubs, deviceCount, readAt) {
     const on = hubs.some((h) => re.test(String(h)));
     $(id).textContent = on ? 'Connected' + when : 'Not connected';
     $(id).className = on ? 'pill ok' : 'pill';
+  }
+  const swarmEl = $('pill-swarm-local');
+  if (swarmEl) {
+    const hasLocal = hubs.some((h) => /swarm-local/i.test(String(h)));
+    swarmEl.textContent = hasLocal ? 'Connected · $0 API' + when : 'Ready · $0 API';
+    swarmEl.className = 'pill ok';
+  }
+}
+
+async function loadLocalDiscovery() {
+  const listEl = $('localCandidatesList');
+  if (!listEl) return;
+  try {
+    const res = await api('/local-discover');
+    const candidates = res.candidates || [];
+    listEl.innerHTML = candidates.map((c) => {
+      const done = c.registered === true;
+      return `<div class="hubrow" style="padding:8px 10px">
+        <span class="hub-meta">${esc(c.name)} <span class="pill">${esc(c.protocol)} · ${esc(c.address)}</span></span>
+        <span class="hub-actions">${done ? '<span class="pill ok">Registered</span>' : `<button type="button" class="btn" onclick="registerCandidateById('${esc(c.id)}')">Register</button>`}</span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="dim">Scan unavailable: ${esc(e.message)}</div>`;
+  }
+}
+
+function toggleLocalSwarmPanel() {
+  const p = $('localSwarmPanel');
+  if (!p) return;
+  p.hidden = !p.hidden;
+  if (!p.hidden) loadLocalDiscovery();
+}
+
+async function registerCandidateById(id) {
+  try {
+    await api('/local-discover', { registerIds: [id] }, 'POST');
+    await loadDevices();
+    await loadLocalDiscovery();
+    await loadOperationsGuide();
+    toast('Registered in Swarm ($0 API)');
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
+async function autoRegisterAllLocal() {
+  try {
+    const r = await api('/local-discover', { autoRegister: true }, 'POST');
+    await loadDevices();
+    await loadLocalDiscovery();
+    await loadOperationsGuide();
+    toast(`Registered ${r.addedCount || 0} local Swarm devices`);
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
+async function registerCustomLocalDevice() {
+  const name = ($('reg-name') && $('reg-name').value || '').trim();
+  const category = ($('reg-category') && $('reg-category').value || 'Appliance').trim();
+  const protocol = ($('reg-protocol') && $('reg-protocol').value || 'bluetooth').trim();
+  const address = ($('reg-address') && $('reg-address').value || '').trim();
+  const room = ($('reg-room') && $('reg-room').value || 'Kitchen').trim();
+  if (!name) { toast('Enter a device name'); return; }
+  try {
+    await api('/devices/register', { name, category, protocol, address: address || name, room }, 'POST');
+    if ($('reg-name')) $('reg-name').value = '';
+    if ($('reg-address')) $('reg-address').value = '';
+    await loadDevices();
+    await loadLocalDiscovery();
+    await loadOperationsGuide();
+    toast('Registered ' + name + ' in Swarm');
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
+function toggleStTokenBox() {
+  const p = $('stTokenPanel');
+  if (p) p.hidden = !p.hidden;
+}
+
+async function saveDirectSmartThingsToken() {
+  const token = ($('st-token-input') && $('st-token-input').value || '').trim();
+  if (token.length < 8) { toast('Paste a valid SmartThings token'); return; }
+  try {
+    await fetch('/api/connectors/marketplace/smartthings/enable-for-me', { method: 'POST', credentials: 'include' }).catch(() => {});
+    await fetch('/connectors/smartthings/connect', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).catch(() => {});
+    await api('/connect-token', { token }, 'POST');
+    if ($('st-token-input')) $('st-token-input').value = '';
+    if ($('stTokenPanel')) $('stTokenPanel').hidden = true;
+    await loadDevices();
+    await loadOperationsGuide();
+    toast('SmartThings token saved & devices loaded');
+  } catch (e) {
+    toast('Failed: ' + e.message);
   }
 }
 
@@ -451,7 +868,7 @@ async function runScene(name) {
 }
 async function refresh() {
   const b = $('refresh'); b.disabled = true; b.textContent = '↻ Refreshing…'; $('alert').hidden = true;
-  try { await api('/refresh', {}); await loadDevices(); await loadScenes(); toast('Refreshed'); }
+  try { await api('/refresh', {}); await loadDevices(); await loadScenes(); await loadOperationsGuide(); toast('Refreshed'); }
   catch (e) {
     if (e.status === 409) showAlert("SmartThings isn't connected yet. Connect it above.", true);
     else showAlert('Your hubs could not be read just now: ' + e.message, false);
@@ -459,9 +876,66 @@ async function refresh() {
   finally { b.disabled = false; b.textContent = '↻ Refresh'; }
 }
 
+function renderOperationsGuide(g) {
+  const playbooks = (g && g.playbooks) || [];
+  const discovered = (g && g.discoveredDevices) || [];
+  const entries = (g && g.entries) || [];
+  $('runbookPlaybooks').innerHTML = playbooks.map((p) =>
+    `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)"><strong style="color:var(--text)">${esc(p.title)}</strong><div>${esc(p.summary)}</div></div>`
+  ).join('');
+  $('runbookDiscovered').innerHTML = discovered.length
+    ? `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px"><strong style="color:var(--text)">Discovered Device Capabilities (${discovered.length}):</strong> ` +
+      discovered.map((d) => `${esc(d.name)} <span class="pill">${esc((d.capabilities || []).slice(0, 6).join(', ') || 'indexed')}</span>`).join(' · ') + `</div>`
+    : '';
+  $('runbookEntries').innerHTML = entries.map((e) =>
+    `<div style="padding:8px 10px;border:1px solid var(--line);border-radius:10px"><strong>${esc(e.title)}</strong>${e.device ? ` <span class="pill">${esc(e.device)}</span>` : ''}<div style="color:var(--muted);margin-top:2px">${esc(e.content)}</div></div>`
+  ).join('');
+}
+
+async function loadOperationsGuide() {
+  try {
+    const g = await api('/operations-guide');
+    renderOperationsGuide(g);
+  } catch (e) { /* optional in synthetic fixtures */ }
+}
+
+async function inspectDevicesLive() {
+  const b = $('inspectAllBtn');
+  if (b) { b.disabled = true; b.textContent = '↻ Inspecting…'; }
+  try {
+    await api('/device-inspect?device=all');
+    await loadOperationsGuide();
+    toast('Capabilities updated in Operations Guide');
+  } catch (e) {
+    toast('Inspect: ' + e.message);
+  } finally {
+    if (b) { b.disabled = false; b.textContent = '↻ Inspect SmartThings Capabilities'; }
+  }
+}
+
+async function saveRunbookNote() {
+  const title = ($('rb-title') && $('rb-title').value || '').trim();
+  const device = ($('rb-device') && $('rb-device').value || '').trim();
+  const content = ($('rb-content') && $('rb-content').value || '').trim();
+  if (!content) { toast('Enter a note to save'); return; }
+  try {
+    const r = await api('/operations-guide', { title: title || 'Operational note', device: device || undefined, content }, 'POST');
+    if ($('rb-title')) $('rb-title').value = '';
+    if ($('rb-device')) $('rb-device').value = '';
+    if ($('rb-content')) $('rb-content').value = '';
+    if (r && r.guide) renderOperationsGuide(r.guide);
+    else await loadOperationsGuide();
+    toast('Saved to Operations Guide');
+  } catch (e) {
+    toast('Failed: ' + e.message);
+  }
+}
+
 // The full page only: under an audience view the shared kit paints instead (see the head script).
-if (!window.AppView || !AppView.active()) { loadDevices().catch((e) => showAlert('Your devices could not be read just now: ' + e.message, false)); loadScenes(); loadSchedules(); }
+if (!window.AppView || !AppView.active()) { loadDevices().catch((e) => showAlert('Your devices could not be read just now: ' + e.message, false)); loadScenes(); loadSchedules(); loadOperationsGuide(); }
 </script>
+<!-- TVs and streaming sticks (1.4.0): the section's own module; it mounts only on the Smart Home screen, not on Hubs or Automations. -->
+<script type="module" src="/api/home/ui/home-tvs.js"></script>
 
 <!-- TV mode (?tv=1): D-pad spatial navigation for big-screen surfaces that load this dashboard
      top-level (Samsung Tizen; any future web-TV node). Self-contained so it does not depend on

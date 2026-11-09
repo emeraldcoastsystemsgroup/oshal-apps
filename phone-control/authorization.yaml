@@ -6,6 +6,8 @@
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.1.0: bindings for the routes and tools that remain; the drawn screen, frame ingest, operations batch, concierge, screenshot import, control contract, blobs, artifacts, enrol and every pair-* and verify route are gone with their bindings. New: history.write (what the page sent and what the computer answered), bridge.read (the bridge files the page installs on the person's own computer), the device update and the computer reports.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0, device features are for the administrator only (Roger, 2026-11-06: "this has to be an admin only me role and saved to the profile who is configuring it"): every permission but the two page views needs the admin tier; viewer, reader, operator and editor open the page only, which says the features are not available on their account. Every record stays the configuring person's own (scope own).
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: bind /sessions routes and concierge session tools (preferences, chat, whiteboard, saved captures, and transfers) to the existing admin-tier own-scope permissions so operator-phone-control-admin authority remains unchanged.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: bind POST /provision and phone-provision tool to [configuration.view, configuration.pair].
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: bind POST /devices/:id/execute, grant configuration.pair to device-concierge, and bind phone-control-register-device, phone-control-update-device, and phone-control-execute-device tools.
 # ─────────────────────────────────────────────────────────────────────────────
 
 version: 1
@@ -74,7 +76,9 @@ bindings:
     - { id: devices-create, method: POST, path: /devices, allOf: [configuration.view, configuration.pair] }
     - { id: device-get, method: GET, path: '/devices/:id', allOf: [execution.view, execution.read] }
     - { id: device-command-plan, method: POST, path: '/devices/:id/command-plan', allOf: [execution.view, execution.operate] }
+    - { id: device-execute, method: POST, path: '/devices/:id/execute', allOf: [execution.view, execution.operate] }
     - { id: rdp-command-plan, method: POST, path: /rdp/command-plan, allOf: [execution.view, execution.operate] }
+    - { id: device-provision, method: POST, path: /provision, allOf: [configuration.view, configuration.pair] }
     - { id: device-update, method: POST, path: '/devices/:id', allOf: [configuration.view, configuration.manage] }
     - { id: device-delete, method: DELETE, path: '/devices/:id', allOf: [configuration.view, configuration.revoke] }
     - { id: history-list, method: GET, path: /history, allOf: [execution.view, execution.read] }
@@ -102,7 +106,7 @@ bindings:
     - { id: concierge-turn, method: POST, path: /concierge/turn, allOf: [execution.view, execution.operate] }
 
   bots:
-    - { id: f518c3e9-92a4-47d6-85c1-d827a93c1058, allOf: [execution.view, execution.read, execution.operate, configuration.view, configuration.read, configuration.manage] }
+    - { id: f518c3e9-92a4-47d6-85c1-d827a93c1058, allOf: [execution.view, execution.read, execution.operate, configuration.view, configuration.read, configuration.pair, configuration.manage] }
 
   tools:
     - { id: phone-control-list-devices, allOf: [execution.view, execution.read] }
@@ -121,3 +125,7 @@ bindings:
     - { id: phone-control-stage-transfer, allOf: [execution.view, execution.operate] }
     - { id: phone-control-plan-command, allOf: [execution.view, execution.operate] }
     - { id: phone-control-rdp-command, allOf: [execution.view, execution.operate] }
+    - { id: phone-provision, allOf: [configuration.view, configuration.pair] }
+    - { id: phone-control-register-device, allOf: [configuration.view, configuration.pair] }
+    - { id: phone-control-update-device, allOf: [configuration.view, configuration.manage] }
+    - { id: phone-control-execute-device, allOf: [execution.view, execution.operate] }

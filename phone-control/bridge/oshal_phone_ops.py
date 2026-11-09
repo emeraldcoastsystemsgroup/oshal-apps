@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: learnable BLE pointer calibration (ble-calibrate + ble-profiles.json), RDP X.224 port probe (rdp-probe), and unified screen/pointer/keyboard bridge verbs (screen-info, pointer-move, pointer-click, pointer-drag, keyboard-type, keyboard-key).
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: map Android MENU alias to MENU keycode, handle string phone lists in ble-calibrate, and pass target address to BLE keyboard/key ops.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT, and DPAD_CENTER aliases in ANDROID_KEY_ALIASES and IOS_KEY_ALIASES.
 """Calibration, RDP probe, and unified pointer/keyboard verbs for oshal_phone_bridge.py."""
 
 import io, json, os, re, shutil, socket, struct, time
@@ -13,20 +14,20 @@ HOST_RE = re.compile(r'^(?:\d{1,3}(?:\.\d{1,3}){3}|[A-Za-z0-9][A-Za-z0-9.-]{0,25
 X224_CR = b'\x03\x00\x00\x13\x0e\xe0\x00\x00\x00\x00\x00\x01\x00\x08\x00\x03\x00\x00\x00'
 RDP_PROTOCOLS = {0: 'Standard RDP', 1: 'TLS', 2: 'NLA (CredSSP)', 3: 'NLA (CredSSP)'}
 IOS_KEY_ALIASES = {
-    'ENTER': 'Enter', 'RETURN': 'Enter', 'OK': 'Select', 'SELECT': 'Select',
+    'ENTER': 'Enter', 'RETURN': 'Enter', 'OK': 'Select', 'SELECT': 'Select', 'DPAD_CENTER': 'Select',
     'BACKSPACE': 'Backspace', 'ESCAPE': 'Escape', 'ESC': 'Escape', 'TAB': 'Tab',
     'HOME': 'Home', 'BACK': 'Back', 'MENU': 'Menu', 'PLAY_PAUSE': 'PlayPause', 'PLAYPAUSE': 'PlayPause',
-    'UP': 'Up', 'ARROWUP': 'Up', 'DOWN': 'Down', 'ARROWDOWN': 'Down',
-    'LEFT': 'Left', 'ARROWLEFT': 'Left', 'RIGHT': 'Right', 'ARROWRIGHT': 'Right',
+    'UP': 'Up', 'ARROWUP': 'Up', 'DPAD_UP': 'Up', 'DOWN': 'Down', 'ARROWDOWN': 'Down', 'DPAD_DOWN': 'Down',
+    'LEFT': 'Left', 'ARROWLEFT': 'Left', 'DPAD_LEFT': 'Left', 'RIGHT': 'Right', 'ARROWRIGHT': 'Right', 'DPAD_RIGHT': 'Right',
     'VOLUME_UP': 'VolumeUp', 'VOLUMEUP': 'VolumeUp', 'VOLUME_DOWN': 'VolumeDown', 'VOLUMEDOWN': 'VolumeDown',
     'SPOTLIGHT': 'Spotlight',
 }
 ANDROID_KEY_ALIASES = {
-    'ENTER': 'ENTER', 'RETURN': 'ENTER', 'SELECT': 'OK', 'OK': 'OK',
+    'ENTER': 'ENTER', 'RETURN': 'ENTER', 'SELECT': 'OK', 'OK': 'OK', 'DPAD_CENTER': 'OK',
     'BACKSPACE': 'BACKSPACE', 'ESCAPE': 'BACK', 'ESC': 'BACK', 'BACK': 'BACK', 'TAB': 'TAB',
     'HOME': 'HOME', 'MENU': 'MENU', 'RECENTS': 'RECENTS', 'PLAYPAUSE': 'PLAY_PAUSE', 'PLAY_PAUSE': 'PLAY_PAUSE',
-    'UP': 'UP', 'ARROWUP': 'UP', 'DOWN': 'DOWN', 'ARROWDOWN': 'DOWN',
-    'LEFT': 'LEFT', 'ARROWLEFT': 'LEFT', 'RIGHT': 'RIGHT', 'ARROWRIGHT': 'RIGHT',
+    'UP': 'UP', 'ARROWUP': 'UP', 'DPAD_UP': 'UP', 'DOWN': 'DOWN', 'ARROWDOWN': 'DOWN', 'DPAD_DOWN': 'DOWN',
+    'LEFT': 'LEFT', 'ARROWLEFT': 'LEFT', 'DPAD_LEFT': 'LEFT', 'RIGHT': 'RIGHT', 'ARROWRIGHT': 'RIGHT', 'DPAD_RIGHT': 'RIGHT',
     'VOLUMEUP': 'VOLUME_UP', 'VOLUME_UP': 'VOLUME_UP', 'VOLUMEDOWN': 'VOLUME_DOWN', 'VOLUME_DOWN': 'VOLUME_DOWN',
     'POWER': 'POWER',
 }

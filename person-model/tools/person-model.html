@@ -13,14 +13,15 @@
   <div class="wrap">
     <h1>Ambient Recall</h1>
     <p class="sub">
-      Ask what someone said. Answers are counted from your own transcripts — the number is exact,
-      the lines are quoted verbatim, and playback re-speaks them in the assistant voice. Topics,
-      asks and trends are oshal's read of those words, always shown beside them, and can be deleted.
+      Ask what someone said, review your continuously learned personal profile, and browse eavesdrop
+      business cards built from your ambient transcripts. Answers are counted from your own transcripts —
+      the number is exact, the lines are quoted verbatim, and playback re-speaks them in the assistant voice.
       No audio is ever stored.
     </p>
 
     <nav class="tabs" role="tablist" aria-label="Ambient Recall sections">
       <button type="button" role="tab" data-tab="recall" aria-selected="true">Recall</button>
+      <button type="button" role="tab" data-tab="cards" aria-selected="false">Profile &amp; Cards</button>
       <button type="button" role="tab" data-tab="asks" aria-selected="false">Asks</button>
       <button type="button" role="tab" data-tab="people" aria-selected="false">People</button>
       <button type="button" role="tab" data-tab="trends" aria-selected="false">Trends</button>
@@ -35,13 +36,85 @@
       <p class="examples">Try:
         <code data-ex="How many times has Ella mentioned volleyball today?">count a topic</code> ·
         <code data-ex="What did Sam say about the school trip?">what did they say</code> ·
-        <code data-ex="What has Ella asked me?">open asks</code>
+        <code data-ex="What has Ella asked me?">open asks</code> ·
+        <code data-ex="What is my address and learned profile?">my learned profile</code>
       </p>
       <div id="answer" class="answer">
         <div class="note" data-testid="recall-initial-empty">
-          Ask a question above to count exact mentions and view verbatim transcript quotes.
+          Ask a question above to count exact mentions, recall your learned profile facts, or view verbatim transcript quotes.
         </div>
       </div>
+    </section>
+
+    <section data-panel="cards" hidden>
+      <div id="self-profile-card" data-testid="self-profile-card" class="profile-hero-card"></div>
+
+      <div class="teach-bar">
+        <input id="teach-fact-input" type="text" autocomplete="off"
+               placeholder="Teach a continuous-learning fact (e.g., Preferred airport is VPS, or Gate code is 4812)..." />
+        <select id="teach-fact-category" aria-label="Fact category">
+          <option value="identity">Identity &amp; Address</option>
+          <option value="preference" selected>Preference</option>
+          <option value="household">Household</option>
+          <option value="work">Work &amp; Programs</option>
+          <option value="architecture">Platform Rule</option>
+        </select>
+        <button id="teach-fact-btn" type="button" class="btn">Teach Fact</button>
+        <button id="edit-self-toggle" type="button" class="btn ghost small">Edit Profile</button>
+      </div>
+
+      <form id="edit-self-form" class="inline-editor" hidden>
+        <h3>Edit My Learned Profile</h3>
+        <div class="editor-grid">
+          <label>Full Name <input id="self-name-input" type="text" autocomplete="off" /></label>
+          <label>Address <input id="self-address-input" type="text" autocomplete="off" /></label>
+          <label>Email <input id="self-email-input" type="text" autocomplete="off" /></label>
+          <label>Phone <input id="self-phone-input" type="text" autocomplete="off" /></label>
+          <label>Role / Title <input id="self-role-input" type="text" autocomplete="off" /></label>
+          <label>Organization <input id="self-org-input" type="text" autocomplete="off" /></label>
+          <label>Clearance <input id="self-clearance-input" type="text" autocomplete="off" /></label>
+          <label>Education <input id="self-education-input" type="text" autocomplete="off" /></label>
+        </div>
+        <div class="actions">
+          <button id="self-save-btn" type="submit" class="btn small">Save Profile</button>
+          <button id="self-cancel-btn" type="button" class="btn ghost small">Cancel</button>
+        </div>
+      </form>
+
+      <div class="cards-header-row">
+        <div>
+          <h2>Eavesdrop People &amp; Business Cards <span id="cards-count-badge" class="inference-tag">0 cards</span></h2>
+          <p class="meta">
+            Automatically synthesized from your ambient voice diarization, transcript topics, and open commitments.
+          </p>
+        </div>
+        <div class="row">
+          <input id="cards-filter" type="text" autocomplete="off" placeholder="Filter business cards by name, topic, or role..." />
+          <button id="new-card-toggle" type="button" class="btn small">+ Business Card</button>
+        </div>
+      </div>
+
+      <form id="upsert-card-form" class="inline-editor" hidden>
+        <h3 id="upsert-card-title">Add or Update Eavesdrop Business Card</h3>
+        <input id="card-id-input" type="hidden" />
+        <div class="editor-grid">
+          <label>Name * <input id="card-name-input" type="text" autocomplete="off" required placeholder="e.g., Ella or Alex Rivera" /></label>
+          <label>Role / Title <input id="card-role-input" type="text" autocomplete="off" placeholder="e.g., Program Director" /></label>
+          <label>Organization <input id="card-org-input" type="text" autocomplete="off" placeholder="e.g., Agentic Federal" /></label>
+          <label>Relationship <input id="card-rel-input" type="text" autocomplete="off" placeholder="Family, Colleague, Client..." /></label>
+          <label>Email <input id="card-email-input" type="text" autocomplete="off" placeholder="name@example.com" /></label>
+          <label>Phone <input id="card-phone-input" type="text" autocomplete="off" placeholder="(555) 010-2000" /></label>
+          <label>Topics (comma-separated) <input id="card-topics-input" type="text" autocomplete="off" placeholder="volleyball, schedule, travel" /></label>
+          <label>Open Commitments (comma-separated) <input id="card-commitments-input" type="text" autocomplete="off" placeholder="Send proposal draft by Friday" /></label>
+        </div>
+        <label class="full-field">Recent Quote Receipt <input id="card-quote-input" type="text" autocomplete="off" placeholder="Verbatim quote heard from this person..." /></label>
+        <div class="actions">
+          <button id="card-save-btn" type="submit" class="btn small">Save Business Card</button>
+          <button id="card-cancel-btn" type="button" class="btn ghost small">Cancel</button>
+        </div>
+      </form>
+
+      <div id="business-cards-grid" data-testid="business-cards-grid" class="cards-grid"></div>
     </section>
 
     <section data-panel="asks" hidden>
@@ -59,6 +132,10 @@
     <section data-panel="people" hidden>
       <div id="people-list"></div>
       <div id="profile" hidden></div>
+      <div id="people-cards-shortcut" class="note shortcut-banner">
+        <span>Looking for your continuously learned personal profile or synthesized eavesdrop business cards?</span>
+        <button id="open-cards-tab-btn" type="button" class="btn small ghost">Open Profile &amp; Business Cards →</button>
+      </div>
     </section>
 
     <section data-panel="trends" hidden>

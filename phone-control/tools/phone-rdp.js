@@ -5,9 +5,12 @@
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: RDP host setup scripts (Windows PowerShell Admin, Linux GNOME/xrdp, macOS FreeRDP Shadow, Any RDP Host), X.224 rdp-probe verification, live /api/rdp/sessions unified console frame stream + click/drag/keyboard/snapshot/Concierge execution, and optional Fire TV Bluetooth OSHAL-KB pairing helper.
  * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: prevent Android companion APK resolution from falling back to the Fire TV APK, exclude Fire TVs when picking a connected Android phone, launch com.oshal.orbit instead of com.oshal.remote, and host shared AI Office studio stage helpers (device switcher, Controls | Concierge rail tabs, fullscreen stage + HUD, DRM notice, and touch indicator).
+ * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: support Swarm-enrolled Android nodes in renderScreenItems and renderDeviceSwitcher.
+ * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: mint Swarm join codes for zero-touch APK provisioning, launch com.oshal.remote with serverUrl and joinCode extras, and wire #stagePushApkBtn for one-click stage APK updates.
+ * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console stays hidden until an RDP session backend exists (nothing implements /api/rdp/sessions; the page marks the button and its sign-in fields hidden), so the Any RDP Host steps and the Check RDP port refusal no longer send the person to it. The session viewer below is kept for that backend.
  */
 
-import { bytesToBase64, sha256Hex, swipeFromDrag, tapPoint, workHref } from '/api/phone-control/ui/computer-link.js';
+import { bytesToBase64, isAndroidNode, isTvNode, sha256Hex, swipeFromDrag, tapPoint, workHref } from '/api/phone-control/ui/computer-link.js';
 
 const PAIR_WINDOW_SECONDS = 120;
 const APK_CHUNK_BYTES = 36864;
@@ -43,10 +46,10 @@ const RDP_SCRIPTS = Object.freeze({
     'freerdp-shadow-cli /port:3389 +auth'
   ].join('\n'),
   any: [
-    '# Any Windows, Linux, VM or cloud RDP host reachable from this server or your Linux computer:',
+    '# Any Windows, Linux, VM or cloud RDP host reachable from your Linux computer:',
     '# 1. Ensure Remote Desktop listens on TCP 3389 (or your custom port) with NLA/TLS enabled.',
     '# 2. Allow TCP 3389 on your LAN or Tailscale/WireGuard subnet.',
-    '# 3. Enter host, username and password below and press Connect in console.'
+    '# 3. Enter the host and port below and press Check RDP port.'
   ].join('\n')
 });
 
@@ -149,7 +152,7 @@ export function renderScreenItems(ctx, target, reply) {
     body.innerHTML = '<tr class="ks-empty-row"><td colspan="4">No words on this screen.</td></tr>';
     return;
   }
-  const { phone, rdp } = target;
+  const { phone, rdp, computer } = target;
   body.replaceChildren(...items.map((item) => {
     const row = document.createElement('tr');
     for (const value of [item.text, item.x, item.y]) {
@@ -166,6 +169,13 @@ export function renderScreenItems(ctx, target, reply) {
     tap.addEventListener('click', () => {
       if (rdp) {
         void ctx.queue.press(() => sendRdpInput(ctx, rdp, { action: 'click', x: item.x, y: item.y }, `Click ${item.text}`));
+      } else if (computer) {
+        void ctx.queue.press(async () => {
+          ctx.status(`Tap ${item.text}…`);
+          await ctx.app.computers.run(computer.id, 'mouse.click', { x: item.x, y: item.y, button: 'left', clicks: 1 });
+          ctx.scheduleFastFrame(260);
+          ctx.status(`Tap ${item.text}: done.`);
+        });
       } else if (phone?.platform === 'ios') {
         ctx.press('tap', `Tap ${item.text}`, 'ble-tap', { nx: item.nx, ny: item.ny });
       } else if (phone) {
@@ -176,7 +186,7 @@ export function renderScreenItems(ctx, target, reply) {
     row.append(cell);
     return row;
   }));
-  const where = rdp ? rdpLabel(rdp) : phone?.platform === 'ios' ? 'the mirrored iPhone screen' : (reply.package || 'the current app');
+  const where = rdp ? rdpLabel(rdp) : computer ? (computer.name || 'the device') : phone?.platform === 'ios' ? 'the mirrored iPhone screen' : (reply.package || 'the current app');
   ctx.$('screenTextHelp').textContent = `${items.length} on screen in ${where}${reply.truncated ? ' (the first ones only)' : ''}.`;
   ctx.app.refreshTables();
 }
@@ -305,7 +315,7 @@ async function probeRdpHost(ctx) {
     return;
   }
   if (!ctx.view.node) {
-    ctx.fail('rdpStatus', 'rdp_probe', 'Press Use this computer above to probe TCP 3389 from your LAN, or enter username and password and press Connect in console.', 'no_computer');
+    ctx.fail('rdpStatus', 'rdp_probe', 'Press Use this computer above first: the check runs from your Linux computer on the same network as the RDP host.', 'no_computer');
     return;
   }
   if (!(await ctx.install('rdpStatus'))) return;
@@ -434,6 +444,35 @@ export async function stageCompanionApk({ apk, bridge, nodeName, onProgress }) {
   return { stageId, sha256: digest };
 }
 
+async function provisionStageAndroidApk(ctx) {
+  const phone = ctx.app.state.selected?.kind === 'phone'
+    ? ctx.app.state.phones.find((p) => p.id === ctx.app.state.selected.id) || null
+    : null;
+  if (!phone || phone.platform !== 'android') return;
+  const nodeId = phone.computerNodeId || ctx.view.node;
+  if (!nodeId) { ctx.$('stageStatus').textContent = 'Select a connected Linux computer first.'; return; }
+  ctx.$('stageStatus').textContent = `Preparing Open Swarm APK for ${phone.name}…`;
+  const localApk = ctx.app.state.reports.get(nodeId)?.report?.tvApk || null;
+  const preferAndroid = phone.form !== 'tv';
+  const apk = await resolveCompanionApk(localApk, preferAndroid);
+  if (!apk) { ctx.$('stageStatus').textContent = 'No signed Open Swarm APK found on this server.'; return; }
+  const bridge = (verb, args, limit) => ctx.app.computers.bridge(nodeId, verb, args, limit);
+  const staged = await stageCompanionApk({
+    apk, bridge, nodeName: ctx.app.computer(nodeId)?.name || 'computer',
+    onProgress: (m) => { ctx.$('stageStatus').textContent = m; }
+  });
+  const serverUrl = globalThis.location?.origin || 'https://oshal.agenticfederal.us';
+  ctx.$('stageStatus').textContent = `Installing Open Swarm APK on ${phone.name} (${phone.address})…`;
+  const installed = await bridge('adb-install-apk', {
+    serial: phone.address, stageId: staged.stageId, sha256: staged.sha256,
+    preferAndroid, launchPackage: 'com.oshal.remote', serverUrl
+  }, 180000);
+  await ctx.remember('install apk', `Push Open Swarm APK to ${phone.name}`, installed);
+  ctx.$('stageStatus').textContent = installed.ok
+    ? `Installed and launched Open Swarm on ${phone.name}.`
+    : (installed.message || 'APK installation failed.');
+}
+
 async function installAndroidCompanionFromConnect(ctx, saveAndOpenPhone) {
   if (!(await ctx.install('androidStatus'))) return;
   const raw = ctx.$('connectAddress').value.trim();
@@ -461,9 +500,11 @@ async function installAndroidCompanionFromConnect(ctx, saveAndOpenPhone) {
     return;
   }
   const staged = await stageCompanionApk({ apk, bridge: ctx.bridge, nodeName: ctx.nodeName(), onProgress: (m) => ctx.say('androidStatus', m) });
+  const serverUrl = globalThis.location?.origin || 'https://oshal.agenticfederal.us';
   ctx.say('androidStatus', `Installing oshal Orbit (${apk.file}) on ${serial}…`);
   const installed = await ctx.bridge('adb-install-apk', {
-    serial, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true, launchPackage: 'com.oshal.orbit'
+    serial, stageId: staged.stageId, sha256: staged.sha256, preferAndroid: true,
+    launchPackage: 'com.oshal.remote', serverUrl
   }, 180000);
   await ctx.remember('install apk', `Install oshal Orbit on ${serial}`, installed);
   if (!installed.ok) { ctx.fail('androidStatus', 'android_apk', installed); return; }
@@ -497,6 +538,9 @@ export function mountRdpAndTvBle(ctx, saveAndOpenPhone, openBleRemoveDialog) {
   $('pushAndroidApkBtn').addEventListener('click', () => {
     void ctx.run(() => installAndroidCompanionFromConnect(ctx, saveAndOpenPhone), 'androidStatus', 'Installing oshal Companion');
   });
+  $('stagePushApkBtn').addEventListener('click', () => {
+    void provisionStageAndroidApk(ctx);
+  });
   $('rdpForm').addEventListener('submit', (event) => {
     event.preventDefault();
     void ctx.run(() => probeRdpHost(ctx), 'rdpStatus', 'Checking RDP port');
@@ -521,7 +565,7 @@ export function renderDeviceSwitcher(ctx) {
   const opt = (value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; return o; };
   select.replaceChildren(
     ...app.state.phones.map((p) => opt(`phone:${p.id}`, `${p.name} (${p.form === 'tv' ? 'TV' : p.platform === 'android' ? 'Android' : 'iPhone'})`)),
-    ...app.state.computerList.map((c) => opt(`computer:${c.id}`, `${c.name || `Computer ${String(c.id).slice(0, 8)}`} (Computer)`)),
+    ...app.state.computerList.map((c) => opt(`computer:${c.id}`, `${c.name || `Device ${String(c.id).slice(0, 8)}`} (${isTvNode(c) ? 'TV' : isAndroidNode(c) ? 'Android' : 'Computer'})`)),
     ...app.state.rdpSessions.map((r) => opt(`rdp:${r.sessionId}`, `${rdpLabel(r)} (RDP)`))
   );
   const activeKey = ctx.currentTargetKey();

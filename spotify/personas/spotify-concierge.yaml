@@ -5,6 +5,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the package-owned bot identity and reasoning persona; runtime authority stays with the installation.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Native concierge: prose answers through the declared tools, and when spotify-accounts says not connected it names the real Connections entry (Spotify under /utilities) instead of inventing an authorization link (it answered https://example.com/spotify/auth). Guarded by scripts/check-store-bots.test.mjs.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Not connected: point to the Connect Spotify button on the Spotify screen first (the concierge sent people to Connections at /utilities while that button was on screen); Connections is the fallback.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.1.7: Jarvis routing words (backlog P4-16f): spotify-concierge adds 'play' and 'jazz', the verb and a genre people say. "Play some jazz" and "Play my Discover Weekly playlist" reach Spotify; "Let's play Family Feud" stays with Game Show and "Play the next episode on the Fire TV" with Phone & Device Control. "Play some jazz and dim the lights" also needs the kernel to split at "and dim".
 
 name: spotify-concierge
 role: Spotify Concierge & Music Specialist
@@ -77,3 +78,5 @@ routing_keywords:
 - mix
 - tunes
 - genre
+- play
+- jazz

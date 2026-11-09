@@ -37,6 +37,18 @@
 #     |                                           | previewing a policy and evaluating share the same engine
 #     |                                           | client and report the same reason and command (third review,
 #     |                                           | 2026-11-03). It is the on-demand check.
+# 5   | maintainer@emeraldcoastsystemsgroup.com   | 1.5.2: the install is not finished until the running search
+#     |                                           | says it judges disk by the free space compose.yaml sets and
+#     |                                           | accepts new indexes. search-disk-guard.py reads its
+#     |                                           | GET /_cluster/settings?include_defaults=true&flat_settings=true
+#     |                                           | (the values the cluster applies, node settings included)
+#     |                                           | and passes only on the three watermarks parsed from
+#     |                                           | compose.yaml with cluster.blocks.create_index off. A block an
+#     |                                           | older install put on is lifted by the disk monitor on a pass
+#     |                                           | after the restart, so the check retries for 3 minutes, then
+#     |                                           | prints search's answer and its log and exits 1. Before this
+#     |                                           | an install could report success while every new rule index
+#     |                                           | was refused with HTTP 403 (2026-11-08).
 #
 # Usage -- from a checkout of this package on the Docker host:
 #   sh intelligent-operations/engine/install-engine.sh [listen-port]
@@ -48,7 +60,9 @@
 # is recreated so the mounted files are the current ones, search keeps its data volume. When the
 # user unit oshal-native-operations-link.service exists it is restarted, because the link resolves
 # the container's address only when it starts and the recreate gives the engine a new one; the two
-# host steps are printed only when that unit is absent.
+# host steps are printed only when that unit is absent. It finishes only when the running search
+# reports the free-space disk watermarks compose.yaml sets and no index-create block (waiting up to
+# 3 minutes for its disk monitor to lift one an older install left); otherwise it exits 1.
 # Env overrides: OSHAL_ENGINE_NETWORK (external engines network, default oshal-native-engines).
 set -eu
 unset COMPOSE_PROJECT_NAME COMPOSE_FILE COMPOSE_PROFILES COMPOSE_PROJECT_ROOT
@@ -62,6 +76,8 @@ LINK=oshal-native-operations-link.service
 NETWORK=${OSHAL_ENGINE_NETWORK:-oshal-native-engines}
 ENGINE_PORT=7419
 HEALTH='http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s'
+# What the running search applies, its own node settings included (include_defaults reports those under defaults).
+SETTINGS='http://127.0.0.1:9200/_cluster/settings?include_defaults=true&flat_settings=true'
 say() { printf '[intelligent-operations engine] %s\n' "$*"; }
 die() { printf '[intelligent-operations engine] ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -78,6 +94,16 @@ command -v docker >/dev/null 2>&1 || die "docker CLI not found - run this on the
 docker info >/dev/null 2>&1 || die "cannot reach the Docker daemon"
 docker compose version >/dev/null 2>&1 || die "docker compose (v2 plugin) is required"
 [ -f "$COMPOSE" ] || die "no container/compose.yaml under $ENGINE_DIR"
+# The free space compose.yaml gives search for one disk watermark level (low, high or flood_stage).
+watermark() {
+  sed -n 's/^[[:space:]]*cluster\.routing\.allocation\.disk\.watermark\.'"$1"':[[:space:]]*\([1-9][0-9]*[kmgt]\{0,1\}b\)[[:space:]]*$/\1/p' "$COMPOSE"
+}
+LOW=$(watermark low)
+HIGH=$(watermark high)
+FLOOD=$(watermark flood_stage)
+[ -n "$LOW" ] && [ -n "$HIGH" ] && [ -n "$FLOOD" ] \
+  || die "compose.yaml gives search no free-space disk watermarks (low, high, flood_stage); a percentage of a large disk refuses new rule indexes"
+[ -f "$ENGINE_DIR/search-disk-guard.py" ] || die "search-disk-guard.py is missing under $ENGINE_DIR"
 for name in server.py percolation.py identity.json; do
   [ -f "$ENGINE_DIR/$name" ] || die "engine file $name is missing under $ENGINE_DIR"
 done
@@ -186,4 +212,23 @@ else
   printf '  2. OSHAL_PACKAGE_ENGINES entry, merged into the existing map in oshald.env (keep every other engine), then one kernel restart:\n'
   printf '       {"intelligent-operations":"127.0.0.1:%s"}\n\n' "$LISTEN"
 fi
+
+# The install is finished only when the running search judges disk by the free space compose.yaml sets and
+# accepts new indexes. A create-index block an older install put on stays in search's data until its disk
+# monitor lifts it, on a pass after the restart; until then every new rule index answers HTTP 403.
+disk_settings() {
+  docker exec "$SEARCH" curl -fsS "$SETTINGS" | python3 -I "$ENGINE_DIR/search-disk-guard.py" "$LOW" "$HIGH" "$FLOOD"
+}
+say "checking that search judges disk by free space ($LOW low, $HIGH high, $FLOOD flood stage) and accepts new indexes"
+i=0
+until verdict=$(disk_settings); do
+  i=$((i + 1))
+  if [ "$i" -ge 36 ]; then
+    printf '%s\n' "$verdict" >&2
+    docker logs --tail 40 "$SEARCH" >&2 || true
+    die "after 3 minutes search still does not judge disk by the free space compose.yaml sets or still blocks new indexes (its answer is above): every new rule index would be refused with HTTP 403; the engine and its link are in place"
+  fi
+  sleep 5
+done
+say "search judges disk by free space and accepts new indexes: $verdict"
 say "then open Operations, choose the navigation entry 'Data pipeline' and press 'Check detection service' (GET /pipeline/health): that on-demand check, like publishing or previewing a policy and evaluating, reports the engine state with this install command - a down or stale engine answers 'not reachable' or 'does not match this package build' together with it."

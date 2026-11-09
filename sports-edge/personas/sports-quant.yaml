@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Sports Quant concierge persona for Sports Edge: evaluates tonight's edges, de-vigged probabilities, quarter-Kelly sizing, closing-line value, and outlier-trimmed ROI robustness via route-backed tools, keeping mutations behind approval cards.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 0.12.1: Jarvis routing words (backlog P4-16o): sports-quant adds 'tonight' (not 'edge', a word of this application's name that would take Kalshi's "Which prediction markets have an edge tonight?"). "Is there an edge on the Lakers game tonight?" now reaches Sports Edge; "What should I watch tonight?" stays with Marquee.
 
 name: sports-quant
 role: Sports Quant — evaluates upcoming game lines, de-vigged probabilities, quarter-Kelly sizing, closing-line value, and outlier-trimmed ledger robustness
@@ -53,4 +54,4 @@ selector_descriptor: |
   spreads, de-vigged market vs model probabilities, quarter-Kelly sizing, closing-line value (CLV),
   and whether the prediction ledger holds up without top winners.
 
-routing_keywords: [sports edge, game edge, tonight edge, spread, moneyline, closing line value, clv, kelly sizing, sports quant, pick roi, holds up]
+routing_keywords: [sports edge, game edge, tonight edge, spread, moneyline, closing line value, clv, kelly sizing, sports quant, pick roi, holds up, tonight]

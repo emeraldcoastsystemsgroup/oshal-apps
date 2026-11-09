@@ -1,3 +1,7 @@
+/* CHANGE LOG: 17 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.5.3: every Jarvis tool still reads except ops-remove-source (P5-55b), which is held for the person's approval and takes confirm: true. */
+/* CHANGE LOG: 16 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.5.2: the engine installer refuses to finish until the running search reports the free-space watermarks and no index-create block. */
+/* CHANGE LOG: 15 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.5.1: the detection engine's search judges disk pressure by free space (engine/container/compose.yaml). */
+/* CHANGE LOG: 14 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the four desks' policy saves are POST bindings under desk.<x>.write, so a write binding must name exactly one write-effect permission (records.write everywhere else); version pin 1.5.0; the four desk tiles follow Overview and each desk page has a navigation entry. */
 /* CHANGE LOG: 13 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.4.0: isolated window/batch replay (RP-OPS-01..02) and Link by URL (RP-OPS-03). */
 /* CHANGE LOG: 12 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.4: recorded command history row More menu (Copy, Run again). */
 /* CHANGE LOG: 11 | maintainer@emeraldcoastsystemsgroup.com | Pin 1.3.3: Runbooks is its own screen. */
@@ -57,11 +61,13 @@ test('the package declares something runnable: a concierge or a workflow, each b
   assert.equal(manifest.experience.entry,'/api/intelligent-operations/app');
   const auth=yaml.load(fs.readFileSync(path.join(root,'authorization.yaml'),'utf8'));
   assert.deepEqual(auth.roles.reader.grants,[{permission:'app.open',scope:'own'}]);
-  for(const binding of auth.bindings.http.filter(b=>b.method==='POST'))assert.deepEqual(binding.allOf,['records.write']);
+  // Every write rides exactly one write-effect permission: records.write, or a desk's own desk.<x>.write for its policy save (1.5.0).
+  for(const binding of auth.bindings.http.filter(b=>b.method==='POST')){assert.equal(binding.allOf.length,1,binding.id);assert.equal(auth.permissions[binding.allOf[0]]?.effect,'write',binding.id+' is a write');assert.deepEqual(binding.allOf,/^\/desks\/[a-z-]+\/policy$/.test(binding.path)?[binding.allOf[0]]:['records.write'],binding.id);if(/^\/desks\//.test(binding.path))assert.match(binding.allOf[0],/^desk\.[a-z]+\.write$/,binding.id);}
   for (const file of ['routes/package-smoke.js', 'src-routes/package-smoke.ts']) {
     assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), fs.readFileSync(path.join(store, 'brand-graphics', file), 'utf8'), file);
   }
-  for(const tool of manifest.tools||[]){assert.equal(tool.executor?.executorType,'api',tool.name+': no CLI executor tool is declared');assert.equal(tool.requiresApproval,false,tool.name+' is a read');}
+  // Every Jarvis tool reads, except ops-remove-source (1.5.3), which waits for the person's approval and takes confirm: true.
+  for(const tool of manifest.tools||[]){const removal=tool.name==='ops-remove-source';assert.equal(tool.executor?.executorType,'api',tool.name+': no CLI executor tool is declared');assert.equal(tool.requiresApproval,removal,tool.name+(removal?' is held for approval':' is a read'));if(removal)assert.deepEqual(tool.inputSchema.properties.confirm,{type:'boolean',const:true});}
 });
 
 test('declared bots are inline, own a persona inside the package and answer in plain prose without platform tooling', () => {
@@ -94,16 +100,16 @@ test('no screen points at a platform-only route', () => {
 });
 
 test('Operations owns its workspace and Test Lab catalog while preserving specialist and workflow identities', () => {
-  assert.equal(manifest.version, '1.4.0');
+  assert.equal(manifest.version, '1.5.3');
   assert.equal(manifest.ribbon.defaultView, 'operations-estate');
   assert.deepEqual(manifest.ribbon.hideFrameworkItems, ['chat','calendar','addressbook','dashboard','logs','settings','operations']);
   assert.equal(manifest.ribbon.showPlatformTools, false);
-  assert.deepEqual(manifest.ui.static.map(tile => tile.toolName), ['operations-workspace','operations-estate','operations-data','operations-sources','operations-streams','operations-connections','operations-commands','operations-git','operations-provisioning','operations-swarms','operations-library','operations-runbooks','operations-files','operations-workflow']);
+  assert.deepEqual(manifest.ui.static.map(tile => tile.toolName), ['operations-workspace','operations-desk-app','operations-desk-security','operations-desk-platform','operations-desk-release','operations-estate','operations-data','operations-sources','operations-streams','operations-connections','operations-commands','operations-git','operations-provisioning','operations-swarms','operations-library','operations-runbooks','operations-files','operations-workflow']);
   assert.equal(manifest.ui.static.find(tile => tile.toolName === 'operations-files').iframeUrl, '/api/files');
   assert.equal(manifest.ui.static[0].iframeUrl, '/api/intelligent-operations/app#overview');
   assert.equal(manifest.ribbon.defaultView,'operations-estate');
   // UX audit 2026-11-06: Scenario lab (#replay), Credentials & access (#credentials) and Topology (#estate, now Systems' Graph view) merged away; their addresses lead to Data pipeline and Connections & access.
-  for(const page of ['systems','data','streams','sources','connections','commands','library','runbooks'])assert.ok(manifest.ui.static.some(tile=>tile.iframeUrl.endsWith('#'+page)),page+' has a native navigation entry');
+  for(const page of ['systems','data','streams','sources','connections','commands','library','runbooks','app-ops','sec-ops','platform-ops','dev-ops'])assert.ok(manifest.ui.static.some(tile=>tile.iframeUrl.endsWith('#'+page)),page+' has a native navigation entry');
   assert.equal(manifest.ticketType, 'intelligent-operations');
   assert.deepEqual(manifest.bots.map(bot => bot.name), ['ops-rca-specialist', 'ops-incident-reviewer']);
   const page = fs.readFileSync(path.join(root, 'ui/index.html'), 'utf8');

@@ -14,6 +14,10 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | Register home-weather: the NWS forecast chain and its egress and tool declaration.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-05 (home-dashboard): the inline Ask bar is removed, so home-phone-layout and home-reply-words (which proved it) are retired; home-empty-state registers the empty state, the refused refresh and the dashboard order; home-hubs-and-transcript keeps its Hubs view cases.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | home-empty-state also covers the Automations screen (the split).
+# 13 | maintainer@emeraldcoastsystemsgroup.com | Register home-device-inspect-and-guide: SmartThings capability/refrigerator camera inspection and persistent Operations Guide & Runbook.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | Expand home-device-inspect-and-guide with Samsung Family Hub weekly refrigerator assessment, week-over-week comparison, grocery cart starter, weekly meal list builder, and phone-control optional dependency.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: register home-lan-devices (TV plans, records and the network-TV /control refusal against the compiled routes) and home-tvs (the TVs and streaming sticks section in Chromium at 412 x 915); home-device-inspect-and-guide also proves local discovery lists no made-up device and no TV. All run in store-ci's new home job. The press on a real TV is the person's own, from their own computer: no test sends one.
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: register home-tv-plans: Jarvis presses TV buttons through the kernel's computer.run_plan. The two plan tools' computerPlan declarations are pinned exactly and every command the compiled plan routes answer is checked against the kernel's plan grammar (mirrored from oshal-kernel computer_plans.rs, with negative controls); the descriptions, the next step and the persona name computer.run_plan and the planId. A real press still needs the person's own session and computer: no test sends one.
 # -----------------------------------------------------------------------------
 version: 1
 cases:
@@ -122,3 +126,94 @@ cases:
     limits:
       timeoutMs: 15000
     installation: never
+  - id: home-device-inspect-and-guide
+    name: SmartThings device capability inspection and persistent Operations Guide & Runbook
+    purpose: Verify inspectSmartThingsDevices extracts Samsung Family Hub refrigerator ViewInside camera and temperature capabilities, Operations Guide persists discovered capabilities and operator notes, and the manifest declares the tools and routing words.
+    level: unit
+    runner:
+      kind: node-test
+      scope: package
+      files:
+      - tests/home-device-inspect-and-guide.test.js
+    expected:
+    - Every case passes with a stand-in fetch and temporary package data directory.
+    prerequisites:
+    - runner:node-test
+    sideEffects: none
+    isolation:
+      mode: disposable
+      cleanup: The temporary package data directory is removed after the test.
+    limits:
+      timeoutMs: 15000
+    installation: never
+  - id: home-lan-devices
+    name: TVs and streaming sticks - plans, records and the network-TV refusal
+    purpose: Drive the compiled home-lan-devices module and home-routes router with stand-in framework modules and a temporary data folder.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/home-lan-devices.test.cjs] }
+    expected:
+      - A scan and a press answer planned (never executed) with the closed phone-control bridge command; saved TVs are woken only when asked.
+      - A press plan is built per kind with the closed action list; a Roku refuses Open oshal and Pair, a Samsung refuses the Android app, a Cast device refuses every press, in words.
+      - A scan answer saves private-address TVs for that person only (a public address is dropped), merged by hardware address, and lists the Android TVs for Phone & Device Control.
+      - A TV's power changes only when its own answer says the press worked; an answer for another TV or another press is refused.
+      - POST /control answers a network TV 409 tv_needs_computer and leaves its saved switch as it was; the routes answer 401 without a person.
+      - The manifest declares the four tools inside /api/home, TV routing words and no new egress.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The temporary data folder is removed and the module resolver is restored. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+    regressionTests:
+      - { level: unit, file: tests/home-lan-devices.test.cjs }
+  - id: home-tv-plans
+    name: Jarvis presses TV buttons through computer.run_plan
+    purpose: Pin the computerPlan declarations the kernel reads and check every command the compiled scan and press plan routes answer against the kernel's plan grammar (oshal-kernel crates/oshald/src/computer_plans.rs), so the kernel keeps the plan and computer.run_plan can run it.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/home-lan-devices.test.cjs] }
+    expected:
+      - home-lan-discover declares exactly {program phone-bridge, verbs [lan-discover]} and home-lan-control exactly {program phone-bridge, verbs [lan-control]}; no other tool declares a plan.
+      - Every scan and press plan answers 200 with the bridge prefix, its own tool's declared verb and --b64 with canonical base64 of one JSON object of at most 4 KiB, and a computer the kernel can read; a scan never fits the press declaration, nor a press the scan one.
+      - The grammar check refuses a second command, a redirection, another prefix or flag, an undeclared verb, unpadded or URL-safe base64, a JSON array or string and an oversized argument; the declaration check refuses another program, no verbs, an unknown verb and an extra key.
+      - Both tool descriptions, the plans' next step and the persona say to pass the planId to computer.run_plan, then record the computer's answer with home-lan-record, and otherwise to say it is planned and point to the Smart Home TV buttons; none names computer.run or computer.list.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The temporary data folder is removed and the module resolver is restored. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+    regressionTests:
+      - { level: unit, file: tests/home-lan-devices.test.cjs }
+  - id: home-tvs
+    name: TVs and streaming sticks on the Smart Home screen, in Chromium
+    purpose: The real page and its module at 412 x 915 with phone-control's real computer link, the compiled package routes for every write, and the person's computer played by the test.
+    level: browser
+    runner: { kind: node-test, scope: package, files: [tests/browser/home-tvs.test.cjs] }
+    expected:
+      - The section shows with one Scan for TVs button that says what it does; the empty screen keeps one primary; opening the page writes nothing; no console error.
+      - With no computer it says what to do and Scan is off.
+      - Scan replaces an old bridge with phone-control's real install command, runs the planned scan, saves the TVs and adds the Android TV to Phone & Device Control.
+      - A press says what the computer answered; a waiting Samsung reads "Press Allow on the TV, then Retry." with Retry, and its power stays as read; a Roku has no Open oshal.
+      - A person whose Phone & Device Control access waits for re-approval reads that, Scan is off, nothing is requested from Phone & Device Control, and the saved TVs are listed without buttons.
+    prerequisites: [runner:node-test, dependency:playwright, browser:chromium]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: Each case closes its browser context and the temporary data folder is removed; nothing leaves the browser. }
+    limits: { timeoutMs: 90000, maxMemoryMb: 1024 }
+    installation: never
+    regressionTests:
+      - { level: browser, file: tests/browser/home-tvs.test.cjs }
+  - id: home-per-person-storage
+    name: Smart Home files stay in each person's own folder
+    purpose: The compiled storage helpers against a real temporary store folder; the 1.4.1 regression guard for the shared store-root copy that let one person read another's SmartThings token.
+    level: unit
+    runner: { kind: node-test, scope: package, files: [tests/home-per-person-storage.test.cjs] }
+    expected:
+      - A person with no token of their own reads none, never another person's; no copy is written at the store root.
+      - A person with no saved devices sees none of another person's.
+      - A copy an earlier version left at the store root is read as nobody's file.
+      - The host-wide discovery snapshot is still read from the store root.
+    prerequisites: [runner:node-test, runtime:store-pinned-toolchain]
+    sideEffects: none
+    isolation: { mode: disposable, cleanup: The temporary data folder is removed. }
+    limits: { timeoutMs: 30000 }
+    installation: never
+    regressionTests:
+      - { level: unit, file: tests/home-per-person-storage.test.cjs }

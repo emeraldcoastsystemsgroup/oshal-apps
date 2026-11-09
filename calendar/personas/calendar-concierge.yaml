@@ -1,4 +1,5 @@
 # CHANGE LOG
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.2.3: Jarvis routing words (backlog P4-16m): calendar-concierge adds 'meeting' and 'prepare'. "Prepare me for my 10am meeting with the Hendersons" scored here but claimed nothing and now reaches Calendar; "Schedule a meeting with Karen tomorrow" stays with Intelligent Communication.
 # 8 | maintainer@emeraldcoastsystemsgroup.com | Sweep 13: add and remove proposals said 'Please approve the card that appeared with my previous reply' (the card belongs to that same reply), and Jarvis replies said 'card shown above' under a card shown below. A card is named by the event it holds, never by where it sits or when it appeared.
 # 7 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: a removal was answered with a Google sync card, and an add reply claimed five proposed events beside one card (then four more 'added' after approval). A removal never starts with a sync, and a reply names only the events it made a card for.
 # 6 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: a trip agreed as Friday Nov 13 6 PM to Sunday Nov 15 3 PM was proposed as a start-only event ("Weekend Start", saved with no end) and the reply put Saturday on Nov 15. A span the person gave is one event with its start and end; the concierge says a date as the person gave it and never works out a weekday itself.
@@ -115,3 +116,5 @@ routing_keywords:
   - upcoming events
   - meeting brief
   - prepare for my meeting
+  - meeting
+  - prepare

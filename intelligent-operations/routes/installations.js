@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CONFIRM_MS = exports.GAP_MS = exports.SILENT_MS = exports.LATE_MS = exports.SILENT = exports.HEARTBEAT = void 0;
 exports.readingsOf = readingsOf;
+exports.thresholdsOf = thresholdsOf;
 exports.assess = assess;
 exports.installationScan = installationScan;
 exports.recordBeat = recordBeat;
@@ -25,6 +26,8 @@ exports.installationState = installationState;
 exports.watchStatus = watchStatus;
 exports.installationStanding = installationStanding;
 exports.installationRecords = installationRecords;
+/** CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | installationStanding leaves out the installations of sources the person removed (sources.ts removeSource, P5-55b): the attention and systems summaries read every installation row rather than the saved sources, so a removed source still showed as stopped reporting to Jarvis and on the attention list. Its rows and history stay in place. */
+/** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | A heartbeat may carry the probe's threshold file (annotations thresholds, a JSON object of at most 4 KiB, and thresholds_file, its path on the host): the row keeps the last snapshot with when it was reported, and the desk's Settings shows it read-only. The package reads no host file; a beat without the annotation keeps the earlier snapshot. */
 /** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fifth review proved (2026-11-04). A list that is present but blank means Prometheus has not settled or cannot store, because a settled one always lists its own heartbeat, so it holds; only a beat with no list at all falls back. An item the list cannot carry makes the whole list unjudgeable rather than a false all-clear. Prometheus must be seen moving: its uptime has to change on this side, so a heartbeat Alertmanager repeats after Prometheus died cannot clear anything. An alert on a row not reporting is not called clearing, so attention still counts it. */
 /** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved on the real stack (2026-11-04). Whether an alert has cleared no longer rests on clocks or on Alertmanager's word. The heartbeat now carries what Prometheus has firing or pending and how long Prometheus has been up, so a resolve is believed only from a Prometheus that has settled, reads every exporter and no longer lists the alert. That covers a quick restart, a dead exporter and a droplet with a wrong clock. The same list clears what Alertmanager never resolved, such as after a reboot: an alert unlisted for 3 minutes is cleared by the watch, instead of standing for 9 hours. A blank backup reading is unknown, not a problem, while the node exporter is unread or Prometheus has only just started. */
 /** CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | What a third review proved on the real stack (2026-11-04). When Prometheus dies Alertmanager times out everything it was firing and delivers it as resolved, so the phone said cleared with the site still down and the silent card lost what was firing: a resolve from a Prometheus no longer evaluating is held on the card and admitted only once Prometheus has been back long enough to fire it again (recoveryDoubted, heartbeats now carry evaluated_at). A silence notice is pending only while the row is silent, and its age is worked out when it is sent, so a row left over from 1.1.6 cannot call a healthy droplet silent and four hours of rail outage does not say ten minutes. A resolve for a row that does not exist makes no empty card. */
@@ -110,6 +113,33 @@ function readingsOf(annotations) {
     if (Object.keys(containers).length)
         values.containers_running = Object.values(containers).filter(v => v === 1).length;
     return { values, containers, targets: pairs(a.targets), alerts: alertList(a.alerts), host: bounded(a.host, 128), url: origin(a.site_url) };
+}
+const THRESHOLDS_MAX = 4096;
+/** @description The probe's threshold file as one heartbeat reported it: the thresholds annotation parsed as a JSON object (at most 4 KiB, scalars and one level of objects, no hostile keys) and thresholds_file as the path it was read from. Anything else is null: the package never reads a host file and never invents a threshold. @param annotations The alert's annotations. @param at When the beat arrived. @returns {reportedAt,file,body} or null. */
+function thresholdsOf(annotations, at) {
+    const a = annotations && typeof annotations === 'object' && !Array.isArray(annotations) ? annotations : {}, raw = a.thresholds;
+    if (typeof raw !== 'string' || !raw.trim() || Buffer.byteLength(raw) > THRESHOLDS_MAX)
+        return null;
+    let body;
+    try {
+        body = JSON.parse(raw);
+    }
+    catch {
+        return null;
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body))
+        return null;
+    const plain = (value, depth) => { if (value === null || ['string', 'number', 'boolean'].includes(typeof value))
+        return typeof value === 'string' ? value.slice(0, 256) : value; if (Array.isArray(value))
+        return depth ? value.slice(0, 32).map(v => plain(v, depth - 1)) : null; if (!depth || typeof value !== 'object')
+        return null; const out = {}; for (const [k, v] of Object.entries(value).slice(0, 64)) {
+        if (FORBIDDEN.has(k) || k.length > 64)
+            continue;
+        const kept = plain(v, depth - 1);
+        if (kept !== undefined)
+            out[k] = kept;
+    } return out; };
+    return { reportedAt: at, file: bounded(a.thresholds_file, 256), body: plain(body, 3) };
 }
 const pct = v => Math.round(v) + '%';
 const hours = h => h < 48 ? Math.round(h) + ' h' : Math.round(h / 24) + ' d';
@@ -208,7 +238,7 @@ async function recordBeat(pool, owner, source, mapping, alert, clock = Date.now)
         const previous = await held(c, owner, id), resumed = previous?.lastHeardAt && (previous.state === 'silent' || previous.heartbeatEndedAt || now - Date.parse(previous.lastHeardAt) >= exports.LATE_MS), silence = previous?.state === 'silent' ? { fingerprint: previous.silenceFingerprint, since: previous.silentSince, resourceId: previous.resourceId, minutes: Math.max(1, Math.round((now - Date.parse(previous.silentSince)) / 60000)), endedAt: new Date(now - 1).toISOString() } : null;
         const notices = [...(previous?.notices || []).filter(n => !(silence && String(n.id).startsWith('silent-'))), ...(silence ? [{ id: 'recovered-' + at, at, text: source.name + ' is reporting again after ' + silence.minutes + ' minutes of silence.' }] : [])].slice(-MAX_NOTICES);
         const owedResolves = [...(previous?.owedResolves || []), ...(silence ? [{ fingerprint: silence.fingerprint, since: silence.since, resourceId: silence.resourceId, endedAt: silence.endedAt }] : [])].slice(-MAX_OWED);
-        const record = { sourceId: source.id, name: source.name, scope: mapping.scope, resourceId, firstHeardAt: previous?.firstHeardAt || at, lastHeardAt: at, beats: (previous?.beats || 0) + 1, state: 'reporting', silentSince: null, silenceFingerprint: null, alarmOwed: false, silenceDeliveryId: null, heartbeatEndedAt: null, resumedAt: resumed ? at : previous?.resumedAt || null, uptimeMovedAt: readings.values.prom_uptime !== previous?.readings?.values?.prom_uptime ? at : previous?.uptimeMovedAt || at, readings, health, alerts: previous?.alerts || {}, notices, owedResolves, lastScanAt: previous?.lastScanAt || null, lastScanSignature: previous?.lastScanSignature || null, feedError: previous?.feedError || null };
+        const record = { sourceId: source.id, name: source.name, scope: mapping.scope, resourceId, firstHeardAt: previous?.firstHeardAt || at, lastHeardAt: at, beats: (previous?.beats || 0) + 1, state: 'reporting', silentSince: null, silenceFingerprint: null, alarmOwed: false, silenceDeliveryId: null, heartbeatEndedAt: null, resumedAt: resumed ? at : previous?.resumedAt || null, uptimeMovedAt: readings.values.prom_uptime !== previous?.readings?.values?.prom_uptime ? at : previous?.uptimeMovedAt || at, readings, health, alerts: previous?.alerts || {}, notices, owedResolves, lastScanAt: previous?.lastScanAt || null, lastScanSignature: previous?.lastScanSignature || null, feedError: previous?.feedError || null, thresholds: thresholdsOf(alert?.annotations, at) || previous?.thresholds || null };
         await put(c, owner, id, Boolean(previous), record);
         await recordHistory(c, owner, source.id, now, readings.values);
         return { record, silence };
@@ -452,7 +482,7 @@ function firingOf(record, name, state, now) {
 }
 function view(record, source, now, history, days) {
     const { age, state } = standing(record, now), assessed = assess(record.readings);
-    return { sourceId: source.id, name: source.name, environment: source.environment, state, lastHeardAt: record.lastHeardAt || null, ageSeconds: age === null ? null : Math.round(age / 1000), lateAfterSeconds: exports.LATE_MS / 1000, silentAfterSeconds: exports.SILENT_MS / 1000, firstHeardAt: record.firstHeardAt || null, reports: record.beats || 0, silentSince: record.silentSince || (state === 'silent' ? record.lastHeardAt : null), heartbeatEndedAt: record.heartbeatEndedAt || null, host: record.readings?.host || null, url: record.readings?.url || null, health: state === 'silent' || state === 'never' ? 'unknown' : assessed.health, checks: state === 'never' ? assessed.checks.map(c => ({ ...c, state: 'unknown', reading: 'Not reported' })) : assessed.checks, uptimeSeconds: record.readings?.values?.boot_seconds ?? null, feedError: record.feedError || null,
+    return { sourceId: source.id, name: source.name, environment: source.environment, state, lastHeardAt: record.lastHeardAt || null, ageSeconds: age === null ? null : Math.round(age / 1000), lateAfterSeconds: exports.LATE_MS / 1000, silentAfterSeconds: exports.SILENT_MS / 1000, firstHeardAt: record.firstHeardAt || null, reports: record.beats || 0, silentSince: record.silentSince || (state === 'silent' ? record.lastHeardAt : null), heartbeatEndedAt: record.heartbeatEndedAt || null, host: record.readings?.host || null, url: record.readings?.url || null, health: state === 'silent' || state === 'never' ? 'unknown' : assessed.health, checks: state === 'never' ? assessed.checks.map(c => ({ ...c, state: 'unknown', reading: 'Not reported' })) : assessed.checks, uptimeSeconds: record.readings?.values?.boot_seconds ?? null, feedError: record.feedError || null, thresholds: record.thresholds || null,
         firing: firingOf(record, source.name, state, now),
         history: { days, bucketMinutes: 15 * days, since: now - days * 86400000, now, series: series(history, days) } };
 }
@@ -462,11 +492,11 @@ async function watchStatus(pool, owner, clock = Date.now) {
     const now = clock(), row = (await pool.query('SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id=$2', [owner, WATCH])).rows[0]?.record, last = Date.parse(row?.lastTickAt), age = Number.isFinite(last) ? Math.max(0, now - last) : null;
     return { lastTickAt: row?.lastTickAt || null, ageSeconds: age === null ? null : Math.round(age / 1000), overdue: age === null || age > exports.GAP_MS, graceUntil: Date.parse(row?.graceUntil) > now ? row.graceUntil : null };
 }
-/** @description Every installation's standing for Jarvis and the attention summary, without the charts. @param pool Owner-scoped SQL. @param owner The caller. @param clock Milliseconds now. @returns Name, state, age, health and what is firing, per installation. */
-async function installationStanding(pool, owner, clock = Date.now) {
+/** @description Every installation's standing for Jarvis and the attention summary, without the charts. @param pool Owner-scoped SQL. @param owner The caller. @param clock Milliseconds now. @param removed Ids of sources the person removed; their installations are left out, their rows kept. @returns Name, state, age, health and what is firing, per installation. */
+async function installationStanding(pool, owner, clock = Date.now, removed = new Set()) {
     ownerRequired(owner);
     const now = clock();
-    const rows = (await pool.query("SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id LIKE 'installation:%' LIMIT 64", [owner])).rows.map(r => r.record);
+    const rows = (await pool.query("SELECT record FROM operations_processing_config WHERE user_sub=$1 AND id LIKE 'installation:%' LIMIT 64", [owner])).rows.map(r => r.record).filter(record => !removed.has(record?.sourceId));
     return rows.map(record => { const { age, state } = standing(record, now), name = record.name || record.scope || 'an installation'; return { name, state, ageSeconds: age === null ? null : Math.round(age / 1000), health: state === 'silent' || state === 'never' ? 'unknown' : assess(record.readings).health, firing: firingOf(record, name, state, now).map(({ alertType, severity, service, summary, clearing }) => ({ alertType, severity, service: service || null, summary: summary || null, ...(clearing ? { clearing: true } : {}) })) }; }).sort((a, b) => a.name.localeCompare(b.name));
 }
 /** @description Each monitored installation as Systems shows it, computed now, with its charts over the chosen days (1, 7 or 14, in about 96 points whichever). Read-only: a GET route serves it. @param sources Saved source revisions. @param days The chart range. @returns One view per source that has ever reported or alerted. */

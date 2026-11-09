@@ -36,6 +36,7 @@
  * 11 | maintainer@emeraldcoastsystemsgroup.com | Sweep 11: a saved brief misstated a balance ('Plaid Student Loan: $6,526.20' for $65,262), invented totals and printed its own working ('Correction on Liabilities visibility ... hidden or aggregated'). Re-analyze now composes the brief through finance-brief.ts: the figures section is written in code from the stored accounts and computeFinanceTotals, the analyst writes only commentary quoting listed amounts, a commentary that states any other amount or narrates its working is asked once to rewrite, and a sentence still carrying one is left out with a visible note. The advisory review is unchanged.
  * 13 | maintainer@emeraldcoastsystemsgroup.com | A demo installation's accounts: with the FINANCE_DEMO_DATA setting, POST /demo-data writes a curated sample aggregate for the caller (named banks, healthy balances, holdings, spending; dated relative to now; its notes say it is sample data), and Re-analyze writes the real analyst's brief over it. Off by default; a real link and sync always overwrite it (Roger, 2026-11-02: clean up the demo's data and screens — the Plaid sandbox aggregate led with a negative net worth and every account named Plaid).
  * 12 | maintainer@emeraldcoastsystemsgroup.com | Demo sweep 1: the not-configured Link refusal named the operator's settings to a person ('Set PLAID_CLIENT_ID and PLAID_SECRET ...'); it now says bank linking is not set up on this installation yet, and Demo connect outside Sandbox says this installation does not use the Plaid test bank (was 'only available when PLAID_ENV=sandbox').
+ * 14 | maintainer@emeraldcoastsystemsgroup.com | Normalize saved aggregate arrays (accounts, holdings, topSpending, spendByMonth, recentTransactions, notes) and netWorth on /summary, /brief, and /review so partial or legacy stored rows never return undefined arrays.
  *
  * @module finance-routes
  */
@@ -393,6 +394,30 @@ function emptyAggregate(windowDays: number): FinanceAggregate {
     recentTransactions: [], transactionWindowDays: windowDays, notes: [] } as FinanceAggregate;
 }
 
+/** Ensure every array and netWorth field on a stored aggregate is well-formed before returning or analyzing it. */
+function normalizeAggregate(raw: unknown): FinanceAggregate | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, any>;
+  const nw = r.netWorth && typeof r.netWorth === 'object' ? r.netWorth : {};
+  return {
+    ...r,
+    generatedAt: typeof r.generatedAt === 'string' ? r.generatedAt : new Date().toISOString(),
+    currency: typeof r.currency === 'string' && r.currency ? r.currency : 'USD',
+    netWorth: {
+      assets: Number(nw.assets ?? r.assets ?? 0) || 0,
+      liabilities: Number(nw.liabilities ?? r.debts ?? 0) || 0,
+      net: Number(nw.net ?? r.net_worth ?? 0) || 0,
+    },
+    accounts: Array.isArray(r.accounts) ? r.accounts : [],
+    holdings: Array.isArray(r.holdings) ? r.holdings : [],
+    topSpending: Array.isArray(r.topSpending) ? r.topSpending : [],
+    spendByMonth: Array.isArray(r.spendByMonth) ? r.spendByMonth : [],
+    recentTransactions: Array.isArray(r.recentTransactions) ? r.recentTransactions : [],
+    transactionWindowDays: Number(r.transactionWindowDays) || TXN_WINDOW_DAYS,
+    notes: Array.isArray(r.notes) ? r.notes : [],
+  } as FinanceAggregate;
+}
+
 /** Fetch fresh data for the caller and persist the aggregate; clears the stale brief. */
 async function syncAggregate(pool: AppContext['pool'], sub: string): Promise<FinanceAggregate> {
   const { items, notes } = await loadItems(pool, sub);
@@ -569,8 +594,9 @@ export function createFinanceRoutes(ctx: AppContext): Router {
     try {
       await ensureFinanceSchema(ctx.pool);
       const row = (await ctx.pool.query('SELECT aggregate, synced_at FROM oshal_finance_data WHERE user_sub = $1', [sub])).rows[0];
-      if (!row || !row.aggregate) { res.status(404).json({ error: 'no_data', message: 'Sync your accounts first.' }); return; }
-      res.json({ aggregate: row.aggregate, syncedAt: row.synced_at });
+      const aggregate = normalizeAggregate(row?.aggregate);
+      if (!aggregate) { res.status(404).json({ error: 'no_data', message: 'Sync your accounts first.' }); return; }
+      res.json({ aggregate, syncedAt: row.synced_at });
     } catch (err) {
       logger.error({ err }, 'finance summary failed');
       res.status(500).json({ error: (err as Error).message });

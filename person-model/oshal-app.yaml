@@ -3,6 +3,8 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: unhide and package Ambient Recall (person-model) as a native personal-scope store application (/api/person-model/app) reading /api/jarvis/ambient/person/{projection,recall,asks,people,trends} with graceful empty-state and pre-promotion 404 rendering, Light Blue theme default, and an inline ambient-recall-concierge bot.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.2.1: add Continuous Profile Learning and Eavesdrop Business Cards UI + backend (lastingStorage: true, GET/POST /api/person-model/profile-cards, GET/POST /api/person-model/recall), route-backed concierge tools (person-model-profile-cards, person-model-upsert-card, person-model-recall), and routing keywords for business cards, my profile, my address, who am i, people profiles, continuous learning, and eavesdropping.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.2: Jarvis routing words (backlog P4-16h): ambient-recall-concierge adds 'say', 'said' and 'meeting'. "What did Dave say about the budget in yesterday's meeting?" was a four-way tie (its phrase 'what did they say' never matches a named person) and now reaches Ambient Recall; "Summarize the meeting" stays with Intelligent Communication. No route, tool or permission changed.
 name: person-model
 suite: ai-knowledge
 rating:
@@ -14,11 +16,14 @@ rating:
       generation: none
       degrade: disable
 displayName: Ambient Recall
+lastingStorage: true
 description: >-
-  Ask what someone said across your own ambient transcripts — exact counts, verbatim quoted
+  Ask what someone said across your own ambient transcripts, maintain your continuously learned
+  personal profile (identity, address, contact details, preferences, and household facts), and
+  build Eavesdrop Business Cards for people in your conversations — exact counts, verbatim quoted
   receipts with assistant-voice playback, open asks and commitments beside their source quotes,
   per-person consent controls, and weekly topic trends. Opt-in, owner-private, no audio stored.
-version: 1.2.0
+version: 1.2.2
 runtime: process
 status: active
 scope: person
@@ -84,10 +89,13 @@ chatBot: ambient-recall-concierge
 bots:
   - agentId: 7c4b9e21-5d80-4f1a-9b34-2e6c81d40a17
     name: ambient-recall-concierge
+    posture: inline
     persona: personas/ambient-recall-concierge.yaml
     role: knowledge/ambient-recall-concierge
     capabilities:
       - transcript-recall-guidance
+      - continuous-profile-learning
+      - business-cards
       - consent-guidance
       - ask-review
     routingKeywords:
@@ -95,3 +103,76 @@ bots:
       - what did they say
       - transcript receipts
       - voice consent
+      - business cards
+      - business card
+      - my profile
+      - my address
+      - who am i
+      - people profiles
+      - continuous learning
+      - eavesdropping
+      - eavesdrop
+      - say
+      - said
+      - meeting
+tools:
+  - name: person-model-profile-cards
+    displayName: Read Learned Profile & Eavesdrop Business Cards
+    type: api
+    category: knowledge
+    description: Read the signed-in owner's continuously learned personal profile card (full name, home/mailing address, email, phone, role, organization, clearance, education, and learned facts) along with all Eavesdrop Business Cards synthesized from ambient transcripts. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/person-model/profile-cards" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {} whenever the person asks "who am I?", "what is my address?", asks about their learned profile,
+      or wants to view their Eavesdrop Business Cards and people profiles.
+    tags: [person-model, ambient-recall, route-backed]
+  - name: person-model-upsert-card
+    displayName: Teach Profile Fact or Upsert Eavesdrop Business Card
+    type: api
+    category: knowledge
+    description: Teach a new continuous-learning personal profile fact, update the owner's learned profile fields (name, address, email, phone, role, organization, clearance), or create/update an Eavesdrop Business Card for a person (role, organization, relationship, topics discussed, open commitments, verbatim quotes).
+    executor: { executorType: api, apiEndpoint: "POST /api/person-model/profile-cards" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        action: { type: string, enum: ["teach_fact", "update_self", "upsert_card", "delete_fact", "delete_card"], description: "Action to perform on the continuous profile store." }
+        fact: { type: string, maxLength: 1000, description: "Personal or household fact to record when action is teach_fact." }
+        category: { type: string, maxLength: 80, description: "Fact category (identity, preference, household, work, architecture)." }
+        name: { type: string, maxLength: 160, description: "Person's name when creating or updating an Eavesdrop Business Card." }
+        role: { type: string, maxLength: 160, description: "Person's role or title." }
+        organization: { type: string, maxLength: 160, description: "Person's company, organization, or household." }
+        relationship: { type: string, maxLength: 80, description: "Relationship label such as Family, Colleague, or Client." }
+        email: { type: string, maxLength: 160, description: "Contact email address." }
+        phone: { type: string, maxLength: 80, description: "Contact phone number." }
+        topics: { type: string, maxLength: 500, description: "Comma-separated topics discussed." }
+        openCommitments: { type: string, maxLength: 500, description: "Comma-separated open commitments or asks." }
+        quote: { type: string, maxLength: 500, description: "Recent verbatim quote heard from this person." }
+        address: { type: string, maxLength: 240, description: "Owner's address when action is update_self." }
+      required: [action]
+    usageInstructions: >-
+      Call with {"action": "teach_fact", "fact": "...", "category": "preference"} to record a new learned fact about the owner,
+      {"action": "update_self", "address": "..."} to update owner profile fields, or
+      {"action": "upsert_card", "name": "...", "role": "...", "topics": "..."} to add or update a person's Eavesdrop Business Card.
+    tags: [person-model, ambient-recall, route-backed]
+  - name: person-model-recall
+    displayName: Recall Learned Profile Facts & Business Cards
+    type: api
+    category: knowledge
+    description: Search the owner's continuously learned personal profile (identity, address, contact details, learned facts) and Eavesdrop Business Cards (topics, commitments, quotes) for a natural-language question or keyword query. Read-only.
+    executor: { executorType: api, apiEndpoint: "POST /api/person-model/recall" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        q: { type: string, minLength: 1, maxLength: 400, description: "Natural-language recall question or keyword query." }
+      required: [q]
+    usageInstructions: >-
+      Call with {"q": "<question>"} when the person asks to recall a fact about themselves, their address, or someone's
+      business card, topics, or commitments.
+    tags: [person-model, ambient-recall, route-backed]

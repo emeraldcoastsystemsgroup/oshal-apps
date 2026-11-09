@@ -1,4 +1,5 @@
 // CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Prove background leases, pause fencing, retry exhaustion and uncertain commits against actual SQL and percolation.
+// CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | The engine fixture now deletes every rule index it published when it closes (tests/fixtures/detection.cjs), so the clean-up asserts the published index is gone instead of deleting it a second time.
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const {fixture,loadExperience}=require('./fixtures/intake.cjs'),{engineFixture}=require('./fixtures/detection.cjs');
@@ -9,7 +10,7 @@ async function setup(){
  const f=await fixture(),e=await engineFixture(),owner='worker-'+randomUUID(),p=f.caller(owner),source=loadExperience().sourceDefinition({name:'Worker acceptance',source:example().source,environment:'local-lab'});
  const policy={name:'Worker availability',rules:[{name:'Warning',enabled:true,capture:true,query:{term:{severity:'warning'}}}],window:{mode:'sliding',seconds:900}};
  const published=await publishPolicy(p,e.engine,owner,source,policy,0),index='ops-rules-'+hash(['detection-owner-v1',owner])+'-'+published.policy.id;
- return {f,e,p,owner,source,async config(extra={}){const current=await processingConfig(p,owner);return saveProcessingConfig(p,owner,{enabled:true,sourceIds:[source.id],batchSize:10,maxAttempts:3,retrySeconds:10,expectedRevision:current.revision,...extra},[source.id]);},async event(id){const event=example();event.id=id;return (await admit(p,owner,source,event)).record.id;},async close(){await e.close();await f.close();assert.ok((await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'DELETE'})).ok);}};
+ return {f,e,p,owner,source,async config(extra={}){const current=await processingConfig(p,owner);return saveProcessingConfig(p,owner,{enabled:true,sourceIds:[source.id],batchSize:10,maxAttempts:3,retrySeconds:10,expectedRevision:current.revision,...extra},[source.id]);},async event(id){const event=example();event.id=id;return (await admit(p,owner,source,event)).record.id;},async close(){await e.close();await f.close();assert.equal((await fetch(process.env.OSHAL_TEST_SEARCH+'/'+index,{method:'HEAD'})).status,404,'the engine fixture deleted the rule index it published');}};
 }
 test('processing defaults off, only saved sources with published policies enable, and config uses compare-and-set',async()=>{
  const x=await setup();try{

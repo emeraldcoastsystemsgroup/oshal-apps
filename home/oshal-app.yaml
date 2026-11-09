@@ -11,6 +11,13 @@
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0 (UX audit 2026-11-05, home-dashboard, D): with no hub the Smart Home screen is one empty state (No devices yet, one primary Connect a hub that opens the SmartThings and Google Home rows with status pills); Schedules stay hidden until there is a device or a scene; devices, then scenes, then schedules; Refresh only once a hub has reported, and a refused refresh (409) is an alert with the fix; no inline Ask bar (the shell's concierge is the one assistant entry); no in-frame heading; the diagnostic brief is withheld while the cockpit offers no connected action. The Spaces tab (home-spaces) stays declared: the kernel withholds it while Spaces is turned off (Spaces' HIDE), and it returns when Spaces is turned on again.
 # 11 | maintainer@emeraldcoastsystemsgroup.com | 1.3.1 (UX audit 2026-11-05 split, home-dashboard): Automations is its own tab (home-automations, ?view=automations) with the schedules and Add schedule; the Smart Home screen keeps devices, scenes and the hubs.
 # 12 | maintainer@emeraldcoastsystemsgroup.com | 1.3.2 (UX audit sweep, home--home-accounts, D1=glass, D2=c): drop manifest theme override so portal theme selection applies; move Prepare a diagnostic brief from inline details into More as a theme-token sheet withheld when no connected action mounts; replace schedule window.confirm with in-page confirmation; align typography, radii, 44px touch targets and popstate Back dismissal.
+# 13 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: SmartThings appliance/refrigerator/ViewInside camera inspection (GET /api/home/device-inspect, tool home-device-inspect), persistent Smart Home Operations Guide & Runbook (lastingStorage: true, GET/POST /api/home/operations-guide, tools home-operations-guide and home-operations-guide-update, Operations Guide UI section and /api/home/home-summary insight), and routing words for refrigerator, fridge, family hub, viewinside, appliance, samsung, and smartthings camera.
+# 14 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4: Persist refreshed SmartThings device indexes under OSHAL_PACKAGE_DATA_DIR, auto-populate hub connection state on GET /api/home/devices, unify hub card layout on the Hubs tab, and add zero-cloud-API-cost local Swarm device discovery/registration/control (Bluetooth, Android, LAN) plus direct SmartThings Personal Access Token connection.
+# 15 | maintainer@emeraldcoastsystemsgroup.com | 1.3.5: Declare optional phone-control dependency and add Samsung Family Hub weekly refrigerator optical assessment, week-over-week shelf comparison, grocery cart recommendation & starter, and weekly meal list builder combining current refrigerator inventory and past orders (GET/POST /api/home/fridge-assessment, POST /api/home/fridge-meal-plan, tools home-fridge-assessment, home-fridge-assessment-run, home-fridge-meal-cart).
+# 16 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: TVs and streaming sticks on the person's home network, found and pressed by the person's own computer through Phone & Device Control's bridge 1.5.0 (this package never reaches a network). The Smart Home screen gains the TVs and streaming sticks section; Jarvis gains home-lan-devices, home-lan-discover and home-lan-control (each answers a plan for the person's computer, never "done") and home-lan-record (what the computer answered); routing words for TVs, Roku, scanning the network and volume. A network TV is no longer "switched" by flipping its saved state (home-control answers 409 tv_needs_computer), and the local discovery list no longer holds made-up devices or any TV. No authorization change: the package has no authorization catalog.
+# 17 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: a person's SmartThings token, saved devices and other Smart Home files stay in that person's own folder. Until now every write was also copied to the store root and a read fell back to it, so a person with no file of their own read whoever saved last (their SmartThings token included). Guard: tests/home-per-person-storage.test.cjs. No route, tool or permission changed.
+# 18 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: Jarvis routing words (backlog P4-16l): home-bot adds 'lock' and 'door'. "Lock the front door" scored here but claimed nothing (its phrase 'lock the door' is not in it) and now reaches Smart Home; "Show me the door camera" stays with Camera Ops and "Lock my account" with nobody. No route, tool or permission changed.
+# 19 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: Jarvis presses TV buttons through Smart Home. home-lan-discover declares computerPlan {program: phone-bridge, verbs: [lan-discover]} and home-lan-control {program: phone-bridge, verbs: [lan-control]}, so the kernel (09923dec and later) offers home-bot computer.run_plan, which runs exactly the command such a tool's answer planned, once, on the person's own computer in their own conversation. Both descriptions (what the model reads), their usage instructions and home-lan-record's, the plans' next step and the persona say: pass the planId to computer.run_plan, then record the computer's answer with home-lan-record; without it, say the scan or press is planned and that the Smart Home TV buttons run it. The scan's computer field no longer points to computer.list, which home-bot never has. No route, permission, egress or routing word changed. Guard: tests/home-lan-devices.test.cjs (Test Lab case home-tv-plans).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — home (Smart Home bundle, ADR-038)
@@ -48,14 +55,24 @@ rating:
       generation: none
       degrade: disable
 displayName: Smart Home
+lastingStorage: true
 description: >-
   Control your smart home by chat. Connect a hub at /utilities (SmartThings or
   Google Nest); the home-bot reads your real devices + scenes via your connector
-  token and turns "turn off the living room lights" into the right commands.
+  token, inspects SmartThings appliances and Samsung Family Hub refrigerators
+  (interior camera ViewInside snapshots, cooler/freezer temperatures, door sensors
+  and live component capabilities), runs weekly refrigerator shelf comparisons to
+  recommend a grocery cart and build a weekly meal list from what is in the fridge
+  and what you have ordered, keeps a persistent Smart Home Operations Guide
+  & Runbook, and turns "turn off the living room lights" into the right commands.
   Destructive actions (locks, garage, thermostat) are confirmed first. It also
   gives the weather forecast for any US city, address or ZIP code from the
   National Weather Service (weather.gov): today, tonight and the coming days.
-version: 1.3.2
+  It finds the TVs and streaming sticks on your home network through your own
+  computer (Samsung, Roku, Android, Google and Fire TV) and presses their
+  buttons: wake, turn off, volume, mute, arrows, OK, Home, Back, and opening
+  oshal on the TV.
+version: 1.4.3
 testing:
   version: 1
   catalog: tests/test-lab.yaml
@@ -95,7 +112,7 @@ dependencies:
     tools: []
     connectors: []
   optional:
-    apps: [drone, sat-ops, pumpkin, spaces, camera]   # five tabs FRAME these apps' own surfaces; absent, that tab is empty and the dashboard works
+    apps: [drone, sat-ops, pumpkin, spaces, camera, phone-control]   # five tabs FRAME these apps' own surfaces; phone-control assists optical Family Hub camera capture
     tools: []
     connectors: [smartthings, google-home]
 
@@ -152,6 +169,50 @@ bots:
       - weather today
       - weather forecast
       - will it rain
+      - refrigerator
+      - refriderator
+      - fridge
+      - family hub
+      - viewinside
+      - view inside
+      - inside the fridge
+      - inside the refrigerator
+      - fridge camera
+      - refrigerator camera
+      - smartthings camera
+      - smart home camera
+      - appliance
+      - appliances
+      - samsung
+      - smarthings
+      - operations guide
+      - runbook
+      - meal list
+      - meal plan
+      - grocery cart
+      - start a cart
+      - what is in the fridge
+      - what's in the fridge
+      - weekly fridge
+      - fridge assessment
+      - grocery list
+      - shopping cart
+      - tv
+      - tvs
+      - the tv
+      - my tv
+      - roku
+      - streaming stick
+      - streaming sticks
+      - samsung tv
+      - scan my network
+      - scan for tvs
+      - volume up
+      - volume down
+      - mute the tv
+      - open oshal on
+      - lock
+      - door
 
 # Route-backed tools for home-bot (native kernel: executorType api, inside /api/home). Reads run
 # under the caller; device and scene actions are held for the person's approval and then sent with
@@ -209,6 +270,233 @@ tools:
     inputSchema: { type: object, properties: {} }
     usageInstructions: Call with {} when the index is empty or stale. A 409 "SmartThings not connected" means the hub is not connected under Connections.
     tags: [home, smartthings, route-backed]
+  - name: home-device-inspect
+    displayName: Inspect SmartThings Device & Capabilities
+    type: api
+    category: smart-home
+    description: Inspect connected SmartThings devices, full component capabilities (/v1/devices/{id}), and live status (/v1/devices/{id}/status), including Samsung Family Hub refrigerator interior cameras (samsungce.viewInside, imageCapture), cooler/freezer temperatures, door sensors, and appliance modes. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/device-inspect?device={input.device}" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        device: { type: string, minLength: 1, maxLength: 160, description: Device key, name, or category such as "refrigerator", "fridge", "family hub", "camera", or "all". }
+      required: [device]
+    usageInstructions: >-
+      Call with {"device": "refrigerator"} (or "all" or a device name) whenever the person asks about a refrigerator,
+      fridge camera, Family Hub, SmartThings API capabilities, or detailed live status of any connected device.
+    tags: [home, smartthings, route-backed]
+  - name: home-fridge-assessment
+    displayName: Weekly Refrigerator Assessment, Cart & Meal Plan
+    type: api
+    category: smart-home
+    description: Read the Samsung Family Hub refrigerator 3-bay optical shelf inventory, week-over-week comparison (depleted staples, running low, eat-first fresh items), recent order history, recommended grocery cart, and weekly meal list. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/fridge-assessment" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {} whenever the person asks what is in the fridge, how this week compares to last week, what groceries
+      are running low or need to be ordered, or wants a meal list or grocery cart recommendation.
+    tags: [home, smartthings, route-backed]
+  - name: home-fridge-assessment-run
+    displayName: Run Weekly Refrigerator Assessment
+    type: api
+    category: smart-home
+    description: Trigger a fresh Samsung Family Hub refrigerator assessment, refresh telemetry and optical snapshot comparison against last week and past orders, and recompute grocery cart recommendations and the weekly meal plan.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/fridge-assessment" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        focus: { type: string, enum: ["use-first", "high-protein", "quick-prep"], description: "Optional meal-plan focus." }
+    usageInstructions: >-
+      Call with {} or {"focus": "use-first"} when the person asks to run a refrigerator assessment now or refresh the
+      weekly fridge comparison and meal list.
+    tags: [home, smartthings, route-backed]
+  - name: home-fridge-meal-cart
+    displayName: Start Grocery Cart or Build Weekly Meal List
+    type: api
+    category: smart-home
+    description: Start or update the recommended grocery cart from the refrigerator assessment, log an ordered item, or customize the weekly meal list based on what is in the fridge and what the person has ordered.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/fridge-meal-plan" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        action: { type: string, enum: ["start-cart", "add-cart-item", "remove-cart-item", "toggle-cart-item", "build-meal-list", "log-order", "set-weekly-schedule"], description: "Cart or meal-plan action to perform." }
+        name: { type: string, maxLength: 160, description: "Item name when adding/removing/toggling a cart item or logging an order." }
+        quantity: { type: string, maxLength: 80, description: "Optional quantity such as 1 dozen or 2 packs." }
+        focus: { type: string, maxLength: 80, description: "Meal focus when action is build-meal-list (use-first, high-protein, quick-prep)." }
+      required: [action]
+    usageInstructions: >-
+      Call with {"action": "start-cart"} when the person wants to start a grocery cart from the fridge recommendations,
+      {"action": "add-cart-item", "name": "..."} to add an item, or {"action": "build-meal-list", "focus": "use-first"}
+      to build or adjust the weekly meal list.
+    tags: [home, smartthings, route-backed]
+  - name: home-operations-guide
+    displayName: Smart Home Operations Guide & Runbook
+    type: api
+    category: smart-home
+    description: Read the persistent Smart Home Operations Guide & Runbook, including SmartThings API playbooks (Samsung Family Hub ViewInside camera, multi-zone appliances), auto-discovered device capabilities, and operator/concierge notes. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/operations-guide" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {} to read the Smart Home Operations Guide, discovered SmartThings device capabilities, and saved
+      runbook notes before answering questions about SmartThings APIs, appliances, or troubleshooting.
+    tags: [home, smartthings, route-backed]
+  - name: home-operations-guide-update
+    displayName: Update Smart Home Operations Guide
+    type: api
+    category: smart-home
+    description: Add or update an operational note, device capability finding, or runbook entry in the persistent Smart Home Operations Guide ($OSHAL_PACKAGE_DATA_DIR/operations-guide.json).
+    executor: { executorType: api, apiEndpoint: "POST /api/home/operations-guide" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200, description: Short heading for the runbook note. }
+        content: { type: string, minLength: 1, maxLength: 4000, description: Operational finding, API behavior, capability note, or runbook instruction to save. }
+        device: { type: string, maxLength: 120, description: Optional device key or name (e.g. "refrigerator"). }
+        category: { type: string, maxLength: 80, description: Optional category such as "appliances", "smartthings-api", or "runbook". }
+      required: [title, content]
+    usageInstructions: >-
+      Call with {"title", "content", "device"} whenever you discover a device capability, SmartThings API behavior,
+      or when the person asks you to save a note in the Smart Home Operations Guide / Runbook.
+    tags: [home, smartthings, route-backed]
+  - name: home-local-discover
+    displayName: Local Appliances Named by This Installation (Bluetooth / LAN)
+    type: api
+    category: smart-home
+    description: List the local Bluetooth and LAN appliances this installation's own discovery file names, ready to register ($0 cloud API cost). It scans nothing and never lists a TV; TVs and streaming sticks are found with home-lan-discover. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/local-discover" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: >-
+      Call with {} when the person wants to register a local Bluetooth or LAN appliance directly with the Swarm
+      without a cloud API. For TVs and streaming sticks use home-lan-discover instead.
+    tags: [home, route-backed]
+  - name: home-device-register
+    displayName: Register Local Swarm Device
+    type: api
+    category: smart-home
+    description: Register a local Bluetooth or LAN appliance (such as a Samsung Family Hub refrigerator, a speaker, or another appliance) directly into the Smart Home device index ($0 cloud API cost). Not for TVs or streaming sticks, which a scan adds (home-lan-discover).
+    executor: { executorType: api, apiEndpoint: "POST /api/home/devices/register" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160, description: "Human-friendly device name such as Samsung Family Hub Refrigerator." }
+        category: { type: string, maxLength: 80, description: "Category such as Refrigerator or TV or Appliance or Speaker or Light." }
+        protocol: { type: string, enum: ["bluetooth", "android-adb", "lan-http", "swarm-node"], description: "Local transport protocol." }
+        address: { type: string, maxLength: 160, description: "Bluetooth MAC or LAN IP or Swarm node ID." }
+        room: { type: string, maxLength: 120, description: "Room name such as Kitchen or Living Room." }
+      required: [name]
+    usageInstructions: >-
+      Call with {"name", "category", "protocol", "address", "room"} when the person asks to register a Bluetooth,
+      Android, or LAN device directly with the Swarm.
+    tags: [home, route-backed]
+  - name: home-lan-devices
+    displayName: TVs and Streaming Sticks
+    type: api
+    category: smart-home
+    description: The TVs and streaming sticks saved in Smart Home - name, kind (Samsung, Roku, Android TV, Google Cast), address, room, the person's computer that found them, power when that computer last read it, and the last answer from that computer. Read-only.
+    executor: { executorType: api, apiEndpoint: "GET /api/home/lan/devices" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} before naming a TV. An empty list means no scan has found one yet; plan one with home-lan-discover.
+    tags: [home, tv, route-backed]
+  - name: home-lan-discover
+    displayName: Plan a Scan for TVs
+    type: api
+    category: smart-home
+    description: >-
+      Scan the person's home network for TVs and streaming sticks (Samsung, Roku, Android, Google and Fire TV) with
+      their own computer, through Phone & Device Control's bridge (read-only, installs nothing). Its answer is a plan:
+      nothing has run when it answers. When computer.run_plan is offered to you, the scan runs at once on the person's
+      own computer: pass the planId from this tool's answer to computer.run_plan, then record the computer's answer
+      with home-lan-record (op discover, the computer that computer.run_plan names, and the one JSON line the computer
+      printed as reply). When computer.run_plan is not offered or the answer has no planId, say the scan is planned
+      and that Scan for TVs under TVs and streaming sticks on the Smart Home screen runs it on their computer.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/lan/discover-plan" }
+    computerPlan: { program: phone-bridge, verbs: [lan-discover] }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        computer: { type: string, maxLength: 80, description: "Only when the person named one of their own computers for the scan: its name. Leave it out otherwise." }
+        wakeSaved: { type: boolean, description: "true only when the person asked to wake their saved TVs first; waking can turn a TV's screen on." }
+    usageInstructions: >-
+      This only plans the scan: say it is planned, never that it ran, until home-lan-record answers. When
+      computer.run_plan is among your tools, call it with {"plan": "<the planId this answer carries>"}, then call
+      home-lan-record with {"op": "discover", "computer": "<the computer computer.run_plan names>", "reply": "<the one
+      JSON line the computer printed>"} and report only what home-lan-record answers. Without computer.run_plan or a
+      planId, say the scan is planned and that Scan for TVs under TVs and streaming sticks on the Smart Home screen runs
+      it on their computer.
+    tags: [home, tv, route-backed]
+  - name: home-lan-control
+    displayName: Plan a TV Button Press
+    type: api
+    category: smart-home
+    description: >-
+      Press one button on one saved TV or streaming stick - wake, turn off, volume up or down, mute, the arrows, OK,
+      Home, Back, play or pause, open oshal on the TV, open the oshal TV app (Android), or pair (Samsung) - with the
+      person's own computer. Its answer is a plan: nothing has happened on the TV when it answers. When
+      computer.run_plan is offered to you, the press runs at once on the person's own computer: pass the planId from
+      this tool's answer to computer.run_plan, then record the computer's answer with home-lan-record (op control, the
+      device id and action the plan returned, and the one JSON line the computer printed as reply) and say what
+      home-lan-record answers. When computer.run_plan is not offered or the answer has no planId, say the press is
+      planned and that the TV's buttons under TVs and streaming sticks on the Smart Home screen press it.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/lan/control-plan" }
+    computerPlan: { program: phone-bridge, verbs: [lan-control] }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        device: { type: string, minLength: 1, maxLength: 120, description: "The TV as home-lan-devices names it: its id, its name or part of it (\"the Samsung\", \"guest room Roku\")." }
+        action: { type: string, enum: [wake, off, volume_up, volume_down, mute, up, down, left, right, select, home, back, play_pause, launch_url, open_app, pair] }
+        url: { type: string, maxLength: 256, description: "For launch_url only: the https page to open; leave out to open this installation." }
+      required: [device, action]
+    usageInstructions: >-
+      This only plans the press: say it is planned, never that it happened, until home-lan-record answers. When
+      computer.run_plan is among your tools, call it with {"plan": "<the planId this answer carries>"}, then call
+      home-lan-record with {"op": "control", "device": "<the returned device id>", "action": "<the action>", "reply":
+      "<the one JSON line the computer printed>"} and say what home-lan-record answers. A Samsung TV may answer "Press
+      Allow on the TV, then Retry": tell the person exactly that. Without computer.run_plan or a planId, say the press
+      is planned and that the TV's card under TVs and streaming sticks on the Smart Home screen presses it.
+    tags: [home, tv, route-backed]
+  - name: home-lan-record
+    displayName: Record What the Computer Answered
+    type: api
+    category: smart-home
+    description: Record the answer the person's computer printed for a planned TV scan or button press, so Smart Home saves the TVs found and each press's result. A TV's on or off state changes only when that answer says the press worked.
+    executor: { executorType: api, apiEndpoint: "POST /api/home/lan/record" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema:
+      type: object
+      properties:
+        op: { type: string, enum: [discover, control] }
+        device: { type: string, maxLength: 120, description: For control - the device id the plan returned. }
+        action: { type: string, maxLength: 20, description: For control - the action that was planned. }
+        computer: { type: string, maxLength: 80, description: "The name of the computer that ran the command." }
+        reply: { type: string, minLength: 2, maxLength: 20000, description: The one JSON line the command printed. }
+      required: [op, reply]
+    usageInstructions: >-
+      Call right after computer.run_plan ran a plan from home-lan-discover or home-lan-control, with the line the
+      computer printed. Say what this answers ("said"), in its words; when it answers a hint, give the person that hint.
+    tags: [home, tv, route-backed]
   - name: home-control
     displayName: Control a Device
     type: api
@@ -227,7 +515,7 @@ tools:
         arg: { type: number }
         confirm: { type: boolean, const: true }
       required: [device, cmd, confirm]
-    usageInstructions: Use a device key returned by home-devices, never a guess. Send confirm true; the person approves before it runs.
+    usageInstructions: Use a device key returned by home-devices, never a guess. Send confirm true; the person approves before it runs. A TV or streaming stick answers 409 tv_needs_computer here; press it with home-lan-control.
     tags: [home, route-backed]
   - name: home-scene-run
     displayName: Run a Scene

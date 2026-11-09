@@ -1,3 +1,4 @@
+/* CHANGE LOG: remove source | maintainer@emeraldcoastsystemsgroup.com | Remove this source (1.5.3, P5-55b): each monitored installation card whose source can go (not a desk's own) offers it under Stop watching. The first press opens a note that says what goes and what stays, and the second press is its own button below the note, ignoring a double click and a held key; it posts {sourceId, confirm: true} to /sources/remove. The card goes when the server says removed, the records reload so Sources drops it too, and a refusal stays on the card in words (403 hides the offer as a role that cannot write). Nothing is deleted, so no timer guards it. */
 /* CHANGE LOG: ux audit topology | maintainer@emeraldcoastsystemsgroup.com | Topology is the Graph view of Systems (UX audit 2026-11-06): a jump to the graph stays inside the Systems frame instead of asking the rail for the removed Topology tile. */
 /* CHANGE LOG: ux audit stale checks | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (Systems, FIX-BROKEN): while an installation is Silent each check that last read OK shows Stale in secondary ink with a clock (its last OK time on hover; the silence warning above says since when), never a green OK. */
 /* CHANGE LOG: ux audit | maintainer@emeraldcoastsystemsgroup.com | Scenario lab and Credentials & access merged away (UX audit 2026-11-06): a hand-off to either opens its new home, Data pipeline or Connections & access. */
@@ -30,7 +31,7 @@ function navigate(page,params={}){
  else {const url=new URL(location.href);url.hash=page;url.search=query;location.assign(url.href);}
 }
 /** @description Mount presentation-only controls. All mutations remain in the existing explicitly invoked controllers. */
-function mount({onInspect,onEvents,onRefused,onReadsBack}){
+function mount({onInspect,onEvents,onRefused,onReadsBack,onSourcesChanged}){
  let records={sources:[],events:[],inventory:[]},selectedSource='',ticketEpoch=0,deepLinked=false;
  const params=new URLSearchParams(location.search),panels=new Map(),tabs=new Map();
  const pipelineStatus=$('pipeline-status'),decisionInput=$('decision');
@@ -60,7 +61,7 @@ function mount({onInspect,onEvents,onRefused,onReadsBack}){
  const kpiStrip=el('div','','ops-kpis');kpiStrip.id='overview-kpis';kpiStrip.setAttribute('aria-label','Operations at a glance');metrics.classList.add('ops-secondary-metrics');
  const installationsBrief=el('article','','card installations-brief');installationsBrief.id='overview-installations';installationsBrief.hidden=true;
  let installationsTile=null,inventoryTile=null,discoveryOn=false;
- const installations=root.OperationsInstallations?.mount({overview:installationsBrief,systems:$('installations'),navigate,onRefused:code=>{onRefused();const said=$('status');said.textContent=code===401?'Sign in through OSHAL to continue.':'Your current OSHAL role does not permit this operation.';/* The page just emptied: in a short frame the reason would sit above the view. */said.scrollIntoView({block:'nearest'});},onUpdate:paintInstallations,onRead:onReadsBack,sources:()=>records.sources});
+ const installations=root.OperationsInstallations?.mount({overview:installationsBrief,systems:$('installations'),navigate,onRefused:code=>{onRefused();const said=$('status');said.textContent=code===401?'Sign in through OSHAL to continue.':'Your current OSHAL role does not permit this operation.';/* The page just emptied: in a short frame the reason would sit above the view. */said.scrollIntoView({block:'nearest'});},onUpdate:paintInstallations,onRead:onReadsBack,sources:()=>records.sources,onRemoved:onSourcesChanged});
  overview.replaceChildren(kpiStrip,installationsBrief,overviewGrid,tickets,metrics);
  const ago=at=>{const m=Math.round((Date.now()-Date.parse(at))/60000);return Number.isNaN(m)?'unknown':m<1?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':Math.round(m/1440)+' d ago';};
  /** One KPI tile: a large tabular number, its label, one line of detail; the tile opens its page. */
@@ -189,6 +190,7 @@ const ARM_MS=10000,ARM_LOCK_MS=400,POLL_MS=30000,TICK_MS=5000,ARM_AWAY_PX=24;
 /** A read unanswered at the first counts as failed, though its answer still counts if it comes, because reads queue behind a long tick. The kernel ends a package call at 60 seconds, so by the second nothing can answer and the read is aborted. */
 const READ_DEADLINE_MS=20000,READ_ABORT_MS=65000;
 const STOP_NOTE='For a server you retired. This deletes its chart history, its readings and its host in Systems, and closes its silence alarm; its source, alerts and investigations stay. A server that is still running comes back with its next report.';
+const REMOVE_NOTE='Removes this source from Operations: it leaves Systems, Sources, the desks and the attention list, and alerts sent to it are refused. Everything it recorded stays.';
 const when=value=>Number.isFinite(Date.parse(value))?new Date(value).toLocaleString():'not recorded';
 const clock=ms=>new Date(ms).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
 const stamp=ms=>new Date(ms).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
@@ -251,9 +253,10 @@ function checkRow(){
  const tr=el('tr'),label=el('td'),reading=el('td'),mark=el('td'),icon=el('span','','check-icon'),word=document.createTextNode('');mark.append(icon,word);tr.append(label,reading,mark);
  return filled(tr,check=>{const [i,w]=CHECK[check.state]||CHECK.unknown,cls='check-state '+check.state;if(check.title)mark.title=check.title;else mark.removeAttribute('title');put(label,check.label);put(reading,check.reading);if(mark.className!==cls)mark.className=cls;put(icon,i);if(word.data!==' '+w)word.data=' '+w;});
 }
-function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources}){
+function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources,onRemoved}){
  let rows=[],watch=null,readAt=0,begun=0,accepted=0,waiting=0,failedFor=0,countedAt=0,days=1,poll=null,ticker=null,stale=false,noWrite=false,account=null,unreported=[],unreportedFor='',frame=null,brief=null,lastLoad=Promise.resolve();
  const armed=new Map(),stopErrors=new Map(),stopKept=new Map(),said=new Map(),live=new Map(),announcer=document.getElementById('installations-standing');
+ const removing=new Set(),removeErrors=new Map();
  const age=row=>Number.isFinite(row.ageSeconds)?row.ageSeconds+(Date.now()-readAt)/1000:null;
  const watchAge=()=>Number.isFinite(watch?.ageSeconds)?watch.ageSeconds+(Date.now()-readAt)/1000:null;
  /** A read is made only while the tab is visible and a screen that shows monitoring is on it. */
@@ -311,22 +314,45 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources}){
    const refusal=stopErrors.get(id)||'';say(failed,'installation-warning',refusal);/* Focus leaves with the buttons. A refusal is read where it is; a poll that took them away must not move the page. */if(held&&!open){if(refusal)failed.focus();else name.focus({preventScroll:true});}
   });
  }
+ /** @description Remove this source: the first press opens a note that says what goes and what stays, and the second press is its own button below it; a double click or a held key does nothing. Nothing is deleted, so no timer guards it. A desk's own source is never offered. @param id The source. @param name The card's heading, which takes the focus when the offer goes. @returns The area, filled in place. */
+ function removeArea(id,name){
+  const node=el('div','','installation-remove'),first=el('button'),sure=el('div','','installation-remove-sure'),note=el('p','','operator-note'),go=el('button'),failed=el('p');let current=null;
+  first.type=go.type='button';first.hidden=sure.hidden=failed.hidden=true;failed.setAttribute('role','alert');failed.tabIndex=-1;sure.append(note,go);node.append(first,sure,failed);
+  first.addEventListener('click',e=>{if(e.detail>1)return;if(removing.has(id))removing.delete(id);else removing.add(id);fills.get(node)(current);if(removing.has(id)){go.focus({preventScroll:true});go.scrollIntoView({block:'nearest'});}});
+  go.addEventListener('click',e=>{if(e.detail>1||!removing.has(id))return;removing.delete(id);fills.get(node)(current);first.focus({preventScroll:true});void removeSource(current);});
+  go.addEventListener('keydown',e=>{if(e.repeat&&['Enter',' '].includes(e.key))e.preventDefault();});
+  return filled(node,row=>{
+   current=row;const open=!noWrite&&row.removable!==false,asked=open&&removing.has(id),held=node.contains(document.activeElement);if(!open)removing.delete(id);
+   put(first,open?(asked?'Keep this source':'Remove this source'):'');first.hidden=!open;put(note,asked?REMOVE_NOTE:'');put(go,asked?'Remove '+row.name+' from Operations':'');sure.hidden=!asked;
+   const refusal=removeErrors.get(id)||'';say(failed,'installation-warning',refusal);if(held&&!open){if(refusal)failed.focus();else name.focus({preventScroll:true});}
+  });
+ }
+ /** @description Remove the card's source on the server. The card goes once the server says removed and the records reload, so Sources drops it too; a refusal stays on the card in its words. @param row The card's installation. @returns Nothing. */
+ async function removeSource(row){
+  const id=row.sourceId,fail=text=>{removeErrors.set(id,text);render();};removeErrors.delete(id);
+  try{const r=await fetch(API+'/sources/remove',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({sourceId:id,confirm:true})});
+   if(r.status===401){clear();onRefused?.(401);return;}
+   if(r.status===403){noWrite=true;fail('Your role cannot remove a source. It stays.');return;}
+   if(!r.ok){const why=await r.json().then(b=>b?.error||'',()=>'');fail(why?'Not removed: '+why:'Could not remove this source (HTTP '+r.status+').');return;}
+   rows=rows.filter(other=>other.sourceId!==id);render();onRemoved?.(id);await load();
+  }catch{fail('Could not remove this source: this page could not reach Operations.');}
+ }
  /** @description One installation's card, built once and filled in place on every read. @param first Its first row. @returns The article. */
  function card(first){
   const id=first.sourceId,article=el('article'),head=el('header','','installation-head'),who=el('div'),state=el('div','','installation-standing'),name=el('h3'),where=el('p','','operator-note installation-where'),badge=el('span'),heardLine=el('strong','','installation-heard'),since=el('small'),alarm=el('p'),live=el('div','','installation-live');
-  const table=el('table','','installation-table installation-checks'),thead=el('thead'),hr=el('tr'),body=el('tbody'),firingTitle=el('h4'),list=el('ul','','installation-firing'),quiet=el('p'),rangeTitle=el('h4'),grid=el('div','','installation-charts'),more=el('details','','operator-advanced'),feed=el('p'),charts=CHARTS.map(def=>chart(def,text=>{live.textContent=text;})),stop=stopArea(id,name);
+  const table=el('table','','installation-table installation-checks'),thead=el('thead'),hr=el('tr'),body=el('tbody'),firingTitle=el('h4'),list=el('ul','','installation-firing'),quiet=el('p'),rangeTitle=el('h4'),grid=el('div','','installation-charts'),more=el('details','','operator-advanced'),feed=el('p'),charts=CHARTS.map(def=>chart(def,text=>{live.textContent=text;})),stop=stopArea(id,name),remove=removeArea(id,name);
   let series={},view=null;
   const fillTable=()=>{const held=root.getSelection?.();if(held&&!held.isCollapsed&&(more.contains(held.anchorNode)||more.contains(held.focusNode)))return;const next=chartTable(series,view),old=more.querySelector('table');if(old)old.replaceWith(next);else more.append(next);};
   live.setAttribute('aria-live','polite');heardLine.dataset.heard=id;name.tabIndex=-1;who.append(el('p','Monitored installation','eyebrow'),name,where);state.append(badge,heardLine,since);head.append(who,state);
   for(const h of ['Check','Reading','State'])hr.append(el('th',h));thead.append(hr);table.append(thead,body);grid.append(...charts.map(c=>c.figure));more.append(el('summary','Show these charts as a table'));more.addEventListener('toggle',()=>{if(more.open)fillTable();});
-  article.append(head,alarm,table,firingTitle,list,quiet,rangeTitle,grid,more,feed,stop,live);
+  article.append(head,alarm,table,firingTitle,list,quiet,rangeTitle,grid,more,feed,stop,remove,live);
   return filled(article,row=>{
    const now=shown(row),h=row.history||{},end=h.now??readAt,label=RANGES.find(r=>r[0]===h.days)?.[1]||RANGES[0][1],place=[row.host,row.url].filter(Boolean).join(' · ');series=h.series||{};view={bucket:(h.bucketMinutes||15)*60000,since:h.since??end-(h.days||1)*86400000,now:end,first:Date.parse(row.firstHeardAt)||0,last:Date.parse(row.lastHeardAt)||0,lastKnown:now==='silent',reported:row.reports>0,label};
    article.className='card installation '+now+(!stale&&now!=='silent'&&criticalOf(row).length?' alerting':'')+' health-'+(stale?'unknown':criticalOf(row).length?'degraded':HEALTH[row.health]?row.health:'unknown');put(name,row.name);put(where,place);where.hidden=!place;paintBadge(badge,now);put(heardLine,heard(row));put(since,row.reports?row.reports.toLocaleString()+' reports since '+when(row.firstHeardAt):'No heartbeat yet: this server only sends alerts.');
    say(alarm,now==='silent'?'installation-alarm':'installation-warning',alarmText(row,now));sync(body,staleChecks(row,now),'check',c=>c.id,checkRow);
    put(firingTitle,now==='silent'?'Open alerts':row.firing.length&&row.firing.every(a=>a.clearing)?(stale?'Reported cleared at the last read':'Reported cleared, being confirmed'):stale?'Firing at the last read':now==='late'?'Firing at its last report':'Firing now');sync(list,row.firing,'fingerprint',a=>a.fingerprint,firingRow);list.hidden=!row.firing.length;say(quiet,'operator-note',row.firing.length?'':quietText(now));
    put(rangeTitle,label);charts.forEach((c,i)=>c.draw(series[CHARTS[i][0]]||[],view));if(more.open)fillTable();
-   say(feed,'installation-warning',row.feedError?'The readings could not all be saved beside the evidence: '+row.feedError:'');fills.get(stop)(row);
+   say(feed,'installation-warning',row.feedError?'The readings could not all be saved beside the evidence: '+row.feedError:'');fills.get(stop)(row);fills.get(remove)(row);
   });
  }
  async function stopWatching(row){
@@ -368,6 +394,7 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources}){
   if(!frame)frame=buildFrame();const quiet=!rows.length&&!stale;
   put(frame.lead,leadText());frame.label.hidden=!rows.length;if(frame.pick.value!==String(days))frame.pick.value=String(days);say(frame.watchLine,'installation-warning installation-watch',watchText());say(frame.staleLine,'installation-warning',staleText());
   for(const id of [...armed.keys(),...stopErrors.keys()])if(!rows.some(r=>r.sourceId===id)){disarm(id);stopErrors.delete(id);}
+  for(const id of [...removing,...removeErrors.keys()])if(!rows.some(r=>r.sourceId===id)){removing.delete(id);removeErrors.delete(id);}
   sync(frame.cards,rows,'source',r=>r.sourceId,card);say(frame.empty,'operator-note installations-empty',quiet?emptyText():'');if(quiet&&account===null)void readAccount();if(quiet)void readUnreported();
  }
  function renderBrief(){
@@ -404,7 +431,7 @@ function mount({overview,systems,navigate,onRefused,onUpdate,onRead,sources}){
  function readIfOpen(){if(poll&&showing())void read();}
  /** The poll and the wake check leave a read inside its deadline to finish. */
  function pollRead(){if(!waiting)readIfOpen();}
- function clear(){accepted=++begun;dropReads(begun);waiting=failedFor=0;rows=[];watch=null;readAt=0;stale=noWrite=false;account=frame=brief=null;unreported=[];unreportedFor='';for(const id of [...armed.keys()])disarm(id);stopErrors.clear();stopKept.clear();said.clear();if(announcer)announcer.textContent='';if(poll)root.clearInterval(poll);if(ticker)root.clearInterval(ticker);poll=ticker=null;systems?.replaceChildren();if(overview){overview.replaceChildren();overview.hidden=true;}monitoringLines();onUpdate?.(summary());}
+ function clear(){accepted=++begun;dropReads(begun);waiting=failedFor=0;rows=[];watch=null;readAt=0;stale=noWrite=false;account=frame=brief=null;unreported=[];unreportedFor='';for(const id of [...armed.keys()])disarm(id);stopErrors.clear();stopKept.clear();removing.clear();removeErrors.clear();said.clear();if(announcer)announcer.textContent='';if(poll)root.clearInterval(poll);if(ticker)root.clearInterval(ticker);poll=ticker=null;systems?.replaceChildren();if(overview){overview.replaceChildren();overview.hidden=true;}monitoringLines();onUpdate?.(summary());}
  /* Going back and forth must not pile reads up: the browser holds six connections to this origin, and a read out for its full 65 seconds holds one. */
  document.addEventListener('visibilitychange',pollRead);root.addEventListener('hashchange',pollRead);
  return {load,clear,loaded:()=>lastLoad,summary,heardFor};

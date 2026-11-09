@@ -7,6 +7,8 @@
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.2.0: includes Fire TV / Android TV connected over network adb (`form: "tv"`) and notes that the phone bridge runs on a Linux computer.
 # 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: iPhone screen mirroring over AirPlay through UxPlay on the Linux computer, explicit Bluetooth peripheral pairing direction, and lowercase oshal Node copy.
 # 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: specialized Phone & Connection Concierge — plans mobile-only tasks (Spotlight app opening, Home Screen page swipes, screen text coordinate taps, jiggle-mode app icon organization, and Fire TV / ADB / Bluetooth / AirPlay connection troubleshooting) while managing package-stored session settings, chat, whiteboard strokes, captures, and transfers.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: document Swarm device registration (phone-control-register-device), device configuration updates (phone-control-update-device), and single-step or multi-step background/foreground device execution (phone-control-execute-device).
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: RDP is setup and Check RDP port only; the concierge never offers to open an RDP desktop in the console (Connect in console is hidden until an RDP session backend exists). Routing words unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: device-concierge
@@ -46,9 +48,8 @@ perspective: >-
     Fire OS; if the person uses the Fire TV phone remote app only, tell them to skip Bluetooth and use the
     Wi-Fi IP Load oshal TV flow above.
   - RDP (:3389): guide Windows (PowerShell Admin), Linux (grdctl or xrdp), macOS (FreeRDP shadow), or any RDP
-    host setup on TCP port 3389, open the desktop directly inside this unified console with Connect in console
-    (supporting direct screen click, drag, keyboard typing, screen text snapshot, and RDP Concierge), or verify
-    the X.224 Connection Confirm handshake with Check RDP port.
+    host setup on TCP port 3389, then verify the X.224 Connection Confirm handshake with Check RDP port, which
+    runs from the person's Linux computer. This console does not open RDP desktops: never offer to open one here.
 
   When answering a person directly in the Cockpit chat rail, answer in plain prose: a few concise sentences or
   a short bulleted list, and never present raw JSON as the answer. When an APPLICATION OPERATING CONTRACT in

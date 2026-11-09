@@ -1,3 +1,4 @@
+/** CHANGE LOG: 7 | maintainer@emeraldcoastsystemsgroup.com | Both summaries take the ids of the sources the person removed (P5-55b) and leave their installations out, so Jarvis and the attention list stop naming a removed source as stopped reporting. */
 /** CHANGE LOG: 6 | maintainer@emeraldcoastsystemsgroup.com | Alerts an engine outage keeps waiting are on the attention list, because an outage no longer sends them to review (fifth review, 2026-11-04). */
 /** CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | What a fourth review proved (2026-11-04). A rail that keeps refusing is on the attention list, because a green tick and a card that names the alert said nothing about the phone having stopped. An alert reported cleared and being confirmed no longer counts as a critical alert firing. */
 /** CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | A third review proved that with the processing schedule stopped Jarvis said nothing was waiting and the droplet was reporting, which it was, while no alarm could be raised (2026-11-04). Both summaries now say when the silence watch has stopped. A start refused for good stops counting as waiting after three days: the card keeps saying why, and nothing can be done about old evidence. */
@@ -20,8 +21,8 @@ async function stoppedWatch(pool,owner,now,installations){
  return watch.overdue?(watch.ageSeconds===null?'the silence watch has not run yet':'the silence watch last ran '+ago(watch.ageSeconds))+', so no alarm can be raised until the processing schedule runs':null;
 }
 const REFUSED_WAITS_MS=3*86400000;
-/** @description Counts and short lines from the person's own saved records; nothing is run and no external system is read. */
-export async function attentionSummary(pool,owner,now=Date.now()){
+/** @description Counts and short lines from the person's own saved records; nothing is run and no external system is read. @param pool Owner-scoped SQL. @param owner The caller. @param now Milliseconds now. @param removed Ids of the sources the person removed; their installations are not counted. @returns The items, a summary sentence and where they come from. */
+export async function attentionSummary(pool,owner,now=Date.now(),removed=new Set()){
  requireOwner(owner);
  const plans=await rows(pool,'SELECT record FROM operations_action_plans WHERE user_sub=$1 ORDER BY created_at DESC, id LIMIT 64',owner);
  const approvals=await rows(pool,'SELECT record FROM operations_action_approvals WHERE user_sub=$1 ORDER BY created_at DESC, id LIMIT 200',owner);
@@ -33,7 +34,7 @@ export async function attentionSummary(pool,owner,now=Date.now()){
  const processing=(await pool.query('SELECT state FROM operations_processing WHERE user_sub=$1 LIMIT 500',[owner])).rows;
  const approved=new Set(approvals.filter(a=>Date.parse(a.expiresAt)>now).map(a=>a.planId)),executed=new Set(executions.map(e=>e.planId));
  const count=(label,n,page,detail,names)=>({label,count:n,page,detail:detail||null,...(names?{names}:{})});
- const installations=await installationStanding(pool,owner,()=>now),silent=installations.filter(i=>i.state==='silent').map(i=>i.name);
+ const installations=await installationStanding(pool,owner,()=>now,removed),silent=installations.filter(i=>i.state==='silent').map(i=>i.name);
  const critical=installations.flatMap(i=>i.firing.filter(a=>a.severity==='critical'&&a.alertType!=='InstallationSilent'&&!a.clearing).map(a=>a.alertType+(a.service?' ('+a.service+')':'')+' on '+i.name));
  const stopped=await stoppedWatch(pool,owner,now,installations),rail=(await phoneMark(pool,owner))?.railError;
  const items=[
@@ -57,10 +58,10 @@ export async function attentionSummary(pool,owner,now=Date.now()){
 }
 
 const local=v=>v||null;
-/** @description Inventory health for Jarvis: counts by health, the degraded and unknown assets (at most 25), and scheduled discovery's state. */
-export async function systemsSummary(pool,owner,now=Date.now()){
+/** @description Inventory health for Jarvis: counts by health, the degraded and unknown assets (at most 25), and scheduled discovery's state. @param pool Owner-scoped SQL. @param owner The caller. @param now Milliseconds now. @param removed Ids of the sources the person removed; their installations are not named. @returns The summary sentence, the installations, counts, issues and discovery. */
+export async function systemsSummary(pool,owner,now=Date.now(),removed=new Set()){
  requireOwner(owner);
- const graph=await readGraph(pool,owner),discovery=await discoveryConfig(pool,owner),assets=graph.assets||[],installations=await installationStanding(pool,owner,()=>now);
+ const graph=await readGraph(pool,owner),discovery=await discoveryConfig(pool,owner),assets=graph.assets||[],installations=await installationStanding(pool,owner,()=>now,removed);
  const by=h=>assets.filter(a=>a.health===h);
  const pick=a=>({name:a.name,kind:a.kind,provider:a.provider,scope:a.scope,health:a.health,namespace:a.properties?.namespace||null,pressure:a.properties?.pressure||null,observedAt:local(a.observedAt)});
  const issues=[...by('degraded'),...by('unknown')].slice(0,25).map(pick);

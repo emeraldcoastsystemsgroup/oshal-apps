@@ -10,6 +10,7 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: Connect sheet flow with OS-ordered oshal Node download label, 3 upright steps (Install · Sign in · Press Allow), 5s auto-refresh for 2 minutes under Waiting for your computer…, hidden empty computer headers, setup-mirror / Start mirroring / Stop mirroring for UxPlay AirPlay iPhone screen mirroring, primary progression from Set up this computer to Pair, and in-page Remove confirmations without native confirm dialogs.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Fire TV / Android TV Wi-Fi subnet scanner (adb-scan-tv), end-to-end SHA-256 verified oshal TV APK staging & installation (stage-chunk + adb-install-apk), copyable push script, #connect-tv deep-link focus, and integrated Connection Troubleshooting Concierge with 1-click fixes.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: surface #deviceKindGuide (iPhone vs Android clarity), pairAndroid host-scoped adb-connect ignoring already-connected Fire TVs, and prefill the phone IP into #connectAddress with main Wireless debugging port prompt when mDNS discovery is unavailable on the subnet.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: auto-probe the first usable Linux computer on startup, auto-register connected ADB TVs and phones into Phones & TVs, and pass serverUrl + minted joinCode to adb-install-apk for zero-touch TV provisioning.
  */
 
 import { bridgeMatches, bridgeSupport, computerStanding } from '/api/phone-control/ui/computer-link.js';
@@ -69,6 +70,13 @@ export function mountSetup(app) {
   refreshTvPushScript(ctx);
   app.onChange(() => {
     renderComputers(ctx);
+    if (!ctx.view.node && app.state.loadedOnce && !ctx.view.autoProbedOnce) {
+      const candidate = app.state.computerList.find((c) => computerStanding(c).usable && bridgeSupport(c).ok);
+      if (candidate && app.state.reports.has(String(candidate.id))) {
+        ctx.view.autoProbedOnce = true;
+        chooseComputer(ctx, candidate.id, false);
+      }
+    }
     syncTvDeepLink(ctx);
   });
 }
@@ -262,6 +270,17 @@ async function readComputerStatus(ctx) {
   await ctx.app.keepReport(ctx.view.node, reply);
   renderReport(ctx);
   renderAdb(ctx, reply.adb?.devices || []);
+  for (const dev of reply.adb?.devices || []) {
+    if (dev.state !== 'device' || ctx.app.state.phones.some((p) => p.address === dev.serial)) continue;
+    const isTvDev = String(dev.serial || '').endsWith(':5555') || /^AFT/i.test(dev.model || '');
+    const name = dev.model ? String(dev.model) : (isTvDev ? `TV at ${dev.serial}` : dev.serial);
+    const saved = await ctx.app.records.savePhone({
+      platform: 'android', computerNodeId: ctx.view.node, address: dev.serial, name, form: isTvDev ? 'tv' : 'phone'
+    }).catch(() => null);
+    if (saved?.device) {
+      ctx.app.state.phones = [saved.device, ...ctx.app.state.phones.filter((item) => item.id !== saved.device.id)];
+    }
+  }
   if (reply.ble) {
     renderBle(ctx, reply.ble.phones || []);
     ctx.rdp.renderTvBle(reply.ble.phones || []);
@@ -570,12 +589,17 @@ async function loadTvOneStep(ctx, requireApk = false) {
   if (!(await waitForTvAuthorized(ctx, address, serial, connected))) return;
   if (!apk) { await finishSaveTv(ctx, serial, false); return; }
   let staged = await stageVerifiedApk(ctx, apk);
+  const serverUrl = globalThis.location?.origin || 'https://oshal.agenticfederal.us';
+  const installPayload = {
+    serial, stageId: staged.stageId, sha256: staged.sha256,
+    launchPackage: 'com.oshal.remote', serverUrl
+  };
   ctx.say('tvStatus', `Installing and launching oshal TV on ${serial}…`);
-  let installed = await ctx.bridge('adb-install-apk', { serial, stageId: staged.stageId, sha256: staged.sha256, launchPackage: 'com.oshal.remote' }, 180000);
+  let installed = await ctx.bridge('adb-install-apk', installPayload, 180000);
   if (!installed.ok && installed.error === 'device_unauthorized') {
     if (!(await waitForTvAuthorized(ctx, address, serial, installed))) return;
     staged = await stageVerifiedApk(ctx, apk);
-    installed = await ctx.bridge('adb-install-apk', { serial, stageId: staged.stageId, sha256: staged.sha256, launchPackage: 'com.oshal.remote' }, 180000);
+    installed = await ctx.bridge('adb-install-apk', { ...installPayload, stageId: staged.stageId, sha256: staged.sha256 }, 180000);
   }
   await ctx.remember('install apk', `Push oshal TV app to ${serial}`, installed);
   if (!installed.ok) { ctx.fail('tvStatus', 'tv_apk', installed); return; }

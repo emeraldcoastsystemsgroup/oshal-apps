@@ -10,6 +10,10 @@
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: manifest 1.3.0 includes oshal_phone_mirror.py, and home-summary points empty-state setup to phone-control-execution.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: manifest 1.4.0 and /ui serves session-computer.js, session-media.js, and session-collab.js.
  * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: verify manifest 1.4.1 sha256 integrity.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: verify Swarm device registration auto-resolution, POST /devices/:id/execute single/multi-step and prompt execution, and Concierge register_device + multi-step D-Pad planning.
+ * 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: manifest 1.5.0; a device registered without a computer by a person with no computer of their own is refused in words (400 computer_required), never given a fixed computer.
+ * 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the Connection Concierge never offers Connect in console (hidden until an RDP session backend exists): an RDP question over HTTP gets Check RDP port only, or Use this computer first with no computer chosen, and a model reply naming connect_rdp is dropped by the route's own sanitizer. Red on 1.5.0, whose planner put Connect in console first. Manifest 1.5.1.
+ * 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: manifest 1.5.2 (device-concierge routing words).
  */
 'use strict';
 
@@ -28,6 +32,7 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), 'phone-control-routes-'));
 process.env.OSHAL_PACKAGE_DATA_DIR = work;
 const store = require(path.join(PKG, 'lib', 'db.js'));
 const { createPhoneControlRoutes } = require(path.join(PKG, 'routes', 'phone-control-routes.js'));
+const concierge = require(path.join(PKG, 'routes', 'phone-control-concierge-routes.js'));
 
 const PEOPLE = {
   alice: { isActive: true, issuer: 'https://issuer.example', sub: 'alice' },
@@ -162,9 +167,9 @@ test('a computer report keeps what the bridge said with the time it was read', a
 
 test('the bridge files served match their manifest sha256, compressed and plain', async () => {
   const manifest = (await call('GET', '/bridge/manifest.json')).json;
-  assert.equal(manifest.version, '1.4.1');
+  assert.equal(manifest.version, '1.5.2');
   assert.deepEqual(manifest.files.map((file) => file.name).sort(), [
-    'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
+    'oshal-phone-bridge', 'oshal_phone_ble.py', 'oshal_phone_bridge.py', 'oshal_phone_lan.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py'
   ]);
   for (const file of manifest.files) {
     const plain = await call('GET', `/bridge/files/${file.name}`);
@@ -202,6 +207,76 @@ test('command-plan translates move, click, drag, type, key and screen into owner
   assert.equal((await call('POST', '/rdp/command-plan', {
     body: { rdpSessionId: 'rdp_win_1', action: 'exec' }
   })).status, 400);
+
+  const autoTv = await call('POST', '/devices', {
+    body: { name: 'Living Room Fire TV', address: '192.168.1.138' }
+  });
+  assert.equal(autoTv.status, 201);
+  assert.equal(autoTv.json.device.platform, 'android');
+  assert.equal(autoTv.json.device.form, 'tv');
+  assert.equal(autoTv.json.device.address, '192.168.1.138:5555');
+  assert.equal(autoTv.json.device.computerNodeId, NODE);
+
+  const execPrompt = await call('POST', '/devices/192.168.1.138/execute', {
+    body: { prompt: 'move down one and select', mode: 'background' }
+  });
+  assert.equal(execPrompt.status, 200);
+  assert.equal(execPrompt.json.ok, true);
+  assert.equal(execPrompt.json.mode, 'background');
+  assert.equal(execPrompt.json.steps.length, 2);
+  assert.equal(execPrompt.json.steps[0].args.key, 'DOWN');
+  assert.equal(execPrompt.json.steps[1].args.key, 'OK');
+  assert.match(execPrompt.json.command, /&&/);
+
+  const execSteps = await call('POST', `/devices/${autoTv.json.device.id}/execute`, {
+    body: { steps: [{ action: 'key', key: 'DPAD_DOWN' }, { action: 'key', key: 'DPAD_CENTER' }] }
+  });
+  assert.equal(execSteps.status, 200);
+  assert.equal(execSteps.json.steps.length, 2);
+  assert.equal(execSteps.json.steps[0].args.key, 'DOWN');
+  assert.equal(execSteps.json.steps[1].args.key, 'OK');
+
+  const navTurn = await call('POST', '/concierge/turn', {
+    body: { mode: 'phone', prompt: 'move down one and select', device: { name: 'Living Room Fire TV', platform: 'android', form: 'tv' } }
+  });
+  assert.equal(navTurn.status, 200);
+  assert.deepEqual(navTurn.json.actions, [{ kind: 'key', key: 'Down' }, { kind: 'key', key: 'Select' }]);
+
+  const regTurn = await call('POST', '/concierge/turn', {
+    body: { mode: 'phone', prompt: 'register Fire TV 192.168.1.138' }
+  });
+  assert.equal(regTurn.status, 200);
+  assert.equal(regTurn.json.actions[0].kind, 'register_device');
+  assert.equal(regTurn.json.actions[0].address, '192.168.1.138:5555');
+});
+
+test('the Connection Concierge never offers Connect in console, which nothing can serve yet', async () => {
+  const kinds = (answer) => answer.json.actions.map((action) => action.kind);
+  const chosen = await call('POST', '/concierge/turn', {
+    body: { mode: 'connect', prompt: 'How do I connect to my Windows PC over remote desktop?', context: { selectedComputer: { id: NODE, name: 'Spark' } } }
+  });
+  assert.equal(chosen.status, 200);
+  assert.deepEqual(kinds(chosen), ['probe_rdp']);
+  assert.deepEqual(chosen.json.actions[0], { kind: 'probe_rdp', label: 'Check RDP port' });
+  assert.doesNotMatch(chosen.json.reply, /Connect in console|password/i);
+  assert.match(chosen.json.reply, /does not open RDP desktops/);
+  const none = await call('POST', '/concierge/turn', { body: { mode: 'connect', prompt: 'RDP on 3389 will not answer' } });
+  assert.deepEqual(kinds(none), [], 'without a computer there is nothing to press yet');
+  assert.match(none.json.reply, /Use this computer/);
+  assert.equal(concierge.sanitizeConnectAction({ kind: 'connect_rdp', label: 'Connect in console' }), null);
+  const modelReply = JSON.stringify({ reply: 'Open it here.', done: true, actions: [{ kind: 'connect_rdp' }, { kind: 'probe_rdp' }] });
+  const parsed = concierge.parseStructuredReply(modelReply, concierge.sanitizeConnectAction);
+  assert.deepEqual(parsed.actions, [{ kind: 'probe_rdp', label: 'Check RDP port' }]);
+});
+
+test('a device registered without a computer gets one of the caller\'s own computers or a refusal in words', async () => {
+  const refused = await call('POST', '/devices', { person: 'bob', body: { name: 'Bedroom TV', address: '192.0.2.31' } });
+  assert.equal(refused.status, 400);
+  assert.equal(refused.json.error, 'computer_required');
+  assert.match(refused.json.message, /Set up this computer/);
+  assert.deepEqual((await call('GET', '/devices', { person: 'bob' })).json.devices, [], 'nothing was saved for bob');
+  const source = fs.readFileSync(path.join(PKG, 'routes', 'phone-control-routes.js'), 'utf8');
+  assert.doesNotMatch(source, /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, 'no fixed computer id in the routes');
 });
 
 test('the page, its modules and the launcher are served; another asset name is not', async () => {

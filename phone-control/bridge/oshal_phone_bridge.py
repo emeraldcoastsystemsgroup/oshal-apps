@@ -11,6 +11,9 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: iPhone AirPlay mirroring through UxPlay (setup-mirror, mirror-start, mirror-stop, mirror-frame).
 # 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: delegate mirror/TV/transfer helpers to oshal_phone_mirror.py and calibration/RDP/unified input primitives to oshal_phone_ops.py (ble-calibrate, rdp-probe, screen-info, pointer-move, pointer-click, pointer-drag, keyboard-type, keyboard-key).
 # 8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: add ble-sync verb, MENU Android keycode, optional BLE address routing, avahi-browse Android TLS connect discovery (host-filtered & Fire TV excluded), rotated Wireless Debugging TLS port auto-reconnect, and bump bridge version to 1.4.1.
+# 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the verbs lan-discover and lan-control (TVs and streaming sticks on this computer's home network) from oshal_phone_lan.py, which ships beside the other bridge files; uninstall also forgets the saved TV pairings.
+# 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: version tracks package (Connect in console hidden in the page); no verb changed.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: version tracks package (device-concierge routing words); no verb changed.
 """oshal phone bridge: one closed verb, one JSON line."""
 
 import base64, glob, hashlib, json, os, re, shutil, signal, socket, subprocess, sys, time
@@ -22,11 +25,12 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import oshal_phone_mirror  # noqa: E402
 import oshal_phone_ops  # noqa: E402
+import oshal_phone_lan  # noqa: E402
 
-VERSION = '1.4.1'
+VERSION = '1.5.2'
 MAX_OUT = 19000
 CHUNK = 16000
-FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py')
+FILES = ('oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py')
 WRAPPER = 'oshal-phone-bridge'
 ADB_PACKAGES = ['adb', 'android-libbase', 'android-libboringssl', 'android-libcutils', 'android-liblog', 'android-libziparchive']
 EARLIER_PORT_HEX = '0100007F:BADB'
@@ -432,7 +436,7 @@ def tv_address(val):
         val = f'{val}:{TV_PORT}'
     match = ADDRESS.match(val)
     if not match or not 1 <= int(match.group(1)) <= 65535:
-        raise Refusal('bad_address', "Type the TV's IP address, for example 192.168.1.138. It is under Settings, My Fire TV, About, Network.")
+        raise Refusal('bad_address', "Type the TV's IP address, for example 192.168.1.42. It is under Settings, My Fire TV, About, Network.")
     return val
 
 
@@ -734,7 +738,7 @@ MIRROR_CTX = SimpleNamespace(
     process_argv=process_argv, stop_process=stop_process, log_tail=log_tail, number=number,
     need_serial=need_serial, adb_call=adb_call, adb_device_call=adb_device_call,
     reconnect_rotated_serial=reconnect_rotated_serial, adb_shell=adb_shell, adb_refusal=adb_refusal,
-    device_quote=device_quote, list_devices=list_devices, ble_op=ble_op,
+    device_quote=device_quote, list_devices=list_devices, ble_op=ble_op, verb_adb_connect_tv=verb_adb_connect_tv,
     verb_adb_info=verb_adb_info, verb_adb_tap=verb_adb_tap, verb_adb_swipe=verb_adb_swipe,
     verb_adb_text=verb_adb_text, verb_adb_key=verb_adb_key,
 )
@@ -746,6 +750,10 @@ def verb_mirror(fn):
 
 def verb_ops(fn):
     return lambda args: getattr(oshal_phone_ops, fn)(MIRROR_CTX, args)
+
+
+def verb_lan(fn):
+    return lambda args: getattr(oshal_phone_lan, fn)(MIRROR_CTX, args)
 
 
 def verb_version(args):
@@ -785,6 +793,8 @@ def verb_uninstall(args):
                 removed.append('adb server')
         except OSError:
             continue
+    if oshal_phone_lan.forget_tokens():
+        removed.append('TV pairings')
     wrapper = os.path.join(home(), '.local', 'bin', WRAPPER)
     if os.path.exists(wrapper):
         os.remove(wrapper)
@@ -827,6 +837,7 @@ VERBS = {
     'adb-files': verb_mirror('verb_adb_files'), 'adb-push': verb_mirror('verb_adb_push'),
     'adb-pull': verb_mirror('verb_adb_pull'), 'adb-clipboard-get': verb_mirror('verb_adb_clipboard_get'),
     'adb-clipboard-set': verb_mirror('verb_adb_clipboard_set'),
+    'lan-discover': verb_lan('verb_lan_discover'), 'lan-control': verb_lan('verb_lan_control'),
 }
 HELP = {
     'status': 'Bluetooth, keyboard, AirPlay mirror, adb and phones',
@@ -861,6 +872,10 @@ HELP = {
     'adb-files': 'serial=', 'adb-push': 'serial= name= data=', 'adb-pull': 'serial= name= [offset=0]',
     'adb-clipboard-get': 'serial=', 'adb-clipboard-set': 'serial= text="..."',
     'adb-disconnect': 'serial=', 'version': 'bridge version and file hashes', 'uninstall': 'remove bridge',
+    'lan-discover': 'find TVs and streaming sticks on this computer\'s home network, read-only, installs nothing '
+                    '[wake=[{"mac":..,"address":..}] wakes only those saved TVs]',
+    'lan-control': 'kind=android-tv|samsung-tizen|roku address=<private IPv4> action=wake|off|volume_up|volume_down|mute|'
+                   'up|down|left|right|select|home|back|play_pause|launch_url|open_app|pair [mac=..] [url=https://..]',
 }
 
 

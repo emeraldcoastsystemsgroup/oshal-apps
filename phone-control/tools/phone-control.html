@@ -9,6 +9,7 @@
   6 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: merged Connect sheet opened by Add a device or /config/ui (no in-page tabs), device rows with overflow menu, full-frame phone session with Android bottom bar, TV remote D-pad, real iPhone AirPlay screen mirroring through UxPlay replacing RP-PHC-14, explicit Bluetooth peripheral pairing guidance, 48px Session sheet handle, 13 planned controls (RP-PHC-01..13), desktop top session bar + 320px right pane, OS-ordered oshal Node download, 3-step setup and 5s auto-refresh.
   7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: ship all 13 Reference-Product session features (RP-PHC-01..13) as live controls with zero planned placeholders, direct iPhone click-to-tap / drag-to-swipe / wheel-to-scroll, specialized Phone Concierge (Organize my apps, screen reading, bounded anti-loop execution), collapsible On screen & History cards, Fire TV Wi-Fi discovery & signed APK push, and Connection Troubleshooting Concierge.
   8 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned studio workspace — single-row top bar with device switcher and inline Home/Back/Recents/Sync/+ Add Device/Controls/Concierge/Full screen controls, 100%-height true-aspect center stage with 3-step live iPhone guide and non-blocking DRM overlay, collapsible 340px Controls | Concierge right rail with bottom-pinned (12px) Jarvis composer (+ screen context, speaker read-aloud, mic dictation, Send) and zero outer rail scrollbar, and guided Android pairing steps with Samsung Auto Blocker tip.
+  9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: Connect in console and the RDP sign-in fields only it used (Username, Password, Domain) are hidden: nothing implements /api/rdp/sessions (the kernel answers 404 "application is not installed" on every slot), so the RDP card offers what works, the setup scripts, Copy setup script and Check RDP port, and says this console does not open RDP desktops. Unhide them together with a session backend.
 -->
 <html lang="en" data-theme="light-blue" data-ds-category="collection" data-ds-first-action="tap">
 <head>
@@ -139,6 +140,7 @@
             <button type="button" class="ks-btn pc-key" data-key="BACK" data-android-only>Back</button>
             <button type="button" class="ks-btn pc-key" data-key="HOME" data-ios="Home" data-android-only>Home</button>
             <button type="button" class="ks-btn pc-key" data-key="RECENTS" data-android-only data-not-tv>Recent apps</button>
+            <button type="button" class="ks-btn" id="stagePushApkBtn" data-android-only>Push / Update Swarm APK</button>
           </div>
 
           <p id="stageStatus" class="ks-help pc-stage-status" role="status" aria-live="polite"></p>
@@ -649,10 +651,10 @@
               </div>
             </div>
             <ol class="pc-guide-steps" id="androidPairingSteps">
-              <li>After tapping <strong>Build number 7 times</strong>, go back to <strong>Settings → Developer options</strong> (bottom of Settings on Samsung, or <strong>Settings → System → Developer options</strong> on Pixel).</li>
-              <li><strong>Samsung Galaxy tip:</strong> if <strong>Wireless debugging</strong> is grayed out or locked, turn off <strong>Settings → Security and privacy → Auto Blocker</strong> first and make sure Wi-Fi is connected.</li>
-              <li>Tap the <strong>words “Wireless debugging” on the left side of the row</strong> (not just the switch) to open its sub-screen, turn it <strong>ON</strong> (<em>Allow on this network</em>), and tap <strong>Pair device with pairing code</strong> to open the 6-digit code + IP:port popup.</li>
-              <li>Enter that popup’s IP:port and 6-digit code below and press <strong>Pair</strong> — or plug in a USB cable with <strong>USB debugging</strong> ON (no code needed) and press <strong>Add</strong> in the table.</li>
+              <li><strong>Step 1 — Samsung Auto Blocker (Samsung Galaxy):</strong> Open <strong>Settings → Security and privacy → Auto Blocker</strong> and turn it <strong>Off</strong> (Samsung blocks both APK installation and Wireless debugging while Auto Blocker is on).</li>
+              <li><strong>Step 2 — Allow Restricted Settings (Android 14 / 15 / 16):</strong> After installing the <strong>Open Swarm</strong> APK, Android initially blocks Accessibility permissions with <em>“Restricted setting”</em>. Open <strong>Settings → Apps → Open Swarm → tap ⋮ (top-right corner) → Allow restricted settings</strong> and verify your PIN/biometric.</li>
+              <li><strong>Step 3 — Turn ON Swarm Touch Control &amp; Join Swarm:</strong> Open <strong>Settings → Accessibility → Installed apps → Open Swarm → On</strong>, then open the <strong>Open Swarm</strong> app, tap <strong>⚙ Swarm Node &amp; Remote Control</strong>, turn <strong>Swarm Control: ON</strong>, and tap <strong>Join Swarm</strong>. Your phone will appear automatically under <strong>Phones &amp; TVs</strong> with live screen picture and touch control!</li>
+              <li><strong>Optional — Direct Wireless Debugging (ADB without APK):</strong> After tapping <strong>Build number 7 times</strong>, open <strong>Settings → Developer options → tap the words “Wireless debugging” on the left side</strong>, turn it <strong>ON</strong> (<em>Allow on this network</em>), and tap <strong>Pair device with pairing code</strong> to enter the 6-digit code + IP:port below.</li>
             </ol>
             <form id="pairForm" class="ks-form">
               <div class="pc-pair-row">
@@ -729,7 +731,7 @@
             <div class="ks-card-head">
               <div>
                 <h2 id="rdpHeading">Connect via RDP (Windows · Linux · macOS · Any RDP Host)</h2>
-                <p class="ks-help">Enable Remote Desktop on a computer with the setup script below, open it directly in this console, or verify TCP 3389.</p>
+                <p class="ks-help">Enable Remote Desktop on a computer with the setup script below, then press Check RDP port: your Linux computer checks that the host answers RDP on its port. This console does not open RDP desktops.</p>
               </div>
             </div>
             <div class="pc-pair-stack">
@@ -751,13 +753,15 @@
                 <div class="ks-field"><label for="rdpHost">RDP host</label><input id="rdpHost" type="text" inputmode="url" autocomplete="off" placeholder="192.168.1.50 or desktop.local" /></div>
                 <div class="ks-field"><label for="rdpPort">Port</label><input id="rdpPort" type="number" min="1" max="65535" value="3389" /></div>
               </div>
-              <div class="pc-pair-row">
-                <div class="ks-field"><label for="rdpUsername">Username</label><input id="rdpUsername" type="text" autocomplete="username" placeholder="administrator or user" /></div>
-                <div class="ks-field"><label for="rdpPassword">Password</label><input id="rdpPassword" type="password" autocomplete="current-password" placeholder="RDP account password" /></div>
+              <div id="rdpSignIn" hidden>
+                <div class="pc-pair-row">
+                  <div class="ks-field"><label for="rdpUsername">Username</label><input id="rdpUsername" type="text" autocomplete="username" placeholder="administrator or user" /></div>
+                  <div class="ks-field"><label for="rdpPassword">Password</label><input id="rdpPassword" type="password" autocomplete="current-password" placeholder="RDP account password" /></div>
+                </div>
+                <div class="ks-field"><label for="rdpDomain">Domain (optional)</label><input id="rdpDomain" type="text" autocomplete="off" placeholder="WORKGROUP or corp.example" /></div>
               </div>
-              <div class="ks-field"><label for="rdpDomain">Domain (optional)</label><input id="rdpDomain" type="text" autocomplete="off" placeholder="WORKGROUP or corp.example" /></div>
               <div class="ks-actions">
-                <button type="button" class="ks-btn" id="rdpConnectBtn">Connect in console</button>
+                <button type="button" class="ks-btn" id="rdpConnectBtn" hidden>Connect in console</button>
                 <button type="submit" class="ks-btn" id="rdpProbeBtn">Check RDP port</button>
               </div>
             </form>

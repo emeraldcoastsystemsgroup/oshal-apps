@@ -68,6 +68,11 @@ should be copied into a token or configuration field.
 
 These tests do not contact accounts, providers or live business records. Surface syntax and stubbed-handler assertions do not claim browser or connector acceptance. Package readiness remains a separate metadata-only probe.
 
+## Overview Aggregate Normalization & Sortable Table Enhancement (1.4.2)
+
+- **Backend Aggregate Normalization (`routes/finance-routes.js`):** `normalizeAggregate()` guarantees that `GET /api/finance/summary` always returns well-formed arrays (`accounts: []`, `holdings: []`, `recentTransactions: []`, `spendingByCategory: []`) and numeric totals (`netWorthCents: 0`, `assetsCents: 0`, `liabilitiesCents: 0`) even when a stored aggregate row omits an array field or no accounts are linked yet.
+- **Container-Safe Table Enhancement (`tools/finance.html`):** `enhanceTables(root)` resolves every `<table class="data-table">` inside the rendered tab container before invoking `window.KernelTable.enhance(table)` and guards all array length accesses (`Array.isArray(...)`) across the Overview, Accounts, Holdings, Transactions, Payments, and Subscriptions views.
+
 <!-- oshal-rating:start -->
 ## Models and requirements
 

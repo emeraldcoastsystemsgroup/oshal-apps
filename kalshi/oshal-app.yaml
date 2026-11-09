@@ -91,7 +91,9 @@ description: >-
   (KALSHI_LIVE_ENABLED gates live money; every order and refusal is audited).
 # 1.7.5: UX audit (kalshi--kalshi-home), layout only: the header names the Kalshi account state beside the exchange line; one stale chip with Scan now; a phone bottom bar with More; each market title once, 50 rows then Show more; the Why panel dates a scan verdict; a 44px ticker lookup by the search. No order path changed.
 # 1.7.6: UX audit follow-up: the bars, sheets, menus and dialogs this lane added are opaque (the theme card tone over the page colour; light-blue cards are 62% white, so the phone bar and menus let the page show through).
-version: 1.7.6
+# 1.7.7: tests only. The Test Lab catalog parses again (three case purposes, market-explainer, markets-routes and quant-contract, held an unquoted second colon, so the kernel refused the whole package at install); the audience-view guard expects the Markets load the 1.7.0 tab added to the page's start; the phone-layout proof opens Alerts through More, where the 1.7.5 bottom bar put it. No route, tool, screen or order path changed.
+# 1.7.8: Jarvis routing words (backlog P4-16n): kalshi-quant adds the plural 'prediction markets', because a phrase matches only as written. "Which prediction markets have an edge tonight?" now reaches Kalshi. No route, tool or permission changed.
+version: 1.7.8
 status: active
 # This package owns deterministic surfaces and routes; its own quant owns the right rail (ADR-083 inline concierge).
 chatBot: kalshi-quant

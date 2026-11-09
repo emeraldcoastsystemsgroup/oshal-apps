@@ -3,6 +3,7 @@
 # SEQ | AUTHOR | DESCRIPTION
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | The Kalshi quant: the conversational specialist for the Kalshi application (its chatBot). Walks a person through any market, playable or not, with the evaluator's own numbers read through the kalshi_market tool, and says plainly why a bet is bad or good (Roger, 2026-10-30: "talk to an agent quant who can walk me through why every bet is bad"). Never invents a price or a probability, never places an order.
+# 2 | maintainer@emeraldcoastsystemsgroup.com | 1.7.8: Jarvis routing words (backlog P4-16n): kalshi-quant adds the plural 'prediction markets', because a phrase matches only as written. "Which prediction markets have an edge tonight?" now reaches Kalshi.
 #
 # Kalshi quant — the prediction-markets desk's explainer. Reasoning only, over the package's
 # deterministic routes (the stored scan snapshot and one live market read). It never trades.
@@ -53,4 +54,4 @@ selector_descriptor: |
   what the scan found, how the edge, fee, probability and stake were computed, or what a market's
   book and horizon say. Never for stocks, options, brokerage accounts or placing orders.
 
-routing_keywords: [kalshi, prediction market, event contract, edge scan, playable hand, fold, odds, why is this bet bad, quant]
+routing_keywords: [kalshi, prediction market, prediction markets, event contract, edge scan, playable hand, fold, odds, why is this bet bad, quant]

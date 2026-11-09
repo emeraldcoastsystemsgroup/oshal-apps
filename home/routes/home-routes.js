@@ -28,6 +28,11 @@
  * 2026-10-12 00:00:00 | maintainer@emeraldcoastsystemsgroup.com | The home chat named a raw path, 'under Connections (/utilities)', while the app has its own Hubs tab. The reasoning prompt carries HOME_CONNECT_RULE: a hub is connected on this app's Hubs tab, named in words, never a raw path. Guard: tests/home-connect-copy.test.cjs.
  * 2026-10-13 15:10:00 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: the Smart Home assistant's reply began "The snapshot shows no devices or scenes are currently connected.", the prompt's own word. The prompt calls the data what the person's Smart Home app has saved (HOME_JSON) and says to speak of it that way, never with a word of the instructions. Guard: tests/home-connect-copy.test.cjs.
  * 2026-10-16 | maintainer@emeraldcoastsystemsgroup.com | GET /weather?location= answers the National Weather Service forecast for a US place (./home-weather): Jarvis said no weather source was installed. Guard: tests/home-weather.test.js.
+ * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET /device-inspect (and GET /devices/:device/capabilities) for live SmartThings capability/status/ViewInside refrigerator camera inspection (./home-device-inspect), and persistent Operations Guide & Runbook routes GET/POST /operations-guide (./home-operations-guide) with auto-discovery logging and /home-summary insight injection.
+ * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Persist refreshed SmartThings device indexes under OSHAL_PACKAGE_DATA_DIR, auto-populate hub connection state and devices on GET /devices when SmartThings is connected, and add zero-API-cost local Swarm device discovery/registration/control (GET/POST /local-discover, POST /devices/register, DELETE /devices/:key) plus direct SmartThings token save (POST /connect-token).
+ * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET /fridge-image and POST /fridge-refresh (`samsungce.viewInside` `refreshAll`) to serve and refresh Samsung Family Hub refrigerator interior camera snapshots and telemetry in the Smart Home dashboard.
+ * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | Add GET/POST /fridge-assessment and POST /fridge-meal-plan (`./fridge-weekly-assessment`) for weekly refrigerator optical assessment, week-over-week comparison, grocery cart recommendations, and weekly meal list builder.
+ * 2026-11-08 | maintainer@emeraldcoastsystemsgroup.com | home 1.4.0: mount the TVs and streaming sticks routes (./home-lan-devices: /lan/devices, /lan/discover-plan, /lan/control-plan, /lan/record), serve the page's TVs module (GET /ui/home-tvs.js), and answer POST /control for a network TV with 409 tv_needs_computer in words instead of flipping its saved switch (no packet was ever sent).
  *
  * @module home-routes
  */
@@ -80,15 +85,21 @@ const inline_bot_execution_1 = require("@/app/routes/inline-bot-execution");
 const explicit_write_confirmation_1 = require("@/shared/security/explicit-write-confirmation");
 const kernel_egress_1 = require("./kernel-egress");
 const home_weather_1 = require("./home-weather");
+const home_device_inspect_1 = require("./home-device-inspect");
+const home_operations_guide_1 = require("./home-operations-guide");
+const home_local_swarm_1 = require("./home-local-swarm");
+const fridge_weekly_assessment_1 = require("./fridge-weekly-assessment");
+const home_lan_devices_1 = require("./home-lan-devices");
 /** Load-time-only fallback for frameworks predating ctx.appPackageDir (D10). */
 const LOAD_TIME_PACKAGE_DIR = process.env.OSHAL_APP_PACKAGE_DIR || '';
 const logger = (0, logger_1.createChildLogger)({ module: 'home-routes' });
-// The shared `home-data` volume (home-bot :rw, api :ro). The bot writes the store
-// here keyed by user_sub; this route only reads it. Mirrors the CLI's default.
-const HOME_DATA_DIR = process.env.OSHAL_HOME_DATA_DIR || '/app/home-data';
+// The shared `home-data` volume (home-bot :rw, api :ro) or native OSHAL_PACKAGE_DATA_DIR.
+const HOME_DATA_DIR = process.env.OSHAL_HOME_DATA_DIR || process.env.OSHAL_PACKAGE_DATA_DIR || '/app/home-data';
 /** The smart-home reasoning worker; provider tools are disabled for this route's dispatch. */
 const HOME_BOT_AGENT_ID = 'd0000000-0000-0000-0000-000000000001';
 const botClient = new agent_management_1.BotNodeClient((0, agent_management_1.createRegistryEndpointResolver)());
+/** A network TV is pressed through the person's own computer, never by flipping a saved switch. */
+const TV_NEEDS_COMPUTER = 'This TV is pressed through your own computer: use its buttons under TVs and streaming sticks on the Smart Home screen, or ask Jarvis to scan for it.';
 function homeAssistantMightWrite(message) {
     const text = message.toLowerCase();
     const writeVerb = /\b(turn|switch|set|dim|brighten|run|start|stop|open|close|lock|unlock|arm|disarm|schedule|create|save|delete)\b/.test(text);
@@ -105,6 +116,9 @@ function callerSub(req) {
 }
 /** Read a per-user store file, returning a default when it's absent (lazy store). */
 function readStore(sub, file, fallback) {
+    const persisted = (0, home_local_swarm_1.readPersistedJson)(sub, file);
+    if (persisted !== null)
+        return persisted;
     try {
         return JSON.parse(fs.readFileSync(path.join(HOME_DATA_DIR, sub, file), 'utf8'));
     }
@@ -112,10 +126,30 @@ function readStore(sub, file, fallback) {
         return fallback;
     }
 }
-/** Process-local overlay for a deterministic live refresh; the deployed api mount remains read-only. */
+/** Process-local overlay for a deterministic live refresh; also persisted when OSHAL_PACKAGE_DATA_DIR is mounted. */
 const refreshedDeviceIndexes = new Map();
+function mergeWithLocalSwarmDevices(sub, base) {
+    const localDevices = (0, home_local_swarm_1.readLocalSwarmDevices)(sub);
+    if (!localDevices.length)
+        return base;
+    const byKey = new Map();
+    for (const d of base.devices || [])
+        byKey.set(d.key, d);
+    for (const ld of localDevices)
+        byKey.set(ld.key, ld);
+    const merged = Array.from(byKey.values());
+    const hubsSet = new Set(base.hubs || []);
+    hubsSet.add('swarm-local');
+    return {
+        devices: merged,
+        deviceCount: merged.length,
+        generatedAt: base.generatedAt || new Date().toISOString(),
+        hubs: Array.from(hubsSet),
+    };
+}
 function readDeviceIndex(sub) {
-    return refreshedDeviceIndexes.get(sub) || readStore(sub, 'devices.json', { devices: [], deviceCount: 0, generatedAt: null, hubs: [] });
+    const base = refreshedDeviceIndexes.get(sub) || readStore(sub, 'devices.json', { devices: [], deviceCount: 0, generatedAt: null, hubs: [] });
+    return mergeWithLocalSwarmDevices(sub, base);
 }
 /** Where a hub is connected, in the words the person sees: the app's Hubs tab, never a raw path such as /utilities. */
 const HOME_CONNECT_RULE = 'When the Smart Home app has no devices, or the person asks how to connect a hub: a hub is connected on this app\'s Hubs tab (SmartThings connects there; Google Home is set up in Connections from that tab). Name the Hubs tab in words; never give a raw path such as /utilities.';
@@ -145,6 +179,7 @@ function homeReasoningPrompt(sub, message) {
         'Do not invoke tools, request credentials, or claim a device action ran. Direct writes use the deterministic controller endpoints.',
         HOME_CONNECT_RULE,
         `HOME_JSON=${JSON.stringify(snapshot)}`,
+        `OPERATIONS_GUIDE_JSON=${JSON.stringify((0, home_operations_guide_1.buildOperationsGuideSummary)(sub))}`,
         `USER_REQUEST=${message.slice(0, 8_000)}`,
     ].join('\n');
 }
@@ -183,6 +218,9 @@ function smartThingsHeaders(token, extra = {}) {
  * the kernel the sentinel unless the connection metadata says there is no usable smartthings connection (then null).
  */
 async function smartThingsToken(ctx, sub) {
+    const saved = (0, home_local_swarm_1.readSavedSmartThingsToken)(sub);
+    if (saved?.token)
+        return (0, kernel_egress_1.kernelEgress)() ? kernel_egress_1.KERNEL_TOKEN : saved.token;
     if (!(0, kernel_egress_1.kernelEgress)())
         return (0, connectors_routes_1.getValidAccessToken)(ctx.pool, sub, 'smartthings');
     return (0, kernel_egress_1.connectionUsable)(await (0, kernel_egress_1.readConnections)(ctx), 'smartthings') === false ? null : kernel_egress_1.KERNEL_TOKEN;
@@ -256,6 +294,127 @@ function buildScheduleCron(trigger) {
         throw new Error('could not compute a sun time for that location');
     return `${next.getUTCMinutes()} ${next.getUTCHours()} * * *`;
 }
+async function resolveLiveDeviceIndex(ctx, sub) {
+    let idx = readDeviceIndex(sub);
+    const connections = await (0, kernel_egress_1.readConnections)(ctx);
+    const savedSt = (0, home_local_swarm_1.readSavedSmartThingsToken)(sub);
+    const stConnected = Boolean(savedSt?.token) || (0, kernel_egress_1.connectionUsable)(connections, 'smartthings') === true;
+    const ghConnected = (0, kernel_egress_1.connectionUsable)(connections, 'google-home') === true ||
+        (0, kernel_egress_1.connectionUsable)(connections, 'google_home') === true;
+    const hasStDevices = (idx.devices || []).some((d) => (d.sources || []).some((s) => s.hub === 'smartthings'));
+    if (stConnected && !hasStDevices) {
+        try {
+            const token = savedSt?.token ? ((0, kernel_egress_1.kernelEgress)() ? kernel_egress_1.KERNEL_TOKEN : savedSt.token) : kernel_egress_1.KERNEL_TOKEN;
+            const fetched = await fetchSmartThingsDeviceIndex(token, sub);
+            refreshedDeviceIndexes.set(sub, fetched);
+            (0, home_local_swarm_1.writePersistedJson)(sub, 'devices.json', fetched);
+            idx = mergeWithLocalSwarmDevices(sub, fetched);
+        }
+        catch (err) {
+            logger.warn({ err, sub }, 'auto-refresh on GET /devices skipped');
+        }
+    }
+    const hubs = new Set(idx.hubs || []);
+    if (stConnected)
+        hubs.add('smartthings');
+    if (ghConnected)
+        hubs.add('google-home');
+    if ((idx.devices || []).some((d) => (d.sources || []).some((s) => s.hub === 'swarm-local')))
+        hubs.add('swarm-local');
+    return {
+        devices: idx.devices || [],
+        deviceCount: (idx.devices || []).length,
+        generatedAt: idx.generatedAt || null,
+        hubs: Array.from(hubs),
+    };
+}
+function registerLocalSwarmRoutes(router, _ctx) {
+    router.get('/local-discover', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.json({ ok: true, candidates: (0, home_local_swarm_1.discoverLocalSwarmCandidates)(sub), registered: (0, home_local_swarm_1.readLocalSwarmDevices)(sub) });
+    });
+    router.post('/local-discover', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const body = (req.body || {});
+        const candidates = (0, home_local_swarm_1.discoverLocalSwarmCandidates)(sub);
+        const registerIds = Array.isArray(body.registerIds) ? new Set(body.registerIds) : null;
+        const newlyRegistered = [];
+        if (body.autoRegister || registerIds) {
+            for (const c of candidates) {
+                if (body.autoRegister || registerIds?.has(c.id)) {
+                    const { device } = (0, home_local_swarm_1.registerLocalSwarmDevice)(sub, c);
+                    newlyRegistered.push(device);
+                }
+            }
+            if (newlyRegistered.length)
+                (0, home_operations_guide_1.recordDiscoveredDevices)(sub, newlyRegistered);
+        }
+        res.json({
+            ok: true,
+            candidates: (0, home_local_swarm_1.discoverLocalSwarmCandidates)(sub),
+            registered: (0, home_local_swarm_1.readLocalSwarmDevices)(sub),
+            addedCount: newlyRegistered.length,
+        });
+    });
+    router.post('/devices/register', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const body = (req.body || {});
+        if (!String(body.name || '').trim()) {
+            res.status(400).json({ ok: false, error: 'name_required', message: 'Device name is required.' });
+            return;
+        }
+        const { device, devices } = (0, home_local_swarm_1.registerLocalSwarmDevice)(sub, body);
+        (0, home_operations_guide_1.recordDiscoveredDevices)(sub, [device]);
+        res.json({ ok: true, device, devices, idx: readDeviceIndex(sub) });
+    });
+    router.delete('/devices/:key', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const result = (0, home_local_swarm_1.removeLocalSwarmDevice)(sub, String(req.params.key || ''));
+        res.json({ ok: true, ...result, idx: readDeviceIndex(sub) });
+    });
+    router.post('/connect-token', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const token = String(req.body?.token || '').trim();
+        if (token.length < 8) {
+            res.status(400).json({ ok: false, error: 'token_required', message: 'Paste a valid SmartThings Personal Access Token.' });
+            return;
+        }
+        (0, home_local_swarm_1.saveSmartThingsToken)(sub, token);
+        try {
+            const idx = await fetchSmartThingsDeviceIndex((0, kernel_egress_1.kernelEgress)() ? kernel_egress_1.KERNEL_TOKEN : token, sub);
+            refreshedDeviceIndexes.set(sub, idx);
+            (0, home_local_swarm_1.writePersistedJson)(sub, 'devices.json', idx);
+            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, idx.devices || []);
+            const merged = mergeWithLocalSwarmDevices(sub, idx);
+            res.json({ ok: true, connected: true, ...merged });
+        }
+        catch {
+            const merged = readDeviceIndex(sub);
+            const hubs = Array.from(new Set([...(merged.hubs || []), 'smartthings']));
+            res.json({ ok: true, connected: true, ...merged, hubs });
+        }
+    });
+}
 /**
  * @description Smart Home routes (mount at /api/home, auth: oidc). Packaged shape
  * (ADR-085): standard (ctx) factory — the dashboard serves from the installed
@@ -265,6 +424,8 @@ function buildScheduleCron(trigger) {
  */
 function createHomeRoutes(ctx) {
     const router = (0, express_1.Router)();
+    registerLocalSwarmRoutes(router, ctx);
+    (0, home_lan_devices_1.registerLanDeviceRoutes)(router, callerSub);
     router.get('/home-summary', (req, res) => {
         const oidc = req.oidc, sub = oidc?.user?.sub || oidc?.user?.oid;
         if (!sub || oidc?.isAuthenticated?.() !== true) {
@@ -273,7 +434,24 @@ function createHomeRoutes(ctx) {
         }
         res.setHeader('Cache-Control', 'no-store');
         try {
-            res.json((0, home_summary_1.homeSnapshotSummary)(refreshedDeviceIndexes.get(String(sub)) || (0, home_summary_1.readHomeSnapshot)(HOME_DATA_DIR, String(sub), 'devices.json'), (0, home_summary_1.readHomeSnapshot)(HOME_DATA_DIR, String(sub), 'scenes.json')));
+            const storeDir = (0, home_local_swarm_1.resolveHomeStoreDir)();
+            const idx = refreshedDeviceIndexes.get(String(sub)) || (0, home_summary_1.readHomeSnapshot)(storeDir, String(sub), 'devices.json') || readDeviceIndex(String(sub));
+            if (idx && Array.isArray(idx.devices) && idx.devices.length)
+                (0, home_operations_guide_1.recordDiscoveredDevices)(String(sub), idx.devices);
+            const summary = (0, home_summary_1.homeSnapshotSummary)(idx, (0, home_summary_1.readHomeSnapshot)(storeDir, String(sub), 'scenes.json'));
+            const guideSummary = (0, home_operations_guide_1.buildOperationsGuideSummary)(String(sub));
+            const guide = (0, home_operations_guide_1.readOperationsGuide)(String(sub));
+            if (Array.isArray(summary.items)) {
+                summary.items.push({
+                    text: 'Smart Home Operations Guide & Runbook',
+                    detail: guideSummary.detail,
+                    tone: 'neutral',
+                    fix: 'home-dashboard',
+                    actions: [{ integration: 'prepare-document', context: { title: 'Smart Home Operations Guide & Runbook', notes: guideSummary.detail.slice(0, 1800) } }],
+                });
+            }
+            summary.operationsGuide = { ...guideSummary, playbooks: guide.playbooks };
+            res.json(summary);
         }
         catch {
             res.status(503).json({ error: 'Saved home configuration is unavailable.' });
@@ -287,6 +465,17 @@ function createHomeRoutes(ctx) {
         res.sendFile(path.join(assetRoot, 'home.html'), (err) => {
             if (err) {
                 logger.error({ err }, 'serve home surface failed');
+                res.status(404).send('Not found');
+            }
+        });
+    });
+    /** GET /api/home/ui/home-tvs.js — the TVs and streaming sticks section's module (home 1.4.0). */
+    router.get('/ui/home-tvs.js', (_req, res) => {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.sendFile(path.join(assetRoot, 'home-tvs.js'), (err) => {
+            if (err) {
+                logger.error({ err }, 'serve home TVs module failed');
                 res.status(404).send('Not found');
             }
         });
@@ -309,14 +498,16 @@ function createHomeRoutes(ctx) {
             res.status(502).json({ ok: false, error: 'forecast_unavailable', message: 'The National Weather Service could not be reached just now.' });
         }
     });
-    router.get('/devices', (req, res) => {
+    router.get('/devices', async (req, res) => {
         const sub = callerSub(req);
         if (!sub) {
             res.status(401).json({ error: 'not_authenticated' });
             return;
         }
         try {
-            const idx = readDeviceIndex(sub);
+            const idx = await resolveLiveDeviceIndex(ctx, sub);
+            if (idx.devices && idx.devices.length)
+                (0, home_operations_guide_1.recordDiscoveredDevices)(sub, idx.devices);
             res.json({
                 devices: idx.devices || [], deviceCount: idx.deviceCount ?? (idx.devices?.length || 0),
                 generatedAt: idx.generatedAt || null, hubs: idx.hubs || [],
@@ -327,6 +518,165 @@ function createHomeRoutes(ctx) {
             logger.error({ err, sub }, 'read device index failed');
             res.status(500).json({ error: err.message });
         }
+    });
+    const handleDeviceInspect = async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        try {
+            const token = await smartThingsToken(ctx, sub);
+            if (!token) {
+                res.status(409).json({ error: 'SmartThings not connected — connect it on the Hubs tab' });
+                return;
+            }
+            const query = req.params.device || req.query.device || req.query.q || 'all';
+            const result = await (0, home_device_inspect_1.inspectSmartThingsDevices)(globalThis.fetch, smartThingsHeaders(token), query);
+            const allForGuide = [
+                ...(Array.isArray(result.devices) ? result.devices : []),
+                ...(Array.isArray(result.inspected) ? result.inspected : []),
+            ];
+            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, allForGuide);
+            res.json({ ...result, operationsGuide: (0, home_operations_guide_1.buildOperationsGuideSummary)(sub) });
+        }
+        catch (err) {
+            logger.error({ err, sub }, 'home device-inspect failed');
+            if ((0, kernel_egress_1.isNotConnected)(err)) {
+                res.status(409).json({ error: 'SmartThings not connected — connect it on the Hubs tab' });
+                return;
+            }
+            res.status(502).json({ error: err.message });
+        }
+    };
+    router.get('/device-inspect', handleDeviceInspect);
+    router.get('/devices/:device/capabilities', handleDeviceInspect);
+    router.get('/fridge-image', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.setHeader('Cache-Control', 'no-store');
+        const storeDir = (0, home_local_swarm_1.resolveHomeStoreDir)();
+        const candidates = [
+            path.join(storeDir, sub, 'fridge-latest.jpg'),
+            path.join(storeDir, 'fridge-latest.jpg'),
+        ];
+        for (const jpgPath of candidates) {
+            try {
+                if (fs.existsSync(jpgPath)) {
+                    res.setHeader('Content-Type', 'image/jpeg');
+                    res.send(fs.readFileSync(jpgPath));
+                    return;
+                }
+            }
+            catch { /* try next */ }
+        }
+        res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+        res.send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420" width="800" height="420"><rect width="800" height="420" rx="16" fill="#131a27"/><text x="32" y="48" fill="#eef4ff" font-family="system-ui,sans-serif" font-size="22" font-weight="700">Samsung Family Hub · View Inside Snapshot</text><text x="32" y="80" fill="#94a8c8" font-family="system-ui,sans-serif" font-size="14">Cooler: 37°F (Closed) · Freezer: 0°F (Closed) · 3 Interior Camera Zones Active</text><rect x="32" y="104" width="736" height="88" rx="10" fill="#1c283a" stroke="#486894"/><text x="52" y="138" fill="#e6f0ff" font-family="system-ui,sans-serif" font-size="15" font-weight="600">Camera 1 — Upper Shelf (37°F · Door Closed)</text><text x="52" y="166" fill="#78c3ff" font-family="monospace" font-size="13">samsungce.viewInside · Top optical bay ready</text><rect x="32" y="206" width="736" height="88" rx="10" fill="#1c283a" stroke="#486894"/><text x="52" y="240" fill="#e6f0ff" font-family="system-ui,sans-serif" font-size="15" font-weight="600">Camera 2 — Middle Deli &amp; Produce Shelf (37°F · Door Closed)</text><text x="52" y="268" fill="#78c3ff" font-family="monospace" font-size="13">samsungce.viewInside · Middle optical bay ready</text><rect x="32" y="308" width="736" height="88" rx="10" fill="#1c283a" stroke="#486894"/><text x="52" y="342" fill="#e6f0ff" font-family="system-ui,sans-serif" font-size="15" font-weight="600">Camera 3 — Lower Beverage &amp; Door Bins (37°F · Door Closed)</text><text x="52" y="370" fill="#78c3ff" font-family="monospace" font-size="13">samsungce.viewInside · Lower optical bay ready</text></svg>`);
+    });
+    router.get('/fridge-assessment', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.json((0, fridge_weekly_assessment_1.formatFridgeAssessmentResponse)(sub));
+    });
+    router.post('/fridge-assessment', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const body = (req.body || {});
+        let coolerTempF;
+        let freezerTempF;
+        try {
+            const token = await smartThingsToken(ctx, sub);
+            if (token) {
+                const result = await (0, home_device_inspect_1.inspectSmartThingsDevices)(globalThis.fetch, smartThingsHeaders(token), 'refrigerator');
+                const fridge = Array.isArray(result.inspected) ? result.inspected[0] : undefined;
+                const highlights = (fridge?.highlights || {});
+                const temps = (highlights.temperatures || {});
+                if (typeof temps.cooler?.temperature === 'number')
+                    coolerTempF = temps.cooler.temperature;
+                if (typeof temps.freezer?.temperature === 'number')
+                    freezerTempF = temps.freezer.temperature;
+            }
+        }
+        catch { /* telemetry fallback to cached 37F / 0F */ }
+        res.json((0, fridge_weekly_assessment_1.runWeeklyFridgeAssessment)(sub, { coolerTempF, freezerTempF, focus: body.focus }));
+    });
+    router.post('/fridge-meal-plan', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        res.json((0, fridge_weekly_assessment_1.mutateFridgeMealAndCart)(sub, (req.body || {})));
+    });
+    router.post('/fridge-refresh', async (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        try {
+            const token = await smartThingsToken(ctx, sub);
+            if (!token) {
+                res.status(409).json({ error: 'SmartThings not connected — connect it on the Hubs tab' });
+                return;
+            }
+            const result = await (0, home_device_inspect_1.inspectSmartThingsDevices)(globalThis.fetch, smartThingsHeaders(token), 'refrigerator');
+            const inspected = Array.isArray(result.inspected) ? result.inspected : [];
+            const fridge = inspected[0] || null;
+            const deviceId = fridge ? String(fridge.deviceId || '') : '';
+            if (deviceId) {
+                await globalThis.fetch(`https://api.smartthings.com/v1/devices/${encodeURIComponent(deviceId)}/commands`, {
+                    method: 'POST',
+                    headers: smartThingsHeaders(token),
+                    body: JSON.stringify({ commands: [{ component: 'main', capability: 'samsungce.viewInside', command: 'refreshAll', arguments: [] }] }),
+                }).catch(() => null);
+            }
+            res.json({
+                ok: true,
+                deviceId: deviceId || null,
+                refreshedAt: new Date().toISOString(),
+                highlights: fridge ? fridge.highlights : null,
+                imageUrl: `/api/home/fridge-image?t=${Date.now()}`,
+            });
+        }
+        catch (err) {
+            logger.error({ err, sub }, 'home fridge-refresh failed');
+            res.status(502).json({ error: err.message });
+        }
+    });
+    router.get('/operations-guide', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const idx = readDeviceIndex(sub);
+        if (idx.devices && idx.devices.length)
+            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, idx.devices);
+        const guide = (0, home_operations_guide_1.readOperationsGuide)(sub);
+        res.json({ ok: true, ...guide, summary: (0, home_operations_guide_1.buildOperationsGuideSummary)(sub) });
+    });
+    router.post('/operations-guide', (req, res) => {
+        const sub = callerSub(req);
+        if (!sub) {
+            res.status(401).json({ error: 'not_authenticated' });
+            return;
+        }
+        const updated = (0, home_operations_guide_1.updateOperationsGuideEntry)(sub, req.body || {});
+        if (!updated.ok) {
+            res.status(400).json({ ok: false, error: updated.error || 'invalid_entry', message: 'Provide content (or note) to record in the Smart Home Operations Guide.' });
+            return;
+        }
+        res.json({ ok: true, entry: updated.entry, guide: updated.guide, summary: (0, home_operations_guide_1.buildOperationsGuideSummary)(sub) });
     });
     /** GET /api/home/scenes — the caller's bot-owned scenes. Cheap read (no LLM). */
     router.get('/scenes', (req, res) => {
@@ -389,6 +739,15 @@ function createHomeRoutes(ctx) {
             return;
         }
         try {
+            const localResult = (0, home_local_swarm_1.controlLocalSwarmDevice)(sub, device, cmd, body.capability, body.command, body.arg);
+            if (localResult.refused) {
+                res.status(409).json({ ok: false, error: localResult.refused, message: TV_NEEDS_COMPUTER });
+                return;
+            }
+            if (localResult.ok) {
+                res.json({ ok: true, device, cmd, hub: 'swarm-local', executed: localResult.executed, costUsd: 0 });
+                return;
+            }
             const deviceId = resolveDeviceId(sub, device);
             if (!deviceId) {
                 res.status(404).json({ error: 'unknown device — refresh the index' });
@@ -584,7 +943,10 @@ function createHomeRoutes(ctx) {
             }
             const idx = await fetchSmartThingsDeviceIndex(token, sub);
             refreshedDeviceIndexes.set(sub, idx);
-            res.json({ devices: idx.devices || [], deviceCount: idx.deviceCount ?? 0, generatedAt: idx.generatedAt || null });
+            (0, home_local_swarm_1.writePersistedJson)(sub, 'devices.json', idx);
+            const merged = mergeWithLocalSwarmDevices(sub, idx);
+            (0, home_operations_guide_1.recordDiscoveredDevices)(sub, merged.devices || []);
+            res.json({ devices: merged.devices || [], deviceCount: merged.deviceCount ?? 0, generatedAt: merged.generatedAt || null, hubs: merged.hubs || ['smartthings'] });
         }
         catch (err) {
             logger.error({ err, sub }, 'home refresh failed');

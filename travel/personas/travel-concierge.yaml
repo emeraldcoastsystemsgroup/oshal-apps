@@ -15,6 +15,7 @@
 # 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No promise of live prices without Duffel. With /api/travel/config answering connected:false (mode not_connected), the concierge replied "...I can check live prices for late October". It now promises a live fare only after a search tool returned real results in the conversation, says plainly that fares cannot be searched until Duffel is connected on the Connections page (/utilities), answers in plain prose, and names its tools with the ```tool_call fence the kernel parses. The Duffel condition leads the prompt: a rule late in it still produced "I can run a live search and tell you if the current fares are good" live.
 # 2026-10-11 | maintainer@emeraldcoastsystemsgroup.com | No advice to connect a connector that does not exist. The native installation has no Duffel connector at all, yet the concierge sent travellers to Connections (/utilities) for a Duffel token and offered fare watches it could not keep, and read VPS as something other than an airport. It now says the installation has no Duffel rail where the screen or a search says so, never offers a watch there, and reads three-letter codes as IATA airports.
 # 2026-10-13 | maintainer@emeraldcoastsystemsgroup.com | Sweep 14: the concierge offered "I can search for demo hotel options" while the screen said hotels and cars cannot be searched and the hotel search answered 503: the persona said hotels and cars are demo data. They come through the same Duffel rail as fares, so with no rail they cannot be searched either; demo is said only of results a search marked demo. Guard: tests/travel-not-connected.test.js.
+# 2026-11-09 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3: Jarvis routing words (backlog P4-16j): travel-concierge adds 'fare drops', 'fare drop' and 'fare alert'. "Watch the DEN-PNS route and tell me when the fare drops" scored Get a Ride higher on its 'drop off' and 'fare estimate' words and now reaches Travel; "What's the fare to downtown in an Uber?" stays with Get a Ride.
 # ═══════════════════════════════════════════════════════════════════════════
 
 name: travel-concierge
@@ -142,6 +143,9 @@ routing_keywords:
   - layover
   - round trip
   - one way
+  - fare drops
+  - fare drop
+  - fare alert
 
 authorizations:
   search-flights: "auto"

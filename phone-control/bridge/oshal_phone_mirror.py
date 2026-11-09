@@ -6,6 +6,7 @@
 # 1 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: iPhone AirPlay mirroring via headless UxPlay into SOI/EOI-verified JPEGs with sha256 chunked delivery.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Android screen/UI/app helpers, adb file/clipboard verbs, mirror-ui screen text coordinates, Fire TV LAN scan & verified APK staging/install, and line-buffered BT.709 8fps UxPlay AirPlay pipeline.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: detect uniform-black protected DRM surfaces and asleep screens in adb-frame, report activePackage and activeActivity, and recover seamlessly from rotated Android Wireless Debugging TLS ports.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: normalize com.oshal.orbit to com.oshal.remote in verb_adb_install_apk, auto-recover from INSTALL_FAILED_UPDATE_INCOMPATIBLE, and pass optional serverUrl + joinCode/bearerToken extras to SignInActivity for zero-touch provisioning.
 """Frame, AirPlay, screen UI, file transfer, clipboard, and TV APK helpers for oshal_phone_bridge.py."""
 
 from concurrent.futures import ThreadPoolExecutor
@@ -20,6 +21,8 @@ FRAME_ID = re.compile(r'^[0-9a-f]{16}$')
 STAGE_ID = re.compile(r'^[A-Za-z0-9_-]{4,64}$')
 HEX_SHA256 = re.compile(r'^[0-9a-f]{64}$')
 SAFE_FILE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._ -]{0,119}$')
+SAFE_URL = re.compile(r'^https?://[A-Za-z0-9._:-]+(?:/[A-Za-z0-9._/-]*)?$')
+SAFE_TOKEN = re.compile(r'^[A-Za-z0-9._:-]{4,256}$')
 MAX_TRANSFER_BYTES = 4 * 1024 * 1024
 MAX_APK_BYTES = 80 * 1024 * 1024
 TRANSFER_CHUNK = 12288
@@ -827,14 +830,46 @@ def resolve_apk_for_install(ctx, args):
     return apk_path, True
 
 
+def launch_installed_companion(ctx, serial, launch_pkg, args):
+    if not launch_pkg:
+        return False
+    server_url = str(args.get('serverUrl') or '').strip()
+    token = str(args.get('joinCode') or args.get('bearerToken') or '').strip()
+    if launch_pkg == 'com.oshal.remote' and (SAFE_URL.match(server_url) or SAFE_TOKEN.match(token)):
+        cmd = ['am', 'start', '-S', '-n', 'com.oshal.remote/.ui.SignInActivity']
+        if SAFE_URL.match(server_url):
+            cmd.extend(['--es', 'extra_prefill_url', server_url])
+        if SAFE_TOKEN.match(token):
+            cmd.extend(['--es', 'extra_bearer_token', token])
+        else:
+            cmd.extend(['--ez', 'extra_auto_pair', 'true'])
+        acode, aout, _ = ctx.adb_shell(serial, ' '.join(cmd), 25)
+        if acode == 0 and 'Error' not in aout:
+            return True
+    for cat in ('LEANBACK_LAUNCHER', 'LAUNCHER', 'DEFAULT'):
+        _, lout, _ = ctx.adb_shell(serial, f'monkey -p {launch_pkg} -c android.intent.category.{cat} 1', 25)
+        if 'Events injected: 1' in lout:
+            return True
+    if launch_pkg == 'com.oshal.remote':
+        acode, aout, _ = ctx.adb_shell(serial, 'am start -n com.oshal.remote/.ui.SignInActivity', 25)
+        return acode == 0 and 'Error' not in aout
+    return False
+
+
 def verb_adb_install_apk(ctx, args):
     serial = ctx.need_serial(args)
     launch_pkg = str(args.get('launchPackage') or '').strip()
+    if launch_pkg == 'com.oshal.orbit':
+        launch_pkg = 'com.oshal.remote'
     if launch_pkg and not PACKAGE.match(launch_pkg):
         raise ctx.Refusal('bad_package', 'launchPackage must be an Android package name.')
     apk_path, cleanup = resolve_apk_for_install(ctx, args)
     code, out, err = ctx.adb_call(['-s', serial, 'install', '-r', apk_path], 120)
     text = (out + '\n' + err).strip()
+    if (code or 'success' not in text.lower()) and ('INSTALL_FAILED_UPDATE_INCOMPATIBLE' in text or 'INSTALL_FAILED_VERSION_DOWNGRADE' in text):
+        ctx.adb_call(['-s', serial, 'uninstall', launch_pkg or 'com.oshal.remote'], 30)
+        code, out, err = ctx.adb_call(['-s', serial, 'install', '-r', apk_path], 120)
+        text = (out + '\n' + err).strip()
     low = text.lower()
     if 'unauthorized' in low or 'authenticate' in low:
         raise ctx.Refusal('device_unauthorized', 'Look at your Fire TV screen and tap Allow USB debugging using your Fire TV remote or phone remote app.', adb=text[-300:])
@@ -847,14 +882,5 @@ def verb_adb_install_apk(ctx, args):
         raise ctx.Refusal('install_failed', f'Fire TV refused the APK ({reason}). Check Apps from Unknown Sources under Developer Options.', adb=text[-300:])
     if cleanup and os.path.isfile(apk_path):
         os.remove(apk_path)
-    launched = False
-    if launch_pkg:
-        for cat in ('LEANBACK_LAUNCHER', 'LAUNCHER', 'DEFAULT'):
-            _, lout, _ = ctx.adb_shell(serial, f'monkey -p {launch_pkg} -c android.intent.category.{cat} 1', 25)
-            if 'Events injected: 1' in lout:
-                launched = True
-                break
-        if not launched and launch_pkg == 'com.oshal.remote':
-            acode, aout, _ = ctx.adb_shell(serial, 'am start -n com.oshal.remote/.ui.SignInActivity', 25)
-            launched = (acode == 0 and 'Error' not in aout)
+    launched = launch_installed_companion(ctx, serial, launch_pkg, args)
     return {'ok': True, 'serial': serial, 'installed': True, 'launched': launched, 'launchPackage': launch_pkg or None}

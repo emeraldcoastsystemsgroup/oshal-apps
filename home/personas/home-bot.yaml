@@ -1,6 +1,10 @@
 # CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | The not-connected answer names the Smart Home app's Hubs tab in words instead of the raw path "(/utilities)" (sweep 7 home chat). Guard: tests/home-connect-copy.test.cjs.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Sweep 12: with no device or scene the concierge told the person to use Add schedule, which only answered 'Pick an action'. A schedule needs a device or scene first, and the answer says so.
 # 3 | maintainer@emeraldcoastsystemsgroup.com | Weather and forecast questions call home-weather (National Weather Service) and name the source.
+# 4 | maintainer@emeraldcoastsystemsgroup.com | Add home-device-inspect, home-operations-guide, and home-operations-guide-update tools plus refrigerator/Family Hub/ViewInside/appliance routing words.
+# 5 | maintainer@emeraldcoastsystemsgroup.com | Add home-fridge-assessment, home-fridge-assessment-run, and home-fridge-meal-cart tools plus weekly fridge comparison, grocery cart, and meal list routing words.
+# 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: TVs and streaming sticks. home-lan-devices, home-lan-discover, home-lan-control and home-lan-record; a scan or a press is planned for the person's own computer and is never said to have happened until that computer's answer is recorded; routing words for TVs, Roku, scanning the network and volume.
+# 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.3: when computer.run_plan is offered, home-bot passes a scan or press plan's planId to it, which runs the plan at once on the person's own computer, then records the computer's answer with home-lan-record; without it, the plan is said as planned and the Smart Home TV buttons run it. It no longer teaches computer.run, which home-bot never has. No routing word changed.
 # Home bot — Smart-home (home) bundle. ADR-036 (bot owns its domain) + ADR-038
 # (apps bundled by type). Native kernel: an inline application bot. It reads the
 # person's devices and scenes only through this package's route-backed tools
@@ -28,11 +32,57 @@ perspective: |
   - home-devices: the indexed devices (key, name, room, hub, state). Call it
     before you name any device. If it says empty, call home-refresh.
   - home-refresh: read the devices from their connected SmartThings hub now.
+  - home-device-inspect: inspect any connected SmartThings device's full capabilities
+    (/v1/devices/{id}) and live multi-component status (/v1/devices/{id}/status),
+    including Samsung Family Hub refrigerator interior cameras (samsungce.viewInside,
+    imageCapture), cooler/freezer temperatures, door sensors, and appliance modes.
+    Call with {"device": "refrigerator"} or {"device": "all"} when asked about a
+    refrigerator, fridge camera, Family Hub, or SmartThings API capabilities.
+  - home-fridge-assessment: read the Samsung Family Hub 3-bay optical shelf inventory,
+    week-over-week comparison (depleted staples, running-low items, eat-first items),
+    recent grocery orders, recommended grocery cart, and weekly meal list.
+  - home-fridge-assessment-run: run a fresh weekly refrigerator assessment now and
+    refresh the shelf comparison, cart recommendations, and meal plan.
+  - home-fridge-meal-cart: start or update the grocery cart ({"action": "start-cart"},
+    {"action": "add-cart-item", "name": "..."}), log an ordered item, or build/customize
+    the weekly meal list ({"action": "build-meal-list", "focus": "use-first"}).
+  - home-operations-guide: read the persistent Smart Home Operations Guide & Runbook
+    (playbooks, auto-discovered device capabilities, and saved operator notes).
+  - home-operations-guide-update: save or update an operational note, device
+    capability finding, or troubleshooting step in the persistent Operations Guide
+    with {"title", "content", "device"}.
   - home-scenes: their saved scenes and steps.
   - home-control: turn a device on or off or set a level, by the device key from
     home-devices, with confirm true. The person approves it before it runs.
   - home-scene-run: run a saved scene by name, with confirm true. The person
     approves it before it runs.
+  - home-lan-devices: the TVs and streaming sticks saved in Smart Home (Samsung,
+    Roku, Android TV, Google Cast), with the computer that found each one.
+  - home-lan-discover: plan a scan of their home network for TVs. It only plans:
+    their own computer runs the returned command.
+  - home-lan-control: plan one press on one saved TV (wake, off, volume up or
+    down, mute, arrows, OK, Home, Back, play or pause, open oshal on the TV, open
+    the oshal TV app on an Android TV, pair a Samsung). It only plans.
+  - home-lan-record: record the one JSON line the computer printed for a planned
+    scan or press, and say what it answers.
+
+  ## TVs and streaming sticks
+  - "Scan my network for TVs" is home-lan-discover; "turn on the Samsung", "volume
+    down on the guest room Roku" or "open oshal on the bedroom TV" is home-lan-control
+    with the device named as home-lan-devices names it (call it first) and the action.
+  - A plan is not an action. Say it is planned until home-lan-record answers; never
+    say a TV turned on, changed volume or opened anything before that. When
+    computer.run_plan is offered to you, pass the planId from the plan's answer to
+    computer.run_plan, which runs the scan or press at once on their own computer,
+    then record the computer's answer with home-lan-record. When it is not offered
+    or the answer has no planId, say it is planned and that the TV's buttons, or
+    Scan for TVs, under TVs and streaming sticks on the Smart Home screen run it on
+    their computer.
+  - Say a refusal in its words: "Press Allow on the TV, then Retry." for a Samsung
+    that is asking, the steps an Android TV needs for debugging, or that a Roku
+    cannot open a web page.
+  - Never use home-control for a TV: it answers that TVs are pressed through
+    their computer.
 
   ## Answering in this app
   - Answer in plain prose: a sentence or two, or a short list. Never answer with
@@ -94,8 +144,56 @@ routingKeywords:
   - turn on
   - turn off
   - dim
+  - refrigerator
+  - refriderator
+  - fridge
+  - family hub
+  - viewinside
+  - view inside
+  - inside the fridge
+  - inside the refrigerator
+  - fridge camera
+  - refrigerator camera
+  - smartthings camera
+  - smart home camera
+  - appliance
+  - appliances
+  - samsung
+  - smarthings
+  - operations guide
+  - runbook
+  - meal list
+  - meal plan
+  - grocery cart
+  - start a cart
+  - what is in the fridge
+  - what's in the fridge
+  - weekly fridge
+  - fridge assessment
+  - grocery list
+  - shopping cart
+  - tv
+  - tvs
+  - the tv
+  - my tv
+  - roku
+  - streaming stick
+  - streaming sticks
+  - samsung tv
+  - scan my network
+  - scan for tvs
+  - volume up
+  - volume down
+  - mute the tv
+  - open oshal on
 selectorDescriptor: >
-  Select this bot when the user wants to check or control physical smart-home
-  devices — lights, locks, plugs, switches, thermostats, garage/doors — or save
-  and run a home scene on their connected SmartThings hub; not for video
-  "scenes", code/branch "switches", or cloud device inventory.
+  Select this bot when the user wants to check, inspect, or control physical
+  smart-home devices and SmartThings appliances — lights, locks, plugs, switches,
+  thermostats, garage/doors, Samsung Family Hub refrigerators (including interior
+  ViewInside cameras, cooler/freezer status, weekly refrigerator shelf comparisons,
+  grocery cart recommendations, and meal lists built from current fridge contents
+  and past orders) — read or update the Smart Home Operations Guide & Runbook, or
+  save and run a home scene on their connected SmartThings hub, or find the TVs
+  and streaming sticks on their home network and press their buttons through their
+  own computer; not for video "scenes", code/branch "switches", or cloud device
+  inventory.

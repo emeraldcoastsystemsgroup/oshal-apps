@@ -77,6 +77,9 @@
 # 67 | maintainer@emeraldcoastsystemsgroup.com | Job `game-show` also runs tests/ux-audit-surfaces.test.js: the clicker, stage, Host Desk and lobby changes of the 2026-11-06 UX audit (Help and You sheets, the 240px dome and full-width Answer, both teams above the dock on a phone, Join this game, the live answer key, Show setup, Voice off, Recent games).
 # 68 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs codex-packer's 1-click Inject permission-preview + publish_authored browser/unit contract (forge-inject.test.cjs) and person-model's Ambient Recall surface + empty/404 browser contract (person-model-surface.test.cjs).
 # 69 | maintainer@emeraldcoastsystemsgroup.com | Job `audio` runs Audio Studio 1.2.0 acceptance and host-process shim contracts (ADR-208 5-stage channel strip, BS.1770 -14 LUFS mastering, FFmpeg MP3 export, two-arm owner isolation, HTTP 206 byte ranges, and Kokoro TTS fail-closed behavior).
+# 70 | maintainer@emeraldcoastsystemsgroup.com | Job `home` (Smart Home 1.4.0): its suites never ran in the gate. The route and manifest suites (kernel egress, connect copy, audience view, TVs and streaming sticks: plans, records, the network-TV /control refusal), the weather, inspection and guide suites, and its phone-width pages in Chromium (empty state, hubs, the TVs section driven against the compiled routes). Job `phone-control` already picks up tests/phone-control-lan.test.mjs (the bridge's TV module against protocol fakes) through its .test.mjs glob.
+# 71 | maintainer@emeraldcoastsystemsgroup.com | Two packages' suites that sat outside every glob now run. Job `kalshi`: tests/audience-view.test.cjs (the company view reads only its own four routes and nothing under an audience view; a .cjs suite the tests/*.test.js glob never matched) and tests/browser/kalshi-phone-layout.test.cjs (no tab wider than the screen at 412 x 915 or in the 392 px cockpit frame, in Chromium, with the same KALSHI_BROWSER_DEPS as the Settings/Alerts browser step). Job `embodied`: tests/audience-view.test.cjs, the family view over the package's real GET /tasks mount and GET /home-summary. It was red, 6 of 11, unseen: the mount had gained the plant routes (ADR-203 D9) and the suite's import allowlist had not, so the fix was the allowlist, not the routes.
+# 72 | maintainer@emeraldcoastsystemsgroup.com | Job `store-bots` also runs scripts/jarvis-routing-words.test.mjs: the kernel's routing scoring (scripts/jarvis-routing.mjs, mirrored from oshal-kernel jarvis_routing.rs) over every manifest here, pinning the routing words of backlog P4-16. Review of PR #823: reverting twelve packages' words turned nothing red, and Eats' "sushi place" made "place" an Eats word that took stock and shopping orders unseen.
 
 name: store-ci
 
@@ -428,6 +431,12 @@ jobs:
       # operation; pages and personas told people to connect them anyway.
       - name: Refuse copy that sends a person to connect a provider with no connector or rail here
         run: node --test scripts/check-connector-copy.test.mjs
+      # The kernel hands a person's request to the application whose declared routing words claim it
+      # (oshal-kernel crates/api/src/jarvis_routing.rs) and scores every word of a phrase on its own, so
+      # one package's new phrase can take another package's requests. scripts/jarvis-routing.mjs mirrors
+      # that scoring over every manifest here.
+      - name: Routing words reach their own requests and take no other package's
+        run: node --test scripts/jarvis-routing-words.test.mjs
       # The platform left these four as inert migrated declarations that opened nothing on the native
       # kernel; each must declare a concierge or workflow bound to a declared or imported inline bot.
       - name: Run Operations experience and transactional intake contracts
@@ -637,6 +646,18 @@ jobs:
         env:
           KALSHI_BROWSER_DEPS: ${{ runner.temp }}/kalshi-browser-deps
         run: node --test "tests/*.test.js"
+      # The audience view (ADR-164 D6): the company view's open reads only this package's own routes,
+      # and under a view the full page starts nothing. A .cjs suite, which the glob above never matched.
+      - name: Run the Kalshi audience-view suite
+        working-directory: kalshi
+        run: node --test tests/audience-view.test.cjs
+      # The page at phone width in Chromium: no tab wider than the screen at 412 x 915 or in the
+      # cockpit's 392 px frame, the scan table scrolling inside its own box.
+      - name: Run the Kalshi phone-width page suite in Chromium
+        working-directory: kalshi
+        env:
+          KALSHI_BROWSER_DEPS: ${{ runner.temp }}/kalshi-browser-deps
+        run: node --test tests/browser/kalshi-phone-layout.test.cjs
 
   bake-off:
     name: bake-off package suites
@@ -1127,6 +1148,12 @@ jobs:
       - name: Run embodied engine suites
         working-directory: embodied
         run: node --test "tests/engine-*.test.js"
+      # The family and company audience views over the package's REAL routes: GET /tasks from the
+      # compiled mount with its sibling route modules and GET /home-summary, express and the framework
+      # aliases stubbed, any other import a failure. Plain node, no install; the engine-* glob never ran it.
+      - name: Run the embodied audience-view suite
+        working-directory: embodied
+        run: node --test tests/audience-view.test.cjs
 
   ocean-lab:
     name: ocean-lab package suites
@@ -1387,6 +1414,29 @@ jobs:
       - name: Run the phone-control computer link and bridge suites
         working-directory: phone-control
         run: node --test "tests/phone-control-*.test.mjs"
+
+  home:
+    name: Smart Home routes, TVs and streaming sticks, and its phone-width pages
+    needs: [test-discovery, catalog-parity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Provision the pinned source contract dependencies
+        run: npm ci --prefix scripts/toolchain
+      - name: Run the Smart Home route, TV and manifest suites
+        working-directory: home
+        run: node --test "tests/*.test.cjs"
+      - name: Run the Smart Home weather, inspection and guide suites
+        working-directory: home
+        run: node --test "tests/*.test.js"
+      - name: Provide the Smart Home browser contract runtime
+        run: node scripts/toolchain/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Run the Smart Home phone-width page suites in Chromium
+        working-directory: home
+        run: node --test "tests/browser/*.test.cjs"
 
   media-concierges:
     name: movies and spotify concierge surfaces and kernel egress

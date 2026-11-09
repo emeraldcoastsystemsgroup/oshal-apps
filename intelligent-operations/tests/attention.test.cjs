@@ -1,3 +1,5 @@
+/* CHANGE LOG: 5 | maintainer@emeraldcoastsystemsgroup.com | One Jarvis tool writes (1.5.3, P5-55b): ops-remove-source is held for the person's approval and bound under records.write, like the POST /sources/remove route it calls; every other tool still reads under exactly one read permission shared with its GET route. */
+/* CHANGE LOG: 4 | maintainer@emeraldcoastsystemsgroup.com | The four desk tools (ops-app-desk, ops-security-desk, ops-platform-desk, ops-release-desk) are bound to their desk's read permission, not app.open, so the tool check now asks for exactly one read permission shared with the tool's route, and names which. */
 /* CHANGE LOG: 3 | maintainer@emeraldcoastsystemsgroup.com | A refused start older than three days no longer counts as waiting: the card keeps its reason and nothing can be done about old evidence (third review, 2026-11-04). */
 /* CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | Guard the Jarvis systems, response-plan and anomaly summaries: own records only, degraded assets named with scope, discovery state stated, nothing claimed as run. */
 /* CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Guard the Jarvis attention summary and tools: counts come from the caller's own saved records in real SQL (another person sees nothing), the summary sentence names only what waits on the person, and every declared tool is read-only, bound under app.open and backed by a route the package serves. */
@@ -20,12 +22,18 @@ test('the attention summary counts only the caller\'s own records and names only
   const bob=await attentionSummary(f.caller('bob'),'bob');assert.ok(bob.items.every(i=>i.count===0));assert.equal(bob.summary,'Nothing in Operations is waiting on you.');
  }finally{await f.close();}
 });
-test('every Jarvis tool is read-only, bound under app.open and backed by a served route',()=>{
+test('every Jarvis tool but ops-remove-source is read-only, bound under exactly one read permission and backed by a route bound the same way',()=>{
  const manifest=yaml.load(fs.readFileSync(path.join(root,'oshal-app.yaml'),'utf8')),auth=yaml.load(fs.readFileSync(path.join(root,'authorization.yaml'),'utf8'));
- const bound=Object.fromEntries(auth.bindings.tools.map(t=>[t.id,t.allOf]));const http=auth.bindings.http.map(b=>b.method+' '+b.path);
+ const bound=Object.fromEntries(auth.bindings.tools.map(t=>[t.id,t.allOf]));const http=Object.fromEntries(auth.bindings.http.map(b=>[b.method+' '+b.path,b.allOf]));
  assert.deepEqual(manifest.tools.map(t=>t.name).sort(),Object.keys(bound).sort());
- for(const tool of manifest.tools){assert.equal(tool.requiresApproval,false);assert.deepEqual(bound[tool.name],['app.open']);const [method,endpoint]=tool.executor.apiEndpoint.split(' ');assert.equal(method,'GET',tool.name+' reads only');
-  const route=endpoint.replace('/api/intelligent-operations','');assert.ok(http.includes('GET '+route),tool.name+' has an HTTP binding for '+route);}
+ for(const tool of manifest.tools){
+  // The one write: held for approval, under records.write like the route it calls.
+  if(tool.name==='ops-remove-source'){assert.equal(tool.requiresApproval,true);assert.deepEqual(bound[tool.name],['records.write']);assert.equal(auth.permissions['records.write'].effect,'write');assert.equal(tool.executor.apiEndpoint,'POST /api/intelligent-operations/sources/remove');assert.deepEqual(http['POST /sources/remove'],['records.write']);continue;}
+  assert.equal(tool.requiresApproval,false);assert.equal(bound[tool.name].length,1,tool.name+' is bound under one permission');assert.equal(auth.permissions[bound[tool.name][0]].effect,'read',tool.name+' is a read');
+  const [method,endpoint]=tool.executor.apiEndpoint.split(' ');assert.equal(method,'GET',tool.name+' reads only');
+  const route=endpoint.replace('/api/intelligent-operations','');assert.deepEqual(http['GET '+route],bound[tool.name],tool.name+' has an HTTP binding for '+route+' under the same permission');
+  // A desk tool reads its desk alone; everything else rides app.open.
+  assert.equal(bound[tool.name][0],tool.name.endsWith('-desk')?'desk.'+{app:'app',security:'security',platform:'platform',release:'release'}[tool.name.split('-')[1]]:'app.open',tool.name);}
 });
 
 test('Jarvis summaries name degraded systems, discovery state, plans and anomalies from the caller\'s own records only',async()=>{

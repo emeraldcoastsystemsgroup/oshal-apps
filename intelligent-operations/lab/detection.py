@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Install the package-owned detection service in the guarded local Kubernetes lab.
 CHANGE LOG: 1 | maintainer@emeraldcoastsystemsgroup.com | Deploy an isolated percolator and engine bridge; pin it through the existing native package engine relay.
+CHANGE LOG: 2 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: search's disk watermarks are free space (30gb, 20gb, 10gb) as in engine/container/compose.yaml; the default percentages put OpenSearch's index-create block on a 91 % full 3.5 TB disk with 310 GB free and every new rule index was refused (HTTP 403).
 """
 import argparse
 import json
@@ -11,6 +12,8 @@ ROOT=Path(__file__).resolve().parents[1]
 SEARCH='opensearchproject/opensearch@sha256:6836708871685e272ad9042285e1c680790fe4315b047279ad16f761da2f4b70'
 NAME='operations-detection'
 KERNEL_NS='oshal-install-lab'
+# Free space, not a percentage, as in engine/container/compose.yaml: the rule indexes are KBs.
+WATERMARKS={'cluster.routing.allocation.disk.watermark.'+k:v for k,v in (('low','30gb'),('high','20gb'),('flood_stage','10gb'))}
 
 
 def manifests():
@@ -18,7 +21,7 @@ def manifests():
     meta=lambda name:{'name':name,'namespace':lab.MON,'labels':{'app':NAME,'oshal.owner':'operations-lab'}}
     security={'runAsNonRoot':True,'runAsUser':1000,'allowPrivilegeEscalation':False,'capabilities':{'drop':['ALL']},'seccompProfile':{'type':'RuntimeDefault'}}
     engine={'name':'engine','image':image,'command':['python','/engine/server.py'],'env':[{'name':'PYTHONDONTWRITEBYTECODE','value':'1'},{'name':'OPERATIONS_ENGINE_BIND','value':'0.0.0.0'}],'ports':[{'containerPort':7419}], 'securityContext':{**security,'readOnlyRootFilesystem':True},'resources':{'requests':{'cpu':'100m','memory':'64Mi'},'limits':{'cpu':'500m','memory':'256Mi'}},'volumeMounts':[{'name':'code','mountPath':'/engine','readOnly':True}],'readinessProbe':{'tcpSocket':{'port':7419},'initialDelaySeconds':3}}
-    env={'discovery.type':'single-node','network.host':'127.0.0.1','node.store.allow_mmap':'false','DISABLE_INSTALL_DEMO_CONFIG':'true','DISABLE_SECURITY_PLUGIN':'true','OPENSEARCH_JAVA_OPTS':'-Xms512m -Xmx512m'}
+    env={'discovery.type':'single-node','network.host':'127.0.0.1','node.store.allow_mmap':'false','DISABLE_INSTALL_DEMO_CONFIG':'true','DISABLE_SECURITY_PLUGIN':'true','OPENSEARCH_JAVA_OPTS':'-Xms512m -Xmx512m',**WATERMARKS}
     search={'name':'search','image':SEARCH,'env':[{'name':k,'value':v} for k,v in env.items()],'securityContext':security,'resources':{'requests':{'cpu':'500m','memory':'768Mi'},'limits':{'cpu':'2','memory':'1536Mi'}},'volumeMounts':[{'name':'search','mountPath':'/usr/share/opensearch/data'}],'readinessProbe':{'exec':{'command':['curl','-fsS','http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=2s']},'initialDelaySeconds':15,'periodSeconds':5,'timeoutSeconds':3,'failureThreshold':24}}
     pod={'automountServiceAccountToken':False,'securityContext':{'fsGroup':1000},'containers':[engine,search],'volumes':[{'name':'code','configMap':{'name':NAME}},{'name':'search','persistentVolumeClaim':{'claimName':NAME}}]}
     return [

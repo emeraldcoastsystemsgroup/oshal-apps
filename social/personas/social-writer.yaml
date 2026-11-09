@@ -4,6 +4,7 @@
 # -----------------------------------------------------------------------------
 # 1 | maintainer@emeraldcoastsystemsgroup.com | Declare the package-owned bot identity and reasoning persona; runtime authority stays with the installation.
 # 2 | maintainer@emeraldcoastsystemsgroup.com | Draft on request. Asked "Write me a one-sentence LinkedIn post idea about documenting on-call handoffs", the bot refused ("I cannot draft that ... I do not have access to your specific signals") and sent the person to Signals: a topic the person gives is all a draft needs. The persona now drafts at once from the person's own words, keeps Signals only for "what is happening" questions, names the app's real screens, and answers in plain prose.
+# 3 | maintainer@emeraldcoastsystemsgroup.com | 1.7.1: Jarvis routing words (backlog P4-16a): social-writer adds 'a linkedin post', 'a facebook post', 'publish' and 'facebook'. "Draft a LinkedIn post about our product launch" went to Marketing Engine on its 'product launch' phrase, and "Publish this to X and Facebook at the same time" was a four-way tie, because Social declared its platform words only inside phrases; both reach Social now, while "Publish the book layout" stays with Publishing Studio.
 
 name: social-writer
 role: Social Content Partner
@@ -74,3 +75,7 @@ routing_keywords:
 - hook
 - cta
 - personal brand
+- a linkedin post
+- a facebook post
+- publish
+- facebook

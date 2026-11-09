@@ -12,6 +12,8 @@
 # 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0 (1.4.1: the home summary's empty line reads "No saved Uber Eats links yet", as the household guard expects): real restaurants. Search answers from Google Places around the diner's delivery address through the kernel's egress (places.googleapis.com with the kernel-held google-places key as the key query parameter; the package never holds it). The curated five-restaurant catalog, the menu and the cart tools are gone: Uber has no consumer API, so a menu the package cannot read is not priced here. Ordering is the Uber Eats search link at the diner's resolved address (its Google place id in Uber's location token) for the chosen restaurant, proven in a browser. Tools: search-restaurants (query + address), open-uber-eats (approval-gated hand-off), ask-eats-concierge.
 # 9 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1 (UX audit 2026-11-06, eats-browse MERGE + eats-concierge FIX-BROKEN): the Restaurants tile is gone; it loaded /api/eats/app?view=browse, which no code read, so it was the Order Food page twice. Order Food is the one home and an old ?view=browse address opens it on its results. ribbon.hideAssistant: the in-page Eats Concierge is the one assistant entry. The page follows the theme it wears (the parent-token copy that froze the first theme's palette is gone), a typed delivery address is saved for the person, and internal state notes and repeated notes leave What the concierge remembers.
 # 10 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2 (UX audit 2026-11-06, eats-concierge): collapse a saved delivery address into a one-line "Deliver to <address> ▾" button until edited, move the four memory pills and What the concierge remembers out of browse into a Settings dialog, and open Eats Concierge on a phone as an opaque bottom half-sheet from one 48px button.
+# 11 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: Jarvis routing words (backlog P4-16i): eats-concierge adds 'sushi place', 'pizza place', 'taco place', 'burger place', 'place to eat' and 'places to eat'. "Find a sushi place near me" tied Marquee on 'find' and now reaches Eats, so "Find a sushi place near me and get me a ride there" reaches Eats and Get a Ride; "Find a place to stay in Denver" stays with nobody. No route, tool or permission changed.
+# 12 | maintainer@emeraldcoastsystemsgroup.com | 1.5.4: eats-concierge withdraws 1.5.3's six '... place' routing phrases (review of PR #823): the kernel scores a phrase's words on their own, so 'place' became an Eats keyword and every "Place ... order" request (stocks, Amazon, groceries) scored Eats 4 with 'order', tying Intelligent Trades on "Place a buy order for 5 shares of Tesla" and taking the hand-off of the others. Routing words only; no route, tool or permission changed. Guarded by scripts/jarvis-routing-words.test.mjs.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OSHAL app package — eats ("Eats" Uber Eats Concierge)
@@ -55,7 +57,7 @@ description: >-
   Google Places, your tastes and allergies remembered, and a one-tap hand-off into
   Uber Eats at your address with the restaurant you chose. Other swarm bots can ask
   it to find food.
-version: 1.5.2
+version: 1.5.4
 status: active
 
 source:

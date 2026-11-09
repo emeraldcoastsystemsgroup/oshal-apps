@@ -5,6 +5,7 @@
  * -----------------------------------------------------------------------------
  * 1   | maintainer@emeraldcoastsystemsgroup.com     | UX audit 2026-11-05 (home-dashboard, D), in headless Chromium at 412 x 915 and in the 392 px cockpit frame with synthetic reads: with no hub the page is one empty state (No devices yet, one primary Connect a hub that opens the SmartThings and Google Home rows, each with a status pill), no schedule form, no Refresh and no inline Ask bar; a refused refresh (409) is an alert with Connect a hub, never silence; with devices the order is devices, scenes, schedules; the diagnostic brief stays withheld while no connected action mounts. Replaces home-phone-layout and home-reply-words, which proved the removed Ask bar.
  * 2   | maintainer@emeraldcoastsystemsgroup.com     | The split: schedules are the Automations screen (?view=automations), with one empty state when there is nothing to run; the Smart Home screen is devices then scenes.
+ * 3   | maintainer@emeraldcoastsystemsgroup.com     | Verify #fridgeCameraSection renders the Samsung Family Hub weekly schedule badge, week-over-week shelf comparison, grocery cart starter, and 5-day meal list builder, and updates state on POST /api/home/fridge-meal-plan.
  */
 'use strict';
 const test = require('node:test');
@@ -92,4 +93,48 @@ test('Automations is its own screen: the schedules with something to run, one em
     assert.equal(await visible(page, '#schedSection'), false, 'no schedule form with nothing to run');
     assert.deepEqual(await page.locator('button.solid:visible, a.solid:visible').allTextContents(), ['Connect a hub']);
   } finally { await context.close(); }
+});
+
+test('with a Family Hub refrigerator device, #fridgeCameraSection renders weekly comparison, grocery cart starter, and 5-day meal list builder', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { formatFridgeAssessmentResponse, mutateFridgeMealAndCart } = require('../../routes/fridge-weekly-assessment.js');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'home-fridge-ui-'));
+  const prevDir = process.env.OSHAL_PACKAGE_DATA_DIR;
+  process.env.OSHAL_PACKAGE_DATA_DIR = tmpDir;
+  const fridgeReads = {
+    '/api/home/devices': {
+      devices: [
+        { key: 'samsung-family-hub', name: 'Samsung Family Hub Refrigerator', switch: 'on', temperatureF: 37, capabilities: ['refrigeration', 'samsungce.viewInside'] },
+      ],
+      hubs: ['SmartThings'],
+      generatedAt: '2026-11-08T06:00:00Z',
+    },
+    '/api/home/scenes': { scenes: [] },
+    '/api/home/schedules': { schedules: [] },
+    '/api/home/fridge-assessment': formatFridgeAssessmentResponse('owner-ui'),
+  };
+  const { page, context } = await openPage(browser, { width: 1280, height: 900 }, { url: '/api/home/ui', files: { '/api/home/ui': PAGE }, reads: fridgeReads });
+  try {
+    await page.route('**/api/home/fridge-meal-plan', async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      const updated = mutateFridgeMealAndCart('owner-ui', body);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updated) });
+    });
+    await page.waitForSelector('#fridgeCameraSection:not([hidden])');
+    assert.match(await page.textContent('#fridgeWeeklySchedBadge'), /Weekly Assessment: Sunday 09:00 · Active/);
+    assert.match(await page.textContent('#fridgeShelfInventory'), /Silver Floss Sauerkraut Jar/);
+    assert.match(await page.textContent('#fridgeComparisonLists'), /Organic Whole Milk/);
+    assert.match(await page.textContent('#fridgeMealPlanList'), /Prepped Glass-Bowl Chopped Salad/);
+    await page.locator('#startFridgeCartBtn').click();
+    await page.waitForFunction(() => document.getElementById('fridgeCartStatusBadge')?.textContent?.includes('Cart Started'));
+    assert.match(await page.textContent('#fridgeCartStatusBadge'), /Cart Started · [67] items/);
+    await page.locator('#fridge-meal-focus').selectOption('high-protein');
+    await page.waitForFunction(() => document.getElementById('fridgeMealPlanList')?.textContent?.includes('Double-Protein'));
+  } finally {
+    await context.close();
+    if (prevDir === undefined) delete process.env.OSHAL_PACKAGE_DATA_DIR;
+    else process.env.OSHAL_PACKAGE_DATA_DIR = prevDir;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

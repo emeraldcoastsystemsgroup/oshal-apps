@@ -1,5 +1,6 @@
 # CHANGE LOG
 # 1 | maintainer@emeraldcoastsystemsgroup.com | UX audit 2026-11-06 (layout only): register home-layout (the account line, one stale chip, the title once, 50 rows then Show more, the phone bottom bar with More).
+# 2 | maintainer@emeraldcoastsystemsgroup.com | The catalog parses again: the market-explainer, markets-routes and quant-contract purposes were plain scalars with a second colon ("Pin the pure explainer: browse rows", "over a stored snapshot: GET /markets", "page agree: chatBot is"), which YAML reads as a mapping and the kernel refuses as the whole package; all three are folded blocks now. The audience-view expectation names the markets load the 1.7.0 Markets tab added to the page's start.
 version: 1
 cases:
   - id: package-readiness
@@ -111,7 +112,7 @@ cases:
       - On open the company view reads only GET /scan (the saved snapshot), GET /alerts (the ledger and its paper record) and GET /home-summary; it never reads /status, /portfolio or /alerts/pops, which ask Kalshi live, never /trends or /settings, and never writes.
       - The stats are the playable-hand count, the snapshot's age with its freshness, the paper alert record and the recorded alerts over five days; the hands table names strength, side, market, ask, net edge, stake, close and risk flags as the snapshot ranks them, capped at ten; the alerts list names each alert's strength, side, edge, delivery and settlement outcome, newest first, capped at eight, under the record line.
       - Waiting for the first scan, a running first scan, the scan switched off, a folded scan, a stale or failed snapshot, an open staking gate, a 401, a 403, a failed snapshot read, a failed or refused alerts read (which never hides the hands), a failed, unavailable or partial home summary and no alerts at all each read as what they are.
-      - Under an audience view the page's own start (the snapshot, alert, settings and trend loads, the pollers, the account read) and its connected-actions mount do not run; without the audience, and without the kit, they run as before.
+      - Under an audience view the page's own start (the snapshot, markets, alert, settings and trend loads, the pollers, the account read) and its connected-actions mount do not run; without the audience, and without the kit, they run as before.
     prerequisites:
       - runner:node-test
     sideEffects: none
@@ -203,7 +204,9 @@ cases:
     installation: never
   - id: market-explainer
     name: Market walkthrough words and numbers
-    purpose: Pin the pure explainer: browse rows, the reasons a market is skipped, fold and playable walkthroughs, the quant's question, open-market filtering.
+    purpose: >-
+      Pin the pure explainer: browse rows, the reasons a market is skipped, fold and playable walkthroughs,
+      the quant's question, open-market filtering.
     level: unit
     runner: { kind: node-test, scope: package, files: [tests/kalshi-market-explainer.test.js] }
     expected:
@@ -217,7 +220,9 @@ cases:
     installation: never
   - id: markets-routes
     name: Browse and walkthrough routes
-    purpose: Run the compiled routes over a stored snapshot: GET /markets filters, sorts and bounds; GET /markets/:ticker answers from the snapshot, else live, with 404/503 refusals; GET /scan ships no browse rows; runScan stores one row per walked market.
+    purpose: >-
+      Run the compiled routes over a stored snapshot: GET /markets filters, sorts and bounds; GET /markets/:ticker answers
+      from the snapshot, else live, with 404/503 refusals; GET /scan ships no browse rows; runScan stores one row per walked market.
     level: integration
     runner: { kind: node-test, scope: package, files: [tests/kalshi-markets-routes.test.js] }
     expected:
@@ -231,7 +236,9 @@ cases:
     installation: never
   - id: quant-contract
     name: Quant concierge contract
-    purpose: Prove the manifest, persona, tools, rating and page agree: chatBot is the declared quant, every tool is an authorized read of a mounted route, the rating names the hosted feature, the Markets tab leads the page.
+    purpose: >-
+      Prove the manifest, persona, tools, rating and page agree: chatBot is the declared quant, every tool is an authorized read of a mounted route,
+      the rating names the hosted feature, the Markets tab leads the page.
     level: unit
     runner: { kind: node-test, scope: package, files: [tests/kalshi-quant-contract.test.js] }
     expected:

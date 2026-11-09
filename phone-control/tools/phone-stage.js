@@ -9,15 +9,16 @@
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: remote-control first screen and session (C-REM-1, C-REM-6, C-REM-7, N14, DS-39): device rows with overflow menu (Allow control, in-page confirmed Remove), full-frame phone session with Android bottom bar, live iPhone AirPlay screen mirroring through UxPlay (Start mirroring / Stop mirroring + mirror-frame loop), 48px Session sheet handle, desktop top session toolbar ending with X and 320px right pane.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: integrate sessionComputer, sessionMedia, sessionCollab, and specialized phoneConcierge controllers for RP-PHC-01..13, direct iPhone click-to-tap / drag-to-swipe / wheel-to-scroll, auto-resumed AirPlay mirroring, mirrored iPhone screen text reading, streamlined quick-control dock, and modal background inert gating.
  * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: AI Office-aligned studio toolbar (#sessionDeviceSelect switcher, inline Home/Back/Recents/Sync/#sessionMirrorBtn/+ Add Device/Controls/Concierge/Full screen), collapsible 340px Controls | Concierge right rail, fullscreen stage (.is-fullscreen + parent event fallback + #fullscreenHud), TV #protectedSurfaceNotice + fast post-input frame wakeups, pre-mirror iPhone stage touchpad + #iosStageGuide, and persisted RDP state cleanup.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: surface Swarm-enrolled Android phones and TVs in Phones & TVs (#phoneRail), render their live screen frames and phone/TV controls in #deviceFrame, and fall back to connected Swarm-enrolled Android nodes when a saved Android record's local ADB bridge is offline.
  */
 
-import { readFrame, tapPoint, swipeFromDrag, createQueue, workHref, computerStanding, phoneReachable, setStoredRdp } from '/api/phone-control/ui/computer-link.js';
+import { readFrame, tapPoint, swipeFromDrag, createQueue, workHref, computerStanding, phoneReachable, setStoredRdp, isAndroidNode, isTvNode } from '/api/phone-control/ui/computer-link.js';
 import {
   flashTouchIndicator, handleRdpPointerUp, loadStageHistory, rdpLabel, rdpLoop, readRdpScreen,
   renderDeviceSwitcher, renderProtectedSurface, renderRdpHead, renderScreenItems, sendRdpInput,
   setFullscreenStage, setRailState, toggleRailTab
 } from '/api/phone-control/ui/phone-rdp.js';
-import { mountSessionComputer } from '/api/phone-control/ui/session-computer.js';
+import { dispatchEnrolledAndroidVerb, enrolledAndroidFor, mountSessionComputer } from '/api/phone-control/ui/session-computer.js';
 import { mountSessionMedia } from '/api/phone-control/ui/session-media.js';
 import { mountSessionCollab } from '/api/phone-control/ui/session-collab.js';
 import { mountPhoneConcierge } from '/api/phone-control/ui/phone-concierge.js';
@@ -38,19 +39,14 @@ function syncModalLayers(ctx) {
   const { app, $ } = ctx;
   const connectOpen = Boolean(app.state.connectOpen);
   const sheetOpen = Boolean(app.state.sessionSheetOpen) && !connectOpen;
-  setLayerBlocked($('pageHeader'), connectOpen || sheetOpen);
-  setLayerBlocked($('devicesView'), connectOpen || sheetOpen);
-  setLayerBlocked($('sessionView'), connectOpen || sheetOpen);
+  for (const id of ['pageHeader', 'devicesView', 'sessionView']) setLayerBlocked($(id), connectOpen || sheetOpen);
   setLayerBlocked($('sessionSheet'), connectOpen);
 }
 
 function createStageContext(app) {
   const $ = app.byId;
   const ctx = {
-    app,
-    $,
-    queue: createQueue(),
-    desktopMedia: window.matchMedia('(min-width: 1040px)'),
+    app, $, queue: createQueue(), desktopMedia: window.matchMedia('(min-width: 1040px)'),
     view: {
       generation: 0, frame: null, pictureUrl: '', apps: [], computerTag: '',
       drag: null, padDrag: null, menuPhone: null, menuRdp: null, menuTrigger: null,
@@ -96,16 +92,9 @@ export function mountStage(app) {
   wireRowActions(ctx);
   wireControls(ctx);
   ctx.desktopMedia.addEventListener?.('change', () => renderStage(ctx));
-  document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement && ctx.view.fullscreen) setFullscreenStage(ctx, false);
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') restartFrameLoops(ctx);
-  });
-  app.onChange(() => {
-    renderRail(ctx);
-    renderStage(ctx);
-  });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && ctx.view.fullscreen) setFullscreenStage(ctx, false); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') restartFrameLoops(ctx); });
+  app.onChange(() => { renderRail(ctx); renderStage(ctx); });
 }
 
 function restartFrameLoops(ctx) {
@@ -113,13 +102,9 @@ function restartFrameLoops(ctx) {
   const computer = ctx.selectedComputer();
   const rdp = ctx.selectedRdp();
   ctx.view.generation += 1;
-  if (phone?.controlEnabled && (phone.platform === 'android' || (phone.platform === 'ios' && ctx.view.mirrorRunning))) {
-    void frameLoop(ctx, ctx.view.generation);
-  } else if (computer) {
-    void computerLoop(ctx, ctx.view.generation);
-  } else if (rdp) {
-    void rdpLoop(ctx, ctx.view.generation, showPicture);
-  }
+  if (phone?.controlEnabled && (phone.platform === 'android' || (phone.platform === 'ios' && ctx.view.mirrorRunning))) void frameLoop(ctx, ctx.view.generation);
+  else if (computer) void computerLoop(ctx, ctx.view.generation);
+  else if (rdp) void rdpLoop(ctx, ctx.view.generation, showPicture);
 }
 
 function buildRow(label, sub, tone, selected, onPick, onMore) {
@@ -157,16 +142,24 @@ function buildRow(label, sub, tone, selected, onPick, onMore) {
 function renderRail(ctx) {
   const { app, $ } = ctx;
   closeRowMenu(ctx);
-  $('phoneRail').replaceChildren(...app.state.phones.map((phone) => {
+  const savedRows = app.state.phones.map((phone) => {
     const report = app.state.reports.get(phone.computerNodeId)?.report || null;
-    const reachable = phoneReachable(phone, report);
+    const reachable = phoneReachable(phone, report) || Boolean(enrolledAndroidFor(app, phone));
     const kind = isTv(phone) ? TV : phone.platform === 'android' ? ANDROID : IPHONE;
     const selected = app.state.selected?.kind === 'phone' && app.state.selected.id === phone.id;
     const stateText = `${kind.label} · ${reachable ? 'connected' : 'last seen offline'}${phone.controlEnabled ? '' : ' · control off'}`;
     return buildRow(phone.name, stateText, reachable ? 'tone-ok' : 'tone-warn', selected,
       () => selectDevice(ctx, { kind: 'phone', id: phone.id }, true), (trigger) => openRowMenu(ctx, phone, trigger));
-  }));
-  const computerRows = app.state.computerList.map((computer) => {
+  });
+  const enrolledPhoneRows = app.state.computerList.filter((c) => isAndroidNode(c)).map((computer) => {
+    const standing = computerStanding(computer);
+    const kindLabel = isTvNode(computer) ? 'TV' : 'Android';
+    const selected = app.state.selected?.kind === 'computer' && String(app.state.selected.id) === String(computer.id);
+    return buildRow(computer.name || `${kindLabel} ${String(computer.id).slice(0, 8)}`, `${kindLabel} · ${standing.text}`, standing.tone, selected,
+      () => selectDevice(ctx, { kind: 'computer', id: computer.id }, true), null);
+  });
+  $('phoneRail').replaceChildren(...savedRows, ...enrolledPhoneRows);
+  const computerRows = app.state.computerList.filter((c) => !isAndroidNode(c)).map((computer) => {
     const standing = computerStanding(computer);
     const selected = app.state.selected?.kind === 'computer' && String(app.state.selected.id) === String(computer.id);
     return buildRow(computer.name || `Computer ${String(computer.id).slice(0, 8)}`, `Computer · ${standing.text}`, standing.tone, selected,
@@ -237,30 +230,27 @@ function syncSessionPlacement(ctx) {
   workHost.append($('workOnIt'));
 }
 
+function setSheetOpenUI(ctx, open) {
+  ctx.app.state.sessionSheetOpen = open;
+  ctx.$('sessionSheet').hidden = !open;
+  ctx.$('sessionSheetScrim').hidden = !open;
+  ctx.$('sessionHandleBtn').setAttribute('aria-expanded', String(open));
+}
+
 function openSessionSheet(ctx, push = true) {
-  const { app, $ } = ctx;
-  if (!app.state.selected) return;
-  app.state.sessionSheetOpen = true;
-  $('sessionSheet').hidden = false;
-  $('sessionSheetScrim').hidden = false;
-  $('sessionHandleBtn').setAttribute('aria-expanded', 'true');
+  if (!ctx.app.state.selected) return;
+  setSheetOpenUI(ctx, true);
   syncSessionPlacement(ctx);
-  if (push && history.state?.pcView !== 'session-sheet') {
-    history.pushState({ pcView: 'session-sheet', selected: app.state.selected }, '');
-  }
-  app.emit();
+  if (push && history.state?.pcView !== 'session-sheet') history.pushState({ pcView: 'session-sheet', selected: ctx.app.state.selected }, '');
+  ctx.app.emit();
 }
 
 function closeSessionSheet(ctx, fromPop = false) {
-  const { app, $ } = ctx;
-  if (!app.state.sessionSheetOpen) return;
-  app.state.sessionSheetOpen = false;
-  $('sessionSheet').hidden = true;
-  $('sessionSheetScrim').hidden = true;
-  $('sessionHandleBtn').setAttribute('aria-expanded', 'false');
+  if (!ctx.app.state.sessionSheetOpen) return;
+  setSheetOpenUI(ctx, false);
   syncSessionPlacement(ctx);
   if (!fromPop && history.state?.pcView === 'session-sheet') history.back();
-  app.emit();
+  ctx.app.emit();
 }
 
 function loadTargetPreferences(ctx, targetKey, generation) {
@@ -289,12 +279,9 @@ async function probeIosMirror(ctx, phone, generation) {
 }
 
 function selectDevice(ctx, choice, push = true) {
-  const { app, $, view, status } = ctx;
+  const { app, view, status } = ctx;
   closeRowMenu(ctx);
-  app.state.sessionSheetOpen = false;
-  $('sessionSheet').hidden = true;
-  $('sessionSheetScrim').hidden = true;
-  $('sessionHandleBtn').setAttribute('aria-expanded', 'false');
+  setSheetOpenUI(ctx, false);
   app.state.selected = choice;
   view.generation += 1;
   view.frame = null;
@@ -323,7 +310,7 @@ function selectDevice(ctx, choice, push = true) {
 }
 
 async function endSession(ctx, fromPop = false) {
-  const { app, $, view, status } = ctx;
+  const { app, view, status } = ctx;
   if (!app.state.selected) return;
   const wasSheet = history.state?.pcView === 'session-sheet';
   const wasSession = history.state?.pcView === 'session';
@@ -332,10 +319,7 @@ async function endSession(ctx, fromPop = false) {
     ctx.sessionComputer.beforeEndSession(),
     Promise.resolve(ctx.sessionCollab.beforeEndSession())
   ]);
-  app.state.sessionSheetOpen = false;
-  $('sessionSheet').hidden = true;
-  $('sessionSheetScrim').hidden = true;
-  $('sessionHandleBtn').setAttribute('aria-expanded', 'false');
+  setSheetOpenUI(ctx, false);
   setFullscreenStage(ctx, false);
   app.state.selected = null;
   view.generation += 1;
@@ -345,10 +329,7 @@ async function endSession(ctx, fromPop = false) {
   status('');
   renderStage(ctx);
   renderRail(ctx);
-  if (!fromPop) {
-    if (wasSheet) history.go(-2);
-    else if (wasSession) history.back();
-  }
+  if (!fromPop && (wasSheet || wasSession)) history.go(wasSheet ? -2 : -1);
   app.emit();
 }
 
@@ -410,16 +391,21 @@ async function syncActiveDevice(ctx) {
 }
 
 function sendHomeKey(ctx) {
+  const computer = ctx.selectedComputer();
+  if (isAndroidNode(computer)) {
+    void ctx.sessionComputer.keyOnComputer(computer, 'HOME', 'Home');
+    return;
+  }
   const phone = ctx.selectedPhone();
   if (!phone) return;
   if (phone.platform === 'android') press(ctx, 'key home', 'Home', 'adb-key', { key: 'HOME' });
   else press(ctx, 'key home', 'Home', 'ble-key', { key: 'Home', address: phone.address });
 }
 
-function syncPlatformAttributes(phone, tv, ios) {
-  for (const button of document.querySelectorAll('[data-phone-only]')) button.hidden = !phone;
+function syncPlatformAttributes(phone, tv, ios, androidNode = false) {
+  for (const button of document.querySelectorAll('[data-phone-only]')) button.hidden = !(phone || androidNode);
   for (const button of document.querySelectorAll('[data-android-only]')) {
-    button.hidden = phone?.platform !== 'android' || (tv && button.hasAttribute('data-not-tv'));
+    button.hidden = !(phone?.platform === 'android' || androidNode) || (tv && button.hasAttribute('data-not-tv'));
   }
   for (const button of document.querySelectorAll('[data-tv-only]')) button.hidden = !tv;
   for (const button of document.querySelectorAll('[data-ios-only]')) button.hidden = !ios || tv;
@@ -430,32 +416,33 @@ function renderStage(ctx) {
   const phone = ctx.selectedPhone();
   const computer = ctx.selectedComputer();
   const rdp = ctx.selectedRdp();
-  const tv = isTv(phone);
+  const androidNode = isAndroidNode(computer);
+  const tv = isTv(phone) || isTvNode(computer);
   const ios = phone?.platform === 'ios';
   const active = Boolean(phone || computer || rdp);
   setVisible('pageHeader', !active && !ctx.app.state.notAllowed);
   setVisible('devicesView', !active && !ctx.app.state.notAllowed);
   setVisible('sessionView', active && !ctx.app.state.notAllowed);
-  $('deviceFrame').dataset.kind = tv ? 'tv' : phone ? phone.platform : (computer || rdp) ? 'computer' : 'none';
+  $('deviceFrame').dataset.kind = tv ? 'tv' : phone ? phone.platform : androidNode ? 'android' : (computer || rdp) ? 'computer' : 'none';
   $('androidNavBar').dataset.tv = String(tv);
   setVisible('allowControlRow', Boolean(phone));
-  setVisible('controlBar', Boolean(phone));
+  setVisible('controlBar', Boolean(phone || androidNode));
   setVisible('quickControlDock', active);
   setVisible('typeForm', active);
   setVisible('openForm', active);
   setVisible('tvRemote', tv);
   setVisible('pointerPad', ios);
-  setVisible('computerPointerSection', Boolean(computer));
+  setVisible('computerPointerSection', Boolean(computer && !androidNode));
   setVisible('iosMirrorBar', false);
-  setVisible('androidNavBar', phone?.platform === 'android' && !tv);
-  setVisible('screenTextCard', phone?.platform === 'android' || (ios && view.mirrorRunning) || Boolean(rdp));
+  setVisible('androidNavBar', (phone?.platform === 'android' || androidNode) && !tv);
+  setVisible('screenTextCard', phone?.platform === 'android' || androidNode || (ios && view.mirrorRunning) || Boolean(rdp));
   setVisible('computerActions', Boolean(computer) && !desktopMedia.matches);
   setVisible('sessionHandleBtn', !desktopMedia.matches);
-  setVisible('refreshScreen', phone?.platform === 'android' || (ios && view.mirrorRunning) || Boolean(rdp));
+  setVisible('refreshScreen', phone?.platform === 'android' || androidNode || (ios && view.mirrorRunning) || Boolean(rdp));
   const mirrorLabel = view.mirrorRunning ? 'Stop mirroring' : 'Start mirroring';
   $('sessionMirrorLabel').textContent = mirrorLabel;
   for (const id of ['iosMirrorBtn', 'sheetMirrorBtn', 'quickMirrorBtn']) $(id).textContent = mirrorLabel;
-  syncPlatformAttributes(phone, tv, ios);
+  syncPlatformAttributes(phone, tv, ios, androidNode);
   $('iosStageGuide').hidden = true;
   $('screenNote').hidden = false;
   if (phone) renderPhoneHead(ctx, phone);
@@ -508,15 +495,20 @@ function renderPhoneHead(ctx, phone) {
 }
 
 function renderComputerHead(ctx, computer) {
-  const { $ } = ctx;
+  const { $, view } = ctx;
   const standing = computerStanding(computer);
+  const androidNode = isAndroidNode(computer);
+  const kindLabel = isTvNode(computer) ? 'TV over Swarm' : androidNode ? 'Android over Swarm' : (computer.platform || 'computer');
+  const dims = view.frame?.deviceWidth && view.frame?.deviceHeight ? ` · ${view.frame.deviceWidth}×${view.frame.deviceHeight}` : '';
   $('stageTitle').textContent = computer.name || 'Computer';
-  $('stageSub').textContent = `${computer.platform || 'computer'} · ${standing.text}`;
+  $('stageSub').textContent = `${kindLabel}${dims} · ${standing.text}`;
   $('workOnIt').href = workHref(computer.id);
   $('computerConciergeWorkBtn').href = workHref(computer.id);
-  $('appInput').placeholder = 'App name, command or URL';
+  $('appInput').placeholder = androidNode ? 'App name or package' : 'App name, command or URL';
   if ($('screenImage').hidden) {
-    $('screenNote').textContent = standing.usable ? 'Waiting for the first picture…' : standing.text;
+    $('screenNote').textContent = standing.usable
+      ? (androidNode ? 'Reading the device’s live screen…' : 'Waiting for the first picture…')
+      : standing.text;
   }
 }
 
@@ -578,6 +570,14 @@ function press(ctx, action, summary, verb, args, after) {
   if (!phone) return;
   ctx.status(`${summary}…`);
   void ctx.queue.press(async () => {
+    const report = ctx.app.state.reports.get(phone.computerNodeId)?.report || null;
+    const fallbackNode = !phoneReachable(phone, report) ? enrolledAndroidFor(ctx.app, phone) : null;
+    if (fallbackNode) {
+      const ok = await dispatchEnrolledAndroidVerb(ctx, fallbackNode, verb, args, summary);
+      ctx.status(ok ? `${summary}: done.` : 'Command could not be completed on the enrolled device.');
+      if (ok && after) after({ ok: true });
+      return;
+    }
     const extra = phone.platform === 'android' ? { serial: phone.address } : { address: phone.address };
     const reply = await phoneCommand(ctx, phone, verb, { ...extra, ...args }, action, summary);
     if (!reply) return;
@@ -652,7 +652,16 @@ async function frameLoop(ctx, generation) {
             renderStage(ctx);
             return;
           }
-          $('screenNote').textContent = error.message;
+          const fallbackNode = enrolledAndroidFor(app, phone);
+          const response = fallbackNode ? await app.computers.screen(fallbackNode.id, view.computerTag).catch(() => null) : null;
+          if (generation !== view.generation) return;
+          if (response?.status === 200) {
+            view.computerTag = response.headers.get('etag') || '';
+            showPicture(ctx, await response.blob());
+            $('screenNote').textContent = '';
+          } else if (response?.status !== 304) {
+            $('screenNote').textContent = error.message;
+          }
         }
       }
     }
@@ -681,7 +690,7 @@ async function computerLoop(ctx, generation) {
             $('screenNote').textContent = '';
           } else if (response.status === 404) {
             showPicture(ctx, null);
-            $('screenNote').textContent = 'Waiting for a picture from that computer…';
+            $('screenNote').textContent = 'Waiting for a picture from that device…';
           } else if (response.status !== 304) {
             $('screenNote').textContent = `The screen could not be read (HTTP ${response.status}).`;
           }
@@ -690,7 +699,7 @@ async function computerLoop(ctx, generation) {
         $('screenNote').textContent = `The screen could not be read: ${error.message}`;
       }
     }
-    await new Promise((resolve) => setTimeout(resolve, ctx.sessionMedia.computerFrameMs()));
+    await waitNextFrame(ctx, isAndroidNode(computer) ? ctx.sessionMedia.phoneFrameMs() : ctx.sessionMedia.computerFrameMs());
   }
 }
 
@@ -723,8 +732,7 @@ function closeRemoveDialog(ctx) {
 }
 
 async function confirmRemovePhone(ctx) {
-  const id = ctx.view.pendingRemoveId;
-  const rdpId = ctx.view.pendingRemoveRdpId;
+  const { pendingRemoveId: id, pendingRemoveRdpId: rdpId } = ctx.view;
   closeRemoveDialog(ctx);
   if (rdpId) {
     await ctx.app.rdp.disconnect(rdpId).catch(() => {});
@@ -753,8 +761,7 @@ function wireRowActions(ctx) {
     if (target) void updatePhoneControl(ctx, target, !target.controlEnabled);
   });
   $('rowRemoveDevice').addEventListener('click', () => {
-    const target = ctx.view.menuPhone;
-    const rdpTarget = ctx.view.menuRdp;
+    const { menuPhone: target, menuRdp: rdpTarget } = ctx.view;
     closeRowMenu(ctx);
     if (!target && !rdpTarget) return;
     ctx.view.pendingRemoveId = target?.id || null;
@@ -801,6 +808,8 @@ function wireControls(ctx) {
   wireToolbarControls(ctx);
   for (const button of document.querySelectorAll('.pc-key')) {
     button.addEventListener('click', () => {
+      const computer = ctx.selectedComputer();
+      if (isAndroidNode(computer)) { void ctx.sessionComputer.keyOnComputer(computer, button.dataset.key, button.textContent.trim()); return; }
       const phone = ctx.selectedPhone();
       if (!phone) return;
       if (phone.platform === 'android') press(ctx, `key ${button.dataset.key.toLowerCase()}`, button.textContent.trim(), 'adb-key', { key: button.dataset.key });
@@ -823,10 +832,7 @@ function wireControls(ctx) {
       { dx: Number(button.dataset.dx), dy: Number(button.dataset.dy) }));
   }
   $('pointerClick').addEventListener('click', () => press(ctx, 'pointer', 'Click', 'ble-mouse', { dx: 0, dy: 0, click: true }));
-  $('allowControl').addEventListener('change', () => {
-    const phone = ctx.selectedPhone();
-    if (phone) void updatePhoneControl(ctx, phone, $('allowControl').checked);
-  });
+  $('allowControl').addEventListener('change', () => { const phone = ctx.selectedPhone(); if (phone) void updatePhoneControl(ctx, phone, $('allowControl').checked); });
   $('readScreen').addEventListener('click', () => readScreen(ctx));
   wireForms(ctx);
   wirePicture(ctx);
@@ -839,10 +845,7 @@ function wireForms(ctx) {
     event.preventDefault();
     const text = $('typeInput').value;
     const computer = ctx.selectedComputer();
-    if (computer && text) {
-      if (await ctx.sessionComputer.typeOnComputer(computer, text)) $('typeInput').value = '';
-      return;
-    }
+    if (computer && text) { if (await ctx.sessionComputer.typeOnComputer(computer, text)) $('typeInput').value = ''; return; }
     const rdp = ctx.selectedRdp();
     if (rdp && text) {
       const sent = await ctx.queue.press(() => sendRdpInput(ctx, rdp, { action: 'type', text, enter: false }, `Type ${text.length} characters`));
@@ -857,10 +860,7 @@ function wireForms(ctx) {
     event.preventDefault();
     const name = $('appInput').value.trim();
     const computer = ctx.selectedComputer();
-    if (computer && name) {
-      if (await ctx.sessionComputer.openOnComputer(computer, name)) $('appInput').value = '';
-      return;
-    }
+    if (computer && name) { if (await ctx.sessionComputer.openOnComputer(computer, name)) $('appInput').value = ''; return; }
     const rdp = ctx.selectedRdp();
     if (rdp && name) {
       await ctx.queue.press(async () => {
@@ -910,12 +910,14 @@ function wirePicture(ctx) {
   const image = ctx.$('screenImage');
   image.addEventListener('load', () => {
     const phone = ctx.selectedPhone();
+    const computer = ctx.selectedComputer();
     const rdp = ctx.selectedRdp();
-    if ((!phone && !rdp) || !(image.naturalWidth > 0 && image.naturalHeight > 0)) return;
+    if ((!phone && !computer && !rdp) || !(image.naturalWidth > 0 && image.naturalHeight > 0)) return;
     const dw = ctx.view.frame?.deviceWidth || image.naturalWidth;
     const dh = ctx.view.frame?.deviceHeight || image.naturalHeight;
     ctx.view.frame = { ...(ctx.view.frame || {}), width: dw, height: dh, deviceWidth: dw, deviceHeight: dh };
     if (phone) renderPhoneHead(ctx, phone);
+    else if (computer) renderComputerHead(ctx, computer);
     else if (rdp) renderRdpHead(ctx, rdp);
   });
   const local = (event) => { const box = image.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top, box }; };
@@ -937,10 +939,7 @@ function wirePicture(ctx) {
 
 function wireStageTouchpad(ctx) {
   const frame = ctx.$('deviceFrame');
-  const localPad = (event) => {
-    const box = frame.getBoundingClientRect();
-    return { x: event.clientX - box.left, y: event.clientY - box.top, box };
-  };
+  const localPad = (event) => { const box = frame.getBoundingClientRect(); return { x: event.clientX - box.left, y: event.clientY - box.top, box }; };
   frame.addEventListener('pointerdown', (event) => {
     if (!ctx.$('screenImage').hidden || event.target?.closest?.('button, a, #protectedSurfaceNotice')) return;
     const phone = ctx.selectedPhone();
@@ -948,9 +947,7 @@ function wireStageTouchpad(ctx) {
     flashTouchIndicator(ctx, event.clientX, event.clientY);
     ctx.view.padDrag = { ...localPad(event), at: performance.now() };
   });
-  frame.addEventListener('pointermove', (event) => {
-    if (ctx.view.padDrag) flashTouchIndicator(ctx, event.clientX, event.clientY);
-  });
+  frame.addEventListener('pointermove', (event) => { if (ctx.view.padDrag) flashTouchIndicator(ctx, event.clientX, event.clientY); });
   frame.addEventListener('pointerup', (event) => {
     const start = ctx.view.padDrag;
     ctx.view.padDrag = null;
@@ -967,9 +964,7 @@ async function updatePhoneControl(ctx, phone, enabled) {
     if (ctx.app.state.selected?.kind === 'phone' && ctx.app.state.selected.id === device.id) {
       selectDevice(ctx, { kind: 'phone', id: device.id }, false);
       ctx.status(enabled ? 'Control is on.' : 'Control is off: nothing is sent to this device.');
-    } else {
-      ctx.app.emit();
-    }
+    } else ctx.app.emit();
   } catch (error) {
     if (ctx.selectedPhone()?.id === phone.id) ctx.$('allowControl').checked = !enabled;
     ctx.status(`Allow control could not be saved: ${error.message}`);
@@ -979,6 +974,20 @@ async function updatePhoneControl(ctx, phone, enabled) {
 function readScreen(ctx) {
   const rdp = ctx.selectedRdp();
   if (rdp) { readRdpScreen(ctx, rdp); return; }
+  const computer = ctx.selectedComputer();
+  if (isAndroidNode(computer)) {
+    ctx.status('Reading the screen…');
+    void ctx.queue.press(async () => {
+      try {
+        const reply = await ctx.app.computers.readScreen(computer.id);
+        renderScreenItems(ctx, { computer }, reply);
+        ctx.status('Read the screen: done.');
+      } catch (error) {
+        ctx.status(error?.message || 'Could not read the screen.');
+      }
+    });
+    return;
+  }
   const phone = ctx.selectedPhone();
   if (!phone) return;
   if (phone.platform === 'ios' && !ctx.view.mirrorRunning) {

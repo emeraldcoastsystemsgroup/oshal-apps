@@ -32,6 +32,28 @@ applies: the `native_container_forward.py` link-unit line and the `OSHAL_PACKAGE
 writes neither, and the `OSHAL_PACKAGE_ENGINES` pin is never changed by it. Re-run the installer
 after an engine change; it recreates only the engine.
 
+Search judges disk pressure by free space: `engine/container/compose.yaml` and `lab/detection.py` set
+OpenSearch's disk watermarks to 30gb (low), 20gb (high) and 10gb (flood stage). The defaults are
+percentages (85, 90 and 95 %), which on a large host disk are hundreds of GB: on 2026-11-08 the Spark's
+3.5 TB disk passed 90 % used with 310 GB free, OpenSearch put its index-create block
+(`cluster.blocks.create_index`) on the cluster, and every new rule index came back as `Detection
+backend refused the operation (HTTP 403)`. Desk activation publishes one rule index per desk, so the
+processing tick answered 503 every minute. The disk monitor lifts a block it set on its next pass
+once free space is back above the high watermark. An engine installed before 1.5.1 keeps refusing
+new rule indexes while its disk is above 90 %; re-run the installer once to apply the free-space
+watermarks (search keeps its data volume). Whether the block is on:
+`docker exec oshal-intelligent-operations-search curl -s localhost:9200/_cluster/settings`.
+
+The installer does not take the compose file's word for it. Once the engine and its link are in place it
+pipes search's own `GET /_cluster/settings?include_defaults=true&flat_settings=true` (the values the
+cluster applies, the node settings from compose.yaml's environment included) into
+`engine/search-disk-guard.py` with the three watermarks it read from compose.yaml, and finishes only when
+the cluster applies exactly those and `cluster.blocks.create_index` is off. A block an older install left
+is lifted by the disk monitor on a pass after the restart, so the check retries for 3 minutes; if it never
+passes the installer prints search's answer and its last 40 log lines and exits 1 (the engine and its link
+stay in place, so existing rules still match; only new rule indexes are refused).
+`tests/search-disk-guard.test.cjs` proves the guard against a real OpenSearch 3.3.2.
+
 The install command is owned by the route, never by a surface (BUILDING-EXTENSIONS.md section 7):
 `routes/detection-engine.js` exports `INSTALL_HINT` and, when the kernel relay cannot reach the
 engine or the hello's identity digest differs from `identity.json`, refuses with status 503, the
@@ -63,5 +85,8 @@ any referenced policy generation.
 
 Tests require an explicit disposable PostgreSQL on 127.0.0.1:35689 and OpenSearch on
 127.0.0.1:35690, supplied via `OSHAL_TEST_POSTGRES` and `OSHAL_TEST_SEARCH`. They create/drop
-isolated databases and test-owned indexes. The CI workflow pins the AMD64 image separately from
+isolated databases and test-owned indexes: the engine fixture (`tests/fixtures/detection.cjs`) deletes
+every rule index its engine was asked to publish when it closes, the four desk indexes each tick
+publishes included, and fails the test file if the test search refuses a delete. The test search is
+shared and holds at most 1000 shards. The CI workflow pins the AMD64 image separately from
 the ARM64 lab image. Missing services fail acceptance; they are never silently replaced with mocks.

@@ -1,3 +1,5 @@
+/** CHANGE LOG: 50 | maintainer@emeraldcoastsystemsgroup.com | POST /sources/remove removes one of the caller's own saved sources and keeps its history (sources.ts removeSource, P5-55b), bound to the existing records.write grant; /attention and /summary/systems pass the removed source ids so a removed installation is no longer named; each installation /telemetry returns says whether its source can be removed (a desk's own source cannot), so Systems offers Remove this source only where it works. */
+/** CHANGE LOG: 49 | maintainer@emeraldcoastsystemsgroup.com | The four desks (spec lanes/monitoring-four-desks-spec-2026-11-08.md): GET /desks (the static desk catalog), GET /desks/<desk> (one desk's firing now, sources, rules, runbooks and settings; also each desk's Jarvis tool), POST /desks/<desk>/policy (its rule toggles), and the desks.js asset. Each desk route is its own path so authorization.yaml binds it to that desk's permission alone. */
 /** CHANGE LOG: 48 | maintainer@emeraldcoastsystemsgroup.com | Wire isolated recorded-window replay (RP-OPS-01), uploaded CloudEvents/OTLP batch replay (RP-OPS-02), and sandbox run clean-up into POST /replays while filtering discarded sandbox runs from reads. */
 /** CHANGE LOG: 47 | maintainer@emeraldcoastsystemsgroup.com | A sample replay is all or nothing: POST /replays also takes {preflight} (publish the scenario rules before anything is saved) and {discard} (remove what a failed run saved), and every read drops a discarded replay source (UX audit 2026-11-06). */
 /** CHANGE LOG: 46 | maintainer@emeraldcoastsystemsgroup.com | Serve experience/computers.js, the Your computers card on Connections (kernel ADR-206). */
@@ -57,6 +59,8 @@ import {preparePlan,approvePlan,reserveExecution,reportExecution,reserveVerifica
 import {prepareInvestigation,investigationRecords,investigateAgain} from './investigations';
 import {externalConfig,saveExternalConfig,externalRecords} from './external-evidence';
 import {incidentTrace} from './incident-trace';
+import {DESKS,deskSummary,saveDeskPolicy,deskOf} from './desks';
+import {removeSource,removedSourceIds} from './sources';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { Router, json } from 'express';
@@ -124,7 +128,7 @@ export function createOperationsExperienceRoutes(ctx) {
   };
   router.get('/app',asset('experience/index.html'));
   router.get('/evaluation',asset('deploy/evidence/recorded-bgl.json'));
-  for(const file of ['computers.js','cloud-inventory.js','console.js','skin.css','runbooks.js','git-explorer.js','provisioning.js','swarms.js','live-cluster.js','git-promotion.js','command-helper.js','anomaly-controls.js','response.js','operator-workspace.js','incident-trace.js','external-evidence.js','pod-console.js','rca-library.js','resource-tree.js','ticket-sync.js','experience.js','experience.css','explorer.js','graph-space.js','lifecycle.js','processing-controls.js','telemetry-controls.js','policy-workbench.js'])router.get('/assets/'+file,asset('experience/'+file));
+  for(const file of ['desks.js','computers.js','cloud-inventory.js','console.js','skin.css','runbooks.js','git-explorer.js','provisioning.js','swarms.js','live-cluster.js','git-promotion.js','command-helper.js','anomaly-controls.js','response.js','operator-workspace.js','incident-trace.js','external-evidence.js','pod-console.js','rca-library.js','resource-tree.js','ticket-sync.js','experience.js','experience.css','explorer.js','graph-space.js','lifecycle.js','processing-controls.js','telemetry-controls.js','policy-workbench.js'])router.get('/assets/'+file,asset('experience/'+file));
   router.get('/assets/operations.css',asset('ui/operations.css'));
   router.get('/assets/replay-scenarios.js',asset('ui/replay-scenarios.js'));
  router.get('/assets/response-artifacts.js',asset('ui/response-artifacts.js'));
@@ -138,6 +142,8 @@ export function createOperationsExperienceRoutes(ctx) {
     res.json({sources,attempts:intake.attempts,processing:intake.processing,events:[...intake.events,...events.map(e=>({...e,ingestion:'historical-manual-import'}))].sort((a,b)=>b.receivedAt.localeCompare(a.receivedAt)).slice(0,200),inventory:inventory.sort((a,b)=>b.observedAt.localeCompare(a.observedAt)).slice(0,30),limits:{events:200,attempts:200,processing:200,snapshots:30},capabilities:{transactionalManualIntake:true,automaticIntake:false,noiseAlgorithm:true,manualEvaluation:true,backgroundEvaluationAvailable:true,telemetryWindows:true,anomalyDetection:true,cloudDiscovery:false,ticketSync:false,manualTicketHandoff:true,automaticTicketSync:false}});
   }));
   router.post('/sources',handle(async(req,res)=>{const record=sourceDefinition(req.body);await ctx.store.put('sources',record.id,record);res.status(201).json(record);}));
+  // Removing marks the record discarded, so every read above and below drops it; nothing it recorded is deleted.
+  router.post('/sources/remove',handle(async(req,res)=>res.json(await removeSource(ctx,req.oidc?.user?.sub,req.body))));
   router.post('/events',handle(async(req,res)=>{
     bounded(req.body);
     const source=(await read('sources')).find(s=>s.id===req.body.sourceId);if(!source)fail('Choose one of your saved source revisions.',404);
@@ -177,7 +183,7 @@ export function createOperationsExperienceRoutes(ctx) {
   // Sample replay preflight, isolated window/batch replays (RP-OPS-01..02) and clean-up ride the existing replay write.
   router.post('/replays',handle(async(req,res)=>res.json(req.body?.preflight?await preflightReplay(engine,req.oidc?.user?.sub,req.body.preflight):req.body?.windowReplay?await windowReplay(ctx,engine,req.oidc?.user?.sub,req.body.windowReplay):req.body?.batchReplay?await batchReplay(ctx,engine,req.oidc?.user?.sub,req.body.batchReplay):req.body?.discardRun?await discardReplayRun(ctx,req.oidc?.user?.sub,req.body.discardRun):req.body?.discard?await discardReplay(ctx,req.oidc?.user?.sub,req.body.discard):await completeReplay(ctx,req.oidc?.user?.sub,req.body))));
   // Monitored installations read here beside the banks they feed: this GET already has a binding, and a new route would change the catalog.
-  router.get('/telemetry',handle(async(req,res)=>{const [streams,sources]=await Promise.all([streamRecords(ctx.pool,req.oidc?.user?.sub),read('sources')]);let installations=null,watch=null;try{installations=await installationRecords(ctx.pool,req.oidc?.user?.sub,sources,Number(req.query?.days)||1);watch=await watchStatus(ctx.pool,req.oidc?.user?.sub);}catch{}res.json({...streams,installations,watch});}));
+  router.get('/telemetry',handle(async(req,res)=>{const [streams,sources]=await Promise.all([streamRecords(ctx.pool,req.oidc?.user?.sub),read('sources')]);let installations=null,watch=null;try{installations=(await installationRecords(ctx.pool,req.oidc?.user?.sub,sources,Number(req.query?.days)||1)).map(row=>({...row,removable:!deskOf(sources,row.sourceId)}));watch=await watchStatus(ctx.pool,req.oidc?.user?.sub);}catch{}res.json({...streams,installations,watch});}));
   router.post('/telemetry/configure',handle(async(req,res)=>{
     const source=(await read('sources')).find(s=>s.id===req.body?.sourceId);if(!source)fail('Choose one of your saved source revisions.',404);
     res.json(await configureStream(ctx.pool,req.oidc?.user?.sub,source,req.body.config,req.body.expectedRevision));
@@ -223,10 +229,16 @@ export function createOperationsExperienceRoutes(ctx) {
  router.get('/repo-links',handle(async(req,res)=>res.json(await repoLinks(ctx.pool,req.oidc?.user?.sub))));
  router.post('/repo-links',handle(async(req,res)=>res.json(await saveRepoLink(ctx.pool,req.oidc?.user?.sub,req.body))));
  router.post('/repo-links/remove',handle(async(req,res)=>res.json(await removeRepoLink(ctx.pool,req.oidc?.user?.sub,req.body))));
- router.get('/attention',handle(async(req,res)=>res.json(await attentionSummary(ctx.pool,req.oidc?.user?.sub))));
- router.get('/summary/systems',handle(async(req,res)=>res.json(await systemsSummary(ctx.pool,req.oidc?.user?.sub))));
+ router.get('/attention',handle(async(req,res)=>res.json(await attentionSummary(ctx.pool,req.oidc?.user?.sub,Date.now(),await removedSourceIds(ctx.store)))));
+ router.get('/summary/systems',handle(async(req,res)=>res.json(await systemsSummary(ctx.pool,req.oidc?.user?.sub,Date.now(),await removedSourceIds(ctx.store)))));
  router.get('/summary/responses',handle(async(req,res)=>res.json(await responsesSummary(ctx,req.oidc?.user?.sub))));
  router.get('/summary/anomalies',handle(async(req,res)=>res.json(await anomaliesSummary(ctx.pool,req.oidc?.user?.sub))));
+ // The desks: the catalog is static and carries no record; each desk's read and write is its own path, bound to that desk's permission.
+ router.get('/desks',handle(async(_req,res)=>res.json({desks:DESKS.map(d=>({id:d.id,label:d.label,owns:d.owns,topic:d.topic,permission:d.permission,writePermission:d.write,role:d.role,sourceName:d.sourceName,critical:d.critical,warning:d.warning,thresholdFile:d.thresholdFile})),executionAuthorized:false})));
+ for(const desk of DESKS){
+  router.get('/desks/'+desk.id,handle(async(req,res)=>res.json(await deskSummary(ctx,req.oidc?.user?.sub,desk,await read('sources'),{days:Number(req.query?.days)||1}))));
+  router.post('/desks/'+desk.id+'/policy',handle(async(req,res)=>res.json(await saveDeskPolicy(ctx,engine,req.oidc?.user?.sub,desk,await read('sources'),req.body))));
+ }
  router.get('/provisioning',handle(async(req,res)=>res.json(await provisioningRecords(ctx.pool,req.oidc?.user?.sub,await promotionRecords(ctx.pool,req.oidc?.user?.sub)))));
  router.post('/provisioning',handle(async(req,res)=>res.json(await saveProvisioning(ctx.pool,req.oidc?.user?.sub,req.body))));
  router.get('/delegations',handle(async(req,res)=>res.json(await delegationRecords(ctx.pool,req.oidc?.user?.sub))));

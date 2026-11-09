@@ -4,9 +4,10 @@
  * SEQ | AUTHOR | DESCRIPTION
  * -----------------------------------------------------------------------------
  * 1 | maintainer@emeraldcoastsystemsgroup.com | phone-control 1.4.0 computer & session OS controls: direct computer pointer/keyboard control in touch or mouse-pad mode (RP-PHC-01), special keys & chords including Ctrl+Alt+Del, Super and F1-F12 (RP-PHC-02), multi-monitor enumeration & display switching (RP-PHC-05), capability-gated privacy screen / remote input block (RP-PHC-09), and session-end OS lock (RP-PHC-10).
+ * 2 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add wheel scrollOnComputer and keyOnComputer, dispatch touch-drag swipes on Swarm-enrolled Android nodes, invert scroll sign for Android Accessibility swipe semantics, and trigger fast post-action frame wakeups.
  */
 
-import { computerPoint, computerStanding, desktopControlSupport, fromBase64, toBase64 } from '/api/phone-control/ui/computer-link.js';
+import { computerPoint, computerStanding, desktopControlSupport, fromBase64, isAndroidNode, toBase64 } from '/api/phone-control/ui/computer-link.js';
 import { sendRdpInput } from '/api/phone-control/ui/phone-rdp.js';
 
 const ANDROID_SPECIAL = { Escape: 'BACK', Tab: 'TAB', Return: 'ENTER', Backspace: 'BACKSPACE', Home: 'HOME' };
@@ -102,6 +103,7 @@ async function runDesktop(ctx, computer, args, action, summary) {
     const reply = await ctx.app.computers.desktopControl(computer.id, args);
     const ok = Boolean(reply?.ok !== false);
     const err = ok ? null : (reply?.error || 'Computer refused input.');
+    if (ok) ctx.scheduleFastFrame?.(260);
     await ctx.app.remember({ computerNodeId: computer.id, action, summary, ok, error: err });
     void ctx.loadHistory();
     ctx.status(ok ? `${summary}: done.` : err);
@@ -140,6 +142,13 @@ function handleComputerPointerUp(ctx, state, local) {
   try {
     if (moved >= 18) {
       const startTarget = computerPoint(start, local.box, natural, activeMonitor(state));
+      if (isAndroidNode(computer)) {
+        const endTarget = computerPoint(local, local.box, natural, activeMonitor(state));
+        void ctx.queue.press(() => runDesktop(ctx, computer, {
+          kind: 'swipe', x1: startTarget.x, y1: startTarget.y, x2: endTarget.x, y2: endTarget.y, duration_ms: 260
+        }, 'swipe', 'Swipe'));
+        return true;
+      }
       const amount = Math.max(-10, Math.min(10, Math.round((local.y - start.y) / 28))) || -2;
       void ctx.queue.press(() => runDesktop(ctx, computer, { kind: 'scroll', amount, ...startTarget }, 'scroll', `Scroll (${amount})`));
       return true;
@@ -289,11 +298,11 @@ function wirePointerControls(ctx, state) {
   });
   $('scrollUpBtn').addEventListener('click', () => {
     const c = ctx.selectedComputer();
-    if (c) void ctx.queue.press(() => runDesktop(ctx, c, { kind: 'scroll', amount: 4, ...currentComputerCoords(ctx, state) }, 'scroll', 'Scroll up'));
+    if (c) void ctx.queue.press(() => runDesktop(ctx, c, { kind: 'scroll', amount: isAndroidNode(c) ? -4 : 4, ...currentComputerCoords(ctx, state) }, 'scroll', 'Scroll up'));
   });
   $('scrollDownBtn').addEventListener('click', () => {
     const c = ctx.selectedComputer();
-    if (c) void ctx.queue.press(() => runDesktop(ctx, c, { kind: 'scroll', amount: -4, ...currentComputerCoords(ctx, state) }, 'scroll', 'Scroll down'));
+    if (c) void ctx.queue.press(() => runDesktop(ctx, c, { kind: 'scroll', amount: isAndroidNode(c) ? 4 : -4, ...currentComputerCoords(ctx, state) }, 'scroll', 'Scroll down'));
   });
 }
 
@@ -388,6 +397,36 @@ async function finishComputerSession(ctx, state) {
   state.liveKeys = false;
 }
 
+/** @description Find a connected Swarm-enrolled Android node matching a saved Android phone record. @param {object} app App state holder. @param {object} phone Saved phone record. @returns {object|null} Matching Android node. */
+export function enrolledAndroidFor(app, phone) {
+  if (!phone || phone.platform !== 'android') return null;
+  const list = app.state.computerList.filter((c) => isAndroidNode(c));
+  const needle = String(phone.name || '').trim().toLowerCase();
+  const tv = phone.form === 'tv';
+  return list.find((c) => String(c.name || '').toLowerCase().includes(needle) && computerStanding(c).usable)
+    || list.find((c) => computerStanding(c).usable && isTvNode(c) === tv) || null;
+}
+
+/** @description Route an Android phone verb through an enrolled Android node when the local ADB bridge is offline. @param {object} ctx Stage context. @param {object} node Enrolled Android node. @param {string} verb Phone bridge verb. @param {object} args Verb arguments. @param {string} summary Human label. @returns {Promise<boolean>} True on success. */
+export async function dispatchEnrolledAndroidVerb(ctx, node, verb, args, summary) {
+  if (verb === 'adb-key') return Boolean(await ctx.sessionComputer.keyOnComputer(node, args?.key || 'HOME', summary));
+  if (verb === 'adb-text') return Boolean(await ctx.sessionComputer.typeOnComputer(node, args?.text || ''));
+  if (verb === 'adb-launch') return Boolean(await ctx.sessionComputer.openOnComputer(node, args?.package || args?.name || ''));
+  if (verb === 'adb-tap') {
+    const res = await ctx.app.computers.run(node.id, 'mouse.click', { x: args.x, y: args.y, button: 'left', clicks: 1 }).catch(() => null);
+    const ok = Boolean(res?.ok !== false);
+    if (ok) ctx.scheduleFastFrame?.(260);
+    return ok;
+  }
+  if (verb === 'adb-swipe') {
+    const res = await ctx.app.computers.run(node.id, 'swipe', { x1: args.x1, y1: args.y1, x2: args.x2, y2: args.y2, ms: args.ms || 220 }).catch(() => null);
+    const ok = Boolean(res?.ok !== false);
+    if (ok) ctx.scheduleFastFrame?.(260);
+    return ok;
+  }
+  return false;
+}
+
 /** @description Mount computer input, special keys, monitor switch, privacy screen, and session-end lock. @param {object} ctx Stage context. @returns {object} Controller. */
 export function mountSessionComputer(ctx) {
   const state = {
@@ -425,6 +464,14 @@ export function mountSessionComputer(ctx) {
       renderButtons(ctx, state);
     },
     onPointerUp: (local) => handleComputerPointerUp(ctx, state, local),
+    scrollOnComputer(computer, down, local) {
+      if (local?.box?.width > 0 && local?.box?.height > 0) {
+        state.cursor = { x: Math.max(0, Math.min(1, local.x / local.box.width)), y: Math.max(0, Math.min(1, local.y / local.box.height)) };
+      }
+      const amount = isAndroidNode(computer) ? (down ? 4 : -4) : (down ? -4 : 4);
+      return ctx.queue.press(() => runDesktop(ctx, computer, { kind: 'scroll', amount, ...currentComputerCoords(ctx, state) }, 'scroll', down ? 'Scroll down' : 'Scroll up'));
+    },
+    keyOnComputer: (computer, keys, label = `Key ${keys}`) => ctx.queue.press(() => runDesktop(ctx, computer, { kind: 'key', keys }, 'key', label)),
     typeOnComputer: (computer, text) => ctx.queue.press(() => runDesktop(ctx, computer, { kind: 'type', text }, 'type', `Type ${text.length} characters`)),
     openOnComputer: (computer, target) => openOnComputer(ctx, computer, target),
     captureSelectedMonitor: (computer, scaleWidth) => captureSelectedMonitor(ctx, state, computer, scaleWidth),

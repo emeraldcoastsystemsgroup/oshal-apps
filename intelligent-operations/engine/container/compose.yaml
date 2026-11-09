@@ -13,6 +13,15 @@
 #     |                                         | folder's three files bind-mounted read-only, search reachable
 #     |                                         | only from the engine, bounded memory, no capabilities, no
 #     |                                         | published ports, restart unless-stopped.
+# 2   | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: search judges disk pressure by free space (low
+#     |                                         | 30gb, high 20gb, flood stage 10gb), never by OpenSearch's
+#     |                                         | default percentages. On the Spark's 3.5 TB disk, 91 % used
+#     |                                         | still left 310 GB free, yet the default 90 % high watermark
+#     |                                         | put the index-create block on the cluster (2026-11-08 20:13
+#     |                                         | UTC): every new rule index, each desk's default policy
+#     |                                         | among them, was refused with HTTP 403, so the processing
+#     |                                         | tick answered 503 every minute. The rule indexes are KBs;
+#     |                                         | the monitor stays on, because it is what lifts the block.
 name: oshal-intelligent-operations-engine
 services:
   search:
@@ -25,6 +34,11 @@ services:
       DISABLE_SECURITY_PLUGIN: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
       node.store.allow_mmap: "false"
+      # Free space, not a percentage: the rule indexes are KBs, and a percentage of a multi-TB disk
+      # refuses them with hundreds of GB free. The monitor stays on; it lifts a block it set.
+      cluster.routing.allocation.disk.watermark.low: 30gb
+      cluster.routing.allocation.disk.watermark.high: 20gb
+      cluster.routing.allocation.disk.watermark.flood_stage: 10gb
     volumes:
       - search-data:/usr/share/opensearch/data
     mem_limit: 1536m

@@ -8,6 +8,9 @@
  * 3 | maintainer@emeraldcoastsystemsgroup.com | 1.3.0: AirPlay screen mirroring verbs (setup-mirror, mirror-start, mirror-stop, mirror-frame), oshal_phone_mirror.py in the verified bridge installer, readFrame support for mirror-frame, and lowercase oshal Node copy.
  * 4 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: add desktop.control and app.open computer client helpers, iOS direct tap/swipe/drag/scroll & screen reading verbs (ble-tap, ble-swipe, ble-drag, ble-scroll, mirror-ui), Fire TV Wi-Fi scan & chunked APK push verbs (adb-scan-tv, stage-chunk, adb-install-apk), Android file/clipboard bridge verbs, session & concierge package client routes, quality presets, and normalized iOS gesture geometry.
  * 5 | maintainer@emeraldcoastsystemsgroup.com | 1.4.1: add ble-sync verb, live iPhone stage touchpad gesture mapping before AirPlay frames arrive, protectedSurface/screenAsleep/activePackage metadata in readFrame, and localStorage-gated RDP session listing (oshal.pc.hasRdp).
+ * 6 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: accept desktop.control, app.open, and screen.capture in computerStanding for Swarm-enrolled Android phones/TVs, send { app, target } in openApp, and add readScreen and isAndroidNode/isTvNode helpers.
+ * 7 | maintainer@emeraldcoastsystemsgroup.com | 1.4.2: add executeDevice package client helper for POST /api/phone-control/devices/:id/execute.
+ * 8 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0: the closed verbs lan-discover and lan-control (TVs and streaming sticks on the home network), and the installer carries oshal_phone_lan.py. The install command passes its checked JSON once, single-quoted, instead of base64 over base64 (gzipped files already arrive as base64): with the fifth file it is ~75 KB instead of ~100 KB, under Linux's 128 KiB single-argument limit with room to grow. Smart Home's TVs section imports this module to install or update the bridge the same way this page does.
  */
 
 export const BRIDGE = '"$HOME/.local/share/oshal-phone-bridge/oshal_phone_bridge.py"';
@@ -20,10 +23,11 @@ export const VERBS = Object.freeze([
   'adb-pair', 'adb-connect', 'adb-connect-tv', 'adb-scan-tv',
   'adb-disconnect', 'adb-devices', 'adb-info', 'adb-tap', 'adb-swipe', 'adb-text', 'adb-key', 'adb-apps', 'adb-launch',
   'adb-ui', 'adb-frame', 'frame-chunk', 'stage-chunk', 'adb-install-apk',
-  'adb-files', 'adb-push', 'adb-pull', 'adb-clipboard-get', 'adb-clipboard-set'
+  'adb-files', 'adb-push', 'adb-pull', 'adb-clipboard-get', 'adb-clipboard-set', 'lan-discover', 'lan-control'
 ]);
 export const BRIDGE_FILE_NAMES = Object.freeze([
-  'oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal-phone-bridge'
+  'oshal_phone_bridge.py', 'oshal_phone_ble.py', 'oshal_phone_mirror.py', 'oshal_phone_ops.py', 'oshal_phone_lan.py',
+  'oshal-phone-bridge'
 ]);
 export const QUALITY_PRESETS = Object.freeze({
   high: Object.freeze({ width: 720, phoneMs: 450, computerMs: 900, label: 'High' }),
@@ -32,18 +36,19 @@ export const QUALITY_PRESETS = Object.freeze({
 });
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+const VERSION = /^[0-9A-Za-z.+-]{1,32}$/;
 const SAFE_FILE = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,119}$/;
 
 // The installer runs on the computer with the system python3. It checks every file before it writes any.
 const INSTALLER = [
   'import base64,gzip,hashlib,json,os,sys',
-  'm=json.loads(base64.b64decode(sys.argv[1]))',
+  'm=json.loads(sys.argv[1])',
   'h=os.path.expanduser("~")',
   'd=os.path.join(h,".local","share","oshal-phone-bridge")',
   'b=os.path.join(h,".local","bin")',
   'os.makedirs(d,mode=0o700,exist_ok=True)',
   'os.makedirs(b,exist_ok=True)',
-  'where={"oshal_phone_bridge.py":d,"oshal_phone_ble.py":d,"oshal_phone_mirror.py":d,"oshal_phone_ops.py":d,"oshal-phone-bridge":b}',
+  'where={"oshal_phone_bridge.py":d,"oshal_phone_ble.py":d,"oshal_phone_mirror.py":d,"oshal_phone_ops.py":d,"oshal_phone_lan.py":d,"oshal-phone-bridge":b}',
   'ready=[]',
   'for f in m["files"]:',
   '    n=f["name"]',
@@ -116,8 +121,10 @@ export function installCommand(manifest) {
   for (const file of files) {
     if (!SHA256.test(file.sha256) || !BASE64.test(file.gz) || !Number.isInteger(file.mode)) throw new Error(`The bridge manifest entry ${file.name} is malformed.`);
   }
+  if (!VERSION.test(String(manifest?.version))) throw new Error('The bridge manifest version is malformed.');
   const payload = { version: String(manifest.version), files: files.map(({ name, sha256, mode, gz }) => ({ name, sha256, mode, gz })) };
-  return `python3 -I -c '${INSTALLER}' ${toBase64(JSON.stringify(payload))}`;
+  // Every field is checked above, so the JSON holds no single quote and travels single-quoted, encoded once.
+  return `python3 -I -c '${INSTALLER}' '${JSON.stringify(payload)}'`;
 }
 
 /**
@@ -360,7 +367,10 @@ export function createComputerClient({ fetchImpl = globalThis.fetch.bind(globalT
       return this.tool(id, 'desktop.control', args, 20000);
     },
     openApp(id, target) {
-      return this.tool(id, 'app.open', { target }, 20000);
+      return this.tool(id, 'app.open', { app: target, target }, 20000);
+    },
+    readScreen(id) {
+      return this.tool(id, 'screen.read', {}, 30000);
     },
     run(id, command, limitMs = 45000) {
       return this.tool(id, 'shell.exec', { command, timeout_ms: limitMs }, limitMs);
@@ -396,6 +406,7 @@ export function createPackageClient({ fetchImpl = globalThis.fetch.bind(globalTh
     updatePhone: (id, changes) => call(`/devices/${encodeURIComponent(id)}`, 'POST', changes),
     removePhone: (id) => call(`/devices/${encodeURIComponent(id)}`, 'DELETE'),
     commandPlan: (id, payload) => call(`/devices/${encodeURIComponent(id)}/command-plan`, 'POST', payload),
+    executeDevice: (id, payload) => call(`/devices/${encodeURIComponent(id)}/execute`, 'POST', payload),
     rdpCommandPlan: (payload) => call('/rdp/command-plan', 'POST', payload),
     history: async (deviceId) => (await call(`/history${deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : ''}`)).history,
     record: (event) => call('/history', 'POST', event),
@@ -504,6 +515,16 @@ export function workHref(id) {
   return `/cockpit/tools/computer.html?id=${encodeURIComponent(String(id))}`;
 }
 
+/** @description Whether a /api/computers record is a Swarm-enrolled Android phone or TV. Pure. @param {object} computer Record. @returns {boolean} True when Android. */
+export function isAndroidNode(computer) {
+  return String(computer?.platform || '').toLowerCase() === 'android';
+}
+
+/** @description Whether a Swarm-enrolled Android record represents a TV device. Pure. @param {object} computer Record. @returns {boolean} True when Android TV/Fire TV. */
+export function isTvNode(computer) {
+  return isAndroidNode(computer) && /\b(tv|fire\s*tv|aft\w*|marquee)\b/i.test(String(computer?.name || ''));
+}
+
 /**
  * @description How a computer stands, in words, and what to do on it when it cannot take commands. Pure.
  * @param {object} computer From /api/computers.
@@ -511,15 +532,22 @@ export function workHref(id) {
  */
 export function computerStanding(computer) {
   const name = computer?.name || 'That computer';
+  const android = isAndroidNode(computer);
   if (!computer?.connected) {
     return { text: 'Not connected', tone: 'tone-warn', usable: false,
-      fix: `${name} is not connected. On it, open oshal Node and sign in; this list shows it as Connected within a few seconds.` };
+      fix: android
+        ? `${name} is not connected. Open the Open Swarm app on it and sign in; this list shows it as Connected within a few seconds.`
+        : `${name} is not connected. On it, open oshal Node and sign in; this list shows it as Connected within a few seconds.` };
   }
   if (!computer.can_control) {
-    return { text: 'Connected, control is off on that computer', tone: 'tone-warn', usable: false,
-      fix: `Control is off on ${name}. In oshal Node on it, press ⚙ Settings and tick Let Jarvis control this computer.` };
+    return { text: android ? 'Connected, control is off on that device' : 'Connected, control is off on that computer', tone: 'tone-warn', usable: false,
+      fix: android
+        ? `Control is off on ${name}. In the Open Swarm app on it, turn Touch Control on and enable Open Swarm in Android Settings → Accessibility.`
+        : `Control is off on ${name}. In oshal Node on it, press ⚙ Settings and tick Let Jarvis control this computer.` };
   }
-  if (!computer.tools?.includes('shell.exec')) {
+  const tools = Array.isArray(computer.tools) ? computer.tools : [];
+  const takesCommands = tools.includes('shell.exec') || tools.includes('desktop.control') || tools.includes('app.open') || tools.includes('screen.capture');
+  if (!takesCommands) {
     return { text: 'Connected, but it does not take commands', tone: 'tone-warn', usable: false,
       fix: `${name} does not take commands. Update oshal Node on it from the Devices page, then sign in again.` };
   }

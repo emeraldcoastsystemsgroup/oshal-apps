@@ -33,6 +33,7 @@ Nothing is applied automatically. Remediation commands are proposals for an oper
   in the browser. Mapping errors block the preview; source and event ID remain envelope fields. It sends and saves
   nothing, does not authenticate a source, and does not resolve an asset or ingest an event.
 - The experience saves immutable source/mapping revisions, original and normalized alerts with validation reasons, and timestamped Kubernetes captures. Exact payload retries reuse their record.
+- **Remove a source.** Systems shows **Remove this source** on each monitored installation card, except a desk's own source: the first press says what goes and what stays, and the second press, below that note, removes it. `POST /api/intelligent-operations/sources/remove` with `{sourceId}` or `{name}` and `confirm: true` marks the caller's own source discarded, so Sources, Systems, the desks, the processing tick and the attention and systems summaries drop it, and alerts sent to it are refused. Nothing it recorded is deleted; a source registered in Sources comes back with its history when the same definition is saved there again. Jarvis does the same with `ops-remove-source`, held for the person's approval.
 - Automated source intake, continuous discovery and automatic external ticket synchronization remain planned. Infrastructure execution exists only as the response stage (ADR0037): the accepted answer's generated `remediate.sh`/`verify.sh`/`rollback.md`/`verify.md` are extracted byte-exact, approved as exact artifacts for one observed pod, run once through the person's own confirmed Kubernetes connection, and verified against a resolved signal before the ticket is updated. Captured topology is historical, with explicit readiness and unknown states.
 - It replaces Issue RCA and Incident Remediation, which the platform unified into it (the header of
   the platform's `swarm-apps/intelligent-operations.yaml`). SAP Incident is not part of it, and it
@@ -90,6 +91,65 @@ The SQL cases require `OSHAL_TEST_POSTGRES` pointing to a disposable PostgreSQL 
 fixture databases and roles; production database endpoints are refused. See implementation status
 for the separate source-test and native-installation evidence.
 
+## The four desks
+
+Since 1.5.0 Intelligent Operations has four monitoring desks over its one pipeline, as spec
+`lanes/monitoring-four-desks-spec-2026-11-08.md` asks: **App Ops**, **Sec Ops**, **Platform Ops** and
+**Dev Ops**, four tabs after Overview. A desk is a saved source, one percolation policy, one
+notification topic and one authorization composite; the intake, the detection engine, correlation,
+runbooks and the rail are shared.
+
+| Desk | Source | Topic | Role | Critical rules (capture) | Warning rules (record) |
+|---|---|---|---|---|---|
+| App Ops | `spark/app-ops` | `app-attention` | `ops-app` | PackageScheduleRefused, PackageScheduleMissed, PackageCostDurabilityFailed, PackageInstallFailed | PackageErrorBurst, PackageEgressSpike, PackageVersionDrift, PackageScheduleSkipped |
+| Sec Ops | `spark/sec-ops` | `security-attention` | `ops-security` | SignInFailureBurst, RootTransferred, AdminTierGranted, ProducerTokenIssued, DoorSeatsExhausted, UncommittedCodeInProduction, PlainHttpListenerPresent | KernelRefusalStorm, RefusalCodeNew, TokenRevoked, LocationStepUp |
+| Platform Ops | `spark/platform-ops` | `platform-attention` | `ops-platform` | SiteDown, KernelMetricsUnreachable, ContainerMissing, ContainerRestarting, ContainerOutOfMemory, DiskFull, MemoryLow, PostgresDown, MonitoringBlind, PrometheusCannotStore, InstallationSilent, SlotDown, TunnelDown | SiteSlow, DiskHigh, LoadHigh, RebootRequired, SecurityUpdatesPending, ContainerFactsStale, GpuThermal, EngineLinkStale |
+| Dev Ops | `spark/dev-ops` | `release-attention` | `ops-release` | ReleaseRolledBack, ReleaseLabelMismatch, ReleaseVerifyFailed | ReleasePromoted, TrialBehindDev, DirtyTreeOnHost, PublishGateRed |
+
+**Configured on activation.** The defaults ship in `deploy/policy.<desk>.default.json` (one rule per alert
+type, `capture: true` on the critical column, a sliding 900-second window). The processing schedule
+`operations-process-recorded-alerts` runs as the person it started for; on its tick it creates each desk's
+source (`urn:operations:source:spark/<desk>`, environment `spark/<desk>`), maps it for Alertmanager
+(`host`, label `instance`, scope `spark/<desk>`), publishes the default policy through the detection engine
+and adds the source to the processing list, turning evidence capture, correlation and investigations on when
+this is the person's first configuration. A desk already present is left as the person edited it; with the
+engine down the desk stays pending, the phone hears "desk activation could not finish" once per failing
+streak, and the next tick with the engine back finishes it. The source `read` of a fresh person's first
+tick is therefore four engine publishes and nothing else: no message, no ticket, no connector
+(`tests/first-use-processing.test.cjs`).
+
+**Configurable in the tab.** Rules shows the bound policy with On and Capture per rule, adds a rule by alert
+type, restores the defaults; saving publishes a new generation revision-checked against the binding and needs
+the desk's `desk.<x>.write` permission. A query refined in Data pipeline survives a toggle here.
+
+**Topics.** The four topics are registered for the person the first time a desk tab opens, through the
+kernel's own `POST /api/notify/prefs` with `channel: none` (the sandbox cannot write a person's notification
+preferences; the browser does it with the person's session). The kernel lists a topic with no channel as
+`channel: none, enabled: false` until the person picks a channel on Notifications (`/cockpit/tools/notify.html`),
+which the Settings panel links. When the tick tells the phone about a symptom from a desk's source, it sends
+the same news to that desk's topic with the desk's name leading the message; `operations-attention` keeps
+everything, as the umbrella the `ops-attention` tool reads.
+
+**Composites.** `authorization.yaml` declares `desk.app`, `desk.security`, `desk.platform`, `desk.release`
+(read, viewer) and `desk.<x>.write` (write, editor); roles `ops-app`, `ops-security`, `ops-platform`,
+`ops-release` each grant `app.open` and the desk's two permissions; `operator` holds all. `GET /desks/<desk>`
+and its Jarvis tool bind to `desk.<x>`, `POST /desks/<desk>/policy` to `desk.<x>.write`. A person holding only
+`ops-security` opens the page, reads Sec Ops and saves its rules, and is refused on every other desk
+(`tests/desks-authorization.test.cjs`).
+
+**Screens.** Each tab has Firing now (symptoms newest first, a critical one opening its investigation ticket),
+Sources (the desk's source with its standing, last heard, report count and the heartbeat's checks), Rules,
+Runbooks (the owner's runbooks for the desk's alert types) and Settings (topic and channel, source id and URI,
+ingest route, the producer tokens the kernel lists for that route, last delivery, and the host threshold file
+`~/.local/state/oshal-native/monitoring/<desk>.json` shown as its path with the last snapshot a heartbeat
+carried in its `thresholds` annotation, or that none was reported: the package reads no host file). Jarvis
+tools `ops-app-desk`, `ops-security-desk`, `ops-platform-desk`, `ops-release-desk` read the same route.
+
+**Not in this package.** The probes and consumers that post to the desks (spec sections 6.1 to 6.4: the
+App Ops, Sec Ops and Dev Ops consumers, the Platform Ops stack on the Spark, the promotion script) and the
+kernel's sign-in audit record (section 7) are kernel-side work; a desk with no producer shows its empty
+state and raises nothing.
+
 ## Graph and processing inspection
 
 Open `/cockpit/?app=intelligent-operations` for the YAML-defined Operations toolbar.
@@ -108,8 +168,9 @@ native schedule stays stopped across later reads and releases; resume it explici
 in Jobs when wanted. No administrator credential or another owner’s authority is copied. Disabling processing fences in-flight decision commits;
 failed work receives bounded retries and an explicit recovery action.
 
-Starting this job enables no source evaluation, discovery, evidence capture, correlation
-or investigation by itself. Empty default settings produce no work or messages. An
+Starting this job activates the four monitoring desks for the person (see "The four desks") and
+otherwise enables no source evaluation, discovery, evidence capture, correlation or investigation by
+itself. With nothing delivered, the ticks produce no work or messages. An
 independently configured installation watch remains separate from the evaluation
 checkbox: its pending notices can still be delivered while evaluation is disabled.
 Pause or remove the native job in Jobs to stop all future ticks. A later application

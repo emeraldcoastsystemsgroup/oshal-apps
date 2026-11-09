@@ -1,3 +1,7 @@
+# CHANGE LOG: 44 | maintainer@emeraldcoastsystemsgroup.com | 1.5.3: remove a saved source (backlog P5-55b: the stopped fleet observer's six made-up installations, oshal-saas-green/-blue, oshal-trial-green/-blue and oshal-bare-metal-green/-blue, stayed in Operations and nothing could take a source out). POST /api/intelligent-operations/sources/remove (routes/sources.js) marks one of the caller's own sources discarded, as a failed sample replay's clean-up does, after an explicit confirm: true; Systems offers Remove this source on each monitored installation card, two presses with what goes and what stays said first; Jarvis gets ops-remove-source, held for the person's approval. Nothing it recorded is deleted (a source registered in Sources comes back with its history when the same definition is saved there again), a desk's own source is refused, and the attention and systems summaries stop naming a removed installation. Catalog change: one route and one tool on the existing records.write grant; no permission or role changed. Guard: tests/remove-source.test.cjs.
+# CHANGE LOG: 43 | maintainer@emeraldcoastsystemsgroup.com | 1.5.2: engine/install-engine.sh finishes only when the running search reports the free-space watermarks compose.yaml sets and no index-create block (engine/search-disk-guard.py over GET /_cluster/settings?include_defaults=true&flat_settings=true, retried for 3 minutes while the disk monitor lifts a block an older install left, otherwise search's answer and log and exit 1); before this an install could report success while every new rule index was refused with HTTP 403. The tests' engine fixture deletes every rule index it published: the four desk indexes each tick publishes had filled the gate's test search to its 1000-shard limit. Guards: tests/search-disk-guard.test.cjs (real OpenSearch), tests/engine-container.test.cjs, tests/desks.test.cjs.
+# CHANGE LOG: 42 | maintainer@emeraldcoastsystemsgroup.com | 1.5.1: the detection engine's search judges disk pressure by free space (low 30gb, high 20gb, flood stage 10gb in engine/container/compose.yaml and lab/detection.py), never by OpenSearch's default percentages. On 2026-11-08 the processing tick answered 503 every minute: the Spark's 3.5 TB disk passed 90 % used with 310 GB still free (20:13 UTC), the default high watermark put the index-create block on the engine's cluster, and desk activation publishes each desk's default policy as a new rule index, which the engine refused with HTTP 403 (reproduced on blue for all four desks). An engine installed before 1.5.1 keeps refusing new rule indexes while its disk is above 90 %; re-running install-engine.sh applies the free-space watermarks (search keeps its data) and the disk monitor lifts the block on its next pass. Guard: tests/engine-container.test.cjs.
+# CHANGE LOG: 41 | maintainer@emeraldcoastsystemsgroup.com | 1.5.0, the four monitoring desks (Roger, 2026-11-08: separate application monitoring from infrastructure monitoring and add security monitoring; spec lanes/monitoring-four-desks-spec-2026-11-08.md). One pipeline, four desks: App Ops, Sec Ops, Platform Ops and Dev Ops are four tabs after Overview, each a saved source (spark/<desk>) with a default policy shipped in deploy/policy.<desk>.default.json (the alert types of the spec: critical rules capture, warning rules record), a notification topic (app-attention, security-attention, platform-attention, release-attention; operations-attention stays the umbrella) and an authorization composite (ops-app, ops-security, ops-platform, ops-release). The processing schedule activates the desks for the person it runs as; the tab seeds the topics with channel none through the kernel's own notification preferences, where the person picks the channel. Four read-only Jarvis tools, one per desk. Catalog change: new permissions, roles, routes and tiles, so delivering it re-approves assignments.
 # CHANGE LOG: 40 | maintainer@emeraldcoastsystemsgroup.com | 1.4.0: Replay a sample adds isolated recorded-window replay (RP-OPS-01) and bounded CloudEvents/OTLP batch replay (RP-OPS-02) with sandbox run clean-up, and Git explorer adds verified HTTPS GitHub repository URL linking (RP-OPS-03); all ride existing route and asset bindings.
 # CHANGE LOG: 39 | maintainer@emeraldcoastsystemsgroup.com | 1.3.4, UX audit 2026-11-06 P1 (operations-commands): add a row ⋯ menu (Copy, Run again) on each recorded command history row.
 # CHANGE LOG: 38 | maintainer@emeraldcoastsystemsgroup.com | 1.3.3, UX audit 2026-11-06 P1: Runbooks is its own screen (split from RCA library).
@@ -72,8 +76,10 @@ description: >-
   results and no cluster credential. Report acceptance does not establish verified recovery. A
   generated response (remediate.sh, verify.sh, rollback.md, verify.md) can be approved as exact
   artifacts for one exec on one observed pod through that same personal connection, then verified
-  against a resolved signal before the canonical ticket is updated.
-version: 1.4.0
+  against a resolved signal before the canonical ticket is updated. Four monitoring desks over the
+  same pipeline, App Ops, Sec Ops, Platform Ops and Dev Ops, each with its own alert rules, alert
+  topic and role: what is firing in security, in the platform, in the applications or in releases.
+version: 1.5.3
 status: active
 scope: public
 theme: light-blue
@@ -165,6 +171,26 @@ ui:
       label: Overview
       icon: codicon codicon-server-environment
       iframeUrl: /api/intelligent-operations/app#overview
+      section: top
+    - toolName: operations-desk-app
+      label: App Ops
+      icon: codicon codicon-package
+      iframeUrl: /api/intelligent-operations/app#app-ops
+      section: top
+    - toolName: operations-desk-security
+      label: Sec Ops
+      icon: codicon codicon-shield
+      iframeUrl: /api/intelligent-operations/app#sec-ops
+      section: top
+    - toolName: operations-desk-platform
+      label: Platform Ops
+      icon: codicon codicon-server
+      iframeUrl: /api/intelligent-operations/app#platform-ops
+      section: top
+    - toolName: operations-desk-release
+      label: Dev Ops
+      icon: codicon codicon-rocket
+      iframeUrl: /api/intelligent-operations/app#dev-ops
       section: top
     - toolName: operations-estate
       label: Systems
@@ -316,6 +342,73 @@ tools:
     usageInstructions: Call with {} when the person asks about anomalies, unusual metrics or what is firing. Name firing metrics with their resource and score, and offer to open Live context. Nothing here changes detection.
     routingTags: [operations, anomalies, metrics]
     tags: [operations, route-backed, read-only]
+  - name: ops-app-desk
+    displayName: App Ops desk
+    type: api
+    category: operations
+    description: The App Ops desk, from the person's own records - which application alerts are firing or cleared on the spark/app-ops source (refused or missed package schedules, failed cost durability, failed installs, error bursts, egress spikes, version drift), whether that source is reporting and when it was last heard, how many of its rules are on, and the runbooks for its alert types.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/desks/app-ops" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what is firing in the applications or packages, about app ops, package health, a refused or missed schedule, version drift or an install that failed. Read the summary sentence aloud, name the firing alert types, and offer to open App Ops. Nothing here runs anything or changes a rule.
+    routingTags: [operations, app ops, package health, application alerts]
+    tags: [operations, route-backed, read-only]
+  - name: ops-security-desk
+    displayName: Sec Ops desk
+    type: api
+    category: operations
+    description: The Sec Ops desk, from the person's own records - which security alerts are firing or cleared on the spark/sec-ops source (sign-in failure bursts, a root transfer, an admin tier granted, a producer token issued, door seats exhausted, uncommitted code in production, a plain HTTP listener, refusal storms, new refusal codes, token revocations, location step-ups), whether that source is reporting, how many rules are on, and the runbooks for its alert types.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/desks/sec-ops" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what is firing in security, about sec ops, sign-in failures, refusals, tokens, admission or the perimeter. Read the summary sentence aloud, name the firing alert types, and offer to open Sec Ops. Nothing here runs anything or changes a rule.
+    routingTags: [operations, sec ops, security alerts, sign-in failures]
+    tags: [operations, route-backed, read-only]
+  - name: ops-platform-desk
+    displayName: Platform Ops desk
+    type: api
+    category: operations
+    description: The Platform Ops desk, from the person's own records - which infrastructure alerts are firing or cleared on the spark/platform-ops source (site down or slow, kernel metrics unreachable, containers missing or restarting, disk, memory, Postgres, monitoring blind, a silent installation, a slot or tunnel down, reboots and updates pending), the host's last heartbeat readings, how many rules are on, and the runbooks for its alert types.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/desks/platform-ops" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what is firing in the platform or infrastructure, about platform ops, the host, disk, memory, containers, the database, the tunnel or a slot. Read the summary sentence aloud, name the firing alert types, and offer to open Platform Ops. Nothing here runs anything or changes a rule.
+    routingTags: [operations, platform ops, infrastructure alerts, host health]
+    tags: [operations, route-backed, read-only]
+  - name: ops-release-desk
+    displayName: Dev Ops desk
+    type: api
+    category: operations
+    description: The Dev Ops desk, from the person's own records - which release alerts are firing or were recorded on the spark/dev-ops source (a release promoted, rolled back, a label mismatch, a failed verification, the trial behind dev, a dirty tree on a host, a red publish gate), whether that source is reporting, how many rules are on, and the runbooks for its alert types.
+    executor: { executorType: api, apiEndpoint: "GET /api/intelligent-operations/desks/dev-ops" }
+    defaultAuthMode: auto
+    requiresApproval: false
+    inputSchema: { type: object, properties: {} }
+    usageInstructions: Call with {} when the person asks what is firing in releases or deployments, about dev ops, what was promoted or rolled back, a label mismatch, the trial being behind or a red gate. Read the summary sentence aloud, name the alert types, and offer to open Dev Ops. Nothing here runs anything or changes a rule.
+    routingTags: [operations, dev ops, release alerts, deployments]
+    tags: [operations, route-backed, read-only]
+  - name: ops-remove-source
+    displayName: Remove an Operations source
+    cardText: Removes this source from Operations; everything it recorded stays.
+    type: api
+    category: operations
+    description: Remove one of the person's saved sources from Operations, such as a retired or made-up monitored installation. It leaves Sources, Systems, the desks and the attention list, and alerts sent to it are refused; its alerts, readings and investigations stay. Held for the person's approval.
+    executor: { executorType: api, apiEndpoint: "POST /api/intelligent-operations/sources/remove" }
+    defaultAuthMode: auto
+    requiresApproval: true
+    inputSchema:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80, description: "The source's exact name, as ops-systems names its installation. Send name or sourceId, not both." }
+        sourceId: { type: string, pattern: "^[a-f0-9]{64}$", description: "The source's id, when a tool result gave it. Send sourceId or name, not both." }
+        confirm: { type: boolean, const: true }
+      required: [confirm]
+    usageInstructions: Only when the person asks to remove a source or a monitored installation from Operations. Use the exact name ops-systems gives, send confirm true, and the person approves before it runs. A 409 answer means two saved sources share that name or it is a desk's own source, and a 404 means no saved source has it; say so in the answer's words. Say it is removed only after the tool answers removed true.
+    routingTags: [operations, systems]
+    tags: [operations, route-backed]
 bots:
   - agentId: a0000000-0000-0000-0000-000000000016
     name: ops-rca-specialist
@@ -343,6 +436,18 @@ bots:
       - from another swarm
       - operations investigations
       - my investigations
+      - app ops
+      - sec ops
+      - platform ops
+      - dev ops
+      - firing in security
+      - firing in the platform
+      - firing in the applications
+      - firing in releases
+      - security alerts
+      - release alerts
+      - platform alerts
+      - application alerts
     persona: personas/ops-rca-specialist.yaml
     role: incident/rca
     capabilities:
